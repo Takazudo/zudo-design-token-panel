@@ -84,110 +84,146 @@ The package's CSS is self-contained — it ships its own bundled stylesheet unde
 
 ## 3. Apply pipeline (the bin)
 
-The **bin server** is the recommended — and only supported — way to apply panel tweaks back to disk. When a user clicks "Apply" in the panel UI, the token diff POSTs to your dev-API endpoint, which the bin processes atomically (all-or-nothing write, never a half-rewritten state).
+The **bin server** is the recommended — and only supported — way to apply panel tweaks back to disk. When a user clicks "Apply" in the panel UI, the token diff POSTs to a small loopback HTTP server that the bin runs alongside your dev server. The bin computes every file rewrite in memory first and only then commits to disk via atomic temp-file renames, so a failed apply never leaves a half-rewritten CSS file behind.
 
 ### 3.1 CLI usage
 
-The bin ships as an executable in the `design-token-panel` package. Start it with:
+Install the package alongside your existing dev tooling:
 
-```bash
-# After pnpm install, the bin is available via:
-node dist/bin/server.js \
-  --routing <routing-file.json> \
-  --write-root <dir> \
-  --allow-origin <origin> \
-  [--root <dir>] [--host <addr>] [--port <number>] [--quiet]
-
-# Or use the npm bin field:
-design-token-panel-server \
-  --routing <routing-file.json> \
-  --write-root <dir> \
-  --allow-origin <origin>
+```sh
+pnpm add -D @takazudo/zudo-design-token-panel
 ```
 
-**Flags** (authoritative source: [`src/bin/parse-args.ts`](./src/bin/parse-args.ts)):
+The package ships an executable named `design-token-panel-server`. Print the help text from inside your consumer repo with either:
 
-| Flag | Required | Purpose | Example |
+```sh
+npx design-token-panel-server --help
+# or, with pnpm:
+pnpm exec design-token-panel-server --help
+```
+
+**Flags:**
+
+| Flag | Required | Purpose | Default |
 |---|---|---|---|
-| `--routing` | yes | Path to JSON file mapping CSS-var prefixes → source files. See §3.2. | `./apply.routing.json` |
-| `--write-root` | yes | The single directory the bin is allowed to write into. All resolved routing paths must sit inside this tree. Absolute, or relative to `--root`. | `sub-packages/design-system` |
-| `--allow-origin` | yes (≥ 1) | Origin allowed to POST to `/apply`. Repeatable — pass once per dev origin (scheme + host + port, no trailing slash). At least one is required for any browser to apply. | `--allow-origin http://localhost:34434` |
-| `--root` | no | Repo root used as the CWD reference for routing/write-root paths. Default: the bin's current working directory. | `--root /path/to/repo` |
-| `--host` | no | Bind address. Default: `127.0.0.1` (loopback). Use `0.0.0.0` to expose on the LAN (off by default). | `--host 0.0.0.0` |
-| `--port` | no | TCP port to bind. Default: `24681`. The example apps in this repo use `24682`/`24683`/`24684` to avoid collision when running multiple bins side by side. | `--port 9876` |
-| `--quiet` | no | Suppress per-request logs. | `--quiet` |
-| `--help` / `-h` | no | Print usage and exit 0. | `--help` |
+| `--routing <path>` | yes | Path to the routing JSON file (cluster id → repo-relative CSS file path). Absolute, or relative to `--root`. See §3.2. | — |
+| `--write-root <dir>` | no | Sandbox directory: the bin refuses to write outside this tree. Absolute, or relative to `--root`. | `--root` |
+| `--root <dir>` | no | Repo-root reference used to resolve `--routing` and `--write-root`. | `process.cwd()` |
+| `--port <number>` | no | TCP port to bind. `0` asks the OS for an ephemeral port (the bin logs the assigned port on startup). | `24681` |
+| `--host <addr>` | no | Bind address. Use `0.0.0.0` to expose on the LAN (off by default). | `127.0.0.1` |
+| `--allow-origin <origin>` | repeatable | Origin allowed to POST to `/apply` (scheme + host + port, no trailing slash). At least one is required for any browser to apply. | none (all origins denied) |
+| `--quiet` | no | Suppress the startup banner and the per-apply summary log line. | off |
+| `--help`, `-h` | no | Print usage and exit 0. | — |
+
+Generic invocation, run from your consumer repo root:
+
+```sh
+npx design-token-panel-server \
+  --routing ./panel-routing.json \
+  --write-root ./tokens \
+  --allow-origin http://localhost:5173
+```
 
 The bin reads the routing JSON once at startup and does not hot-reload it. Restart the bin if you edit the routing file.
 
 ### 3.2 Routing configuration
 
-Both the **panel UI** (for preview and button state) and the **bin** (for actual write) must agree on which CSS-var prefixes write to which files. The canonical way to enforce this is a shared JSON file:
+The routing JSON is a top-level object mapping **cluster id** → **repo-relative CSS file path**. Each path receives the apply pipeline's serialised writes for that cluster. The cluster ids must match the cluster ids used in your `PanelConfig.applyRouting` (the panel UI loads from this same JSON file — see §5).
+
+Generic example:
 
 ```json
 {
-  "myapp": "src/styles/tokens.css",
-  "myapp-extra": "src/styles/extra-tokens.css"
+  "main": "tokens/tokens.css",
+  "secondary": "tokens/secondary-tokens.css"
 }
 ```
 
-The host imports this file as a static JSON module; the bin reads it via `--routing`:
+Each path is resolved against `--root` (which defaults to `process.cwd()`) and must end up inside `--write-root` after resolution — see §3.3.
+
+The host imports the same file as a static JSON module so the panel UI and the bin agree on the routing without two declarations to keep in sync:
 
 ```ts
-// host/src/lib/panel-config.ts
-import routing from './apply.routing.json' assert { type: 'json' };
+import routing from './panel-routing.json' assert { type: 'json' };
 import type { PanelConfig } from '@takazudo/zudo-design-token-panel';
 
 export const panelConfig: PanelConfig = {
   // ... other fields ...
-  applyRouting: routing,  // UI uses this for routing validation + button state
-  applyEndpoint: '/api/dev/design-tokens-apply',
+  applyRouting: routing,
+  applyEndpoint: 'http://127.0.0.1:24681/apply',
 };
 ```
 
-```bash
-# bin invocation uses the same file
-design-token-panel-server \
-  --routing /absolute/path/to/apply.routing.json \
-  --write-root src/styles \
-  --allow-origin http://localhost:34434
-```
+`applyEndpoint` is the URL the **browser** POSTs to. By default the bin listens on `http://127.0.0.1:24681`, so the panel default of `http://127.0.0.1:24681/apply` "just works" when you keep the bin's defaults. Change `--port` or `--host` and you must update `applyEndpoint` to match.
 
-Note: `applyEndpoint` above is the **panel UI config** — the URL the browser POSTs to (typically a dev-only API route on your host server that forwards to the bin). It is unrelated to the bin's CLI flags. The bin itself binds its own loopback HTTP listener at `--host`/`--port` and accepts POSTs from origins listed via `--allow-origin`.
-
-See [`PORTABLE-CONTRACT.md` §5.4](./PORTABLE-CONTRACT.md#54-routing-config--single-source-of-truth) for the authoritative routing schema.
+For the full token-overrides payload schema and the `PanelConfig` shape, see §5 and §6.
 
 ### 3.3 Security model
 
-The bin is **dev-only** and intended for use only on `localhost` (loopback by default):
+The bin is **dev-only** and is built with three independent guards:
 
-- **Loopback default:** binds to `127.0.0.1:24681` so only local requests are accepted. Token diffs are never exposed over the network by default. Override with `--host`/`--port` if needed.
-- **Sandbox (`--write-root`):** the bin enforces a strict write sandbox via the explicit `--write-root` flag. Every resolved routing path must sit inside that directory tree. Attempts to escape (`../../etc/passwd`) are rejected with a 400 and a descriptive error.
-- **Path sanitization:** every token name is validated (`--` prefix, no spaces, no slashes). Invalid names are rejected before any file I/O.
-- **Atomic writes:** computed changes are kept in memory. Only after every file is validated and computed is any file written. If a write fails partway, previously-written files are restored from the in-memory snapshot — disk cannot land in a half-rewritten state.
+- **Loopback default.** Binds to `127.0.0.1` so only requests from the same machine are accepted. Override with `--host` if you actually want LAN access.
+- **Write sandbox (`--write-root`).** Every routing entry is resolved against `--root` and verified to sit strictly inside `--write-root` before any file I/O happens. An entry whose resolved path escapes the sandbox — via `..` segments or an absolute path that points elsewhere — fails the apply with a 400 and a descriptive error message. `--write-root` defaults to `--root`, so routing entries are sandboxed to your repo root unless you narrow it further.
+- **CORS allow-list.** By default, **all origins are denied**. To let a browser POST to `/apply` you must list its origin explicitly with `--allow-origin <url>` (repeatable). Without a matching `--allow-origin`, the OPTIONS preflight returns 403 and POST returns 403 — no `Access-Control-Allow-Origin` header is emitted. Origin matching is **verbatim** on the full scheme + host + port string: `http://localhost:5173` and `http://127.0.0.1:5173` are different origins.
 
-**CORS:** the bin requires explicit `--allow-origin <origin>` (repeatable) for any browser POST to `/apply`. Each request's `Origin` header is matched **verbatim** against the configured allow-list — `http://localhost:8080` and `http://127.0.0.1:8080` are different origins, and trailing slashes matter, so pass each dev origin you actually serve from. Requests without a matching `--allow-origin` value receive a 403 with no `Access-Control-Allow-Origin` header. Same-origin requests (e.g. when host and bin share a port behind a reverse proxy) still need the origin listed; no special-case bypass exists.
+**Atomic writes.** The bin serialises per-file writes through a small mutex and uses a write-temp-file-then-rename strategy, so a failure mid-write never leaves a half-rewritten CSS file on disk. If any file in a multi-file apply fails to write, every file that was already persisted is restored from the in-memory snapshot taken before the apply started.
 
 ### 3.4 Lifecycle & signal handling
 
-The **host owns the supervisor.** The bin is a subprocess of the dev server (typically started via `concurrently` in the host's build script). When the host dev server shuts down, the bin should exit cleanly.
+While the bin is running it exposes a tiny HTTP surface:
 
-- **SIGTERM / SIGINT:** when the host sends `SIGTERM` or `SIGINT`, the bin exits gracefully (existing connections allowed to finish, no new requests accepted).
-- **EADDRINUSE:** if the port is already bound, the bin logs a clear error and exits with code 1. The host's supervisor (e.g. `concurrently`) can then retry or escalate as configured.
+- **`GET /healthz`** — returns `200 OK` with `{"ok":true,"writeRoot":"…","routing":"…","port":…}` once the listener is up. Useful for dev-server readiness checks.
+- **`OPTIONS /apply`** — CORS preflight. Returns `204` with `Access-Control-Allow-{Origin,Methods,Headers,Max-Age}` headers when the request's `Origin` is on the allow-list, and `403` otherwise.
+- **`POST /apply`** — applies a token-overrides payload via the apply pipeline. The body is `application/json` with a top-level `tokens` object whose keys are CSS-var names (e.g. `--brand-primary`) and whose values are CSS values. See §6 for the full token-manifest schema and §6.6 for apply-time behaviour. A non-JSON content type returns `415`; an unallowed origin returns `403`.
+- **Anything else** — `404` for unknown paths and `405` for unsupported methods on `/apply`.
 
-Example setup with `concurrently` (mirrors the canonical example-app form — see the example apps under `examples/` in this repo):
+The bin is intended to run as a subprocess of your dev server (`concurrently`, `npm-run-all`, a custom Node wrapper, etc.) and exits cleanly under host control:
+
+- **SIGINT / SIGTERM.** The HTTP server stops accepting new connections, in-flight requests are allowed to drain, then the process exits 0. A 5-second belt-and-suspenders timeout force-exits if `close` hangs on a lingering keep-alive socket.
+- **EADDRINUSE.** If the requested `--port` is already bound, the bin writes a friendly `port <n> already in use` line to stderr and exits with code 1, so the host supervisor can decide whether to retry or escalate.
+
+### 3.5 Running the bin from a non-Astro host (Vite, Next, Rollup, anything)
+
+The bin is framework-agnostic. Any consumer that has a long-running dev server can launch the bin alongside it. Two common shapes:
+
+**A) `concurrently` (or `npm-run-all`) in `package.json`:**
 
 ```json
 {
   "scripts": {
-    "dev": "concurrently -k -n astro,tokens-bin -c blue,green \"astro dev --port 44324\" \"design-token-panel-server --write-root . --routing ./apply.routing.json --port 24682 --allow-origin http://localhost:44324\""
+    "dev": "concurrently --kill-others-on-fail --names dev,panel \"vite\" \"design-token-panel-server --routing panel-routing.json --write-root ./tokens --allow-origin http://localhost:5173\""
   }
 }
 ```
 
-`concurrently -k` ensures that when one process exits the others are killed too, so SIGTERM propagates from the host runner to the bin.
+`--kill-others-on-fail` (or `concurrently -k`) ensures SIGINT propagates from the host runner to the bin when you Ctrl-C the dev server.
 
-The example apps under `examples/` (Astro, Vite + React, Next.js) demonstrate this wiring live.
+**B) A small Node wrapper that spawns the bin as a child process and proxies `SIGINT`:**
+
+```ts
+// scripts/dev-with-panel.ts
+import { spawn } from 'node:child_process';
+
+const bin = spawn(
+  'design-token-panel-server',
+  [
+    '--routing', 'panel-routing.json',
+    '--write-root', './tokens',
+    '--allow-origin', 'http://localhost:5173',
+  ],
+  { stdio: 'inherit', shell: false },
+);
+
+const forward = (signal: NodeJS.Signals): void => {
+  bin.kill(signal);
+};
+process.on('SIGINT', forward);
+process.on('SIGTERM', forward);
+
+bin.on('exit', (code) => process.exit(code ?? 0));
+```
+
+Whichever shape you pick, the wiring is the same: the bin listens on `http://127.0.0.1:24681/apply` by default, and the panel runtime POSTs to `PanelConfig.applyEndpoint`. Keep the bin's defaults and the default endpoint matches; if you change `--port` or `--host`, update `applyEndpoint` accordingly.
 
 ---
 
