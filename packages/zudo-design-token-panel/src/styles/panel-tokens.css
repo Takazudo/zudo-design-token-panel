@@ -1,0 +1,97 @@
+/**
+ * Panel-private CSS custom properties.
+ *
+ * The design-token panel package owns its own visual tokens instead of
+ * leaking them through the host's theme. The values match what the
+ * package's example design system declares, so the default look stays
+ * identical to the example.
+ *
+ * Scope
+ * -----
+ * Declared on the panel shell + the default modal class prefix (matching
+ * `DEFAULT_PANEL_CONFIG.modalClassPrefix` in `config/panel-config.ts`).
+ * Keeping the declaration local to those scopes — instead of `:root` —
+ * means a host's stylesheet cannot be polluted by these names just because
+ * the panel bundle is loaded; the variables only exist where the panel
+ * itself lives in the DOM tree.
+ *
+ * The companion modals (apply / export / import) live as `<dialog>`
+ * elements rendered as siblings of the shell, not inside
+ * `.tokenpanel-shell`. The modal `<dialog>` itself carries the modal
+ * class prefix as its root class, so anchoring the variables on that
+ * prefix here lets the modal files keep resolving `--radius-tokentweak`,
+ * `--tokentweak-pad-*`, etc. without depending on the host theme.
+ *
+ * `:where()` keeps specificity at zero so a host can override any of these
+ * tokens with a single-class rule.
+ */
+:where(.tokenpanel-shell, [data-design-token-panel-modal]) {
+  /* ----------------------------------------------------------------------
+   * Host-CSS-var indirection ladder
+   *
+   * The panel chrome could read host-defined `--color-*` and `--font-mono`
+   * directly, but a host that does not declare those names would paint the
+   * panel with no chrome styling. Wrap each one in a `--tokentweak-*`
+   * indirection that falls back to a sane default so the panel paints
+   * out-of-the-box.
+   *
+   * Ladder semantics:
+   *
+   *   --tokentweak-color-fg: var(--color-fg, <fallback>);
+   *
+   * - Host declares `--color-fg`        → that wins.
+   * - Host declares `--tokentweak-color-fg` directly → that wins (panel-only
+   *   override; bypasses the host's own theme).
+   * - Host declares neither             → the fallback paints the panel.
+   *
+   * Fallback values are picked to match what the package's example
+   * design-system declares, so the panel's default look stays identical
+   * to the example.
+   * ---------------------------------------------------------------------- */
+  --tokentweak-color-fg: var(--color-fg, oklch(87% 0.01 60));
+  --tokentweak-color-bg: var(--color-bg, oklch(18% 0.01 50));
+  --tokentweak-color-muted: var(--color-muted, oklch(70% 0.01 60));
+  --tokentweak-color-surface: var(--color-surface, oklch(22% 0.01 50));
+  --tokentweak-color-accent: var(--color-accent, oklch(65% 0.2 45));
+  --tokentweak-color-accent-hover: var(--color-accent-hover, oklch(55% 0.18 45));
+  --tokentweak-color-code-bg: var(--color-code-bg, oklch(17% 0.005 50));
+  --tokentweak-color-code-fg: var(--color-code-fg, oklch(87% 0.01 60));
+  --tokentweak-color-success: var(--color-success, oklch(65% 0.19 145));
+  --tokentweak-color-danger: var(--color-danger, oklch(60% 0.2 10));
+  --tokentweak-color-warning: var(--color-warning, oklch(75% 0.17 75));
+  --tokentweak-font-mono: var(
+    --font-mono,
+    Menlo,
+    Monaco,
+    Consolas,
+    'Liberation Mono',
+    'Courier New',
+    monospace
+  );
+
+  --tokentweak-pad-2xs: 0.125rem;
+  --tokentweak-pad-xs: 0.375rem;
+  --tokentweak-pad-sm: 0.5rem;
+  --tokentweak-pad-md: 0.75rem;
+  --tokentweak-pad-lg: 1rem;
+  --tokentweak-pad-xl: 1.5rem;
+  --tokentweak-pad-2xl: 2rem;
+
+  --tokentweak-gap-2xs: 0.4375rem;
+  --tokentweak-gap-xs: 0.875rem;
+  --tokentweak-gap-sm: 1.25rem;
+  --tokentweak-gap-md: 1.5rem;
+  --tokentweak-gap-lg: 1.75rem;
+  --tokentweak-gap-xl: 2.5rem;
+  --tokentweak-gap-2xl: 3.5rem;
+
+  --tokentweak-text-micro: 0.75rem;
+  --tokentweak-text-caption: 0.875rem;
+  --tokentweak-text-small: 1rem;
+  --tokentweak-text-body: 1.2rem;
+  --tokentweak-text-subheading: 1.4rem;
+  --tokentweak-text-heading: 3rem;
+  --tokentweak-text-display: 3.75rem;
+
+  --radius-tokentweak: 0.25rem;
+}
