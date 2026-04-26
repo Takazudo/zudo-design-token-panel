@@ -102,12 +102,15 @@ describe('design-token-panel empty-state', () => {
     // check suffices to prove at least one fired.
     expect(root!.textContent ?? '').toContain(EMPTY_STATE_COPY);
 
-    // The empty-state ships an anchor pointing at the README — guarding the
-    // anchor presence keeps the actionable affordance from regressing into
-    // a plain text-only message in a future refactor.
+    // The empty-state ships an anchor pointing at the package's GitHub
+    // README — guarding the anchor presence keeps the actionable
+    // affordance from regressing into a plain text-only message in a
+    // future refactor.
     const anchor = root!.querySelector('a.tokenpanel-empty-state-link');
     expect(anchor).not.toBeNull();
-    expect(anchor?.getAttribute('href') ?? '').toContain('README.md');
+    expect(anchor?.getAttribute('href') ?? '').toContain(
+      'github.com/Takazudo/zudo-design-token-panel',
+    );
   });
 
   it('renders the populated tab UI (no empty-state) when the host configures a non-empty manifest', async () => {

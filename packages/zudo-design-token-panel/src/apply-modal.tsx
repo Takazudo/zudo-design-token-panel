@@ -269,16 +269,17 @@ export function ApplyModal(props: ApplyModalProps) {
     //
     //   1. Host opted out (`secondaryColorCluster: null`) — `secondaryCluster`
     //      is null → emit no secondary keys.
-    //   2. Host kept the default but the persist envelope has no zaudio
-    //      slice yet — `state.zaudio` undefined → skip.
+    //   2. Host kept the default but the persist envelope has no secondary
+    //      slice yet — `state.secondary` undefined → skip.
     //   3. Otherwise — diff against `undefined` (no scheme baseline yet)
     //      and merge into the flat overrides. The shallow
-    //      `{ ...state, color: state.zaudio }` swap lets `buildApplyOverrides`
-    //      reuse its existing logic without signature changes.
+    //      `{ ...state, color: state.secondary }` swap lets
+    //      `buildApplyOverrides` reuse its existing logic without
+    //      signature changes.
     const secondaryCluster = resolveSecondaryColorCluster(cfg);
     const secondaryOverrides =
-      secondaryCluster && state.zaudio
-        ? buildApplyOverrides({ ...state, color: state.zaudio }, undefined, secondaryCluster)
+      secondaryCluster && state.secondary
+        ? buildApplyOverrides({ ...state, color: state.secondary }, undefined, secondaryCluster)
         : {};
     return { ...zdOverrides, ...secondaryOverrides };
   }, [state, colorDefaults, cfg]);

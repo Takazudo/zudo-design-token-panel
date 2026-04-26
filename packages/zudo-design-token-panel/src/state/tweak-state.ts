@@ -271,8 +271,8 @@ export type TokenOverrides = Record<string, string>;
  * evolve independently.
  *
  * `panelPosition` is persisted alongside the envelope so the user's drag
- * location survives reloads. `zaudio` carries a second (optional) color
- * cluster used by Sub 7b — absent during Wave 1.
+ * location survives reloads. `secondary` carries a second (optional) color
+ * cluster — absent until a host opts in.
  */
 export interface TweakState {
   color: ColorTweakState;
@@ -280,7 +280,7 @@ export interface TweakState {
   typography: TokenOverrides;
   size: TokenOverrides;
   panelPosition?: PanelPosition;
-  zaudio?: ColorTweakState;
+  secondary?: ColorTweakState;
 }
 
 /** Produce an empty overrides map — `TweakState` default for new tabs. */
@@ -560,8 +560,8 @@ export function applyColorState(
     setCssVar(resolvePaletteCssVar(cluster, i), state.palette[i]);
   }
   // Base roles — only write the roles this cluster declares. Iterate
-  // `cluster.baseRoles` (rather than hardcoding all 5) so a cluster like
-  // zaudio that ships zero base roles emits zero base-role writes.
+  // `cluster.baseRoles` (rather than hardcoding all 5) so a cluster that
+  // ships zero base roles emits zero base-role writes.
   for (const [key, cssName] of Object.entries(cluster.baseRoles)) {
     if (typeof cssName !== 'string' || cssName.length === 0) continue;
     const stateIndex = state[key as BaseRoleKey];
@@ -598,11 +598,11 @@ export function applyTokenOverrides(tokens: readonly TokenDef[], overrides: Toke
 
 /**
  * Apply the full unified `TweakState` — primary color cluster + token
- * overrides + optional zaudio cluster.
+ * overrides + optional secondary cluster.
  *
  * Token manifests AND the primary color cluster are read from `panelConfig`
- * at call time (Sub 3 #1553 + Sub 4 #1554) so a host that calls
- * `configurePanel` before mount sees its own data driving the apply pass.
+ * at call time so a host that calls `configurePanel` before mount sees its
+ * own data driving the apply pass.
  */
 export function applyFullState(state: TweakState) {
   const config = getPanelConfig();
@@ -611,14 +611,14 @@ export function applyFullState(state: TweakState) {
   applyTokenOverrides(tokens.spacing, state.spacing);
   applyTokenOverrides(tokens.typography, state.typography);
   applyTokenOverrides(tokens.size, state.size);
-  // Sub S5b (#1589) — secondary cluster is host-driven via
+  // The secondary cluster is host-driven via
   // `panelConfig.secondaryColorCluster`. When the host opted out (null),
-  // skip the secondary apply pass entirely; even though `state.zaudio` may
-  // still be hydrated for envelope round-trip purposes, no secondary CSS
-  // vars belong to this host.
+  // skip the secondary apply pass entirely; even though `state.secondary`
+  // may still be hydrated for envelope round-trip purposes, no secondary
+  // CSS vars belong to this host.
   const secondaryCluster = resolveSecondaryColorCluster(config);
-  if (secondaryCluster && state.zaudio) {
-    applyColorState(state.zaudio, secondaryCluster);
+  if (secondaryCluster && state.secondary) {
+    applyColorState(state.secondary, secondaryCluster);
   }
 }
 
@@ -627,9 +627,9 @@ export function applyFullState(state: TweakState) {
  * values from the active scheme take effect again.
  *
  * Accepts an optional list of clusters so callers can scope the wipe to a
- * subset; the default wipes BOTH `zd` and `zaudio` so a panel-level reset
- * leaves no stale inline overrides on `:root` regardless of which cluster
- * was last edited.
+ * subset; the default wipes both the primary and secondary clusters so a
+ * panel-level reset leaves no stale inline overrides on `:root` regardless
+ * of which cluster was last edited.
  */
 export function clearAppliedStyles(
   clusters: readonly ColorClusterDataConfig[] = (() => {
@@ -862,7 +862,7 @@ export function loadPersistedState(
         font?: unknown; // upstream alias — migrated into `typography`
         size?: unknown;
         panelPosition?: unknown;
-        zaudio?: unknown;
+        secondary?: unknown;
       };
       if (obj.color && isValidColorShape(obj.color, cluster.paletteSize)) {
         const defaults = colorDefaults ?? tryInitColorFromScheme(cluster);
@@ -879,22 +879,21 @@ export function loadPersistedState(
           size: hydrateOverrides(obj.size),
           panelPosition: hydratePanelPosition(obj.panelPosition),
         };
-        // Optional secondary slice (legacy field name `zaudio`) — validated
-        // against the active secondary cluster's palette size, NOT the
-        // primary cluster's. When the host opted out
-        // (`secondaryColorCluster: null` or omitted), there is no secondary
-        // cluster to validate against, so we skip hydration entirely — the
-        // apply path also skips secondary writes, and the JSON envelope
-        // simply omits the slice for opt-out hosts. Defaults come from
-        // `initSecondaryDefaults(cluster)`.
+        // Optional secondary slice — validated against the active secondary
+        // cluster's palette size, NOT the primary cluster's. When the host
+        // opted out (`secondaryColorCluster: null` or omitted), there is no
+        // secondary cluster to validate against, so we skip hydration
+        // entirely — the apply path also skips secondary writes, and the
+        // JSON envelope simply omits the slice for opt-out hosts. Defaults
+        // come from `initSecondaryDefaults(cluster)`.
         const secondaryCluster = resolveSecondaryColorCluster();
         if (
           secondaryCluster &&
-          obj.zaudio &&
-          isValidColorShape(obj.zaudio, secondaryCluster.paletteSize)
+          obj.secondary &&
+          isValidColorShape(obj.secondary, secondaryCluster.paletteSize)
         ) {
-          next.zaudio = hydrateColorState(
-            obj.zaudio as Partial<ColorTweakState>,
+          next.secondary = hydrateColorState(
+            obj.secondary as Partial<ColorTweakState>,
             initSecondaryDefaults(secondaryCluster),
           );
         }

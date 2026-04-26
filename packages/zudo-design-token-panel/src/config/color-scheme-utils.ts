@@ -1,19 +1,18 @@
 /**
  * Color-scheme utilities for the design-token panel.
  *
- * Ported from zudo-doc (`/src/config/color-scheme-utils.ts`) and adapted to
- * zmod2:
+ * Port adaptations:
  *
  * - The upstream `@/config/settings` import is removed. Only `colorScheme` and
  *   `colorMode` were ever consumed; both are inlined here as `panelSettings`
  *   so the panel package stays self-contained.
- * - `SEMANTIC_CSS_NAMES` points at zmod2's `--zd-semantic-*` CSS custom
- *   properties (see `sub-packages/design-system/theme.css` and `tokens.css`).
- *   Upstream keys with no zmod2 counterpart (mermaid*, chat*, imageOverlay*,
+ * - `SEMANTIC_CSS_NAMES` points at this package's `--zd-semantic-*` CSS
+ *   custom properties (example tokens shipped with the package). Upstream
+ *   keys with no counterpart here (mermaid*, chat*, imageOverlay*,
  *   matchedKeyword*) are dropped.
  * - `SEMANTIC_DEFAULTS_ZD` mirrors the `--zd-semantic-*: var(--zd-pN)`
- *   mappings in `tokens.css`, so the panel's defaults on first open match the
- *   live CSS exactly (no visual regression).
+ *   mappings in the bundled tokens, so the panel's defaults on first open
+ *   match the example CSS exactly.
  */
 
 import { colorSchemes, type ColorScheme, type ColorRef } from './color-schemes';
@@ -27,9 +26,9 @@ import { colorSchemes, type ColorScheme, type ColorRef } from './color-schemes';
  * ever reads `colorScheme` and `colorMode`; the rest of the upstream settings
  * surface (i18n, sitemap, sidebars, …) is irrelevant here.
  *
- * If a future zmod2 host wants to swap the active scheme without editing this
+ * If a future host wants to swap the active scheme without editing this
  * file, expose a setter or wire it through state — for now hard-coding to
- * `Default Dark` matches the live zmod2 CSS in `tokens.css`.
+ * `Default Dark` matches the example CSS in `tokens.css`.
  */
 export const panelSettings = {
   colorScheme: 'Default Dark' as const,
@@ -45,8 +44,9 @@ export const panelSettings = {
 /**
  * Default mapping: semantic token name → palette index.
  *
- * Mirrors the `--zd-semantic-*: var(--zd-pN)` declarations in
- * `sub-packages/design-system/tokens.css`. Keep in sync.
+ * Mirrors the `--zd-semantic-*: var(--zd-pN)` declarations in the host
+ * design-system tokens (example: examples/astro/.../tokens.css). Keep in
+ * sync.
  */
 export const SEMANTIC_DEFAULTS_ZD: Record<string, number> = {
   bg: 9,
@@ -74,20 +74,18 @@ export const SEMANTIC_DEFAULTS_ZD: Record<string, number> = {
 export const SEMANTIC_DEFAULTS = SEMANTIC_DEFAULTS_ZD;
 
 /**
- * Default mapping for the zaudio cluster: semantic token name → palette index.
+ * Example default mapping for a secondary cluster: semantic token name →
+ * palette index. This is an example shape that hosts can copy or replace
+ * via `setPanelColorPresets` / `configurePanel` — not a normative table.
  *
- * Mirrors the `--zaudio-*: var(--zaudio-paN)` declarations in
- * `sub-packages/design-system/zaudio-tokens.css`. Keep in sync.
- *
- * Note the differences from zd:
+ * Note the differences from the primary defaults:
  *  - Palette is 9 slots (pa0..pa8), not 16.
- *  - No `cursor` / `selectionBg` / `selectionFg` base roles — zaudio ships
- *    none.
+ *  - No `cursor` / `selectionBg` / `selectionFg` base roles.
  *  - Semantic table is shorter and uses kebab-case CSS var names
- *    (`--zaudio-bg-deep`, etc.) — keys here stay camelCase to match the
- *    `semanticMappings` shape used by the panel.
+ *    (`--app-secondary-bg-deep`, etc.) — keys here stay camelCase to match
+ *    the `semanticMappings` shape used by the panel.
  */
-export const SEMANTIC_DEFAULTS_ZAUDIO: Record<string, number> = {
+export const SEMANTIC_DEFAULTS_SECONDARY: Record<string, number> = {
   bg: 1,
   bgDeep: 0,
   surface: 2,
@@ -100,27 +98,28 @@ export const SEMANTIC_DEFAULTS_ZAUDIO: Record<string, number> = {
 };
 
 /**
- * Semantic token name → CSS custom property in the zaudio design system.
- *
- * Source of truth: `sub-packages/design-system/zaudio-tokens.css`.
+ * Example mapping of semantic token name → CSS custom property for a
+ * secondary cluster. Hosts can override the prefix and shape via
+ * `configurePanel`.
  */
-export const SEMANTIC_CSS_NAMES_ZAUDIO: Record<string, string> = {
-  bg: '--zaudio-bg',
-  bgDeep: '--zaudio-bg-deep',
-  surface: '--zaudio-surface',
-  border: '--zaudio-border',
-  text: '--zaudio-text',
-  textSecondary: '--zaudio-text-secondary',
-  textMuted: '--zaudio-text-muted',
-  accent: '--zaudio-accent',
-  accentHover: '--zaudio-accent-hover',
+export const SEMANTIC_CSS_NAMES_SECONDARY: Record<string, string> = {
+  bg: '--app-secondary-bg',
+  bgDeep: '--app-secondary-bg-deep',
+  surface: '--app-secondary-surface',
+  border: '--app-secondary-border',
+  text: '--app-secondary-text',
+  textSecondary: '--app-secondary-text-secondary',
+  textMuted: '--app-secondary-text-muted',
+  accent: '--app-secondary-accent',
+  accentHover: '--app-secondary-accent-hover',
 };
 
 /**
- * Semantic token name → CSS custom property in zmod2's design system.
+ * Semantic token name → CSS custom property in this package's example
+ * design system.
  *
- * Source of truth: `sub-packages/design-system/tokens.css` (definitions) and
- * `sub-packages/design-system/theme.css` (Tailwind aliases).
+ * Source of truth: the example `tokens.css` shipped under
+ * `examples/astro/...`.
  */
 export const SEMANTIC_CSS_NAMES: Record<string, string> = {
   bg: '--zd-semantic-bg',

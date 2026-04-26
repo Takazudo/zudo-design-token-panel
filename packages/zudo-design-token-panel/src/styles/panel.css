@@ -300,14 +300,14 @@
   gap: var(--tokentweak-pad-sm);
 }
 
-.tokenpanel-color-palette-grid--zaudio {
+.tokenpanel-color-palette-grid--secondary {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: var(--tokentweak-pad-sm);
 }
 
 @media (min-width: 768px) {
-  .tokenpanel-color-palette-grid--zaudio {
+  .tokenpanel-color-palette-grid--secondary {
     grid-template-columns: repeat(9, minmax(0, 1fr));
   }
 }
@@ -319,7 +319,7 @@
 }
 
 /* ===========================================================================
- * Color swatch (used by ZD + ZAUDIO palette grids)
+ * Color swatch (used by primary + secondary palette grids)
  * ========================================================================= */
 
 .tokenpanel-color-swatch-wrap {

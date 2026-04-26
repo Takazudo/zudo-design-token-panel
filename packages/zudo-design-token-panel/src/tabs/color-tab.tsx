@@ -1,7 +1,7 @@
 /**
  * Color tab — verbatim port of zudo-doc's
  * `src/components/design-token-tweak/tabs/color-tab.tsx`, rewired to the
- * zmod2 design-token-panel module paths:
+ * design-token-panel module paths:
  *
  *   @/config/color-schemes       → ../config/color-schemes
  *   @/config/color-scheme-utils  → ../config/color-scheme-utils
@@ -16,19 +16,20 @@
  * popover. No raw-color inputs (rgb / hex text field / lab / oklch) are
  * exposed for Base or Semantic rows.
  *
- * Shiki integration is not part of zmod2 — the `shikiTheme` field stays on
- * state + persist + serde (Sub 1 keeps it for envelope round-tripping with
- * zudo-doc exports), and `applyShikiTheme` is a no-op stub. We hide the
+ * Shiki integration is out of scope — the `shikiTheme` field stays on
+ * state + persist + serde for envelope round-tripping with upstream
+ * exports, and `applyShikiTheme` is a no-op stub. We hide the
  * shikiTheme `<select>` JSX block here but leave every state/apply touch
  * point intact. `SHIKI_THEMES` is therefore no longer imported in this file
  * (would trip `noUnusedLocals`); re-add it if/when the JSX block lands.
  *
- * The zaudio cluster ships alongside ZD now (Sub 7b). The two clusters share
- * the same `ColorSwatch` + `PaletteSelector` primitives — zaudio renders a
- * 9-slot palette and 9 semantic dropdowns below the ZD sections, with no
- * Base subsection (zaudio declares zero base roles per `zaudio-tokens.css`).
- * Section headings are prefixed `ZD — ` / `ZAUDIO — ` so the two clusters
- * are visually distinct in the panel.
+ * The optional secondary cluster ships alongside the primary cluster. The
+ * two clusters share the same `ColorSwatch` + `PaletteSelector` primitives —
+ * the secondary cluster renders its palette and semantic dropdowns below
+ * the primary sections. Whether it ships a Base subsection depends on the
+ * cluster's declared base roles. Section headings are prefixed
+ * `Primary — ` / `Secondary — ` so the two clusters are visually distinct
+ * in the panel.
  */
 
 import { memo, useState, useEffect, useCallback, useMemo, useRef } from 'preact/compat';
@@ -41,19 +42,19 @@ import {
   resolvePaletteCssVar,
 } from '../state/tweak-state';
 import { getPanelConfig, resolveSecondaryColorCluster } from '../config/panel-config';
-import type { PersistColor, PersistZaudio } from '../state/persist';
+import type { PersistColor, PersistSecondary } from '../state/persist';
 
-// Sub 4 (#1554): the bundled scheme registry now lives on
+// The bundled scheme registry now lives on
 // `panelConfig.colorCluster.colorSchemes`, not on a global import. Read it
 // at render time so a host that calls `configurePanel` before mount sees
 // its own schemes in the Scheme… dropdown.
 //
-// Sub S5c (#1590): the optional preset list (zmod's historical Dracula /
-// Solarized / Tokyo Night / ... blob) was relocated out of the package
-// entirely. Hosts hand the panel a `colorPresets` map via `PanelConfig`;
-// the package itself ships zero presets. The Color tab reads the active
-// map at render time below — `presetNames` is no longer a module-level
-// constant computed from a baked-in import.
+// The optional preset list (Dracula / Solarized / Tokyo Night / ...) was
+// relocated out of the package entirely. Hosts hand the panel a
+// `colorPresets` map via `PanelConfig`; the package itself ships zero
+// presets. The Color tab reads the active map at render time below —
+// `presetNames` is no longer a module-level constant computed from a
+// baked-in import.
 
 // --- Shared popover helpers (Color-tab scoped) ---
 
@@ -227,9 +228,9 @@ function HslPicker({
  *
  * `onChange` is `(index, hex)` — the swatch passes its own palette `index`
  * back so the parent can use a single stable handler across every cell,
- * keeping React.memo effective (PR #1440 review item Q3). The same
- * component is reused by both the ZD and ZAUDIO palettes because the
- * `onChange` shape is parameterised on the parent's per-cluster handler.
+ * keeping React.memo effective. The same component is reused by both the
+ * primary and secondary palettes because the `onChange` shape is
+ * parameterised on the parent's per-cluster handler.
  */
 const ColorSwatch = memo(function ColorSwatch({
   color,
@@ -283,7 +284,7 @@ const ColorSwatch = memo(function ColorSwatch({
  * `onChange` is `(idKey, val)` — the selector passes its own `idKey` (the
  * semantic key, base-role name, etc. that identifies which row this is) back
  * so the parent can use a single stable handler across every selector,
- * keeping React.memo effective (PR #1440 review item Q3).
+ * keeping React.memo effective.
  */
 const PaletteSelector = memo(function PaletteSelector({
   label,
@@ -304,9 +305,10 @@ const PaletteSelector = memo(function PaletteSelector({
   palette: string[];
   /**
    * Maps a palette index to its full CSS custom-property name (e.g.
-   * `--zd-p7`, `--zaudio-pa3`). Used for the popover swatches' `title` /
-   * `aria-label` so assistive tech sees the real variable name, not a
-   * short `p7` key. Defaults to `--zd-p${i}` for backward compatibility.
+   * `--zd-p7`, `--app-secondary-pa3`). Used for the popover swatches'
+   * `title` / `aria-label` so assistive tech sees the real variable name,
+   * not a short `p7` key. Defaults to `--zd-p${i}` for backward
+   * compatibility.
    */
   paletteCssVar?: (i: number) => string;
   onChange: (idKey: string, val: number | 'bg' | 'fg') => void;
@@ -446,15 +448,15 @@ interface ColorTabProps {
    * `secondaryCluster` resolves to `null`, so the slice is only touched
    * inside that conditional block.
    */
-  zaudioState: ColorTweakState | null;
-  persistZaudio: PersistZaudio;
+  secondaryState: ColorTweakState | null;
+  persistSecondary: PersistSecondary;
 }
 
 export default function ColorTab({
   state,
   persistColor,
-  zaudioState,
-  persistZaudio,
+  secondaryState,
+  persistSecondary,
 }: ColorTabProps) {
   // Read the active cluster + scheme registry through panelConfig so a host
   // that calls `configurePanel` with its own colorCluster sees its data
@@ -490,8 +492,7 @@ export default function ColorTab({
   const secondaryLabel = secondaryCluster?.label ?? secondaryCluster?.id.toUpperCase() ?? '';
 
   // Stable per-cluster `paletteCssVar` callbacks — passed into memoised
-  // ColorSwatch / PaletteSelector so prop equality holds across renders
-  // (PR #1440 review item Q3).
+  // ColorSwatch / PaletteSelector so prop equality holds across renders.
   const clusterPaletteCssVar = useCallback(
     (i: number) => resolvePaletteCssVar(cluster, i),
     [cluster],
@@ -514,16 +515,14 @@ export default function ColorTab({
     [persistColor],
   );
 
-  // PR #1440 review item M-15 — drop `zaudioState` from the deps array.
-  // The pre-fix code captured `zaudioState` for a `prev ?? zaudioState`
-  // fallback, but the persist hook always invokes the updater with the
-  // latest slice value (`prev` is always defined when the slice has been
-  // initialised). The fallback was dead code AND it forced a fresh
-  // callback identity on every state change, defeating the React.memo
-  // wrapping further down the tree.
-  const handleZaudioPaletteChange = useCallback(
+  // The deps array intentionally omits `secondaryState` — the persist hook
+  // always invokes the updater with the latest slice value (`prev` is
+  // always defined when the slice has been initialised). Including
+  // `secondaryState` would force a fresh callback identity on every state
+  // change, defeating the React.memo wrapping further down the tree.
+  const handleSecondaryPaletteChange = useCallback(
     (index: number, hex: string) => {
-      persistZaudio((prev) => {
+      persistSecondary((prev) => {
         if (!prev) return prev;
         return {
           ...prev,
@@ -531,12 +530,12 @@ export default function ColorTab({
         };
       });
     },
-    [persistZaudio],
+    [persistSecondary],
   );
 
-  const handleZaudioSemanticChange = useCallback(
+  const handleSecondarySemanticChange = useCallback(
     (key: string, val: number | 'bg' | 'fg') => {
-      persistZaudio((prev) => {
+      persistSecondary((prev) => {
         if (!prev) return prev;
         return {
           ...prev,
@@ -544,12 +543,12 @@ export default function ColorTab({
         };
       });
     },
-    [persistZaudio],
+    [persistSecondary],
   );
 
   // Accepts `key: string` (broadened from the literal union) so the same
   // handler can be passed directly to memoised <PaletteSelector> rows whose
-  // (idKey, val) signature is also string-typed (PR #1440 review item Q3).
+  // (idKey, val) signature is also string-typed.
   // The runtime guard pins the actual write to the known base-role keys
   // ColorTweakState declares.
   const handleBaseIndexChange = useCallback(
@@ -633,7 +632,7 @@ export default function ColorTab({
           {state.palette.map((color, i) => (
             // ColorSwatch passes `i` back via its (index, hex) onChange so we
             // hand `handlePaletteChange` directly — no inline arrow, memo
-            // stays effective (PR #1440 review item Q3).
+            // stays effective.
             <ColorSwatch
               key={i}
               color={color}
@@ -655,11 +654,11 @@ export default function ColorTab({
           {/*
            * `background (bg)` and `foreground (fg)` are panel-only knobs that
            * pick which palette index seeds the rest of the UI; they do NOT
-           * correspond to real `--zd-*` cssVars in zmod2, so the labels read
-           * as plain English with the short key in parentheses (intentionally
-           * not the full `--zd-…` form). The `cursor`, `sel-bg`, `sel-fg`
-           * upstream rows are dropped here because nothing in zmod2 references
-           * them.
+           * correspond to real `--zd-*` cssVars in this package, so the
+           * labels read as plain English with the short key in parentheses
+           * (intentionally not the full `--zd-…` form). The `cursor`,
+           * `sel-bg`, `sel-fg` upstream rows are dropped here because
+           * nothing in this package references them.
            */}
           <div className="tokenpanel-color-base-grid">
             <PaletteSelector
@@ -711,7 +710,7 @@ export default function ColorTab({
          * config. The `data-testid` markers below give Playwright a
          * stable handle for asserting presence / absence.
          */}
-        {secondaryCluster && zaudioState && (
+        {secondaryCluster && secondaryState && (
           <>
             {/* Section D: SECONDARY — Palette */}
             <div
@@ -721,14 +720,14 @@ export default function ColorTab({
               <h3 className="tokenpanel-tab-section-heading tokenpanel-tab-section-heading--color">
                 {secondaryLabel} — Palette
               </h3>
-              <div className="tokenpanel-color-palette-grid--zaudio">
-                {zaudioState.palette.map((color, i) => (
+              <div className="tokenpanel-color-palette-grid--secondary">
+                {secondaryState.palette.map((color, i) => (
                   <ColorSwatch
                     key={i}
                     color={color}
                     index={i}
                     label={resolvePaletteCssVar(secondaryCluster, i)}
-                    onChange={handleZaudioPaletteChange}
+                    onChange={handleSecondaryPaletteChange}
                   />
                 ))}
               </div>
@@ -749,10 +748,10 @@ export default function ColorTab({
                       key={key}
                       label={secondaryCluster.semanticCssNames[key] ?? key}
                       idKey={key}
-                      value={zaudioState.semanticMappings[key] ?? defaultVal}
-                      palette={zaudioState.palette}
+                      value={secondaryState.semanticMappings[key] ?? defaultVal}
+                      palette={secondaryState.palette}
                       paletteCssVar={secondaryPaletteCssVar}
-                      onChange={handleZaudioSemanticChange}
+                      onChange={handleSecondarySemanticChange}
                     />
                   );
                 })}
@@ -762,10 +761,10 @@ export default function ColorTab({
         )}
 
         {/*
-         * shikiTheme select — intentionally hidden in zmod2. The state field,
+         * shikiTheme select — intentionally hidden. The state field,
          * persist slice, and serde schema all still carry `shikiTheme` so
-         * imported zudo-doc envelopes round-trip cleanly, but there's no
-         * Shiki integration in zmod2 and `applyShikiTheme` is a no-op. If /
+         * imported upstream envelopes round-trip cleanly, but there's no
+         * Shiki integration here and `applyShikiTheme` is a no-op. If /
          * when Shiki lands, restore the upstream JSX block and re-import
          * `SHIKI_THEMES` from `../state/tweak-state`.
          */}

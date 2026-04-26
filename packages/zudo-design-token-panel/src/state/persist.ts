@@ -75,18 +75,19 @@ export function usePersist(setState: SetState<TweakState>) {
   );
 
   /**
-   * Optional zaudio slice — absent during Wave 1. Passing `undefined` from
-   * the updater unsets the slice so envelopes stay small when zaudio is idle.
+   * Optional secondary slice — absent until a host opts in. Passing
+   * `undefined` from the updater unsets the slice so envelopes stay small
+   * when the secondary cluster is idle.
    */
-  const persistZaudio = useCallback(
+  const persistSecondary = useCallback(
     (updater: (prev: ColorTweakState | undefined) => ColorTweakState | undefined) => {
       persist((prev) => {
-        const next = updater(prev.zaudio);
+        const next = updater(prev.secondary);
         if (next === undefined) {
-          const { zaudio: _zaudio, ...rest } = prev;
+          const { secondary: _secondary, ...rest } = prev;
           return rest;
         }
-        return { ...prev, zaudio: next };
+        return { ...prev, secondary: next };
       });
     },
     [persist],
@@ -105,7 +106,7 @@ export function usePersist(setState: SetState<TweakState>) {
     persistFont: persistTypography,
     persistSize,
     persistPanelPosition,
-    persistZaudio,
+    persistSecondary,
   };
 }
 
@@ -117,4 +118,4 @@ export type PersistTypography = ReturnType<typeof usePersist>['persistTypography
 export type PersistFont = PersistTypography;
 export type PersistSize = ReturnType<typeof usePersist>['persistSize'];
 export type PersistPanelPosition = ReturnType<typeof usePersist>['persistPanelPosition'];
-export type PersistZaudio = ReturnType<typeof usePersist>['persistZaudio'];
+export type PersistSecondary = ReturnType<typeof usePersist>['persistSecondary'];

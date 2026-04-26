@@ -88,12 +88,12 @@ function computePanelSize(
 // message on every cluster-driven host, which is exactly the regression to
 // avoid.
 //
-// The `<a>` points at the package README anchor for §3 (Quick start). It is
-// rendered as an absolute GitHub URL so the link still resolves when the
-// panel is bundled into a non-zmod consumer that ships none of the README
+// The `<a>` points at the package README anchor for the quick-start section.
+// It is rendered as an absolute GitHub URL so the link still resolves when
+// the panel is bundled into a consumer that ships none of the README
 // alongside the panel runtime.
 const README_QUICK_START_URL =
-  'https://github.com/Takazudo/zmodular/blob/main/sub-packages/design-token-panel/README.md#3-quick-start-astro';
+  'https://github.com/Takazudo/zudo-design-token-panel#quick-start-astro';
 
 function EmptyState() {
   return (
@@ -139,7 +139,7 @@ export default function DesignTokenTweakPanel() {
   // Track active drag listeners for cleanup on unmount
   const dragCleanupRef = useRef<(() => void) | null>(null);
 
-  const { persistColor, persistSpacing, persistFont, persistSize, persistZaudio } =
+  const { persistColor, persistSpacing, persistFont, persistSize, persistSecondary } =
     usePersist(setState);
 
   // Restore open state and position from localStorage after mount (avoids SSR hydration mismatch)
@@ -190,7 +190,7 @@ export default function DesignTokenTweakPanel() {
         spacing: emptyOverrides(),
         typography: emptyOverrides(),
         size: emptyOverrides(),
-        zaudio: initSecondaryFromConfig(),
+        secondary: initSecondaryFromConfig(),
       });
     }
     window.addEventListener('color-scheme-changed', handleSchemeChange);
@@ -208,15 +208,15 @@ export default function DesignTokenTweakPanel() {
     }
     // No saved state — page already has correct colors from ColorSchemeProvider.
     // Just read scheme data for panel display; don't apply (avoids oklch->hex lossy conversion).
-    // `zaudio` is always seeded — every fresh-state path includes it so the
-    // persisted envelope shape stays stable regardless of the user's path
-    // (PR #1440 review item B3).
+    // The `secondary` slice is always seeded — every fresh-state path
+    // includes it so the persisted envelope shape stays stable regardless
+    // of the user's path.
     setState({
       color: initColorFromScheme(),
       spacing: emptyOverrides(),
       typography: emptyOverrides(),
       size: emptyOverrides(),
-      zaudio: initSecondaryFromConfig(),
+      secondary: initSecondaryFromConfig(),
     });
   }, [open, state]);
 
@@ -297,14 +297,14 @@ export default function DesignTokenTweakPanel() {
   const handleResetAll = useCallback(() => {
     clearPersistedState();
     clearAppliedStyles();
-    // Always seed zaudio (PR #1440 review item B3) — every fresh-state path
-    // emits a uniform envelope shape so persistence stays consistent.
+    // Always seed the secondary slice — every fresh-state path emits a
+    // uniform envelope shape so persistence stays consistent.
     setState({
       color: initColorFromScheme(),
       spacing: emptyOverrides(),
       typography: emptyOverrides(),
       size: emptyOverrides(),
-      zaudio: initSecondaryFromConfig(),
+      secondary: initSecondaryFromConfig(),
     });
   }, []);
 
@@ -314,14 +314,14 @@ export default function DesignTokenTweakPanel() {
     // page will re-render from the fresh stylesheet.
     clearPersistedState();
     clearAppliedStyles();
-    // Always seed zaudio (PR #1440 review item B3) — every fresh-state path
-    // emits a uniform envelope shape.
+    // Always seed the secondary slice — every fresh-state path emits a
+    // uniform envelope shape.
     setState({
       color: initColorFromScheme(),
       spacing: emptyOverrides(),
       typography: emptyOverrides(),
       size: emptyOverrides(),
-      zaudio: initSecondaryFromConfig(),
+      secondary: initSecondaryFromConfig(),
     });
   }, []);
 
@@ -486,8 +486,8 @@ export default function DesignTokenTweakPanel() {
                   <ColorTab
                     state={state.color}
                     persistColor={persistColor}
-                    zaudioState={state.zaudio ?? initSecondaryFromConfig() ?? null}
-                    persistZaudio={persistZaudio}
+                    secondaryState={state.secondary ?? initSecondaryFromConfig() ?? null}
+                    persistSecondary={persistSecondary}
                   />
                 )}
                 {tab.id === 'spacing' &&
