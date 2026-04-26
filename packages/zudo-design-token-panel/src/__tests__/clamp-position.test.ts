@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 /**
- * Regression tests for PR #1440 review item B2 — `clampPosition` `panelHeight`
+ * Regression tests for `clampPosition` `panelHeight`
  * tautology bug, plus the codex-review follow-up that caught a symmetric-fix
  * UX regression.
  *
@@ -110,8 +110,8 @@ describe('clampPosition', () => {
     expect(large.top).toBe(-(VISIBLE_MIN / 2));
   });
 
-  it('produces a deterministic result on degenerate (sub-VISIBLE_MIN) viewports — PR #1440 M-13', () => {
-    // PR #1440 review item M-13 — when the viewport is narrower / shorter
+  it('produces a deterministic result on degenerate (smaller-than-VISIBLE_MIN) viewports', () => {
+    // when the viewport is narrower / shorter
     // than VISIBLE_MIN, the raw maxTop / maxRight could fall below their
     // respective minimums and Math.min/Math.max would emit Math.max's
     // first argument. Pin the actual return so a future regression in

@@ -72,21 +72,22 @@ function computePanelSize(
   };
 }
 
-// --- Empty-state UI (Sub S5d, #1591) ---
+// --- Empty-state UI ---
 //
 // Friendly affordance shown in the tab body when a host has not registered
 // any tokens for the active tab's category (i.e. `getPanelConfig().tokens.<cat>`
 // is an empty array). Without this, the tab renders a blank pane — opaque to
 // a developer integrating the panel for the first time. The copy points the
-// reader at `configurePanel({ tokens })` and the package README §3 quick-start.
+// reader at `configurePanel({ tokens })` and the package README quick-start
+// section.
 //
 // Scope: spacing / typography / size tabs only. The color tab is driven by
-// the host-supplied `colorCluster`, NOT by `tokens.color` — zmod's bundled
-// manifest deliberately ships `color: []` because the cluster does the work.
-// Showing the empty-state under the color tab on the strength of an empty
-// `tokens.color` array would surface a spurious "configure tokens please"
-// message on every cluster-driven host, which is exactly the regression to
-// avoid.
+// the host-supplied `colorCluster`, NOT by `tokens.color` — this package's
+// default manifest deliberately ships `color: []` because the cluster does
+// the work. Showing the empty-state under the color tab on the strength of
+// an empty `tokens.color` array would surface a spurious "configure tokens
+// please" message on every cluster-driven host, which is exactly the
+// regression to avoid.
 //
 // The `<a>` points at the package README anchor for the quick-start section.
 // It is rendered as an absolute GitHub URL so the link still resolves when
@@ -359,7 +360,7 @@ export default function DesignTokenTweakPanel() {
   );
 
   // Read host token manifest so we can swap in <EmptyState/> for tabs whose
-  // category has zero tokens registered (Sub S5d, #1591). The manifest is
+  // category has zero tokens registered. The manifest is
   // pinned by `configurePanel`'s one-shot contract, so re-reading per render
   // is cheap and never goes stale mid-session.
   const tokens = getPanelConfig().tokens;

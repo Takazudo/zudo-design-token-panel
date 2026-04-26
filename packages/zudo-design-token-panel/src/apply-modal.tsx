@@ -1,23 +1,23 @@
 /**
  * Apply modal — previews the diff between the current `TweakState` and the
  * scheme defaults, then POSTs the diff to the dev-only
- * `/api/dev/design-tokens-apply` endpoint so the tweaks are written back into
- * `tokens.css` / `zaudio-tokens.css` on disk.
+ * `/api/dev/design-tokens-apply` endpoint so the tweaks are written back
+ * into the host's design-system CSS files on disk.
  *
- * Wiring summary (Sub 14)
- * -----------------------
+ * Wiring summary
+ * --------------
  * - Diff building is delegated to `./apply/build-apply-overrides`, which
  *   consumes the new `ColorTweakState` shape (palette + semanticMappings) and
- *   emits the flat `{ cssVar: value }` map using Sub 2's `SEMANTIC_CSS_NAMES`.
+ *   emits the flat `{ cssVar: value }` map using `SEMANTIC_CSS_NAMES`.
  * - Per-file grouping (for the preview and for the success view) uses
  *   `./apply/route-tokens-to-files` — the exact same routing the dev-API
- *   handler runs server-side, so the preview matches the server's view of the
- *   world byte-for-byte.
- * - Styling uses bundled BEM classes derived from `panelConfig.modalClassPrefix`
- *   via `modalClass(...)` (Sub 5b, #1556). The matching CSS lives in
- *   `styles/panel.css` keyed on the default prefix `zmod-design-token-panel-modal*`;
- *   consumers that override the prefix opt out of bundled CSS and ship their
- *   own. No Tailwind classes remain.
+ *   handler runs server-side, so the preview matches the server's view of
+ *   the world byte-for-byte.
+ * - Styling uses bundled BEM classes derived from
+ *   `panelConfig.modalClassPrefix` via `modalClass(...)`. The matching CSS
+ *   lives in `styles/panel.css` keyed on the default modal class prefix;
+ *   consumers that override the prefix opt out of bundled CSS and ship
+ *   their own. No Tailwind classes remain.
  *
  * Dialog lifecycle (unchanged)
  * ----------------------------
@@ -111,7 +111,7 @@ function buildPreviewJson(state: TweakState, colorDefaults: ColorTweakState | un
  * Normalize whatever shape the dev-API returned into a uniform list. Accepts
  * all three historical shapes:
  *
- *   - `{ updated: [...] }`   — current handler (post Sub 1454)
+ *   - `{ updated: [...] }`   — current handler
  *   - `{ results: [...] }`   — intermediate shape
  *   - `{ "tokens.css": {...} }` — very early shape
  */
@@ -150,9 +150,9 @@ function normalizeResults(response: ApplyResponse): ApplyFileResult[] {
 // ---------------------------------------------------------------------------
 //
 // CSS rules backing these classes live in `styles/panel.css` under the
-// default prefix `zmod-design-token-panel-modal*`. Consumers that override
-// `modalClassPrefix` opt out of bundled CSS and ship their own — see the
-// "Modal layer" header in panel.css for the full rationale.
+// default modal class prefix. Consumers that override `modalClassPrefix`
+// opt out of bundled CSS and ship their own — see the "Modal layer"
+// header in panel.css for the full rationale.
 //
 // `buildClasses(cfg)` is pure, so we memo it per-cfg-object inside the
 // component and pass the result down to body subviews as a single bag.
@@ -212,7 +212,7 @@ export function ApplyModal(props: ApplyModalProps) {
   const cfg = getPanelConfig();
   const cls = useMemo(() => buildClasses(cfg), [cfg]);
 
-  // Stable id for aria-labelledby (PR #1440 review item Q1). Native
+  // Stable id for aria-labelledby. Native
   // <dialog>.showModal() implies aria-modal=true, so only the title pointer
   // is needed.
   const titleId = `${cfg.modalClassPrefix}-apply-title`;
@@ -232,7 +232,7 @@ export function ApplyModal(props: ApplyModalProps) {
         dialog.setAttribute('open', '');
       }
       // Focus the primary action on open. Native <dialog>.close() restores
-      // focus to the trigger automatically (PR #1440 review item Q2).
+      // focus to the trigger automatically.
       window.requestAnimationFrame(() => {
         primaryButtonRef.current?.focus();
       });
@@ -265,7 +265,7 @@ export function ApplyModal(props: ApplyModalProps) {
   const flattenedOverrides = useMemo(() => {
     // Primary zd cluster — diffed against the scheme baseline.
     const zdOverrides = buildApplyOverrides(state, colorDefaults);
-    // Optional secondary cluster (Sub S5b, #1589). Three short-circuits:
+    // Optional secondary cluster. Three short-circuits:
     //
     //   1. Host opted out (`secondaryColorCluster: null`) — `secondaryCluster`
     //      is null → emit no secondary keys.
@@ -291,12 +291,11 @@ export function ApplyModal(props: ApplyModalProps) {
   const totalCount = useMemo(() => Object.keys(flattenedOverrides).length, [flattenedOverrides]);
   const isEmpty = totalCount === 0;
   const hasRoutableEntries = groups.length > 0;
-  // PR #1440 review item P0-3 — Apply button is gated on the host having
-  // configured both an endpoint AND a non-empty routing map. Either one
-  // missing means the modal still renders (so the user can preview the
-  // diff), but the primary action is disabled with a tooltip explaining
-  // why. Non-zmod hosts that only want export/import opt out of apply by
-  // omitting these fields entirely.
+  // Apply button is gated on the host having configured both an endpoint
+  // AND a non-empty routing map. Either one missing means the modal still
+  // renders (so the user can preview the diff), but the primary action is
+  // disabled with a tooltip explaining why. Hosts that only want
+  // export/import opt out of apply by omitting these fields entirely.
   const applyEndpoint = cfg.applyEndpoint;
   const applyConfigured = Boolean(applyEndpoint) && Object.keys(applyRouting).length > 0;
 
@@ -415,8 +414,7 @@ export function ApplyModal(props: ApplyModalProps) {
   }
 
   // Primary-button label changes to reflect what files the apply will edit
-  // (when host-configured) or that apply is unavailable. Falling back to the
-  // legacy zmod-flavoured label only when the routing matches zmod's path.
+  // (when host-configured) or that apply is unavailable.
   const routingFiles = useMemo(
     () =>
       Object.values(applyRouting)

@@ -8,10 +8,10 @@
  * Ported verbatim from zudo-doc's
  * `src/components/design-token-tweak/import-modal.tsx`. Intentional deltas:
  *  - `deserialize` / `DesignTokenSchemaError` / `getDesignTokenSchema` come
- *    from the zmod2 serde (`./utils/design-token-serde`); the schema id is
- *    read at render time from `panelConfig.schemaId` instead of being a
- *    module-level constant.
- *  - State types import from the zmod2 state envelope.
+ *    from this package's serde (`./utils/design-token-serde`); the schema
+ *    id is read at render time from `panelConfig.schemaId` instead of
+ *    being a module-level constant.
+ *  - State types import from this package's state envelope.
  *  - Modal class names are derived from `panelConfig.modalClassPrefix` via
  *    `modalClass(...)` so a single config swap re-themes every dialog.
  *
@@ -146,10 +146,9 @@ export function ImportModal({ onClose, onLoad, colorDefaults }: ImportModalProps
       // color block matched the baseline values exactly — i.e. the import
       // was a no-op the user couldn't see. The fix compares the deserialized
       // `state.color` against `colorDefaults` via structural deep-equal
-      // (PR #1440 review item M-14 — JSON.stringify is property-order
-      // sensitive and would miss equal-but-reordered objects on V8 minor
-      // version drift; structural compare is order-independent). See PR
-      // #1440 review item B5 for the original presence-vs-content fix.
+      // (JSON.stringify is property-order sensitive and would miss
+      // equal-but-reordered objects on V8 minor version drift; structural
+      // compare is order-independent).
       const appliedCount =
         Object.keys(state.spacing).length +
         Object.keys(state.typography).length +
@@ -197,8 +196,7 @@ export function ImportModal({ onClose, onLoad, colorDefaults }: ImportModalProps
   }
 
   // Stable id for aria-labelledby. Native <dialog>.showModal() implies
-  // aria-modal=true, so we only need to point at the title (PR #1440 review
-  // item Q1).
+  // aria-modal=true, so we only need to point at the title.
   const titleId = `${cfg.modalClassPrefix}-import-title`;
 
   return (

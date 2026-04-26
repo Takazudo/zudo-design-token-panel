@@ -38,11 +38,11 @@ export default function FontTab({ state, persistFont }: FontTabProps) {
     persistFont(() => ({}));
   }, [persistFont]);
 
-  // Read the manifest from runtime config (consumer-supplied per Sub 3).
+  // Read the manifest from runtime config (consumer-supplied).
   // Note the field is `typography` (not `font`) per PORTABLE-CONTRACT.md §3.3
   // — that's the persist envelope's slice name. Group ordering and section
   // titles fall back to the package-bundled defaults when the manifest
-  // doesn't override them (Sub S5a, #1588).
+  // doesn't override them.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const tokens = useMemo(() => getPanelConfig().tokens, []);
   const fontTokens = tokens.typography;
@@ -85,8 +85,7 @@ export default function FontTab({ state, persistFont }: FontTabProps) {
               {sectionTokens.map((token) => (
                 // Pass `handleChange` directly — TokenRow forwards it to the
                 // memoised row primitives whose (id, next) signature lets us
-                // share one stable handler across all rows (PR #1440 review
-                // item Q3).
+                // share one stable handler across all rows.
                 <TokenRow
                   key={token.id}
                   token={token}
@@ -125,7 +124,7 @@ export default function FontTab({ state, persistFont }: FontTabProps) {
  *
  * `onChange` carries the `(id, next)` signature so the parent can use a
  * single stable handler across every row, keeping React.memo on each row
- * primitive effective (PR #1440 review item Q3).
+ * primitive effective.
  */
 function TokenRow({
   token,

@@ -13,7 +13,7 @@ interface SpacingTabProps {
 /**
  * Spacing tab — fully manifest-driven.
  *
- * Reads `panelConfig.tokens.spacing` (Sub 3 of #1550) at mount, groups by
+ * Reads `panelConfig.tokens.spacing` at mount, groups by
  * `group` field, renders one `SliderRow` per token, and wires each row
  * through `persistSpacing` so CSS vars + storage stay in sync.
  *
@@ -33,9 +33,9 @@ export default function SpacingTab({ state, persistSpacing }: SpacingTabProps) {
     persistSpacing(() => ({}));
   }, [persistSpacing]);
 
-  // Read the manifest from runtime config (consumer-supplied per Sub 3).
+  // Read the manifest from runtime config (consumer-supplied).
   // Group ordering and section titles fall back to the package-bundled
-  // defaults when the manifest doesn't override them (Sub S5a, #1588).
+  // defaults when the manifest doesn't override them.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const tokens = useMemo(() => getPanelConfig().tokens, []);
   const spacingTokens = tokens.spacing;
@@ -73,8 +73,7 @@ export default function SpacingTab({ state, persistSpacing }: SpacingTabProps) {
                 const value = state[token.id] ?? token.default;
                 // Pass `handleChange` directly — the row supplies its own
                 // `token.id` back via the (id, next) signature, so React.memo
-                // on SliderRow stays effective across re-renders (PR #1440
-                // review item Q3).
+                // on SliderRow stays effective across re-renders.
                 return (
                   <SliderRow key={token.id} token={token} value={value} onChange={handleChange} />
                 );

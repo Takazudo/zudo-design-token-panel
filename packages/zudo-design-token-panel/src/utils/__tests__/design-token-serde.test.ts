@@ -16,11 +16,12 @@ beforeEach(() => {
 
 /**
  * Ported from zudo-doc's `src/utils/__tests__/design-token-serde.test.ts`.
- * Adaptations for zmod2:
- *   - `font` slice renamed to `typography` to match the Sub 1 envelope.
+ * Port adaptations:
+ *   - `font` slice renamed to `typography` to match this package's
+ *     envelope.
  *   - `$schema` value is `zudo-design-tokens/v1` (asserted via the exported
  *     constant, not a hard-coded string).
- *   - Sub 6 retargeted the spacing/font manifest at Tier-1 `--zd-*` tokens:
+ *   - The spacing/font manifest targets Tier-1 `--zd-*` tokens:
  *     `--spacing-hsp-md` → `--zd-spacing-hgap-md` (default `40px`),
  *     `--text-body` → `--zd-font-base-size` (id also renamed `text-body` →
  *     `text-base`, default `1.4rem`). `--radius-lg` is unchanged.

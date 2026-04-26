@@ -1,7 +1,7 @@
 /**
  * Structural deep-equality for plain JSON-shaped values.
  *
- * Used by `configurePanel`'s re-init guard (PR #1440 review item P0-4) so a
+ * Used by `configurePanel`'s re-init guard so a
  * second `configurePanel(parsedConfig)` call from Astro view-transition reruns
  * — which produces a freshly-parsed object that is byte-for-byte identical to
  * the previous one but referentially distinct — does not throw.

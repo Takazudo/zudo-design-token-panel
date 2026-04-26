@@ -39,7 +39,7 @@ export interface RouteResult {
   /**
    * Diagnostic messages explaining each rejection. Same length as `rejected`,
    * indexed in lockstep. Hosts surface these in the UI so silent drops
-   * become visible (PR #1440 review item P0-2).
+   * become visible.
    */
   rejectedReasons: string[];
 }

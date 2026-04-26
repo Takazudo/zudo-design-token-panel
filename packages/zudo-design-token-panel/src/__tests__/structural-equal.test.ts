@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { structuralEqual } from '../utils/structural-equal';
 
 /**
- * Unit tests for the structural-equal utility introduced in PR #1440 review
- * item P0-4. The pre-fix `configurePanel` re-init guard used referential
- * shallow-equality, which broke Astro view-transition reruns of the
- * host-adapter (every `JSON.parse` produced a new object that was
- * byte-identical but referentially distinct). The replacement compares by
- * deep structure so the second `configurePanel(parsedConfig)` call passes
- * silently when the payload hasn't changed.
+ * Unit tests for the structural-equal utility. The pre-fix `configurePanel`
+ * re-init guard used referential shallow-equality, which broke Astro
+ * view-transition reruns of the host-adapter (every `JSON.parse` produced
+ * a new object that was byte-identical but referentially distinct). The
+ * replacement compares by deep structure so the second
+ * `configurePanel(parsedConfig)` call passes silently when the payload
+ * hasn't changed.
  */
 
 describe('structuralEqual', () => {
@@ -64,7 +64,7 @@ describe('structuralEqual', () => {
   });
 
   it('handles property order independently', () => {
-    // PR #1440 review item M-14 — the import-modal "nothing applied"
+    // the import-modal "nothing applied"
     // detector relied on JSON.stringify equality, which is V8 property-order
     // sensitive. structuralEqual is order-independent.
     const a = { foreground: 1, background: 0, palette: ['#000'] };

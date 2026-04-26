@@ -1,7 +1,7 @@
 /**
  * Design-token SerDe — unified JSON export / import for the design-token panel.
  *
- * Supersedes the legacy flat-cssVar-map serde that shipped with Sub 0. The
+ * Supersedes the legacy flat-cssVar-map serde. The
  * JSON format is a single document covering all four token categories (color,
  * spacing, typography, size) so an AI assistant can consume or emit a whole
  * design-token tweak in one round-trip.
@@ -25,18 +25,20 @@
  * Read-only manifest tokens (e.g. `--spacing-0` with `clamp()`) are skipped in
  * both directions.
  *
- * Port note (zmod2)
- * -----------------
+ * Port note
+ * ---------
  * Ported verbatim from zudo-doc's `src/utils/design-token-serde.ts`. The only
  * intentional deltas are:
  *  - `$schema` string is `zudo-design-tokens/v1` (not zudo-doc's value) so
- *    payloads round-trip inside zmod2 without cross-repo schema noise.
- *  - The `font` slice upstream is called `typography` here to match the zmod2
- *    state envelope introduced in Sub 1 (`FONT_TOKENS` stays as the manifest
- *    constant name because the underlying CSS var family is still "font-*").
- *  - `shikiTheme` still round-trips even though zmod2 has no Shiki
- *    integration — see `state/tweak-state.ts`'s `applyShikiTheme` stub for
- *    the rationale.
+ *    payloads round-trip inside this package without cross-repo schema
+ *    noise.
+ *  - The `font` slice upstream is called `typography` here to match this
+ *    package's state envelope (`FONT_TOKENS` stays as the manifest
+ *    constant name because the underlying CSS var family is still
+ *    "font-*").
+ *  - `shikiTheme` still round-trips even though this package has no Shiki
+ *    integration — see `state/tweak-state.ts`'s `applyShikiTheme` stub
+ *    for the rationale.
  */
 
 import type { TokenDef } from '../tokens/manifest';
@@ -47,8 +49,7 @@ import { getPanelConfig } from '../config/panel-config';
  *  `../state/tweak-state`) to avoid pulling the tweak-state runtime module into
  *  the serde's dependency chain. The serde itself only needs a type-only view
  *  of the state envelope; keeping this function local lets the serde's test
- *  suite exercise it in isolation even when other Wave-1 subs still have
- *  outstanding state/* stubs. */
+ *  suite exercise it in isolation. */
 function emptyOverrides(): TokenOverrides {
   return {};
 }
@@ -56,7 +57,7 @@ function emptyOverrides(): TokenOverrides {
 /**
  * Read the active design-token schema id at call time.
  *
- * Sub 2 of the portable epic (#1552) replaced the old
+ * An earlier port step replaced the old
  * `DESIGN_TOKEN_SCHEMA` literal-typed const with this getter so the value
  * tracks the runtime `panelConfig.schemaId` instead of being frozen at module
  * import. Call sites read the current value on every serialize/deserialize
@@ -169,7 +170,7 @@ export function serialize(state: TweakState, opts: SerializeOptions = {}): Desig
   const color = serializeColor(state.color, opts);
   if (color) out.color = color;
 
-  // Read manifests from runtime config (Sub 3, #1553) so a host-supplied
+  // Read manifests from runtime config so a host-supplied
   // manifest drives the diff pass instead of frozen module-load arrays.
   const tokens = getPanelConfig().tokens;
 
@@ -253,8 +254,9 @@ function serializeColor(
   }
 
   // Shiki theme — include only when different. Kept in the wire format even
-  // though zmod2's `applyShikiTheme` is a no-op so that JSON blobs round-trip
-  // cleanly with zudo-doc exports and with Sub 1's persist envelope.
+  // though this package's `applyShikiTheme` is a no-op so that JSON blobs
+  // round-trip cleanly with zudo-doc exports and with the persist
+  // envelope.
   if (full || !baseline || color.shikiTheme !== baseline.shikiTheme) {
     out.shikiTheme = color.shikiTheme;
     changed = true;
@@ -336,7 +338,7 @@ export function deserialize(input: unknown, opts: DeserializeOptions = {}): Dese
   const baseline = opts.colorDefaults ?? neutralColorDefaults();
 
   const color = deserializeColor(obj.color, baseline, warnings);
-  // Read manifests from runtime config (Sub 3, #1553).
+  // Read manifests from runtime config.
   const tokens = getPanelConfig().tokens;
   const spacing = deserializeOverrides(
     obj.spacing,

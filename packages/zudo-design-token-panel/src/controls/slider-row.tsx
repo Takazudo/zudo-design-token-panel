@@ -19,7 +19,7 @@ import { type TokenDef, formatValue, parseNumericValue } from '../tokens/manifes
  *
  * `onChange` is `(id, next)` — the row passes its own `token.id` back so the
  * parent can use a single stable handler across every row, keeping React.memo
- * effective (PR #1440 review item Q3).
+ * effective.
  */
 export interface SliderRowProps {
   token: TokenDef;
@@ -110,7 +110,7 @@ function SliderRow({ token, value, onChange }: SliderRowProps) {
   );
 }
 
-// memo'd so a stable parent `onChange` (PR #1440 review item Q3) plus
+// memo'd so a stable parent `onChange` plus
 // stable `value`/`token` props skip re-renders of unaffected rows when one
 // row changes.
 export default memo(SliderRow);

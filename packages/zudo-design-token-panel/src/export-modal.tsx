@@ -6,8 +6,10 @@
  *
  * Ported verbatim from zudo-doc's
  * `src/components/design-token-tweak/export-modal.tsx`. Intentional deltas:
- *  - `serialize` is imported from the zmod2 serde (`./utils/design-token-serde`).
- *  - `colorSchemes` / `initColorFromSchemeData` come from the zmod2 config.
+ *  - `serialize` is imported from this package's serde
+ *    (`./utils/design-token-serde`).
+ *  - `colorSchemes` / `initColorFromSchemeData` come from this package's
+ *    config.
  *  - The filename hint is derived from `panelConfig.exportFilenameBase` via
  *    `exportFilename(...)` (default `zudo-design-tokens.json`).
  *  - Modal class names are derived from `panelConfig.modalClassPrefix` via
@@ -79,7 +81,7 @@ export function ExportModal({ onClose, state, colorDefaults }: ExportModalProps)
     dialog.showModal();
     // Focus the primary action so keyboard users land on the most likely
     // target on open. Native <dialog>.close() restores focus to the trigger
-    // automatically (PR #1440 review item Q2).
+    // automatically.
     window.requestAnimationFrame(() => {
       copyButtonRef.current?.focus();
     });
@@ -126,7 +128,6 @@ export function ExportModal({ onClose, state, colorDefaults }: ExportModalProps)
     // Reorder so modern is first; legacy execCommand is the fallback for
     // browsers that reject `clipboard.writeText` (insecure context, denied
     // permission, focus issues inside Safari's <dialog> focus trap, etc.).
-    // PR #1440 review item Q5.
     try {
       await navigator.clipboard.writeText(code);
       ok = true;
@@ -164,7 +165,7 @@ export function ExportModal({ onClose, state, colorDefaults }: ExportModalProps)
     copyTimerRef.current = setTimeout(() => setCopyLabel('Copy'), 2000);
   }
 
-  // Stable id for aria-labelledby (PR #1440 review item Q1). Native
+  // Stable id for aria-labelledby. Native
   // <dialog>.showModal() implies aria-modal=true, so only the title pointer
   // is needed.
   const titleId = `${cfg.modalClassPrefix}-export-title`;

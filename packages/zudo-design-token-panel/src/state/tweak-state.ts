@@ -155,9 +155,8 @@ export function clampPosition(
   // mirrored the horizontal lower bound — `-(panelHeight - VISIBLE_MIN)` —
   // an upward drag would leave only the footer visible and the user could
   // no longer grab the header to drag the panel back. The pre-fix code
-  // dodged this by hard-coding `-(VISIBLE_MIN / 2)`; the symmetric attempt
-  // in PR #1440 review item B2 reintroduced the regression that codex
-  // caught on review.
+  // dodged this by hard-coding `-(VISIBLE_MIN / 2)`; a symmetric attempt
+  // would reintroduce that regression.
   //
   // The panel is also CSS-constrained to fit the viewport
   // (`maxHeight: calc(100vh - 32px)` in panel.tsx), so we don't need the
@@ -172,7 +171,7 @@ export function clampPosition(
   // case and don't special-case any more.
   const minTopRaw = -(VISIBLE_MIN / 2);
   const maxTopRaw = window.innerHeight - VISIBLE_MIN;
-  // PR #1440 review item M-13 — guard against narrow / degenerate viewports
+  // guard against narrow / degenerate viewports
   // where the computed maximum would be lower than the minimum (innerHeight
   // < VISIBLE_MIN/2). When that happens, collapse maxTop to minTop so the
   // resulting Math.max/Math.min chain still produces a deterministic value
@@ -186,16 +185,16 @@ export function clampPosition(
 }
 
 // ---------------------------------------------------------------------------
-// Shiki — stubbed in zmod2
+// Shiki — stubbed
 // ---------------------------------------------------------------------------
 
 /**
  * Upstream re-highlights every `<pre>` on the page when the Shiki theme
- * changes. zmod2 does not use Shiki — we keep the function for API shape +
- * persisted-state round-tripping, but the body is a no-op.
+ * changes. This package does not use Shiki — we keep the function for
+ * API shape + persisted-state round-tripping, but the body is a no-op.
  */
 export async function applyShikiTheme(_themeName: string): Promise<void> {
-  // zmod2 has no Shiki integration; preserved as a no-op for persist-envelope
+  // No Shiki integration here; preserved as a no-op for persist-envelope
   // round-trip compatibility with zudo-doc exports.
 }
 
@@ -441,7 +440,7 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
 
 /**
  * Resolve the active scheme name for the given cluster, considering
- * light/dark mode. Reads `panelSettings` from the cluster (Sub 4) so a
+ * light/dark mode. Reads `panelSettings` from the cluster so a
  * host-supplied cluster can declare its own scheme + light/dark pairing
  * without editing the panel package.
  */
@@ -633,10 +632,10 @@ export function applyFullState(state: TweakState) {
  */
 export function clearAppliedStyles(
   clusters: readonly ColorClusterDataConfig[] = (() => {
-    // Sub S5b (#1589) — default wipe set follows the host's configuration.
-    // When the host opted out of the secondary cluster (null), only the
-    // primary cluster's vars get cleared. Callers can still pass an
-    // explicit list to scope the wipe further.
+    // Default wipe set follows the host's configuration. When the host
+    // opted out of the secondary cluster (null), only the primary
+    // cluster's vars get cleared. Callers can still pass an explicit list
+    // to scope the wipe further.
     const cfg = getPanelConfig();
     const secondary = resolveSecondaryColorCluster(cfg);
     return secondary ? [cfg.colorCluster, secondary] : [cfg.colorCluster];
@@ -656,7 +655,7 @@ export function clearAppliedStyles(
   }
   // Token manifests — same contract: wipe any inline overrides so stylesheet
   // defaults take effect again. Read from panelConfig so a host-supplied
-  // manifest's cssVars get cleared (Sub 3, #1553).
+  // manifest's cssVars get cleared.
   const tokens = getPanelConfig().tokens;
   for (const t of tokens.spacing) {
     if (t.readonly) continue;
@@ -698,7 +697,7 @@ function hydrateColorState(
   partial: Partial<ColorTweakState>,
   defaults: ColorTweakState,
 ): ColorTweakState {
-  // PR #1440 review item P1-10 — palette is loaded from untrusted persisted
+  // palette is loaded from untrusted persisted
   // storage. Validate that every element is a string before casting; a
   // single non-string element would otherwise reach `style.setProperty` and
   // either crash or silently coerce. Falling back to defaults on bad data
@@ -762,7 +761,7 @@ export interface StorageLike {
 /**
  * Legacy → current id mapping for the typography slice.
  *
- * Sub 6 (2026-04) renamed the font-size manifest ids from panel-internal
+ * An earlier port step renamed the font-size manifest ids from panel-internal
  * labels (`text-caption`, `text-small`, `text-body`, `text-subheading`,
  * `text-heading`, `text-display`) to main-site Tailwind tiers (`text-xs`,
  * `text-sm`, `text-base`, `text-lg`, `text-3xl`, `text-5xl`). The
@@ -872,7 +871,7 @@ export function loadPersistedState(
           // New sections added after v1 migration — tolerate their absence so
           // older v2 payloads (Color-only) still load cleanly.
           spacing: hydrateOverrides(obj.spacing),
-          // Typography slice: run through the Sub 6 id migration so payloads
+          // Typography slice: run through the id-migration step so payloads
           // persisted under the old ids (text-caption, text-body, …) survive
           // the rename to main-site tiers (text-xs, text-base, …).
           typography: hydrateTypographyOverrides(typographySlice),

@@ -1,11 +1,11 @@
 /**
  * Token manifest — type definitions, helpers, and group ordering.
  *
- * After Sub 3 of the portable epic (#1553), this module ships ZERO baked-in
- * manifest data. The four token arrays that used to live here
- * (`SPACING_TOKENS`, `FONT_TOKENS`, `SIZE_TOKENS`, `COLOR_TOKENS`) moved to
- * `./zmod-default-manifest.ts` and are wired into `panelConfig.tokens` via the
- * default-fallback config in `../config/panel-config.ts`.
+ * This module ships ZERO baked-in manifest data. The four token arrays that
+ * used to live here (`SPACING_TOKENS`, `FONT_TOKENS`, `SIZE_TOKENS`,
+ * `COLOR_TOKENS`) live in the package-default manifest and are wired into
+ * `panelConfig.tokens` via the default-fallback config in
+ * `../config/panel-config.ts`.
  *
  * Consumers supply their own manifest by passing a `TokenManifest` to
  * `configurePanel({...})` (see PORTABLE-CONTRACT.md §3). The package consumes
@@ -23,15 +23,15 @@
 /**
  * Manifest-group identifier.
  *
- * Sub S5a (#1588) opened this from the previously-closed union of zmod's
- * group ids (`'hsp' | 'vsp' | …`) to plain `string` so non-zmod consumers can
- * coin their own group ids without forking the package types. Tab components
- * key section headers off whatever string each `TokenDef.group` carries; the
- * display order and human title for an unknown group come from
- * `TokenManifest.spacingGroupOrder` / `fontGroupOrder` / `sizeGroupOrder` /
- * `groupTitles` (the consumer-supplied overrides), falling back to the
- * package-bundled `GROUP_ORDER` / `FONT_GROUP_ORDER` / `SIZE_GROUP_ORDER` /
- * `GROUP_TITLES` defaults so existing zmod consumers keep working unchanged.
+ * Open `string` (rather than a closed union of historical group ids) so
+ * consumers can coin their own group ids without forking the package
+ * types. Tab components key section headers off whatever string each
+ * `TokenDef.group` carries; the display order and human title for an
+ * unknown group come from `TokenManifest.spacingGroupOrder` /
+ * `fontGroupOrder` / `sizeGroupOrder` / `groupTitles` (the
+ * consumer-supplied overrides), falling back to the package-bundled
+ * `GROUP_ORDER` / `FONT_GROUP_ORDER` / `SIZE_GROUP_ORDER` / `GROUP_TITLES`
+ * defaults so existing default-shaped manifests keep working unchanged.
  */
 export type TokenGroup = string;
 
@@ -101,17 +101,18 @@ export interface TokenDef {
  *    project's source array MAY still use the historical `FONT_TOKENS` name
  *    — only the field on `TokenManifest` is what the contract pins.)
  *  - `size` → size tab rows
- *  - `color` → color-tab per-token rows (zmod ships an empty array because
- *    color is driven by the cluster; cluster-less hosts populate this).
+ *  - `color` → color-tab per-token rows (this package's default manifest
+ *    ships an empty array because color is driven by the cluster;
+ *    cluster-less hosts populate this).
  *
- * Optional ordering / titles fields (added in Sub S5a, #1588): consumers may
- * supply their own per-tab group ordering and section-heading text. When
- * absent, the spacing / font / size tabs fall back to the package-bundled
- * `GROUP_ORDER` / `FONT_GROUP_ORDER` / `SIZE_GROUP_ORDER` / `GROUP_TITLES`
- * defaults so existing zmod-shaped manifests keep rendering exactly as
- * before. Non-zmod consumers that coin their own group ids MUST populate at
- * least the tab they care about and SHOULD populate `groupTitles` so the
- * section headers carry human-readable labels.
+ * Optional ordering / titles fields: consumers may supply their own per-tab
+ * group ordering and section-heading text. When absent, the spacing /
+ * font / size tabs fall back to the package-bundled `GROUP_ORDER` /
+ * `FONT_GROUP_ORDER` / `SIZE_GROUP_ORDER` / `GROUP_TITLES` defaults so
+ * existing default-shaped manifests keep rendering exactly as before.
+ * Consumers that coin their own group ids MUST populate at least the tab
+ * they care about and SHOULD populate `groupTitles` so the section
+ * headers carry human-readable labels.
  */
 export interface TokenManifest {
   spacing: readonly TokenDef[];

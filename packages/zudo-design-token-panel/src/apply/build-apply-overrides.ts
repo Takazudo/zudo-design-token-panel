@@ -87,7 +87,7 @@ export function buildApplyOverrides(
     if (!changed) continue;
     const paletteIndex = resolveMappingIndex(currentMapping, color);
     if (paletteIndex === null) continue;
-    // PR #1440 review item P1-9 — clamp out-of-range indices to a valid
+    // clamp out-of-range indices to a valid
     // slot before emitting the CSS-var reference. The DOM-apply path uses
     // `safeIndex` already; the disk-rewrite pipeline must do the same so
     // a corrupted persisted index (e.g. `paletteIndex = 99` when palette

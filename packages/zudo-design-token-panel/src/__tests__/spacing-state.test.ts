@@ -18,7 +18,7 @@ import { installFixturePanelConfig } from './_test-helpers';
  *     hydration — we don't want a broken entry to crash the panel).
  *
  * Adapted from zudo-doc's upstream suite. The only rename is `font` →
- * `typography` to match the zmod2 state envelope introduced in Sub 1.
+ * `typography` to match the state envelope.
  */
 
 function makeStorage(initial: Record<string, string> = {}): StorageLike & {
@@ -138,7 +138,7 @@ describe('loadPersistedState — spacing / typography / size sections', () => {
     expect(result!.spacing).toEqual({ 'hsp-sm': '0.75rem' });
   });
 
-  it('migrates legacy typography ids to the Sub 6 main-site tiers', () => {
+  it('migrates legacy typography ids to the current main-site tiers', () => {
     // Payload written under the old id scheme (text-caption / text-body /
     // text-heading / text-display) should land on the new ids (text-xs /
     // text-base / text-3xl / text-5xl). text-micro has no main-site

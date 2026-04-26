@@ -4,7 +4,7 @@
  * `applyTokenOverrides(source, overrides)` rewrites the values of one or more
  * CSS custom properties inside the FIRST top-level `:root { ... }` block of a
  * CSS file, preserving surrounding whitespace and trailing inline comments.
- * The module is the regex foundation that the dev-API endpoint (Sub 1454)
+ * The module is the regex foundation that the dev-API endpoint
  * wraps; it performs no IO, no DOM access, and is safe to import in any
  * environment.
  *
@@ -238,7 +238,7 @@ interface SingleReplaceResult {
  *
  * would have its commented-out value rewritten by the regex (it matches the
  * FIRST occurrence), leaving the live declaration untouched and silently
- * corrupting the user-authored comment. See PR #1440 review item B4.
+ * corrupting the user-authored comment.
  */
 function maskComments(input: string): string {
   return input.replace(/\/\*[\s\S]*?\*\//g, (m) => ' '.repeat(m.length));

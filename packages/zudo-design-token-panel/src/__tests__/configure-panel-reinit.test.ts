@@ -12,17 +12,17 @@ import type { TokenManifest } from '../tokens/manifest';
 import type { ColorClusterDataConfig } from '../config/cluster-config';
 
 /**
- * Regression tests for PR #1440 review items:
+ * Regression tests covering:
  *
- *  - [P0-4] re-init guard uses structural deep-equality so Astro
+ *  - The re-init guard uses structural deep-equality so Astro
  *    view-transition reruns of the host-adapter (which `JSON.parse` the
  *    inline config every page load) no longer throw on byte-identical
  *    fresh objects.
- *  - [P0-3] applyEndpoint defaults / opt-out behaviour.
- *  - [P0-2] applyRouting defaults / opt-out behaviour.
- *  - [M-12] setPanelColorPresets attaches presets after configurePanel,
- *    or pre-configurePanel via the holding slot.
- *  - [P1-11] assertValidPanelConfig() trust-boundary validator messages.
+ *  - `applyEndpoint` defaults / opt-out behaviour.
+ *  - `applyRouting` defaults / opt-out behaviour.
+ *  - `setPanelColorPresets` attaches presets after `configurePanel`, or
+ *    pre-`configurePanel` via the holding slot.
+ *  - `assertValidPanelConfig()` trust-boundary validator messages.
  */
 
 const EMPTY_MANIFEST: TokenManifest = {

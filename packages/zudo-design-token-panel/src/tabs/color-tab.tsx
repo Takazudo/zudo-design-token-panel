@@ -468,7 +468,7 @@ export default function ColorTab({
   // sections below short-circuit to nothing. When configured, this is
   // the host-supplied cluster.
   const secondaryCluster = resolveSecondaryColorCluster();
-  // Sub S5c (#1590) — host-supplied preset list. Read through the panel
+  // Host-supplied preset list. Read through the panel
   // config so a host that calls `configurePanel({ ..., colorPresets })`
   // surfaces its presets in the Scheme... dropdown. The package itself
   // ships zero presets — `colorPresets` defaults to `{}` on

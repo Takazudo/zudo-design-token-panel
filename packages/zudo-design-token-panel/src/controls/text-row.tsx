@@ -15,7 +15,7 @@ import { sanitizeCssValue } from './sanitize-css-value';
  *
  * `onChange` is `(id, next)` — the row passes its own `token.id` back so the
  * parent can use a single stable handler across every row, keeping React.memo
- * effective (PR #1440 review item Q3).
+ * effective.
  */
 export interface TextRowProps {
   token: TokenDef;
@@ -68,5 +68,5 @@ function TextRow({ token, value, onChange }: TextRowProps) {
 }
 
 // memo'd to skip re-renders of unaffected rows; relies on the parent passing
-// a stable `onChange` (PR #1440 review item Q3).
+// a stable `onChange`.
 export default memo(TextRow);

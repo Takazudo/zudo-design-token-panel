@@ -1,55 +1,52 @@
 /**
- * Panel-private CSS custom properties (Sub 5a, #1555).
+ * Panel-private CSS custom properties.
  *
- * Migrated from `sub-packages/design-system/theme.css` so the design-token
- * panel package owns its own visual tokens instead of leaking them through
- * the host's Tailwind theme. The values are byte-for-byte identical to the
- * pre-migration `--spacing-tokentweak-*`, `--text-tokentweak-*`, and
- * `--radius-tokentweak` declarations — Sub 5a is a no-visual-change move.
+ * The design-token panel package owns its own visual tokens instead of
+ * leaking them through the host's theme. The values match what the
+ * package's example design system declares, so the default look stays
+ * identical to the example.
  *
  * Scope
  * -----
- * Declared on the panel shell + the default modal class prefix
- * (`zmod-design-token-panel-modal`, matching `DEFAULT_PANEL_CONFIG.modalClassPrefix`
- * in `config/panel-config.ts`). Keeping the declaration local to those scopes
- * — instead of `:root` — means a host's stylesheet cannot be polluted by
- * these names just because the panel bundle is loaded; the variables only
- * exist where the panel itself lives in the DOM tree.
+ * Declared on the panel shell + the default modal class prefix (matching
+ * `DEFAULT_PANEL_CONFIG.modalClassPrefix` in `config/panel-config.ts`).
+ * Keeping the declaration local to those scopes — instead of `:root` —
+ * means a host's stylesheet cannot be polluted by these names just because
+ * the panel bundle is loaded; the variables only exist where the panel
+ * itself lives in the DOM tree.
  *
- * The companion modals (apply / export / import) live as `<dialog>` elements
- * rendered as siblings of the shell, not inside `.tokenpanel-shell`. The
- * modal `<dialog>` itself carries the modal class prefix as its root class
- * (e.g. `zmod-design-token-panel-modal`), so anchoring the variables on that
- * prefix here makes the still-Tailwind-driven modal files (apply / import /
- * export — Sub 5b's scope) keep resolving `--radius-tokentweak`,
- * `--tokentweak-pad-*`, etc. without depending on `theme.css`. Sub 5b will
- * convert the modals to bundled CSS on top of the same anchor.
+ * The companion modals (apply / export / import) live as `<dialog>`
+ * elements rendered as siblings of the shell, not inside
+ * `.tokenpanel-shell`. The modal `<dialog>` itself carries the modal
+ * class prefix as its root class, so anchoring the variables on that
+ * prefix here lets the modal files keep resolving `--radius-tokentweak`,
+ * `--tokentweak-pad-*`, etc. without depending on the host theme.
  *
  * `:where()` keeps specificity at zero so a host can override any of these
  * tokens with a single-class rule.
  */
 :where(.tokenpanel-shell, [data-design-token-panel-modal]) {
   /* ----------------------------------------------------------------------
-   * Host-CSS-var indirection ladder (Sub S2, #1587)
+   * Host-CSS-var indirection ladder
    *
-   * The panel chrome was previously reading host-defined `--color-*` and
-   * `--font-mono` directly (~107 sites in panel.css). That meant a non-zmod
-   * host that does not declare those names paints the panel with no chrome
-   * styling. Wrap each one in a `--tokentweak-*` indirection that falls back
-   * to a sane default so the panel paints out-of-the-box.
+   * The panel chrome could read host-defined `--color-*` and `--font-mono`
+   * directly, but a host that does not declare those names would paint the
+   * panel with no chrome styling. Wrap each one in a `--tokentweak-*`
+   * indirection that falls back to a sane default so the panel paints
+   * out-of-the-box.
    *
    * Ladder semantics:
    *
    *   --tokentweak-color-fg: var(--color-fg, <fallback>);
    *
-   * - Host declares `--color-fg`        → that wins (zmod path, unchanged).
+   * - Host declares `--color-fg`        → that wins.
    * - Host declares `--tokentweak-color-fg` directly → that wins (panel-only
    *   override; bypasses the host's own theme).
    * - Host declares neither             → the fallback paints the panel.
    *
-   * Fallback values are picked to match what zmod's design-system declares
-   * today (see sub-packages/design-system/{tokens,theme}.css), so the panel's
-   * default look stays identical to current zmod paint.
+   * Fallback values are picked to match what the package's example
+   * design-system declares, so the panel's default look stays identical
+   * to the example.
    * ---------------------------------------------------------------------- */
   --tokentweak-color-fg: var(--color-fg, oklch(87% 0.01 60));
   --tokentweak-color-bg: var(--color-bg, oklch(18% 0.01 50));

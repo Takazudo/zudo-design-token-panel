@@ -1,24 +1,23 @@
 /**
- * Design-token panel — bundled CSS (Sub 5a, #1555).
+ * Design-token panel — bundled CSS.
  *
  * Owns every chrome rule for the panel SHELL, the four TABS (Color / Spacing
  * / Font / Size), and the four CONTROL rows (slider / pill-slider / select /
- * text). The modal layer (apply / export / import) is intentionally out of
- * scope here — Sub 5b ships its bundled CSS in a follow-up.
+ * text). Modal-layer CSS is bundled in the same stylesheet further down.
  *
  * Why move this out of Tailwind?
  * ------------------------------
- * The portable-panel epic (#1550) requires the package to render correctly
- * in any consumer's CSS environment, including hosts that do not ship
- * Tailwind. Bundling chrome rules here means the consumer only has to
- * import the panel's entry — the visual styling rides along.
+ * The package needs to render correctly in any consumer's CSS environment,
+ * including hosts that do not ship Tailwind. Bundling chrome rules here
+ * means the consumer only has to import the panel's entry — the visual
+ * styling rides along.
  *
  * Token strategy
  * --------------
  * Visual tokens are declared in `panel-tokens.css` (sibling file) under
  * `.tokenpanel-shell`. The host's `--color-*` semantic tokens (bg / fg /
  * accent / muted / surface / etc.) are still referenced via `var()`; the
- * portable-panel contract (Sub 7) is what makes those names host-supplied.
+ * portable-panel contract is what makes those names host-supplied.
  * This file deliberately does NOT redeclare semantic colors — that's a
  * different layer of the stack.
  *
@@ -149,7 +148,7 @@
 }
 
 /* ===========================================================================
- * Empty-state — Sub S5d (#1591)
+ * Empty-state
  * ===========================================================================
  *
  * Friendly affordance shown in the spacing / font / size tab body when the
@@ -163,7 +162,7 @@
  * the value declared in panel-tokens.css so the empty-state still paints if
  * it ever renders outside the .tokenpanel-shell scope where the tokentweak
  * variables live (defensive — the panel always renders inside the shell
- * today, but Sub S5d's empty-state should not bake the assumption in).
+ * today, but the empty-state should not bake the assumption in).
  * ========================================================================= */
 
 .tokenpanel-empty-state {
@@ -695,21 +694,20 @@
 }
 
 /* ===========================================================================
- * Modal layer (Sub 5b, #1556 — refactored for PR #1440 review item P0-1)
+ * Modal layer
  * ===========================================================================
  *
  * Selector convention
  * -------------------
- * Sub 5a's shell rules use a flat `tokenpanel-<feature>-<part>` block + class
- * naming. The modal layer is anchored on the `[data-design-token-panel-modal]`
- * attribute (set by every modal `<dialog>` in apply-modal / export-modal /
- * import-modal). The BEM-flavoured class suffixes (e.g. `__title`, `--apply`)
- * still come from `modalClass(cfg, …)` — they enrich specificity for hosts
- * that want to layer their own rules — but the bundled stylesheet keys
- * everything on the data attribute so a consumer-supplied `modalClassPrefix`
- * does NOT detune the chrome rules. Pre-fix the rules matched a literal
- * `.zmod-design-token-panel-modal` class, which meant scaffold-style hosts
- * that overrode `modalClassPrefix` got unstyled modals.
+ * The shell rules use a flat `tokenpanel-<feature>-<part>` block + class
+ * naming. The modal layer is anchored on the
+ * `[data-design-token-panel-modal]` attribute (set by every modal
+ * `<dialog>` in apply-modal / export-modal / import-modal). The
+ * BEM-flavoured class suffixes (e.g. `__title`, `--apply`) still come from
+ * `modalClass(cfg, …)` — they enrich specificity for hosts that want to
+ * layer their own rules — but the bundled stylesheet keys everything on
+ * the data attribute so a consumer-supplied `modalClassPrefix` does NOT
+ * detune the chrome rules.
  *
  * Sub-element targeting uses attribute selectors with `[class*=...]` against
  * the BEM suffix, so the rules match regardless of which modal class prefix
@@ -717,9 +715,9 @@
  *
  * Consumer customisation
  * ----------------------
- * `panelConfig.modalClassPrefix` is one-shot per page lifecycle (Sub 2).
- * Hosts MAY override it for higher-specificity custom rules; the bundled
- * chrome below still applies because every modal element carries the
+ * `panelConfig.modalClassPrefix` is one-shot per page lifecycle. Hosts MAY
+ * override it for higher-specificity custom rules; the bundled chrome
+ * below still applies because every modal element carries the
  * `data-design-token-panel-modal*` attributes regardless of the prefix.
  *
  * If a host wants COMPLETELY custom modal chrome they can either:

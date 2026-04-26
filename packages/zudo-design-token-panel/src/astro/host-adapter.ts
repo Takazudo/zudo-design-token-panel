@@ -112,7 +112,7 @@ function readInlineConfig(): PanelConfig {
       }`,
     );
   }
-  // PR #1440 review item P1-11 — runtime validation at the trust boundary.
+  // runtime validation at the trust boundary.
   // The TypeScript view of the JSON parse is `PanelConfig` because the host
   // <DesignTokenPanelHost> component types the prop, but at runtime the
   // payload is just whatever string the inline <script> tag held — typos,

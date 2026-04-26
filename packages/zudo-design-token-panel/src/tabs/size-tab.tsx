@@ -31,9 +31,9 @@ export default function SizeTab({ state, persistSize }: SizeTabProps) {
     persistSize(() => ({}));
   }, [persistSize]);
 
-  // Read the manifest from runtime config (consumer-supplied per Sub 3).
+  // Read the manifest from runtime config (consumer-supplied).
   // Group ordering and section titles fall back to the package-bundled
-  // defaults when the manifest doesn't override them (Sub S5a, #1588).
+  // defaults when the manifest doesn't override them.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const tokens = useMemo(() => getPanelConfig().tokens, []);
   const sizeTokens = tokens.size;
@@ -71,7 +71,7 @@ export default function SizeTab({ state, persistSize }: SizeTabProps) {
                 // Pass `handleChange` directly — every row primitive's
                 // (id, next) signature lets us share one stable handler
                 // across all rows, keeping React.memo on each row effective
-                // (PR #1440 review item Q3).
+                //.
                 if (token.pill) {
                   return (
                     <PillSliderRow

@@ -1,15 +1,15 @@
 /**
  * Color-scheme types and bundled presets.
  *
- * Ported from zudo-doc (`/src/config/color-schemes.ts`) and adapted to zmod2.
+ * Ported from zudo-doc (`/src/config/color-schemes.ts`).
  *
  * Differences from upstream:
  * - `shikiTheme` is typed as `string` (no Astro dependency).
- * - The `semantic` object exposes only the keys that zmod2 actually has CSS
- *   variables for (see `color-scheme-utils.ts → SEMANTIC_CSS_NAMES`). Upstream
- *   keys with no zmod2 counterpart (mermaid*, chat*, imageOverlay*,
- *   matchedKeyword*) are dropped.
- * - Adds zmod2-specific semantic keys: `bg`, `fg`, `link`, `price`, `sold`.
+ * - The `semantic` object exposes only the keys that this package has CSS
+ *   variables for (see `color-scheme-utils.ts → SEMANTIC_CSS_NAMES`).
+ *   Upstream keys with no counterpart here (mermaid*, chat*,
+ *   imageOverlay*, matchedKeyword*) are dropped.
+ * - Adds package-specific semantic keys: `bg`, `fg`, `link`, `price`, `sold`.
  */
 
 /** A color reference: palette index (number) or direct color value (string) */
@@ -40,9 +40,10 @@ export interface ColorScheme {
     string,
   ];
   /**
-   * Shiki theme name. Loosely typed as a free-form string so we don't pull in
-   * the Astro types (zmod2 isn't an Astro app — this field is preserved for
-   * symmetry with upstream presets and for any future code-block tooling).
+   * Shiki theme name. Loosely typed as a free-form string so we don't pull
+   * in the Astro types (this package isn't an Astro app — this field is
+   * preserved for symmetry with upstream presets and for any future
+   * code-block tooling).
    */
   shikiTheme: string;
   /**
@@ -122,10 +123,10 @@ export const colorSchemes: Record<string, ColorScheme> = {
   },
   'Default Dark': {
     background: 9,
-    // p11 (light gray) — not p15. Sub 1 repurposes p15 as the mercari brand
-    // red, so pinning `foreground` to p15 would paint the panel's fg swatch
-    // red and make every `fg`-mapped semantic resolve to red. p11 aligns
-    // with SEMANTIC_DEFAULTS_ZD.fg (also 11).
+    // p11 (light gray) — not p15. The example palette repurposes p15 as a
+    // brand-red accent, so pinning `foreground` to p15 would paint the
+    // panel's fg swatch red and make every `fg`-mapped semantic resolve
+    // to red. p11 aligns with SEMANTIC_DEFAULTS_ZD.fg (also 11).
     foreground: 11,
     cursor: 6,
     selectionBg: 10,
@@ -140,7 +141,7 @@ export const colorSchemes: Record<string, ColorScheme> = {
       '#90a1b9',
       '#a0a0a0',
       '#888888',
-      '#181818',
+      '18',
       '#383838',
       '#e0e0e0',
       '#d69a66',

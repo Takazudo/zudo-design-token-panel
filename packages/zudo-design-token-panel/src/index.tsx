@@ -37,8 +37,7 @@
 import { render } from 'preact';
 import DesignTokenTweakPanel from './panel';
 // Side-effect import: bundles panel chrome CSS + panel-private CSS variables
-// so the package is visually self-contained for any consumer (Sub 5a, #1555).
-// Modal layer CSS will follow in Sub 5b.
+// so the package is visually self-contained for any consumer.
 import './styles/panel.css';
 import {
   applyFullState,
@@ -110,7 +109,8 @@ function hasPersistedOverrides(): boolean {
  * `OPEN_KEY` is owned by `panel.tsx` for steady-state writes (its
  * `useEffect` mirrors `open` into the key on every change). The adapter
  * additionally seeds the key once before a fresh mount via
- * `seedOpenStateBeforeMount` — see Issue #1549 for the timing rationale.
+ * `seedOpenStateBeforeMount` — see the seed function's docstring for the
+ * timing rationale.
  */
 function isPanelCurrentlyOpen(): boolean {
   if (typeof window === 'undefined') return false;
@@ -122,7 +122,7 @@ function isPanelCurrentlyOpen(): boolean {
 }
 
 /**
- * Pre-mount seed for `OPEN_KEY` (Issue #1549).
+ * Pre-mount seed for `OPEN_KEY`.
  *
  * On a fresh mount the adapter wants to drive the panel into the user's last
  * known state. The historical strategy was to render first, then dispatch a
@@ -197,14 +197,14 @@ function dispatchToggle(): void {
 
 // Re-exports for non-Astro consumers documented in README §4. The Astro
 // adapter calls configurePanel internally, but a Vite-only host needs to
-// reach it from the package root per PORTABLE-CONTRACT.md §1 (Sub 11 #1562).
+// reach it from the package root per PORTABLE-CONTRACT.md §1.
 export { configurePanel, setPanelColorPresets } from './config/panel-config';
 export type { PanelConfig } from './config/panel-config';
 
 /**
  * Internal-test-only accessor that returns this panel-module bundle's view of
  * the active panel config singleton. Paired with the Astro host adapter's
- * `loadPanelModule()` runtime guard (epic #1610 / Sub #1612): the adapter
+ * `loadPanelModule()` runtime guard: the adapter
  * compares the reference returned here against its own `getPanelConfig()`
  * result. They MUST be the same object — Vite's multi-entry build code-
  * splits the shared `config/panel-config` module into one chunk so both
@@ -236,7 +236,7 @@ export type { TokenManifest, TokenDef } from './tokens/manifest';
 export function showDesignTokenPanel(): void {
   if (typeof window === 'undefined') return;
   // Seed OPEN_KEY *before* a fresh mount. See `seedOpenStateBeforeMount` doc
-  // comment (Issue #1549) for why we cannot rely on a post-render dispatch.
+  // comment for why we cannot rely on a post-render dispatch.
   const isFreshMount = !findRoot();
   if (isFreshMount) seedOpenStateBeforeMount(true);
   ensureMounted();
@@ -273,7 +273,7 @@ export function toggleDesignPanel(): void {
   setStoredVisibility(willBeOpen);
   // On a fresh mount, the seed already drove `panel.tsx`'s mount-effect to
   // the desired state — no event dispatch needed (and dispatching here would
-  // race the not-yet-attached listener; see Issue #1549).
+  // race the not-yet-attached listener).
   if (isFreshMount) return;
   dispatchToggle();
 }
@@ -352,7 +352,7 @@ function reapplyFromStorage(): void {
  * Preact render. The mount-effect in `panel.tsx` then reads that seed and
  * sets `open` synchronously, matching what an event-listener-driven flip
  * would have done — without the timing race that made post-render dispatch
- * unreliable (Issue #1549).
+ * unreliable.
  *
  * Once the shell is mounted, this handler short-circuits and `panel.tsx`
  * owns every subsequent toggle. The before-swap unmount resets that state
