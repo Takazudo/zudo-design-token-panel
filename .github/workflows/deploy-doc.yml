@@ -1,0 +1,70 @@
+# NOTE: This is a STUB workflow.
+#
+# The doc site is configured for deployment to GitHub Pages at
+# https://takazudo.github.io/pj/zudo-token-panel/ (see doc/src/config/settings.ts:
+# base "/pj/zudo-token-panel/").
+#
+# Because takazudo.github.io is the user/org Pages site, this repo cannot use
+# the standard "GitHub Pages — actions" deployment flow on its own. The actual
+# wiring (publishing dist/ into a sub-path of the user-pages repo, or switching
+# to Cloudflare Pages, or enabling Pages with a custom path) is intentionally
+# left as a follow-up task. Credentials/secrets are NOT yet configured.
+#
+# What this file gives you today:
+#   - A workflow that builds the doc site on every push to main and on manual
+#     dispatch, so build breakage is caught early.
+#   - A clearly-marked stub deploy step that does NOT publish anywhere.
+#
+# To wire real deployment in a follow-up:
+#   - Replace the "Stub deploy" step with either:
+#       a) actions/upload-pages-artifact + actions/deploy-pages, OR
+#       b) cloudflare/pages-action with CLOUDFLARE_API_TOKEN secret.
+
+name: Deploy doc site (stub)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-doc
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    name: Build doc site and (stub) deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build doc site
+        run: pnpm --filter doc build
+
+      # STUB: real deploy step is intentionally not configured yet.
+      # Replace this with upload-pages-artifact + deploy-pages or Cloudflare Pages
+      # in a follow-up task once secrets / target are decided.
+      - name: Stub deploy
+        run: |
+          echo "Stub deploy — doc site built successfully at doc/dist/"
+          echo "Real deploy wiring is a follow-up task."
+          ls -la doc/dist || echo "(doc/dist not present)"
