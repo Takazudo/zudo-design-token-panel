@@ -1,0 +1,34 @@
+---
+interface Props {
+  title: string;
+  href?: string;
+  external?: boolean;
+}
+
+const { title, href, external = false } = Astro.props;
+const target = external ? "_blank" : undefined;
+const rel = external ? "noopener noreferrer" : undefined;
+---
+
+{
+  href ? (
+    <a
+      href={href}
+      target={target}
+      rel={rel}
+      class="block border border-muted rounded-md p-hsp-lg text-fg no-underline transition-colors hover:border-accent hover:text-accent"
+    >
+      <h3 class="text-subheading font-bold mb-vsp-2xs">{title}</h3>
+      <p class="text-muted text-small leading-relaxed">
+        <slot />
+      </p>
+    </a>
+  ) : (
+    <div class="block border border-muted rounded-md p-hsp-lg text-fg">
+      <h3 class="text-subheading font-bold mb-vsp-2xs">{title}</h3>
+      <p class="text-muted text-small leading-relaxed">
+        <slot />
+      </p>
+    </div>
+  )
+}
