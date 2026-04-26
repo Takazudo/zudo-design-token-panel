@@ -1,0 +1,65 @@
+{
+  "name": "@takazudo/zudo-design-token-panel",
+  "version": "0.0.0",
+  "description": "Dynamic design-token tweak panel — host-config-driven, framework-agnostic Preact UI.",
+  "private": false,
+  "license": "MIT",
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Takazudo/zudo-design-token-panel.git"
+  },
+  "homepage": "https://github.com/Takazudo/zudo-design-token-panel",
+  "bugs": {
+    "url": "https://github.com/Takazudo/zudo-design-token-panel/issues"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": [
+    "**/*.css",
+    "./dist/astro/host-adapter.js",
+    "**/host-adapter.js"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./astro": {
+      "types": "./dist/astro/index.d.ts",
+      "import": "./dist/astro/index.js"
+    },
+    "./astro/host-adapter": {
+      "types": "./dist/astro/host-adapter.d.ts",
+      "import": "./dist/astro/host-adapter.js"
+    },
+    "./astro/DesignTokenPanelHost.astro": "./dist/astro/DesignTokenPanelHost.astro",
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js"
+    },
+    "./styles": "./dist/design-token-panel.css",
+    "./styles.css": "./dist/design-token-panel.css"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build && tsc -p tsconfig.build.json && node scripts/copy-astro-assets.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "preact": "^10.29.1"
+  },
+  "devDependencies": {
+    "preact": "^10.29.1",
+    "typescript": "^5.6.0",
+    "vite": "^7.3.2",
+    "vitest": "^4.1.4"
+  }
+}
