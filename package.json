@@ -1,0 +1,22 @@
+{
+  "name": "zudo-design-token-panel",
+  "private": true,
+  "packageManager": "pnpm@10.33.2",
+  "scripts": {
+    "dev": "pnpm --filter doc dev",
+    "build": "pnpm -r --if-present build",
+    "test": "pnpm -r --if-present test",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "lint": "pnpm -r --if-present lint",
+    "b4push": "bash scripts/run-b4push.sh"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Takazudo/zudo-design-token-panel.git"
+  },
+  "homepage": "https://github.com/Takazudo/zudo-design-token-panel"
+}
