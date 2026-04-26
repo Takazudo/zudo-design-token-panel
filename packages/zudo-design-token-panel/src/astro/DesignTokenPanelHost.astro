@@ -1,0 +1,76 @@
+---
+/**
+ * Astro entry point for the design-token panel.
+ *
+ * Drop into a layout once. The component AND the host-adapter side-effect
+ * import are a paired unit — both lines are required, always together:
+ *
+ * ```astro
+ * ---
+ * import { DesignTokenPanelHost } from '@takazudo/zudo-design-token-panel/astro';
+ * import { panelConfig } from './my-design-token-config';
+ * // Required side-effect import for the package's bundled chrome CSS —
+ * // Vite library mode strips the source CSS import from the emitted JS,
+ * // so consumers must re-pull the extracted stylesheet explicitly.
+ * import '@takazudo/zudo-design-token-panel/styles';
+ * ---
+ * <DesignTokenPanelHost config={panelConfig} />
+ * <script>
+ *   // Required side-effect import for the host adapter. The package's
+ *   // distributed Astro surface ships built `dist/astro/*` files, and the
+ *   // package-side hoisted <script> from those built files does not reliably
+ *   // reach production page bundles. Owning the script import in the
+ *   // consumer wrapper sidesteps that pipeline issue. The package's
+ *   // `package.json` lists `dist/astro/host-adapter.js` in `sideEffects` so
+ *   // Rollup preserves the consumer-side import regardless of whether its
+ *   // result is used. The dynamic `void import(...)` form is the recommended
+ *   // canonical wiring because it loads the host-adapter chunk off the
+ *   // critical path.
+ *   void import('@takazudo/zudo-design-token-panel/astro/host-adapter');
+ * </script>
+ * ```
+ *
+ * The component renders ONE inline `<script type="application/json">` block
+ * carrying the serialised `PanelConfig`; the host adapter (loaded via the
+ * consumer-owned import above) reads it by id at module init.
+ *
+ * History — why the host-adapter import lives in the consumer wrapper:
+ * a previous shape emitted a sibling `<script>import './host-adapter';</script>`
+ * block. Vite/Rollup processed that block, recognised the import as
+ * resolving to a sibling JS file outside the consumer's source tree,
+ * emitted an empty chunk, and never linked it from any page entry. The
+ * result was a silent runtime ReferenceError on production builds. Moving
+ * the import into the consumer wrapper hands bundling responsibility to
+ * the consumer's own Astro toolchain, which produces a real chunk that
+ * lands in the page entry.
+ *
+ * Why inline JSON instead of `define:vars` or `set:html` of a JS literal?
+ * `<script type="application/json">` is not parsed as JavaScript by the HTML
+ * parser, so we can serialise arbitrary user-supplied data without an XSS
+ * surface or escaping gymnastics — provided we close-tag-escape strings
+ * (`</` → `<\/`) defensively.
+ */
+
+import type { PanelConfig } from '../config/panel-config';
+
+export interface Props {
+  config: PanelConfig;
+}
+
+const { config } = Astro.props;
+
+// Defensive escape: any literal `<` inside a string field could let the HTML
+// parser see `</script>` or `<!--` and either close the surrounding script
+// element or enter the script-data-escaped state. JSON.stringify does not
+// escape `<` — so we replace every `<` with the JSON unicode escape
+// `<`. The browser's HTML parser sees only the literal characters
+// `\`, `u`, `0`, `0`, `3`, `c` (no `<`), and JSON.parse on the consumer side
+// decodes `<` back to `<`. Targeted replacements like
+// `</script` → `<\/script` work for the close-tag case but `<!--` → `<\!--`
+// produces an invalid JSON escape (`\!` is not in the JSON spec) and
+// JSON.parse rejects it. The unicode-escape sweep is robust against both.
+// See https://html.spec.whatwg.org/multipage/scripting.html#restrictions-for-contents-of-script-elements
+const configJson = JSON.stringify(config).replace(/</g, '\\u003c');
+---
+
+<script type="application/json" id="tokenpanel-config" set:html={configJson} />

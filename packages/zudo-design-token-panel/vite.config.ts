@@ -53,8 +53,10 @@ export default defineConfig({
         // `index.ts`, so it would not be discovered without an explicit entry.
         'astro/index': 'src/astro/index.ts',
         'astro/host-adapter': 'src/astro/host-adapter.ts',
-        // Server-side apply pipeline — Node-only, zero framework deps.
-        'server/index': 'src/server/index.ts',
+        // NOTE: the upstream zmod port also emitted a `server/index` entry
+        // for the apply-pipeline server modules. That tree is deferred to a
+        // follow-up epic; this package currently ships only the panel UI
+        // and Astro adapter.
       },
       formats: ['es'],
     },
