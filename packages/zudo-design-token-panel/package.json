@@ -18,6 +18,9 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "design-token-panel-server": "./dist/bin/server.js"
+  },
   "sideEffects": [
     "**/*.css",
     "./dist/astro/host-adapter.js",
@@ -37,6 +40,10 @@
       "import": "./dist/astro/host-adapter.js"
     },
     "./astro/DesignTokenPanelHost.astro": "./dist/astro/DesignTokenPanelHost.astro",
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js"
+    },
     "./styles": "./dist/zudo-design-token-panel.css",
     "./styles.css": "./dist/zudo-design-token-panel.css"
   },
@@ -44,7 +51,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "vite build && tsc -p tsconfig.build.json && node scripts/copy-astro-assets.mjs",
+    "build": "vite build && tsc -p tsconfig.build.json && node scripts/copy-astro-assets.mjs && chmod +x dist/bin/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
