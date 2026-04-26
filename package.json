@@ -11,7 +11,7 @@
     "b4push": "bash scripts/run-b4push.sh"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12.0"
   },
   "license": "MIT",
   "repository": {
