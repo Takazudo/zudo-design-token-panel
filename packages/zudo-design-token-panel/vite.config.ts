@@ -5,17 +5,21 @@ import { defineConfig } from 'vite';
  *
  * Three responsibilities:
  *
- * 1. **Lib bundle** — `vite build` emits `dist/index.js` plus `dist/astro/index.js`,
- *    `dist/astro/host-adapter.js`, and `dist/server/index.js` (ESM, multi-entry)
- *    with Preact externalised so consumers contribute their own copy via the
- *    peerDependency. The CSS side-effect import in `src/index.tsx` lands as a
- *    co-emitted chunk under `dist/`. Type emission is handled separately by
- *    `tsc -p tsconfig.build.json` (vite-plugin-dts intentionally avoided —
- *    explicit tsc gives single-source-of-truth control over the .d.ts shape).
+ * 1. **Lib bundle** — `vite build` emits `dist/index.js`, `dist/astro/index.js`,
+ *    `dist/astro/host-adapter.js`, `dist/server/index.js`, and the standalone
+ *    bin entry `dist/bin/server.js` (ESM, multi-entry) with Preact externalised
+ *    so consumers contribute their own copy via the peerDependency. The CSS
+ *    side-effect import in `src/index.tsx` lands as a co-emitted chunk under
+ *    `dist/`. Type emission is handled separately by `tsc -p tsconfig.build.json`
+ *    (vite-plugin-dts intentionally avoided — explicit tsc gives single-source-
+ *    of-truth control over the .d.ts shape).
  *
- *    Note: the `bin/server` entry from the upstream zmod port is intentionally
- *    deferred to a follow-up epic — this package currently ships the panel UI,
- *    Astro adapter, and server Apply API, but not the standalone CLI bin.
+ *    The `dist/bin/server.js` chunk is the executable invoked via the
+ *    `design-token-panel-server` bin field. It receives a
+ *    `#!/usr/bin/env node` shebang via Rollup's `output.banner` (only that
+ *    chunk; the panel/astro/server entries stay shebang-free). `pnpm build`
+ *    follows up with `chmod +x dist/bin/server.js` so the file is directly
+ *    executable.
  *
  * 2. **resolve.alias for vitest** — kept so `pnpm test` resolves the
  *    alias-smoke test's intentional `from 'react'` import against
@@ -53,10 +57,13 @@ export default defineConfig({
         // `index.ts`, so it would not be discovered without an explicit entry.
         'astro/index': 'src/astro/index.ts',
         'astro/host-adapter': 'src/astro/host-adapter.ts',
-        // NOTE: the upstream zmod port also emitted a `server/index` entry
-        // for the apply-pipeline server modules. That tree is deferred to a
-        // follow-up epic; this package currently ships only the panel UI
-        // and Astro adapter.
+        // Server-side apply pipeline entry (Node-only). Exposed via the
+        // `./server` export.
+        'server/index': 'src/server/index.ts',
+        // Standalone CLI bin entry. Receives a `#!/usr/bin/env node` shebang
+        // banner only on this chunk (see `output.banner` below) and
+        // `chmod +x` in the package build script.
+        'bin/server': 'src/bin/server.ts',
       },
       formats: ['es'],
     },
@@ -87,7 +94,15 @@ export default defineConfig({
         'fs/promises',
         'crypto',
         'os',
+        'http',
+        'url',
       ],
+      output: {
+        // Inject the `#!/usr/bin/env node` shebang ONLY for the bin entry.
+        // The other chunks (panel UI, astro adapter, server library) are
+        // imported as ESM modules and must NOT carry a shebang.
+        banner: (chunk) => (chunk.fileName === 'bin/server.js' ? '#!/usr/bin/env node' : ''),
+      },
     },
   },
 });
