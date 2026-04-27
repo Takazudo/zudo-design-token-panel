@@ -51,6 +51,24 @@ jobs:
           DEPLOY_BRANCH=$(echo "${GITHUB_REF_NAME_VAL}" | tr '/' '-')
           echo "deploy_branch=${DEPLOY_BRANCH}" >> "$GITHUB_OUTPUT"
 
+      - name: Ensure Cloudflare Pages project exists
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # Idempotent: create on first run, no-op on subsequent runs.
+          out=$(pnpm exec wrangler pages project create zudo-design-token-panel \
+            --production-branch=main 2>&1) && rc=0 || rc=$?
+          echo "$out"
+          if [ "$rc" -eq 0 ]; then
+            echo "Project created."
+          elif echo "$out" | grep -qE "already exists|8000077|duplicate"; then
+            echo "Project already exists — continuing."
+          else
+            echo "Project create failed with unexpected error."
+            exit "$rc"
+          fi
+
       - name: Deploy preview to Cloudflare Pages
         id: deploy
         env:
