@@ -270,6 +270,42 @@ describe('deserialize', () => {
     expect(warnings.some((w) => w.includes('palette'))).toBe(true);
   });
 
+  it('respects cluster.paletteSize when generating the neutral fallback baseline', () => {
+    // Configure a cluster with a smaller paletteSize than the historical
+    // hard-coded 16, then deserialize a payload with no `colorDefaults`
+    // override. The synthesised baseline must match the cluster's actual
+    // size — otherwise round-trips emit `--*-p{paletteSize}..15` ghost
+    // properties that don't correspond to any real token.
+    const SMALL_PALETTE_SIZE = 8;
+    installFixturePanelConfig({
+      colorCluster: {
+        id: 'small',
+        label: 'Small',
+        paletteSize: SMALL_PALETTE_SIZE,
+        baseRoles: {},
+        paletteCssVarTemplate: '--small-p{n}',
+        semanticDefaults: {},
+        semanticCssNames: {},
+        baseDefaults: {},
+        defaultShikiTheme: 'dracula',
+        colorSchemes: {},
+        panelSettings: { colorScheme: '', colorMode: false },
+      },
+    });
+
+    const { state } = deserialize({
+      $schema: getDesignTokenSchema(),
+      exportedAt: new Date().toISOString(),
+      // Note: no `color` block — forces the baseline path that calls
+      // neutralColorDefaults().
+    });
+
+    expect(state.color.palette).toHaveLength(SMALL_PALETTE_SIZE);
+    // Indices used as base/fg/sel must remain in range for the smaller palette.
+    expect(state.color.foreground).toBeLessThan(SMALL_PALETTE_SIZE);
+    expect(state.color.selectionFg).toBeLessThan(SMALL_PALETTE_SIZE);
+  });
+
   it("warns when palette has 16 entries but some aren't strings", () => {
     // Craft a 16-long array whose 3rd slot is a number — previously this fell
     // back silently because the length check was looser.

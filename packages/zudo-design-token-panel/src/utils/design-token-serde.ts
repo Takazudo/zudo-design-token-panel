@@ -479,20 +479,34 @@ function numOr(v: unknown, fallback: number): number {
 
 /**
  * Minimal color state used as the last-resort baseline when the caller can't
- * provide one (e.g. unit tests without a DOM). Matches the default palette
- * fallback in `tweak-state.ts`'s `tryInitColorFromScheme`.
+ * provide one (e.g. unit tests without a DOM). The palette is sized to the
+ * active panel config's color cluster `paletteSize` so smaller clusters
+ * don't end up with orphan trailing slots that would later serialize as
+ * `--*-p{paletteSize}..15` ghost properties.
+ *
+ * Falls back to a length of 16 when no cluster is configured (matches the
+ * historical baseline used by tests that pre-date the cluster-driven
+ * config).
  */
 function neutralColorDefaults(): ColorTweakState {
-  const palette = Array.from({ length: 16 }, (_, i) =>
-    i === 0 ? '#000000' : i === 15 ? '#ffffff' : '#808080',
-  );
+  const cluster = getPanelConfig().colorCluster;
+  const size = cluster && cluster.paletteSize > 0 ? cluster.paletteSize : 16;
+  const lastIdx = size - 1;
+  const palette = Array.from({ length: size }, (_, i) => {
+    if (i === 0) return '#000000';
+    if (i === lastIdx) return '#ffffff';
+    return '#808080';
+  });
+  // Clamp baseline indices to the actual palette length so we never point
+  // past the end (defensive for paletteSize < 16).
+  const clamp = (i: number) => Math.min(Math.max(i, 0), lastIdx);
   return {
     palette,
-    background: 0,
-    foreground: 15,
-    cursor: 6,
-    selectionBg: 0,
-    selectionFg: 15,
+    background: clamp(0),
+    foreground: clamp(15),
+    cursor: clamp(6),
+    selectionBg: clamp(0),
+    selectionFg: clamp(15),
     semanticMappings: {},
     shikiTheme: 'dracula',
   };
