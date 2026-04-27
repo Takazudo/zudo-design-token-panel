@@ -1,0 +1,180 @@
+---
+title: Lazy color presets
+description: Defer a large preset library out of the SSR config blob with setPanelColorPresets.
+sidebar_position: 5
+---
+
+Hosts that ship a large preset library (Dracula, Solarized, Tokyo Night,
+Catppuccin, …) usually do **not** want every preset baked into the SSR
+config blob — that payload renders inline as
+`<script type="application/json">` on every page.
+`setPanelColorPresets(presets)` solves this: call it from a deferred
+dynamic import after `configurePanel`, and the bundler emits the preset
+map as a separate JS chunk.
+
+For the merge contract (cluster bundled schemes win on key collision,
+trailing call wins on conflict between calls), see the
+[Color cluster reference](/docs/reference/color-cluster) section on
+`colorPresets`.
+
+## Why defer?
+
+The simple wiring is to set `colorPresets` directly on `PanelConfig`:
+
+```ts
+// Always-loaded path — preset map ships in the SSR config blob.
+import { dracula, solarized, tokyoNight } from './my-presets';
+
+export const myPanelConfig: PanelConfig = {
+  // ...
+  colorPresets: {
+    Dracula: dracula,
+    Solarized: solarized,
+    'Tokyo Night': tokyoNight,
+  },
+};
+```
+
+That works, but every page-load pays the JSON cost — even for users who
+never open the Color tab. The deferred pattern below moves the preset
+payload off the critical page-load path.
+
+## The deferred pattern
+
+Three steps: split the preset map into its own module, import it lazily,
+call `setPanelColorPresets` with the result.
+
+### Step 1 — own the preset module
+
+```ts
+// src/lib/color-presets.ts
+import type { ColorScheme } from '@takazudo/zudo-design-token-panel';
+
+const dracula: ColorScheme = {
+  background: 0,
+  foreground: 7,
+  cursor: 7,
+  selectionBg: 8,
+  selectionFg: 0,
+  palette: [
+    '#282a36', '#ff5555', '#50fa7b', '#f1fa8c',
+    '#bd93f9', '#ff79c6', '#8be9fd', '#f8f8f2',
+    '#44475a', '#ff5555', '#50fa7b', '#f1fa8c',
+    '#bd93f9', '#ff79c6', '#8be9fd', '#bfbfbf',
+  ],
+  shikiTheme: 'dracula',
+};
+
+const solarizedDark: ColorScheme = {
+  background: 0,
+  foreground: 7,
+  cursor: 7,
+  selectionBg: 8,
+  selectionFg: 0,
+  palette: [
+    '#002b36', '#dc322f', '#859900', '#b58900',
+    '#268bd2', '#d33682', '#2aa198', '#eee8d5',
+    '#073642', '#cb4b16', '#586e75', '#657b83',
+    '#839496', '#6c71c4', '#93a1a1', '#fdf6e3',
+  ],
+  shikiTheme: 'solarized-dark',
+};
+
+// ...add as many as you like...
+
+export const colorPresets: Record<string, ColorScheme> = {
+  Dracula: dracula,
+  'Solarized Dark': solarizedDark,
+};
+```
+
+### Step 2 — leave `PanelConfig.colorPresets` empty
+
+Omit the field (or set it to `{}`). The SSR config blob now stays small —
+only the cluster's bundled schemes ride along on first paint.
+
+```ts
+// src/lib/my-panel-config.ts
+import type { PanelConfig } from '@takazudo/zudo-design-token-panel';
+import { myColorCluster } from './my-color-cluster';
+
+export const myPanelConfig: PanelConfig = {
+  storagePrefix: 'myapp-design-token-panel',
+  consoleNamespace: 'myapp',
+  modalClassPrefix: 'myapp-design-token-panel-modal',
+  schemaId: 'myapp-design-tokens/v1',
+  exportFilenameBase: 'myapp-design-tokens',
+  tokens: {
+    spacing: [],
+    typography: [],
+    size: [],
+    color: [],
+  },
+  colorCluster: myColorCluster,
+  // colorPresets intentionally omitted — wired lazily below.
+};
+```
+
+### Step 3 — attach the presets after configure
+
+`setPanelColorPresets` is exported from the package root. Call it from a
+deferred dynamic import — the bundler will emit `color-presets.ts` as its
+own JS chunk, so it never blocks first paint.
+
+```ts
+// src/main.ts (Vite host)
+import { configurePanel, setPanelColorPresets } from '@takazudo/zudo-design-token-panel';
+import '@takazudo/zudo-design-token-panel/styles';
+import { myPanelConfig } from './lib/my-panel-config';
+
+configurePanel(myPanelConfig);
+
+// Defer the preset payload to its own chunk.
+void import('./lib/color-presets').then(({ colorPresets }) => {
+  setPanelColorPresets(colorPresets);
+});
+```
+
+For Astro hosts the same pattern lives in a hoisted `<script>` block
+alongside the host-adapter import:
+
+```astro
+<script>
+  void import('./lib/color-presets').then(({ colorPresets }) => {
+    void import('@takazudo/zudo-design-token-panel').then((mod) => {
+      mod.setPanelColorPresets(colorPresets);
+    });
+  });
+</script>
+```
+
+<Tip>
+**Order does not matter.** A host that calls `setPanelColorPresets`
+**before** `configurePanel` is serviced via a holding slot inside
+`config/panel-config.ts` — the preset map is buffered and merged when
+configure runs. The trailing call wins if you call
+`setPanelColorPresets` more than once (no throw, unlike a duplicate
+`configurePanel`).
+</Tip>
+
+## When NOT to defer
+
+- **Tiny preset list (≤ 3 entries).** The lazy chunk infrastructure is
+  not worth a few KB. Just inline them on `PanelConfig.colorPresets`.
+- **Server-rendered preset gallery.** If you build a UI that lists
+  presets at SSR time, deferring would mean the gallery renders empty on
+  first paint and re-renders on hydrate. Inline the map instead.
+- **Cluster owner's defaults.** Schemes that should be the cluster's
+  documented defaults (e.g. `"Default Light"` / `"Default Dark"`) belong
+  on `colorCluster.colorSchemes`, not on `colorPresets` — they are part
+  of the cluster identity, not optional add-ons.
+
+## Related
+
+- [Color cluster reference](/docs/reference/color-cluster) — full
+  cluster shape, `colorSchemes` registry, and the preset merge order.
+- [Custom color cluster](/docs/recipes/custom-color-cluster) — wiring
+  the primary cluster (which carries the bundled schemes a preset map
+  cannot override).
+- [`configurePanel` reference](/docs/reference/configure-panel) —
+  `colorPresets` field, lazy attachment, and key-collision rules.

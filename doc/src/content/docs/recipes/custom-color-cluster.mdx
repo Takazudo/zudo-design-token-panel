@@ -1,0 +1,221 @@
+---
+title: Custom color cluster
+description: "Wire a non-default palette plus a semantic token table into the panel's Color tab."
+sidebar_position: 1
+---
+
+The package ships **zero baked-in color data**. The host owns the palette
+template, the base roles, the semantic table, and the scheme registry. This
+recipe walks through wiring a fresh `ColorClusterConfig` for a new project.
+
+For the authoritative shape and apply-time semantics, see
+[Color cluster reference](/docs/reference/color-cluster). Below is the
+minimum viable cluster that compiles against the public exports.
+
+## 1. Define the cluster
+
+Pick CSS variable names that match your stylesheet. The `{n}` placeholder in
+`paletteCssVarTemplate` is replaced with the palette index at apply time.
+
+```ts
+// src/lib/my-color-cluster.ts
+import type {
+  ColorClusterConfig,
+  ColorScheme,
+} from '@takazudo/zudo-design-token-panel';
+
+const defaultDark: ColorScheme = {
+  background: 0,
+  foreground: 7,
+  cursor: 7,
+  selectionBg: 8,
+  selectionFg: 0,
+  palette: [
+    '#1e1e2e', // p0 — base background
+    '#f38ba8', // p1 — red
+    '#a6e3a1', // p2 — green
+    '#f9e2af', // p3 — yellow
+    '#89b4fa', // p4 — blue
+    '#cba6f7', // p5 — magenta
+    '#94e2d5', // p6 — cyan
+    '#cdd6f4', // p7 — base foreground
+    '#45475a', // p8 — bright black
+    '#f38ba8',
+    '#a6e3a1',
+    '#f9e2af',
+    '#89b4fa',
+    '#cba6f7',
+    '#94e2d5',
+    '#bac2de',
+  ],
+  shikiTheme: 'github-dark',
+  // Overrides for individual semantics. Anything omitted falls back to
+  // `cluster.semanticDefaults`.
+  semantic: {
+    primary: 4,
+    accent: 5,
+    danger: 1,
+    success: 2,
+    warning: 3,
+    muted: 8,
+  },
+};
+
+export const myColorCluster: ColorClusterConfig = {
+  id: 'myapp',
+  label: 'MyApp Brand',
+  paletteSize: 16,
+  paletteCssVarTemplate: '--myapp-p{n}',
+  baseRoles: {
+    background: '--myapp-color-bg',
+    foreground: '--myapp-color-fg',
+    cursor: '--myapp-color-cursor',
+    selectionBg: '--myapp-color-selection-bg',
+    selectionFg: '--myapp-color-selection-fg',
+  },
+  baseDefaults: {
+    background: 0,
+    foreground: 7,
+    cursor: 7,
+    selectionBg: 8,
+    selectionFg: 0,
+  },
+  semanticDefaults: {
+    primary: 4,
+    accent: 5,
+    danger: 1,
+    success: 2,
+    warning: 3,
+    muted: 8,
+  },
+  semanticCssNames: {
+    primary: '--myapp-color-primary',
+    accent: '--myapp-color-accent',
+    danger: '--myapp-color-danger',
+    success: '--myapp-color-success',
+    warning: '--myapp-color-warning',
+    muted: '--myapp-color-muted',
+  },
+  defaultShikiTheme: 'github-dark',
+  colorSchemes: {
+    'Default Dark': defaultDark,
+  },
+  panelSettings: {
+    colorScheme: 'Default Dark',
+    // Single-mode site. See secondary-cluster-or-disable for the light/dark
+    // pairing pattern.
+    colorMode: false,
+  },
+};
+```
+
+<Info>
+**`paletteSize` must match every `palette` array.** The validator (called
+automatically by the Astro adapter) throws when a `ColorScheme.palette` does
+not match `paletteSize`. Keep them in lockstep when you add or rename slots.
+</Info>
+
+## 2. Plug it into `configurePanel`
+
+Pass the cluster to `configurePanel` (the configure-once entry point) along
+with the rest of `PanelConfig`. The token manifest can stay minimal while
+you focus on color — the four arrays are required by the type but may be
+empty.
+
+```ts
+// src/lib/my-panel-config.ts
+import type { PanelConfig } from '@takazudo/zudo-design-token-panel';
+import { myColorCluster } from './my-color-cluster';
+
+export const myPanelConfig: PanelConfig = {
+  storagePrefix: 'myapp-design-token-panel',
+  consoleNamespace: 'myapp',
+  modalClassPrefix: 'myapp-design-token-panel-modal',
+  schemaId: 'myapp-design-tokens/v1',
+  exportFilenameBase: 'myapp-design-tokens',
+  tokens: {
+    spacing: [],
+    typography: [],
+    size: [],
+    color: [],
+  },
+  colorCluster: myColorCluster,
+};
+```
+
+See [`configurePanel` reference](/docs/reference/configure-panel) for the full
+list of `PanelConfig` fields.
+
+## 3. Match your stylesheet
+
+The panel writes to `:root` using the names you declared. Your stylesheet
+needs to consume them — usually via fallback defaults so the page paints
+even before any user override:
+
+```css
+/* src/styles/tokens.css */
+:root {
+  --myapp-p0: #1e1e2e;
+  --myapp-p1: #f38ba8;
+  /* …rest of the 16-tuple… */
+
+  --myapp-color-bg: var(--myapp-p0);
+  --myapp-color-fg: var(--myapp-p7);
+  --myapp-color-primary: var(--myapp-p4);
+  --myapp-color-accent: var(--myapp-p5);
+  --myapp-color-danger: var(--myapp-p1);
+  --myapp-color-success: var(--myapp-p2);
+  --myapp-color-warning: var(--myapp-p3);
+  --myapp-color-muted: var(--myapp-p8);
+}
+```
+
+<Tip>
+The panel never **reads** these declarations — it only writes through
+`document.documentElement.style.setProperty(...)`. Treat your stylesheet as
+the source of the defaults; treat the panel as a layer of inline overrides
+on top.
+</Tip>
+
+## 4. Add a second scheme (optional)
+
+Schemes appear in the Color tab "Scheme..." dropdown. Add as many as you
+like; their order is the insertion order of `colorSchemes`.
+
+```ts
+const defaultLight: ColorScheme = {
+  background: 0,
+  foreground: 7,
+  cursor: 7,
+  selectionBg: 8,
+  selectionFg: 0,
+  palette: [
+    '#fafafa', '#d20f39', '#40a02b', '#df8e1d',
+    '#1e66f5', '#8839ef', '#179299', '#4c4f69',
+    '#9ca0b0', '#d20f39', '#40a02b', '#df8e1d',
+    '#1e66f5', '#8839ef', '#179299', '#5c5f77',
+  ],
+  shikiTheme: 'github-light',
+};
+
+// then, inside myColorCluster:
+colorSchemes: {
+  'Default Dark': defaultDark,
+  'Default Light': defaultLight,
+},
+```
+
+If you also want true light/dark switching driven by the page's
+`data-theme` attribute, see the
+[secondary cluster recipe](/docs/recipes/secondary-cluster-or-disable) and
+the [Color cluster reference](/docs/reference/color-cluster) section on
+`panelSettings.colorMode`.
+
+## Related
+
+- [Color cluster reference](/docs/reference/color-cluster) — full type
+  contract, JSON-serializability rule, and apply-time write order.
+- [Panel CSS tokens](/docs/reference/panel-css-tokens) — overriding the
+  panel's chrome colors (separate from your app's color cluster).
+- [Lazy color presets](/docs/recipes/lazy-color-presets) — keep a large
+  preset library out of the SSR config blob.
