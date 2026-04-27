@@ -1,0 +1,221 @@
+---
+title: Custom token manifest
+description: Add or remove tabs, coin custom group ids, and control group ordering in the token manifest.
+sidebar_position: 2
+---
+
+The panel's spacing / typography / size tabs are driven by a host-supplied
+`TokenManifest`. The shape is intentionally open — `TokenGroup` is just
+`string`, so you can coin your own group ids without forking the package.
+This recipe walks through the moves you actually do day-to-day.
+
+For the full type contract, see
+[Token manifest reference](/docs/reference/token-manifest).
+
+## Minimal manifest
+
+Every `TokenManifest` must have all four arrays present (any can be empty).
+A token with `control: 'slider'` (the default when omitted) needs `min`,
+`max`, `step`, and `unit`.
+
+```ts
+// src/lib/my-tokens.ts
+import type { TokenManifest, TokenDef } from '@takazudo/zudo-design-token-panel';
+
+const SPACING_TOKENS: readonly TokenDef[] = [
+  {
+    id: 'sp-md',
+    cssVar: '--myapp-spacing-md',
+    label: 'Medium',
+    group: 'core',
+    default: '1rem',
+    min: 0,
+    max: 4,
+    step: 0.125,
+    unit: 'rem',
+  },
+  {
+    id: 'sp-lg',
+    cssVar: '--myapp-spacing-lg',
+    label: 'Large',
+    group: 'core',
+    default: '1.5rem',
+    min: 0,
+    max: 6,
+    step: 0.125,
+    unit: 'rem',
+  },
+];
+
+export const myTokens: TokenManifest = {
+  spacing: SPACING_TOKENS,
+  typography: [],
+  size: [],
+  color: [],
+};
+```
+
+## Coining your own group ids
+
+`TokenGroup` is `string`, not a closed union. You can add custom group ids
+freely — but you almost always want to also populate `groupTitles` so the
+section header renders something nicer than the raw id.
+
+```ts
+const SPACING_TOKENS: readonly TokenDef[] = [
+  // ...existing core tokens...
+  {
+    id: 'sp-card',
+    cssVar: '--myapp-spacing-card',
+    label: 'Card padding',
+    group: 'cards', // ← brand-new group id
+    default: '1.25rem',
+    min: 0,
+    max: 4,
+    step: 0.0625,
+    unit: 'rem',
+  },
+];
+
+export const myTokens: TokenManifest = {
+  spacing: SPACING_TOKENS,
+  typography: [],
+  size: [],
+  color: [],
+  // Render order — anything not listed falls back to the package default.
+  spacingGroupOrder: ['core', 'cards'],
+  // Human-readable section headers.
+  groupTitles: {
+    core: 'Core spacing',
+    cards: 'Card-specific spacing',
+  },
+};
+```
+
+<Note>
+**`TokenGroup` opens the union deliberately.** Section headers fall back to
+the raw group id if you forget `groupTitles`, so a typo will show up
+visually rather than as a TypeScript error.
+</Note>
+
+## Different control types
+
+Beyond the default slider, two more controls are supported.
+
+```ts
+const TYPOGRAPHY_TOKENS: readonly TokenDef[] = [
+  // 1. Select — fixed list of allowed values.
+  {
+    id: 'font-family-body',
+    cssVar: '--myapp-font-family-body',
+    label: 'Body font',
+    group: 'family',
+    default: 'system-ui',
+    min: 0,
+    max: 0,
+    step: 0,
+    unit: '',
+    control: 'select',
+    options: ['system-ui', 'Inter, sans-serif', 'Georgia, serif'],
+  },
+  // 2. Text — free-form CSS string.
+  {
+    id: 'line-height-relaxed',
+    cssVar: '--myapp-line-height-relaxed',
+    label: 'Relaxed line height',
+    group: 'rhythm',
+    default: '1.6',
+    min: 0,
+    max: 0,
+    step: 0,
+    unit: '',
+    control: 'text',
+  },
+  // 3. Slider with pill toggle — exposes a "max" sentinel value.
+  {
+    id: 'radius-button',
+    cssVar: '--myapp-radius-button',
+    label: 'Button radius',
+    group: 'shape',
+    default: '0.375rem',
+    min: 0,
+    max: 1,
+    step: 0.0625,
+    unit: 'rem',
+    pill: { value: '9999px', customDefault: '0.375rem' },
+  },
+];
+```
+
+<Tip>
+For non-slider controls (`select`, `text`), set `min`, `max`, `step` to
+sensible filler values (e.g. `0`) — they are required by the `TokenDef`
+shape but ignored by the renderer.
+</Tip>
+
+## Hiding rows behind "Advanced"
+
+Set `advanced: true` on rows that should live inside the per-tab disclosure
+rather than the always-visible list:
+
+```ts
+{
+  id: 'sp-rare',
+  cssVar: '--myapp-spacing-rare',
+  label: 'Rarely-used spacing',
+  group: 'core',
+  default: '0.0625rem',
+  min: 0,
+  max: 1,
+  step: 0.0625,
+  unit: 'rem',
+  advanced: true,
+},
+```
+
+## Read-only display rows
+
+Use `readonly: true` for tokens you want to display in the panel without
+allowing edits. The apply pipeline skips read-only tokens in both directions.
+
+```ts
+{
+  id: 'computed-content-width',
+  cssVar: '--myapp-computed-content-width',
+  label: 'Content width (computed)',
+  group: 'layout',
+  default: 'min(100%, 64rem)',
+  min: 0,
+  max: 0,
+  step: 0,
+  unit: '',
+  control: 'text',
+  readonly: true,
+},
+```
+
+## Color tab: empty array vs cluster-driven
+
+For color, the package expects you to drive the Color tab through a
+`ColorClusterConfig`, not through per-token rows in `tokens.color`. Cluster-
+driven hosts ship `color: []`; the field stays required so a cluster-less
+host could in principle provide rows here.
+
+```ts
+export const myTokens: TokenManifest = {
+  spacing: SPACING_TOKENS,
+  typography: TYPOGRAPHY_TOKENS,
+  size: SIZE_TOKENS,
+  color: [], // ← cluster-driven; see custom-color-cluster recipe.
+};
+```
+
+## Related
+
+- [Token manifest reference](/docs/reference/token-manifest) — full
+  `TokenDef` and `TokenManifest` interfaces, helpers, and apply
+  semantics.
+- [Custom color cluster](/docs/recipes/custom-color-cluster) — the
+  cluster-driven Color tab.
+- [`configurePanel` reference](/docs/reference/configure-panel) — where
+  the manifest plugs in.
