@@ -34,6 +34,22 @@
 # every workspace has been checked. Build failures are handled explicitly.
 set -uo pipefail
 
+# ── Preconditions ───────────────────────────────
+# The audit relies on GNU grep semantics: PCRE (`-P`) with variable-width
+# lookbehind, and the `--include` / `--exclude` flags. macOS ships BSD grep,
+# which lacks both. Detect and refuse early with a helpful message rather
+# than silently producing garbage results.
+if ! grep --version 2>/dev/null | head -1 | grep -q 'GNU grep'; then
+  echo "❌ check-deploy-paths.sh requires GNU grep (with -P / --include support)." >&2
+  echo "   On macOS:  brew install grep  (then put gnubin first on PATH, or alias grep=ggrep)." >&2
+  echo "   Detected: $(grep --version 2>/dev/null | head -1)" >&2
+  exit 2
+fi
+if ! echo x | grep -P 'x' >/dev/null 2>&1; then
+  echo "❌ This grep does not support -P (PCRE). Rebuild GNU grep with --enable-perl-regexp." >&2
+  exit 2
+fi
+
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 

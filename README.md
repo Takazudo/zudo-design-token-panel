@@ -124,7 +124,11 @@ greps each bundle for:
 - Trailing-slash inconsistency on internal `<a>` links — flags any base URL
   that appears in BOTH the trailing-slash form and the non-trailing form.
 
-The script exits non-zero on any escape so it can gate CI or pre-push.
+The script exits non-zero on any escape so it can gate CI or pre-push. It
+relies on GNU grep (PCRE with variable-width lookbehind, plus the
+`--include` / `--exclude` flags) and refuses to run otherwise. On macOS,
+install with `brew install grep` and put gnubin first on PATH, or alias
+`grep=ggrep`.
 
 ## Contributing
 
