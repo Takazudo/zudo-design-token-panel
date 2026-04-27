@@ -8,6 +8,11 @@ import FeatureCard from "@/components/feature-card.astro";
 const logoUrl = withBase("/img/logo.svg");
 const githubUrl = "https://github.com/takazudo/zudo-design-token-panel";
 const gettingStartedHref = withBase("/docs/getting-started");
+const examplesBaseUrl =
+  "https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples";
+const astroExampleUrl = `${examplesBaseUrl}/astro`;
+const viteReactExampleUrl = `${examplesBaseUrl}/vite-react`;
+const nextExampleUrl = `${examplesBaseUrl}/next`;
 ---
 
 <DocLayout title={settings.siteName} lang={defaultLocale} hideSidebar hideToc>
@@ -117,11 +122,37 @@ const gettingStartedHref = withBase("/docs/getting-started");
         tokens against your local dev server.
       </FeatureCard>
       <FeatureCard title="Example Apps" href="#example-apps">
-        Reference integrations across Astro, Vite + React, and Next.js. (Links
-        wired up in a follow-up release.)
+        Reference integrations across Astro, Vite + React, and Next.js. The
+        example apps live alongside the panel package on GitHub.
       </FeatureCard>
       <FeatureCard title="GitHub" href={githubUrl} external>
         Source code, issues, and release notes for zudo-design-token-panel.
+      </FeatureCard>
+    </div>
+  </section>
+
+  <!-- Example apps -->
+  <section id="example-apps" class="mb-vsp-xl">
+    <h2 class="text-subheading font-bold mb-vsp-md text-center">
+      Example Apps
+    </h2>
+    <p class="text-muted text-small mb-vsp-md text-center max-w-[40rem] mx-auto">
+      Reference integrations across three popular stacks. The links point at
+      the <code>examples/</code> directory in the GitHub repo. The example apps
+      are coming soon — these links may 404 until the examples land.
+    </p>
+    <div class="grid gap-hsp-lg sm:grid-cols-3">
+      <FeatureCard title="Astro" href={astroExampleUrl} external>
+        Drop the panel into an Astro site. Demonstrates host-config wiring
+        with an Astro dev server and the bin apply pipeline.
+      </FeatureCard>
+      <FeatureCard title="Vite + React" href={viteReactExampleUrl} external>
+        Use the panel from a Vite + React app. Shows how the Preact runtime
+        coexists with React via the compat shim.
+      </FeatureCard>
+      <FeatureCard title="Next.js" href={nextExampleUrl} external>
+        Wire the panel into a Next.js app router project, including the bin
+        server side-by-side with the Next dev server.
       </FeatureCard>
     </div>
   </section>
