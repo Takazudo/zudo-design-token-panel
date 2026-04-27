@@ -1,0 +1,30 @@
+{
+  "name": "astro-example",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Astro example app demonstrating @takazudo/zudo-design-token-panel — host-config-driven panel + apply-pipeline round-trip via the bin sidecar.",
+  "scripts": {
+    "predev": "lsof -ti:44324 | xargs kill 2>/dev/null; lsof -ti:24682 | xargs kill 2>/dev/null; true",
+    "dev": "concurrently -k -n astro,tokens-bin -c blue,green \"pnpm run _dev:astro\" \"pnpm run _dev:tokens-bin\"",
+    "_dev:astro": "astro dev --port 44324",
+    "_dev:tokens-bin": "design-token-panel-server --write-root . --routing scaffold.routing.json --port 24682 --allow-origin http://localhost:44324",
+    "build": "astro build",
+    "preview": "astro preview --port 44324",
+    "typecheck": "astro check",
+    "test:apply-smoke": "node scripts/smoke-apply.mjs"
+  },
+  "dependencies": {
+    "@astrojs/preact": "^5.1.1",
+    "@takazudo/zudo-design-token-panel": "workspace:*",
+    "astro": "^6.1.5",
+    "preact": "^10.29.1"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.4",
+    "@playwright/test": "^1.59.1",
+    "@types/node": "^22.0.0",
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.3"
+  }
+}
