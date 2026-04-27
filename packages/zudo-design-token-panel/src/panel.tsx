@@ -116,6 +116,26 @@ function EmptyState() {
   );
 }
 
+// --- State factory ---
+
+/**
+ * Return a freshly-initialised TweakState: colour defaults from the active
+ * scheme, empty override maps for spacing / typography / size, and the
+ * secondary colour cluster defaults (if configured).
+ *
+ * Extracted from four identical inline object literals throughout the panel
+ * so that adding or renaming a state slice only requires one change.
+ */
+function freshTweakState(): TweakState {
+  return {
+    color: initColorFromScheme(),
+    spacing: emptyOverrides(),
+    typography: emptyOverrides(),
+    size: emptyOverrides(),
+    secondary: initSecondaryFromConfig(),
+  };
+}
+
 // --- Main Component ---
 
 export default function DesignTokenTweakPanel() {
@@ -189,13 +209,7 @@ export default function DesignTokenTweakPanel() {
     function handleSchemeChange() {
       // Clear all inline style overrides so the new scheme's <style> tag takes effect
       clearAppliedStyles();
-      setState({
-        color: initColorFromScheme(),
-        spacing: emptyOverrides(),
-        typography: emptyOverrides(),
-        size: emptyOverrides(),
-        secondary: initSecondaryFromConfig(),
-      });
+      setState(freshTweakState());
     }
     window.addEventListener('color-scheme-changed', handleSchemeChange);
     return () => window.removeEventListener('color-scheme-changed', handleSchemeChange);
@@ -215,13 +229,7 @@ export default function DesignTokenTweakPanel() {
     // The `secondary` slice is always seeded — every fresh-state path
     // includes it so the persisted envelope shape stays stable regardless
     // of the user's path.
-    setState({
-      color: initColorFromScheme(),
-      spacing: emptyOverrides(),
-      typography: emptyOverrides(),
-      size: emptyOverrides(),
-      secondary: initSecondaryFromConfig(),
-    });
+    setState(freshTweakState());
   }, [open, state]);
 
   // Drag handler for panel header (stable — reads position from ref)
@@ -313,13 +321,7 @@ export default function DesignTokenTweakPanel() {
     clearAppliedStyles();
     // Always seed the secondary slice — every fresh-state path emits a
     // uniform envelope shape so persistence stays consistent.
-    setState({
-      color: initColorFromScheme(),
-      spacing: emptyOverrides(),
-      typography: emptyOverrides(),
-      size: emptyOverrides(),
-      secondary: initSecondaryFromConfig(),
-    });
+    setState(freshTweakState());
   }, []);
 
   const handleApplied = useCallback(() => {
@@ -330,13 +332,7 @@ export default function DesignTokenTweakPanel() {
     clearAppliedStyles();
     // Always seed the secondary slice — every fresh-state path emits a
     // uniform envelope shape.
-    setState({
-      color: initColorFromScheme(),
-      spacing: emptyOverrides(),
-      typography: emptyOverrides(),
-      size: emptyOverrides(),
-      secondary: initSecondaryFromConfig(),
-    });
+    setState(freshTweakState());
   }, []);
 
   // --- Tab keyboard navigation (WAI-ARIA tablist pattern) ---
