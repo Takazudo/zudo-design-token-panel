@@ -8,8 +8,9 @@
     "build": "astro build",
     "preview": "astro preview",
     "check": "astro check",
+    "check:asset-prefix": "bash scripts/check-asset-prefix.sh",
     "setup:doc-skill": "bash scripts/setup-doc-skill.sh",
-    "b4push": "pnpm check && pnpm build"
+    "b4push": "pnpm check && pnpm build && pnpm check:asset-prefix"
   },
   "dependencies": {
     "astro": "^6.0.4",

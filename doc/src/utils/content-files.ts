@@ -68,12 +68,22 @@ export function collectMdFiles(
   return results;
 }
 
-/** Compute a URL from a slug and locale. When absolute is true and siteUrl is configured, returns a full URL. */
+/** Compute a URL from a slug and locale. When absolute is true and siteUrl is configured, returns a full URL.
+ *
+ * `siteUrl` may be either origin-only (e.g. "https://example.com") or origin + base
+ * (e.g. "https://example.com/pj/zdtp/"). Detect the latter and avoid duplicating the
+ * base segment when concatenating with `path` (which already includes `base`).
+ */
 export function slugToUrl(slug: string, locale: string | null, absolute = false): string {
   const base = settings.base.replace(/\/$/, "");
   const path = locale ? `${base}/${locale}/docs/${slug}` : `${base}/docs/${slug}`;
   if (absolute && settings.siteUrl) {
-    return `${settings.siteUrl.replace(/\/$/, "")}${path}`;
+    const siteUrl = settings.siteUrl.replace(/\/$/, "");
+    if (base && (siteUrl === base || siteUrl.endsWith(base))) {
+      // siteUrl already contains base; strip the duplicated prefix from path.
+      return `${siteUrl}${path.slice(base.length)}`;
+    }
+    return `${siteUrl}${path}`;
   }
   return path;
 }
