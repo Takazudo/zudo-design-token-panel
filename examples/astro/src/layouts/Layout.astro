@@ -1,0 +1,57 @@
+---
+/**
+ * Shared layout for the Astro example. Mounts <DesignTokenPanelHost> at the
+ * end of <body> so the panel attaches once per page navigation. The
+ * <ClientRouter /> import wires Astro's view-transition lifecycle — the
+ * panel's host adapter listens for `astro:before-swap` / `astro:page-load`
+ * and re-materialises the shell automatically.
+ *
+ * Side-effect CSS imports
+ * -----------------------
+ *  - `reset.css` is the demo's minimal preflight.
+ *  - `tokens.css` declares every `--astroexample-*` variable on `:root` AND
+ *    is the file the apply pipeline rewrites on disk (single source of
+ *    truth for the round-trip).
+ *  - `@takazudo/zudo-design-token-panel/styles` re-pulls the package's
+ *    bundled chrome stylesheet. Vite library mode strips the source CSS
+ *    import from the emitted JS, so consumers must re-pull it explicitly.
+ */
+
+import { ClientRouter } from 'astro:transitions';
+import { DesignTokenPanelHost } from '@takazudo/zudo-design-token-panel/astro';
+import { panelConfig } from '../config/panel-config';
+
+import '../styles/reset.css';
+import '../styles/tokens.css';
+import '@takazudo/zudo-design-token-panel/styles';
+
+interface Props {
+  title: string;
+}
+
+const { title } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <ClientRouter />
+  </head>
+  <body>
+    <slot />
+    <DesignTokenPanelHost config={panelConfig} />
+  </body>
+</html>
+
+<script>
+  // Required side-effect load for the package's host adapter. We use a
+  // dynamic `import()` (not a top-level `import '...';`) because Vite/Rollup
+  // strips top-level side-effect imports of external packages from hoisted
+  // Astro <script> blocks. The dynamic import lands as a real `import()`
+  // call in the bundled output so the host-adapter chunk reliably reaches
+  // prod and `window.<consoleNamespace>.*` exists at runtime.
+  void import('@takazudo/zudo-design-token-panel/astro/host-adapter');
+</script>

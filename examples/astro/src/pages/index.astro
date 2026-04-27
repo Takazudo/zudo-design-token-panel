@@ -1,0 +1,73 @@
+---
+/**
+ * Home page of the Astro example. Renders cards / buttons / palette swatches
+ * driven entirely by `--astroexample-*` tokens, so opening the panel and
+ * tweaking any token rewrites the page in real time.
+ */
+
+import Layout from '../layouts/Layout.astro';
+
+const paletteIndices = Array.from({ length: 16 }, (_, i) => i);
+---
+
+<Layout title="Astro Example — Design Token Panel">
+  <main class="astroexample-stack">
+    <header>
+      <h1 class="astroexample-heading">Live token tweaking, in plain Astro</h1>
+      <p>
+        Every visible element on this page is driven by an
+        <code>--astroexample-*</code> CSS custom property. Open the panel from the browser console and
+        drag any slider — the change applies before the next paint.
+      </p>
+      <p class="astroexample-meta">
+        Console API: <code>window.astroExample.toggleDesignPanel()</code>. Storage prefix:
+        <code>astro-example-tokens</code>.
+      </p>
+    </header>
+
+    <section>
+      <h2 class="astroexample-heading">Cards (spacing + radius + surface)</h2>
+      <div class="astroexample-card">
+        <strong>Card A.</strong> Padding driven by <code>--astroexample-spacing-md</code>, corners by
+        <code>--astroexample-radius</code>, background by <code>--astroexample-color-surface</code>.
+      </div>
+      <div class="astroexample-card">
+        <strong>Card B.</strong> Stack gap driven by <code>--astroexample-spacing-lg</code>; outline
+        by <code>--astroexample-color-muted</code>.
+      </div>
+    </section>
+
+    <section>
+      <h2 class="astroexample-heading">Buttons + links (accent / primary)</h2>
+      <p>
+        <button class="astroexample-button" type="button">Action button</button>
+      </p>
+      <p>
+        Try the <a class="astroexample-link" href="/about">about page</a> to confirm token tweaks
+        persist across an Astro view-transition.
+      </p>
+    </section>
+
+    <section>
+      <h2 class="astroexample-heading">Palette swatches</h2>
+      <div class="astroexample-swatch-row">
+        {
+          paletteIndices.map((i) => (
+            <div
+              class="astroexample-swatch"
+              style={`background: var(--astroexample-palette-${i});`}
+            >
+              {i}
+            </div>
+          ))
+        }
+      </div>
+      <p class="astroexample-meta">
+        Each swatch reads <code>--astroexample-palette-{`{n}`}</code>. The cluster's
+        <code>paletteCssVarTemplate</code> is the only thing that decides this name — change it in
+        <code>default-cluster.ts</code> and the apply pipeline writes a different variable on the next
+        palette tweak.
+      </p>
+    </section>
+  </main>
+</Layout>
