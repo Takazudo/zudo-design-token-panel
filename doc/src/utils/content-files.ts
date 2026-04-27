@@ -71,7 +71,7 @@ export function collectMdFiles(
 /** Compute a URL from a slug and locale. When absolute is true and siteUrl is configured, returns a full URL.
  *
  * `siteUrl` may be either origin-only (e.g. "https://example.com") or origin + base
- * (e.g. "https://example.com/pj/zdtp/"). Detect the latter and avoid duplicating the
+ * (e.g. "https://example.com/pj/zudo-design-token-panel/"). Detect the latter and avoid duplicating the
  * base segment when concatenating with `path` (which already includes `base`).
  */
 export function slugToUrl(slug: string, locale: string | null, absolute = false): string {

@@ -107,9 +107,9 @@ test.describe('Next.js example — apply pipeline round-trip', () => {
     // Step 1: seed visibility intent so the host adapter eagerly mounts the
     // panel pre-paint (avoids needing a console-API call in the spec body).
     // The canonical truthy value is '1' — see packages/.../src/index.tsx.
-    // Path includes the example's basePath ('/pj/zdtp/next') because the
+    // Path includes the example's basePath ('/pj/zudo-design-token-panel/next') because the
     // dev server only serves the app under that subpath.
-    await page.goto('/pj/zdtp/next/');
+    await page.goto('/pj/zudo-design-token-panel/next/');
     await page.waitForLoadState('domcontentloaded');
     await page.evaluate((visibleKey) => {
       localStorage.setItem(visibleKey, '1');

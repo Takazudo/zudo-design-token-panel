@@ -3,8 +3,8 @@
 Documentation site for the zudo-design-token-panel project, built with
 [zudo-doc](https://github.com/zudolab/zudo-doc).
 
-- Site URL (production): `https://takazudomodular.com/pj/zdtp/`
-- Astro `base`: `/pj/zdtp/` (configured in `src/config/settings.ts`)
+- Site URL (production): `https://takazudomodular.com/pj/zudo-design-token-panel/`
+- Astro `base`: `/pj/zudo-design-token-panel/` (configured in `src/config/settings.ts`)
 
 ## Develop
 
@@ -21,7 +21,7 @@ pnpm --filter doc build
 ```
 
 Outputs static HTML to `doc/dist/`. All internal asset URLs are prefixed with
-`/pj/zdtp/`.
+`/pj/zudo-design-token-panel/`.
 
 ## Scaffolded by
 
@@ -84,5 +84,5 @@ scaffold (the CLI does not expose these as preset fields).
 2. From the repo root: `node $HOME/repos/myoss/zudo-doc/packages/create-zudo-doc/bin/create-zudo-doc.js --preset /tmp/preset.json --yes`
 3. `mv zudo-design-token-panel doc`
 4. In `doc/package.json`, change `"name": "zudo-design-token-panel"` to `"name": "doc"`.
-5. In `doc/src/config/settings.ts`, set `base: "/pj/zdtp/"` and `siteUrl: "https://takazudomodular.com/pj/zdtp/"`.
+5. In `doc/src/config/settings.ts`, set `base: "/pj/zudo-design-token-panel/"` and `siteUrl: "https://takazudomodular.com/pj/zudo-design-token-panel/"`.
 6. In `doc/astro.config.ts`, ensure the config passes `site: settings.siteUrl || undefined` to `defineConfig` (alongside the existing `base: settings.base`).
