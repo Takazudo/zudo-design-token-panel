@@ -11,18 +11,25 @@ export const normalizedBase = settings.base.replace(/\/+$/, "");
  * query string / fragment before the slash would be inserted.
  */
 export function applyTrailingSlash(url: string): string {
-  if (!settings.trailingSlash) return url;
-  if (url.endsWith("/")) return url;
   // Split off query string and fragment
   const suffixIdx = url.search(/[?#]/);
   const pathPart = suffixIdx >= 0 ? url.slice(0, suffixIdx) : url;
   const suffix = suffixIdx >= 0 ? url.slice(suffixIdx) : "";
-  if (pathPart.endsWith("/")) return url;
-  // Check file extension on the last path segment only, requiring the extension
-  // to start with a letter to avoid false positives on version-like paths (e.g. /docs/v2.0)
+  // Detect file extensions on the last path segment (requires extension to start with a letter
+  // to avoid false positives on version-like paths e.g. /docs/v2.0)
   const lastSegment = pathPart.split("/").pop() ?? "";
-  if (/\.[a-zA-Z]\w*$/.test(lastSegment)) return url;
-  return pathPart + "/" + suffix;
+  const hasFileExt = /\.[a-zA-Z]\w*$/.test(lastSegment);
+  if (settings.trailingSlash) {
+    if (pathPart.endsWith("/") || hasFileExt) return url;
+    return pathPart + "/" + suffix;
+  }
+  // trailingSlash: false — strip trailing slashes from non-root, non-base, non-file paths.
+  // Preserve a single trailing slash on the base itself (e.g. "/pj/zdtp/") and on file paths.
+  if (hasFileExt) return url;
+  if (!pathPart.endsWith("/")) return url;
+  // Don't strip if the path IS the normalized base (root) or "/".
+  if (pathPart === "/" || pathPart === normalizedBase + "/") return url;
+  return pathPart.replace(/\/+$/, "") + suffix;
 }
 
 /** Prefix a path with the configured base directory. */
@@ -86,10 +93,10 @@ export function getPathForLocale(
 ): string {
   let relativePath = stripBase(path);
   if (currentLang !== defaultLocale) {
-    relativePath = relativePath.replace(new RegExp(`^/${currentLang}/`), "/");
+    relativePath = relativePath.replace(new RegExp(`^/${currentLang}(/|$)`), "/");
   }
   if (targetLang !== defaultLocale) {
-    relativePath = `/${targetLang}${relativePath}`;
+    relativePath = `/${targetLang}${relativePath === "/" ? "" : relativePath}`;
   }
   return withBase(relativePath);
 }
