@@ -54,6 +54,11 @@ the bin **directly with CORS**. This example picks the API route. Why:
 The route is a transport-level adapter: it forwards the body bytes
 verbatim and the upstream status code verbatim. The bin owns the schema.
 
+**Dev-only**: the route short-circuits to `404` when `NODE_ENV ===
+'production'` so `next start` (and any production deploy) does not expose
+a localhost-bin proxy. This matches Vite's `server.proxy` semantics —
+proxies apply only to the dev server, not to production builds.
+
 ## Apply-pipeline manual verification
 
 The Playwright spec at `tests/e2e/apply-roundtrip.spec.ts` automates this; the

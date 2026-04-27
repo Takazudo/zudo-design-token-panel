@@ -1,5 +1,5 @@
 /*
- * Apply-pipeline proxy — Next.js API route.
+ * Apply-pipeline proxy — Next.js API route (DEV-ONLY).
  *
  * Mirrors the proxy the Vite + React example installs in vite.config.ts:
  *
@@ -16,10 +16,13 @@
  *
  *   2. App Router has no built-in dev-server proxy config equivalent to
  *      Vite's `server.proxy`. An API route is the canonical "talk to a
- *      backend without CORS" surface in App Router, and the route file is
- *      idiomatic Next: it ships in production builds too (so the same
- *      apply pipeline is reachable from `next start` if a host wants to
- *      run the bin under a process supervisor).
+ *      backend without CORS" surface in App Router, so the route is the
+ *      right Next-shaped tool for the job — but it ships in production
+ *      builds too. To keep the parity with vite-react's dev-only proxy
+ *      (`vite.config.ts`'s `server.proxy` does not apply to production
+ *      builds), this route SHORT-CIRCUITS to 404 in production. The
+ *      apply pipeline is a developer-only surface — production builds of
+ *      the example app must not expose a proxy to a localhost bin.
  *
  *   3. The bin sidecar still validates the Origin header for safety, so
  *      this route forwards the request with `Origin: http://localhost:44326`
@@ -36,6 +39,14 @@ const BIN_APPLY_URL = 'http://127.0.0.1:24684/apply';
 const FORWARD_ORIGIN = 'http://localhost:44326';
 
 export async function POST(request: Request): Promise<Response> {
+  // Dev-only gate. `next dev` sets NODE_ENV=development; `next build` /
+  // `next start` set NODE_ENV=production. In production, the route returns
+  // 404 — same surface a non-existent route would return, so a curious
+  // probe gets no signal that the dev proxy ever existed in the build.
+  if (process.env.NODE_ENV === 'production') {
+    return new Response('Not Found', { status: 404 });
+  }
+
   const body = await request.text();
   const incomingContentType = request.headers.get('content-type') ?? 'application/json';
 
