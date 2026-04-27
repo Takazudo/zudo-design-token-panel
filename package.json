@@ -19,5 +19,15 @@
     "type": "git",
     "url": "https://github.com/Takazudo/zudo-design-token-panel.git"
   },
-  "homepage": "https://github.com/Takazudo/zudo-design-token-panel"
+  "homepage": "https://github.com/Takazudo/zudo-design-token-panel",
+  "devDependencies": {
+    "wrangler": "^4.85.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp",
+      "workerd"
+    ]
+  }
 }

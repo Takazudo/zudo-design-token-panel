@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # check-asset-prefix.sh — Deterministic audit that no asset / link URL in
-# doc/dist escapes the configured base prefix (default: /pj/zdtp/).
+# doc/dist escapes the configured base prefix (default: /pj/zudo-design-token-panel/).
 #
 # What this checks (and where each surface comes from):
 #
@@ -14,10 +14,10 @@
 #   5. llms.txt / llms-full.txt   markdown link targets
 #
 # A URL "escapes" the base when it is a root-relative absolute path that is
-# not prefixed with /pj/zdtp/. External URLs (http / https / // / mailto / tel
+# not prefixed with /pj/zudo-design-token-panel/. External URLs (http / https / // / mailto / tel
 # / data / blob / javascript), pure anchors, and relative paths are ignored.
 #
-# Doubled-prefix paths (/pj/zdtp/pj/zdtp/...) are also reported — they stay
+# Doubled-prefix paths (/pj/zudo-design-token-panel/pj/zudo-design-token-panel/...) are also reported — they stay
 # inside the base but produce 404s in production.
 #
 # Exits non-zero on any escape so CI can gate on it.
@@ -28,7 +28,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOC_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 DIST_DIR="${DOC_DIR}/dist"
-BASE_PREFIX="${BASE_PREFIX:-/pj/zdtp}"
+BASE_PREFIX="${BASE_PREFIX:-/pj/zudo-design-token-panel}"
 
 if [[ ! -d "${DIST_DIR}" ]]; then
   echo "error: dist not found at ${DIST_DIR} — run \`pnpm build\` first." >&2

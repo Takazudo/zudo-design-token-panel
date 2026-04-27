@@ -48,7 +48,7 @@
  *
  * Endpoint: the panel POSTs to `applyEndpoint: '/api/dev/apply'` (no
  * basePath prefix). Next's basePath rewriting auto-adds the configured
- * `/pj/zdtp/next` prefix to client-issued requests in dev so this route
+ * `/pj/zudo-design-token-panel/next` prefix to client-issued requests in dev so this route
  * still resolves; the panel config stays portable across deploy paths.
  */
 

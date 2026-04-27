@@ -25,17 +25,17 @@ import react from '@vitejs/plugin-react';
  *
  * Deploy base path
  * ----------------
- * `base: '/pj/zdtp/vite-react/'` is applied to the production build only —
+ * `base: '/pj/zudo-design-token-panel/vite-react/'` is applied to the production build only —
  * Vite's dev server still serves at `/`, so the dev-only `/api/dev/apply`
  * proxy above is unaffected. The build output is intended to be hosted under
- * `https://<host>/pj/zdtp/vite-react/`.
+ * `https://<host>/pj/zudo-design-token-panel/vite-react/`.
  *
  * `panelConfig.applyEndpoint` deliberately stays as the bare relative path
  * `/api/dev/apply` — it is a dev-server-only proxy target that does not exist
  * in the production deploy, so it must NOT be base-prefixed.
  */
 export default defineConfig({
-  base: '/pj/zdtp/vite-react/',
+  base: '/pj/zudo-design-token-panel/vite-react/',
   plugins: [react()],
   server: {
     port: 44325,

@@ -57,8 +57,8 @@ pnpm dev
 The root `dev` script delegates to `pnpm --filter doc dev`, so the site is
 served from the `doc` workspace directly.
 
-The deployed doc site lives at `https://takazudomodular.com/pj/zdtp/` on the
-public zudo doc-site host (path: `/pj/zdtp/`).
+The deployed doc site lives at `https://takazudomodular.com/pj/zudo-design-token-panel/` on the
+public zudo doc-site host (path: `/pj/zudo-design-token-panel/`).
 
 ## Getting started
 
@@ -86,14 +86,14 @@ Once the panel package and example apps land, `pnpm build`, `pnpm test`,
 ## Verifying deploy sub-paths
 
 Each deployable workspace is hosted under its own sub-path of
-`https://takazudomodular.com/pj/zdtp/`:
+`https://takazudomodular.com/pj/zudo-design-token-panel/`:
 
 | Workspace             | Deploy sub-path             | Build output             |
 | --------------------- | --------------------------- | ------------------------ |
-| `doc`                 | `/pj/zdtp/`                 | `doc/dist`               |
-| `examples/astro`      | `/pj/zdtp/astro/`           | `examples/astro/dist`    |
-| `examples/vite-react` | `/pj/zdtp/vite-react/`      | `examples/vite-react/dist` |
-| `examples/next`       | `/pj/zdtp/next/`            | `examples/next/out`      |
+| `doc`                 | `/pj/zudo-design-token-panel/`                 | `doc/dist`               |
+| `examples/astro`      | `/pj/zudo-design-token-panel/astro/`           | `examples/astro/dist`    |
+| `examples/vite-react` | `/pj/zudo-design-token-panel/vite-react/`      | `examples/vite-react/dist` |
+| `examples/next`       | `/pj/zudo-design-token-panel/next/`            | `examples/next/out`      |
 
 To verify that no emitted asset, link, script, or inlined string reference
 escapes its workspace's sub-path, run:
@@ -114,8 +114,8 @@ greps each bundle for:
   chunks that get injected directly into HTML — that name an asset root such
   as `/_next/`, `/_astro/`, `/assets/`, or `/pagefind/` without the workspace
   prefix in front. This catches both bare leaks and wrong-subpath leaks (e.g.
-  `/pj/zdtp/_next/foo` appearing inside the next bundle, where the correct
-  form is `/pj/zdtp/next/_next/foo`).
+  `/pj/zudo-design-token-panel/_next/foo` appearing inside the next bundle, where the correct
+  form is `/pj/zudo-design-token-panel/next/_next/foo`).
 - Manifest, sitemap, feed, and pagefind shard outputs (`*.webmanifest`,
   `manifest.json`, `sitemap*.xml`, `feed*.xml`, `pagefind-*.json`, …).
 - Source-map information disclosure: a `*.map` file embedding an absolute

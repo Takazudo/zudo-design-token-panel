@@ -24,7 +24,7 @@
  * the panel's POST stays on the same origin as the page it was served
  * from — no CORS preflight, no runtime URL coupling between the panel
  * config and the sidecar's port. The route is dev-only; the production
- * static export under `/pj/zdtp/next/` does not ship it.
+ * static export under `/pj/zudo-design-token-panel/next/` does not ship it.
  *
  * `applyRouting` shares the SAME JSON file the bin sidecar reads at startup
  * (`scaffold.routing.json`). The host UI and the apply server therefore agree

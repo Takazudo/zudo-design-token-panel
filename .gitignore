@@ -8,6 +8,7 @@ dist/
 .next/
 .cache/
 out/
+deploy/
 
 # logs
 *.log

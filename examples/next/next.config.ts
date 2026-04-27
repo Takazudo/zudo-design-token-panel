@@ -30,8 +30,8 @@ import { dirname } from 'node:path';
  *
  * Deploy paths
  * ------------
- * The example is hosted at `https://takazudomodular.com/pj/zdtp/next/`, so
- * `basePath` and `assetPrefix` are both pinned to `/pj/zdtp/next`. Next
+ * The example is hosted at `https://takazudomodular.com/pj/zudo-design-token-panel/next/`, so
+ * `basePath` and `assetPrefix` are both pinned to `/pj/zudo-design-token-panel/next`. Next
  * normalizes the leading-slash form internally; do NOT add a trailing slash
  * to `basePath` — Next rejects that. `trailingSlash: true` is on so the
  * static export emits `<route>/index.html` files, which work cleanly under
@@ -57,8 +57,8 @@ const isExportBuild = process.env.NEXT_BUILD_TARGET === 'export';
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: dirname(fileURLToPath(import.meta.url)),
-  basePath: '/pj/zdtp/next',
-  assetPrefix: '/pj/zdtp/next',
+  basePath: '/pj/zudo-design-token-panel/next',
+  assetPrefix: '/pj/zudo-design-token-panel/next',
   trailingSlash: true,
   // In dev mode, widen pageExtensions so `route.dev.ts` (the dev-only POST
   // proxy) is picked up alongside the regular `route.ts` filenames. In

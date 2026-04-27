@@ -24,7 +24,7 @@ export function applyTrailingSlash(url: string): string {
     return pathPart + "/" + suffix;
   }
   // trailingSlash: false — strip trailing slashes from non-root, non-base, non-file paths.
-  // Preserve a single trailing slash on the base itself (e.g. "/pj/zdtp/") and on file paths.
+  // Preserve a single trailing slash on the base itself (e.g. "/pj/zudo-design-token-panel/") and on file paths.
   if (hasFileExt) return url;
   if (!pathPart.endsWith("/")) return url;
   // Don't strip if the path IS the normalized base (root) or "/".

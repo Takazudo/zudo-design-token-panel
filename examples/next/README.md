@@ -27,7 +27,7 @@ the static export build (see "Static export — dev-only API route exclusion"
 below).
 
 The dev server itself is served under the configured `basePath`, so open
-[http://localhost:44326/pj/zdtp/next/](http://localhost:44326/pj/zdtp/next/)
+[http://localhost:44326/pj/zudo-design-token-panel/next/](http://localhost:44326/pj/zudo-design-token-panel/next/)
 and run `window.nextExample.toggleDesignPanel()` in the browser console to
 show the panel. Drag any slider — the page repaints before the next frame.
 
@@ -37,13 +37,13 @@ show the panel. Drag any slider — the page repaints before the next frame.
 pnpm --filter next-example build
 ```
 
-Emits a static `out/` directory with all assets prefixed by `/pj/zdtp/next/`
+Emits a static `out/` directory with all assets prefixed by `/pj/zudo-design-token-panel/next/`
 (matching the production deploy path on `takazudomodular.com`). Configured by:
 
 | `next.config.ts` field | value                  | rationale                                                              |
 | ---------------------- | ---------------------- | ---------------------------------------------------------------------- |
-| `basePath`             | `/pj/zdtp/next`        | site is hosted under that subpath; do NOT add a trailing slash         |
-| `assetPrefix`          | `/pj/zdtp/next`        | rewrites `_next/static/...` references to absolute deploy-path URLs    |
+| `basePath`             | `/pj/zudo-design-token-panel/next`        | site is hosted under that subpath; do NOT add a trailing slash         |
+| `assetPrefix`          | `/pj/zudo-design-token-panel/next`        | rewrites `_next/static/...` references to absolute deploy-path URLs    |
 | `trailingSlash`        | `true`                 | emits `<route>/index.html` so plain static hosts work without rewrites |
 | `output`               | `'export'` (gated)     | static export — only set when `NEXT_BUILD_TARGET=export`               |
 | `pageExtensions`       | gated (see next table) | controls whether the dev-only API route is visible to the build       |
@@ -53,7 +53,7 @@ Emits a static `out/` directory with all assets prefixed by `/pj/zdtp/next/`
 (API routes, on-demand routing) while `next build` (which sets the env var
 via `package.json`) emits the static export.
 
-Production URL: <https://takazudomodular.com/pj/zdtp/next/>.
+Production URL: <https://takazudomodular.com/pj/zudo-design-token-panel/next/>.
 
 ## Static export — dev-only API route exclusion
 
@@ -79,8 +79,8 @@ Verification (run after `pnpm --filter next-example build`):
 find examples/next/out -path '*api/dev/apply*'
 #   (returns nothing)
 
-# every absolute href / src must already carry the /pj/zdtp/next/ prefix
-grep -rE 'href="/[^p]|src="/[^p]' examples/next/out | grep -v '/pj/zdtp/next/'
+# every absolute href / src must already carry the /pj/zudo-design-token-panel/next/ prefix
+grep -rE 'href="/[^p]|src="/[^p]' examples/next/out | grep -v '/pj/zudo-design-token-panel/next/'
 #   (returns nothing)
 ```
 

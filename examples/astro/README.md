@@ -7,13 +7,13 @@ sidecar (`design-token-panel-server`).
 
 ## Deploy path
 
-This example builds with `base: '/pj/zdtp/astro/'` (see `astro.config.ts`), so
+This example builds with `base: '/pj/zudo-design-token-panel/astro/'` (see `astro.config.ts`), so
 the produced static bundle is meant to be served from the URL prefix
-`/pj/zdtp/astro/` under the monorepo's docs site. In production the example
+`/pj/zudo-design-token-panel/astro/` under the monorepo's docs site. In production the example
 is reachable at:
 
 ```
-https://<docs-site>/pj/zdtp/astro/
+https://<docs-site>/pj/zudo-design-token-panel/astro/
 ```
 
 Internal navigation links inside `src/pages` use

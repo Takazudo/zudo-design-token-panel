@@ -15,18 +15,18 @@
 #      flight chunks injected directly into HTML — that name an asset root
 #      ("/_next/", "/_astro/", "/assets/", "/pagefind/", …) without the
 #      workspace prefix in front. This catches both bare leaks and
-#      wrong-subpath leaks like "/pj/zdtp/_next/…" appearing in the next
-#      bundle (where the correct form is "/pj/zdtp/next/_next/…").
+#      wrong-subpath leaks like "/pj/zudo-design-token-panel/_next/…" appearing in the next
+#      bundle (where the correct form is "/pj/zudo-design-token-panel/next/_next/…").
 #   4. Source-map information disclosure: a *.map file containing an absolute
 #      build-host path or this repo's worktree root.
 #   5. Trailing-slash inconsistency on internal <a> links (mix of
-#      "/pj/zdtp/foo" and "/pj/zdtp/foo/" pointing at the same resource).
+#      "/pj/zudo-design-token-panel/foo" and "/pj/zudo-design-token-panel/foo/" pointing at the same resource).
 #
 # Per-workspace sub-paths (Sub #24 / epic #18):
-#   doc/dist                 → /pj/zdtp/
-#   examples/astro/dist      → /pj/zdtp/astro/
-#   examples/vite-react/dist → /pj/zdtp/vite-react/
-#   examples/next/out        → /pj/zdtp/next/
+#   doc/dist                 → /pj/zudo-design-token-panel/
+#   examples/astro/dist      → /pj/zudo-design-token-panel/astro/
+#   examples/vite-react/dist → /pj/zudo-design-token-panel/vite-react/
+#   examples/next/out        → /pj/zudo-design-token-panel/next/
 #
 # Exits non-zero on any escape so it can gate CI / pre-push.
 
@@ -106,14 +106,14 @@ build_one() {
 # Audit a single workspace.
 #   $1 = label (e.g. "doc")
 #   $2 = dist directory relative to ROOT_DIR (e.g. "doc/dist")
-#   $3 = deploy prefix WITH leading and trailing slash (e.g. "/pj/zdtp/")
+#   $3 = deploy prefix WITH leading and trailing slash (e.g. "/pj/zudo-design-token-panel/")
 audit_workspace() {
   local label="$1"
   local dist_rel="$2"
   local prefix="$3"
   local dist="$ROOT_DIR/$dist_rel"
-  local prefix_no_trail="${prefix%/}"          # /pj/zdtp        | /pj/zdtp/astro
-  local prefix_inner="${prefix#/}"              # pj/zdtp/        | pj/zdtp/astro/
+  local prefix_no_trail="${prefix%/}"          # /pj/zudo-design-token-panel        | /pj/zudo-design-token-panel/astro
+  local prefix_inner="${prefix#/}"              # pj/zudo-design-token-panel/        | pj/zudo-design-token-panel/astro/
   local ws_fail=""
 
   section "Audit $label  (dist=$dist_rel  prefix=$prefix)"
@@ -184,7 +184,7 @@ audit_workspace() {
   #       whitespace, '>' for HTML attrs, or a backslash for
   #       JSON-escaped-string contexts like Next flight chunks). This
   #       prevents matching against inner path segments like the "/static/"
-  #       inside a perfectly correct "/pj/zdtp/next/_next/static/foo.js".
+  #       inside a perfectly correct "/pj/zudo-design-token-panel/next/_next/static/foo.js".
   #
   #   (b) The match must end in a real file extension. Bare framework
   #       sentinels like "/_next/", "/_next/data/", "/_next/image", and
@@ -313,10 +313,10 @@ build_one "next-example"      "next-example"
 # ── Audit phase ──────────────────────────────────
 section "Step 2/2: Audit each emitted bundle"
 
-audit_workspace "doc"        "doc/dist"                 "/pj/zdtp/"
-audit_workspace "astro"      "examples/astro/dist"      "/pj/zdtp/astro/"
-audit_workspace "vite-react" "examples/vite-react/dist" "/pj/zdtp/vite-react/"
-audit_workspace "next"       "examples/next/out"        "/pj/zdtp/next/"
+audit_workspace "doc"        "doc/dist"                 "/pj/zudo-design-token-panel/"
+audit_workspace "astro"      "examples/astro/dist"      "/pj/zudo-design-token-panel/astro/"
+audit_workspace "vite-react" "examples/vite-react/dist" "/pj/zudo-design-token-panel/vite-react/"
+audit_workspace "next"       "examples/next/out"        "/pj/zudo-design-token-panel/next/"
 
 # ── Summary ──────────────────────────────────────
 END=$(date +%s)

@@ -32,10 +32,10 @@ the panel. Drag any slider — the page repaints before the next frame.
 pnpm --filter vite-react-example build
 ```
 
-`vite.config.ts` sets `base: '/pj/zdtp/vite-react/'`, so every CSS/JS/asset
+`vite.config.ts` sets `base: '/pj/zudo-design-token-panel/vite-react/'`, so every CSS/JS/asset
 reference in `dist/` is prefixed with that path. The build output is intended
 to be hosted under
-[https://&lt;host&gt;/pj/zdtp/vite-react/](https://example.com/pj/zdtp/vite-react/).
+[https://&lt;host&gt;/pj/zudo-design-token-panel/vite-react/](https://example.com/pj/zudo-design-token-panel/vite-react/).
 
 Note: Vite's `base` only affects the production build — the dev server keeps
 serving at `/`, so the dev-only `/api/dev/apply` proxy is unaffected.
