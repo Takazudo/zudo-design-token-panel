@@ -83,6 +83,53 @@ Once the panel package and example apps land, `pnpm build`, `pnpm test`,
 `pnpm typecheck`, and `pnpm lint` will fan out across the workspace via
 `pnpm -r`.
 
+## Verifying deploy sub-paths
+
+Each deployable workspace is hosted under its own sub-path of
+`https://takazudomodular.com/pj/zdtp/`:
+
+| Workspace             | Deploy sub-path             | Build output             |
+| --------------------- | --------------------------- | ------------------------ |
+| `doc`                 | `/pj/zdtp/`                 | `doc/dist`               |
+| `examples/astro`      | `/pj/zdtp/astro/`           | `examples/astro/dist`    |
+| `examples/vite-react` | `/pj/zdtp/vite-react/`      | `examples/vite-react/dist` |
+| `examples/next`       | `/pj/zdtp/next/`            | `examples/next/out`      |
+
+To verify that no emitted asset, link, script, or inlined string reference
+escapes its workspace's sub-path, run:
+
+```sh
+pnpm check:deploy-paths
+```
+
+The script (`scripts/check-deploy-paths.sh`) builds all four workspaces (plus
+the `@takazudo/zudo-design-token-panel` package as a precondition) and then
+greps each bundle for:
+
+- HTML attributes (`href`, `src`, `srcset`, `poster`, `<link rel="manifest">`,
+  Open Graph and Twitter Card `<meta content>`, …) pointing to a root-relative
+  path outside the workspace prefix.
+- CSS `url(/...)` references outside the prefix.
+- Embedded JS / JSON / XML literals — including the inlined Next.js flight
+  chunks that get injected directly into HTML — that name an asset root such
+  as `/_next/`, `/_astro/`, `/assets/`, or `/pagefind/` without the workspace
+  prefix in front. This catches both bare leaks and wrong-subpath leaks (e.g.
+  `/pj/zdtp/_next/foo` appearing inside the next bundle, where the correct
+  form is `/pj/zdtp/next/_next/foo`).
+- Manifest, sitemap, feed, and pagefind shard outputs (`*.webmanifest`,
+  `manifest.json`, `sitemap*.xml`, `feed*.xml`, `pagefind-*.json`, …).
+- Source-map information disclosure: a `*.map` file embedding an absolute
+  build-host path (`/home/...`, `/Users/...`, `/runner/...`, …) or this
+  worktree's root.
+- Trailing-slash inconsistency on internal `<a>` links — flags any base URL
+  that appears in BOTH the trailing-slash form and the non-trailing form.
+
+The script exits non-zero on any escape so it can gate CI or pre-push. It
+relies on GNU grep (PCRE with variable-width lookbehind, plus the
+`--include` / `--exclude` flags) and refuses to run otherwise. On macOS,
+install with `brew install grep` and put gnubin first on PATH, or alias
+`grep=ggrep`.
+
 ## Contributing
 
 Contributions are welcome — pull requests, issue reports, and reproductions
