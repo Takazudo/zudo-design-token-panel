@@ -248,14 +248,24 @@ export default function DesignTokenTweakPanel() {
         panelWidth,
         panelHeight,
       );
-      setPosition(clamped);
+      // Write directly to the DOM during drag to avoid re-rendering the whole
+      // panel tree at ~60 fps. positionRef stays in sync so mouseup can commit
+      // the final value to React state in one shot.
+      if (panelRef.current) {
+        panelRef.current.style.top = `${clamped.top}px`;
+        panelRef.current.style.right = `${clamped.right}px`;
+      }
+      positionRef.current = clamped;
     }
 
     function onMouseUp() {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
       dragCleanupRef.current = null;
-      savePosition(positionRef.current);
+      // Commit final position to React state (single re-render on drag end).
+      const finalPos = positionRef.current;
+      setPosition(finalPos);
+      savePosition(finalPos);
     }
 
     document.addEventListener('mousemove', onMouseMove);
