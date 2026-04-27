@@ -1,0 +1,155 @@
+name: Named preview deploy
+
+on:
+  push:
+    branches:
+      - preview
+      - 'expreview/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+  statuses: write
+
+concurrency:
+  group: preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    name: Build and deploy named preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build doc site
+        run: pnpm --filter doc build
+
+      - name: Stage deploy directory
+        run: bash scripts/stage-deploy.sh
+
+      - name: Compute deploy branch name
+        id: branch
+        env:
+          GITHUB_REF_NAME_VAL: ${{ github.ref_name }}
+        run: |
+          # Cloudflare Pages branch names cannot contain slashes; replace with hyphens.
+          DEPLOY_BRANCH=$(echo "${GITHUB_REF_NAME_VAL}" | tr '/' '-')
+          echo "deploy_branch=${DEPLOY_BRANCH}" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy preview to Cloudflare Pages
+        id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DEPLOY_BRANCH: ${{ steps.branch.outputs.deploy_branch }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          for attempt in 1 2 3; do
+            echo "Deploy attempt $attempt/3..."
+            if pnpm exec wrangler pages deploy deploy \
+              --project-name=zudo-design-token-panel \
+              --branch="${DEPLOY_BRANCH}" \
+              --commit-hash="${GITHUB_SHA}" \
+              --commit-message="Named preview ${REF_NAME}: ${GITHUB_SHA}"; then
+              echo "Deploy succeeded on attempt $attempt"
+              echo "deploy_url=https://${DEPLOY_BRANCH}.zudo-design-token-panel.pages.dev/pj/zudo-design-token-panel/" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Deploy failed, retrying in 150 seconds..."
+              sleep 150
+            fi
+          done
+          echo "Deploy failed after 3 attempts"
+          exit 1
+
+      - name: Set commit status
+        if: always()
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          DEPLOY_URL: ${{ steps.deploy.outputs.deploy_url }}
+          DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
+        with:
+          script: |
+            const deployUrl = process.env.DEPLOY_URL || '';
+            const outcome = process.env.DEPLOY_OUTCOME || 'failure';
+            const state = outcome === 'success' ? 'success' : 'failure';
+            const description = outcome === 'success'
+              ? 'Named preview deployed'
+              : 'Named preview deploy failed';
+
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state,
+              context: 'cloudflare-pages/named-preview',
+              description,
+              target_url: deployUrl || `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+            });
+
+      - name: Comment on associated PR (if any)
+        if: steps.deploy.outcome == 'success'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          DEPLOY_URL: ${{ steps.deploy.outputs.deploy_url }}
+          REF_NAME: ${{ github.ref_name }}
+        with:
+          script: |
+            const deployUrl = process.env.DEPLOY_URL;
+            const refName = process.env.REF_NAME;
+            const marker = '<!-- cf-preview-branch -->';
+
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head: `${context.repo.owner}:${refName}`,
+              state: 'open',
+            });
+
+            if (prs.length === 0) {
+              console.log('No open PR found for branch ' + refName);
+              return;
+            }
+
+            const body = `${marker}\n### 🟣 Named preview deployed\n\nBranch \`${refName}\` is live at: ${deployUrl}\n\n_Updated for commit \`${context.sha.substring(0, 7)}\`._`;
+
+            for (const pr of prs) {
+              const { data: comments } = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+              });
+              const existing = comments.find((c) => c.body && c.body.startsWith(marker));
+
+              if (existing) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existing.id,
+                  body,
+                });
+              } else {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  body,
+                });
+              }
+            }

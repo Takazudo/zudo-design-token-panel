@@ -1,0 +1,5 @@
+# Cloudflare Pages root convenience redirect.
+# Canonical URL is takazudomodular.com/pj/zudo-design-token-panel/ (proxied
+# via the takazudomodular site). The *.pages.dev origin only serves the
+# subpath; redirect bare root to the base path so direct visits work.
+/  /pj/zudo-design-token-panel/  302
