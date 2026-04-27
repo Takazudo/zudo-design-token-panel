@@ -15,11 +15,16 @@
  * `next-example*` namespace so localStorage entries, exported JSON, and
  * modal classnames cannot collide with any other host's panel deployment.
  *
- * `applyEndpoint` is the relative path `/api/dev/apply`. The Next.js API
- * route at `app/api/dev/apply/route.ts` (added in sub-task 4) forwards the
- * POST to the bin sidecar on port 24684, so the panel's POST stays on the
- * same origin as the page it was served from — no CORS preflight, no runtime
- * URL coupling between the panel config and the sidecar's port.
+ * `applyEndpoint` is the bare relative path `/api/dev/apply` — kept WITHOUT
+ * a basePath prefix per the deploy-paths spec, so the panel config stays
+ * portable across deploy paths and matches the vite-react sibling exactly.
+ * The Next.js API route at `app/api/dev/apply/route.dev.ts` (the `.dev.ts`
+ * suffix excludes the file from `output: 'export'`; see `next.config.ts`
+ * and the README) forwards the POST to the bin sidecar on port 24684, so
+ * the panel's POST stays on the same origin as the page it was served
+ * from — no CORS preflight, no runtime URL coupling between the panel
+ * config and the sidecar's port. The route is dev-only; the production
+ * static export under `/pj/zdtp/next/` does not ship it.
  *
  * `applyRouting` shares the SAME JSON file the bin sidecar reads at startup
  * (`scaffold.routing.json`). The host UI and the apply server therefore agree
