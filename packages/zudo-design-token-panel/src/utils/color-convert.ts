@@ -1,7 +1,26 @@
+/**
+ * Expand the shorthand `#rgb` form to `#rrggbb` (and `#rgba` to `#rrggbbaa`)
+ * so the rest of `hexToHsl` only needs to handle the long form. Anything
+ * already in long form is returned unchanged.
+ */
+function expandShortHex(hex: string): string {
+  if (hex.length === 4) {
+    // #rgb → #rrggbb
+    return `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`;
+  }
+  if (hex.length === 5) {
+    // #rgba → #rrggbbaa (alpha preserved for callers that may inspect it
+    // later, even though hexToHsl itself ignores it).
+    return `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}${hex[4]}${hex[4]}`;
+  }
+  return hex;
+}
+
 export function hexToHsl(hex: string): { h: number; s: number; l: number } {
-  const r = parseInt(hex.slice(1, 3), 16) / 255;
-  const g = parseInt(hex.slice(3, 5), 16) / 255;
-  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const expanded = expandShortHex(hex);
+  const r = parseInt(expanded.slice(1, 3), 16) / 255;
+  const g = parseInt(expanded.slice(3, 5), 16) / 255;
+  const b = parseInt(expanded.slice(5, 7), 16) / 255;
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
   const l = (max + min) / 2;
