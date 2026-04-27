@@ -1,0 +1,236 @@
+---
+title: Color cluster
+sidebar_position: 3
+description: ColorClusterConfig, palette + base roles + semantic table, optional secondary cluster, and host-supplied scheme presets.
+---
+
+The Color tab — palette + base roles + semantic table + scheme list — is parameterised through a `ColorClusterConfig` so a portable host can ship a different palette size, a different CSS-var family, or a different semantic vocabulary without touching the panel internals.
+
+This page pins [`ColorClusterConfig`](#colorclusterconfig), [`ColorScheme`](#colorscheme), [`ColorRef`](#colorref), the multi-cluster (primary + optional secondary) resolution, and the [host-supplied scheme presets](#host-supplied-scheme-presets) merge contract.
+
+## `ColorClusterConfig`
+
+```ts
+export type BaseRoleKey = 'background' | 'foreground' | 'cursor' | 'selectionBg' | 'selectionFg';
+
+export interface ColorClusterConfig {
+  /** Stable id — used for debugging / logging only. */
+  id: string;
+  /**
+   * Optional human-visible label rendered in the Color tab section
+   * headings. When absent, the tab falls back to `id.toUpperCase()`.
+   */
+  label?: string;
+  /** Expected palette length. Drives init + persisted-state validation. */
+  paletteSize: number;
+  /**
+   * Palette-slot CSS var template. The panel substitutes `{n}` with the
+   * palette index at apply time.
+   *
+   *   paletteCssVarTemplate: '--myapp-p{n}'    →  --myapp-p0, --myapp-p1, ...
+   *   paletteCssVarTemplate: '--brand-pa{n}'   →  --brand-pa0, --brand-pa1, ...
+   */
+  paletteCssVarTemplate: string;
+  /**
+   * Map of base-role name → CSS custom-property name. A cluster MAY declare
+   * a subset (an empty map is legal); only declared roles are written on apply.
+   */
+  baseRoles: Partial<Record<BaseRoleKey, string>>;
+  /** Semantic token name → default palette index. */
+  semanticDefaults: Record<string, number>;
+  /** Semantic token name → CSS custom-property name. */
+  semanticCssNames: Record<string, string>;
+  /**
+   * Fallback palette indices when a scheme omits a base role. Same partial
+   * shape as `baseRoles`. The persist envelope always carries all 5 numeric
+   * fields for round-trip, but inert roles emit zero CSS writes.
+   */
+  baseDefaults: Partial<Record<BaseRoleKey, number>>;
+  /** Fallback `shikiTheme` when a scheme lacks one. (Inert when no shiki integration.) */
+  defaultShikiTheme: string;
+  /**
+   * Color-scheme registry. Keyed by display name (`"Default Dark"`, etc.).
+   * Each entry is a `ColorScheme`. The portable contract requires this to be
+   * a plain object — no dynamic loaders. Pass `{}` for clusters that don't
+   * use schemes.
+   */
+  colorSchemes: Record<string, ColorScheme>;
+  /**
+   * Panel-level scheme settings. Carried inside the cluster (rather than as
+   * a separate import) so scheme helpers can read everything from the
+   * cluster argument.
+   */
+  panelSettings: {
+    /** Scheme name to seed state from when `colorMode` is `false`. */
+    colorScheme: string;
+    /**
+     * Optional light/dark pairing. When set to an object, the panel honours
+     * `document.documentElement[data-theme]` and switches schemes accordingly
+     * on init. Set to `false` to disable the light/dark UI.
+     */
+    colorMode: false | { defaultMode: 'light' | 'dark'; lightScheme: string; darkScheme: string };
+  };
+}
+```
+
+<Info title="Public alias">
+The runtime type that ships in the package source is `ColorClusterDataConfig`. `ColorClusterConfig` is re-exported from the package root as the public-facing alias for this same shape:
+
+```ts
+import type { ColorClusterConfig } from '@takazudo/zudo-design-token-panel';
+```
+
+The two names are interchangeable.
+</Info>
+
+### Field reference
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `id` | yes | Stable id used for debugging / logging only. |
+| `label` | no | Human-visible label for section headings. Falls back to `id.toUpperCase()` when absent. |
+| `paletteSize` | yes | Expected palette length. Drives init + persisted-state validation. |
+| `paletteCssVarTemplate` | yes | String template with `{n}` placeholder — see [the JSON-serializable constraint below](#json-serializable-constraint). |
+| `baseRoles` | yes | `Partial<Record<BaseRoleKey, string>>` — only declared roles are written on apply. An empty map is legal. |
+| `semanticDefaults` | yes | Semantic token name → default palette index. |
+| `semanticCssNames` | yes | Semantic token name → CSS custom-property name. |
+| `baseDefaults` | yes | Fallback palette indices when a scheme omits a base role. |
+| `defaultShikiTheme` | yes | Fallback `shikiTheme` when a scheme lacks one. Inert when no shiki integration. |
+| `colorSchemes` | yes | Plain object — no dynamic loaders. Pass `{}` for clusters that don't use schemes. |
+| `panelSettings.colorScheme` | yes | Scheme name to seed state from when `colorMode` is `false`. |
+| `panelSettings.colorMode` | yes | `false` to disable light/dark UI; an object to honour `data-theme` and switch schemes accordingly on init. |
+
+## `ColorScheme`
+
+```ts
+export type ColorRef = number | string;
+
+export interface ColorScheme {
+  background: ColorRef;
+  foreground: ColorRef;
+  cursor: ColorRef;
+  selectionBg: ColorRef;
+  selectionFg: ColorRef;
+  palette: readonly string[]; // length must match cluster.paletteSize
+  shikiTheme: string;
+  semantic?: Record<string, ColorRef>; // keys must be a subset of cluster.semanticDefaults
+}
+```
+
+A `ColorScheme` is a fully-resolved snapshot of a palette plus the role assignments that pin which palette indices the base + semantic roles point at.
+
+### `ColorRef`
+
+```ts
+export type ColorRef = number | string;
+```
+
+A reference to a color, used for base roles and semantic overrides:
+
+- A `number` references an index into the scheme's `palette` array (e.g. `0` → `palette[0]`).
+- A `string` is a literal color value (hex, oklch, etc.). The shorthands `"bg"` and `"fg"` resolve to the scheme's background / foreground respectively.
+
+### Palette length invariant
+
+`ColorScheme.palette` length MUST match the cluster's `paletteSize`. Schemes with mismatched palette lengths are rejected at init time.
+
+### Semantic key invariant
+
+The keys of `ColorScheme.semantic` MUST be a subset of `cluster.semanticDefaults`. Hosts cannot introduce new semantic tokens via a scheme — the cluster is the authoritative vocabulary.
+
+## JSON-serializable constraint
+
+Every field on `ColorClusterConfig` (and on each `ColorScheme` it nests) MUST be JSON-serializable. No function fields, no class instances, no `Symbol` keys, no `undefined` where `null` is meant. This is enforced by Astro frontmatter → component prop handoff: the host adapter stringifies the config into the rendered island and parses it back at runtime. Function fields silently disappear under that round-trip and would surface as cryptic runtime errors.
+
+The palette CSS-var name is therefore expressed as a string template, not a function:
+
+```ts
+// wrong (function — silently dropped by JSON.stringify)
+// paletteCssVar: (i) => `--myapp-p${i}`,
+
+// right (string template, JSON-serializable)
+paletteCssVarTemplate: '--myapp-p{n}',
+```
+
+The panel resolves `{n}` to the palette index at every call site that previously took a function argument (palette apply, clear-applied, scheme diff). The substitution is plain string replacement — no template-engine features. `{n}` is the only placeholder; literal `{n}` text in an output var name is not a use case the contract supports.
+
+## Multi-cluster support
+
+The package supports a primary cluster and an optional secondary cluster.
+
+`PanelConfig.colorCluster` is the primary cluster (always required). `PanelConfig.secondaryColorCluster` is the secondary cluster slot — host-driven, three states:
+
+| `secondaryColorCluster` value | Meaning | Effect |
+| --- | --- | --- |
+| `undefined` (field omitted) | Secondary section hidden | The Color tab does not render a secondary palette / semantic section. |
+| `null` | Explicit opt-out | Same render-side effect as `undefined`; in addition, apply / clear / load skip every secondary code path. The persist envelope's secondary-cluster slice is NOT hydrated. |
+| `ColorClusterConfig` object | Host-supplied secondary cluster | Same render / apply / clear contract as the primary cluster, scoped to the supplied palette + semantic vocabulary. |
+
+The resolution is performed through the `resolveSecondaryColorCluster()` helper exported from the panel config module. Internal call sites (color-tab render, apply-modal flatten, tweak-state apply / clear / load) MUST read through that helper rather than the raw field so every code path treats the three states consistently.
+
+The persist envelope's secondary-cluster slice (the slot name is historical and remains stable for storage continuity) is the on-disk shape for the secondary cluster.
+
+## Host-supplied scheme presets
+
+`PanelConfig.colorPresets` is the optional, host-supplied preset map surfaced by the Color tab "Scheme..." dropdown. It defaults to `{}` and the package itself ships zero presets — hosts that want a curated preset library (Dracula / Solarized / Tokyo Night / etc.) ship it themselves so consumers do not pay for it by default.
+
+| `colorPresets` value | Meaning | Effect |
+| --- | --- | --- |
+| `undefined` (field omitted) | Default | Equivalent to `{}` — only `colorCluster.colorSchemes` populates the dropdown. |
+| `{}` | Explicit empty | Same as `undefined`. |
+| `Record<string, ColorScheme>` | Host-supplied | Each key surfaces as a `<option>` below the cluster's bundled schemes. Sorted alphabetically. |
+
+### Merge order in the dropdown
+
+```
+<option disabled>Scheme...</option>
+... cluster.colorSchemes (insertion order) ...
+<hr />
+... colorPresets (alphabetical) ...
+```
+
+### Key collision
+
+If a `colorPresets` entry shares a name with one in `colorCluster.colorSchemes`, the cluster's bundled scheme wins for the load lookup. The bundled cluster scheme is the cluster owner's documented default (typically `"Default"` / `"Default Light"` / `"Default Dark"`) and overrides the optional host preset list.
+
+The dropdown still renders both `<option>` entries — visually deduplicated display is out of scope for the Color tab and would require a bespoke `<select>` widget. A duplicate name is the host's signal to rename one of its own preset keys.
+
+### JSON-serializable
+
+Every `ColorScheme` MUST satisfy the same JSON-serializable constraint as the cluster. The map is read at render time through `getPanelConfig().colorPresets`, so the standard Astro frontmatter → island handoff applies.
+
+### Lazy attachment via `setPanelColorPresets()`
+
+Hosts that ship a large preset library can omit `colorPresets` from the SSR config blob and call `setPanelColorPresets(presets)` from a client-side dynamic import. This keeps the preset payload out of the inline `<script type="application/json">` and lets the bundler emit it as a separate JS chunk.
+
+```ts
+import { setPanelColorPresets } from '@takazudo/zudo-design-token-panel';
+
+void import('./large-preset-library').then(({ presets }) => {
+  setPanelColorPresets(presets);
+});
+```
+
+The trailing call wins on conflict (no throw, unlike `configurePanel`); a host that pre-calls `setPanelColorPresets` before `configurePanel` is serviced via a holding slot inside the panel-config module.
+
+See [`configurePanel`](/docs/reference/configure-panel/#setpanelcolorpresetspresets) for the full helper signature.
+
+## Apply behaviour
+
+The cluster apply pipeline (`applyColorState(state, cluster)`) walks the cluster fields:
+
+- For each palette slot `i` in `0..cluster.paletteSize`, write `cluster.paletteCssVarTemplate.replace('{n}', String(i))` ← `palette[i]`.
+- For each `(roleKey, cssName)` in `cluster.baseRoles`, write `cssName` ← `palette[state[roleKey]]`. Roles absent from `baseRoles` are not written.
+- For each `(semanticKey, cssName)` in `cluster.semanticCssNames`, resolve `state.semanticMappings[semanticKey] ?? cluster.semanticDefaults[semanticKey]` through the package's mapping resolver (which handles the `"bg"` / `"fg"` shorthands) and write `cssName` ← resolved hex.
+- `clearAppliedStyles(clusters)` removes every property the cluster could have set (palette + base roles + semantic). The default wipes both primary and any optional secondary cluster.
+
+<Tip title="`baseRoles` is a partial map">
+A cluster MAY declare a subset of base roles (an empty map is legal); only declared roles are written on apply. The persist envelope always carries all 5 numeric fields for round-trip, but inert roles emit zero CSS writes — useful when a host's design system does not surface, say, `cursor` or `selectionFg` as separate tokens.
+</Tip>
+
+## Cross-references
+
+- [`PanelConfig.colorCluster`](/docs/reference/configure-panel/#panelconfig-interface) — primary cluster slot.
+- [`PanelConfig.secondaryColorCluster`](/docs/reference/configure-panel/#panelconfig-interface) — optional secondary slot.
+- [Token manifest](/docs/reference/token-manifest/) — describes the non-cluster `tokens.color` rows that complement the cluster.
+- [Apply pipeline](/docs/reference/apply-pipeline/) — how cluster-driven CSS-var writes flow to the bin server when `applyEndpoint` is configured.

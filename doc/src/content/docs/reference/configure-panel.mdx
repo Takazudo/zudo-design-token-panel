@@ -1,0 +1,196 @@
+---
+title: configurePanel
+sidebar_position: 1
+description: configure-once init, the PanelConfig shape, and the lifecycle helpers (show / hide / toggle / reapply).
+---
+
+The package's entire portable contract enters through a single, idempotent setup function.
+Hosts call `configurePanel({...})` exactly once per page lifecycle, before the panel adapter is dynamically imported (typically from a small Astro host script that gates the adapter behind a visibility / persistence probe).
+
+This page pins the public shape of `PanelConfig`, the `configurePanel` call itself, and the runtime lifecycle helpers (`showDesignTokenPanel`, `hideDesignTokenPanel`, `toggleDesignPanel`, `reapplyPersistedOverrides`).
+
+## `configurePanel(config)`
+
+```ts
+import { configurePanel } from '@takazudo/zudo-design-token-panel';
+
+configurePanel({
+  storagePrefix: 'myapp-design-token-panel',
+  consoleNamespace: 'myapp',
+  modalClassPrefix: 'myapp-design-token-panel-modal',
+  schemaId: 'https://example.com/schemas/design-tokens.json',
+  exportFilenameBase: 'myapp-design-tokens',
+  tokens: { spacing: [], typography: [], size: [], color: [] },
+  colorCluster: { /* see Color cluster reference */ },
+});
+```
+
+### Required behaviours
+
+- **One-shot.** Calling `configurePanel` more than once with different values is an error. The panel may either throw or warn-and-ignore, but it MUST NOT silently overwrite a previously-configured cluster mid-session.
+- **Synchronous.** No I/O, no awaits. The call must be cheap enough to run inline at module-init from the Astro frontmatter side.
+- **Pure data only.** Every field on `PanelConfig` (and every nested field inside `tokens` / `colorCluster`) MUST be JSON-serializable. This is the hard precondition for the Astro frontmatter → island prop handoff: Astro stringifies props, so functions / class instances do not survive.
+- **No default `PanelConfig` baked into the package.** Hosts MUST configure the panel explicitly. The package ships zero baked-in identifiers — every storage prefix, namespace, palette template, and manifest entry comes from the host.
+
+<Warning title="No defaults — explicit configure required">
+A package import without an explicit `configurePanel(...)` call surfaces a clear runtime error that names the missing field. The package does not provide fallback identifiers.
+</Warning>
+
+## `PanelConfig` interface
+
+```ts
+export interface PanelConfig {
+  /** Base for every derived storage key. */
+  storagePrefix: string;
+  /** Console API namespace — installed as `window[consoleNamespace].showDesignPanel`, etc. */
+  consoleNamespace: string;
+  /** BEM-style prefix used by every modal in the panel (export / import / apply). */
+  modalClassPrefix: string;
+  /** `$schema` value emitted into export JSON and required on import. */
+  schemaId: string;
+  /** Default filename base — exports save as `${exportFilenameBase}.json`. */
+  exportFilenameBase: string;
+  /** Editable design tokens grouped per-tab. */
+  tokens: TokenManifest;
+  /** Palette + base roles + semantic table. */
+  colorCluster: ColorClusterConfig;
+  /**
+   * Optional secondary color cluster. Host-driven:
+   *  - `undefined` (field omitted) — secondary section hidden.
+   *  - `null` — explicit opt-out: secondary section hidden + apply/clear skipped.
+   *  - `ColorClusterConfig` — host-supplied secondary cluster.
+   */
+  secondaryColorCluster?: ColorClusterConfig | null;
+  /**
+   * Optional host-supplied color-scheme presets. Surfaces additional named
+   * `ColorScheme` entries in the Color tab "Scheme..." dropdown.
+   * Defaults to `{}`.
+   */
+  colorPresets?: Record<string, ColorScheme>;
+  /**
+   * Optional dev-API endpoint URL. When set, the Apply button POSTs its diff payload to it.
+   * When `undefined`, the Apply button stays disabled with a tooltip.
+   */
+  applyEndpoint?: string;
+  /**
+   * Optional CSS-var prefix → repo-relative source-file routing map.
+   * Apply is gated on `applyEndpoint` AND a non-empty routing map.
+   */
+  applyRouting?: Record<string, string>;
+}
+```
+
+### Field reference
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `storagePrefix` | `string` | yes | Drives every persisted localStorage key. The only knob that controls panel storage. |
+| `consoleNamespace` | `string` | yes | Globals are installed under `window[consoleNamespace]`. |
+| `modalClassPrefix` | `string` | yes | BEM root for every modal the panel owns. See [Panel CSS tokens](/docs/reference/panel-css-tokens/) for how the bundled CSS keys on `data-design-token-panel-modal` instead of this prefix. |
+| `schemaId` | `string` | yes | Emitted as `$schema` on exports; required on import. |
+| `exportFilenameBase` | `string` | yes | Saves as `${exportFilenameBase}.json`. |
+| `tokens` | [`TokenManifest`](/docs/reference/token-manifest/) | yes | Editable tokens grouped per-tab. |
+| `colorCluster` | [`ColorClusterConfig`](/docs/reference/color-cluster/) | yes | Primary palette + base roles + semantic table. |
+| `secondaryColorCluster` | `ColorClusterConfig \| null` | no | Three-state field — see [Color cluster](/docs/reference/color-cluster/#multi-cluster-support). |
+| `colorPresets` | `Record<string, ColorScheme>` | no | Host-supplied scheme presets — see [Color cluster](/docs/reference/color-cluster/#host-supplied-scheme-presets). |
+| `applyEndpoint` | `string` | no | Apply POST target — see [Apply pipeline](/docs/reference/apply-pipeline/). |
+| `applyRouting` | `Record<string, string>` | no | Apply routing map — see [Apply pipeline](/docs/reference/apply-pipeline/). |
+
+<Info title="JSON-serializable invariant">
+Every field on `PanelConfig` (including nested `tokens` and `colorCluster`) must round-trip through `JSON.stringify` without loss. The Astro frontmatter → island prop handoff stringifies the config, so function fields, class instances, `Symbol` keys, and `undefined` (where `null` is meant) silently disappear under that round-trip and surface later as cryptic runtime errors. The palette CSS-var name is therefore expressed as a string template, not a function — see [Color cluster](/docs/reference/color-cluster/).
+</Info>
+
+## Storage-key derivation
+
+`storagePrefix` is the only knob that controls every persisted key. The panel derives the keys at runtime from this single base.
+
+| Logical key | Derivation | Owner | Purpose |
+| --- | --- | --- | --- |
+| `state-v2` | `${storagePrefix}-state-v2` | tweak-state | Unified envelope: color + spacing + typography + size + panelPosition + optional secondary cluster slice. |
+| `state-v1` | `${storagePrefix}-state` | tweak-state (legacy) | Pre-v2 flat-state format (Color-only). Migrated into `state-v2` on first load, then deleted. |
+| `open` | `${storagePrefix}-open` | panel | Mirror of the panel's `open` boolean state. |
+| `position` | `${storagePrefix}-position` | panel | Drag position (`{ top, right }`) so the panel reappears where the user left it. |
+| `visible` | `${storagePrefix}:visible` | adapter | Adapter-level visibility-intent flag, owned by the lazy-load gate. |
+
+With `storagePrefix: "myapp-design-token-panel"`, the derivation produces:
+
+```
+myapp-design-token-panel-state-v2
+myapp-design-token-panel-state
+myapp-design-token-panel-open
+myapp-design-token-panel-position
+myapp-design-token-panel:visible
+```
+
+<Note title="Colon, not dash, for `visible`">
+The `visible` key uses a `:` separator; every other derived key uses `-`. This is a historical artifact preserved for storage-key continuity — a key rename would silently lose users' visibility intent on first load. The derivation MUST emit the colon literally.
+</Note>
+
+### v1 → v2 in-place migration
+
+`loadPersistedState` performs an in-place v1 → v2 migration per `storagePrefix`. A user who last opened the panel before v2 landed gets their old color tweaks lifted into the new envelope on first load:
+
+- v1 read key: `${storagePrefix}-state`
+- v2 write key: `${storagePrefix}-state-v2`
+
+After the rewrite, the v1 key is deleted.
+
+A hard-coded typography-id rename map (`text-caption` → `text-xs`, plus a small set of dropped legacy ids) also lives inside `loadPersistedState`. It applies regardless of `storagePrefix` and is a no-op for hosts whose token manifest does not use those legacy ids.
+
+## Lifecycle helpers
+
+The package exposes four runtime helpers from its root entry. They are normally invoked via the console namespace (the host adapter installs `window[consoleNamespace].showDesignPanel` etc.), but a Vite-only host can import them directly.
+
+```ts
+import {
+  showDesignTokenPanel,
+  hideDesignTokenPanel,
+  toggleDesignPanel,
+  reapplyPersistedOverrides,
+} from '@takazudo/zudo-design-token-panel';
+```
+
+### `showDesignTokenPanel(): void`
+
+Opens the panel. Idempotent — calling it while the panel is already open is a no-op. Safe to call before mount: the helper seeds the panel's open-state key synchronously, mounts the Preact shell into a body-appended `<div>` whose id is derived from `storagePrefix`, and writes `${storagePrefix}:visible = "1"` so the next reload restores the open state.
+
+### `hideDesignTokenPanel(): void`
+
+Closes the panel. Symmetric to `showDesignTokenPanel`. The Preact shell stays mounted in the DOM (CSS hides it); only the open flag flips. Persists `${storagePrefix}:visible = "0"`.
+
+### `toggleDesignPanel(): void`
+
+Flips the panel between open and closed. Reads the panel's current open state, seeds the inverse before a fresh mount if needed, and dispatches the toggle event for steady-state flips. The exported function name is `toggleDesignPanel` (not `toggleDesignTokenPanel`); the console-API helper is also `toggleDesignPanel`.
+
+### `reapplyPersistedOverrides(): void`
+
+Applies persisted token overrides directly to `:root` BEFORE any Preact render. Called at adapter module init (and again on every `astro:page-load`) so the bundle's arrival is enough to kill the FOUT on hard navigation. The Preact shell still mounts separately when visibility intent requires it.
+
+This is a no-op when nothing is persisted, and it swallows errors — missing storage or corrupt state never blocks the UI thread; the stylesheet defaults paint instead.
+
+<Tip title="Console API">
+The host adapter installs the lazy-import wrappers under `window[consoleNamespace]`:
+
+```ts
+window[consoleNamespace].showDesignPanel = () => Promise<void>;
+window[consoleNamespace].hideDesignPanel = () => Promise<void>;
+window[consoleNamespace].toggleDesignPanel = () => Promise<void>;
+```
+
+Each helper lazy-imports the adapter module and forwards to its corresponding non-async public function. The host script preserves co-existing namespace fields, so installation MUST merge into the existing namespace, not overwrite it.
+</Tip>
+
+## `setPanelColorPresets(presets)`
+
+```ts
+import { setPanelColorPresets } from '@takazudo/zudo-design-token-panel';
+
+setPanelColorPresets({
+  Dracula: { /* ColorScheme */ },
+  Solarized: { /* ColorScheme */ },
+});
+```
+
+Lazy preset attachment. Hosts that don't want to ship the preset library inline in the SSR config blob can call this AFTER `configurePanel` to attach the preset map from a deferred dynamic import. Same precedence rules as `PanelConfig.colorPresets` — see the [Color cluster reference](/docs/reference/color-cluster/#host-supplied-scheme-presets) for the full merge contract.
+
+The trailing call wins on conflict (no throw, unlike `configurePanel`); a host that pre-calls `setPanelColorPresets` before `configurePanel` is serviced via a holding slot inside the panel-config module.
