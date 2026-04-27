@@ -360,29 +360,57 @@ export function initSecondaryFromConfig(): ColorTweakState | undefined {
 // Color helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Feature-detect whether the canvas 2D context correctly implements fillStyle.
+ * In JSDOM the setter is a no-op, so the value stays as the initial '#000000',
+ * causing cssColorToHex to silently return black for every colour. We check
+ * once at module load and skip the canvas path when it is broken.
+ */
+function _canvasCtxSupported(): boolean {
+  try {
+    const ctx = document.createElement('canvas').getContext('2d');
+    if (!ctx) return false;
+    ctx.fillStyle = '#ffffff';
+    return ctx.fillStyle === '#ffffff';
+  } catch {
+    return false;
+  }
+}
+const _canvasAvailable = _canvasCtxSupported();
+
+/** Parse an rgb()/rgba() string to a hex colour, or return null on failure. */
+function _rgbStringToHex(color: string): string | null {
+  const match = color.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+  if (!match) return null;
+  const r = parseInt(match[1], 10);
+  const g = parseInt(match[2], 10);
+  const b = parseInt(match[3], 10);
+  return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
+}
+
 /** Convert any CSS color to hex using a canvas (cached context). */
 let _canvasCtx: CanvasRenderingContext2D | null = null;
 export function cssColorToHex(color: string): string {
   if (!color || color === 'initial' || color === 'inherit') return '#000000';
-  if (/^#[0-9a-fA-F]{6}$/.test(color.trim())) return color.trim();
-  if (/^#[0-9a-fA-F]{3}$/.test(color.trim())) {
-    const c = color.trim();
-    return `#${c[1]}${c[1]}${c[2]}${c[2]}${c[3]}${c[3]}`;
+  const trimmed = color.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) return trimmed;
+  if (/^#[0-9a-fA-F]{3}$/.test(trimmed)) {
+    return `#${trimmed[1]}${trimmed[1]}${trimmed[2]}${trimmed[2]}${trimmed[3]}${trimmed[3]}`;
   }
+  // Manual rgb()/rgba() fallback — handles the most common non-hex CSS form
+  // and is always available (including JSDOM where the canvas path is broken).
+  const rgbHex = _rgbStringToHex(trimmed);
+  if (rgbHex) return rgbHex;
+
+  // Canvas path: only used in real browsers where fillStyle actually works.
+  if (!_canvasAvailable) return '#000000';
   try {
     if (!_canvasCtx) _canvasCtx = document.createElement('canvas').getContext('2d');
     if (!_canvasCtx) return '#000000';
-    _canvasCtx.fillStyle = color;
+    _canvasCtx.fillStyle = trimmed;
     const resolved = _canvasCtx.fillStyle;
     if (resolved.startsWith('#')) return resolved;
-    const match = resolved.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-    if (match) {
-      const r = parseInt(match[1], 10);
-      const g = parseInt(match[2], 10);
-      const b = parseInt(match[3], 10);
-      return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
-    }
-    return '#000000';
+    return _rgbStringToHex(resolved) ?? '#000000';
   } catch {
     return '#000000';
   }
