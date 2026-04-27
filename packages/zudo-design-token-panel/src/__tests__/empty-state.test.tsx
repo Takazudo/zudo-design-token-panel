@@ -137,7 +137,9 @@ describe('design-token-panel empty-state', () => {
 
     // The spacing tabpanel must NOT contain the empty-state copy when the
     // spacing manifest is non-empty — this is the regression guard.
-    const spacingPanel = root!.querySelector('#dtp-panel-spacing');
+    // Use an attribute prefix selector because the panel scopes IDs with a
+    // useId() suffix (e.g. dtp-panel-:r0:-spacing) to support multi-instance.
+    const spacingPanel = root!.querySelector('[role="tabpanel"][id*="-spacing"]');
     expect(spacingPanel).not.toBeNull();
     expect(spacingPanel!.textContent ?? '').not.toContain(EMPTY_STATE_COPY);
   });

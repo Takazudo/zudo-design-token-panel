@@ -57,12 +57,16 @@ export const TOKEN_SOURCE_FILES: Readonly<ApplyRoutingMap> = Object.freeze({});
  * any prefix in the supplied routing map. A cssVar must look like
  * `--<prefix>-<rest>` — the bare `--<prefix>` / `--<prefix>-` forms are not
  * accepted because there is nothing to rewrite.
+ *
+ * When two routing prefixes share a common head (e.g. `zd` and `zd-special`),
+ * the longer prefix MUST win — `--zd-special-foo` belongs to `zd-special`,
+ * not `zd`. To make matching independent of how the host happened to declare
+ * the keys, we sort candidates by descending prefix length before testing.
  */
 function classify(cssVar: string, routing: ApplyRoutingMap): string | null {
   if (!cssVar.startsWith('--')) return null;
-  // Walk routing keys in declaration order so a host that lists a
-  // longer-prefix entry first (e.g. `zd-special` before `zd`) wins.
-  for (const prefix of Object.keys(routing)) {
+  const prefixesByLengthDesc = Object.keys(routing).sort((a, b) => b.length - a.length);
+  for (const prefix of prefixesByLengthDesc) {
     const needle = `--${prefix}-`;
     if (cssVar.startsWith(needle) && cssVar.length > needle.length) {
       return prefix;

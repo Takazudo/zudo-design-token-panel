@@ -65,10 +65,22 @@ function jsonReply(res: ServerResponse, status: number, body: unknown): void {
   res.end(payload);
 }
 
-function readBody(req: IncomingMessage): Promise<string> {
+/** Soft body-size limit shared with the Next.js dev-forwarder route. */
+const MAX_BODY_BYTES = 1_048_576; // 1 MiB
+
+function readBody(req: IncomingMessage): Promise<string | 413> {
   return new Promise((resolveBody, rejectBody) => {
     const chunks: Buffer[] = [];
-    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    let received = 0;
+    req.on('data', (chunk: Buffer) => {
+      received += chunk.byteLength;
+      if (received > MAX_BODY_BYTES) {
+        resolveBody(413);
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
     req.on('end', () => resolveBody(Buffer.concat(chunks).toString('utf-8')));
     req.on('error', rejectBody);
   });
@@ -188,7 +200,16 @@ function buildRequestListener(deps: Deps) {
           return;
         }
 
-        const bodyText = await readBody(req);
+        const bodyResult = await readBody(req);
+        if (bodyResult === 413) {
+          jsonReply(res, 413, {
+            ok: false,
+            error: 'Payload Too Large',
+            limit: MAX_BODY_BYTES,
+          });
+          return;
+        }
+        const bodyText = bodyResult;
         const fetchRequest = new Request(`http://localhost${APPLY_PATH}`, {
           method: 'POST',
           headers: buildFetchHeaders(req),

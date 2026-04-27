@@ -32,6 +32,11 @@ describe('sanitizeCssValue', () => {
     expect(sanitizeCssValue('Inter; color: red')).toBe('Inter color: red');
   });
 
+  it('strips braces so a pasted "}" cannot close the surrounding :root block', () => {
+    expect(sanitizeCssValue('Inter} color:red {')).toBe('Inter color:red ');
+    expect(sanitizeCssValue('{"weird"}')).toBe('"weird"');
+  });
+
   it('leaves the empty string empty', () => {
     expect(sanitizeCssValue('')).toBe('');
   });

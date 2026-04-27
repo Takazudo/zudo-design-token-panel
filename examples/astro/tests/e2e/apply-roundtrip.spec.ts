@@ -98,8 +98,9 @@ test.describe('Astro example — apply pipeline round-trip', () => {
     // panel pre-paint (avoids needing a console-API call in the spec body).
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
+    // The canonical truthy value is '1' — see packages/.../src/index.tsx.
     await page.evaluate((visibleKey) => {
-      localStorage.setItem(visibleKey, 'true');
+      localStorage.setItem(visibleKey, '1');
     }, STORAGE_KEY_VISIBLE);
 
     // Step 2: hard-reload — adapter must mount the panel before paint.

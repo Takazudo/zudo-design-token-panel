@@ -10,11 +10,14 @@
  *     user sees equals the raw string written back out on export.
  *   - semicolons (`;`)      — safe for `style.setProperty` (it writes a single
  *     declaration) but would break the exported CSS snippet.
+ *   - braces (`{`, `}`)     — would close the surrounding `:root { … }` block
+ *     when the bin writes a sanitised value back out to disk, corrupting the
+ *     target CSS file. Always invalid in a property-value context.
  *
  * `style.setProperty` on its own is already injection-safe — it writes a single
  * property/value pair and never parses the value as a rule. This sanitiser
  * guards the **exported** CSS snippet and keeps stored state tidy.
  */
 export function sanitizeCssValue(input: string): string {
-  return input.replace(/[\r\n\\;]/g, '');
+  return input.replace(/[\r\n\\;{}]/g, '');
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'preact/compat';
+import { useState, useEffect, useCallback, useRef, useId } from 'preact/compat';
 import { ExportModal } from './export-modal';
 import { ImportModal } from './import-modal';
 import { ApplyModal } from './apply-modal';
@@ -116,9 +116,32 @@ function EmptyState() {
   );
 }
 
+// --- State factory ---
+
+/**
+ * Return a freshly-initialised TweakState: colour defaults from the active
+ * scheme, empty override maps for spacing / typography / size, and the
+ * secondary colour cluster defaults (if configured).
+ *
+ * Extracted from four identical inline object literals throughout the panel
+ * so that adding or renaming a state slice only requires one change.
+ */
+function freshTweakState(): TweakState {
+  return {
+    color: initColorFromScheme(),
+    spacing: emptyOverrides(),
+    typography: emptyOverrides(),
+    size: emptyOverrides(),
+    secondary: initSecondaryFromConfig(),
+  };
+}
+
 // --- Main Component ---
 
 export default function DesignTokenTweakPanel() {
+  // Scope WAI-ARIA IDs to this panel instance so that two mounted panels in
+  // the same document do not share dtp-tab-* / dtp-panel-* IDs.
+  const instanceId = useId();
   const [open, setOpen] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -186,13 +209,7 @@ export default function DesignTokenTweakPanel() {
     function handleSchemeChange() {
       // Clear all inline style overrides so the new scheme's <style> tag takes effect
       clearAppliedStyles();
-      setState({
-        color: initColorFromScheme(),
-        spacing: emptyOverrides(),
-        typography: emptyOverrides(),
-        size: emptyOverrides(),
-        secondary: initSecondaryFromConfig(),
-      });
+      setState(freshTweakState());
     }
     window.addEventListener('color-scheme-changed', handleSchemeChange);
     return () => window.removeEventListener('color-scheme-changed', handleSchemeChange);
@@ -212,13 +229,7 @@ export default function DesignTokenTweakPanel() {
     // The `secondary` slice is always seeded — every fresh-state path
     // includes it so the persisted envelope shape stays stable regardless
     // of the user's path.
-    setState({
-      color: initColorFromScheme(),
-      spacing: emptyOverrides(),
-      typography: emptyOverrides(),
-      size: emptyOverrides(),
-      secondary: initSecondaryFromConfig(),
-    });
+    setState(freshTweakState());
   }, [open, state]);
 
   // Drag handler for panel header (stable — reads position from ref)
@@ -245,14 +256,24 @@ export default function DesignTokenTweakPanel() {
         panelWidth,
         panelHeight,
       );
-      setPosition(clamped);
+      // Write directly to the DOM during drag to avoid re-rendering the whole
+      // panel tree at ~60 fps. positionRef stays in sync so mouseup can commit
+      // the final value to React state in one shot.
+      if (panelRef.current) {
+        panelRef.current.style.top = `${clamped.top}px`;
+        panelRef.current.style.right = `${clamped.right}px`;
+      }
+      positionRef.current = clamped;
     }
 
     function onMouseUp() {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
       dragCleanupRef.current = null;
-      savePosition(positionRef.current);
+      // Commit final position to React state (single re-render on drag end).
+      const finalPos = positionRef.current;
+      setPosition(finalPos);
+      savePosition(finalPos);
     }
 
     document.addEventListener('mousemove', onMouseMove);
@@ -300,13 +321,7 @@ export default function DesignTokenTweakPanel() {
     clearAppliedStyles();
     // Always seed the secondary slice — every fresh-state path emits a
     // uniform envelope shape so persistence stays consistent.
-    setState({
-      color: initColorFromScheme(),
-      spacing: emptyOverrides(),
-      typography: emptyOverrides(),
-      size: emptyOverrides(),
-      secondary: initSecondaryFromConfig(),
-    });
+    setState(freshTweakState());
   }, []);
 
   const handleApplied = useCallback(() => {
@@ -317,13 +332,7 @@ export default function DesignTokenTweakPanel() {
     clearAppliedStyles();
     // Always seed the secondary slice — every fresh-state path emits a
     // uniform envelope shape.
-    setState({
-      color: initColorFromScheme(),
-      spacing: emptyOverrides(),
-      typography: emptyOverrides(),
-      size: emptyOverrides(),
-      secondary: initSecondaryFromConfig(),
-    });
+    setState(freshTweakState());
   }, []);
 
   // --- Tab keyboard navigation (WAI-ARIA tablist pattern) ---
@@ -456,9 +465,9 @@ export default function DesignTokenTweakPanel() {
                 }}
                 type="button"
                 role="tab"
-                id={`dtp-tab-${tab.id}`}
+                id={`dtp-tab-${instanceId}-${tab.id}`}
                 aria-selected={isSelected}
-                aria-controls={`dtp-panel-${tab.id}`}
+                aria-controls={`dtp-panel-${instanceId}-${tab.id}`}
                 tabIndex={isSelected ? 0 : -1}
                 onClick={() => setActiveTab(tab.id)}
                 onKeyDown={handleTabKeyDown}
@@ -478,8 +487,8 @@ export default function DesignTokenTweakPanel() {
               <div
                 key={tab.id}
                 role="tabpanel"
-                id={`dtp-panel-${tab.id}`}
-                aria-labelledby={`dtp-tab-${tab.id}`}
+                id={`dtp-panel-${instanceId}-${tab.id}`}
+                aria-labelledby={`dtp-tab-${instanceId}-${tab.id}`}
                 tabIndex={0}
                 hidden={!isSelected}
               >

@@ -47,9 +47,11 @@ the bin **directly with CORS**. This example picks the API route. Why:
    an API route is the canonical "talk to a backend without CORS" surface
    in App Router and ships in production builds too.
 3. **Bin Origin validation stays simple.** The route forwards the POST
-   with `Origin: http://localhost:44326` regardless of what the incoming
-   request has, so the bin's `--allow-origin http://localhost:44326`
-   gate matches one stable origin only.
+   with `Origin: http://localhost:44326` (or the value of the
+   `ZDTP_BIN_ORIGIN` environment variable) regardless of what the
+   incoming request has, so the bin's `--allow-origin` gate matches one
+   stable origin only. Override when the example is served on a
+   non-default port: `ZDTP_BIN_ORIGIN=http://localhost:3001 pnpm dev`.
 
 The route is a transport-level adapter: it forwards the body bytes
 verbatim and the upstream status code verbatim. The bin owns the schema.
