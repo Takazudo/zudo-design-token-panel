@@ -44,6 +44,8 @@ const BIN_APPLY_URL = 'http://127.0.0.1:24684/apply';
  * served on a different port (e.g. `ZDTP_BIN_ORIGIN=http://localhost:3001`).
  */
 const FORWARD_ORIGIN = process.env.ZDTP_BIN_ORIGIN ?? 'http://localhost:44326';
+/** Soft body-size limit — mirrors the same constant in the bin sidecar. */
+const MAX_BODY_BYTES = 1_048_576; // 1 MiB
 
 export async function POST(request: Request): Promise<Response> {
   // Dev-only gate. `next dev` sets NODE_ENV=development; `next build` /
@@ -54,7 +56,21 @@ export async function POST(request: Request): Promise<Response> {
     return new Response('Not Found', { status: 404 });
   }
 
+  const contentLength = Number(request.headers.get('content-length') ?? '0');
+  if (contentLength > MAX_BODY_BYTES) {
+    return new Response(
+      JSON.stringify({ error: 'Payload Too Large', limit: MAX_BODY_BYTES }),
+      { status: 413, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
   const body = await request.text();
+  if (Buffer.byteLength(body, 'utf-8') > MAX_BODY_BYTES) {
+    return new Response(
+      JSON.stringify({ error: 'Payload Too Large', limit: MAX_BODY_BYTES }),
+      { status: 413, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
   const incomingContentType = request.headers.get('content-type') ?? 'application/json';
 
   let upstream: Response;
