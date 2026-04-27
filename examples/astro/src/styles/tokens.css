@@ -1,0 +1,138 @@
+/*
+ * `--astroexample-*` tokens consumed by the demo pages.
+ *
+ * Two roles wrapped into one file:
+ *
+ *   1. The byte-for-byte source of truth for the demo's CSS-var values. The
+ *      panel rewrites these names live (in-memory `:root` overrides) when
+ *      the user tweaks a slider. The Apply pipeline rewrites THIS FILE on
+ *      disk when the user clicks Apply (see `scaffold.routing.json` —
+ *      prefix `astroexample` → this path).
+ *
+ *   2. The demo stylesheet — every `.astroexample-*` selector below reads
+ *      tokens from `:root`, so a tweak in any tab is immediately visible
+ *      across both demo pages.
+ *
+ * Splitting the two concerns into separate files would mean the apply
+ * pipeline rewrites a file the demo doesn't read (or vice versa). Keeping
+ * them paired makes the round-trip obvious: the bin sidecar's response is
+ * literally the new contents of the file the next page-load will use.
+ */
+:root {
+  /* Spacing tokens (manifest: spacing tab) */
+  --astroexample-spacing-md: 1rem;
+  --astroexample-spacing-lg: 2rem;
+
+  /* Typography tokens (manifest: typography tab) */
+  --astroexample-text-base: 1rem;
+  --astroexample-text-heading: 1.75rem;
+
+  /* Size tokens (manifest: size tab) */
+  --astroexample-radius: 0.5rem;
+
+  /* Cluster base roles (default-cluster.ts → baseRoles) */
+  --astroexample-bg: #1e1e1e;
+  --astroexample-fg: #f8fafc;
+
+  /* Cluster palette slots (default-cluster.ts → paletteCssVarTemplate) */
+  --astroexample-palette-0: #1e1e1e;
+  --astroexample-palette-1: #2d6cdf;
+  --astroexample-palette-2: #3aa676;
+  --astroexample-palette-3: #d97706;
+  --astroexample-palette-4: #9b5de5;
+  --astroexample-palette-5: #e63946;
+  --astroexample-palette-6: #1d3557;
+  --astroexample-palette-7: #06b6d4;
+  --astroexample-palette-8: #475569;
+  --astroexample-palette-9: #94a3b8;
+  --astroexample-palette-10: #cbd5e1;
+  --astroexample-palette-11: #e2e8f0;
+  --astroexample-palette-12: #f1f5f9;
+  --astroexample-palette-13: #fef3c7;
+  --astroexample-palette-14: #bbf7d0;
+  --astroexample-palette-15: #f8fafc;
+
+  /* Cluster semantic names (default-cluster.ts → semanticCssNames) */
+  --astroexample-color-primary: var(--astroexample-palette-1);
+  --astroexample-color-accent: var(--astroexample-palette-3);
+  --astroexample-color-surface: var(--astroexample-palette-0);
+  --astroexample-color-muted: var(--astroexample-palette-8);
+  --astroexample-color-danger: var(--astroexample-palette-5);
+}
+
+body {
+  background: var(--astroexample-bg);
+  color: var(--astroexample-fg);
+  font-size: var(--astroexample-text-base);
+  padding: var(--astroexample-spacing-lg);
+}
+
+.astroexample-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--astroexample-spacing-lg);
+  max-width: 56rem;
+  margin: 0 auto;
+}
+
+.astroexample-heading {
+  font-size: var(--astroexample-text-heading);
+  font-weight: 700;
+  margin: 0 0 var(--astroexample-spacing-md);
+  color: var(--astroexample-color-primary);
+}
+
+.astroexample-card {
+  background: var(--astroexample-color-surface);
+  color: var(--astroexample-fg);
+  padding: var(--astroexample-spacing-md);
+  border-radius: var(--astroexample-radius);
+  border: 1px solid var(--astroexample-color-muted);
+}
+
+.astroexample-card + .astroexample-card {
+  margin-top: var(--astroexample-spacing-md);
+}
+
+.astroexample-button {
+  display: inline-block;
+  padding: var(--astroexample-spacing-md);
+  border-radius: var(--astroexample-radius);
+  background: var(--astroexample-color-accent);
+  color: var(--astroexample-bg);
+  border: none;
+  cursor: pointer;
+}
+
+.astroexample-button:hover {
+  background: var(--astroexample-color-primary);
+}
+
+.astroexample-link {
+  color: var(--astroexample-color-accent);
+  text-decoration: underline;
+}
+
+.astroexample-swatch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--astroexample-spacing-md);
+}
+
+.astroexample-swatch {
+  width: 4rem;
+  height: 4rem;
+  border-radius: var(--astroexample-radius);
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: var(--astroexample-fg);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  padding: 0.25rem;
+}
+
+.astroexample-meta {
+  font-size: 0.875rem;
+  color: var(--astroexample-color-muted);
+}
