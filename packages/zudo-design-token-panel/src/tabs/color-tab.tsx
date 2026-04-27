@@ -609,17 +609,22 @@ export default function ColorTab({
           <option value="" disabled>
             Scheme...
           </option>
-          {bundledNames.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-          <hr />
-          {presetNames.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
+          <optgroup label="Built-in">
+            {bundledNames.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </optgroup>
+          {presetNames.length > 0 && (
+            <optgroup label="Presets">
+              {presetNames.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </optgroup>
+          )}
         </select>
       </div>
 
