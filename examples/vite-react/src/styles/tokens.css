@@ -1,0 +1,145 @@
+/*
+ * `--vitereact-*` tokens consumed by the demo page.
+ *
+ * Two roles wrapped into one file:
+ *
+ *   1. The byte-for-byte source of truth for the demo's CSS-var values. The
+ *      panel rewrites these names live (in-memory `:root` overrides) when
+ *      the user tweaks a slider. The Apply pipeline rewrites THIS FILE on
+ *      disk when the user clicks Apply (see `scaffold.routing.json` —
+ *      prefix `vitereact` → this path).
+ *
+ *   2. The demo stylesheet — every `.vitereact-*` selector below reads
+ *      tokens from `:root`, so a tweak in any tab is immediately visible
+ *      across the page (and across React rerenders, since the React tree
+ *      doesn't own these vars).
+ *
+ * Splitting the two concerns into separate files would mean the apply
+ * pipeline rewrites a file the demo doesn't read (or vice versa). Keeping
+ * them paired makes the round-trip obvious: the bin sidecar's response is
+ * literally the new contents of the file the next page-load will use.
+ */
+:root {
+  /* Spacing tokens (manifest: spacing tab) */
+  --vitereact-spacing-md: 1rem;
+  --vitereact-spacing-lg: 2rem;
+
+  /* Typography tokens (manifest: typography tab) */
+  --vitereact-text-base: 1rem;
+  --vitereact-text-heading: 1.75rem;
+
+  /* Size tokens (manifest: size tab) */
+  --vitereact-radius: 0.5rem;
+
+  /* Cluster base roles (default-cluster.ts → baseRoles) */
+  --vitereact-bg: #1e1e1e;
+  --vitereact-fg: #f8fafc;
+
+  /* Cluster palette slots (default-cluster.ts → paletteCssVarTemplate) */
+  --vitereact-palette-0: #1e1e1e;
+  --vitereact-palette-1: #2d6cdf;
+  --vitereact-palette-2: #3aa676;
+  --vitereact-palette-3: #d97706;
+  --vitereact-palette-4: #9b5de5;
+  --vitereact-palette-5: #e63946;
+  --vitereact-palette-6: #1d3557;
+  --vitereact-palette-7: #06b6d4;
+  --vitereact-palette-8: #475569;
+  --vitereact-palette-9: #94a3b8;
+  --vitereact-palette-10: #cbd5e1;
+  --vitereact-palette-11: #e2e8f0;
+  --vitereact-palette-12: #f1f5f9;
+  --vitereact-palette-13: #fef3c7;
+  --vitereact-palette-14: #bbf7d0;
+  --vitereact-palette-15: #f8fafc;
+
+  /* Cluster semantic names (default-cluster.ts → semanticCssNames) */
+  --vitereact-color-primary: var(--vitereact-palette-1);
+  --vitereact-color-accent: var(--vitereact-palette-3);
+  --vitereact-color-surface: var(--vitereact-palette-0);
+  --vitereact-color-muted: var(--vitereact-palette-8);
+  --vitereact-color-danger: var(--vitereact-palette-5);
+}
+
+body {
+  background: var(--vitereact-bg);
+  color: var(--vitereact-fg);
+  font-size: var(--vitereact-text-base);
+  padding: var(--vitereact-spacing-lg);
+}
+
+.vitereact-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vitereact-spacing-lg);
+  max-width: 56rem;
+  margin: 0 auto;
+}
+
+.vitereact-heading {
+  font-size: var(--vitereact-text-heading);
+  font-weight: 700;
+  margin: 0 0 var(--vitereact-spacing-md);
+  color: var(--vitereact-color-primary);
+}
+
+.vitereact-card {
+  background: var(--vitereact-color-surface);
+  color: var(--vitereact-fg);
+  padding: var(--vitereact-spacing-md);
+  border-radius: var(--vitereact-radius);
+  border: 1px solid var(--vitereact-color-muted);
+}
+
+.vitereact-card + .vitereact-card {
+  margin-top: var(--vitereact-spacing-md);
+}
+
+.vitereact-button {
+  display: inline-block;
+  padding: var(--vitereact-spacing-md);
+  border-radius: var(--vitereact-radius);
+  background: var(--vitereact-color-accent);
+  color: var(--vitereact-bg);
+  border: none;
+  cursor: pointer;
+}
+
+.vitereact-button:hover {
+  background: var(--vitereact-color-primary);
+}
+
+.vitereact-link {
+  color: var(--vitereact-color-accent);
+  text-decoration: underline;
+}
+
+.vitereact-swatch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vitereact-spacing-md);
+}
+
+.vitereact-swatch {
+  width: 4rem;
+  height: 4rem;
+  border-radius: var(--vitereact-radius);
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: var(--vitereact-fg);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  padding: 0.25rem;
+}
+
+.vitereact-meta {
+  font-size: 0.875rem;
+  color: var(--vitereact-color-muted);
+}
+
+.vitereact-rerender-counter {
+  font-variant-numeric: tabular-nums;
+  color: var(--vitereact-color-accent);
+  font-weight: 700;
+}
