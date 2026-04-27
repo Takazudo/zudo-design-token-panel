@@ -1,0 +1,217 @@
+---
+title: Apply pipeline
+sidebar_position: 4
+description: applyEndpoint, applyRouting, the request/response envelopes, atomicity guarantees, and validation rules for the Apply button POST.
+---
+
+The **bin server** is the reference implementation for the apply contract. When a user clicks "Apply" in the panel UI, it POSTs a flat CSS-var diff to the host's endpoint, which routes the diff to the bin, which atomically rewrites source files.
+
+This page pins the Apply button's two `PanelConfig` fields ([`applyEndpoint`](#applyendpoint) and [`applyRouting`](#applyrouting)), the [request and response envelopes](#request--response-envelopes), the [atomicity contract](#atomic-write-contract), and the [validation rules](#validation-rules).
+
+## `applyEndpoint`
+
+| Field | Type | Purpose |
+| --- | --- | --- |
+| `applyEndpoint` | `string` | URL the Apply button POSTs the flat cssVar diff to. The host's dev-API handler routes the diff to the bin. |
+
+When `undefined`, the Apply button stays disabled with a tooltip — hosts that ship export/import only can omit this field.
+
+## `applyRouting`
+
+| Field | Type | Purpose |
+| --- | --- | --- |
+| `applyRouting` | `Record<string, string>` | Map of CSS-var prefix family (without leading `--` and trailing `-`) → repo-relative source-file path. Passed to the bin via `--routing <json>` flag. |
+
+Example:
+
+```ts
+applyRouting: {
+  myapp: 'src/styles/tokens.css',
+  'myapp-extra': 'src/styles/extra-tokens.css',
+}
+```
+
+When both `applyEndpoint` and a non-empty `applyRouting` map are set, the Apply button is enabled. When either is missing, the modal still mounts so the user can preview the diff, but the action stays disabled with a tooltip.
+
+<Note title="Single source of truth">
+Both the panel UI (`PanelConfig.applyRouting`) and the bin (`--routing` flag) read the same JSON file. The map is keyed by the CSS-var prefix family without leading `--` and trailing `-`; the value is a repo-relative path to the source file the bin rewrites. Keeping a single JSON file as the source eliminates drift between UI and bin.
+</Note>
+
+## Request & response envelopes
+
+The Apply button POSTs to `PanelConfig.applyEndpoint` with a flat JSON diff.
+
+### Request
+
+```
+POST <applyEndpoint>
+Content-Type: application/json
+
+{
+  "tokens": {
+    "--myapp-spacing-md": "2rem",
+    "--myapp-extra-slider-length": "200px"
+  }
+}
+```
+
+The `tokens` field is mandatory and must be a JSON object with string keys (CSS custom property names, prefixed with `--`) and string values (CSS strings, no validation at the panel level).
+
+### Response 200 (success)
+
+```json
+{
+  "ok": true,
+  "updated": [
+    {
+      "file": "src/styles/tokens.css",
+      "changed": ["--myapp-spacing-md"],
+      "unchanged": ["--myapp-spacing-lg"],
+      "unknown": []
+    }
+  ],
+  "unknownCssVars": [],
+  "unchangedCssVars": ["--myapp-spacing-lg"]
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `ok: true` | Marks success. |
+| `updated[]` | Per-file results. `file` is repo-relative; `changed[]` lists tokens that were rewritten; `unchanged[]` lists tokens found in the file but not in the diff; `unknown[]` lists tokens in the diff that don't exist in the file's `:root` block. |
+| `unknownCssVars` | Flattened across all files for UI feedback. |
+| `unchangedCssVars` | Flattened across all files for UI feedback. |
+
+### Response 400 (bad request)
+
+```json
+{
+  "ok": false,
+  "error": "<message>",
+  "rejected": ["--invalid-token"]
+}
+```
+
+(`rejected` is optional; included where it makes the diagnostic actionable.)
+
+Returned for:
+
+- Malformed JSON: `"Invalid JSON in request body"`
+- Body not an object: `"Request body must be a JSON object"`
+- Missing `tokens` field or not an object: `"tokens must be a JSON object"`
+- Empty tokens map: `"tokens must contain at least one entry"`
+- Invalid token names (no `--` prefix, spaces, slashes, etc.) — error message describes the rejection, with optional `rejected[]` array.
+- Unsupported CSS-var prefix (no route configured): `"Unsupported cssVar prefix"` with `rejected[]` listing the offending prefixes.
+- Path escape attempt (`../../etc/passwd`): `"Path not allowed: <relativePath>"`.
+
+### Response 403 (Forbidden)
+
+```json
+{
+  "ok": false,
+  "error": "Origin not allowed"
+}
+```
+
+No `Access-Control-Allow-Origin` header. The bin rejects cross-origin requests.
+
+### Response 405 (Method not allowed)
+
+Empty body, `Allow: POST, OPTIONS` header. The endpoint accepts only POST and OPTIONS.
+
+### Response 409 (Conflict)
+
+```json
+{
+  "ok": false,
+  "error": "No top-level :root { ... } block in <file>"
+}
+```
+
+The target CSS file has no `:root` block. The bin cannot apply token overrides without one.
+
+### Response 500 (Internal server error)
+
+```json
+{
+  "ok": false,
+  "error": "<message>",
+  "failedFile": "<relativePath>",
+  "restoreFailures": ["<file1>", "<file2>"]
+}
+```
+
+(`failedFile` and `restoreFailures` are optional; included when the failure context produces them.)
+
+Returned for:
+
+- File read/parse failure: `"Failed to read or parse source file"`
+- Write failure with rollback: `"Failed to write file <file>; previously-written files were restored."` + `failedFile`
+- Rollback failure: `"Failed to write file <file>; rollback also failed for N file(s) — disk state is inconsistent. Inspect the listed files manually."` + `failedFile` + `restoreFailures[]`
+
+## Atomic write contract
+
+The bin keeps the original file content in memory. It writes the updated content to a temp file, then atomically renames the temp to target. If any write fails, the bin restores every file written so far from the in-memory original.
+
+This guarantees one of three terminal states for any Apply request:
+
+1. **Full success.** Every routed file is updated. Response 200.
+2. **Clean rollback.** A write fails partway through; every previously-written file is restored. Response 500 with `failedFile` populated.
+3. **Inconsistent disk state.** A write fails AND the rollback also fails for one or more files. Response 500 with `failedFile` AND `restoreFailures[]` populated. The user is told to inspect the listed files manually.
+
+<Warning title="Inspect on `restoreFailures`">
+A non-empty `restoreFailures[]` array in a 500 response means the on-disk state is inconsistent — at least one file was rewritten and could not be restored. Inspect the listed files manually before retrying. The bin does not attempt a second rollback.
+</Warning>
+
+## Validation rules
+
+The bin validates every request before touching disk. Failures surface as 400 responses with a descriptive message and (where useful) a `rejected[]` array.
+
+### Token name rules
+
+- Must start with `--`.
+- No spaces, slashes, or special characters.
+- Must split into a recognised prefix family (the part between `--` and the next `-`) for routing.
+
+### Routing rules
+
+- Each token's prefix family must appear as a key in `applyRouting`.
+- Tokens with prefixes not in the routing map are rejected with `"Unsupported cssVar prefix"`.
+
+### Path safety
+
+- Each routing target is resolved to an absolute path.
+- The resolved path must sit within the bin's `writeRoot`.
+- Path-escape attempts (`../../etc/passwd`) are rejected with `"Path not allowed: <relativePath>"`.
+
+### Body shape
+
+- Body must be a JSON object.
+- `tokens` must be a JSON object with at least one entry.
+
+## Reference implementation
+
+The bin server inside this package (the `design-token-panel-server` bin entry) is the reference implementation. It reads `--routing <json>` at startup and exposes a Fetch API handler.
+
+The handler validates every token name, routes by prefix, resolves absolute paths with sandbox checks, computes rewrites in memory, writes atomically, and responds with the exact shapes pinned above. Read the handler source as the spec.
+
+## Implementing the contract natively (advanced)
+
+Hosts physically unable to spawn Node.js can implement the apply contract natively. The implementation must:
+
+1. **Validate token names** — reject names without `--` prefix, with spaces, slashes, or special characters.
+2. **Sanitize and route** — split each CSS-var prefix, look up the target file in the routing map, reject prefixes not in the map.
+3. **Path safety** — resolve each target path to an absolute path, verify it sits within `writeRoot`, reject path-escape attempts.
+4. **Read & parse** — load each CSS file, find the `:root { ... }` block (fail 409 if missing), parse the existing variable values.
+5. **Compute rewrite** — for each token in the diff, decide which are already present (`unchanged`), which are new (`unknown`), which are being changed (`changed`). Build the updated `:root` block.
+6. **Atomic write** — keep the original file content in memory. Write the updated content to a temp file. Atomically rename temp to target. If any write fails, restore every file written so far from the in-memory original.
+7. **Respond** — return the exact JSON envelope shapes pinned above.
+
+The panel package's source code (the apply / server / path-safety modules under `src/apply/` and `src/server/`) documents the exact algorithm. Native implementations should mirror it.
+
+## Cross-references
+
+- [`PanelConfig.applyEndpoint`](/docs/reference/configure-panel/#panelconfig-interface) — endpoint slot.
+- [`PanelConfig.applyRouting`](/docs/reference/configure-panel/#panelconfig-interface) — routing slot.
+- [Token manifest](/docs/reference/token-manifest/) — defines which `--cssVar` names appear in the diff.
+- [Color cluster](/docs/reference/color-cluster/) — defines the cluster-driven `--cssVar` names that can appear in the diff.
