@@ -9,12 +9,14 @@
  *
  * Responsibilities (mirror the Astro adapter):
  *
- *  1. The host application MUST have already called `configurePanel(...)` in
- *     `src/main.tsx` BEFORE this function runs. The active config is passed
- *     in as `cfg` rather than read via a `getPanelConfig()` accessor — the
- *     package's main entry doesn't re-export `getPanelConfig` to consumers
- *     (only `configurePanel` is public), so the host application is the
- *     single source of truth for the config object during adapter setup.
+ *  1. Own the `configurePanel(panelConfig)` call. The package's main entry
+ *     reads `getPanelConfig()` only from inside functions invoked at
+ *     panel-show time (never at module-init time), so calling
+ *     configurePanel from inside the dynamic-import resolution is safe and
+ *     keeps the panel JS out of the initial chunk. The host application is
+ *     therefore the single source of truth for the config object — it
+ *     imports `panelConfig` from the local `../config/panel-config` module
+ *     and this adapter wires it through.
  *  2. Install the console API on `window[cfg.consoleNamespace]`
  *     (`showDesignPanel` / `hideDesignPanel` / `toggleDesignPanel`). The
  *     namespace is a configured field — different consumers can pick
@@ -24,9 +26,11 @@
  *     overrides. When neither is set, the panel module stays out of the
  *     initial bundle and only loads when the user calls a `window.<ns>.*`
  *     helper from the console.
- *  4. After the dynamic import resolves, call `reapplyPersistedOverrides()`
- *     so the panel applies persisted overrides ASAP (kills the FOUT on
- *     hard navigation when the user has tweaks saved).
+ *  4. After the dynamic import resolves, call `configurePanel(panelConfig)`
+ *     on the freshly imported module BEFORE any other panel API runs, then
+ *     call `reapplyPersistedOverrides()` so the panel applies persisted
+ *     overrides ASAP (kills the FOUT on hard navigation when the user has
+ *     tweaks saved).
  *
  * StrictMode safety
  * -----------------
@@ -130,16 +134,33 @@ function hasPersistedOverrides(stateV2Key: string): boolean {
 
 /**
  * Lazily import the panel module. First call runs the panel module's
- * top-level bootstrap (which binds its own toggle/window listeners and
- * re-applies persisted state). Subsequent calls return the same promise.
+ * top-level bootstrap (which binds its own toggle/window listeners) and
+ * configures the panel-config singleton with the host's `panelConfig`
+ * BEFORE any panel API runs. Subsequent calls return the same promise so
+ * `configurePanel` runs exactly once per `storagePrefix`-scoped state —
+ * which matches the package's one-shot configurePanel contract.
  *
- * After the import resolves, call `reapplyPersistedOverrides()` so the
+ * Why configurePanel runs HERE (not eagerly in main.tsx): the package
+ * main entry only reads `getPanelConfig()` from inside functions invoked
+ * at panel-show time (panel.tsx renders, storage-key derivations, …) —
+ * never at module-init time. Calling configurePanel inside the
+ * dynamic-import resolution therefore lands the host's config in the
+ * singleton before any reader sees it, while keeping the panel JS out of
+ * the initial chunk (a static `import { configurePanel }` in main.tsx
+ * pulled the whole module in and Vite folded the dynamic import back
+ * into the same chunk — see the Rollup warning we removed).
+ *
+ * After configurePanel runs, call `reapplyPersistedOverrides()` so the
  * panel applies persisted overrides ASAP (matches the eager-reapply path
  * the Astro adapter triggers via the package's main-entry side effects).
  */
 async function loadPanelModule(state: DesignTokenPanelAdapterState) {
   if (state.modulePromise === null) {
     state.modulePromise = import('@takazudo/zudo-design-token-panel').then((mod) => {
+      // Configure FIRST — every other panel API below reads
+      // getPanelConfig() and must observe the host's intended values, not
+      // the package's DEFAULT_PANEL_CONFIG sentinel.
+      mod.configurePanel(panelConfig);
       try {
         mod.reapplyPersistedOverrides();
       } catch (err) {
@@ -183,10 +204,11 @@ function installConsoleApi(
  * twice in dev). Returns nothing; the cleanup function from the calling
  * `useEffect` should also be a no-op.
  *
- * Reads the active config from the same module that `src/main.tsx` already
- * passed to `configurePanel(...)`, so the adapter and the panel module
- * agree on storagePrefix / consoleNamespace / etc. without re-deriving them
- * from a global accessor.
+ * Reads the active config from the local `panelConfig` module so storage
+ * keys / console namespace / etc. are derived from the same object that
+ * `loadPanelModule()` will pass to `configurePanel(...)` once the panel
+ * module finishes loading. The two derivations are guaranteed coherent
+ * because there is exactly one `panelConfig` import in this file.
  */
 export function mountPanel(): void {
   if (typeof window === 'undefined') return;
