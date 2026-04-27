@@ -84,6 +84,56 @@ export function remarkResolveMarkdownLinks(
       let resolvedPath: string | null = null;
       let extensionlessLookup = false;
 
+      // Root-relative doc paths (e.g. "/docs/foo", "/ja/docs/foo") — rewrite
+      // to base-aware URLs by looking up the source file in the source map.
+      // This catches MDX content authored with hardcoded absolute paths that
+      // would otherwise escape the configured base prefix at build time.
+      if (pathname.startsWith("/")) {
+        const normalizedBase = options.base.replace(/\/+$/, "");
+        // If already prefixed with the configured base, leave it alone.
+        if (
+          normalizedBase &&
+          (pathname === normalizedBase ||
+            pathname.startsWith(`${normalizedBase}/`))
+        ) {
+          return;
+        }
+        const docMatch = pathname.match(
+          /^\/(?:([a-z]{2,3}(?:-[A-Za-z0-9]+)?)\/)?docs(?:\/(.*))?$/,
+        );
+        if (!docMatch) return;
+        const [, locale, rawSlug = ""] = docMatch;
+        const slug = rawSlug.replace(/\/$/, "");
+        let dir: string | undefined;
+        if (locale) {
+          dir = options.locales[locale]?.dir;
+          if (!dir) return; // unknown locale — leave link alone
+        } else {
+          dir = options.docsDir;
+        }
+        const basePath = slug
+          ? resolve(options.rootDir, dir, slug)
+          : resolve(options.rootDir, dir);
+        const candidates = slug
+          ? extensionlessCandidates(basePath)
+          : [
+              resolve(basePath, "index.mdx"),
+              resolve(basePath, "index.md"),
+            ];
+        for (const candidate of candidates) {
+          if (sourceMap.has(candidate)) {
+            const mapped = sourceMap.get(candidate);
+            if (mapped) {
+              linkNode.url = mapped + search + hash;
+            }
+            return;
+          }
+        }
+        // No source-map match — leave the link alone (could be a public asset
+        // or non-doc absolute route). The audit script will surface escapes.
+        return;
+      }
+
       if (hasMarkdownExtension(pathname)) {
         // Explicit .md / .mdx link — existing behavior, may warn on miss.
         resolvedPath = resolve(currentDir, pathname);
