@@ -52,9 +52,14 @@ describe('cssColorToHex', () => {
       // assigned to fillStyle stays as '#000000' (the default).
       originalGetContext = HTMLCanvasElement.prototype.getContext;
       vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
-        function (type: string, ...args: unknown[]) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        function (this: HTMLCanvasElement, type: string, ...args: unknown[]): any {
           if (type !== '2d') {
-            return originalGetContext.call(this, type as '2d', ...(args as []));
+            return (originalGetContext as (...a: unknown[]) => unknown).call(
+              this,
+              type,
+              ...args,
+            );
           }
           // Return a proxy whose fillStyle setter is a no-op.
           const ctx = originalGetContext.call(this, '2d') as CanvasRenderingContext2D | null;
@@ -63,13 +68,13 @@ describe('cssColorToHex', () => {
           return new Proxy(ctx, {
             get(target, prop) {
               if (prop === 'fillStyle') return _fillStyle;
-              const value = (target as Record<string | symbol, unknown>)[prop];
+              const value = (target as unknown as Record<string | symbol, unknown>)[prop];
               return typeof value === 'function' ? value.bind(target) : value;
             },
             set(_target, prop, value) {
               // Intentionally ignore fillStyle assignments (JSDOM behaviour).
               if (prop !== 'fillStyle') {
-                (_target as Record<string | symbol, unknown>)[prop] = value;
+                (_target as unknown as Record<string | symbol, unknown>)[prop] = value;
               }
               return true;
             },
