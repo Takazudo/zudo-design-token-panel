@@ -21,7 +21,7 @@
  * `close` event — and thus `onClose` — fires exactly once per dismissal.
  */
 
-import { useEffect, useRef, useState } from 'preact/compat';
+import { useEffect, useRef, useState, useId } from 'preact/compat';
 import {
   DesignTokenSchemaError,
   deserialize,
@@ -195,9 +195,10 @@ export function ImportModal({ onClose, onLoad, colorDefaults }: ImportModalProps
     }
   }
 
-  // Stable id for aria-labelledby. Native <dialog>.showModal() implies
-  // aria-modal=true, so we only need to point at the title.
-  const titleId = `${cfg.modalClassPrefix}-import-title`;
+  // Instance-scoped id for aria-labelledby. useId() ensures uniqueness when
+  // two panels are mounted in the same document.
+  const _uid = useId();
+  const titleId = `${cfg.modalClassPrefix}-import-title-${_uid}`;
 
   return (
     <dialog

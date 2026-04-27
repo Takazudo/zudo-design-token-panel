@@ -27,7 +27,7 @@
  * per dismissal regardless of the path taken.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'preact/compat';
+import { useEffect, useMemo, useRef, useState, useId } from 'preact/compat';
 import { buildApplyOverrides } from './apply/build-apply-overrides';
 import { routeTokensToFiles, type RouteGroup } from './apply/route-tokens-to-files';
 import {
@@ -212,10 +212,10 @@ export function ApplyModal(props: ApplyModalProps) {
   const cfg = getPanelConfig();
   const cls = useMemo(() => buildClasses(cfg), [cfg]);
 
-  // Stable id for aria-labelledby. Native
-  // <dialog>.showModal() implies aria-modal=true, so only the title pointer
-  // is needed.
-  const titleId = `${cfg.modalClassPrefix}-apply-title`;
+  // Instance-scoped id for aria-labelledby. useId() ensures uniqueness when
+  // two panels are mounted in the same document.
+  const _uid = useId();
+  const titleId = `${cfg.modalClassPrefix}-apply-title-${_uid}`;
 
   const [phase, setPhase] = useState<Phase>(INITIAL_PHASE);
   const [copyLabel, setCopyLabel] = useState<CopyLabel>('Copy pre-apply state to clipboard');

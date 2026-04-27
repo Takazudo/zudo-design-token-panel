@@ -21,7 +21,7 @@
  * `close` event — and thus `onClose` — fires exactly once per dismissal.
  */
 
-import { useState, useEffect, useMemo, useRef } from 'preact/compat';
+import { useState, useEffect, useMemo, useRef, useId } from 'preact/compat';
 import { serialize } from './utils/design-token-serde';
 import {
   type ColorTweakState,
@@ -165,10 +165,12 @@ export function ExportModal({ onClose, state, colorDefaults }: ExportModalProps)
     copyTimerRef.current = setTimeout(() => setCopyLabel('Copy'), 2000);
   }
 
-  // Stable id for aria-labelledby. Native
-  // <dialog>.showModal() implies aria-modal=true, so only the title pointer
-  // is needed.
-  const titleId = `${cfg.modalClassPrefix}-export-title`;
+  // Instance-scoped id for aria-labelledby. Using useId() ensures that two
+  // panels mounted in the same document each get a unique title id.
+  // Native <dialog>.showModal() implies aria-modal=true, so only the title
+  // pointer is needed.
+  const _uid = useId();
+  const titleId = `${cfg.modalClassPrefix}-export-title-${_uid}`;
 
   return (
     <dialog

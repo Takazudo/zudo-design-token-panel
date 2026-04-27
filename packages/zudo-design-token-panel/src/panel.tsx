@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'preact/compat';
+import { useState, useEffect, useCallback, useRef, useId } from 'preact/compat';
 import { ExportModal } from './export-modal';
 import { ImportModal } from './import-modal';
 import { ApplyModal } from './apply-modal';
@@ -119,6 +119,9 @@ function EmptyState() {
 // --- Main Component ---
 
 export default function DesignTokenTweakPanel() {
+  // Scope WAI-ARIA IDs to this panel instance so that two mounted panels in
+  // the same document do not share dtp-tab-* / dtp-panel-* IDs.
+  const instanceId = useId();
   const [open, setOpen] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -456,9 +459,9 @@ export default function DesignTokenTweakPanel() {
                 }}
                 type="button"
                 role="tab"
-                id={`dtp-tab-${tab.id}`}
+                id={`dtp-tab-${instanceId}-${tab.id}`}
                 aria-selected={isSelected}
-                aria-controls={`dtp-panel-${tab.id}`}
+                aria-controls={`dtp-panel-${instanceId}-${tab.id}`}
                 tabIndex={isSelected ? 0 : -1}
                 onClick={() => setActiveTab(tab.id)}
                 onKeyDown={handleTabKeyDown}
@@ -478,8 +481,8 @@ export default function DesignTokenTweakPanel() {
               <div
                 key={tab.id}
                 role="tabpanel"
-                id={`dtp-panel-${tab.id}`}
-                aria-labelledby={`dtp-tab-${tab.id}`}
+                id={`dtp-panel-${instanceId}-${tab.id}`}
+                aria-labelledby={`dtp-tab-${instanceId}-${tab.id}`}
                 tabIndex={0}
                 hidden={!isSelected}
               >
