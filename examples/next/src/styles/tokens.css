@@ -1,0 +1,145 @@
+/*
+ * `--nextexample-*` tokens consumed by the demo pages.
+ *
+ * Two roles wrapped into one file:
+ *
+ *   1. The byte-for-byte source of truth for the demo's CSS-var values. The
+ *      panel rewrites these names live (in-memory `:root` overrides) when
+ *      the user tweaks a slider. The Apply pipeline rewrites THIS FILE on
+ *      disk when the user clicks Apply (see `scaffold.routing.json` —
+ *      prefix `nextexample` → this path).
+ *
+ *   2. The demo stylesheet — every `.nextexample-*` selector below reads
+ *      tokens from `:root`, so a tweak in any tab is immediately visible
+ *      across the page (and across React rerenders / Next soft navigations,
+ *      since the React tree doesn't own these vars).
+ *
+ * Splitting the two concerns into separate files would mean the apply
+ * pipeline rewrites a file the demo doesn't read (or vice versa). Keeping
+ * them paired makes the round-trip obvious: the bin sidecar's response is
+ * literally the new contents of the file the next page-load will use.
+ */
+:root {
+  /* Spacing tokens (manifest: spacing tab) */
+  --nextexample-spacing-md: 1rem;
+  --nextexample-spacing-lg: 2rem;
+
+  /* Typography tokens (manifest: typography tab) */
+  --nextexample-text-base: 1rem;
+  --nextexample-text-heading: 1.75rem;
+
+  /* Size tokens (manifest: size tab) */
+  --nextexample-radius: 0.5rem;
+
+  /* Cluster base roles (default-cluster.ts → baseRoles) */
+  --nextexample-bg: #1e1e1e;
+  --nextexample-fg: #f8fafc;
+
+  /* Cluster palette slots (default-cluster.ts → paletteCssVarTemplate) */
+  --nextexample-palette-0: #1e1e1e;
+  --nextexample-palette-1: #2d6cdf;
+  --nextexample-palette-2: #3aa676;
+  --nextexample-palette-3: #d97706;
+  --nextexample-palette-4: #9b5de5;
+  --nextexample-palette-5: #e63946;
+  --nextexample-palette-6: #1d3557;
+  --nextexample-palette-7: #06b6d4;
+  --nextexample-palette-8: #475569;
+  --nextexample-palette-9: #94a3b8;
+  --nextexample-palette-10: #cbd5e1;
+  --nextexample-palette-11: #e2e8f0;
+  --nextexample-palette-12: #f1f5f9;
+  --nextexample-palette-13: #fef3c7;
+  --nextexample-palette-14: #bbf7d0;
+  --nextexample-palette-15: #f8fafc;
+
+  /* Cluster semantic names (default-cluster.ts → semanticCssNames) */
+  --nextexample-color-primary: var(--nextexample-palette-1);
+  --nextexample-color-accent: var(--nextexample-palette-3);
+  --nextexample-color-surface: var(--nextexample-palette-0);
+  --nextexample-color-muted: var(--nextexample-palette-8);
+  --nextexample-color-danger: var(--nextexample-palette-5);
+}
+
+body {
+  background: var(--nextexample-bg);
+  color: var(--nextexample-fg);
+  font-size: var(--nextexample-text-base);
+  padding: var(--nextexample-spacing-lg);
+}
+
+.nextexample-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nextexample-spacing-lg);
+  max-width: 56rem;
+  margin: 0 auto;
+}
+
+.nextexample-heading {
+  font-size: var(--nextexample-text-heading);
+  font-weight: 700;
+  margin: 0 0 var(--nextexample-spacing-md);
+  color: var(--nextexample-color-primary);
+}
+
+.nextexample-card {
+  background: var(--nextexample-color-surface);
+  color: var(--nextexample-fg);
+  padding: var(--nextexample-spacing-md);
+  border-radius: var(--nextexample-radius);
+  border: 1px solid var(--nextexample-color-muted);
+}
+
+.nextexample-card + .nextexample-card {
+  margin-top: var(--nextexample-spacing-md);
+}
+
+.nextexample-button {
+  display: inline-block;
+  padding: var(--nextexample-spacing-md);
+  border-radius: var(--nextexample-radius);
+  background: var(--nextexample-color-accent);
+  color: var(--nextexample-bg);
+  border: none;
+  cursor: pointer;
+}
+
+.nextexample-button:hover {
+  background: var(--nextexample-color-primary);
+}
+
+.nextexample-link {
+  color: var(--nextexample-color-accent);
+  text-decoration: underline;
+}
+
+.nextexample-swatch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nextexample-spacing-md);
+}
+
+.nextexample-swatch {
+  width: 4rem;
+  height: 4rem;
+  border-radius: var(--nextexample-radius);
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: var(--nextexample-fg);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  padding: 0.25rem;
+}
+
+.nextexample-meta {
+  font-size: 0.875rem;
+  color: var(--nextexample-color-muted);
+}
+
+.nextexample-rerender-counter {
+  font-variant-numeric: tabular-nums;
+  color: var(--nextexample-color-accent);
+  font-weight: 700;
+}
