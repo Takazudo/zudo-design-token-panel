@@ -21,6 +21,43 @@ function stripImportsAndJsx(content: string): string {
   );
 }
 
+/** Rewrite root-relative doc paths in markdown link / definition syntax so the
+ * emitted llms.txt content stays inside the configured base prefix. Mirrors
+ * the build-time behavior of remark-resolve-markdown-links for absolute paths.
+ *
+ * Handles `](/docs/...)`, `](/<locale>/docs/...)`, and `[label]: /docs/...`.
+ * Leaves links that already start with the configured base alone.
+ */
+function rewriteAbsoluteDocLinks(content: string): string {
+  const base = settings.base.replace(/\/+$/, "");
+  if (!base) return content;
+  const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const localeCodes = Object.keys(settings.locales ?? {}).map(escapeRegex);
+  const localeAlt = localeCodes.length > 0 ? `(?:${localeCodes.join("|")})` : "";
+  const docPathPattern = localeAlt
+    ? new RegExp(`/(?:${localeAlt}/)?docs(?=/|\\)|\\s|$|#|\\?)`)
+    : /\/docs(?=\/|\)|\s|$|#|\?)/;
+  // Replace inline link / image targets: ](path) or ](path "title")
+  let out = content.replace(
+    /(\]\()(\/[^)\s#?]*)([^)]*\))/g,
+    (full, open, target: string, rest) => {
+      if (target.startsWith(`${base}/`) || target === base) return full;
+      if (!docPathPattern.test(target)) return full;
+      return `${open}${base}${target}${rest}`;
+    },
+  );
+  // Replace reference-style link definitions: [label]: /path
+  out = out.replace(
+    /^(\[[^\]]+\]:\s*)(\/[^\s#?]*)/gm,
+    (full, prefix, target: string) => {
+      if (target.startsWith(`${base}/`) || target === base) return full;
+      if (!docPathPattern.test(target)) return full;
+      return `${prefix}${base}${target}`;
+    },
+  );
+  return out;
+}
+
 interface DocEntry {
   title: string;
   description: string;
@@ -56,7 +93,7 @@ function buildDocEntries(
       title: data.title ?? slug,
       description,
       url: slugToUrl(slug, locale, true),
-      content: stripImportsAndJsx(content),
+      content: rewriteAbsoluteDocLinks(stripImportsAndJsx(content)),
       sidebarPosition: data.sidebar_position,
     });
   }

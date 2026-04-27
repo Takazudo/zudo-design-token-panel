@@ -8,7 +8,8 @@
     "test": "pnpm -r --if-present test",
     "typecheck": "pnpm -r --if-present typecheck",
     "lint": "pnpm -r --if-present lint",
-    "b4push": "bash scripts/run-b4push.sh"
+    "b4push": "bash scripts/run-b4push.sh",
+    "check:deploy-paths": "bash scripts/check-deploy-paths.sh"
   },
   "engines": {
     "node": ">=22.12.0"

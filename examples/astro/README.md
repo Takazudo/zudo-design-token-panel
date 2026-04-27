@@ -5,6 +5,24 @@ A minimal Astro 6 + Preact app that mounts the design-token panel via
 full apply pipeline by round-tripping tweaks back to disk through the bin
 sidecar (`design-token-panel-server`).
 
+## Deploy path
+
+This example builds with `base: '/pj/zdtp/astro/'` (see `astro.config.ts`), so
+the produced static bundle is meant to be served from the URL prefix
+`/pj/zdtp/astro/` under the monorepo's docs site. In production the example
+is reachable at:
+
+```
+https://<docs-site>/pj/zdtp/astro/
+```
+
+Internal navigation links inside `src/pages` use
+`import.meta.env.BASE_URL` so they remain correct under the prefix without
+hardcoding it. The dev-only Vite proxy match (`/api/dev/apply`) is
+deliberately NOT base-prefixed — Astro's `base` only affects served-asset
+URLs, not Vite's internal proxy match path, and the panel's `applyEndpoint`
+config stays the literal string `/api/dev/apply` for the same reason.
+
 ## Run
 
 ```bash

@@ -8,6 +8,7 @@
 import Layout from '../layouts/Layout.astro';
 
 const paletteIndices = Array.from({ length: 16 }, (_, i) => i);
+const aboutHref = `${import.meta.env.BASE_URL}about`;
 ---
 
 <Layout title="Astro Example — Design Token Panel">
@@ -43,7 +44,7 @@ const paletteIndices = Array.from({ length: 16 }, (_, i) => i);
         <button class="astroexample-button" type="button">Action button</button>
       </p>
       <p>
-        Try the <a class="astroexample-link" href="/about">about page</a> to confirm token tweaks
+        Try the <a class="astroexample-link" href={aboutHref}>about page</a> to confirm token tweaks
         persist across an Astro view-transition.
       </p>
     </section>

@@ -27,10 +27,45 @@ import { dirname } from 'node:path';
  * pnpm-lock.yaml in the parent directory — pinning silences the
  * "multiple lockfiles" warning during `next build` without changing what
  * gets traced into the deployable bundle.
+ *
+ * Deploy paths
+ * ------------
+ * The example is hosted at `https://takazudomodular.com/pj/zdtp/next/`, so
+ * `basePath` and `assetPrefix` are both pinned to `/pj/zdtp/next`. Next
+ * normalizes the leading-slash form internally; do NOT add a trailing slash
+ * to `basePath` — Next rejects that. `trailingSlash: true` is on so the
+ * static export emits `<route>/index.html` files, which work cleanly under
+ * any plain static host (no per-route rewrite rules required).
+ *
+ * Static export + dev-only API route
+ * ----------------------------------
+ * `output: 'export'` is gated on `NEXT_BUILD_TARGET=export` so `pnpm dev`
+ * keeps the dev server (and its API routes) working while `pnpm build` (which
+ * sets the env var via package.json) emits a static `out/` directory.
+ *
+ * The catch: `output: 'export'` cannot include dynamic API routes like
+ * `app/api/dev/apply/route.ts` — the Next exporter rejects them at build
+ * time. The dev-only POST proxy to the bin sidecar is therefore stored as
+ * `route.dev.ts` and `pageExtensions` is widened in dev mode to pick up
+ * the `dev.ts` suffix; in export mode `pageExtensions` is the default
+ * (`ts` / `tsx` only), so the file is invisible to the exporter and never
+ * reaches `out/`. The route is recovered automatically the next time
+ * `next dev` runs. README.md documents the choice.
  */
+const isExportBuild = process.env.NEXT_BUILD_TARGET === 'export';
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: dirname(fileURLToPath(import.meta.url)),
+  basePath: '/pj/zdtp/next',
+  assetPrefix: '/pj/zdtp/next',
+  trailingSlash: true,
+  // In dev mode, widen pageExtensions so `route.dev.ts` (the dev-only POST
+  // proxy) is picked up alongside the regular `route.ts` filenames. In
+  // export mode, fall back to the Next defaults so the dev-only file is
+  // invisible to the static exporter and `out/` never carries it.
+  pageExtensions: isExportBuild ? ['ts', 'tsx'] : ['ts', 'tsx', 'dev.ts', 'dev.tsx'],
+  ...(isExportBuild ? { output: 'export' as const } : {}),
 };
 
 export default nextConfig;

@@ -5,6 +5,19 @@
  *
  *   panel POST -> /api/dev/apply -> bin sidecar at 127.0.0.1:24684/apply
  *
+ * Filename: `route.dev.ts` (NOT `route.ts`)
+ * ----------------------------------------
+ * The `.dev.ts` suffix keeps this file out of the static export build. The
+ * Next exporter (`output: 'export'`) rejects dynamic API routes — POST
+ * handlers cannot be statically rendered — so the dev-only POST proxy must
+ * not be visible to the exporter. `next.config.ts` widens `pageExtensions`
+ * to include `dev.ts` only when `NEXT_BUILD_TARGET !== 'export'`, so this
+ * file is picked up by `next dev` (the only place it is meaningful) and
+ * invisible to `pnpm build`. The bin sidecar is a developer-only surface;
+ * the production static export must not advertise a proxy to a localhost
+ * bin. See README.md ("Static export — dev-only API route exclusion") for
+ * the rationale.
+ *
  * Why an API route (not direct CORS-allowed fetch from the panel to the bin)?
  *
  *   1. Same-origin POST means no CORS preflight. The panel issues a JSON
@@ -16,13 +29,12 @@
  *
  *   2. App Router has no built-in dev-server proxy config equivalent to
  *      Vite's `server.proxy`. An API route is the canonical "talk to a
- *      backend without CORS" surface in App Router, so the route is the
- *      right Next-shaped tool for the job — but it ships in production
- *      builds too. To keep the parity with vite-react's dev-only proxy
- *      (`vite.config.ts`'s `server.proxy` does not apply to production
- *      builds), this route SHORT-CIRCUITS to 404 in production. The
- *      apply pipeline is a developer-only surface — production builds of
- *      the example app must not expose a proxy to a localhost bin.
+ *      backend without CORS" surface in App Router. To match vite-react's
+ *      dev-only `server.proxy` semantics, the file extension carries the
+ *      gate (see above) — and as a defence in depth the handler also
+ *      short-circuits to 404 when `NODE_ENV === 'production'`, so even if
+ *      a future config change accidentally widened `pageExtensions` in a
+ *      production build, the route would refuse to proxy.
  *
  *   3. The bin sidecar still validates the Origin header for safety, so
  *      this route forwards the request with `Origin: http://localhost:44326`
@@ -33,6 +45,11 @@
  * The implementation forwards the body bytes verbatim and the status code
  * verbatim. We don't try to parse, transform, or validate the JSON — the
  * bin owns the schema, this route is a transport-level adapter.
+ *
+ * Endpoint: the panel POSTs to `applyEndpoint: '/api/dev/apply'` (no
+ * basePath prefix). Next's basePath rewriting auto-adds the configured
+ * `/pj/zdtp/next` prefix to client-issued requests in dev so this route
+ * still resolves; the panel config stays portable across deploy paths.
  */
 
 const BIN_APPLY_URL = 'http://127.0.0.1:24684/apply';

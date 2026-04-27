@@ -1,14 +1,13 @@
 # NOTE: This is a STUB workflow.
 #
-# The doc site is configured for deployment to GitHub Pages at
-# https://takazudo.github.io/pj/zudo-token-panel/ (see doc/src/config/settings.ts:
-# base "/pj/zudo-token-panel/").
+# The doc site is configured for deployment at
+# https://takazudomodular.com/pj/zdtp/ (see doc/src/config/settings.ts:
+# base "/pj/zdtp/").
 #
-# Because takazudo.github.io is the user/org Pages site, this repo cannot use
-# the standard "GitHub Pages — actions" deployment flow on its own. The actual
-# wiring (publishing dist/ into a sub-path of the user-pages repo, or switching
-# to Cloudflare Pages, or enabling Pages with a custom path) is intentionally
-# left as a follow-up task. Credentials/secrets are NOT yet configured.
+# The actual deploy wiring (publishing dist/ to the takazudomodular.com host,
+# whether via Cloudflare Pages, GitHub Pages with a custom path, or another
+# target) is intentionally left as a follow-up task. Credentials/secrets are
+# NOT yet configured.
 #
 # What this file gives you today:
 #   - A workflow that builds the doc site on every push to main and on manual
