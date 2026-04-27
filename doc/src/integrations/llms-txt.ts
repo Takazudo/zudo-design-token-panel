@@ -31,7 +31,8 @@ function stripImportsAndJsx(content: string): string {
 function rewriteAbsoluteDocLinks(content: string): string {
   const base = settings.base.replace(/\/+$/, "");
   if (!base) return content;
-  const localeCodes = Object.keys(settings.locales ?? {});
+  const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const localeCodes = Object.keys(settings.locales ?? {}).map(escapeRegex);
   const localeAlt = localeCodes.length > 0 ? `(?:${localeCodes.join("|")})` : "";
   const docPathPattern = localeAlt
     ? new RegExp(`/(?:${localeAlt}/)?docs(?=/|\\)|\\s|$|#|\\?)`)

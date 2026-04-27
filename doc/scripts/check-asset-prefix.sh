@@ -35,6 +35,15 @@ if [[ ! -d "${DIST_DIR}" ]]; then
   exit 2
 fi
 
+# A base prefix of "" or "/" means the site is deployed at the host root, so
+# every absolute path is by definition "inside" the prefix and there is
+# nothing meaningful to audit. Bail out early with a clear message rather
+# than degenerate-matching every URL.
+if [[ -z "${BASE_PREFIX}" || "${BASE_PREFIX}" == "/" ]]; then
+  echo "skip: BASE_PREFIX is '${BASE_PREFIX}' (root deployment) — nothing to check." >&2
+  exit 0
+fi
+
 violations=0
 
 # Anything that looks like an absolute root path. Excludes:
