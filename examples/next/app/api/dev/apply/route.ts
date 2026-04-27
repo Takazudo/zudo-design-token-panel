@@ -36,7 +36,14 @@
  */
 
 const BIN_APPLY_URL = 'http://127.0.0.1:24684/apply';
-const FORWARD_ORIGIN = 'http://localhost:44326';
+/**
+ * The Origin header forwarded to the bin sidecar. The bin validates this
+ * against its --allow-origin flag, so both must agree.
+ *
+ * Override via the ZDTP_BIN_ORIGIN environment variable when the panel is
+ * served on a different port (e.g. `ZDTP_BIN_ORIGIN=http://localhost:3001`).
+ */
+const FORWARD_ORIGIN = process.env.ZDTP_BIN_ORIGIN ?? 'http://localhost:44326';
 
 export async function POST(request: Request): Promise<Response> {
   // Dev-only gate. `next dev` sets NODE_ENV=development; `next build` /
