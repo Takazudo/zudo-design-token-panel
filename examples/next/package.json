@@ -9,7 +9,7 @@
     "dev": "concurrently -k -n next,tokens-bin -c blue,green \"pnpm run _dev:next\" \"pnpm run _dev:tokens-bin\"",
     "_dev:next": "next dev --port 44326",
     "_dev:tokens-bin": "design-token-panel-server --write-root . --routing scaffold.routing.json --port 24684 --allow-origin http://localhost:44326",
-    "build": "next build",
+    "build": "NEXT_BUILD_TARGET=export next build",
     "start": "next start --port 44326",
     "typecheck": "tsc --noEmit",
     "test:apply-smoke": "node scripts/smoke-apply.mjs"

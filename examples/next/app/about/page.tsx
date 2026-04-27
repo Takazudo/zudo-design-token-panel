@@ -47,8 +47,8 @@ export default function AboutPage() {
           </li>
           <li>
             Apply endpoint <code>/api/dev/apply</code> handled by a Next API
-            route (<code>app/api/dev/apply/route.ts</code>) that forwards to
-            the bin sidecar on port 24684.
+            route (<code>app/api/dev/apply/route.dev.ts</code>) that forwards
+            to the bin sidecar on port 24684.
           </li>
         </ul>
       </header>

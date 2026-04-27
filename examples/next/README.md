@@ -19,19 +19,75 @@ pnpm --filter next-example dev
 | Next    | 44326 | the example site                                                                |
 | bin     | 24684 | `design-token-panel-server` — receives `/apply` POSTs, rewrites `tokens.css`    |
 
-The Next API route at `app/api/dev/apply/route.ts` forwards
+The Next API route at `app/api/dev/apply/route.dev.ts` forwards
 `/api/dev/apply` to the bin (see "Apply pipeline — proxy choice" below), so
 the panel POSTs to a same-origin URL — no CORS preflight, no hardcoded port
-in the runtime config.
+in the runtime config. The `.dev.ts` suffix is what keeps this route out of
+the static export build (see "Static export — dev-only API route exclusion"
+below).
 
-Open [http://localhost:44326](http://localhost:44326) and run
-`window.nextExample.toggleDesignPanel()` in the browser console to show the
-panel. Drag any slider — the page repaints before the next frame.
+The dev server itself is served under the configured `basePath`, so open
+[http://localhost:44326/pj/zdtp/next/](http://localhost:44326/pj/zdtp/next/)
+and run `window.nextExample.toggleDesignPanel()` in the browser console to
+show the panel. Drag any slider — the page repaints before the next frame.
+
+## Production build (static export)
+
+```bash
+pnpm --filter next-example build
+```
+
+Emits a static `out/` directory with all assets prefixed by `/pj/zdtp/next/`
+(matching the production deploy path on `takazudomodular.com`). Configured by:
+
+| `next.config.ts` field | value                  | rationale                                                              |
+| ---------------------- | ---------------------- | ---------------------------------------------------------------------- |
+| `basePath`             | `/pj/zdtp/next`        | site is hosted under that subpath; do NOT add a trailing slash         |
+| `assetPrefix`          | `/pj/zdtp/next`        | rewrites `_next/static/...` references to absolute deploy-path URLs    |
+| `trailingSlash`        | `true`                 | emits `<route>/index.html` so plain static hosts work without rewrites |
+| `output`               | `'export'` (gated)     | static export — only set when `NEXT_BUILD_TARGET=export`               |
+| `pageExtensions`       | gated (see next table) | controls whether the dev-only API route is visible to the build       |
+
+`output: 'export'` and `pageExtensions` are both gated on
+`NEXT_BUILD_TARGET=export` so `next dev` keeps full dev-server behaviour
+(API routes, on-demand routing) while `next build` (which sets the env var
+via `package.json`) emits the static export.
+
+Production URL: <https://takazudomodular.com/pj/zdtp/next/>.
+
+## Static export — dev-only API route exclusion
+
+`output: 'export'` rejects dynamic API routes — POST handlers cannot be
+statically rendered — so the dev-only proxy at `app/api/dev/apply/` MUST
+NOT be visible to the exporter. The strategy:
+
+| mode               | `pageExtensions`                   | result                                                  |
+| ------------------ | ---------------------------------- | ------------------------------------------------------- |
+| `next dev`         | `['ts', 'tsx', 'dev.ts', 'dev.tsx']` | `route.dev.ts` IS picked up — POST proxy works         |
+| `next build` (export) | `['ts', 'tsx']`                  | `route.dev.ts` is INVISIBLE — exporter never sees it   |
+
+The route file is therefore named `route.dev.ts` (not `route.ts`). The
+filename gate is enforced by `next.config.ts` reading the
+`NEXT_BUILD_TARGET` env var; `package.json`'s `build` script sets the
+variable. As defence-in-depth, the handler also short-circuits to `404`
+when `NODE_ENV === 'production'`.
+
+Verification (run after `pnpm --filter next-example build`):
+
+```bash
+# the static export must contain NO trace of the dev-only API route
+find examples/next/out -path '*api/dev/apply*'
+#   (returns nothing)
+
+# every absolute href / src must already carry the /pj/zdtp/next/ prefix
+grep -rE 'href="/[^p]|src="/[^p]' examples/next/out | grep -v '/pj/zdtp/next/'
+#   (returns nothing)
+```
 
 ## Apply pipeline — proxy choice (Next API route vs CORS-allowed fetch)
 
 The Epic #9 brief left this open: route the panel's apply POST through a
-**Next API route** (`app/api/dev/apply/route.ts`) or have the panel fetch
+**Next API route** (`app/api/dev/apply/route.dev.ts`) or have the panel fetch
 the bin **directly with CORS**. This example picks the API route. Why:
 
 1. **Same-origin POST means no CORS preflight.** The panel issues a JSON
@@ -56,10 +112,15 @@ the bin **directly with CORS**. This example picks the API route. Why:
 The route is a transport-level adapter: it forwards the body bytes
 verbatim and the upstream status code verbatim. The bin owns the schema.
 
-**Dev-only**: the route short-circuits to `404` when `NODE_ENV ===
-'production'` so `next start` (and any production deploy) does not expose
-a localhost-bin proxy. This matches Vite's `server.proxy` semantics —
-proxies apply only to the dev server, not to production builds.
+**Dev-only**: the file is named `route.dev.ts`, and `next.config.ts` only
+includes `dev.ts` in `pageExtensions` outside of export builds — so the
+static export emitted by `pnpm build` (which sets
+`NEXT_BUILD_TARGET=export`) NEVER contains the dev-only API route. As a
+defence in depth the handler also short-circuits to `404` when
+`NODE_ENV === 'production'`. This matches Vite's `server.proxy` semantics:
+proxies apply only to the dev server, not to production builds. See the
+"Static export — dev-only API route exclusion" section above for the full
+gating mechanism.
 
 ## Apply-pipeline manual verification
 
@@ -158,7 +219,7 @@ The console-API call is `window.nextExample.toggleDesignPanel()`.
 ┌───────────────┐   POST /api/dev/apply    ┌────────────────────────────┐
 │   Panel UI    │ ───────────────────────▶ │   Next API route           │
 │ (Preact)      │   { tokens: {…} }        │   app/api/dev/apply        │
-└───────────────┘                          │   /route.ts                │
+└───────────────┘                          │   /route.dev.ts (dev-only) │
                                            │                            │
                                            │   forwards verbatim with   │
                                            │   Origin: localhost:44326  │
@@ -182,7 +243,7 @@ The console-API call is `window.nextExample.toggleDesignPanel()`.
 examples/next/
 ├── README.md                     # this file
 ├── next-env.d.ts                 # standard Next 15 type-reference file
-├── next.config.ts                # reactStrictMode + outputFileTracingRoot pin
+├── next.config.ts                # reactStrictMode, basePath/assetPrefix, output: 'export' (gated), pageExtensions (gated)
 ├── package.json                  # name: next-example, dev = next + bin
 ├── playwright.config.ts          # apply-roundtrip e2e config
 ├── scaffold.routing.json         # CSS-var prefix → file map (shared by panel + bin)
@@ -193,7 +254,7 @@ examples/next/
 │   ├── api/
 │   │   └── dev/
 │   │       └── apply/
-│   │           └── route.ts      # POST /api/dev/apply → bin proxy
+│   │           └── route.dev.ts  # POST /api/dev/apply → bin proxy (dev-only; .dev.ts excludes from static export)
 │   ├── _components/
 │   │   └── PanelBootstrap.tsx    # 'use client' island — useEffect → mountPanel
 │   ├── layout.tsx                # global CSS + <PanelBootstrap />
