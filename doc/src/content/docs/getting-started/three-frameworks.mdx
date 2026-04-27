@@ -1,0 +1,139 @@
+---
+title: Three Frameworks
+description: Side-by-side wiring for Astro, Vite + React, and Next.js — what changes, what stays the same.
+sidebar_position: 4
+---
+
+The panel's public surface is a single `configurePanel({...})` call plus a Preact-rendered shell, so the wiring shape is the same across hosts. The only differences are *who* calls `configurePanel`, *where* the styles import lives, and *how* the host interacts with view-transitions.
+
+This page is the side-by-side overview. For full code, run any of the example apps linked at the bottom of each section.
+
+## Comparison
+
+| Step | Astro | Vite + React | Next.js (App Router) |
+| --- | --- | --- | --- |
+| Install package | `pnpm add @takazudo/zudo-design-token-panel preact` | same | same |
+| Define `PanelConfig` | one TS file, host-side | same | same |
+| Mount the host | `<DesignTokenPanelHost>` in layout | call `configurePanel(...)` from entry | call `configurePanel(...)` from a `'use client'` module |
+| Side-effect script | `void import('.../astro/host-adapter')` next to the host | not required | not required |
+| Styles import | once on the static graph | once on the static graph | once on the static graph |
+| View-transition lifecycle | wired automatically by the host adapter when `<ClientRouter />` is present | n/a | n/a |
+| Apply-pipeline bin | spawn via `concurrently` in dev script | spawn via `concurrently` in dev script | spawn via `concurrently` in dev script |
+
+What stays the same:
+
+- The `PanelConfig` shape and all of its fields.
+- The console API — `window.<consoleNamespace>.{show,hide,toggle}DesignPanel()` — installed identically by every host.
+- Storage-key derivation under `storagePrefix`.
+- Apply-pipeline behaviour — POST to `applyEndpoint` is identical regardless of host.
+
+What differs:
+
+- Whether **you** call `configurePanel(...)` (Vite, Next.js) or the **host adapter** calls it for you (Astro).
+- Whether the page goes through Astro's `<ClientRouter />` view-transition lifecycle (only Astro).
+
+## Astro
+
+The Astro entry handles mounting for you. Drop `<DesignTokenPanelHost>` into a shared layout, pair it with the host-adapter script tag, and import the styles. That's the entire integration.
+
+```astro
+---
+// src/layouts/Layout.astro
+import { ClientRouter } from 'astro:transitions';
+import { DesignTokenPanelHost } from '@takazudo/zudo-design-token-panel/astro';
+import '@takazudo/zudo-design-token-panel/styles';
+import { myPanelConfig } from '../lib/my-panel-config';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <ClientRouter />
+  </head>
+  <body>
+    <slot />
+    <DesignTokenPanelHost config={myPanelConfig} />
+  </body>
+</html>
+
+<script>
+  void import('@takazudo/zudo-design-token-panel/astro/host-adapter');
+</script>
+```
+
+Worked example: [`examples/astro`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples/astro).
+
+## Vite + React
+
+Vite hosts call `configurePanel(...)` themselves at app boot. The panel mounts as a Preact island — your React tree is untouched.
+
+```tsx
+// src/main.tsx
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { configurePanel } from '@takazudo/zudo-design-token-panel';
+import '@takazudo/zudo-design-token-panel/styles';
+import { App } from './App';
+import { myPanelConfig } from './lib/my-panel-config';
+
+configurePanel(myPanelConfig);
+
+createRoot(document.getElementById('root')!).render(<App />);
+```
+
+Open devtools, run `window.myapp.toggleDesignPanel()`, and the panel mounts.
+
+Worked example: [`examples/vite-react`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples/vite-react).
+
+## Next.js (App Router)
+
+Next.js needs a `'use client'` boundary so `configurePanel(...)` runs in the browser. The cleanest shape is a tiny client component you mount in your root layout.
+
+```tsx
+// app/_panel/install-panel.tsx
+'use client';
+
+import { useEffect } from 'react';
+import { configurePanel } from '@takazudo/zudo-design-token-panel';
+import '@takazudo/zudo-design-token-panel/styles';
+import { myPanelConfig } from '@/lib/my-panel-config';
+
+export function InstallPanel(): null {
+  useEffect(() => {
+    configurePanel(myPanelConfig);
+  }, []);
+  return null;
+}
+```
+
+```tsx
+// app/layout.tsx
+import { InstallPanel } from './_panel/install-panel';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        {children}
+        <InstallPanel />
+      </body>
+    </html>
+  );
+}
+```
+
+<Note title="Why a useEffect?">
+  `configurePanel(...)` is synchronous and idempotent at the same value. Calling it from `useEffect` avoids running it during a server render and lets you keep the install module otherwise inert. If you'd rather call it inline at module init, you can — just make sure the file is reachable only from the client bundle.
+</Note>
+
+Worked example: [`examples/next`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples/next).
+
+<Info title="Examples may 404 today">
+  The `examples/` directory linked above is wired up by a separate doc-port topic and may not exist yet at the time you read this. The links are stable — they will resolve once the example apps land on `main`.
+</Info>
+
+## Where to go next
+
+- For per-field detail on `PanelConfig`, see the [Configure Panel reference](/docs/reference/configure-panel).
+- For the apply-pipeline bin (`design-token-panel-server`) and routing JSON, see the CLI reference once it lands.
+- For the smallest possible end-to-end wiring, see [Quickstart](./quickstart).

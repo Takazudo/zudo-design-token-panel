@@ -1,0 +1,176 @@
+---
+title: Token manifest
+sidebar_position: 2
+description: TokenManifest, TokenDef, group ordering, and the section-title overrides that drive the spacing / typography / size / color tabs.
+---
+
+The panel does not know which tokens a host site exposes. The host supplies its own token manifest, and the panel iterates it to render rows and apply overrides to `:root`.
+
+This page pins the public shape of [`TokenManifest`](#tokenmanifest), [`TokenDef`](#tokendef), the per-tab group ordering hooks, and the `groupTitles` table.
+
+## `TokenDef`
+
+The atomic unit of the manifest. One `TokenDef` describes one editable design-token row inside the panel.
+
+```ts
+export type TokenGroup = string;
+
+export type TokenControl = 'slider' | 'select' | 'text';
+
+export interface TokenDef {
+  /** Stable id used as the Record key in persisted state (e.g. `hsp-2xs`). */
+  id: string;
+  /** CSS custom property written to `:root` (e.g. `--myapp-spacing-hgap-2xs`). */
+  cssVar: string;
+  /** Display label shown in the panel row. */
+  label: string;
+  /** Manifest group — tab components use this for section headers. */
+  group: TokenGroup;
+  /** Default value as a CSS string (`0.125rem`, `12px`, etc.). */
+  default: string;
+  /** Slider min, in `unit`. Unused when `readonly` or non-slider. */
+  min: number;
+  /** Slider max, in `unit`. */
+  max: number;
+  /** Slider step, in `unit`. */
+  step: number;
+  /** Unit suffix (`rem`, `px`, …). May be empty for unitless / read-only tokens. */
+  unit: string;
+  /** Read-only tokens are displayed but not editable. */
+  readonly?: true;
+  /** Which control renders this token. Defaults to `"slider"` when absent. */
+  control?: TokenControl;
+  /** Select options — only used when `control === "select"`. */
+  options?: readonly string[];
+  /** Hide behind the per-tab Advanced `<details>` disclosure. */
+  advanced?: true;
+  /** Opt-in pill toggle (e.g. for `--radius-full` 9999px sentinel). */
+  pill?: { value: string; customDefault: string };
+}
+```
+
+### Field reference
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `id` | yes | Stable id used as the Record key in persisted state. Renaming an id breaks user state continuity. |
+| `cssVar` | yes | The CSS custom property the panel writes to `:root` on apply. Host-controlled — pick names like `--myapp-spacing-md`. |
+| `label` | yes | Human-visible label rendered in the panel row. |
+| `group` | yes | Group id (a free-form string — see below). Determines the section header the row appears under. |
+| `default` | yes | CSS-string default. Read by the panel's reset behaviour. |
+| `min` / `max` / `step` | yes | Slider bounds, in `unit`. Unused when `readonly` or non-slider. |
+| `unit` | yes | Suffix for slider values (`rem`, `px`, …). May be empty for unitless / read-only tokens. |
+| `readonly` | no | When `true`, the row is displayed but not editable. The panel skips both directions in `applyTokenOverrides`. |
+| `control` | no | `'slider'` (default) / `'select'` / `'text'`. Picks the row's edit widget. |
+| `options` | no | Required when `control === 'select'`; ignored otherwise. |
+| `advanced` | no | When `true`, the row is hidden behind the per-tab Advanced `<details>` disclosure. |
+| `pill` | no | Opt-in pill toggle. Used for sentinel-value tokens like `--radius-full` (`9999px`) where a slider does not make sense. |
+
+### `TokenGroup` is open
+
+`TokenGroup` is an alias for `string` — not a closed union — so consumers can coin their own group ids without forking the package types.
+
+```ts
+export type TokenGroup = string;
+```
+
+The package ships default orderings (`GROUP_ORDER`, `FONT_GROUP_ORDER`, `SIZE_GROUP_ORDER`) and titles (`GROUP_TITLES`) covering the historical group ids. Hosts coining unknown group ids SHOULD populate `groupTitles` so the section headers carry human-readable labels — the tabs fall back to printing the raw group id otherwise.
+
+### `TokenControl`
+
+```ts
+export type TokenControl = 'slider' | 'select' | 'text';
+```
+
+| Value | Renders | Required companion field |
+| --- | --- | --- |
+| `'slider'` (default) | Range input with min / max / step in `unit`. | none |
+| `'select'` | Dropdown of strings. | `options: readonly string[]` |
+| `'text'` | Free-form text input. | none |
+
+## `TokenManifest`
+
+The container shape carried on `PanelConfig.tokens`. Holds the four arrays the panel consumes plus optional per-tab ordering / titling hooks.
+
+```ts
+export interface TokenManifest {
+  spacing: readonly TokenDef[];
+  typography: readonly TokenDef[];
+  size: readonly TokenDef[];
+  color: readonly TokenDef[];
+  /** Optional spacing-tab group order. Falls back to the package-bundled `GROUP_ORDER`. */
+  spacingGroupOrder?: readonly string[];
+  /** Optional font-tab primary group order. Falls back to `FONT_GROUP_ORDER`. */
+  fontGroupOrder?: readonly string[];
+  /** Optional size-tab group order. Falls back to `SIZE_GROUP_ORDER`. */
+  sizeGroupOrder?: readonly string[];
+  /** Optional human-readable section titles keyed by group id. Falls back to `GROUP_TITLES`. */
+  groupTitles?: Readonly<Record<string, string>>;
+}
+```
+
+### Required arrays
+
+The host project provides the four manifest arrays:
+
+| Field on `PanelConfig.tokens` | Notes |
+| --- | --- |
+| `spacing` | Spacing-tab rows. |
+| `typography` | Font-tab rows. (The persist envelope's slice is `typography`; the upstream array constant is often named `FONT_TOKENS`. The panel reads it through `panelConfig.tokens.typography`, so consumers can use either name in their own source — the field on `PanelConfig` is what the contract pins.) |
+| `size` | Size-tab rows. |
+| `color` | Color-tab non-cluster rows. Cluster-driven hosts ship an empty array (color is driven by the cluster, not by per-token rows); the field is still required by the manifest shape so a cluster-less host can provide rows here. |
+
+<Info title="No baked-in manifest">
+The panel package itself ships ZERO baked-in manifest data — the host is the source of truth. The package's role is consuming whatever the host hands in.
+</Info>
+
+### Optional ordering / titling hooks
+
+The four optional fields let a host customise how groups within a tab are ordered and titled. Manifests that omit a field inherit the package-bundled default for that tab.
+
+| Optional field | Falls back to | Purpose |
+| --- | --- | --- |
+| `spacingGroupOrder` | `GROUP_ORDER` | Order in which spacing groups appear inside the Spacing tab. |
+| `fontGroupOrder` | `FONT_GROUP_ORDER` | Order in which primary font groups appear inside the Font tab. |
+| `sizeGroupOrder` | `SIZE_GROUP_ORDER` | Order in which size groups appear inside the Size tab. |
+| `groupTitles` | `GROUP_TITLES` | Map of group id → human-visible section header. Missing entries fall back to the raw group id. |
+
+Example with custom group order:
+
+```ts
+import type { TokenManifest } from '@takazudo/zudo-design-token-panel';
+
+export const tokens: TokenManifest = {
+  spacing: SPACING_TOKENS,
+  typography: FONT_TOKENS,
+  size: SIZE_TOKENS,
+  color: [],
+  spacingGroupOrder: ['hgap', 'vgap', 'pad', 'inset'],
+  groupTitles: {
+    hgap: 'Horizontal gap',
+    vgap: 'Vertical gap',
+    pad: 'Padding',
+    inset: 'Inset',
+  },
+};
+```
+
+## Apply behaviour
+
+The panel's internal `applyTokenOverrides(tokens, overrides)` walks each `TokenDef`:
+
+- If `readonly`, skip both directions (display-only).
+- If the override map has a non-empty string for `id`, write `document.documentElement.style.setProperty(t.cssVar, value)`.
+- Otherwise, remove the inline property (so the stylesheet default wins).
+
+The contract requires this read/write target to be `:root`. No shadow DOM, no scoped overrides — this is intentional; the panel ships a global tweak.
+
+<Note title="Read vs. write">
+The panel never reads consumer CSS variables (it carries its own defaults via `TokenDef.default`). It only writes the consumer-supplied `cssVar` strings, one per overridden token, plus the cluster's palette / base / semantic vars on apply. See [Color cluster](/docs/reference/color-cluster/) for the cluster-side write contract.
+</Note>
+
+## Cross-references
+
+- [`PanelConfig.tokens`](/docs/reference/configure-panel/#panelconfig-interface) — where the manifest is plugged in.
+- [`ColorClusterConfig`](/docs/reference/color-cluster/) — drives the Color tab's cluster section, complementing or replacing the manifest's `color` array.
+- [Apply pipeline](/docs/reference/apply-pipeline/) — how the panel's per-token writes are forwarded to the bin server when `applyEndpoint` is configured.

@@ -1,0 +1,23 @@
+---
+title: Reference
+sidebar_position: 0
+description: Per-section reference for the @takazudo/zudo-design-token-panel portable contract.
+---
+
+This section is the per-page reference for the `@takazudo/zudo-design-token-panel` portable contract. Each page pins one slice of the public surface — the configure-once init, the token manifest, the color cluster, the apply pipeline, and the panel CSS tokens.
+
+The contract itself is the single source of truth (`packages/zudo-design-token-panel/PORTABLE-CONTRACT.md`). These pages distill it into a navigable browse-and-link form.
+
+## Pages
+
+- [`configurePanel`](/docs/reference/configure-panel/) — `configurePanel({...})`, the `PanelConfig` shape, storage-key derivation, and the lifecycle helpers (`showDesignTokenPanel`, `hideDesignTokenPanel`, `toggleDesignPanel`, `reapplyPersistedOverrides`, `setPanelColorPresets`).
+- [Token manifest](/docs/reference/token-manifest/) — `TokenManifest`, `TokenDef`, group ordering, and section-title overrides.
+- [Color cluster](/docs/reference/color-cluster/) — `ColorClusterConfig`, `ColorScheme`, `ColorRef`, the multi-cluster contract, and host-supplied scheme presets.
+- [Apply pipeline](/docs/reference/apply-pipeline/) — `applyEndpoint`, `applyRouting`, request/response envelopes, atomicity, and validation rules.
+- [Panel CSS tokens](/docs/reference/panel-css-tokens/) — `--tokentweak-*` private vars, the `var(--host, fallback)` indirection ladder, and the paired stylesheet/host-adapter import obligations.
+
+## Intentionally undocumented exports
+
+The package root re-exports one symbol that is deliberately omitted from this reference:
+
+- `__panelConfigForTest()` — internal/test-only accessor used by the Astro host adapter to verify both surfaces observe the same panel-config singleton. The leading `__` prefix marks it as internal; it is not part of the portable contract and may be removed without notice.

@@ -1,0 +1,30 @@
+---
+title: Recipes
+description: Practical how-tos for wiring `@takazudo/zudo-design-token-panel` into a host app.
+sidebar_position: 30
+---
+
+These are small, copy-pasteable recipes for common integration tasks against
+`@takazudo/zudo-design-token-panel` as currently exported. Each recipe stands
+on its own — start with whichever scenario matches what you are doing right
+now and follow the cross-links into the [reference pages](/docs/reference/configure-panel)
+when you need the full API surface.
+
+## When to use which recipe
+
+- Wiring a fresh palette + semantic table for a new project →
+  [Custom color cluster](/docs/recipes/custom-color-cluster).
+- Adding or removing token tabs, coining custom group ids, or controlling
+  group order → [Custom token manifest](/docs/recipes/custom-token-manifest).
+- Decide whether to ship a secondary cluster, hide it, or hard opt-out →
+  [Secondary cluster: configure or disable](/docs/recipes/secondary-cluster-or-disable).
+- Wire the apply-to-disk pipeline into a non-Astro dev script →
+  [Apply pipeline setup](/docs/recipes/apply-pipeline-setup).
+- Defer a large preset library out of the SSR config blob →
+  [Lazy color presets](/docs/recipes/lazy-color-presets).
+
+<Tip>
+Every snippet on these pages compiles against the package's current public
+exports. If one ever drifts, file an issue — the recipes are the canonical
+"does this still work" smoke test for the contract.
+</Tip>

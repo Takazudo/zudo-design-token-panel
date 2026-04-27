@@ -1,0 +1,427 @@
+---
+title: design-token-panel-server CLI
+description: "Reference for the design-token-panel-server bin: every flag, the HTTP endpoint contract, and complete invocation examples."
+sidebar_position: 10
+---
+
+## Overview
+
+`design-token-panel-server` is the small Node `http` server that backs the
+in-browser **design token panel**. It wraps the framework-agnostic apply
+handler shipped from `zudo-design-token-panel/server` in a tiny CLI bin so
+you can run it next to a Vite / Astro / framework dev server during local
+development.
+
+Use it when you want the panel running in a browser tab to write changes
+back to real CSS files on disk — for example, while iterating on tokens in
+a design system, or wiring the panel into an existing frontend app.
+
+The bin exposes exactly three HTTP endpoints:
+
+- `POST /apply` — apply a token mutation to disk
+- `OPTIONS /apply` — CORS preflight for the above
+- `GET /healthz` — readiness probe
+
+It writes only inside the directory you pass via `--write-root`, and it
+only honors browser POSTs whose `Origin` header matches one of the values
+you pass via `--allow-origin`. Everything else is rejected.
+
+<Warning>
+This bin is a **development-time** tool. It does not authenticate callers
+beyond the `--allow-origin` allowlist, has no rate limiting, and writes
+files synchronously. Do not expose it on a public network or use it in
+production.
+</Warning>
+
+## Synopsis
+
+```text
+design-token-panel-server [options]
+```
+
+A minimum useful invocation always includes both required flags plus at
+least one allowed origin (otherwise no browser POST will succeed):
+
+```bash
+design-token-panel-server \
+  --write-root tokens \
+  --routing ./my.routing.json \
+  --allow-origin http://localhost:5173
+```
+
+Run with `--help` (or `-h`) at any time to print the same usage text the
+bin ships with:
+
+```bash
+design-token-panel-server --help
+```
+
+## Flags
+
+All flags are documented below with type, default, and an example. Required
+flags are called out explicitly. The bin will exit with status `1` and a
+short stderr message if a required flag is missing or a value fails to
+validate.
+
+### Path and routing flags
+
+#### `--root <dir>`
+
+- **Type:** path (string)
+- **Default:** `process.cwd()` (the directory you invoke the bin from)
+- **Required:** No
+
+Repo root used as the CWD reference for resolving `--write-root` and
+`--routing` when they are passed as relative paths. If you invoke the bin
+from somewhere other than your repository root, pass `--root` to anchor
+those resolutions explicitly.
+
+```bash
+design-token-panel-server \
+  --root /Users/me/work/my-app \
+  --write-root tokens \
+  --routing config/panel.routing.json \
+  --allow-origin http://localhost:5173
+```
+
+#### `--write-root <path>`
+
+- **Type:** path (string), absolute or relative to `--root`
+- **Default:** _(none — required)_
+- **Required:** **Yes**
+
+The single directory the bin is allowed to write into. Any file the apply
+handler resolves to that escapes this directory is rejected before the
+write happens. Treat this as a sandbox for the bin's filesystem authority.
+
+<Danger title="Security boundary">
+`--write-root` is the **only** thing standing between an unexpected
+routing entry (or a malicious payload from an attacker who tricked the
+browser) and arbitrary files on your machine. Always point it at the
+narrowest directory that contains every file the panel is supposed to
+edit — typically a `tokens/` or `src/styles/tokens/` directory. Never
+point it at your repo root.
+</Danger>
+
+```bash
+# Sandbox writes into ./tokens (relative to --root)
+design-token-panel-server \
+  --write-root tokens \
+  --routing ./panel.routing.json \
+  --allow-origin http://localhost:5173
+
+# Or pass an absolute path
+design-token-panel-server \
+  --write-root /Users/me/work/my-app/src/styles/tokens \
+  --routing /Users/me/work/my-app/panel.routing.json \
+  --allow-origin http://localhost:5173
+```
+
+#### `--routing <path>`
+
+- **Type:** path (string), absolute or relative to `--root`
+- **Default:** _(none — required)_
+- **Required:** **Yes**
+
+Path to the routing JSON file that maps token-prefix → repo-relative CSS
+file path. The file is loaded **once at startup** via `loadRoutingFromFile`;
+restart the bin to pick up changes.
+
+```bash
+design-token-panel-server \
+  --write-root tokens \
+  --routing ./panel.routing.json \
+  --allow-origin http://localhost:5173
+```
+
+<Tip>
+For the schema of the routing JSON file and the request/response shape of
+`POST /apply`, see [Apply pipeline reference](/docs/reference/apply-pipeline).
+</Tip>
+
+### Network flags
+
+#### `--port <number>`
+
+- **Type:** integer in `0..65535`
+- **Default:** `24681`
+- **Required:** No
+
+TCP port to bind. Pass `0` to let the OS pick a free port — the bin will
+print the actual bound port on its startup log line, which is useful for
+integration tests and one-off scripted runs.
+
+```bash
+# Bind a fixed port
+design-token-panel-server --port 34434 \
+  --write-root tokens --routing ./panel.routing.json \
+  --allow-origin http://localhost:5173
+
+# Let the OS pick — read the bound port from the startup log
+design-token-panel-server --port 0 \
+  --write-root tokens --routing ./panel.routing.json \
+  --allow-origin http://localhost:5173
+```
+
+If the requested port is already in use, the bin exits `1` with the message
+`port <N> already in use`.
+
+#### `--host <addr>`
+
+- **Type:** host/interface string
+- **Default:** `127.0.0.1`
+- **Required:** No
+
+Host/interface to bind. The default keeps the server on loopback so only
+processes on the same machine can reach it. Pass `0.0.0.0` to expose it on
+the LAN — for example, when testing the panel from a phone or a
+co-worker's machine on the same network.
+
+```bash
+# LAN-accessible (only do this on a trusted network)
+design-token-panel-server --host 0.0.0.0 \
+  --write-root tokens --routing ./panel.routing.json \
+  --allow-origin http://192.168.1.20:5173
+```
+
+<Warning title="LAN exposure">
+Binding to `0.0.0.0` exposes the bin to anyone on your local network.
+Combine it with a tightly scoped `--allow-origin` list and **never** run
+the bin on `0.0.0.0` on an untrusted network (cafés, hotels, conferences).
+</Warning>
+
+### CORS and access flags
+
+#### `--allow-origin <origin>`
+
+- **Type:** exact-match origin string (e.g. `http://localhost:5173`)
+- **Default:** _(none)_
+- **Required:** Effectively yes for any browser use — see warning
+- **Repeatable:** Yes — pass it multiple times to allow multiple origins
+
+Origin allowed to call `POST /apply` and to receive a 204 from
+`OPTIONS /apply`. The match is **case-sensitive on the entire scheme +
+host + port string**. Wildcards and pattern matching are intentionally not
+supported; the operator declares each allowed origin verbatim.
+
+```bash
+# Single origin (typical local dev)
+design-token-panel-server \
+  --write-root tokens --routing ./panel.routing.json \
+  --allow-origin http://localhost:5173
+
+# Multiple origins (e.g. Vite + Storybook side by side)
+design-token-panel-server \
+  --write-root tokens --routing ./panel.routing.json \
+  --allow-origin http://localhost:5173 \
+  --allow-origin http://localhost:6006
+```
+
+<Warning title="No allow-origin = no browser writes">
+If you start the bin without any `--allow-origin`, the startup log prints
+a `WARNING: no --allow-origin set; browser POST /apply will be rejected.`
+banner and every subsequent browser POST will fail with `403 Origin not
+allowed`. The CLI does not require the flag at parse time — but no
+production-style use of the panel will work without it.
+</Warning>
+
+### Logging and help flags
+
+#### `--quiet`
+
+- **Type:** boolean flag
+- **Default:** `false`
+- **Required:** No
+
+Suppress per-request logs. The startup line and error logs still print;
+only the per-apply summary log line (`[design-token-panel] applied N
+tokens to M files ...`) and the startup `listening on ...` banner are
+silenced.
+
+```bash
+design-token-panel-server --quiet \
+  --write-root tokens --routing ./panel.routing.json \
+  --allow-origin http://localhost:5173
+```
+
+#### `--help` / `-h`
+
+- **Type:** boolean flag
+- **Default:** `false`
+- **Required:** No
+
+Print the built-in usage text to stdout and exit `0`. Short-circuits all
+validation, so `--help` works even with no other flags set.
+
+```bash
+design-token-panel-server --help
+design-token-panel-server -h
+```
+
+## Endpoint contract
+
+The bin serves exactly three routes. Any other path returns
+`404 { ok: false, error: "Not found" }`. Any other method on `/apply`
+returns `405 { ok: false, error: "Method not allowed" }` with an
+`Allow: POST, OPTIONS` header.
+
+### `POST /apply`
+
+Apply a token mutation to disk via the wrapped apply handler.
+
+**Request:**
+
+- Header `Content-Type` must include `application/json` (case-insensitive).
+  Otherwise the bin returns `415 { ok: false, error: "Content-Type must be
+  application/json" }`.
+- Header `Origin` must exactly match one of the configured
+  `--allow-origin` values. Otherwise the bin returns
+  `403 { ok: false, error: "Origin not allowed" }`.
+- Body: JSON payload accepted by the apply handler. See
+  [Apply pipeline reference](/docs/reference/apply-pipeline) for the full
+  payload schema.
+
+**Response:**
+
+- On success: `200` with the JSON body produced by the apply handler. The
+  body has the shape:
+
+  ```json
+  {
+    "ok": true,
+    "updated": [
+      { "file": "tokens/colors.css", "changed": ["--color-bg", "--color-fg"] },
+      { "file": "tokens/spacing.css", "changed": [] }
+    ]
+  }
+  ```
+
+- The four `Access-Control-Allow-*` headers (see preflight below) are also
+  set on the success response, so a fetch from an allowed browser origin
+  receives a fully CORS-compliant reply.
+
+- On error: the apply handler's status code (typically `4xx`) and JSON body
+  pass through unchanged.
+
+When `--quiet` is not set, a successful apply also writes one summary line
+to the bin's stdout, e.g.:
+
+```text
+[design-token-panel] applied 2 tokens to 2 files (changed: tokens/colors.css)
+```
+
+### `OPTIONS /apply` (CORS preflight)
+
+Standard CORS preflight. The bin checks the request `Origin` header against
+the `--allow-origin` allowlist:
+
+- **Allowed origin:** `204 No Content` with the four CORS headers below.
+- **Not allowed (or no Origin header):** `403 { ok: false, error: "Origin
+  not allowed" }`.
+
+The CORS headers returned on a successful preflight (and echoed on a
+successful POST) are:
+
+| Header                          | Value             |
+| ------------------------------- | ----------------- |
+| `Access-Control-Allow-Origin`   | _(echoed origin)_ |
+| `Access-Control-Allow-Methods`  | `POST, OPTIONS`   |
+| `Access-Control-Allow-Headers`  | `content-type`    |
+| `Access-Control-Max-Age`        | `600`             |
+
+`Access-Control-Allow-Origin` is the **exact** origin string the client
+sent, never `*`. Because the bin only echoes origins that already passed
+`isOriginAllowed`, the operator's `--allow-origin` list is the single
+source of truth for what gets reflected.
+
+### `GET /healthz`
+
+Readiness probe. Always returns `200` with the runtime configuration:
+
+```json
+{
+  "ok": true,
+  "writeRoot": "/Users/me/work/my-app/tokens",
+  "routing": "/Users/me/work/my-app/panel.routing.json",
+  "port": 24681
+}
+```
+
+`writeRoot` and `routing` are the fully-resolved absolute paths, which is
+useful for confirming you started the bin against the right files. `port`
+is the **requested** port from `--port` — for the actual bound port when
+you used `--port 0`, read the startup log line instead.
+
+## Examples
+
+### Wiring the bin into a Vite dev script
+
+Run the bin alongside your Vite dev server using a process runner like
+`npm-run-all` or `concurrently`:
+
+```json
+{
+  "scripts": {
+    "dev": "npm-run-all --parallel dev:vite dev:panel",
+    "dev:vite": "vite",
+    "dev:panel": "design-token-panel-server --write-root src/styles/tokens --routing ./panel.routing.json --allow-origin http://localhost:5173"
+  }
+}
+```
+
+Vite serves on `http://localhost:5173` and the panel UI loaded by Vite
+posts to the bin on `http://127.0.0.1:24681`. The `--allow-origin`
+matches Vite's dev server origin so the browser POST is accepted.
+
+For a step-by-step walkthrough including the routing JSON file format and
+panel mount, see the [Apply pipeline setup recipe](/docs/recipes/apply-pipeline-setup).
+
+### CORS configuration for a remote host
+
+When the panel is hosted somewhere other than `localhost` (for example, a
+preview deploy or another developer's machine on the LAN), bind the bin
+to a routable interface and allow that origin explicitly:
+
+```bash
+design-token-panel-server \
+  --host 0.0.0.0 \
+  --port 24681 \
+  --write-root tokens \
+  --routing ./panel.routing.json \
+  --allow-origin https://preview.example.test \
+  --allow-origin http://192.168.1.20:5173
+```
+
+<Warning>
+Exposing the bin on `0.0.0.0` makes it reachable by every host on the
+network. Use this only on networks you control, and keep the
+`--allow-origin` list as small as possible.
+</Warning>
+
+### `--write-root` sandbox for safe iteration
+
+When experimenting with a routing file you don't fully trust yet, point
+`--write-root` at a throwaway directory so a misconfigured prefix can't
+overwrite real source files:
+
+```bash
+mkdir -p /tmp/zdtp-sandbox/tokens
+design-token-panel-server \
+  --root /tmp/zdtp-sandbox \
+  --write-root tokens \
+  --routing /tmp/zdtp-sandbox/panel.routing.json \
+  --allow-origin http://localhost:5173 \
+  --quiet
+```
+
+Apply a few mutations from the panel, inspect the diff in
+`/tmp/zdtp-sandbox/tokens`, and only when the routing file matches your
+intent should you switch `--root` and `--write-root` over to the real
+project.
+
+## See also
+
+- [Apply pipeline reference](/docs/reference/apply-pipeline) — the
+  request/response schema and routing file format consumed by `POST /apply`.
+- [Apply pipeline setup recipe](/docs/recipes/apply-pipeline-setup) —
+  end-to-end walkthrough of wiring the bin into an existing frontend app.
