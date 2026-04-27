@@ -1,0 +1,96 @@
+---
+title: Install
+description: Install @takazudo/zudo-design-token-panel into any pnpm, npm, yarn, or bun project.
+sidebar_position: 2
+---
+
+`@takazudo/zudo-design-token-panel` is a regular npm package. It works in any project that can render a Preact island — Astro, Vite + React, Next.js, or a plain Vite SPA — because the public surface is just a `configurePanel({...})` call plus a Preact-rendered shell.
+
+This page covers installing the package itself. For wiring it into your layout, see [Quickstart](./quickstart).
+
+## Install the package
+
+Pick the invocation that matches your project's package manager. Each command installs the panel package and its single peer dependency, [Preact](https://preactjs.com/).
+
+### pnpm
+
+```sh
+pnpm add @takazudo/zudo-design-token-panel preact
+```
+
+### npm
+
+```sh
+npm install @takazudo/zudo-design-token-panel preact
+```
+
+### yarn
+
+```sh
+yarn add @takazudo/zudo-design-token-panel preact
+```
+
+### bun
+
+```sh
+bun add @takazudo/zudo-design-token-panel preact
+```
+
+<Note title="Preact is a peer dependency">
+  The panel UI is rendered with Preact and declares it as a `peerDependency` at `^10.29.1`. You bring your own copy so the panel and any other Preact islands in your app share one runtime — installing it twice would split the runtime and break event delegation across roots.
+</Note>
+
+## Verify the install
+
+Once the install completes, the package exposes three things you can sanity-check from your project root:
+
+- The library entry — `@takazudo/zudo-design-token-panel` (calls `configurePanel`, renders the panel).
+- The Astro entry — `@takazudo/zudo-design-token-panel/astro` (the `<DesignTokenPanelHost>` component plus the host adapter).
+- The CLI bin — `design-token-panel-server`, used by the apply pipeline (see below).
+
+You can confirm the bin is on the path inside your project with:
+
+```sh
+pnpm exec design-token-panel-server --help
+# or
+npx design-token-panel-server --help
+```
+
+If the help text prints, the package is installed correctly.
+
+## The apply-pipeline bin
+
+The package ships an executable named `design-token-panel-server`. It runs alongside your dev server, listens on a loopback port, and rewrites your token CSS files when the user clicks **Apply** in the panel.
+
+<Tip title="You can ignore this for now">
+  The bin is optional — the panel is fully functional in export/import mode without it. Wire it in once you want users (or you yourself in dev) to push panel tweaks back to disk.
+</Tip>
+
+The full CLI reference lives on its own page once the reference section is in place. The short version:
+
+```sh
+npx design-token-panel-server \
+  --routing ./panel-routing.json \
+  --write-root ./tokens \
+  --allow-origin http://localhost:5173
+```
+
+## Peer-dependency compatibility
+
+The package's `package.json` declares the following peer:
+
+| Peer     | Range      | Why                                                                                                                            |
+| -------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `preact` | `^10.29.1` | The panel UI is Preact-rendered. Sharing one Preact runtime with the rest of your app is mandatory — see the note above. |
+
+<Info>
+  The panel's CSS is self-contained. It ships its own bundled stylesheet under the panel-private `--tokentweak-*` namespace. **Tailwind is not required in your project** to consume the panel.
+</Info>
+
+<Warning title="Don't skip the styles import">
+  After installing, you must add `import '@takazudo/zudo-design-token-panel/styles';` to your static module graph (typically next to where you mount the host component). Vite's library mode strips the package-internal CSS imports from the emitted JS, so the consumer side has to pull the bundled stylesheet in explicitly. If you forget, the panel JS still runs but every chrome rule is missing — the panel paints invisibly against the host page background.
+</Warning>
+
+## Next step
+
+You're installed. Head to [Quickstart](./quickstart) for the smallest end-to-end wiring, or to [Three Frameworks](./three-frameworks) for a side-by-side comparison of Astro / Vite + React / Next.js setups.
