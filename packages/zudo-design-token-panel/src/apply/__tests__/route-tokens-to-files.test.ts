@@ -151,6 +151,46 @@ describe('routeTokensToFiles — rejected inputs', () => {
   });
 });
 
+describe('routeTokensToFiles — overlapping prefixes', () => {
+  it('routes a longer prefix even when its key is declared after a shorter sibling', () => {
+    // `--zd-special-foo` must land under `zd-special`, not `zd`, regardless
+    // of declaration order.
+    const result = routeTokensToFiles(
+      {
+        '--zd-base': '1px',
+        '--zd-special-foo': '2px',
+      },
+      {
+        zd: 'src/zd.css',
+        'zd-special': 'src/zd-special.css',
+      },
+    );
+    expect(result.rejected).toEqual([]);
+    const zd = result.groups.find((g) => g.prefix === 'zd')!;
+    const zdSpecial = result.groups.find((g) => g.prefix === 'zd-special')!;
+    expect(zd.tokens).toEqual({ '--zd-base': '1px' });
+    expect(zdSpecial.tokens).toEqual({ '--zd-special-foo': '2px' });
+  });
+
+  it('routes a longer prefix even when its key is declared before its shorter sibling', () => {
+    const result = routeTokensToFiles(
+      {
+        '--zd-special-foo': '2px',
+        '--zd-base': '1px',
+      },
+      {
+        'zd-special': 'src/zd-special.css',
+        zd: 'src/zd.css',
+      },
+    );
+    expect(result.rejected).toEqual([]);
+    const zd = result.groups.find((g) => g.prefix === 'zd')!;
+    const zdSpecial = result.groups.find((g) => g.prefix === 'zd-special')!;
+    expect(zd.tokens).toEqual({ '--zd-base': '1px' });
+    expect(zdSpecial.tokens).toEqual({ '--zd-special-foo': '2px' });
+  });
+});
+
 describe('routeTokensToFiles — empty input', () => {
   it('returns empty groups and empty rejected list', () => {
     const result = routeTokensToFiles({}, DEMO_ROUTING);
