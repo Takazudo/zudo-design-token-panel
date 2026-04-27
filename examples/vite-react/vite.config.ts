@@ -22,8 +22,20 @@ import react from '@vitejs/plugin-react';
  * real React 18 — that is the entire point of the example. The panel renders
  * via its own Preact runtime inside the panel root element, fully isolated
  * from the host React tree.
+ *
+ * Deploy base path
+ * ----------------
+ * `base: '/pj/zdtp/vite-react/'` is applied to the production build only —
+ * Vite's dev server still serves at `/`, so the dev-only `/api/dev/apply`
+ * proxy above is unaffected. The build output is intended to be hosted under
+ * `https://<host>/pj/zdtp/vite-react/`.
+ *
+ * `panelConfig.applyEndpoint` deliberately stays as the bare relative path
+ * `/api/dev/apply` — it is a dev-server-only proxy target that does not exist
+ * in the production deploy, so it must NOT be base-prefixed.
  */
 export default defineConfig({
+  base: '/pj/zdtp/vite-react/',
   plugins: [react()],
   server: {
     port: 44325,
