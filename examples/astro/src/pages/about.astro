@@ -9,6 +9,7 @@
 import Layout from '../layouts/Layout.astro';
 
 const paletteIndices = Array.from({ length: 16 }, (_, i) => i);
+const homeHref = import.meta.env.BASE_URL;
 ---
 
 <Layout title="Astro Example — About">
@@ -39,7 +40,7 @@ const paletteIndices = Array.from({ length: 16 }, (_, i) => i);
       <h2 class="astroexample-heading">Verify across navigation</h2>
       <div class="astroexample-card">
         Open the panel via <code>window.astroExample.toggleDesignPanel()</code>, change a token,
-        then navigate <a class="astroexample-link" href="/">back to home</a>. The new value should
+        then navigate <a class="astroexample-link" href={homeHref}>back to home</a>. The new value should
         still apply — proving the host adapter's <code>astro:page-load</code> reapply path works
         end-to-end.
       </div>
