@@ -1,0 +1,933 @@
+/**
+ * Design-token panel — bundled CSS.
+ *
+ * Owns every chrome rule for the panel SHELL, the four TABS (Color / Spacing
+ * / Font / Size), and the four CONTROL rows (slider / pill-slider / select /
+ * text). Modal-layer CSS is bundled in the same stylesheet further down.
+ *
+ * Why move this out of Tailwind?
+ * ------------------------------
+ * The package needs to render correctly in any consumer's CSS environment,
+ * including hosts that do not ship Tailwind. Bundling chrome rules here
+ * means the consumer only has to import the panel's entry — the visual
+ * styling rides along.
+ *
+ * Token strategy
+ * --------------
+ * Visual tokens are declared in `panel-tokens.css` (sibling file) under
+ * `.tokenpanel-shell`. The host's `--color-*` semantic tokens (bg / fg /
+ * accent / muted / surface / etc.) are still referenced via `var()`; the
+ * portable-panel contract is what makes those names host-supplied.
+ * This file deliberately does NOT redeclare semantic colors — that's a
+ * different layer of the stack.
+ *
+ * BEM-ish naming
+ * --------------
+ * - Block: `tokenpanel-<feature>`
+ * - Element: `tokenpanel-<feature>-<part>`
+ * - Modifier: `is-<state>` (set as a second class, e.g. `is-active`,
+ *   `is-selected`)
+ *
+ * Specificity is intentionally flat: every rule is a single class so a host
+ * can override individual surfaces without selector-weight wars.
+ */
+
+@import './panel-tokens.css';
+
+/* ===========================================================================
+ * Shell
+ * ========================================================================= */
+
+.tokenpanel-shell {
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--tokentweak-color-muted);
+  background-color: var(--tokentweak-color-surface);
+  border-radius: var(--radius-tokentweak);
+  box-shadow: 0 4px 24px rgb(0 0 0 / 0.25);
+}
+
+.tokenpanel-header {
+  display: flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-md);
+  padding-inline: var(--tokentweak-pad-xl);
+  padding-block: var(--tokentweak-gap-xs);
+  border-bottom: 1px solid var(--tokentweak-color-muted);
+  flex-shrink: 0;
+}
+
+.tokenpanel-title {
+  color: var(--tokentweak-color-fg);
+  font-weight: 600;
+  font-size: 0.875rem;
+  flex-shrink: 0;
+}
+
+.tokenpanel-action-link {
+  color: var(--tokentweak-color-accent);
+  font-size: 0.75rem;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+.tokenpanel-action-link:hover {
+  color: var(--tokentweak-color-accent-hover);
+}
+
+.tokenpanel-spacer {
+  flex: 1;
+}
+
+.tokenpanel-close-btn {
+  color: var(--tokentweak-color-muted);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 150ms ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.tokenpanel-close-btn:hover {
+  color: var(--tokentweak-color-fg);
+}
+
+/* ===========================================================================
+ * Tab bar
+ * ========================================================================= */
+
+.tokenpanel-tabbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-bottom: 1px solid var(--tokentweak-color-muted);
+  padding-inline: var(--tokentweak-pad-xl);
+  flex-shrink: 0;
+}
+
+.tokenpanel-tab-button {
+  border: none;
+  background: none;
+  padding-inline: var(--tokentweak-pad-md);
+  padding-block: var(--tokentweak-gap-xs);
+  font-size: 0.875rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  color: var(--tokentweak-color-muted);
+  transition:
+    color 150ms ease,
+    border-color 150ms ease;
+}
+.tokenpanel-tab-button:hover,
+.tokenpanel-tab-button:focus-visible {
+  color: var(--tokentweak-color-fg);
+  text-decoration: underline;
+}
+.tokenpanel-tab-button.is-active {
+  color: var(--tokentweak-color-fg);
+  border-bottom-color: var(--tokentweak-color-accent);
+  text-decoration: none;
+}
+
+/* ===========================================================================
+ * Tab body container
+ * ========================================================================= */
+
+.tokenpanel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-inline: var(--tokentweak-pad-xl);
+  padding-block: var(--tokentweak-gap-sm);
+}
+
+/* ===========================================================================
+ * Empty-state
+ * ===========================================================================
+ *
+ * Friendly affordance shown in the spacing / font / size tab body when the
+ * host's `TokenManifest` ships zero tokens for that tab's category. Replaces
+ * what would otherwise be a blank pane with actionable guidance pointing at
+ * `configurePanel({ tokens })` and the package README §3 quick-start.
+ *
+ * The muted-text style intentionally re-uses `--tokentweak-color-muted` so the
+ * empty-state blends with the existing chrome's muted ladder (close-button,
+ * section headings, swatch labels). The fallback in the var() ladder mirrors
+ * the value declared in panel-tokens.css so the empty-state still paints if
+ * it ever renders outside the .tokenpanel-shell scope where the tokentweak
+ * variables live (defensive — the panel always renders inside the shell
+ * today, but the empty-state should not bake the assumption in).
+ * ========================================================================= */
+
+.tokenpanel-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 12rem;
+  padding-block: var(--tokentweak-gap-md);
+  padding-inline: var(--tokentweak-pad-xl);
+}
+
+.tokenpanel-empty-state-text {
+  color: var(--tokentweak-color-muted, oklch(70% 0.01 60));
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  max-width: 32rem;
+  margin: 0;
+}
+
+.tokenpanel-empty-state-text code {
+  font-family: var(--tokentweak-font-mono, Menlo, Monaco, Consolas, monospace);
+  font-size: 0.8125rem;
+  color: var(--tokentweak-color-fg);
+}
+
+.tokenpanel-empty-state-link {
+  color: var(--tokentweak-color-accent);
+  text-decoration: underline;
+  transition: color 150ms ease;
+}
+.tokenpanel-empty-state-link:hover,
+.tokenpanel-empty-state-link:focus-visible {
+  color: var(--tokentweak-color-accent-hover);
+}
+
+/* ===========================================================================
+ * Tab content layout (shared by Spacing / Font / Size / Color)
+ * ========================================================================= */
+
+.tokenpanel-tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tokentweak-gap-sm);
+}
+
+.tokenpanel-tab-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-md);
+}
+
+.tokenpanel-tab-section {
+  flex-shrink: 0;
+}
+
+.tokenpanel-tab-section-heading {
+  color: var(--tokentweak-color-muted);
+  font-weight: 600;
+  margin-bottom: var(--tokentweak-gap-2xs);
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Color-tab uses a slightly bigger heading per the original spec. */
+.tokenpanel-tab-section-heading--color {
+  font-size: 1rem;
+}
+
+.tokenpanel-tab-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--tokentweak-gap-xs);
+}
+
+@media (min-width: 640px) {
+  .tokenpanel-tab-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.tokenpanel-tab-advanced {
+  flex-shrink: 0;
+}
+
+.tokenpanel-tab-advanced-summary {
+  color: var(--tokentweak-color-muted);
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tokenpanel-tab-advanced-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--tokentweak-gap-xs);
+  margin-top: var(--tokentweak-gap-2xs);
+}
+
+@media (min-width: 640px) {
+  .tokenpanel-tab-advanced-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ===========================================================================
+ * Color tab — preset select + palette grids + base/semantic grids
+ * ========================================================================= */
+
+.tokenpanel-color-preset-select {
+  background-color: var(--tokentweak-color-surface);
+  color: var(--tokentweak-color-fg);
+  border: 1px solid var(--tokentweak-color-muted);
+  padding-inline: var(--tokentweak-pad-sm);
+  padding-block: 2px;
+  font-size: 0.75rem;
+  border-radius: var(--radius-tokentweak);
+  max-width: 14rem;
+  cursor: pointer;
+  transition: border-color 150ms ease;
+}
+.tokenpanel-color-preset-select:hover {
+  border-color: var(--tokentweak-color-fg);
+}
+
+.tokenpanel-color-palette-grid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: var(--tokentweak-pad-sm);
+}
+
+.tokenpanel-color-palette-grid--secondary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--tokentweak-pad-sm);
+}
+
+@media (min-width: 768px) {
+  .tokenpanel-color-palette-grid--secondary {
+    grid-template-columns: repeat(9, minmax(0, 1fr));
+  }
+}
+
+.tokenpanel-color-base-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+/* ===========================================================================
+ * Color swatch (used by primary + secondary palette grids)
+ * ========================================================================= */
+
+.tokenpanel-color-swatch-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  width: 100%;
+}
+
+.tokenpanel-color-swatch-button {
+  display: block;
+  border: 1px solid var(--tokentweak-color-muted);
+  cursor: pointer;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: var(--radius-tokentweak);
+  background: none;
+  padding: 0;
+  transition: border-color 150ms ease;
+}
+.tokenpanel-color-swatch-button:hover {
+  border-color: var(--tokentweak-color-fg);
+}
+
+.tokenpanel-color-swatch-label {
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  user-select: none;
+  font-size: 0.6875rem;
+  line-height: 1.1;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===========================================================================
+ * Popover (HslPicker host, PaletteSelector listbox)
+ * ========================================================================= */
+
+.tokenpanel-popover {
+  border: 1px solid var(--tokentweak-color-muted);
+  background-color: var(--tokentweak-color-surface);
+  padding: 12px;
+  border-radius: var(--radius-tokentweak);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.3);
+}
+
+/* HslPicker layout */
+
+.tokenpanel-hsl-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.tokenpanel-hsl-preview {
+  flex-shrink: 0;
+  border: 1px solid var(--tokentweak-color-muted);
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: var(--radius-tokentweak);
+}
+
+.tokenpanel-hsl-hex-input {
+  background-color: var(--tokentweak-color-surface);
+  color: var(--tokentweak-color-fg);
+  border: 1px solid var(--tokentweak-color-muted);
+  padding-inline: 6px;
+  padding-block: 4px;
+  font-family: var(--tokentweak-font-mono);
+  font-size: 1rem;
+  width: 8rem;
+  border-radius: var(--radius-tokentweak);
+}
+
+.tokenpanel-hsl-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.tokenpanel-hsl-row-label {
+  color: var(--tokentweak-color-muted);
+  flex-shrink: 0;
+  font-size: 0.875rem;
+  width: 1rem;
+}
+
+.tokenpanel-hsl-row-slider {
+  flex: 1;
+  height: 1.5rem;
+  accent-color: var(--tokentweak-color-accent);
+}
+
+.tokenpanel-hsl-row-value {
+  color: var(--tokentweak-color-fg);
+  flex-shrink: 0;
+  text-align: right;
+  font-size: 0.875rem;
+  width: 2.5rem;
+}
+
+/* ===========================================================================
+ * PaletteSelector
+ * ========================================================================= */
+
+.tokenpanel-palette-selector {
+  position: relative;
+  width: 100%;
+}
+
+.tokenpanel-palette-trigger {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  border: 1px solid var(--tokentweak-color-muted);
+  background-color: var(--tokentweak-color-surface);
+  padding-inline: 6px;
+  padding-block: 4px;
+  font-size: 0.75rem;
+  border-radius: var(--radius-tokentweak);
+  cursor: pointer;
+  transition: border-color 150ms ease;
+}
+.tokenpanel-palette-trigger:hover {
+  border-color: var(--tokentweak-color-fg);
+}
+
+.tokenpanel-palette-trigger-label {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  color: var(--tokentweak-color-fg);
+  font-family: var(--tokentweak-font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tokenpanel-palette-trigger-color {
+  flex-shrink: 0;
+  border: 1px solid var(--tokentweak-color-muted);
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+}
+
+.tokenpanel-palette-trigger-value {
+  flex-shrink: 0;
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  width: 2.5em;
+}
+
+.tokenpanel-palette-trigger-icon {
+  color: var(--tokentweak-color-muted);
+  flex-shrink: 0;
+}
+
+.tokenpanel-palette-options {
+  border: 1px solid var(--tokentweak-color-muted);
+  background-color: var(--tokentweak-color-surface);
+  padding: 10px;
+  border-radius: var(--radius-tokentweak);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.3);
+}
+
+.tokenpanel-palette-options-extras {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--tokentweak-color-muted);
+}
+
+.tokenpanel-palette-extra-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-inline: 8px;
+  padding-block: 4px;
+  border-radius: 4px;
+  font-size: 1rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+.tokenpanel-palette-extra-option:hover {
+  background-color: rgb(from var(--tokentweak-color-fg) r g b / 0.1);
+}
+.tokenpanel-palette-extra-option.is-selected {
+  background-color: rgb(from var(--tokentweak-color-accent) r g b / 0.2);
+}
+
+.tokenpanel-palette-extra-color {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 3px;
+  border: 1px solid var(--tokentweak-color-muted);
+}
+
+.tokenpanel-palette-extra-label {
+  color: var(--tokentweak-color-fg);
+}
+
+.tokenpanel-palette-options-grid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.tokenpanel-palette-option-button {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 3px;
+  border: 1px solid var(--tokentweak-color-muted);
+  cursor: pointer;
+  padding: 0;
+  transition: box-shadow 150ms ease;
+}
+.tokenpanel-palette-option-button:hover {
+  box-shadow: 0 0 0 2px var(--tokentweak-color-fg);
+}
+.tokenpanel-palette-option-button.is-selected {
+  box-shadow: 0 0 0 2px var(--tokentweak-color-accent);
+}
+
+/* ===========================================================================
+ * Control rows (slider / pill-slider / select / text)
+ * ========================================================================= */
+
+/* Single-line row used by select-row and text-row */
+.tokenpanel-row {
+  display: flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-sm);
+}
+
+/* Stacked row (label + number on one line, slider beneath) used by slider-row */
+.tokenpanel-row--stacked {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Row used by pill-slider as outer wrapper */
+.tokenpanel-row--column {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Inner row inside .tokenpanel-row--stacked top: label + number */
+.tokenpanel-row-head {
+  display: flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-sm);
+}
+
+.tokenpanel-row-label {
+  color: var(--tokentweak-color-fg);
+  font-family: var(--tokentweak-font-mono);
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8125rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Text-row narrows the label so the wide free-form input gets room. */
+.tokenpanel-row-label--narrow {
+  flex: 0 0 auto;
+  max-width: 12rem;
+}
+
+.tokenpanel-row-input-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.tokenpanel-row-number-input {
+  background-color: var(--tokentweak-color-surface);
+  color: var(--tokentweak-color-fg);
+  border: 1px solid var(--tokentweak-color-muted);
+  padding-inline: 6px;
+  padding-block: 2px;
+  font-family: var(--tokentweak-font-mono);
+  text-align: right;
+  font-size: 0.75rem;
+  width: 5rem;
+  border-radius: var(--radius-tokentweak);
+}
+.tokenpanel-row-number-input:disabled {
+  opacity: 0.6;
+}
+
+.tokenpanel-row-unit {
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  user-select: none;
+  font-size: 0.75rem;
+  width: 2rem;
+}
+
+.tokenpanel-row-slider {
+  width: 100%;
+  height: 1.25rem;
+  accent-color: var(--tokentweak-color-accent);
+}
+.tokenpanel-row-slider:disabled {
+  opacity: 0.5;
+}
+
+.tokenpanel-row-select {
+  background-color: var(--tokentweak-color-surface);
+  color: var(--tokentweak-color-fg);
+  border: 1px solid var(--tokentweak-color-muted);
+  padding-inline: 6px;
+  padding-block: 2px;
+  font-family: var(--tokentweak-font-mono);
+  font-size: 0.75rem;
+  width: 7rem;
+  border-radius: var(--radius-tokentweak);
+}
+.tokenpanel-row-select:disabled {
+  opacity: 0.6;
+}
+
+.tokenpanel-row-text-input {
+  background-color: var(--tokentweak-color-surface);
+  color: var(--tokentweak-color-fg);
+  border: 1px solid var(--tokentweak-color-muted);
+  padding-inline: 6px;
+  padding-block: 2px;
+  font-family: var(--tokentweak-font-mono);
+  font-size: 0.75rem;
+  flex: 1;
+  min-width: 0;
+  border-radius: var(--radius-tokentweak);
+}
+.tokenpanel-row-text-input:disabled {
+  opacity: 0.6;
+}
+
+/* Pill toggle */
+
+.tokenpanel-pill-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-xs);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.tokenpanel-pill-toggle-checkbox {
+  accent-color: var(--tokentweak-color-accent);
+}
+
+.tokenpanel-pill-toggle-text {
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 0.75rem;
+}
+
+/* ===========================================================================
+ * Modal layer
+ * ===========================================================================
+ *
+ * Selector convention
+ * -------------------
+ * The shell rules use a flat `tokenpanel-<feature>-<part>` block + class
+ * naming. The modal layer is anchored on the
+ * `[data-design-token-panel-modal]` attribute (set by every modal
+ * `<dialog>` in apply-modal / export-modal / import-modal). The
+ * BEM-flavoured class suffixes (e.g. `__title`, `--apply`) still come from
+ * `modalClass(cfg, …)` — they enrich specificity for hosts that want to
+ * layer their own rules — but the bundled stylesheet keys everything on
+ * the data attribute so a consumer-supplied `modalClassPrefix` does NOT
+ * detune the chrome rules.
+ *
+ * Sub-element targeting uses attribute selectors with `[class*=...]` against
+ * the BEM suffix, so the rules match regardless of which modal class prefix
+ * the host chose.
+ *
+ * Consumer customisation
+ * ----------------------
+ * `panelConfig.modalClassPrefix` is one-shot per page lifecycle. Hosts MAY
+ * override it for higher-specificity custom rules; the bundled chrome
+ * below still applies because every modal element carries the
+ * `data-design-token-panel-modal*` attributes regardless of the prefix.
+ *
+ * If a host wants COMPLETELY custom modal chrome they can either:
+ *   - ship their own modal-layer CSS that wins on specificity, OR
+ *   - declare `[data-design-token-panel-modal]` rules with their own values
+ *     (those will conflict with the bundled rules at equal specificity, with
+ *     the host's stylesheet winning by load order).
+ * ========================================================================= */
+
+[data-design-token-panel-modal] {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 46rem;
+  max-height: 80vh;
+  overflow-y: auto;
+  border: 1px solid var(--tokentweak-color-muted);
+  background-color: var(--tokentweak-color-surface);
+  color: var(--tokentweak-color-fg);
+  padding: var(--tokentweak-pad-xl);
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  user-select: text;
+}
+[data-design-token-panel-modal]::backdrop {
+  background-color: rgb(from var(--tokentweak-color-bg) r g b / 0.8);
+}
+
+[data-design-token-panel-modal] [class*='__header'] {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--tokentweak-pad-md);
+  margin-bottom: var(--tokentweak-gap-sm);
+}
+
+[data-design-token-panel-modal] [class*='__title'] {
+  font-size: var(--tokentweak-text-subheading);
+  font-weight: 700;
+  color: var(--tokentweak-color-fg);
+}
+
+[data-design-token-panel-modal] [class*='__hint'] {
+  font-size: var(--tokentweak-text-small);
+  color: var(--tokentweak-color-muted);
+  margin-bottom: var(--tokentweak-gap-xs);
+}
+
+[data-design-token-panel-modal] [class*='__section-heading'] {
+  font-size: var(--tokentweak-text-small);
+  font-weight: 700;
+  color: var(--tokentweak-color-fg);
+  margin-top: var(--tokentweak-gap-sm);
+  margin-bottom: var(--tokentweak-gap-2xs);
+}
+
+[data-design-token-panel-modal] [class*='__list']:not([class*='__list-item']) {
+  overflow-x: auto;
+  border: 1px solid var(--tokentweak-color-muted);
+  background-color: var(--tokentweak-color-code-bg);
+  color: var(--tokentweak-color-code-fg);
+  padding: var(--tokentweak-pad-sm);
+  font-size: var(--tokentweak-text-small);
+  margin-bottom: var(--tokentweak-gap-xs);
+}
+
+[data-design-token-panel-modal] [class*='__list-item'] {
+  font-family: var(--tokentweak-font-mono);
+}
+
+[data-design-token-panel-modal] [class*='__actions'] {
+  display: flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-md);
+  margin-top: var(--tokentweak-gap-md);
+}
+
+[data-design-token-panel-modal] [class*='__toggle'] {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-xs);
+  font-size: var(--tokentweak-text-small);
+  color: var(--tokentweak-color-fg);
+  cursor: pointer;
+  margin-bottom: var(--tokentweak-gap-xs);
+}
+
+[data-design-token-panel-modal] [class*='__textarea'] {
+  width: 100%;
+  min-height: 12rem;
+  border: 1px solid var(--tokentweak-color-muted);
+  background-color: var(--tokentweak-color-code-bg);
+  color: var(--tokentweak-color-code-fg);
+  padding: var(--tokentweak-pad-sm);
+  font-family: var(--tokentweak-font-mono);
+  font-size: var(--tokentweak-text-small);
+  resize: vertical;
+  margin-bottom: var(--tokentweak-gap-xs);
+}
+
+[data-design-token-panel-modal] [class*='__json'] {
+  overflow-x: auto;
+  border: 1px solid var(--tokentweak-color-muted);
+  background-color: var(--tokentweak-color-code-bg);
+  color: var(--tokentweak-color-code-fg);
+  padding: var(--tokentweak-pad-sm);
+  font-size: var(--tokentweak-text-small);
+}
+
+[data-design-token-panel-modal] [class*='__status'] {
+  font-size: var(--tokentweak-text-small);
+  margin-bottom: var(--tokentweak-gap-xs);
+}
+[data-design-token-panel-modal] [class*='__status--info'] {
+  color: var(--tokentweak-color-success);
+}
+[data-design-token-panel-modal] [class*='__status--error'] {
+  color: var(--tokentweak-color-danger);
+}
+[data-design-token-panel-modal] [class*='__status--warning'] {
+  color: var(--tokentweak-color-warning);
+}
+[data-design-token-panel-modal] [class*='__status--success'] {
+  color: var(--tokentweak-color-success);
+}
+
+[data-design-token-panel-modal] [class*='__applying'] {
+  display: flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-sm);
+  border: 1px solid var(--tokentweak-color-muted);
+  background-color: var(--tokentweak-color-code-bg);
+  color: var(--tokentweak-color-muted);
+  padding: var(--tokentweak-pad-sm);
+  font-size: var(--tokentweak-text-small);
+}
+
+[data-design-token-panel-modal] [class*='__spinner'] {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--tokentweak-color-muted);
+  border-top-color: var(--tokentweak-color-fg);
+  border-radius: 50%;
+  animation: design-token-panel-modal-spin 0.75s linear infinite;
+}
+@keyframes design-token-panel-modal-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+[data-design-token-panel-modal] [class*='__revert-hint'] {
+  font-size: var(--tokentweak-text-small);
+  font-style: italic;
+  color: var(--tokentweak-color-muted);
+  margin-top: var(--tokentweak-gap-sm);
+  margin-bottom: var(--tokentweak-gap-2xs);
+}
+
+[data-design-token-panel-modal] [class*='__button'] {
+  border: 1px solid var(--tokentweak-color-muted);
+  background-color: var(--tokentweak-color-surface);
+  color: var(--tokentweak-color-muted);
+  padding-inline: var(--tokentweak-pad-lg);
+  padding-block: var(--tokentweak-gap-2xs);
+  font-size: var(--tokentweak-text-small);
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+[data-design-token-panel-modal] [class*='__button']:hover,
+[data-design-token-panel-modal] [class*='__button']:focus-visible {
+  color: var(--tokentweak-color-fg);
+  border-color: var(--tokentweak-color-fg);
+}
+[data-design-token-panel-modal] [class*='__button']:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+[data-design-token-panel-modal] [class*='__button--primary'] {
+  border-color: var(--tokentweak-color-accent);
+  background-color: var(--tokentweak-color-accent);
+  color: var(--tokentweak-color-bg);
+}
+[data-design-token-panel-modal] [class*='__button--primary']:hover,
+[data-design-token-panel-modal] [class*='__button--primary']:focus-visible {
+  border-color: var(--tokentweak-color-accent-hover);
+  background-color: var(--tokentweak-color-accent-hover);
+  color: var(--tokentweak-color-bg);
+}
+
+[data-design-token-panel-modal] [class*='__close-button'] {
+  border: 1px solid var(--tokentweak-color-muted);
+  background-color: var(--tokentweak-color-surface);
+  color: var(--tokentweak-color-muted);
+  padding-inline: var(--tokentweak-pad-sm);
+  padding-block: var(--tokentweak-gap-2xs);
+  font-size: var(--tokentweak-text-small);
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    border-color 150ms ease;
+}
+[data-design-token-panel-modal] [class*='__close-button']:hover,
+[data-design-token-panel-modal] [class*='__close-button']:focus-visible {
+  color: var(--tokentweak-color-fg);
+  border-color: var(--tokentweak-color-fg);
+}

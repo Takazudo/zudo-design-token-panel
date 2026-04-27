@@ -1,0 +1,68 @@
+---
+/**
+ * Second page of the Astro example. Mirrors the home page's shape so token
+ * tweaks can be verified across an Astro view-transition. The panel's host
+ * adapter listens for `astro:before-swap` / `astro:page-load` and re-mounts
+ * the panel shell when visibility intent or persisted overrides demand it.
+ */
+
+import Layout from '../layouts/Layout.astro';
+
+const paletteIndices = Array.from({ length: 16 }, (_, i) => i);
+---
+
+<Layout title="Astro Example — About">
+  <main class="astroexample-stack">
+    <header>
+      <h1 class="astroexample-heading">About this example</h1>
+      <p>
+        The <code>examples/astro</code> sub-package consumes
+        <code>@takazudo/zudo-design-token-panel</code> through its built artifact only — there are no
+        deep imports into <code>dist/</code>, no bundler aliases, and no framework integration beyond
+        <code>@astrojs/preact</code>.
+      </p>
+      <ul>
+        <li>No Tailwind, no preflight stylesheet, no design-system dependency.</li>
+        <li>
+          Storage prefix <code>astro-example-tokens</code>, console namespace
+          <code>astroExample</code>.
+        </li>
+        <li>Palette CSS-var template <code>--astroexample-palette-{`{n}`}</code>.</li>
+        <li>
+          Apply endpoint <code>/api/dev/apply</code> proxied by Vite to the bin sidecar on port
+          24682.
+        </li>
+      </ul>
+    </header>
+
+    <section>
+      <h2 class="astroexample-heading">Verify across navigation</h2>
+      <div class="astroexample-card">
+        Open the panel via <code>window.astroExample.toggleDesignPanel()</code>, change a token,
+        then navigate <a class="astroexample-link" href="/">back to home</a>. The new value should
+        still apply — proving the host adapter's <code>astro:page-load</code> reapply path works
+        end-to-end.
+      </div>
+    </section>
+
+    <section>
+      <h2 class="astroexample-heading">Palette swatches (mirrored)</h2>
+      <div class="astroexample-swatch-row">
+        {
+          paletteIndices.map((i) => (
+            <div
+              class="astroexample-swatch"
+              style={`background: var(--astroexample-palette-${i});`}
+            >
+              {i}
+            </div>
+          ))
+        }
+      </div>
+      <p class="astroexample-meta">
+        These swatches are identical to the home page so a side-by-side comparison after a token
+        tweak is trivial.
+      </p>
+    </section>
+  </main>
+</Layout>

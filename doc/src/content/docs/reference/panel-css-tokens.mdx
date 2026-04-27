@@ -1,0 +1,161 @@
+---
+title: Panel CSS tokens
+sidebar_position: 5
+description: "--tokentweak-* private variables, the var(--host, fallback) indirection ladder, the modal data-attribute selector, and the paired stylesheet/host-adapter import obligations."
+---
+
+The panel ships its own bundled CSS — no Tailwind dependency in the consumer. This page pins the panel-private `--tokentweak-*` namespace, the `var(--host, fallback)` indirection ladder that lets a host retheme without touching panel internals, and the bundled stylesheet's modal-selector contract.
+
+## Panel-private namespace
+
+The bundled stylesheets declare every panel-chrome variable under a panel-private namespace, scoped to the panel shell + modal class prefix:
+
+```css
+:where(.tokenpanel-shell, [data-design-token-panel-modal]) {
+  --tokentweak-pad-md: …;
+  --tokentweak-gap-sm: …;
+  --tokentweak-text-body: …;
+  --radius-tokentweak: …;
+  /* …every panel-chrome value lives here */
+}
+```
+
+### Naming rules
+
+- `--tokentweak-*` is the only allowed prefix for panel-private vars. No consumer-namespaced identifiers may appear in the panel chrome.
+- The chrome stylesheet (`panel.css`) MUST read only `--tokentweak-*` — it MUST NOT read host vars like `--color-*` or `--font-mono` directly.
+- The token sheet (`panel-tokens.css`) is the single indirection point where host vars are consumed (see [the indirection ladder below](#host-css-var-indirection-ladder)).
+
+### Files
+
+- `panel.css` — chrome layout / typography / controls.
+- `panel-tokens.css` — the `--tokentweak-*` declarations.
+
+Both ship from the package, combined into a single `dist/zudo-design-token-panel.css` by the Vite library build. Vite library mode strips the source `import './styles/panel.css'` from the emitted JS, so the consumer MUST import the combined stylesheet exactly once on their static module graph (typically next to where they mount `<DesignTokenPanelHost>`):
+
+```ts
+import '@takazudo/zudo-design-token-panel/styles';
+```
+
+The `./styles` sub-export (alias `./styles.css`) resolves to `dist/zudo-design-token-panel.css`. Skipping this import leaves the panel JS fully functional but every chrome rule missing — `.tokenpanel-shell` renders with the host page's transparent background and default font, so the panel appears invisible.
+
+<Warning title="No Tailwind dependency">
+The package MUST build and run without Tailwind in the consumer. The panel JSX uses hand-authored CSS classes backed by `--tokentweak-*` vars exclusively.
+</Warning>
+
+## Modal class prefix and data-attribute selector
+
+`PanelConfig.modalClassPrefix` controls the BEM root for every modal the panel owns (export, import, apply). The host picks any string and the panel emits classes like `${modalClassPrefix}__overlay`, `${modalClassPrefix}__panel`, `${modalClassPrefix}__header`, etc.
+
+**The bundled CSS keys on the data attribute, NOT on the class prefix.** Every modal `<dialog>` element emits `data-design-token-panel-modal=""` (with `data-design-token-panel-modal-variant` set to `"apply"` / `"export"` / `"import"`). `panel.css` anchors all modal chrome rules on `[data-design-token-panel-modal]` and matches sub-elements via `[class*='__title']`-style attribute selectors.
+
+This means a host that customises `modalClassPrefix` still inherits the bundled chrome — selecting on the literal class prefix would leave any non-default host with unstyled modals.
+
+The class prefix remains useful as a higher-specificity hook for hosts that want to layer custom rules on top of the bundled chrome.
+
+## Host CSS-var indirection ladder
+
+The panel-chrome color tokens are declared in `panel-tokens.css` as a `var(--host, fallback)` ladder so a host that does not define `--color-*` / `--font-mono` still gets a sane paint:
+
+```css
+:where(.tokenpanel-shell, [data-design-token-panel-modal]) {
+  --tokentweak-color-fg: var(--color-fg, oklch(87% 0.01 60));
+  --tokentweak-color-bg: var(--color-bg, oklch(18% 0.01 50));
+  --tokentweak-color-muted: var(--color-muted, oklch(70% 0.01 60));
+  --tokentweak-color-surface: var(--color-surface, oklch(22% 0.01 50));
+  --tokentweak-color-accent: var(--color-accent, oklch(65% 0.2 45));
+  --tokentweak-color-accent-hover: var(--color-accent-hover, oklch(55% 0.18 45));
+  --tokentweak-color-code-bg: var(--color-code-bg, oklch(17% 0.005 50));
+  --tokentweak-color-code-fg: var(--color-code-fg, oklch(87% 0.01 60));
+  --tokentweak-color-success: var(--color-success, oklch(65% 0.19 145));
+  --tokentweak-color-danger: var(--color-danger, oklch(60% 0.2 10));
+  --tokentweak-color-warning: var(--color-warning, oklch(75% 0.17 75));
+  --tokentweak-font-mono: var(--font-mono, Menlo, Monaco, Consolas, …);
+}
+```
+
+### Public surface
+
+These are the panel-private variables a host MAY override on the same scope to retheme the panel chrome without touching their own `--color-*` theme:
+
+| Variable | Default fallback | Role |
+| --- | --- | --- |
+| `--tokentweak-color-fg` | neutral light grey | Foreground text. |
+| `--tokentweak-color-bg` | dark surface | Panel background. |
+| `--tokentweak-color-muted` | mid grey | Muted text and dividers. |
+| `--tokentweak-color-surface` | dark surface variant | Raised surfaces (cards, modals). |
+| `--tokentweak-color-accent` | warm accent | Primary actions and highlights. |
+| `--tokentweak-color-accent-hover` | darker accent | Hover state for accent surfaces. |
+| `--tokentweak-color-code-bg` | very dark surface | Inline / block code background. |
+| `--tokentweak-color-code-fg` | light text | Inline / block code foreground. |
+| `--tokentweak-color-success` | green | Success state colour. |
+| `--tokentweak-color-danger` | red | Danger / error state colour. |
+| `--tokentweak-color-warning` | amber | Warning state colour. |
+| `--tokentweak-font-mono` | system monospace stack | Monospace font for code / values. |
+
+### Override layers
+
+A host can override at either level:
+
+- **At the `--color-*` level** — cascades into the panel via the fallback ladder. Useful when the host wants its own design system to drive the panel's chrome alongside its app surfaces.
+- **At the `--tokentweak-color-*` level** — panel-only override, bypasses the host theme. Useful when the host wants the panel to look distinct from app surfaces (e.g. a dark panel inside a light app).
+
+### Fallback values
+
+The fallback values are picked to be a sensible neutral dark theme so the panel paints readably without any host theme declared. A host can therefore drop the panel into a brand-new project and see a usable panel before shipping a single `--color-*` token.
+
+### Invariant — panel.css MUST NOT read host vars directly
+
+`panel.css` MUST NOT read `--color-*` or `--font-mono` directly. The only legal site for those reads is the indirection ladder in `panel-tokens.css`. The package's CI pins this with a grep check:
+
+```bash
+grep -n 'var(--color-' src/styles/panel.css   # → 0
+grep -n 'var(--font-mono' src/styles/panel.css # → 0
+```
+
+<Info title="Why the indirection?">
+Reading host vars directly inside `panel.css` would leak the host's design-system identifiers into the panel chrome. Every chrome rule would silently break for hosts whose theme uses a different name. Routing every host read through the `panel-tokens.css` ladder gives one stable seam to evolve without touching the chrome rules.
+</Info>
+
+## Host-adapter side-effect import (paired-unit obligation)
+
+Alongside the `./styles` import, the consumer MUST also own a side-effect import for the host-adapter, paired with `<DesignTokenPanelHost>`. The component AND a sibling `<script>` block loading `@takazudo/zudo-design-token-panel/astro/host-adapter` are a single unit — both lines are required, always together.
+
+Required wiring shape:
+
+```astro
+<DesignTokenPanelHost config={myPanelConfig} />
+
+<script>
+  void import('@takazudo/zudo-design-token-panel/astro/host-adapter');
+</script>
+```
+
+### Why a dynamic `void import('...')`?
+
+Both forms work — the package's `package.json` lists `dist/astro/host-adapter.js` in `sideEffects` so Rollup preserves consumer-side imports of the host-adapter regardless of whether the result is used. The dynamic form is the recommended canonical wiring because it loads the host-adapter chunk off the critical page-load path (mirrors the existing color-presets lazy-loader pattern) and is robust to future packaging changes that could miss-configure `sideEffects`.
+
+### Why not a single page-level static import?
+
+Browser caching makes the duplicated `import()` cheap (one network fetch per session), and the wrapper component is the single authoritative mount point so duplicating the import there is a non-issue.
+
+### What happens if you skip it?
+
+Skipping this import leaves the JSON config payload from `<DesignTokenPanelHost>` on the page with no JS to read it, so calling `window.<consoleNamespace>.showDesignPanel()` throws `ReferenceError`. Symptom in deployed builds: silent failure, no panel chrome ever paints.
+
+The `./astro/host-adapter` sub-export points at the built `dist/astro/host-adapter.js` file plus its `.d.ts` types.
+
+## Consumer-controlled tokens
+
+The tokens the panel writes to (the `cssVar` field on each `TokenDef`, plus the cluster's `paletteCssVarTemplate`, base-role names, and semantic-CSS names) are entirely consumer-controlled. Hosts pick names like `--myapp-spacing-hgap-md`, `--myapp-p0`, `--myapp-semantic-bg` themselves; the panel just writes them through `setProperty` on `:root`.
+
+The package contract is therefore:
+
+- **Read:** the panel never reads consumer CSS variables (it carries its own defaults via `TokenDef.default`).
+- **Write:** the panel only writes the consumer-supplied `cssVar` strings, one per overridden token, plus the cluster's palette / base / semantic vars on apply.
+
+## Cross-references
+
+- [`PanelConfig.modalClassPrefix`](/docs/reference/configure-panel/#panelconfig-interface) — BEM root for modal classes (the data attribute is what the bundled CSS keys on).
+- [Token manifest](/docs/reference/token-manifest/) — declares the `cssVar` names the panel writes to `:root`.
+- [Color cluster](/docs/reference/color-cluster/) — declares the palette / base-role / semantic CSS-var names the panel writes on apply.

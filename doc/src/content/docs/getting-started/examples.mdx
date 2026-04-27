@@ -1,0 +1,28 @@
+---
+title: Examples
+sidebar_position: 90
+---
+
+Reference integrations for `zudo-design-token-panel` across three popular
+stacks. Each example wires the panel against a host-supplied
+`TokenManifest` and `ColorClusterConfig`, plus the companion bin server for
+applying tweaks back to source.
+
+<Note title="Coming soon">
+The example apps are being ported alongside the initial OSS release — the
+links below point at the `examples/` directory in the GitHub repo and may
+404 until the example apps land. Track progress on
+[super-epic issue #2](https://github.com/Takazudo/zudo-design-token-panel/issues/2).
+</Note>
+
+## Try it
+
+- [Astro example](https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples/astro)
+  — Drop the panel into an Astro site. Demonstrates host-config wiring with
+  an Astro dev server and the bin apply pipeline.
+- [Vite + React example](https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples/vite-react)
+  — Use the panel from a Vite + React app. Shows how the Preact runtime
+  coexists with React via the compat shim.
+- [Next.js example](https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples/next)
+  — Wire the panel into a Next.js app router project, including the bin
+  server side-by-side with the Next dev server.

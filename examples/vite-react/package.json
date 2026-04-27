@@ -1,0 +1,33 @@
+{
+  "name": "vite-react-example",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Vite + React example app demonstrating @takazudo/zudo-design-token-panel — host-config-driven panel mounted as a Preact island from a useEffect, plus apply-pipeline round-trip via the bin sidecar.",
+  "scripts": {
+    "predev": "lsof -ti:44325 | xargs kill 2>/dev/null; lsof -ti:24683 | xargs kill 2>/dev/null; true",
+    "dev": "concurrently -k -n vite,tokens-bin -c blue,green \"pnpm run _dev:vite\" \"pnpm run _dev:tokens-bin\"",
+    "_dev:vite": "vite --port 44325",
+    "_dev:tokens-bin": "design-token-panel-server --write-root . --routing scaffold.routing.json --port 24683 --allow-origin http://localhost:44325",
+    "build": "vite build",
+    "preview": "vite preview --port 44325",
+    "typecheck": "tsc --noEmit",
+    "test:apply-smoke": "node scripts/smoke-apply.mjs"
+  },
+  "dependencies": {
+    "@takazudo/zudo-design-token-panel": "workspace:*",
+    "preact": "^10.29.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@types/node": "^22.0.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.3",
+    "vite": "^6.0.0"
+  }
+}

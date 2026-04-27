@@ -1,0 +1,186 @@
+---
+title: "Secondary cluster: configure or disable"
+description: "Three-state semantics: undefined (hidden), null (hard opt-out), or a ColorClusterConfig (host-supplied)."
+sidebar_position: 3
+---
+
+`PanelConfig.secondaryColorCluster` is a three-state field. The state you
+pick controls both what the Color tab renders and which apply / clear / load
+code paths run. This recipe covers the three cases with concrete snippets.
+
+For the underlying contract, see
+[Color cluster reference](/docs/reference/color-cluster) (multi-cluster
+section) and the `resolveSecondaryColorCluster` helper.
+
+## The three states
+
+| Value | Render | Apply / clear / load |
+|---|---|---|
+| `undefined` (field omitted) | Secondary section hidden. | No write. The persist envelope's secondary slice stays inert. |
+| `null` | Secondary section hidden — **same as `undefined` visually**. | Hard opt-out: every secondary code path skips. The persist envelope's secondary slice is **not** hydrated even if it exists in `localStorage`. |
+| `ColorClusterConfig` | Secondary palette + semantic table render below the primary. | Same write semantics as the primary, scoped to the secondary palette + names. |
+
+<Tip>
+**Why `null` is not the same as `undefined`.** Both hide the section, but
+only `null` skips the secondary load path. A host that previously shipped a
+secondary cluster and now wants to permanently retire it should set
+`secondaryColorCluster: null` so old saved states do not silently re-apply
+on next page load.
+</Tip>
+
+## Case 1 — secondary hidden (default)
+
+Just omit the field. This is the recommended starting point for every new
+host.
+
+```ts
+// src/lib/my-panel-config.ts
+import type { PanelConfig } from '@takazudo/zudo-design-token-panel';
+import { primaryCluster } from './primary-cluster';
+
+export const myPanelConfig: PanelConfig = {
+  storagePrefix: 'myapp-design-token-panel',
+  consoleNamespace: 'myapp',
+  modalClassPrefix: 'myapp-design-token-panel-modal',
+  schemaId: 'myapp-design-tokens/v1',
+  exportFilenameBase: 'myapp-design-tokens',
+  tokens: {
+    spacing: [],
+    typography: [],
+    size: [],
+    color: [],
+  },
+  colorCluster: primaryCluster,
+  // secondaryColorCluster intentionally omitted.
+};
+```
+
+## Case 2 — explicit opt-out
+
+Use `null` after a previous deploy carried a secondary cluster, and you want
+to make sure no user's saved state will resurrect it on next load.
+
+```ts
+export const myPanelConfig: PanelConfig = {
+  // ...common fields...
+  colorCluster: primaryCluster,
+  secondaryColorCluster: null,
+};
+```
+
+<Warning>
+The persisted envelope under `${storagePrefix}-state-v2` may still contain
+a secondary slice from earlier versions. With `secondaryColorCluster: null`
+the package skips that slice on load, so users do not see stale secondary
+overrides. The slice itself is preserved in storage for round-trip safety —
+flipping back to a real `ColorClusterConfig` later will pick it up again
+unless you also bump `storagePrefix` or `schemaId`.
+</Warning>
+
+## Case 3 — host-supplied secondary cluster
+
+The secondary cluster has the same shape as the primary
+([`ColorClusterConfig`](/docs/reference/color-cluster)). Use a different
+`paletteCssVarTemplate` and different `baseRoles` / `semanticCssNames` so
+the writes do not collide with the primary cluster.
+
+```ts
+import type {
+  ColorClusterConfig,
+  ColorScheme,
+  PanelConfig,
+} from '@takazudo/zudo-design-token-panel';
+import { primaryCluster } from './primary-cluster';
+
+const accentDark: ColorScheme = {
+  background: 0,
+  foreground: 7,
+  cursor: 7,
+  selectionBg: 8,
+  selectionFg: 0,
+  palette: [
+    '#202124', '#ff7597', '#7cd992', '#f5d97a',
+    '#7ab0f5', '#c79df0', '#7fdacf', '#dde2ec',
+    '#3a3d44', '#ff7597', '#7cd992', '#f5d97a',
+    '#7ab0f5', '#c79df0', '#7fdacf', '#bfc6d4',
+  ],
+  shikiTheme: 'github-dark',
+};
+
+const secondaryCluster: ColorClusterConfig = {
+  id: 'myapp-accent',
+  label: 'Accent surface',
+  paletteSize: 16,
+  paletteCssVarTemplate: '--myapp-accent-p{n}',
+  baseRoles: {
+    background: '--myapp-accent-bg',
+    foreground: '--myapp-accent-fg',
+  },
+  baseDefaults: {
+    background: 0,
+    foreground: 7,
+  },
+  semanticDefaults: {
+    surface: 0,
+    onSurface: 7,
+  },
+  semanticCssNames: {
+    surface: '--myapp-accent-surface',
+    onSurface: '--myapp-accent-on-surface',
+  },
+  defaultShikiTheme: 'github-dark',
+  colorSchemes: {
+    'Accent Dark': accentDark,
+  },
+  panelSettings: {
+    colorScheme: 'Accent Dark',
+    colorMode: false,
+  },
+};
+
+export const myPanelConfig: PanelConfig = {
+  // ...common fields...
+  colorCluster: primaryCluster,
+  secondaryColorCluster: secondaryCluster,
+};
+```
+
+## Case 4 — light/dark pairing on the secondary
+
+Same shape, but with the `panelSettings.colorMode` light/dark pairing
+enabled. The panel watches `document.documentElement[data-theme]` and
+swaps schemes accordingly on init.
+
+```ts
+const secondaryCluster: ColorClusterConfig = {
+  // ...same fields as Case 3...
+  colorSchemes: {
+    'Accent Light': accentLight,
+    'Accent Dark': accentDark,
+  },
+  panelSettings: {
+    colorScheme: 'Accent Dark',
+    colorMode: {
+      defaultMode: 'dark',
+      lightScheme: 'Accent Light',
+      darkScheme: 'Accent Dark',
+    },
+  },
+};
+```
+
+<Info>
+`colorMode` is independent on the primary and the secondary. You can set it
+on one and leave the other as `false`; the panel resolves them separately
+through `resolveSecondaryColorCluster`.
+</Info>
+
+## Related
+
+- [Color cluster reference](/docs/reference/color-cluster) — primary
+  cluster shape and apply-time write order; the secondary follows the
+  same rules.
+- [Custom color cluster](/docs/recipes/custom-color-cluster) — wiring
+  the primary cluster from scratch.
+- [`configurePanel` reference](/docs/reference/configure-panel) —
+  `PanelConfig.secondaryColorCluster` field documentation.

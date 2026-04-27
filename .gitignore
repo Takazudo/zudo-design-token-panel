@@ -38,3 +38,6 @@ test-results/
 
 # inbox (per repo convention; ephemeral worktree files)
 __inbox/
+
+# /x-wt-teams local worktrees
+worktrees/

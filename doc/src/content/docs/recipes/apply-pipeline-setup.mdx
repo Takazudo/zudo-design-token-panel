@@ -1,0 +1,214 @@
+---
+title: Apply pipeline setup
+description: "Wire the design-token-panel-server bin into a non-Astro host's dev script — CORS, --write-root sandboxing, and the routing JSON."
+sidebar_position: 4
+---
+
+The Apply button POSTs a flat CSS-var diff to the host's apply endpoint,
+which routes the diff to the **bin server** (`design-token-panel-server`),
+which atomically rewrites your source CSS files. This recipe wires the bin
+into a non-Astro host (e.g. a Vite SPA, Next.js, or any Node-based dev
+server) and sets up the three guards: CORS, `--write-root` sandboxing, and
+the single-source routing JSON.
+
+For the full apply contract — request / response envelopes, native-
+implementation guidance, error shapes — see
+[Apply pipeline reference](/docs/reference/apply-pipeline).
+
+## 1. Install the package as a dev dep
+
+```sh
+pnpm add -D @takazudo/zudo-design-token-panel
+```
+
+The package ships an executable named `design-token-panel-server`. Verify
+the install with:
+
+```sh
+pnpm exec design-token-panel-server --help
+```
+
+## 2. Author the routing JSON
+
+The routing JSON is a top-level object mapping **CSS-var prefix family**
+(without leading `--` and trailing `-`) → **repo-relative source-CSS file
+path**. Both the panel UI (`PanelConfig.applyRouting`) and the bin
+(`--routing` flag) read the same file — keeping them in lockstep is the
+whole point.
+
+```json
+// panel-routing.json
+{
+  "myapp": "src/styles/tokens.css",
+  "myapp-extra": "src/styles/extra-tokens.css"
+}
+```
+
+<Note>
+**Prefix family, not the full var name.** `myapp` matches every var that
+starts with `--myapp-` (e.g. `--myapp-spacing-md`,
+`--myapp-color-primary`). A diff token whose prefix is not in the routing
+map is rejected with a 400.
+</Note>
+
+## 3. Wire it into your dev script
+
+Use `concurrently` (or `npm-run-all`) to run the bin alongside your dev
+server. Replace `vite` with whichever long-running process your project
+uses.
+
+```json
+// package.json
+{
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail --names dev,panel \"vite\" \"design-token-panel-server --routing ./panel-routing.json --write-root ./src/styles --allow-origin http://localhost:5173\""
+  },
+  "devDependencies": {
+    "@takazudo/zudo-design-token-panel": "^0.1.0",
+    "concurrently": "^9.0.0"
+  }
+}
+```
+
+The flags above are the recommended minimum:
+
+- **`--routing ./panel-routing.json`** — required. The single source of
+  truth for prefix → file routing.
+- **`--write-root ./src/styles`** — optional but strongly recommended.
+  The bin will refuse to write outside this tree, so a typo or path-escape
+  attempt cannot clobber files elsewhere in your repo. Defaults to
+  `--root` (which itself defaults to `process.cwd()`).
+- **`--allow-origin http://localhost:5173`** — required for any browser to
+  apply. Pass each dev origin you actually serve from. Repeatable.
+
+<Warning>
+**`--allow-origin` is matched verbatim** on the full scheme + host + port
+string. `http://localhost:5173` and `http://127.0.0.1:5173` are different
+origins as far as the bin is concerned. Pass each one you serve from, or
+your browser will see a 403 with no `Access-Control-Allow-Origin` header.
+</Warning>
+
+## 4. Point the panel at the bin
+
+Import the same routing JSON into your panel config so the UI and the bin
+agree without two declarations to keep in sync.
+
+```ts
+// src/lib/my-panel-config.ts
+import type { PanelConfig } from '@takazudo/zudo-design-token-panel';
+import routing from '../../panel-routing.json' assert { type: 'json' };
+import { myColorCluster } from './my-color-cluster';
+import { myTokens } from './my-tokens';
+
+export const myPanelConfig: PanelConfig = {
+  storagePrefix: 'myapp-design-token-panel',
+  consoleNamespace: 'myapp',
+  modalClassPrefix: 'myapp-design-token-panel-modal',
+  schemaId: 'myapp-design-tokens/v1',
+  exportFilenameBase: 'myapp-design-tokens',
+  tokens: myTokens,
+  colorCluster: myColorCluster,
+  applyEndpoint: 'http://127.0.0.1:24681/apply',
+  applyRouting: routing,
+};
+```
+
+`applyEndpoint` is the URL the **browser** POSTs to. The bin defaults to
+`127.0.0.1:24681`, so the default `http://127.0.0.1:24681/apply` "just
+works" — change `--port` or `--host` and you must update `applyEndpoint`
+to match.
+
+## 5. Vite-only host wiring (no Astro)
+
+A Vite host (or any non-Astro host) does not get the `<DesignTokenPanelHost>`
+SSR component. Call `configurePanel` directly at app boot, then import the
+panel module so its side-effects register:
+
+```ts
+// src/main.ts
+import { configurePanel } from '@takazudo/zudo-design-token-panel';
+import '@takazudo/zudo-design-token-panel/styles';
+import { myPanelConfig } from './lib/my-panel-config';
+
+configurePanel(myPanelConfig);
+
+// Lazy-load the panel module on demand (e.g. when a dev keybinding fires).
+window.addEventListener('keydown', (event) => {
+  if (event.altKey && event.shiftKey && event.code === 'KeyP') {
+    void import('@takazudo/zudo-design-token-panel').then((mod) => {
+      mod.toggleDesignPanel();
+    });
+  }
+});
+```
+
+<Tip>
+**Validate before configure.** If your config crosses any boundary that
+might mangle it (an `<input>`-hosted JSON blob, a server response, etc.),
+call `assertValidPanelConfig(value)` first — it throws with a message
+naming the offending field when something is wrong, instead of failing
+later with a cryptic runtime error.
+</Tip>
+
+## 6. Shut down cleanly
+
+`concurrently --kill-others-on-fail` (or `concurrently -k`) ensures
+`SIGINT` from your terminal propagates to the bin. The bin handles
+`SIGINT` / `SIGTERM` by stopping accept, draining in-flight requests, and
+exiting with code `0`. A 5 s timeout force-exits if `close` hangs on a
+keep-alive socket.
+
+If you spawn the bin from a custom Node wrapper instead, forward signals
+yourself:
+
+```ts
+// scripts/dev-with-panel.ts
+import { spawn } from 'node:child_process';
+
+const bin = spawn(
+  'design-token-panel-server',
+  [
+    '--routing', './panel-routing.json',
+    '--write-root', './src/styles',
+    '--allow-origin', 'http://localhost:5173',
+  ],
+  { stdio: 'inherit', shell: false },
+);
+
+const forward = (signal: NodeJS.Signals): void => {
+  bin.kill(signal);
+};
+process.on('SIGINT', forward);
+process.on('SIGTERM', forward);
+
+bin.on('exit', (code) => process.exit(code ?? 0));
+```
+
+## 7. Smoke-test the wiring
+
+Once both processes are up, hit the bin's healthz endpoint to confirm:
+
+```sh
+curl http://127.0.0.1:24681/healthz
+# {"ok":true,"writeRoot":"/abs/path/to/src/styles","routing":"/abs/path/to/panel-routing.json","port":24681}
+```
+
+Then click **Apply** in the panel. A successful apply returns
+`{ "ok": true, "updated": [...] }`. See the
+[apply pipeline reference](/docs/reference/apply-pipeline) for the full
+response shape and every error code.
+
+<Danger>
+**The bin is dev-only.** It binds to loopback by default and writes to
+your source tree. Never run it in production, never expose it on the
+public internet, and never widen `--allow-origin` to `*`.
+</Danger>
+
+## Related
+
+- [Apply pipeline reference](/docs/reference/apply-pipeline) — request /
+  response envelopes, error codes, native-implementation guidance.
+- [`configurePanel` reference](/docs/reference/configure-panel) —
+  `applyEndpoint` and `applyRouting` fields.
+- [Token manifest reference](/docs/reference/token-manifest) — which
+  tokens get included in an Apply diff.

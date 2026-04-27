@@ -1,0 +1,32 @@
+{
+  "name": "next-example",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Next.js 15 + React 19 (App Router) example app demonstrating @takazudo/zudo-design-token-panel — host-config-driven panel mounted as a Preact island via a 'use client' boundary, plus apply-pipeline round-trip via the bin sidecar through a Next API route.",
+  "scripts": {
+    "predev": "lsof -ti:44326 | xargs kill 2>/dev/null; lsof -ti:24684 | xargs kill 2>/dev/null; true",
+    "dev": "concurrently -k -n next,tokens-bin -c blue,green \"pnpm run _dev:next\" \"pnpm run _dev:tokens-bin\"",
+    "_dev:next": "next dev --port 44326",
+    "_dev:tokens-bin": "design-token-panel-server --write-root . --routing scaffold.routing.json --port 24684 --allow-origin http://localhost:44326",
+    "build": "next build",
+    "start": "next start --port 44326",
+    "typecheck": "tsc --noEmit",
+    "test:apply-smoke": "node scripts/smoke-apply.mjs"
+  },
+  "dependencies": {
+    "@takazudo/zudo-design-token-panel": "workspace:*",
+    "next": "^15.5.15",
+    "preact": "^10.29.1",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.3"
+  }
+}
