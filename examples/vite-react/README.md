@@ -26,6 +26,23 @@ Open [http://localhost:44325](http://localhost:44325) and run
 `window.viteReactExample.toggleDesignPanel()` in the browser console to show
 the panel. Drag any slider — the page repaints before the next frame.
 
+## Production build & deploy path
+
+```bash
+pnpm --filter vite-react-example build
+```
+
+`vite.config.ts` sets `base: '/pj/zdtp/vite-react/'`, so every CSS/JS/asset
+reference in `dist/` is prefixed with that path. The build output is intended
+to be hosted under
+[https://&lt;host&gt;/pj/zdtp/vite-react/](https://example.com/pj/zdtp/vite-react/).
+
+Note: Vite's `base` only affects the production build — the dev server keeps
+serving at `/`, so the dev-only `/api/dev/apply` proxy is unaffected.
+`panelConfig.applyEndpoint` deliberately stays as the bare `/api/dev/apply`
+relative path: it is a dev-only endpoint that does not exist in the production
+deploy and must not be base-prefixed.
+
 ## Apply-pipeline manual verification
 
 The Playwright spec at `tests/e2e/apply-roundtrip.spec.ts` automates this; the
