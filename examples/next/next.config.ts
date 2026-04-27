@@ -1,4 +1,6 @@
 import type { NextConfig } from 'next';
+import { fileURLToPath } from 'node:url';
+import { dirname } from 'node:path';
 
 /*
  * Next.js config for the Next + React 19 example app.
@@ -18,9 +20,17 @@ import type { NextConfig } from 'next';
  * element, fully isolated from the host React tree. Aliasing React would
  * collapse the two trees into one runtime and defeat the host-agnosticism
  * contract this example exists to prove.
+ *
+ * `outputFileTracingRoot` is pinned to this example's directory so Next's
+ * file-tracing scoper doesn't auto-walk up to the monorepo root and pick a
+ * different (older) lockfile. The worktree layout this repo uses leaves a
+ * pnpm-lock.yaml in the parent directory — pinning silences the
+ * "multiple lockfiles" warning during `next build` without changing what
+ * gets traced into the deployable bundle.
  */
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  outputFileTracingRoot: dirname(fileURLToPath(import.meta.url)),
 };
 
 export default nextConfig;
