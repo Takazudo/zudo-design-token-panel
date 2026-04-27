@@ -57,8 +57,8 @@ pnpm dev
 The root `dev` script delegates to `pnpm --filter doc dev`, so the site is
 served from the `doc` workspace directly.
 
-The deployed doc site lives under the path `/pj/zudo-token-panel/` on the
-public zudo doc-site host.
+The deployed doc site lives at `https://takazudomodular.com/pj/zdtp/` on the
+public zudo doc-site host (path: `/pj/zdtp/`).
 
 ## Getting started
 
