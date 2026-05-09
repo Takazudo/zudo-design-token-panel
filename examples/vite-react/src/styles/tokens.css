@@ -59,6 +59,40 @@
   --vitereact-color-surface: var(--vitereact-palette-0);
   --vitereact-color-muted: var(--vitereact-palette-8);
   --vitereact-color-danger: var(--vitereact-palette-5);
+
+  /* Prose vertical spacing — flow-space rhythm (vsp-2xs … vsp-2xl) */
+  --vitereact-vsp-2xs: 0.25rem;
+  --vitereact-vsp-xs:  0.5rem;
+  --vitereact-vsp-sm:  0.75rem;
+  --vitereact-vsp-md:  1rem;
+  --vitereact-vsp-lg:  1.75rem;
+  --vitereact-vsp-xl:  2.5rem;
+  --vitereact-vsp-2xl: 3.5rem;
+
+  /* Prose horizontal spacing (hsp-xs … hsp-xl) */
+  --vitereact-hsp-xs:  0.25rem;
+  --vitereact-hsp-sm:  0.5rem;
+  --vitereact-hsp-md:  1rem;
+  --vitereact-hsp-lg:  1.5rem;
+  --vitereact-hsp-xl:  2rem;
+
+  /* Prose type scale */
+  --vitereact-text-h2:    1.75rem;
+  --vitereact-text-h3:    1.35rem;
+  --vitereact-text-h4:    1.1rem;
+  --vitereact-text-body:  1rem;
+  --vitereact-text-small: 0.875rem;
+  --vitereact-text-micro: 0.75rem;
+
+  /* Prose line-heights */
+  --vitereact-leading-tight:   1.2;
+  --vitereact-leading-snug:    1.45;
+  --vitereact-leading-relaxed: 1.75;
+
+  /* Prose code surface */
+  --vitereact-code-bg:   hsl(220 13% 11%);
+  --vitereact-code-fg:   hsl(220 14% 86%);
+  --vitereact-font-mono: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
 }
 
 body {
@@ -142,4 +176,149 @@ body {
   font-variant-numeric: tabular-nums;
   color: var(--vitereact-color-accent);
   font-weight: 700;
+}
+
+/* ---------------------------------------------------------------------------
+ * Prose container — flow-space rhythm
+ * Strategy 1 from prose-heading-spacing.mdx: single margin-block-start
+ * direction, overridden per element via --flow-space custom property.
+ * :where() keeps specificity at zero so later rules or inline styles win
+ * without escalation.
+ * --------------------------------------------------------------------------- */
+.vitereact-prose {
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: var(--vitereact-vsp-2xl) var(--vitereact-hsp-xl);
+  font-size: var(--vitereact-text-body);
+  line-height: var(--vitereact-leading-relaxed);
+  color: var(--vitereact-fg);
+}
+
+/* Default flow gap for all block children */
+.vitereact-prose > * + * {
+  margin-block-start: var(--flow-space, var(--vitereact-vsp-md));
+}
+
+/* Section separation before headings */
+.vitereact-prose :where(h2) { --flow-space: var(--vitereact-vsp-xl); }
+.vitereact-prose :where(h3) { --flow-space: var(--vitereact-vsp-lg); }
+.vitereact-prose :where(h4) { --flow-space: var(--vitereact-vsp-md); }
+
+/* Heading-to-first-content: tight coupling */
+.vitereact-prose :where(h2, h3, h4) + :where(p, ul, ol, table, pre, blockquote) {
+  --flow-space: var(--vitereact-vsp-sm);
+}
+
+/* Consecutive headings: tighten */
+.vitereact-prose :where(h2, h3, h4, h5, h6) + :where(h2, h3, h4, h5, h6) {
+  --flow-space: var(--vitereact-vsp-2xs);
+}
+
+/* Trim edges */
+.vitereact-prose > :first-child { margin-block-start: 0; }
+.vitereact-prose > :last-child  { margin-block-end: 0; }
+
+/* Type scale */
+.vitereact-prose h2 {
+  font-size: var(--vitereact-text-h2);
+  line-height: var(--vitereact-leading-tight);
+  font-weight: 700;
+  color: var(--vitereact-color-primary);
+}
+.vitereact-prose h3 {
+  font-size: var(--vitereact-text-h3);
+  line-height: var(--vitereact-leading-tight);
+  font-weight: 600;
+  color: var(--vitereact-color-primary);
+}
+.vitereact-prose h4 {
+  font-size: var(--vitereact-text-h4);
+  line-height: var(--vitereact-leading-snug);
+  font-weight: 600;
+}
+
+/* Inline code */
+.vitereact-prose :where(code):not(pre code) {
+  font-family: var(--vitereact-font-mono);
+  font-size: var(--vitereact-text-small);
+  background: var(--vitereact-code-bg);
+  color: var(--vitereact-code-fg);
+  padding: 0.1em var(--vitereact-hsp-xs);
+  border-radius: 3px;
+  border: 1px solid var(--vitereact-color-accent);
+}
+
+/* Code blocks */
+.vitereact-prose pre {
+  font-family: var(--vitereact-font-mono);
+  font-size: var(--vitereact-text-small);
+  background: var(--vitereact-code-bg);
+  color: var(--vitereact-code-fg);
+  padding: var(--vitereact-vsp-sm) var(--vitereact-hsp-sm);
+  border-radius: var(--vitereact-radius, 0.5rem);
+  overflow-x: auto;
+}
+.vitereact-prose pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  color: inherit;
+}
+
+/* Blockquote */
+.vitereact-prose blockquote {
+  border-left: 4px solid var(--vitereact-color-muted);
+  padding-left: var(--vitereact-hsp-md);
+  color: var(--vitereact-color-muted);
+  font-style: italic;
+}
+
+/* Horizontal rule */
+.vitereact-prose hr {
+  border: none;
+  border-top: 1px solid var(--vitereact-color-muted);
+  margin-block: var(--vitereact-vsp-lg);
+}
+
+/* Lists */
+.vitereact-prose ul,
+.vitereact-prose ol {
+  padding-inline-start: var(--vitereact-hsp-lg);
+}
+.vitereact-prose li + li {
+  margin-block-start: var(--vitereact-vsp-xs);
+}
+
+/* Links */
+.vitereact-prose a {
+  color: var(--vitereact-color-accent);
+  text-decoration: underline;
+}
+
+/* Tables */
+.vitereact-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--vitereact-text-small);
+}
+.vitereact-prose th,
+.vitereact-prose td {
+  border: 1px solid var(--vitereact-color-muted);
+  padding: var(--vitereact-hsp-xs) var(--vitereact-hsp-sm);
+  text-align: left;
+}
+.vitereact-prose th {
+  background: var(--vitereact-color-surface);
+  font-weight: 600;
+}
+
+/* Back-nav link at top of prose page */
+.vitereact-prose-nav {
+  margin-block-end: var(--vitereact-vsp-xl);
+}
+.vitereact-prose-nav a {
+  color: var(--vitereact-color-accent);
+  text-decoration: underline;
+  font-size: var(--vitereact-text-small);
 }
