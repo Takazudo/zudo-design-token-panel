@@ -60,6 +60,16 @@ jobs:
           restore-keys: |
             cargo-zfb-${{ runner.os }}-
 
+      # zfb's cargo build script (crates/zfb/build.rs) reads framework packages
+      # from the cloned zfb repo's pnpm node_modules (e.g. preact@10.29.1). Without
+      # this step the build panics with "framework package not found under
+      # node_modules/.pnpm". Skipped on cargo cache hit because the binary is
+      # already built and the build script never runs.
+      - name: Install zfb workspace deps (required by zfb's cargo build script)
+        if: steps.cargo-cache.outputs.cache-hit != 'true'
+        working-directory: ../zfb
+        run: pnpm install --frozen-lockfile
+
       - name: Install zfb CLI
         if: steps.cargo-cache.outputs.cache-hit != 'true'
         run: |
