@@ -22,11 +22,11 @@
 #   5. Trailing-slash inconsistency on internal <a> links (mix of
 #      "/pj/zudo-design-token-panel/foo" and "/pj/zudo-design-token-panel/foo/" pointing at the same resource).
 #
-# Per-workspace sub-paths (Sub #24 / epic #18):
+# Per-workspace sub-paths (Sub #34 / epic #29 — examples moved under /examples/):
 #   doc/dist                 → /pj/zudo-design-token-panel/
-#   examples/astro/dist      → /pj/zudo-design-token-panel/astro/
-#   examples/vite-react/dist → /pj/zudo-design-token-panel/vite-react/
-#   examples/next/out        → /pj/zudo-design-token-panel/next/
+#   examples/astro/dist      → /pj/zudo-design-token-panel/examples/astro/
+#   examples/vite-react/dist → /pj/zudo-design-token-panel/examples/vite-react/
+#   examples/next/out        → /pj/zudo-design-token-panel/examples/next/
 #
 # Exits non-zero on any escape so it can gate CI / pre-push.
 
@@ -35,18 +35,39 @@
 set -uo pipefail
 
 # ── Preconditions ───────────────────────────────
-# The audit relies on GNU grep semantics: PCRE (`-P`) with variable-width
-# lookbehind, and the `--include` / `--exclude` flags. macOS ships BSD grep,
-# which lacks both. Detect and refuse early with a helpful message rather
-# than silently producing garbage results.
-if ! grep --version 2>/dev/null | head -1 | grep -q 'GNU grep'; then
-  echo "❌ check-deploy-paths.sh requires GNU grep (with -P / --include support)." >&2
-  echo "   On macOS:  brew install grep  (then put gnubin first on PATH, or alias grep=ggrep)." >&2
+# The audit relies on PCRE (`-P`) with variable-width lookbehind and the
+# `--include` / `--exclude` flags. macOS BSD grep lacks -P. GNU grep and
+# ugrep both work.
+#
+# Auto-detect a capable grep. Fall back to the ugrep binary embedded in the
+# Claude Code CLI (available on any machine where `claude` is installed) if
+# the system grep doesn't support -P.
+if echo x | grep -P 'x' >/dev/null 2>&1; then
+  : # system grep supports -P — nothing to do
+elif _claude_bin="$(command -v claude 2>/dev/null)" && \
+     ARGV0=ugrep "${_claude_bin}" -P 'x' <<< 'x' >/dev/null 2>&1; then
+  # Wrap the claude binary as a grep drop-in and prepend it to PATH.
+  _tmp_grep_dir=$(mktemp -d)
+  cat > "${_tmp_grep_dir}/grep" << GREP_WRAPPER
+#!/usr/bin/env bash
+exec env ARGV0=ugrep "${_claude_bin}" "\$@"
+GREP_WRAPPER
+  chmod +x "${_tmp_grep_dir}/grep"
+  export PATH="${_tmp_grep_dir}:${PATH}"
+  # Arrange cleanup when the script exits.
+  # shellcheck disable=SC2064
+  trap "rm -rf '${_tmp_grep_dir}'" EXIT
+  unset _claude_bin _tmp_grep_dir
+elif command -v ggrep >/dev/null 2>&1 && ggrep -P 'x' <<< 'x' >/dev/null 2>&1; then
+  # Homebrew installs GNU grep as ggrep; re-exec with it on PATH.
+  _ggrep_dir="$(dirname "$(command -v ggrep)")"
+  # shellcheck disable=SC2030,SC2031
+  export PATH="${_ggrep_dir}:${PATH}"
+  unset _ggrep_dir
+else
+  echo "❌ check-deploy-paths.sh requires a grep with PCRE support (-P flag)." >&2
   echo "   Detected: $(grep --version 2>/dev/null | head -1)" >&2
-  exit 2
-fi
-if ! echo x | grep -P 'x' >/dev/null 2>&1; then
-  echo "❌ This grep does not support -P (PCRE). Rebuild GNU grep with --enable-perl-regexp." >&2
+  echo "   On macOS:  brew install grep  (then add gnubin to PATH, or alias grep=ggrep)." >&2
   exit 2
 fi
 
@@ -314,9 +335,9 @@ build_one "next-example"      "next-example"
 section "Step 2/2: Audit each emitted bundle"
 
 audit_workspace "doc"        "doc/dist"                 "/pj/zudo-design-token-panel/"
-audit_workspace "astro"      "examples/astro/dist"      "/pj/zudo-design-token-panel/astro/"
-audit_workspace "vite-react" "examples/vite-react/dist" "/pj/zudo-design-token-panel/vite-react/"
-audit_workspace "next"       "examples/next/out"        "/pj/zudo-design-token-panel/next/"
+audit_workspace "astro"      "examples/astro/dist"      "/pj/zudo-design-token-panel/examples/astro/"
+audit_workspace "vite-react" "examples/vite-react/dist" "/pj/zudo-design-token-panel/examples/vite-react/"
+audit_workspace "next"       "examples/next/out"        "/pj/zudo-design-token-panel/examples/next/"
 
 # ── Summary ──────────────────────────────────────
 END=$(date +%s)
