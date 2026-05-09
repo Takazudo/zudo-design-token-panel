@@ -53,6 +53,14 @@ export function App() {
           Console API: <code>window.viteReactExample.toggleDesignPanel()</code>.
           Storage prefix: <code>vite-react-example-tokens</code>.
         </p>
+        <p>
+          <a
+            className="vitereact-link"
+            href={`${import.meta.env.BASE_URL}prose.html`}
+          >
+            Prose Demo →
+          </a>
+        </p>
       </header>
 
       <section>
