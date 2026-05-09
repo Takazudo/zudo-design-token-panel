@@ -185,3 +185,185 @@ body {
   font-size: 0.875rem;
   color: var(--zfbexample-color-muted);
 }
+
+/* ─── Prose tokens ───────────────────────────────────────────────────────── */
+:root {
+  /* Vertical spacing — derive from 1.6rem (≈ 25.6 px) rhythm unit */
+  --zfbexample-vsp-2xs: 0.25rem;   /* ~4 px  */
+  --zfbexample-vsp-xs:  0.5rem;    /* ~8 px  */
+  --zfbexample-vsp-sm:  0.75rem;   /* ~12 px */
+  --zfbexample-vsp-md:  1rem;      /* ~16 px — default flow gap */
+  --zfbexample-vsp-lg:  1.75rem;   /* ~28 px */
+  --zfbexample-vsp-xl:  2.5rem;    /* ~40 px */
+  --zfbexample-vsp-2xl: 3.5rem;    /* ~56 px */
+
+  /* Horizontal spacing */
+  --zfbexample-hsp-xs:  0.25rem;
+  --zfbexample-hsp-sm:  0.5rem;
+  --zfbexample-hsp-md:  1rem;
+  --zfbexample-hsp-lg:  1.5rem;
+  --zfbexample-hsp-xl:  2rem;
+
+  /* Type scale */
+  --zfbexample-text-h2:    1.75rem;
+  --zfbexample-text-h3:    1.35rem;
+  --zfbexample-text-h4:    1.1rem;
+  --zfbexample-text-body:  1rem;
+  --zfbexample-text-small: 0.875rem;
+  --zfbexample-text-micro: 0.75rem;
+
+  /* Line-heights */
+  --zfbexample-leading-tight:   1.2;
+  --zfbexample-leading-snug:    1.45;
+  --zfbexample-leading-relaxed: 1.75;
+
+  /* Code surface */
+  --zfbexample-code-bg:   hsl(220 13% 11%);
+  --zfbexample-code-fg:   hsl(220 14% 86%);
+  --zfbexample-font-mono: ui-monospace, "Cascadia Code", "Source Code Pro",
+                          Menlo, Consolas, monospace;
+}
+
+/* ─── Prose container — flow-space rhythm ────────────────────────────────── */
+/* Strategy 1 from prose-heading-spacing.mdx: one-direction margin-block-start
+   via --flow-space cascade variable. Predictable in block / flex / grid.
+   :where() contributes zero specificity so component-inline overrides win. */
+.zfbexample-prose {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: var(--zfbexample-vsp-2xl) var(--zfbexample-hsp-xl);
+  font-size: var(--zfbexample-text-body);
+  line-height: var(--zfbexample-leading-relaxed);
+  color: var(--zfbexample-fg);
+}
+
+.zfbexample-prose > * + * {
+  margin-block-start: var(--flow-space, var(--zfbexample-vsp-md));
+}
+
+/* Section separation before headings */
+.zfbexample-prose :where(h2) { --flow-space: var(--zfbexample-vsp-xl); }
+.zfbexample-prose :where(h3) { --flow-space: var(--zfbexample-vsp-lg); }
+.zfbexample-prose :where(h4) { --flow-space: var(--zfbexample-vsp-md); }
+
+/* Heading-to-first-content: tight coupling */
+.zfbexample-prose :where(h2, h3, h4) + :where(p, ul, ol, table, pre, blockquote) {
+  --flow-space: var(--zfbexample-vsp-sm);
+}
+
+/* Consecutive headings: tighten */
+.zfbexample-prose :where(h2, h3, h4, h5, h6) + :where(h2, h3, h4, h5, h6) {
+  --flow-space: var(--zfbexample-vsp-2xs);
+}
+
+/* Trim edges */
+.zfbexample-prose > :first-child { margin-block-start: 0; }
+.zfbexample-prose > :last-child  { margin-block-end: 0; }
+
+/* Type scale + line-heights */
+.zfbexample-prose :where(h2) {
+  font-size: var(--zfbexample-text-h2);
+  line-height: var(--zfbexample-leading-tight);
+  font-weight: 700;
+}
+
+.zfbexample-prose :where(h3) {
+  font-size: var(--zfbexample-text-h3);
+  line-height: var(--zfbexample-leading-tight);
+  font-weight: 600;
+}
+
+.zfbexample-prose :where(h4) {
+  font-size: var(--zfbexample-text-h4);
+  line-height: var(--zfbexample-leading-tight);
+  font-weight: 600;
+}
+
+.zfbexample-prose :where(p, li) {
+  font-size: var(--zfbexample-text-body);
+  line-height: var(--zfbexample-leading-relaxed);
+}
+
+/* Code surface */
+.zfbexample-prose :where(pre) {
+  background: var(--zfbexample-code-bg);
+  color: var(--zfbexample-code-fg);
+  font-family: var(--zfbexample-font-mono);
+  font-size: var(--zfbexample-text-small);
+  padding: var(--zfbexample-vsp-sm) var(--zfbexample-hsp-sm);
+  border-radius: 0.25rem;
+  overflow-x: auto;
+}
+
+.zfbexample-prose :where(code) {
+  font-family: var(--zfbexample-font-mono);
+  font-size: var(--zfbexample-text-small);
+}
+
+/* Inline code (not inside pre) */
+.zfbexample-prose :where(p code, li code, td code) {
+  background: var(--zfbexample-code-bg);
+  color: var(--zfbexample-code-fg);
+  padding: 0.1em var(--zfbexample-hsp-xs);
+  border-radius: 0.2rem;
+  border: 1px solid var(--zfbexample-color-accent);
+}
+
+/* Blockquote */
+.zfbexample-prose :where(blockquote) {
+  border-left: 3px solid var(--zfbexample-color-accent);
+  padding-left: var(--zfbexample-hsp-md);
+  color: var(--zfbexample-color-muted);
+}
+
+/* Lists */
+.zfbexample-prose :where(ul) {
+  padding-left: var(--zfbexample-hsp-lg);
+  list-style: disc;
+}
+
+.zfbexample-prose :where(ol) {
+  padding-left: var(--zfbexample-hsp-lg);
+  list-style: decimal;
+}
+
+/* Tables */
+.zfbexample-prose :where(table) {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--zfbexample-text-small);
+}
+
+.zfbexample-prose :where(th, td) {
+  padding: var(--zfbexample-hsp-xs) var(--zfbexample-hsp-sm);
+  border: 1px solid var(--zfbexample-color-muted);
+  text-align: left;
+}
+
+.zfbexample-prose :where(th) {
+  font-weight: 600;
+}
+
+/* Horizontal rule */
+.zfbexample-prose :where(hr) {
+  border: none;
+  border-top: 1px solid var(--zfbexample-color-muted);
+  margin-block: var(--zfbexample-vsp-lg);
+}
+
+/* Links */
+.zfbexample-prose :where(a) {
+  color: var(--zfbexample-color-accent);
+  text-decoration: underline;
+}
+
+/* Heading top-border gradient — reuses fg + muted colour tokens */
+.zfbexample-prose :where(h2) {
+  padding-top: var(--zfbexample-vsp-xs);
+  border-top: 2px solid transparent;
+  border-image: linear-gradient(
+    to right,
+    var(--zfbexample-fg),
+    var(--zfbexample-color-muted)
+  ) 1;
+}
