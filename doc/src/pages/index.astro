@@ -13,6 +13,13 @@ const examplesBaseUrl =
 const astroExampleUrl = `${examplesBaseUrl}/astro`;
 const viteReactExampleUrl = `${examplesBaseUrl}/vite-react`;
 const nextExampleUrl = `${examplesBaseUrl}/next`;
+const zfbExampleUrl = `${examplesBaseUrl}/zfb`;
+const liveExamplesBaseUrl =
+  "https://zudo-design-token-panel.pages.dev/pj/zudo-design-token-panel/examples";
+const astroLiveUrl = `${liveExamplesBaseUrl}/astro/`;
+const viteReactLiveUrl = `${liveExamplesBaseUrl}/vite-react/`;
+const nextLiveUrl = `${liveExamplesBaseUrl}/next/`;
+const zfbLiveUrl = `${liveExamplesBaseUrl}/zfb/`;
 ---
 
 <DocLayout title={settings.siteName} lang={defaultLocale} hideSidebar hideToc>
@@ -74,7 +81,7 @@ const nextExampleUrl = `${examplesBaseUrl}/next`;
     <p class="text-body text-muted">
       zudo-design-token-panel is a standalone OSS port of the design-token-panel
       originally built inside zmodular. It is host-config-driven, so the same
-      panel works in Astro, Vite + React, or Next.js — your app supplies a
+      panel works in Astro, Vite + React, Next.js, or zfb — your app supplies a
       TokenManifest and ColorClusterConfig, and the panel handles the rest.
       MIT licensed.
     </p>
@@ -99,8 +106,8 @@ const nextExampleUrl = `${examplesBaseUrl}/next`;
         control instead of vanishing on reload.
       </FeatureCard>
       <FeatureCard title="Framework-agnostic">
-        Drop the panel into Astro, Vite + React, or Next.js. The runtime is
-        plain Preact and the apply pipeline is a small Node binary, so it
+        Drop the panel into Astro, Vite + React, Next.js, or zfb. The runtime
+        is plain Preact and the apply pipeline is a small Node binary, so it
         slots into whatever stack your product team already uses.
       </FeatureCard>
       <FeatureCard title="Host-config-driven">
@@ -122,8 +129,9 @@ const nextExampleUrl = `${examplesBaseUrl}/next`;
         tokens against your local dev server.
       </FeatureCard>
       <FeatureCard title="Example Apps" href="#example-apps">
-        Reference integrations across Astro, Vite + React, and Next.js. The
-        example apps live alongside the panel package on GitHub.
+        Reference integrations across Astro, Vite + React, Next.js, and zfb.
+        The example apps live alongside the panel package on GitHub, with live
+        demos deployed.
       </FeatureCard>
       <FeatureCard title="GitHub" href={githubUrl} external>
         Source code, issues, and release notes for zudo-design-token-panel.
@@ -137,22 +145,34 @@ const nextExampleUrl = `${examplesBaseUrl}/next`;
       Example Apps
     </h2>
     <p class="text-muted text-small mb-vsp-md text-center max-w-[40rem] mx-auto">
-      Reference integrations across three popular stacks. The links point at
-      the <code>examples/</code> directory in the GitHub repo. The example apps
-      are coming soon — these links may 404 until the examples land.
+      Reference integrations across four popular stacks. Each card links to the
+      live demo; source code lives in the <code>examples/</code> directory on GitHub.
     </p>
-    <div class="grid gap-hsp-lg sm:grid-cols-3">
-      <FeatureCard title="Astro" href={astroExampleUrl} external>
+    <div class="grid gap-hsp-lg sm:grid-cols-2 lg:grid-cols-4">
+      <FeatureCard title="Astro" href={astroLiveUrl} external>
         Drop the panel into an Astro site. Demonstrates host-config wiring
         with an Astro dev server and the bin apply pipeline.
+        <br />
+        <a href={astroExampleUrl} target="_blank" rel="noopener noreferrer" class="text-xs underline">GitHub source</a>
       </FeatureCard>
-      <FeatureCard title="Vite + React" href={viteReactExampleUrl} external>
+      <FeatureCard title="Vite + React" href={viteReactLiveUrl} external>
         Use the panel from a Vite + React app. Shows how the Preact runtime
         coexists with React via the compat shim.
+        <br />
+        <a href={viteReactExampleUrl} target="_blank" rel="noopener noreferrer" class="text-xs underline">GitHub source</a>
       </FeatureCard>
-      <FeatureCard title="Next.js" href={nextExampleUrl} external>
+      <FeatureCard title="Next.js" href={nextLiveUrl} external>
         Wire the panel into a Next.js app router project, including the bin
         server side-by-side with the Next dev server.
+        <br />
+        <a href={nextExampleUrl} target="_blank" rel="noopener noreferrer" class="text-xs underline">GitHub source</a>
+      </FeatureCard>
+      <FeatureCard title="zfb" href={zfbLiveUrl} external>
+        Integrate the panel into a zfb project. Uses the plugin
+        <code>devMiddleware</code> hook for the apply proxy and a
+        base-prefixed apply-endpoint URL.
+        <br />
+        <a href={zfbExampleUrl} target="_blank" rel="noopener noreferrer" class="text-xs underline">GitHub source</a>
       </FeatureCard>
     </div>
   </section>
