@@ -3,10 +3,12 @@ title: Examples
 sidebar_position: 90
 ---
 
-Reference integrations for `zudo-design-token-panel` across four popular
+Reference integrations for `zudo-design-token-panel` across five popular
 stacks. Each example wires the panel against a host-supplied
 `TokenManifest` and `ColorClusterConfig`, plus the companion bin server for
-applying tweaks back to source.
+applying tweaks back to source. Every example ships a `/prose` page that
+exercises the full range of markdown-generated HTML elements against the
+demo's token namespace.
 
 ## Try it
 
@@ -15,16 +17,22 @@ applying tweaks back to source.
   · [GitHub source](https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples/astro)
   — Drop the panel into an Astro site. Demonstrates host-config wiring with
   an Astro dev server and the bin apply pipeline.
+  [Prose page](https://zudo-design-token-panel.pages.dev/pj/zudo-design-token-panel/examples/astro/prose/)
+  exercises all prose elements against the `--astroexample-*` token namespace.
 - **Vite + React** —
   [Live demo](https://zudo-design-token-panel.pages.dev/pj/zudo-design-token-panel/examples/vite-react/)
   · [GitHub source](https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples/vite-react)
   — Use the panel from a Vite + React app. Shows how the Preact runtime
   coexists with React via the compat shim.
+  [Prose page](https://zudo-design-token-panel.pages.dev/pj/zudo-design-token-panel/examples/vite-react/prose.html)
+  exercises all prose elements against the `--vitereact-*` token namespace.
 - **Next.js** —
   [Live demo](https://zudo-design-token-panel.pages.dev/pj/zudo-design-token-panel/examples/next/)
   · [GitHub source](https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples/next)
   — Wire the panel into a Next.js app router project, including the bin
   server side-by-side with the Next dev server.
+  [Prose page](https://zudo-design-token-panel.pages.dev/pj/zudo-design-token-panel/examples/next/prose/)
+  exercises all prose elements against the `--nextexample-*` token namespace.
 - **zfb** —
   [Live demo](https://zudo-design-token-panel.pages.dev/pj/zudo-design-token-panel/examples/zfb/)
   · [GitHub source](https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples/zfb)
@@ -33,3 +41,15 @@ applying tweaks back to source.
   built-in proxy mechanism). The apply-endpoint URL is fully base-prefixed — see
   [`examples/zfb/PROBE-REPORT.md`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples/zfb/PROBE-REPORT.md)
   for context.
+  [Prose page](https://zudo-design-token-panel.pages.dev/pj/zudo-design-token-panel/examples/zfb/prose/)
+  exercises all prose elements against the `--zfbexample-*` token namespace.
+- **zfb + Tailwind v4** —
+  [Live demo](https://zudo-design-token-panel.pages.dev/pj/zudo-design-token-panel/examples/zfb-tailwind/)
+  · [GitHub source](https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples/zfb-tailwind)
+  — Extends the zfb example with Tailwind v4. Tokens are registered via an
+  `@theme` block into Tailwind's design-system namespaces so utility classes
+  like `text-body` and `p-hsp-md` resolve to the panel's custom properties
+  at build time.
+  [Prose page](https://zudo-design-token-panel.pages.dev/pj/zudo-design-token-panel/examples/zfb-tailwind/prose/)
+  exercises all prose elements against the `--zfbtailwindexample-*` token namespace,
+  with utility classes applied via `@layer components`.

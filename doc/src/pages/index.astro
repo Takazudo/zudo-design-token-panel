@@ -14,12 +14,14 @@ const astroExampleUrl = `${examplesBaseUrl}/astro`;
 const viteReactExampleUrl = `${examplesBaseUrl}/vite-react`;
 const nextExampleUrl = `${examplesBaseUrl}/next`;
 const zfbExampleUrl = `${examplesBaseUrl}/zfb`;
+const zfbTailwindExampleUrl = `${examplesBaseUrl}/zfb-tailwind`;
 const liveExamplesBaseUrl =
   "https://zudo-design-token-panel.pages.dev/pj/zudo-design-token-panel/examples";
 const astroLiveUrl = `${liveExamplesBaseUrl}/astro/`;
 const viteReactLiveUrl = `${liveExamplesBaseUrl}/vite-react/`;
 const nextLiveUrl = `${liveExamplesBaseUrl}/next/`;
 const zfbLiveUrl = `${liveExamplesBaseUrl}/zfb/`;
+const zfbTailwindLiveUrl = `${liveExamplesBaseUrl}/zfb-tailwind/`;
 ---
 
 <DocLayout title={settings.siteName} lang={defaultLocale} hideSidebar hideToc>
@@ -129,7 +131,7 @@ const zfbLiveUrl = `${liveExamplesBaseUrl}/zfb/`;
         tokens against your local dev server.
       </FeatureCard>
       <FeatureCard title="Example Apps" href="#example-apps">
-        Reference integrations across Astro, Vite + React, Next.js, and zfb.
+        Reference integrations across Astro, Vite + React, Next.js, zfb, and zfb + Tailwind v4.
         The example apps live alongside the panel package on GitHub, with live
         demos deployed.
       </FeatureCard>
@@ -145,10 +147,10 @@ const zfbLiveUrl = `${liveExamplesBaseUrl}/zfb/`;
       Example Apps
     </h2>
     <p class="text-muted text-small mb-vsp-md text-center max-w-[40rem] mx-auto">
-      Reference integrations across four popular stacks. Each card links to the
+      Reference integrations across five popular stacks. Each card links to the
       live demo; source code lives in the <code>examples/</code> directory on GitHub.
     </p>
-    <div class="grid gap-hsp-lg sm:grid-cols-2 lg:grid-cols-4">
+    <div class="grid gap-hsp-lg sm:grid-cols-2 lg:grid-cols-3">
       <FeatureCard title="Astro" href={astroLiveUrl} external>
         Drop the panel into an Astro site. Demonstrates host-config wiring
         with an Astro dev server and the bin apply pipeline.
@@ -173,6 +175,13 @@ const zfbLiveUrl = `${liveExamplesBaseUrl}/zfb/`;
         base-prefixed apply-endpoint URL.
         <br />
         <a href={zfbExampleUrl} target="_blank" rel="noopener noreferrer" class="text-xs underline">GitHub source</a>
+      </FeatureCard>
+      <FeatureCard title="zfb + Tailwind v4" href={zfbTailwindLiveUrl} external>
+        Extends the zfb example with Tailwind v4. Tokens are registered via
+        an <code>@theme</code> block so utility classes resolve to panel
+        custom properties at build time.
+        <br />
+        <a href={zfbTailwindExampleUrl} target="_blank" rel="noopener noreferrer" class="text-xs underline">GitHub source</a>
       </FeatureCard>
     </div>
   </section>
