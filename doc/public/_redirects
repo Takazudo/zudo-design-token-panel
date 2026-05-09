@@ -3,3 +3,6 @@
 # via the takazudomodular site). The *.pages.dev origin only serves the
 # subpath; redirect bare root to the base path so direct visits work.
 /  /pj/zudo-design-token-panel/  302
+# three-frameworks was renamed to four-frameworks
+/pj/zudo-design-token-panel/docs/getting-started/three-frameworks  /pj/zudo-design-token-panel/docs/getting-started/four-frameworks  301
+/pj/zudo-design-token-panel/docs/getting-started/three-frameworks/  /pj/zudo-design-token-panel/docs/getting-started/four-frameworks/  301

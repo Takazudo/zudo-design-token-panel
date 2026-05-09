@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Stage doc/dist/ into a Cloudflare Pages deploy directory.
+# Stage the doc site and all example builds into a Cloudflare Pages deploy
+# directory tree that mirrors the live URL structure.
 #
 # The doc site is built with Astro `base: "/pj/zudo-design-token-panel/"`,
 # which means all asset URLs and links inside the build output reference
@@ -7,11 +8,14 @@
 # at the flat root. Deploying `dist/` as-is to a *.pages.dev origin would
 # leave every asset URL 404'ing.
 #
-# This script wraps the build output into a subdirectory matching the
-# base path so that:
+# This script wraps each build output into a subdirectory matching its
+# deploy base path so that:
 #
-#   - https://<project>.pages.dev/                          → 302 to base path
-#   - https://<project>.pages.dev/pj/zudo-design-token-panel/ → serves the site
+#   - https://<project>.pages.dev/                                        → 302 to base path
+#   - https://<project>.pages.dev/pj/zudo-design-token-panel/            → doc site
+#   - https://<project>.pages.dev/pj/zudo-design-token-panel/examples/astro/      → Astro example
+#   - https://<project>.pages.dev/pj/zudo-design-token-panel/examples/vite-react/ → Vite+React example
+#   - https://<project>.pages.dev/pj/zudo-design-token-panel/examples/next/       → Next.js example
 #
 # That matches how takazudomodular.com proxies /pj/zudo-design-token-panel/*
 # to this Cloudflare Pages origin.
@@ -42,4 +46,40 @@ if [ -f "${DEST_DIR}/${BASE_PATH}/_redirects" ]; then
   mv "${DEST_DIR}/${BASE_PATH}/_redirects" "${DEST_DIR}/_redirects"
 fi
 
-echo "stage-deploy: staged ${SRC_DIR} → ${DEST_DIR} (base: /${BASE_PATH}/)"
+echo "stage-deploy: staged ${SRC_DIR} → ${DEST_DIR}/${BASE_PATH}/"
+
+# ── Copy example builds ──────────────────────────────────────────────────────
+# Each example is built with its own base path rooted under /examples/{name}/.
+# A missing dist/out is a CI ordering bug; fail loudly rather than silently
+# producing a deploy tree with holes.
+
+copy_example() {
+  local label="$1"
+  local src="$2"
+  local dest_sub="$3"
+  if [ ! -d "${src}" ]; then
+    echo "stage-deploy: ERROR — ${label} build output not found: ${src}" >&2
+    echo "stage-deploy: Run 'pnpm --filter ${label} build' first." >&2
+    exit 1
+  fi
+  local dest="${DEST_DIR}/${BASE_PATH}/${dest_sub}"
+  mkdir -p "${dest}"
+  (cd "${src}" && cp -a . "${dest}/")
+  echo "stage-deploy: staged ${src} → ${dest}/"
+}
+
+copy_example "astro-example"      "${ROOT_DIR}/examples/astro/dist"      "examples/astro"
+copy_example "vite-react-example" "${ROOT_DIR}/examples/vite-react/dist"  "examples/vite-react"
+copy_example "next-example"       "${ROOT_DIR}/examples/next/out"          "examples/next"
+
+# zfb example (Sub #35): wire it now so when the workspace is added the
+# script already handles it. Guard with an existence check — the workspace
+# is not yet buildable so we only copy if the dist is already present.
+ZFB_DIST="${ROOT_DIR}/examples/zfb/dist"
+if [ -d "${ZFB_DIST}" ]; then
+  copy_example "zfb-example" "${ZFB_DIST}" "examples/zfb"
+else
+  echo "stage-deploy: skipping examples/zfb (dist not found — workspace not yet built)"
+fi
+
+echo "stage-deploy: done. Deploy tree: ${DEST_DIR}/"
