@@ -28,3 +28,19 @@ export type { ColorScheme, ColorRef } from '../config/color-schemes';
 // config blob is parsed. See `setPanelColorPresets` jsdoc in
 // `panel-config.ts` for the rationale.
 export { setPanelColorPresets } from '../config/panel-config';
+
+// ---------------------------------------------------------------------------
+// From src/config/color-schemes — bundled scheme registry
+// ---------------------------------------------------------------------------
+export { colorSchemes } from '../config/color-schemes';
+
+// ---------------------------------------------------------------------------
+// From src/config/color-scheme-utils — panel settings and semantic mappings
+// ---------------------------------------------------------------------------
+export { panelSettings, SEMANTIC_CSS_NAMES, SEMANTIC_DEFAULTS_ZD } from '../config/color-scheme-utils';
+
+// ---------------------------------------------------------------------------
+// From src/tokens/manifest — group ordering, titles, and public token types
+// ---------------------------------------------------------------------------
+export { GROUP_ORDER, FONT_GROUP_ORDER, SIZE_GROUP_ORDER, GROUP_TITLES } from '../tokens/manifest';
+export type { TokenDef, TokenManifest } from '../tokens/manifest';

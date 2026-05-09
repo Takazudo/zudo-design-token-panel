@@ -44,6 +44,10 @@
       "types": "./dist/server/index.d.ts",
       "import": "./dist/server/index.js"
     },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js"
+    },
     "./styles": "./dist/zudo-design-token-panel.css",
     "./styles.css": "./dist/zudo-design-token-panel.css"
   },

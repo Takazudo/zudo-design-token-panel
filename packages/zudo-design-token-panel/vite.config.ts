@@ -64,6 +64,10 @@ export default defineConfig({
         // banner only on this chunk (see `output.banner` below) and
         // `chmod +x` in the package build script.
         'bin/server': 'src/bin/server.ts',
+        // Test-utility sub-export. Re-exports symbols consumers need for
+        // storage-key continuity tests (configurePanel, storageKey_*, etc.)
+        // without exposing the full internal source tree.
+        testing: 'src/testing.ts',
       },
       formats: ['es'],
     },
