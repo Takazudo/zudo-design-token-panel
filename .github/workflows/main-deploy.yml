@@ -94,7 +94,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build all workspaces (doc site + all 4 examples)
+      - name: Build all workspaces (doc site + all 5 examples)
         run: pnpm build
 
       - name: Stage deploy directory

@@ -233,6 +233,37 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  examples/zfb-tailwind:
+    dependencies:
+      '@takazudo/zfb':
+        specifier: link:../../../zfb/packages/zfb
+        version: link:../../../zfb/packages/zfb
+      '@takazudo/zfb-runtime':
+        specifier: link:../../../zfb/packages/zfb-runtime
+        version: link:../../../zfb/packages/zfb-runtime
+      '@takazudo/zudo-design-token-panel':
+        specifier: workspace:*
+        version: link:../../packages/zudo-design-token-panel
+      preact:
+        specifier: ^10.29.1
+        version: 10.29.1
+      preact-render-to-string:
+        specifier: ^6.5.0
+        version: 6.6.7(preact@10.29.1)
+      tailwindcss:
+        specifier: ^4.1.0
+        version: 4.2.4
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.17
+      concurrently:
+        specifier: ^9.2.1
+        version: 9.2.1
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   packages/zudo-design-token-panel:
     devDependencies:
       '@types/node':

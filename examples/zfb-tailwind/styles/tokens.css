@@ -1,0 +1,421 @@
+/*
+ * `--zfbtailwindexample-*` tokens + Tailwind v4 theme registration.
+ *
+ * File roles
+ * ----------
+ * 1. Source of truth for the demo's CSS-var values. The panel rewrites these
+ *    names live (in-memory :root overrides) when the user tweaks a slider.
+ *    The Apply pipeline rewrites THIS FILE on disk (see scaffold.routing.json —
+ *    prefix `zfbtailwindexample` → this path).
+ *
+ * 2. Tailwind v4 @theme registration. The @theme block below maps each
+ *    --zfbtailwindexample-* raw var onto Tailwind's built-in design-system
+ *    namespaces so that utility classes like `bg-primary`, `p-vsp-md`, and
+ *    `text-h2` work end-to-end.
+ *
+ * Tailwind v4 namespace prefix rules (critical — easy to get wrong)
+ * ------------------------------------------------------------------
+ * Only vars declared under the EXACT namespace prefixes below generate
+ * utility classes. A var named --vsp-md generates NO utility; it must be
+ * --spacing-vsp-md to generate p-vsp-md / m-vsp-md / gap-vsp-md / etc.
+ *
+ *   --color-*       → bg-*, text-*, border-*, fill-*, stroke-*, …
+ *   --spacing-*     → p-*, m-*, gap-*, w-*, h-*, inset-*, …
+ *   --text-*        → text-* (font-size); pair --text-*--line-height for lh
+ *   --font-*        → font-* (font-family)
+ *   --leading-*     → leading-* (line-height)
+ *   --radius-*      → rounded-*
+ *
+ * Reference: Tailwind CSS v4 "Theme Variables" docs.
+ */
+
+/* ── Token declarations ──────────────────────────────────────────────────── */
+:root {
+  /* Spacing tokens (manifest: spacing tab) */
+  --zfbtailwindexample-spacing-md: 1rem;
+  --zfbtailwindexample-spacing-lg: 2rem;
+
+  /* Typography tokens (manifest: typography tab) */
+  --zfbtailwindexample-text-base: 1rem;
+  --zfbtailwindexample-text-heading: 1.75rem;
+
+  /* Size tokens (manifest: size tab) */
+  --zfbtailwindexample-radius: 0.5rem;
+
+  /* Cluster base roles */
+  --zfbtailwindexample-bg: #1e1e1e;
+  --zfbtailwindexample-fg: #f8fafc;
+
+  /* Cluster palette slots */
+  --zfbtailwindexample-palette-0: #1e1e1e;
+  --zfbtailwindexample-palette-1: #2d6cdf;
+  --zfbtailwindexample-palette-2: #3aa676;
+  --zfbtailwindexample-palette-3: #d97706;
+  --zfbtailwindexample-palette-4: #9b5de5;
+  --zfbtailwindexample-palette-5: #e63946;
+  --zfbtailwindexample-palette-6: #1d3557;
+  --zfbtailwindexample-palette-7: #06b6d4;
+  --zfbtailwindexample-palette-8: #475569;
+  --zfbtailwindexample-palette-9: #94a3b8;
+  --zfbtailwindexample-palette-10: #cbd5e1;
+  --zfbtailwindexample-palette-11: #e2e8f0;
+  --zfbtailwindexample-palette-12: #f1f5f9;
+  --zfbtailwindexample-palette-13: #fef3c7;
+  --zfbtailwindexample-palette-14: #bbf7d0;
+  --zfbtailwindexample-palette-15: #f8fafc;
+
+  /* Cluster semantic names */
+  --zfbtailwindexample-color-primary: var(--zfbtailwindexample-palette-1);
+  --zfbtailwindexample-color-accent: var(--zfbtailwindexample-palette-3);
+  --zfbtailwindexample-color-surface: var(--zfbtailwindexample-palette-0);
+  --zfbtailwindexample-color-muted: var(--zfbtailwindexample-palette-8);
+  --zfbtailwindexample-color-danger: var(--zfbtailwindexample-palette-5);
+
+  /* ── Prose tokens (contract: doc/.claude/prose-token-contract.md) ─── */
+
+  /* Vertical spacing scale — 1.6rem (≈25.6px) baseline rhythm unit */
+  --zfbtailwindexample-vsp-2xs: 0.25rem;   /* ~4 px  — consecutive headings */
+  --zfbtailwindexample-vsp-xs:  0.5rem;    /* ~8 px  — tight paragraph spacing */
+  --zfbtailwindexample-vsp-sm:  0.75rem;   /* ~12 px — heading-to-first-content */
+  --zfbtailwindexample-vsp-md:  1rem;      /* ~16 px — default flow gap */
+  --zfbtailwindexample-vsp-lg:  1.75rem;   /* ~28 px — pre-h3 section separation */
+  --zfbtailwindexample-vsp-xl:  2.5rem;    /* ~40 px — pre-h2 section separation */
+  --zfbtailwindexample-vsp-2xl: 3.5rem;    /* ~56 px — top-of-page clearance */
+
+  /* Horizontal spacing scale */
+  --zfbtailwindexample-hsp-xs:  0.25rem;   /* inline code padding, small insets */
+  --zfbtailwindexample-hsp-sm:  0.5rem;    /* table cell padding */
+  --zfbtailwindexample-hsp-md:  1rem;      /* blockquote left indent */
+  --zfbtailwindexample-hsp-lg:  1.5rem;    /* section-level horizontal gutter */
+  --zfbtailwindexample-hsp-xl:  2rem;      /* outer prose container horizontal padding */
+
+  /* Type scale */
+  --zfbtailwindexample-text-h2:    1.75rem;
+  --zfbtailwindexample-text-h3:    1.35rem;
+  --zfbtailwindexample-text-h4:    1.1rem;
+  --zfbtailwindexample-text-body:  1rem;
+  --zfbtailwindexample-text-small: 0.875rem;
+  --zfbtailwindexample-text-micro: 0.75rem;
+
+  /* Line-height tokens */
+  --zfbtailwindexample-leading-tight:   1.2;
+  --zfbtailwindexample-leading-snug:    1.45;
+  --zfbtailwindexample-leading-relaxed: 1.75;
+
+  /* Code surface tokens */
+  --zfbtailwindexample-code-bg:   hsl(220 13% 11%);
+  --zfbtailwindexample-code-fg:   hsl(220 14% 86%);
+  /* font-family string — wire directly to font-family, not a size/colour */
+  --zfbtailwindexample-font-mono: ui-monospace, "Cascadia Code", "Source Code Pro",
+                                  Menlo, Consolas, monospace;
+}
+
+/* ── Design token panel chrome ───────────────────────────────────────────── */
+/* Vite library mode strips the source CSS import from the emitted JS, so
+   consumers must re-pull it explicitly via this CSS import. */
+@import '@takazudo/zudo-design-token-panel/styles.css';
+
+/* ── Tailwind v4 ─────────────────────────────────────────────────────────── */
+@import "tailwindcss";
+
+/*
+ * @theme block — maps --zfbtailwindexample-* raw vars onto Tailwind v4's
+ * design-system namespace prefixes so that utility classes generate correctly.
+ *
+ * Namespace rules applied here:
+ *   --color-*     → bg-*, text-*, border-*, …
+ *   --spacing-*   → p-*, m-*, gap-*, w-*, h-*, …  (vsp tokens map here)
+ *   --text-*      → text-* font-size utilities
+ *   --leading-*   → leading-* line-height utilities
+ *   --font-*      → font-* font-family utilities
+ *   --radius-*    → rounded-* utilities
+ *
+ * Example utility chain: p-vsp-md
+ *   CSS var:   --spacing-vsp-md: var(--zfbtailwindexample-vsp-md)
+ *   Token:     --zfbtailwindexample-vsp-md: 1rem
+ *   Resolves:  padding: 1rem
+ */
+@theme {
+  /* Colour utilities: bg-primary, bg-surface, text-primary, border-muted, … */
+  --color-primary: var(--zfbtailwindexample-color-primary);
+  --color-accent:  var(--zfbtailwindexample-color-accent);
+  --color-surface: var(--zfbtailwindexample-color-surface);
+  --color-muted:   var(--zfbtailwindexample-color-muted);
+  --color-danger:  var(--zfbtailwindexample-color-danger);
+  --color-bg:      var(--zfbtailwindexample-bg);
+  --color-fg:      var(--zfbtailwindexample-fg);
+
+  /* Spacing utilities for manifest spacing tokens: p-spacing-md, gap-spacing-lg */
+  --spacing-spacing-md: var(--zfbtailwindexample-spacing-md);
+  --spacing-spacing-lg: var(--zfbtailwindexample-spacing-lg);
+
+  /* Vertical spacing utilities: p-vsp-md, m-vsp-xl, gap-vsp-lg, … */
+  --spacing-vsp-2xs: var(--zfbtailwindexample-vsp-2xs);
+  --spacing-vsp-xs:  var(--zfbtailwindexample-vsp-xs);
+  --spacing-vsp-sm:  var(--zfbtailwindexample-vsp-sm);
+  --spacing-vsp-md:  var(--zfbtailwindexample-vsp-md);
+  --spacing-vsp-lg:  var(--zfbtailwindexample-vsp-lg);
+  --spacing-vsp-xl:  var(--zfbtailwindexample-vsp-xl);
+  --spacing-vsp-2xl: var(--zfbtailwindexample-vsp-2xl);
+
+  /* Horizontal spacing utilities: px-hsp-md, pl-hsp-lg, … */
+  --spacing-hsp-xs:  var(--zfbtailwindexample-hsp-xs);
+  --spacing-hsp-sm:  var(--zfbtailwindexample-hsp-sm);
+  --spacing-hsp-md:  var(--zfbtailwindexample-hsp-md);
+  --spacing-hsp-lg:  var(--zfbtailwindexample-hsp-lg);
+  --spacing-hsp-xl:  var(--zfbtailwindexample-hsp-xl);
+
+  /* Font-size utilities: text-h2, text-h3, text-body, text-small, … */
+  --text-heading: var(--zfbtailwindexample-text-heading);
+  --text-base:    var(--zfbtailwindexample-text-base);
+  --text-h2:      var(--zfbtailwindexample-text-h2);
+  --text-h3:      var(--zfbtailwindexample-text-h3);
+  --text-h4:      var(--zfbtailwindexample-text-h4);
+  --text-body:    var(--zfbtailwindexample-text-body);
+  --text-small:   var(--zfbtailwindexample-text-small);
+  --text-micro:   var(--zfbtailwindexample-text-micro);
+
+  /* Line-height utilities: leading-tight, leading-snug, leading-relaxed */
+  --leading-tight:   var(--zfbtailwindexample-leading-tight);
+  --leading-snug:    var(--zfbtailwindexample-leading-snug);
+  --leading-relaxed: var(--zfbtailwindexample-leading-relaxed);
+
+  /* Border-radius utilities: rounded-md (maps manifest radius token) */
+  --radius-md: var(--zfbtailwindexample-radius);
+
+  /* Font-family utilities: font-mono */
+  --font-mono: var(--zfbtailwindexample-font-mono);
+}
+
+/* ── Base styles ─────────────────────────────────────────────────────────── */
+/* Applied via @layer base to stay in Tailwind's layer cascade. */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    color-scheme: light dark;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    font-family:
+      system-ui,
+      -apple-system,
+      'Segoe UI',
+      sans-serif;
+    line-height: 1.5;
+    background: var(--zfbtailwindexample-bg);
+    color: var(--zfbtailwindexample-fg);
+    font-size: var(--zfbtailwindexample-text-base);
+  }
+
+  img,
+  svg {
+    display: block;
+    max-width: 100%;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+}
+
+/* ── Prose container — flow-space pattern ────────────────────────────────── */
+/*
+ * Container-scoped CSS with :where() (zero-specificity selectors).
+ * Per prose-token-contract.md: for zfb demos that do not use framework-level
+ * MDX component overrides, container-scoped CSS with :where() is acceptable.
+ *
+ * The cascade conflict with Tailwind utilities arises only when the same HTML
+ * elements appear in non-content contexts on the same page — this demo keeps
+ * the prose container isolated so the conflict does not occur in practice.
+ *
+ * Flow-space pattern: assigns spacing to margin-block-start only (one
+ * direction) via a CSS custom property cascade. This is predictable in any
+ * layout context (block, flex, grid) because it does not rely on margin
+ * collapse. See prose-token-contract.md "Flow-spacing CSS pattern".
+ */
+@layer components {
+  /* Default flow gap for all direct children */
+  .zfbtailwindexample-prose > * + * {
+    margin-block-start: var(--flow-space, var(--zfbtailwindexample-vsp-md));
+  }
+
+  /* Section separation before headings */
+  .zfbtailwindexample-prose :where(h2) { --flow-space: var(--zfbtailwindexample-vsp-xl); }
+  .zfbtailwindexample-prose :where(h3) { --flow-space: var(--zfbtailwindexample-vsp-lg); }
+  .zfbtailwindexample-prose :where(h4) { --flow-space: var(--zfbtailwindexample-vsp-md); }
+
+  /* Heading-to-first-content: tight coupling */
+  .zfbtailwindexample-prose :where(h2, h3, h4) + :where(p, ul, ol, table, pre, blockquote) {
+    --flow-space: var(--zfbtailwindexample-vsp-sm);
+  }
+
+  /* Consecutive headings: tighten */
+  .zfbtailwindexample-prose :where(h2, h3, h4, h5, h6) + :where(h2, h3, h4, h5, h6) {
+    --flow-space: var(--zfbtailwindexample-vsp-2xs);
+  }
+
+  /* Trim edges */
+  .zfbtailwindexample-prose > :first-child { margin-block-start: 0; }
+  .zfbtailwindexample-prose > :last-child  { margin-block-end: 0; }
+
+  /* Heading styles */
+  .zfbtailwindexample-prose :where(h2) {
+    font-size: var(--zfbtailwindexample-text-h2);
+    line-height: var(--zfbtailwindexample-leading-tight);
+    font-weight: 700;
+    color: var(--zfbtailwindexample-color-primary);
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--zfbtailwindexample-color-muted);
+  }
+
+  .zfbtailwindexample-prose :where(h3) {
+    font-size: var(--zfbtailwindexample-text-h3);
+    line-height: var(--zfbtailwindexample-leading-tight);
+    font-weight: 600;
+    color: var(--zfbtailwindexample-fg);
+  }
+
+  .zfbtailwindexample-prose :where(h4) {
+    font-size: var(--zfbtailwindexample-text-h4);
+    line-height: var(--zfbtailwindexample-leading-snug);
+    font-weight: 600;
+    color: var(--zfbtailwindexample-fg);
+  }
+
+  /* Body text */
+  .zfbtailwindexample-prose :where(p) {
+    font-size: var(--zfbtailwindexample-text-body);
+    line-height: var(--zfbtailwindexample-leading-relaxed);
+  }
+
+  /* Inline code */
+  .zfbtailwindexample-prose :where(code):not(pre code) {
+    font-family: var(--zfbtailwindexample-font-mono);
+    font-size: var(--zfbtailwindexample-text-small);
+    background: var(--zfbtailwindexample-code-bg);
+    color: var(--zfbtailwindexample-code-fg);
+    padding: var(--zfbtailwindexample-hsp-xs) calc(var(--zfbtailwindexample-hsp-xs) * 2);
+    border-radius: 0.25rem;
+    border: 1px solid var(--zfbtailwindexample-color-accent);
+  }
+
+  /* Code blocks */
+  .zfbtailwindexample-prose :where(pre) {
+    font-family: var(--zfbtailwindexample-font-mono);
+    font-size: var(--zfbtailwindexample-text-small);
+    background: var(--zfbtailwindexample-code-bg);
+    color: var(--zfbtailwindexample-code-fg);
+    padding: var(--zfbtailwindexample-vsp-md) var(--zfbtailwindexample-hsp-sm);
+    border-radius: var(--zfbtailwindexample-radius);
+    overflow-x: auto;
+  }
+
+  .zfbtailwindexample-prose :where(pre code) {
+    font-family: inherit;
+    font-size: inherit;
+    background: none;
+    color: inherit;
+    padding: 0;
+    border-radius: 0;
+    border: none;
+  }
+
+  /* Blockquote */
+  .zfbtailwindexample-prose :where(blockquote) {
+    border-left: 4px solid var(--zfbtailwindexample-color-accent);
+    padding-left: var(--zfbtailwindexample-hsp-md);
+    color: var(--zfbtailwindexample-color-muted);
+    font-style: italic;
+  }
+
+  /* Lists */
+  .zfbtailwindexample-prose :where(ul) {
+    padding-left: var(--zfbtailwindexample-hsp-lg);
+    list-style-type: disc;
+  }
+
+  .zfbtailwindexample-prose :where(ol) {
+    padding-left: var(--zfbtailwindexample-hsp-lg);
+    list-style-type: decimal;
+  }
+
+  .zfbtailwindexample-prose :where(li) {
+    font-size: var(--zfbtailwindexample-text-body);
+    line-height: var(--zfbtailwindexample-leading-snug);
+    margin-block-start: var(--zfbtailwindexample-vsp-xs);
+  }
+
+  .zfbtailwindexample-prose :where(li:first-child) {
+    margin-block-start: 0;
+  }
+
+  /* Nested lists */
+  .zfbtailwindexample-prose :where(li > ul, li > ol) {
+    margin-block-start: var(--zfbtailwindexample-vsp-xs);
+  }
+
+  /* Tables */
+  .zfbtailwindexample-prose :where(table) {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--zfbtailwindexample-text-small);
+  }
+
+  .zfbtailwindexample-prose :where(th) {
+    text-align: left;
+    font-weight: 600;
+    padding: var(--zfbtailwindexample-hsp-sm) var(--zfbtailwindexample-hsp-sm);
+    border-bottom: 2px solid var(--zfbtailwindexample-color-muted);
+    color: var(--zfbtailwindexample-fg);
+  }
+
+  .zfbtailwindexample-prose :where(td) {
+    padding: var(--zfbtailwindexample-hsp-sm) var(--zfbtailwindexample-hsp-sm);
+    border-bottom: 1px solid var(--zfbtailwindexample-color-muted);
+    color: var(--zfbtailwindexample-fg);
+  }
+
+  /* Links */
+  .zfbtailwindexample-prose :where(a) {
+    color: var(--zfbtailwindexample-color-accent);
+    text-decoration: underline;
+  }
+
+  .zfbtailwindexample-prose :where(a:hover) {
+    color: var(--zfbtailwindexample-color-primary);
+  }
+
+  /* Horizontal rule */
+  .zfbtailwindexample-prose :where(hr) {
+    border: none;
+    border-top: 1px solid var(--zfbtailwindexample-color-muted);
+    margin-block: var(--zfbtailwindexample-vsp-lg);
+  }
+
+  /* Strong / em */
+  .zfbtailwindexample-prose :where(strong) {
+    font-weight: 700;
+    color: var(--zfbtailwindexample-fg);
+  }
+
+  .zfbtailwindexample-prose :where(em) {
+    font-style: italic;
+  }
+
+  .zfbtailwindexample-prose :where(del) {
+    text-decoration: line-through;
+    color: var(--zfbtailwindexample-color-muted);
+  }
+}
