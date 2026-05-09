@@ -90,6 +90,9 @@ importers:
 
   examples/astro:
     dependencies:
+      '@astrojs/mdx':
+        specifier: ^5.0.4
+        version: 5.0.4(astro@6.1.9(@types/node@22.19.17)(jiti@2.6.1)(lightningcss@1.32.0)(rollup@4.60.2)(typescript@5.9.3)(yaml@2.8.3))
       '@astrojs/preact':
         specifier: ^5.1.1
         version: 5.1.2(@babel/core@7.29.0)(@types/node@22.19.17)(jiti@2.6.1)(lightningcss@1.32.0)(preact@10.29.1)(rollup@4.60.2)(yaml@2.8.3)
