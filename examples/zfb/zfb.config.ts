@@ -36,6 +36,12 @@ import { defineConfig } from "@takazudo/zfb/config";
 export default defineConfig({
   framework: "preact",
   base: "/pj/zudo-design-token-panel/examples/zfb/",
+  collections: [
+    {
+      name: "prose",
+      path: "content/prose",
+    },
+  ],
   plugins: [
     {
       name: "./plugins/dev-apply-proxy.mjs",

@@ -56,6 +56,11 @@ export default function HomePage() {
               Console API: <code>window.zfbExample.toggleDesignPanel()</code>. Storage prefix:{' '}
               <code>zfb-example-tokens</code>.
             </p>
+            <p>
+              <a href="/pj/zudo-design-token-panel/examples/zfb/prose" class="zfbexample-link">
+                View Prose Demo →
+              </a>
+            </p>
           </header>
 
           <section>

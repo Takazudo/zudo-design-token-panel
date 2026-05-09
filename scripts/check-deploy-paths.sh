@@ -23,10 +23,11 @@
 #      "/pj/zudo-design-token-panel/foo" and "/pj/zudo-design-token-panel/foo/" pointing at the same resource).
 #
 # Per-workspace sub-paths (Sub #34 / epic #29 — examples moved under /examples/):
-#   doc/dist                 → /pj/zudo-design-token-panel/
-#   examples/astro/dist      → /pj/zudo-design-token-panel/examples/astro/
-#   examples/vite-react/dist → /pj/zudo-design-token-panel/examples/vite-react/
-#   examples/next/out        → /pj/zudo-design-token-panel/examples/next/
+#   doc/dist                      → /pj/zudo-design-token-panel/
+#   examples/astro/dist           → /pj/zudo-design-token-panel/examples/astro/
+#   examples/vite-react/dist      → /pj/zudo-design-token-panel/examples/vite-react/
+#   examples/next/out             → /pj/zudo-design-token-panel/examples/next/
+#   examples/zfb-tailwind/dist    → /pj/zudo-design-token-panel/examples/zfb-tailwind/
 #
 # Exits non-zero on any escape so it can gate CI / pre-push.
 
@@ -77,7 +78,7 @@ cd "$ROOT_DIR"
 START=$(date +%s)
 
 # Workspaces in print order.
-WORKSPACES=("doc" "astro" "vite-react" "next")
+WORKSPACES=("doc" "astro" "vite-react" "next" "zfb-tailwind")
 
 # Per-workspace pass/fail tracker.
 declare -A WS_FAILS=()
@@ -319,7 +320,7 @@ audit_workspace() {
 }
 
 # ── Build phase ──────────────────────────────────
-section "Step 1/2: Build (panel package + 4 workspaces)"
+section "Step 1/2: Build (panel package + 5 workspaces)"
 
 # The next-example imports @takazudo/zudo-design-token-panel through the
 # package's `exports` map → ./dist/*. That dist is gitignored, so the panel
@@ -330,14 +331,16 @@ build_one "doc"               "doc"
 build_one "astro-example"     "astro-example"
 build_one "vite-react-example" "vite-react-example"
 build_one "next-example"      "next-example"
+build_one "zfb-tailwind-example" "zfb-tailwind-example"
 
 # ── Audit phase ──────────────────────────────────
 section "Step 2/2: Audit each emitted bundle"
 
-audit_workspace "doc"        "doc/dist"                 "/pj/zudo-design-token-panel/"
-audit_workspace "astro"      "examples/astro/dist"      "/pj/zudo-design-token-panel/examples/astro/"
-audit_workspace "vite-react" "examples/vite-react/dist" "/pj/zudo-design-token-panel/examples/vite-react/"
-audit_workspace "next"       "examples/next/out"        "/pj/zudo-design-token-panel/examples/next/"
+audit_workspace "doc"          "doc/dist"                      "/pj/zudo-design-token-panel/"
+audit_workspace "astro"        "examples/astro/dist"           "/pj/zudo-design-token-panel/examples/astro/"
+audit_workspace "vite-react"   "examples/vite-react/dist"      "/pj/zudo-design-token-panel/examples/vite-react/"
+audit_workspace "next"         "examples/next/out"             "/pj/zudo-design-token-panel/examples/next/"
+audit_workspace "zfb-tailwind" "examples/zfb-tailwind/dist"   "/pj/zudo-design-token-panel/examples/zfb-tailwind/"
 
 # ── Summary ──────────────────────────────────────
 END=$(date +%s)

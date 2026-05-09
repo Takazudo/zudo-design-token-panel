@@ -9,6 +9,7 @@ import Layout from '../layouts/Layout.astro';
 
 const paletteIndices = Array.from({ length: 16 }, (_, i) => i);
 const aboutHref = `${import.meta.env.BASE_URL}about`;
+const proseHref = `${import.meta.env.BASE_URL}prose`;
 ---
 
 <Layout title="Astro Example — Design Token Panel">
@@ -46,6 +47,7 @@ const aboutHref = `${import.meta.env.BASE_URL}about`;
       <p>
         Try the <a class="astroexample-link" href={aboutHref}>about page</a> to confirm token tweaks
         persist across an Astro view-transition.
+        Visit the <a class="astroexample-link" href={proseHref}>prose demo</a> to see typography and spacing tokens in action.
       </p>
     </section>
 

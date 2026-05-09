@@ -12,8 +12,9 @@ those tweaks back into the source CSS files on disk.
 
 The panel is a Preact island that mounts inside a host web app. The bin is a
 small local server that watches edits from the panel and persists them. It is
-designed to plug into modern host frameworks: Astro, Vite + React, and
-Next.js — each integration ships as an example app under `examples/`.
+designed to plug into modern host frameworks: Astro, Vite + React, Next.js,
+zfb, and zfb + Tailwind v4 — each integration ships as an example app under
+`examples/`.
 
 ## Status
 
@@ -28,13 +29,15 @@ The remaining work is split across Epics 2 through 7.
 ```
 zdtp/
 ├── packages/                       # workspace packages
-│   └── zudo-design-token-panel/    # (coming) panel + bin
+│   └── zudo-design-token-panel/    # panel + bin
 │                                   #   npm: @takazudo/zudo-design-token-panel
 ├── doc/                            # public doc site (zudo-doc framework)
-├── examples/                       # (coming) integration examples
+├── examples/                       # integration examples
 │   ├── astro/
 │   ├── vite-react/
-│   └── next/
+│   ├── next/
+│   ├── zfb/
+│   └── zfb-tailwind/
 └── LICENSE                         # MIT
 ```
 
@@ -88,12 +91,14 @@ Once the panel package and example apps land, `pnpm build`, `pnpm test`,
 Each deployable workspace is hosted under its own sub-path of
 `https://takazudomodular.com/pj/zudo-design-token-panel/`:
 
-| Workspace             | Deploy sub-path             | Build output             |
-| --------------------- | --------------------------- | ------------------------ |
-| `doc`                 | `/pj/zudo-design-token-panel/`                 | `doc/dist`               |
-| `examples/astro`      | `/pj/zudo-design-token-panel/astro/`           | `examples/astro/dist`    |
-| `examples/vite-react` | `/pj/zudo-design-token-panel/vite-react/`      | `examples/vite-react/dist` |
-| `examples/next`       | `/pj/zudo-design-token-panel/next/`            | `examples/next/out`      |
+| Workspace                | Deploy sub-path                                              | Build output                  |
+| ------------------------ | ------------------------------------------------------------ | ----------------------------- |
+| `doc`                    | `/pj/zudo-design-token-panel/`                               | `doc/dist`                    |
+| `examples/astro`         | `/pj/zudo-design-token-panel/examples/astro/`                | `examples/astro/dist`         |
+| `examples/vite-react`    | `/pj/zudo-design-token-panel/examples/vite-react/`           | `examples/vite-react/dist`    |
+| `examples/next`          | `/pj/zudo-design-token-panel/examples/next/`                 | `examples/next/out`           |
+| `examples/zfb`           | `/pj/zudo-design-token-panel/examples/zfb/`                  | `examples/zfb/dist`           |
+| `examples/zfb-tailwind`  | `/pj/zudo-design-token-panel/examples/zfb-tailwind/`         | `examples/zfb-tailwind/dist`  |
 
 To verify that no emitted asset, link, script, or inlined string reference
 escapes its workspace's sub-path, run:
@@ -102,7 +107,7 @@ escapes its workspace's sub-path, run:
 pnpm check:deploy-paths
 ```
 
-The script (`scripts/check-deploy-paths.sh`) builds all four workspaces (plus
+The script (`scripts/check-deploy-paths.sh`) builds all five workspaces (plus
 the `@takazudo/zudo-design-token-panel` package as a precondition) and then
 greps each bundle for:
 

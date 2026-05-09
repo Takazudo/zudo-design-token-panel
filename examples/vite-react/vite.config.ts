@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import mdx from '@mdx-js/rollup';
 
 /**
  * Vite + React example for @takazudo/zudo-design-token-panel.
@@ -36,7 +37,22 @@ import react from '@vitejs/plugin-react';
  */
 export default defineConfig({
   base: '/pj/zudo-design-token-panel/examples/vite-react/',
-  plugins: [react()],
+  plugins: [
+    // mdx must come before react() — it transforms .mdx to JSX that react()
+    // then processes via the automatic JSX runtime.
+    { enforce: 'pre', ...mdx({ jsxImportSource: 'react', providerImportSource: '@mdx-js/react' }) },
+    react(),
+  ],
+  build: {
+    rollupOptions: {
+      // Multi-page: emit dist/index.html and dist/prose.html as self-contained
+      // HTML entries so both pages work as static deploys.
+      input: {
+        main: 'index.html',
+        prose: 'prose.html',
+      },
+    },
+  },
   server: {
     port: 44325,
     proxy: {
