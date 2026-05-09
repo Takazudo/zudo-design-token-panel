@@ -20,6 +20,10 @@
 
 const BIN_SIDECAR_APPLY_URL = "http://127.0.0.1:24685/apply";
 
+// Cap dev-mode apply requests so a stuck sidecar doesn't hang the panel UI
+// indefinitely. 15s comfortably covers a slow scaffold rewrite.
+const SIDECAR_TIMEOUT_MS = 15_000;
+
 // The base prefix as a string constant — must match `zfb.config.ts`'s `base`
 // field exactly (minus the trailing slash). Registered as a path prefix so
 // zfb routes only POST /pj/zudo-design-token-panel/examples/zfb/api/dev/apply
@@ -51,16 +55,23 @@ export default {
           // `req.body` is the raw request body string forwarded by zfb's
           // plugin host. Forward it verbatim — the bin sidecar expects JSON.
           body: req.body ?? "",
+          signal: AbortSignal.timeout(SIDECAR_TIMEOUT_MS),
         });
       } catch (err) {
-        // Sidecar unreachable (not started yet, crashed, wrong port, …).
+        // Sidecar unreachable (not started yet, crashed, wrong port, …) or
+        // request exceeded SIDECAR_TIMEOUT_MS (TimeoutError from AbortSignal).
+        const isTimeout = err instanceof Error && err.name === "TimeoutError";
         ctx.logger.error(
-          `[dev-apply-proxy] fetch to ${BIN_SIDECAR_APPLY_URL} failed: ${String(err)}`,
+          `[dev-apply-proxy] fetch to ${BIN_SIDECAR_APPLY_URL} ${
+            isTimeout ? `timed out after ${SIDECAR_TIMEOUT_MS}ms` : `failed: ${String(err)}`
+          }`,
         );
         return {
-          status: 502,
+          status: isTimeout ? 504 : 502,
           headers: { "content-type": "text/plain" },
-          body: `Bad Gateway: bin sidecar unreachable at ${BIN_SIDECAR_APPLY_URL}`,
+          body: isTimeout
+            ? `Gateway Timeout: bin sidecar did not respond within ${SIDECAR_TIMEOUT_MS}ms`
+            : `Bad Gateway: bin sidecar unreachable at ${BIN_SIDECAR_APPLY_URL}`,
         };
       }
 
