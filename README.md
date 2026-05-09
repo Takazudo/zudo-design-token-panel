@@ -12,8 +12,9 @@ those tweaks back into the source CSS files on disk.
 
 The panel is a Preact island that mounts inside a host web app. The bin is a
 small local server that watches edits from the panel and persists them. It is
-designed to plug into modern host frameworks: Astro, Vite + React, and
-Next.js — each integration ships as an example app under `examples/`.
+designed to plug into modern host frameworks: Astro, Vite + React, Next.js,
+zfb, and zfb + Tailwind v4 — each integration ships as an example app under
+`examples/`.
 
 ## Status
 

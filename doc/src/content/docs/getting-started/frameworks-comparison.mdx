@@ -1,6 +1,6 @@
 ---
-title: Four Frameworks
-description: Side-by-side wiring for Astro, Vite + React, Next.js, and zfb — what changes, what stays the same.
+title: Frameworks Comparison
+description: Side-by-side wiring for Astro, Vite + React, Next.js, zfb, and zfb + Tailwind v4 — what changes, what stays the same.
 sidebar_position: 4
 ---
 
@@ -10,17 +10,18 @@ This page is the side-by-side overview. For full code, run any of the example ap
 
 ## Comparison
 
-| Step | Astro | Vite + React | Next.js (App Router) | zfb |
-| --- | --- | --- | --- | --- |
-| Install package | `pnpm add @takazudo/zudo-design-token-panel preact` | same | same | same |
-| Define `PanelConfig` | one TS file, host-side | same | same | same |
-| Mount the host | `<DesignTokenPanelHost>` in layout | call `configurePanel(...)` from entry | call `configurePanel(...)` from a `'use client'` module | call `configurePanel(...)` from a `"use client"` island |
-| Side-effect script | `void import('.../astro/host-adapter')` next to the host | not required | not required | `void import('.../astro/host-adapter')` in a `"use client"` island |
-| Styles import | once on the static graph | once on the static graph | once on the static graph | once on the static graph |
-| View-transition lifecycle | wired automatically by the host adapter when `<ClientRouter />` is present | n/a | n/a | n/a |
-| Apply proxy (dev) | Vite dev server proxy config | Vite dev server proxy config | Next.js `rewrites` | zfb plugin's `devMiddleware` hook |
-| Apply-endpoint URL | bare relative path (`api/dev/apply`) | bare relative path | bare relative path | full base-prefixed path |
-| Apply-pipeline bin | spawn via `concurrently` in dev script | spawn via `concurrently` in dev script | spawn via `concurrently` in dev script | spawn via `concurrently` in dev script |
+| Step | Astro | Vite + React | Next.js (App Router) | zfb | zfb + Tailwind v4 |
+| --- | --- | --- | --- | --- | --- |
+| Install package | `pnpm add @takazudo/zudo-design-token-panel preact` | same | same | same | same + `tailwindcss` |
+| Define `PanelConfig` | one TS file, host-side | same | same | same | same |
+| Mount the host | `<DesignTokenPanelHost>` in layout | call `configurePanel(...)` from entry | call `configurePanel(...)` from a `'use client'` module | call `configurePanel(...)` from a `"use client"` island | same as zfb |
+| Side-effect script | `void import('.../astro/host-adapter')` next to the host | not required | not required | `void import('.../astro/host-adapter')` in a `"use client"` island | same as zfb |
+| Styles import | once on the static graph | once on the static graph | once on the static graph | once on the static graph | once on the static graph; tokens also registered via `@theme` block |
+| Tailwind integration | n/a | n/a | n/a | n/a | tokens registered into Tailwind namespaces via `@theme`; utility classes like `text-body` and `p-hsp-md` resolve to panel custom properties |
+| View-transition lifecycle | wired automatically by the host adapter when `<ClientRouter />` is present | n/a | n/a | n/a | n/a |
+| Apply proxy (dev) | Vite dev server proxy config | Vite dev server proxy config | Next.js `rewrites` | zfb plugin's `devMiddleware` hook | same as zfb |
+| Apply-endpoint URL | bare relative path (`api/dev/apply`) | bare relative path | bare relative path | full base-prefixed path | full base-prefixed path |
+| Apply-pipeline bin | spawn via `concurrently` in dev script | spawn via `concurrently` in dev script | spawn via `concurrently` in dev script | spawn via `concurrently` in dev script | spawn via `concurrently` in dev script |
 
 What stays the same:
 
@@ -31,10 +32,11 @@ What stays the same:
 
 What differs:
 
-- Whether **you** call `configurePanel(...)` (Vite, Next.js, zfb) or the **host adapter** calls it for you (Astro).
+- Whether **you** call `configurePanel(...)` (Vite, Next.js, zfb, zfb-tailwind) or the **host adapter** calls it for you (Astro).
 - Whether the page goes through Astro's `<ClientRouter />` view-transition lifecycle (only Astro).
-- How the apply proxy is registered: Vite/Next use built-in proxy or rewrite config; zfb uses a plugin's `devMiddleware` hook.
-- Whether the `applyEndpoint` URL is bare (`api/dev/apply`) or base-prefixed (zfb only — see the zfb section below).
+- How the apply proxy is registered: Vite/Next use built-in proxy or rewrite config; zfb and zfb-tailwind use a plugin's `devMiddleware` hook.
+- Whether the `applyEndpoint` URL is bare (`api/dev/apply`) or base-prefixed (zfb and zfb-tailwind — see the zfb section below).
+- Whether tokens are also registered into Tailwind v4's design-system namespaces via an `@theme` block (zfb-tailwind only).
 
 ## Astro
 
@@ -176,6 +178,29 @@ export default {
 After zfb fix [#229](https://github.com/Takazudo/zudo-front-builder/issues/229), `devMiddleware`-registered paths are scoped under `base`, so the bare path resolves to 405. This is a configuration requirement for this deployment, not a zfb bug. See [`examples/zfb/PROBE-REPORT.md`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples/zfb/PROBE-REPORT.md) for the full rationale.
 
 Worked example: [`examples/zfb`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples/zfb).
+
+## zfb + Tailwind v4
+
+The zfb + Tailwind v4 example extends the zfb integration with Tailwind CSS v4. It shares the same panel wiring and `devMiddleware`-based apply proxy as the plain zfb example. The distinguishing feature is that design tokens are also registered into Tailwind's design-system namespaces via an `@theme` block, so utility classes like `text-body`, `p-hsp-md`, and `rounded-radius-sm` resolve to the panel's CSS custom properties at build time.
+
+```css
+/* styles/tokens.css */
+@theme {
+  --font-size-body: var(--zfbtailwindexample-text-body);
+  --spacing-hsp-md: var(--zfbtailwindexample-hsp-md);
+  --color-primary: var(--zfbtailwindexample-color-primary);
+}
+```
+
+With that `@theme` block in place, Tailwind utility classes and panel tokens stay in sync automatically: tweaking `--zfbtailwindexample-text-body` in the panel updates every element using `text-body`.
+
+The apply-endpoint URL follows the same base-prefixed pattern as the plain zfb example:
+
+```
+/pj/zudo-design-token-panel/examples/zfb-tailwind/api/dev/apply
+```
+
+Worked example: [`examples/zfb-tailwind`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples/zfb-tailwind).
 
 ## Where to go next
 
