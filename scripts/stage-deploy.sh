@@ -82,4 +82,14 @@ else
   echo "stage-deploy: skipping examples/zfb (dist not found — workspace not yet built)"
 fi
 
+# zfb-tailwind example (Sub #46): Tailwind v4 variant of the zfb demo.
+# Guard with an existence check so the script degrades gracefully when
+# the workspace hasn't been built yet.
+ZFB_TAILWIND_DIST="${ROOT_DIR}/examples/zfb-tailwind/dist"
+if [ -d "${ZFB_TAILWIND_DIST}" ]; then
+  copy_example "zfb-tailwind-example" "${ZFB_TAILWIND_DIST}" "examples/zfb-tailwind"
+else
+  echo "stage-deploy: skipping examples/zfb-tailwind (dist not found — workspace not yet built)"
+fi
+
 echo "stage-deploy: done. Deploy tree: ${DEST_DIR}/"

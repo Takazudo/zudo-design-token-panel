@@ -1,0 +1,5 @@
+# zfb build output
+dist/
+.zfb/
+.zfb-build/
+node_modules/

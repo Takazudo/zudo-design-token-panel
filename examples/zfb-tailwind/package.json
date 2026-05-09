@@ -1,0 +1,28 @@
+{
+  "name": "zfb-tailwind-example",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "zfb (zudo-front-builder) + Tailwind v4 example demonstrating @takazudo/zudo-design-token-panel — tokens registered via @theme block into Tailwind v4's design-system namespaces, showcase and prose pages styled with utility classes.",
+  "scripts": {
+    "dev": "lsof -ti:44328 | xargs kill -9 2>/dev/null || true; lsof -ti:24686 | xargs kill -9 2>/dev/null || true; concurrently -k -n zfb,tokens-bin -c blue,green \"pnpm run _dev:zfb\" \"pnpm run _dev:tokens-bin\"",
+    "_dev:zfb": "zfb dev",
+    "_dev:tokens-bin": "design-token-panel-server --write-root . --routing scaffold.routing.json --port 24686 --allow-origin http://localhost:44328",
+    "build": "zfb build",
+    "preview": "zfb preview",
+    "typecheck": "zfb check"
+  },
+  "dependencies": {
+    "@takazudo/zfb": "link:../../../zfb/packages/zfb",
+    "@takazudo/zfb-runtime": "link:../../../zfb/packages/zfb-runtime",
+    "@takazudo/zudo-design-token-panel": "workspace:*",
+    "preact": "^10.29.1",
+    "preact-render-to-string": "^6.5.0",
+    "tailwindcss": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.3"
+  }
+}
