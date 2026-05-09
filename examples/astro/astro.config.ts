@@ -1,4 +1,5 @@
 import { defineConfig } from 'astro/config';
+import mdx from '@astrojs/mdx';
 import preact from '@astrojs/preact';
 
 /**
@@ -34,7 +35,7 @@ export default defineConfig({
   output: 'static',
   base: '/pj/zudo-design-token-panel/examples/astro/',
   devToolbar: { enabled: false },
-  integrations: [preact()],
+  integrations: [mdx(), preact()],
   server: {
     port: 44324,
   },

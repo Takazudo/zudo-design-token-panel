@@ -10,6 +10,7 @@ import Layout from '../layouts/Layout.astro';
 
 const paletteIndices = Array.from({ length: 16 }, (_, i) => i);
 const homeHref = import.meta.env.BASE_URL;
+const proseHref = `${import.meta.env.BASE_URL}prose`;
 ---
 
 <Layout title="Astro Example — About">
@@ -43,6 +44,7 @@ const homeHref = import.meta.env.BASE_URL;
         then navigate <a class="astroexample-link" href={homeHref}>back to home</a>. The new value should
         still apply — proving the host adapter's <code>astro:page-load</code> reapply path works
         end-to-end.
+        Also try the <a class="astroexample-link" href={proseHref}>prose demo</a> to see typography tokens in action.
       </div>
     </section>
 
