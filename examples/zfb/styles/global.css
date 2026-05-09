@@ -1,0 +1,187 @@
+/*
+ * `--zfbexample-*` tokens consumed by the demo page.
+ *
+ * Two roles wrapped into one file:
+ *
+ *   1. The byte-for-byte source of truth for the demo's CSS-var values. The
+ *      panel rewrites these names live (in-memory `:root` overrides) when
+ *      the user tweaks a slider. The Apply pipeline rewrites THIS FILE on
+ *      disk when the user clicks Apply (see `scaffold.routing.json` —
+ *      prefix `zfbexample` → this path).
+ *
+ *   2. The demo stylesheet — every `.zfbexample-*` selector below reads
+ *      tokens from `:root`, so a tweak in any tab is immediately visible.
+ *
+ * Splitting the two concerns into separate files would mean the apply
+ * pipeline rewrites a file the demo doesn't read (or vice versa). Keeping
+ * them paired makes the round-trip obvious: the bin sidecar's response is
+ * literally the new contents of the file the next page-load will use.
+ *
+ * Minimal reset
+ * -------------
+ * No separate reset file — this single CSS file includes the minimal preflight
+ * the demo needs. No Tailwind, no design-system integration.
+ */
+
+/* Minimal reset */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+  line-height: 1.5;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* Token declarations */
+:root {
+  /* Spacing tokens (manifest: spacing tab) */
+  --zfbexample-spacing-md: 1rem;
+  --zfbexample-spacing-lg: 2rem;
+
+  /* Typography tokens (manifest: typography tab) */
+  --zfbexample-text-base: 1rem;
+  --zfbexample-text-heading: 1.75rem;
+
+  /* Size tokens (manifest: size tab) */
+  --zfbexample-radius: 0.5rem;
+
+  /* Cluster base roles (default-cluster.ts → baseRoles) */
+  --zfbexample-bg: #1e1e1e;
+  --zfbexample-fg: #f8fafc;
+
+  /* Cluster palette slots (default-cluster.ts → paletteCssVarTemplate) */
+  --zfbexample-palette-0: #1e1e1e;
+  --zfbexample-palette-1: #2d6cdf;
+  --zfbexample-palette-2: #3aa676;
+  --zfbexample-palette-3: #d97706;
+  --zfbexample-palette-4: #9b5de5;
+  --zfbexample-palette-5: #e63946;
+  --zfbexample-palette-6: #1d3557;
+  --zfbexample-palette-7: #06b6d4;
+  --zfbexample-palette-8: #475569;
+  --zfbexample-palette-9: #94a3b8;
+  --zfbexample-palette-10: #cbd5e1;
+  --zfbexample-palette-11: #e2e8f0;
+  --zfbexample-palette-12: #f1f5f9;
+  --zfbexample-palette-13: #fef3c7;
+  --zfbexample-palette-14: #bbf7d0;
+  --zfbexample-palette-15: #f8fafc;
+
+  /* Cluster semantic names (default-cluster.ts → semanticCssNames) */
+  --zfbexample-color-primary: var(--zfbexample-palette-1);
+  --zfbexample-color-accent: var(--zfbexample-palette-3);
+  --zfbexample-color-surface: var(--zfbexample-palette-0);
+  --zfbexample-color-muted: var(--zfbexample-palette-8);
+  --zfbexample-color-danger: var(--zfbexample-palette-5);
+}
+
+/* Design token panel chrome — the panel package's bundled stylesheet defines
+   the panel iframe and dock chrome. Import it so the panel renders correctly
+   when opened. Vite library mode strips the source CSS import from the emitted
+   JS, so consumers must re-pull it explicitly via this CSS import. */
+@import '@takazudo/zudo-design-token-panel/styles.css';
+
+body {
+  background: var(--zfbexample-bg);
+  color: var(--zfbexample-fg);
+  font-size: var(--zfbexample-text-base);
+  padding: var(--zfbexample-spacing-lg);
+}
+
+.zfbexample-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zfbexample-spacing-lg);
+  max-width: 56rem;
+  margin: 0 auto;
+}
+
+.zfbexample-heading {
+  font-size: var(--zfbexample-text-heading);
+  font-weight: 700;
+  margin: 0 0 var(--zfbexample-spacing-md);
+  color: var(--zfbexample-color-primary);
+}
+
+.zfbexample-card {
+  background: var(--zfbexample-color-surface);
+  color: var(--zfbexample-fg);
+  padding: var(--zfbexample-spacing-md);
+  border-radius: var(--zfbexample-radius);
+  border: 1px solid var(--zfbexample-color-muted);
+}
+
+.zfbexample-card + .zfbexample-card {
+  margin-top: var(--zfbexample-spacing-md);
+}
+
+.zfbexample-button {
+  display: inline-block;
+  padding: var(--zfbexample-spacing-md);
+  border-radius: var(--zfbexample-radius);
+  background: var(--zfbexample-color-accent);
+  color: var(--zfbexample-bg);
+  border: none;
+  cursor: pointer;
+}
+
+.zfbexample-button:hover {
+  background: var(--zfbexample-color-primary);
+}
+
+.zfbexample-link {
+  color: var(--zfbexample-color-accent);
+  text-decoration: underline;
+}
+
+.zfbexample-swatch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--zfbexample-spacing-md);
+}
+
+.zfbexample-swatch {
+  width: 4rem;
+  height: 4rem;
+  border-radius: var(--zfbexample-radius);
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: var(--zfbexample-fg);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  padding: 0.25rem;
+}
+
+.zfbexample-meta {
+  font-size: 0.875rem;
+  color: var(--zfbexample-color-muted);
+}
