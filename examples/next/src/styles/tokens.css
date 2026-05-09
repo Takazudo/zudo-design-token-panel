@@ -59,6 +59,42 @@
   --nextexample-color-surface: var(--nextexample-palette-0);
   --nextexample-color-muted: var(--nextexample-palette-8);
   --nextexample-color-danger: var(--nextexample-palette-5);
+
+  /* Prose tokens — vertical spacing scale (flow-space rhythm) */
+  /* prose-token-contract.md: vsp-* — baseline rhythm unit ≈ 1.6rem */
+  --nextexample-vsp-2xs: 0.25rem;   /* ~4 px  — consecutive headings, tight list items */
+  --nextexample-vsp-xs:  0.5rem;    /* ~8 px  — tighter paragraph spacing */
+  --nextexample-vsp-sm:  0.75rem;   /* ~12 px — heading-to-first-content gap */
+  --nextexample-vsp-md:  1rem;      /* ~16 px — default body-level flow gap */
+  --nextexample-vsp-lg:  1.75rem;   /* ~28 px — pre-h3 section separation */
+  --nextexample-vsp-xl:  2.5rem;    /* ~40 px — pre-h2 section separation */
+  --nextexample-vsp-2xl: 3.5rem;    /* ~56 px — top-of-page or pre-first-heading clearance */
+
+  /* Prose tokens — horizontal spacing scale */
+  --nextexample-hsp-xs:  0.25rem;   /* inline code padding, small insets */
+  --nextexample-hsp-sm:  0.5rem;    /* table cell padding, tag padding */
+  --nextexample-hsp-md:  1rem;      /* blockquote left indent */
+  --nextexample-hsp-lg:  1.5rem;    /* section-level horizontal gutter */
+  --nextexample-hsp-xl:  2rem;      /* outer prose container horizontal padding */
+
+  /* Prose tokens — type scale */
+  --nextexample-text-h2:    1.75rem;
+  --nextexample-text-h3:    1.35rem;
+  --nextexample-text-h4:    1.1rem;
+  --nextexample-text-body:  1rem;
+  --nextexample-text-small: 0.875rem;
+  --nextexample-text-micro: 0.75rem;
+
+  /* Prose tokens — line-height scale */
+  --nextexample-leading-tight:   1.2;
+  --nextexample-leading-snug:    1.45;
+  --nextexample-leading-relaxed: 1.75;
+
+  /* Prose tokens — code surface */
+  --nextexample-code-bg:   hsl(220 13% 11%);
+  --nextexample-code-fg:   hsl(220 14% 86%);
+  /* ui-monospace first per CSS Fonts spec; Cascadia Code / Source Code Pro as named fallbacks */
+  --nextexample-font-mono: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
 }
 
 body {
@@ -125,7 +161,7 @@ body {
   height: 4rem;
   border-radius: var(--nextexample-radius);
   display: flex;
-  align-items: end;
+  align-items: flex-end;
   justify-content: center;
   font-size: 0.75rem;
   color: var(--nextexample-fg);
@@ -142,4 +178,156 @@ body {
   font-variant-numeric: tabular-nums;
   color: var(--nextexample-color-accent);
   font-weight: 700;
+}
+
+/*
+ * Prose container — flow-space rhythm pattern
+ * (prose-token-contract.md: Flow-spacing CSS pattern / Strategy 1)
+ * :where() contributes zero specificity so later rules can override
+ * --flow-space without specificity escalation.
+ */
+.nextexample-prose {
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: var(--nextexample-vsp-2xl) var(--nextexample-hsp-xl);
+  font-size: var(--nextexample-text-body);
+  line-height: var(--nextexample-leading-relaxed);
+  color: var(--nextexample-fg);
+}
+
+/* Flow-space: all direct children share the default gap */
+.nextexample-prose > * + * {
+  margin-block-start: var(--flow-space, var(--nextexample-vsp-md));
+}
+
+/* Section separation before headings */
+.nextexample-prose :where(h2) { --flow-space: var(--nextexample-vsp-xl); }
+.nextexample-prose :where(h3) { --flow-space: var(--nextexample-vsp-lg); }
+.nextexample-prose :where(h4) { --flow-space: var(--nextexample-vsp-md); }
+
+/* Heading-to-first-content: tight coupling */
+.nextexample-prose :where(h2, h3, h4) + :where(p, ul, ol, table, pre, blockquote) {
+  --flow-space: var(--nextexample-vsp-sm);
+}
+
+/* Consecutive headings: tighten */
+.nextexample-prose :where(h2, h3, h4, h5, h6) + :where(h2, h3, h4, h5, h6) {
+  --flow-space: var(--nextexample-vsp-2xs);
+}
+
+/* Trim block edges */
+.nextexample-prose > :first-child { margin-block-start: 0; }
+.nextexample-prose > :last-child  { margin-block-end: 0; }
+
+/* Heading type scale and line-height */
+.nextexample-prose :where(h2) {
+  font-size: var(--nextexample-text-h2);
+  line-height: var(--nextexample-leading-tight);
+  font-weight: 700;
+  padding-block-start: var(--nextexample-vsp-xs);
+  border-block-start: 2px solid var(--nextexample-color-primary);
+}
+
+.nextexample-prose :where(h3) {
+  font-size: var(--nextexample-text-h3);
+  line-height: var(--nextexample-leading-tight);
+  font-weight: 600;
+}
+
+.nextexample-prose :where(h4) {
+  font-size: var(--nextexample-text-h4);
+  line-height: var(--nextexample-leading-tight);
+  font-weight: 600;
+}
+
+/* Inline code */
+.nextexample-prose :where(code:not(pre code)) {
+  font-family: var(--nextexample-font-mono);
+  font-size: var(--nextexample-text-small);
+  background: var(--nextexample-code-bg);
+  color: var(--nextexample-code-fg);
+  padding: 0.1em var(--nextexample-hsp-xs);
+  border-radius: 3px;
+  border: 1px solid var(--nextexample-color-accent);
+}
+
+/* Code blocks */
+.nextexample-prose :where(pre) {
+  font-family: var(--nextexample-font-mono);
+  font-size: var(--nextexample-text-small);
+  background: var(--nextexample-code-bg);
+  color: var(--nextexample-code-fg);
+  padding: var(--nextexample-vsp-sm) var(--nextexample-hsp-sm);
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+.nextexample-prose :where(pre code) {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  color: inherit;
+}
+
+/* Blockquote */
+.nextexample-prose :where(blockquote) {
+  border-inline-start: 3px solid var(--nextexample-color-muted);
+  padding-inline-start: var(--nextexample-hsp-md);
+  color: var(--nextexample-color-muted);
+}
+
+/* Lists */
+.nextexample-prose :where(ul) {
+  padding-inline-start: var(--nextexample-hsp-lg);
+  list-style-type: disc;
+}
+
+.nextexample-prose :where(ol) {
+  padding-inline-start: var(--nextexample-hsp-lg);
+  list-style-type: decimal;
+}
+
+.nextexample-prose :where(li + li) {
+  margin-block-start: var(--nextexample-vsp-xs);
+}
+
+/* Tables */
+.nextexample-prose :where(table) {
+  border-collapse: collapse;
+  font-size: var(--nextexample-text-small);
+  width: 100%;
+}
+
+.nextexample-prose :where(th, td) {
+  padding: var(--nextexample-hsp-xs) var(--nextexample-hsp-sm);
+  border: 1px solid var(--nextexample-color-muted);
+  text-align: left;
+}
+
+.nextexample-prose :where(th) {
+  font-weight: 600;
+  background: var(--nextexample-code-bg);
+}
+
+/* Horizontal rule */
+.nextexample-prose :where(hr) {
+  border: none;
+  border-block-start: 1px solid var(--nextexample-color-muted);
+  margin-block: var(--nextexample-vsp-lg);
+}
+
+/* Links */
+.nextexample-prose :where(a) {
+  color: var(--nextexample-color-accent);
+  text-decoration: underline;
+}
+
+/* Strong / em */
+.nextexample-prose :where(strong) {
+  font-weight: 700;
+}
+
+.nextexample-prose :where(em) {
+  font-style: italic;
 }

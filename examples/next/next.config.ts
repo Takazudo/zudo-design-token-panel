@@ -1,11 +1,12 @@
 import type { NextConfig } from 'next';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
+import createMDX from '@next/mdx';
 
 /*
  * Next.js config for the Next + React 19 example app.
  *
- * Deliberately minimal: NO bundler aliases, NO MDX, NO Tailwind, NO design
+ * Deliberately minimal: NO bundler aliases, NO Tailwind, NO design
  * system. The example proves @takazudo/zudo-design-token-panel works inside a
  * vanilla Next 15 App Router consumer that ships:
  *
@@ -64,8 +65,20 @@ const nextConfig: NextConfig = {
   // proxy) is picked up alongside the regular `route.ts` filenames. In
   // export mode, fall back to the Next defaults so the dev-only file is
   // invisible to the static exporter and `out/` never carries it.
-  pageExtensions: isExportBuild ? ['ts', 'tsx'] : ['ts', 'tsx', 'dev.ts', 'dev.tsx'],
+  // 'mdx' is included in both modes so page.mdx files are recognised as
+  // App Router pages regardless of build target.
+  pageExtensions: isExportBuild
+    ? ['ts', 'tsx', 'mdx']
+    : ['ts', 'tsx', 'dev.ts', 'dev.tsx', 'mdx'],
   ...(isExportBuild ? { output: 'export' as const } : {}),
 };
 
-export default nextConfig;
+/*
+ * Wrap the config with @next/mdx so .mdx files are processed as JSX pages.
+ * No remark/rehype plugins are needed for the prose demo — raw GFM is
+ * sufficient. Static export (output: 'export') is preserved because MDX
+ * pages emit only static JSX; no server-only APIs are used.
+ */
+const withMDX = createMDX({});
+
+export default withMDX(nextConfig);

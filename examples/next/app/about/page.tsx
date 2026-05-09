@@ -65,6 +65,13 @@ export default function AboutPage() {
           . The new value should still apply — proving the host adapter
           survives Next.js soft navigation end-to-end.
         </div>
+        <p>
+          See the{' '}
+          <Link className="nextexample-link" href="/prose">
+            prose demo page
+          </Link>{' '}
+          for typography tokens in action.
+        </p>
       </section>
 
       <section>

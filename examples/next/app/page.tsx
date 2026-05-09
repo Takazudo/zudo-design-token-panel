@@ -49,6 +49,13 @@ export default function HomePage() {
           </Link>{' '}
           to verify panel state survives Next's client-routed navigation.
         </p>
+        <p>
+          See the{' '}
+          <Link className="nextexample-link" href="/prose">
+            prose demo page
+          </Link>{' '}
+          for typography tokens in action.
+        </p>
       </header>
 
       <section>
