@@ -19,8 +19,8 @@ import preact from '@astrojs/preact';
  *
  * Deploy `base`
  * -------------
- * `base: '/pj/zudo-design-token-panel/astro/'` mirrors the production deploy path under the
- * monorepo's docs site (see issue #18). Astro applies this prefix to every
+ * `base: '/pj/zudo-design-token-panel/examples/astro/'` mirrors the production deploy path under
+ * the monorepo's docs site (see issue #18). Astro applies this prefix to every
  * emitted asset URL and to the dev server's served paths, so navigation
  * links inside `src/pages` use `import.meta.env.BASE_URL` to stay portable.
  *
@@ -32,7 +32,7 @@ import preact from '@astrojs/preact';
  */
 export default defineConfig({
   output: 'static',
-  base: '/pj/zudo-design-token-panel/astro/',
+  base: '/pj/zudo-design-token-panel/examples/astro/',
   devToolbar: { enabled: false },
   integrations: [preact()],
   server: {
