@@ -28,7 +28,7 @@
  * See README.md and `PROBE-REPORT.md` for the rationale.
  */
 
-import { Island } from '@takazudo/zfb';
+import { Island, type IslandProps } from '@takazudo/zfb';
 import PanelMount from '../components/panel-mount';
 import '../styles/global.css';
 
@@ -117,7 +117,14 @@ export default function HomePage() {
           first paint.
         */}
         <Island when="visible" ssrFallback={null}>
-          <PanelMount />
+          {/*
+            Cast bridges a structural-vs-nominal type mismatch between Preact's
+            VNode (type: string | ComponentType<any>) and zfb's framework-agnostic
+            structural VNode (type: string | ((...args: unknown[]) => unknown)).
+            They are runtime-compatible — the Island only walks props.children at
+            hydration time and never invokes `type` itself in this position.
+          */}
+          {(<PanelMount />) as unknown as IslandProps['children']}
         </Island>
       </body>
     </html>
