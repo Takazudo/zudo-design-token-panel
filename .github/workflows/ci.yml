@@ -59,13 +59,20 @@ jobs:
           restore-keys: |
             cargo-zfb-${{ runner.os }}-
 
-      # zfb's cargo build script (crates/zfb/build.rs) reads framework packages
-      # from the cloned zfb repo's pnpm node_modules (e.g. preact@10.29.1). Without
-      # this step the build panics with "framework package not found under
-      # node_modules/.pnpm". Skipped on cargo cache hit because the binary is
-      # already built and the build script never runs.
-      - name: Install zfb workspace deps (required by zfb's cargo build script)
-        if: steps.cargo-cache.outputs.cache-hit != 'true'
+      # zfb's pnpm node_modules in the cloned sibling repo are required for
+      # TWO independent reasons, so this step runs on every job (no cache-hit
+      # guard):
+      #
+      #   1. Cold cargo install: zfb's build.rs reads framework packages
+      #      (e.g. preact@10.29.1) from ../zfb/node_modules/.pnpm and panics
+      #      with "framework package not found" if they're missing.
+      #
+      #   2. Example bundling (warm cargo cache): `zfb build` in
+      #      examples/zfb/ bundles zfb-runtime source files via esbuild,
+      #      which then needs to resolve zfb-runtime's runtime deps like
+      #      `hono` from ../zfb/node_modules. Skipping this on cache-hit
+      #      causes "Could not resolve 'hono'" at example build time.
+      - name: Install zfb workspace deps (required by zfb's cargo build script and example bundling)
         working-directory: ../zfb
         run: pnpm install --frozen-lockfile
 
