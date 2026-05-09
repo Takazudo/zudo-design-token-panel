@@ -196,6 +196,25 @@ importers:
         specifier: ^6.0.0
         version: 6.4.2(@types/node@22.19.17)(jiti@2.6.1)(lightningcss@1.32.0)(yaml@2.8.3)
 
+  examples/zfb:
+    dependencies:
+      '@takazudo/zudo-design-token-panel':
+        specifier: workspace:*
+        version: link:../../packages/zudo-design-token-panel
+      preact:
+        specifier: ^10.29.1
+        version: 10.29.1
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.17
+      concurrently:
+        specifier: ^9.2.1
+        version: 9.2.1
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   packages/zudo-design-token-panel:
     devDependencies:
       '@types/node':
