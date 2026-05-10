@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
+  ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP,
   getStorageKeyV1,
   getStorageKeyV2,
   type ColorTweakState,
@@ -138,15 +139,21 @@ describe('loadPersistedState — spacing / typography / size sections', () => {
     expect(result!.spacing).toEqual({ 'hsp-sm': '0.75rem' });
   });
 
-  it('migrates legacy typography ids to the current main-site tiers', () => {
+  it('migrates legacy typography ids when the host opts into ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP', () => {
     // Payload written under the old id scheme (text-caption / text-body /
     // text-heading / text-display) should land on the new ids (text-xs /
-    // text-base / text-3xl / text-5xl). text-micro has no main-site
-    // equivalent and should be dropped silently.
+    // text-base / text-3xl / text-5xl) when the host has opted in via
+    // PanelConfig.legacyIdRenameMap. text-micro has no main-site
+    // equivalent so the historical map maps it to `null` (drop) — that
+    // semantic survives the move from a hard-coded internal map to the
+    // configurable opt-in map.
+    installFixturePanelConfig({ legacyIdRenameMap: { ...ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP } });
+    STORAGE_KEY_V2 = getStorageKeyV2();
+
     const v2 = {
       color: makeColor(),
       typography: {
-        'text-micro': '0.8rem', // dropped
+        'text-micro': '0.8rem', // null in opt-in map → dropped
         'text-caption': '1rem',
         'text-small': '1.15rem',
         'text-body': '1.5rem',
@@ -169,10 +176,13 @@ describe('loadPersistedState — spacing / typography / size sections', () => {
     });
   });
 
-  it('prefers the post-migration id when both legacy and current keys exist', () => {
+  it('prefers the post-migration id when both legacy and current keys exist (opt-in)', () => {
     // If the user already tweaked text-base after migration and we still
     // see an ancient text-body value lingering in storage, the fresh one
     // wins — we must not clobber the user's post-rename edit.
+    installFixturePanelConfig({ legacyIdRenameMap: { ...ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP } });
+    STORAGE_KEY_V2 = getStorageKeyV2();
+
     const v2 = {
       color: makeColor(),
       typography: {
@@ -185,5 +195,26 @@ describe('loadPersistedState — spacing / typography / size sections', () => {
     const result = loadPersistedState(storage, defaults);
 
     expect(result!.typography).toEqual({ 'text-base': '1.6rem' });
+  });
+
+  it('with default config (no legacyIdRenameMap): preserves typography ids verbatim (issue #51)', () => {
+    // Default fixture has no legacyIdRenameMap → the rename is a no-op.
+    // A stable id like text-caption that happens to match what the
+    // historical zdtp-internal map called "old" MUST survive verbatim.
+    const v2 = {
+      color: makeColor(),
+      typography: {
+        'text-caption': '1rem',
+        'text-body': '1.5rem',
+      },
+    };
+    const storage = makeStorage({ [STORAGE_KEY_V2]: JSON.stringify(v2) });
+
+    const result = loadPersistedState(storage, defaults);
+
+    expect(result!.typography).toEqual({
+      'text-caption': '1rem',
+      'text-body': '1.5rem',
+    });
   });
 });

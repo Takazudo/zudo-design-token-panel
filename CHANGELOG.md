@@ -13,6 +13,22 @@ Dates and versions may be absent for unreleased entries.
   — external SerDe layers (e.g. zudo-doc's `design-token-serde.ts`)
   can now construct a fully-populated `TweakState` without reaching into
   the test-only `./testing` sub-export.
+- Framework-agnostic `setLifecycleAdapter(adapter)` API for non-Astro
+  hosts (zfb, vite, etc.). When no adapter is registered, the package
+  falls back to the existing `astro:before-swap` / `astro:page-load`
+  document listeners (backwards-compatible).
+  ([#50](https://github.com/Takazudo/zudo-design-token-panel/issues/50))
+
+### Changed
+
+- Make typography-id rename map configurable via
+  `PanelConfig.legacyIdRenameMap`; default empty (BREAKING for hosts that
+  relied on the implicit built-in rename — zdtp's own callers can continue
+  to opt in by passing the re-exported `ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP`
+  constant). The map shape is `Record<string, string | null>` — a `null`
+  value preserves the historical "drop this id" semantic for callers
+  whose original behavior dropped certain ids without replacement.
+  ([#51](https://github.com/Takazudo/zudo-design-token-panel/issues/51))
 
 ## [0.1.0] — 2026-04-27
 
