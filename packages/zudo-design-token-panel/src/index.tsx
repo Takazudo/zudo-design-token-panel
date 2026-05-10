@@ -366,8 +366,52 @@ function onMaybeMount(): void {
   ensureMounted();
 }
 
+// ---------------------------------------------------------------------------
+// Framework-agnostic lifecycle adapter (#50)
+//
+// Historically the module hard-coded `astro:before-swap` / `astro:page-load`
+// document listeners — fine for Astro hosts, dead code everywhere else
+// (zfb, vite, custom SSGs). To support soft-nav for non-Astro hosts without
+// breaking existing Astro consumers, the lifecycle hooks now route through
+// an internal "active bindings" registry:
+//
+//  - At import-time we install the astro fallback and capture its cleanup
+//    fns (the registry's initial entries).
+//  - `setLifecycleAdapter(adapter)` calls every captured cleanup fn (which
+//    actively unbinds the astro listeners or any previously-registered
+//    adapter), then re-binds the same internal handlers through the
+//    adapter's `onBeforeSwap` / `onPageLoad`, capturing their returned
+//    cleanup fns for the next swap.
+//  - `setLifecycleAdapter(null)` clears the current adapter and re-installs
+//    the astro fallback — useful for tests and re-init scenarios.
+//
+// The registered handlers are the existing `unmountForSwap` /
+// `reapplyFromStorage` functions — the adapter only changes WHO calls them.
+// ---------------------------------------------------------------------------
+
+/**
+ * Framework-agnostic lifecycle hook adapter. A host that owns its own
+ * client-side navigation lifecycle (zfb, custom router, etc.) implements
+ * this and calls `setLifecycleAdapter(...)` so persisted overrides re-apply
+ * after every soft navigation without depending on Astro events.
+ *
+ * Each callback installer must return a cleanup function that unbinds the
+ * listener — `setLifecycleAdapter` calls these on re-registration and on
+ * `setLifecycleAdapter(null)`.
+ */
+export interface LifecycleAdapter {
+  /** Install a handler that fires before a client-side navigation swaps the document. */
+  onBeforeSwap?: (callback: () => void) => () => void;
+  /** Install a handler that fires after a client-side navigation has loaded the new page. */
+  onPageLoad?: (callback: () => void) => () => void;
+}
+
 interface AdapterLifecycleState {
   bound: boolean;
+  /** Cleanup fns for whatever set of bindings is currently active (astro fallback or a registered adapter). */
+  cleanups: Array<() => void>;
+  /** The adapter currently in effect, or `null` when the astro fallback is active. */
+  adapter: LifecycleAdapter | null;
 }
 
 /**
@@ -384,9 +428,77 @@ type AdapterWindow = Window & {
 function getAdapterState(): AdapterLifecycleState {
   const w = window as AdapterWindow;
   if (w.__zudoDesignTokenPanelLifecycle) return w.__zudoDesignTokenPanelLifecycle;
-  const state: AdapterLifecycleState = { bound: false };
+  const state: AdapterLifecycleState = { bound: false, cleanups: [], adapter: null };
   w.__zudoDesignTokenPanelLifecycle = state;
   return state;
+}
+
+/** Active cleanup fns are tracked on the lifecycle state so re-bind paths can drain them in one call. */
+function runCleanups(state: AdapterLifecycleState): void {
+  const fns = state.cleanups;
+  state.cleanups = [];
+  for (const fn of fns) {
+    try {
+      fn();
+    } catch {
+      /* a listener-removal that throws should not abort the rebind */
+    }
+  }
+}
+
+/**
+ * Install the astro fallback document listeners and record their removers
+ * on the lifecycle state's cleanup list. SSR-guarded — outside a browser
+ * the listeners are a no-op and the cleanup list stays empty.
+ */
+function bindAstroFallback(state: AdapterLifecycleState): void {
+  if (typeof document === 'undefined') return;
+  document.addEventListener('astro:before-swap', unmountForSwap);
+  document.addEventListener('astro:page-load', reapplyFromStorage);
+  state.cleanups.push(
+    () => document.removeEventListener('astro:before-swap', unmountForSwap),
+    () => document.removeEventListener('astro:page-load', reapplyFromStorage),
+  );
+}
+
+/**
+ * Install the same internal handlers through a host-supplied lifecycle
+ * adapter. Each adapter installer returns a cleanup fn we capture so the
+ * next `setLifecycleAdapter` call can drain it.
+ *
+ * Defensive: if the adapter omits a hook, we skip that hook silently — the
+ * intent is "host owns this lifecycle channel, but only the channels it
+ * implements". The other channel stays unbound (no astro fallback) because
+ * mixing two channels would double-fire the handler on hosts that emit both.
+ */
+function bindAdapter(state: AdapterLifecycleState, adapter: LifecycleAdapter): void {
+  if (adapter.onBeforeSwap) {
+    state.cleanups.push(adapter.onBeforeSwap(unmountForSwap));
+  }
+  if (adapter.onPageLoad) {
+    state.cleanups.push(adapter.onPageLoad(reapplyFromStorage));
+  }
+}
+
+/**
+ * Register a framework-agnostic lifecycle adapter (or pass `null` to
+ * restore the astro fallback). Safe to call before or after the module's
+ * import-time bootstrap — late registration drains the astro fallback's
+ * cleanup fns first, so the original document listeners are actively
+ * unbound and never double-fire alongside the adapter.
+ *
+ * No-op outside a browser context (SSR-safe).
+ */
+export function setLifecycleAdapter(adapter: LifecycleAdapter | null): void {
+  if (typeof window === 'undefined') return;
+  const state = getAdapterState();
+  runCleanups(state);
+  state.adapter = adapter;
+  if (adapter) {
+    bindAdapter(state, adapter);
+  } else {
+    bindAstroFallback(state);
+  }
 }
 
 if (typeof window !== 'undefined') {
@@ -397,10 +509,9 @@ if (typeof window !== 'undefined') {
     window.addEventListener(TOGGLE_EVENT, onMaybeMount);
     window.addEventListener(TOGGLE_EVENT_ALIAS, onMaybeMount);
 
-    if (typeof document !== 'undefined') {
-      document.addEventListener('astro:before-swap', unmountForSwap);
-      document.addEventListener('astro:page-load', reapplyFromStorage);
-    }
+    // Initial bindings: astro fallback. `setLifecycleAdapter(...)` rewrites
+    // this set later if a host installs an adapter.
+    bindAstroFallback(state);
 
     // Apply persisted overrides to `:root` BEFORE any Preact render — kills
     // the hard-navigation FOUT. `reapplyFromStorage()` below then mounts the

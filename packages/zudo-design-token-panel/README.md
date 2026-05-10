@@ -829,6 +829,41 @@ The conventional placement is **at the end of `<body>`** in your shared layout. 
 
 The `./astro` sub-export is the only place that imports anything Astro-flavoured. The package's main entry (`@takazudo/zudo-design-token-panel`) is framework-agnostic: call `configurePanel(...)` yourself, then `import('@takazudo/zudo-design-token-panel')` to materialise the panel. The `astro:before-swap` / `astro:page-load` listeners no-op outside an Astro context but the storage / mount / apply paths work identically.
 
+#### Soft-nav lifecycle for non-Astro hosts (`setLifecycleAdapter`)
+
+For hosts that own a client-side router (zfb, custom SPA, etc.), persisted overrides need to re-apply after every soft navigation. Register a `LifecycleAdapter` so the panel's internal handlers route through your router's hooks instead of Astro's document events:
+
+```ts
+import {
+  setLifecycleAdapter,
+  type LifecycleAdapter,
+} from '@takazudo/zudo-design-token-panel';
+
+// Example: a zfb-style host that emits 'zfb:before-swap' / 'zfb:page-load'
+// CustomEvents on the document.
+const adapter: LifecycleAdapter = {
+  onBeforeSwap(callback) {
+    document.addEventListener('zfb:before-swap', callback);
+    return () => document.removeEventListener('zfb:before-swap', callback);
+  },
+  onPageLoad(callback) {
+    document.addEventListener('zfb:page-load', callback);
+    return () => document.removeEventListener('zfb:page-load', callback);
+  },
+};
+
+setLifecycleAdapter(adapter);
+```
+
+Each installer must return a cleanup fn that unbinds the listener — the panel calls it on re-registration and on `setLifecycleAdapter(null)`.
+
+Behaviour notes:
+
+- When NO adapter is registered (initial state, or after `setLifecycleAdapter(null)`), the panel falls back to its built-in `astro:before-swap` / `astro:page-load` document listeners. Backwards-compatible — existing Astro consumers see zero behaviour change.
+- When an adapter IS registered, the astro fallback is **actively unbound** so the internal handlers never double-fire on hosts that emit both event sets.
+- `setLifecycleAdapter(null)` re-installs the astro fallback. Useful for tests and re-init scenarios.
+- Re-registration (calling `setLifecycleAdapter` twice with different adapters) drains the previous adapter's cleanup fns before binding the new one — no listener leaks.
+
 ---
 
 ## 9. Storage-key derivation
