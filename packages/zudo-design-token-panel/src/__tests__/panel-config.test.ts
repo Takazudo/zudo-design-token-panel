@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   DEFAULT_PANEL_CONFIG,
   __resetPanelConfigForTests,
+  assertValidPanelConfig,
   configurePanel,
   exportFilename,
   getPanelConfig,
@@ -188,5 +189,104 @@ describe('panel-config — configurePanel idempotency', () => {
     expect(() => configurePanel(CONFIG_B)).toThrow(/already called with different values/);
     // The first config is preserved — the second call did not silently overwrite.
     expect(getPanelConfig()).toEqual(CONFIG_A);
+  });
+});
+
+describe('panel-config — assertValidPanelConfig accepts and rejects legacyIdRenameMap shapes', () => {
+  /**
+   * The new optional `legacyIdRenameMap` is an opt-in for hosts who
+   * depended on the historical built-in typography rename. The validator
+   * gates the trust boundary on the inline JSON config, so it must accept
+   * an absent field, accept an empty / populated object whose values are
+   * all strings, and reject every other shape (null inside, array, value
+   * not a string).
+   */
+  function makeBaseConfig(extra: Partial<PanelConfig> = {}): PanelConfig {
+    return {
+      storagePrefix: 'p',
+      consoleNamespace: 'p',
+      modalClassPrefix: 'p-modal',
+      schemaId: 'p/v1',
+      exportFilenameBase: 'p',
+      tokens: EMPTY_MANIFEST,
+      colorCluster: EMPTY_CLUSTER,
+      ...extra,
+    };
+  }
+
+  it('accepts a config with no legacyIdRenameMap field (default)', () => {
+    expect(() => assertValidPanelConfig(makeBaseConfig())).not.toThrow();
+  });
+
+  it('accepts an empty legacyIdRenameMap', () => {
+    expect(() => assertValidPanelConfig(makeBaseConfig({ legacyIdRenameMap: {} }))).not.toThrow();
+  });
+
+  it('accepts a populated legacyIdRenameMap with string values', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          legacyIdRenameMap: { 'text-caption': 'text-xs', 'text-body': 'text-base' },
+        }),
+      ),
+    ).not.toThrow();
+  });
+
+  it('accepts legacyIdRenameMap with a null value (drop semantics)', () => {
+    // `null` signals "drop the legacy id entirely" — used for legacy ids
+    // that have no replacement in the current manifest. The validator
+    // must accept it because the historical zdtp-internal map relies on it
+    // (see ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP's text-micro entry).
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          legacyIdRenameMap: { 'text-micro': null, 'text-caption': 'text-xs' },
+        }),
+      ),
+    ).not.toThrow();
+  });
+
+  it('rejects legacyIdRenameMap with a non-string non-null value', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          legacyIdRenameMap: { 'text-caption': 123 as any },
+        }),
+      ),
+    ).toThrow(/legacyIdRenameMap\["text-caption"\] must be a string or null/);
+  });
+
+  it('rejects legacyIdRenameMap when set to an array', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          legacyIdRenameMap: ['nope'] as any,
+        }),
+      ),
+    ).toThrow(/legacyIdRenameMap must be a plain object/);
+  });
+
+  it('rejects legacyIdRenameMap when the field itself is set to null', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          legacyIdRenameMap: null as any,
+        }),
+      ),
+    ).toThrow(/legacyIdRenameMap must be a plain object/);
+  });
+
+  it('rejects legacyIdRenameMap with an array value inside', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          legacyIdRenameMap: { 'text-caption': ['text-xs'] as any },
+        }),
+      ),
+    ).toThrow(/legacyIdRenameMap\["text-caption"\] must be a string or null/);
   });
 });

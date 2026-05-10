@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
+  ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP,
   getStorageKeyV1,
   getStorageKeyV2,
   type ColorTweakState,
@@ -240,5 +241,199 @@ describe('loadPersistedState — v1→v2 migration', () => {
     // migration ran successfully → v1 deleted, v2 overwritten
     expect(storage.entries[STORAGE_KEY_V1]).toBeUndefined();
     expect(storage.entries[STORAGE_KEY_V2]).toBeDefined();
+  });
+});
+
+/**
+ * Typography-id rename behaviour — driven by `PanelConfig.legacyIdRenameMap`.
+ *
+ * Pre-issue-#51 the migration map was hard-coded inside `loadPersistedState`,
+ * which silently corrupted hosts whose canonical manifest ids happened to
+ * match the "old" labels (e.g. `zudo-doc`'s `text-caption` was IS the
+ * stable id, not a legacy one). The map is now an opt-in config field;
+ * these tests pin both ends of that contract.
+ */
+describe('loadPersistedState — typography rename map (configurable)', () => {
+  /** Build a minimal v2 envelope with a single typography override. */
+  function makeV2WithTypography(typography: Record<string, string>): string {
+    return JSON.stringify({
+      color: makeV1(),
+      typography,
+    });
+  }
+
+  it('with NO legacyIdRenameMap configured: preserves stable ids verbatim (issue #51 regression)', () => {
+    // Default fixture config has no `legacyIdRenameMap` → empty rename map.
+    // A host whose canonical manifest id happens to be `text-caption` MUST
+    // see their override survive verbatim instead of being remapped to a
+    // non-existent id and silently dropped.
+    const storage = makeStorage({
+      [STORAGE_KEY_V2]: makeV2WithTypography({ 'text-caption': '0.9rem' }),
+    });
+
+    const result = loadPersistedState(storage, defaults);
+
+    expect(result).not.toBeNull();
+    expect(result!.typography).toEqual({ 'text-caption': '0.9rem' });
+  });
+
+  it('with legacyIdRenameMap = ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP: applies the historical rename', () => {
+    installFixturePanelConfig({ legacyIdRenameMap: { ...ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP } });
+    STORAGE_KEY_V2 = getStorageKeyV2();
+
+    const storage = makeStorage({
+      [STORAGE_KEY_V2]: makeV2WithTypography({
+        'text-caption': '0.9rem',
+        'text-body': '1.4rem',
+      }),
+    });
+
+    const result = loadPersistedState(storage, defaults);
+
+    expect(result).not.toBeNull();
+    expect(result!.typography['text-xs']).toBe('0.9rem');
+    expect(result!.typography['text-base']).toBe('1.4rem');
+    // Old ids are gone after the rename — only the new ids carry the value.
+    expect(result!.typography['text-caption']).toBeUndefined();
+    expect(result!.typography['text-body']).toBeUndefined();
+  });
+
+  it('with a custom partial map: only specified keys are renamed; others pass through', () => {
+    installFixturePanelConfig({
+      legacyIdRenameMap: { 'old-only-key': 'new-key' },
+    });
+    STORAGE_KEY_V2 = getStorageKeyV2();
+
+    const storage = makeStorage({
+      [STORAGE_KEY_V2]: makeV2WithTypography({
+        'old-only-key': '1rem',
+        'unrelated-key': '2rem',
+      }),
+    });
+
+    const result = loadPersistedState(storage, defaults);
+
+    expect(result).not.toBeNull();
+    expect(result!.typography['new-key']).toBe('1rem');
+    expect(result!.typography['unrelated-key']).toBe('2rem');
+    expect(result!.typography['old-only-key']).toBeUndefined();
+  });
+
+  it('when both old and new ids are present: new id wins (post-migration tweak preserved)', () => {
+    installFixturePanelConfig({ legacyIdRenameMap: { ...ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP } });
+    STORAGE_KEY_V2 = getStorageKeyV2();
+
+    const storage = makeStorage({
+      [STORAGE_KEY_V2]: makeV2WithTypography({
+        'text-caption': 'OLD',
+        'text-xs': 'NEW',
+      }),
+    });
+
+    const result = loadPersistedState(storage, defaults);
+
+    expect(result).not.toBeNull();
+    expect(result!.typography['text-xs']).toBe('NEW');
+  });
+
+  it('exports ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP with the documented historical mappings', () => {
+    // Pin the constant's contents so the opt-in stays stable. text-micro
+    // maps to null (drop) — its historical "no main-site equivalent"
+    // semantic — so opt-in callers get the full original behaviour.
+    expect(ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP).toEqual({
+      'text-caption': 'text-xs',
+      'text-small': 'text-sm',
+      'text-body': 'text-base',
+      'text-subheading': 'text-lg',
+      'text-heading': 'text-3xl',
+      'text-display': 'text-5xl',
+      'text-micro': null,
+    });
+  });
+
+  it('with legacyIdRenameMap value of null: drops the legacy id entirely (no dead persistence)', () => {
+    // Without drop semantics, a stray legacy id (e.g. text-micro) survives
+    // every save round-trip as dead localStorage data: applyTokenOverrides
+    // silently ignores ids missing from the active manifest, but every
+    // save writes the dead key back to disk. Mapping to `null` ensures the
+    // hydrate step purges it once and never persists it again.
+    installFixturePanelConfig({ legacyIdRenameMap: { 'text-micro': null } });
+    STORAGE_KEY_V2 = getStorageKeyV2();
+
+    const storage = makeStorage({
+      [STORAGE_KEY_V2]: makeV2WithTypography({
+        'text-micro': '0.7rem',
+        'text-base': '1rem',
+      }),
+    });
+
+    const result = loadPersistedState(storage, defaults);
+
+    expect(result).not.toBeNull();
+    expect(result!.typography['text-micro']).toBeUndefined();
+    expect(result!.typography['text-base']).toBe('1rem');
+  });
+
+  it('persists the renamed envelope back to storage so legacy ids do not survive (issue #51 codex finding)', () => {
+    // The migration must be DURABLE: rewriting in-memory only would leave
+    // legacy keys on disk indefinitely, and a host that later removes the
+    // opt-in rename map would regress every user back to non-applying
+    // overrides on the next reload.
+    installFixturePanelConfig({ legacyIdRenameMap: { ...ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP } });
+    STORAGE_KEY_V2 = getStorageKeyV2();
+
+    const storage = makeStorage({
+      [STORAGE_KEY_V2]: makeV2WithTypography({
+        'text-caption': '0.9rem',
+        'text-micro': '0.6rem',
+      }),
+    });
+
+    loadPersistedState(storage, defaults);
+
+    const rewritten = JSON.parse(storage.entries[STORAGE_KEY_V2]!) as {
+      typography: Record<string, string>;
+    };
+    expect(rewritten.typography['text-xs']).toBe('0.9rem');
+    expect(rewritten.typography['text-caption']).toBeUndefined();
+    expect(rewritten.typography['text-micro']).toBeUndefined();
+  });
+
+  it('does NOT rewrite storage when the typography slice is unchanged (no spurious writes)', () => {
+    // Guard against writeback churn for hosts whose payload already matches
+    // the canonical envelope — every reload would otherwise touch storage.
+    installFixturePanelConfig({ legacyIdRenameMap: {} });
+    STORAGE_KEY_V2 = getStorageKeyV2();
+
+    const original = makeV2WithTypography({ 'text-caption': '0.9rem' });
+    const storage = makeStorage({ [STORAGE_KEY_V2]: original });
+
+    loadPersistedState(storage, defaults);
+
+    expect(storage.entries[STORAGE_KEY_V2]).toBe(original);
+  });
+
+  it('rejects prototype-chain payload keys as rename targets (Object.hasOwn guard)', () => {
+    // A payload key like `toString` / `constructor` / `hasOwnProperty`
+    // would match an inherited Object.prototype method under a `k in
+    // renameMap` check and corrupt the rename target. The Object.hasOwn
+    // guard ensures only own-property keys participate in the rename.
+    installFixturePanelConfig({ legacyIdRenameMap: { 'text-caption': 'text-xs' } });
+    STORAGE_KEY_V2 = getStorageKeyV2();
+
+    const storage = makeStorage({
+      [STORAGE_KEY_V2]: makeV2WithTypography({
+        toString: '1rem',
+        constructor: '2rem',
+        'text-caption': '0.9rem',
+      }),
+    });
+
+    const result = loadPersistedState(storage, defaults);
+
+    expect(result).not.toBeNull();
+    expect(result!.typography['toString']).toBe('1rem');
+    expect(result!.typography['constructor']).toBe('2rem');
+    expect(result!.typography['text-xs']).toBe('0.9rem');
   });
 });

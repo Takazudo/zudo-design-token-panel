@@ -56,6 +56,7 @@ import {
   storageKey_visible,
   type PanelConfig,
 } from '../config/panel-config';
+import { ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP } from '../state/tweak-state';
 
 interface DesignTokenPanelAdapterState {
   /** Per-`storagePrefix` bind flag — re-runs of the script are no-ops. */
@@ -243,7 +244,17 @@ function installConsoleApi(
 (function bootstrap(): void {
   // 1. Parse and apply config FIRST so every subsequent reader (storage keys,
   //    console namespace, …) observes the host's intended values.
-  const config = readInlineConfig();
+  //
+  // The astro path is the historical zdtp-internal caller — its persisted
+  // payloads predate issue #51 and use the legacy typography ids
+  // (`text-caption`, `text-small`, …) that the host's manifest now publishes
+  // under their Tailwind-tier names. Inject the opt-in legacy rename map
+  // here unless the host already supplied one, so existing astro deployments
+  // don't lose user tweaks on the upgrade.
+  const inline = readInlineConfig();
+  const config: PanelConfig = inline.legacyIdRenameMap
+    ? inline
+    : { ...inline, legacyIdRenameMap: { ...ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP } };
   configurePanel(config);
 
   // Re-read via `getPanelConfig()` so the storage/namespace derivations use

@@ -932,11 +932,33 @@ After the rewrite, the v1 key is deleted.
 
 ### 8.4 Typography-id rename map
 
-A hard-coded typography-id rename map (`text-caption` → `text-xs`, etc.,
-plus a small set of dropped legacy ids) lives inside `loadPersistedState`.
-It applies regardless of `storagePrefix`. Hosts whose token manifest does
-not use those legacy ids see no behaviour change — the map only triggers
-when matching keys appear in the persisted payload.
+The typography-id rename applied during `loadPersistedState` migration is
+configurable via the optional `legacyIdRenameMap` field on `PanelConfig`
+(`Record<string, string | null>`). Keys are old ids found in persisted
+state; values are either the new canonical id (`string`) or `null` to drop
+the legacy id entirely. If both the old and new id are present in the
+payload, the new id wins (post-migration tweak preserved).
+
+`null` (drop) is the only safe way to retire an obsolete legacy id:
+`applyTokenOverrides` silently ignores ids missing from the active
+manifest, but every save round-trips the dead key back to disk, so a
+stray legacy override would otherwise persist indefinitely.
+
+**The default is an empty map** — i.e. no renaming happens unless the host
+opts in. Hosts whose canonical manifest ids happen to match what an
+implementation might consider "old" labels (e.g. `text-caption` is a
+stable id in some manifests) are therefore not corrupted by an opinionated
+built-in rename. (Pre-issue-#51 the rename was hard-coded inside
+`loadPersistedState` and applied unconditionally; that path silently
+dropped overrides on stable ids.)
+
+For callers who depended on the historical zdtp-internal rename
+(`text-caption` → `text-xs`, `text-small` → `text-sm`, `text-body` →
+`text-base`, `text-subheading` → `text-lg`, `text-heading` → `text-3xl`,
+`text-display` → `text-5xl`, `text-micro` → drop), the package re-exports
+the same map as `ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP` from the package root.
+Pass it via `legacyIdRenameMap` on `configurePanel` to keep the old
+behaviour.
 
 ---
 

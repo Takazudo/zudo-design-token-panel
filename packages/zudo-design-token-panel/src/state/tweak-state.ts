@@ -787,31 +787,40 @@ export interface StorageLike {
 }
 
 /**
- * Legacy → current id mapping for the typography slice.
+ * Legacy zdtp-internal typography rename map — opt-in via
+ * `PanelConfig.legacyIdRenameMap`.
  *
- * An earlier port step renamed the font-size manifest ids from panel-internal
- * labels (`text-caption`, `text-small`, `text-body`, `text-subheading`,
- * `text-heading`, `text-display`) to main-site Tailwind tiers (`text-xs`,
- * `text-sm`, `text-base`, `text-lg`, `text-3xl`, `text-5xl`). The
- * `text-micro` id was dropped entirely (no `--zd-font-xxs` equivalent in the
- * design system).
+ * An earlier zdtp-internal port step renamed the font-size manifest ids from
+ * panel-internal labels (`text-caption`, `text-small`, `text-body`,
+ * `text-subheading`, `text-heading`, `text-display`) to main-site Tailwind
+ * tiers (`text-xs`, `text-sm`, `text-base`, `text-lg`, `text-3xl`,
+ * `text-5xl`), and dropped `text-micro` entirely (no main-site equivalent
+ * exists). This map preserves persisted user tweaks across that one-time
+ * rename — including the drop of `text-micro` (`null` value) — for callers
+ * that opt in.
  *
- * When a v2 payload comes in with the old ids we rewrite the keys here so
- * existing persisted tweaks survive the rename without the user losing
- * their work. Unknown / dropped ids (e.g. `text-micro`) are silently
- * discarded — they no longer route to anything.
+ * Critically, this map is NOT applied by default any more (see issue #51):
+ * hosts whose canonical manifest ids share names with these "old" labels —
+ * e.g. `zudo-doc`, where `text-caption` IS the stable id — were having
+ * their valid overrides remapped to non-existent ids and silently dropped.
+ * The default `loadPersistedState` path now applies an empty rename map.
  *
- * Note: spacing + size manifest ids were NOT renamed (hsp-/vsp- ids kept
- * their labels), so this migration only applies to the typography slice.
+ * The `text-micro: null` entry exists because dropping is the only way to
+ * keep an obsolete legacy id from persisting indefinitely as dead
+ * localStorage data: `applyTokenOverrides` silently ignores unknown ids,
+ * but every save round-trips the dead key back to disk.
+ *
+ * Spacing + size manifest ids were NOT renamed (hsp-/vsp- ids kept their
+ * labels), so this migration only applies to the typography slice.
  */
-const TYPOGRAPHY_ID_MIGRATIONS: Readonly<Record<string, string | null>> = {
+export const ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP: Readonly<Record<string, string | null>> = {
   'text-caption': 'text-xs',
   'text-small': 'text-sm',
   'text-body': 'text-base',
   'text-subheading': 'text-lg',
   'text-heading': 'text-3xl',
   'text-display': 'text-5xl',
-  // Dropped — no main-site equivalent. Null signals "discard".
+  // Dropped — no main-site equivalent. `null` signals "discard".
   'text-micro': null,
 };
 
@@ -831,20 +840,40 @@ function hydrateOverrides(raw: unknown): TokenOverrides {
 }
 
 /**
- * Same as `hydrateOverrides` but also rewrites legacy typography-slice keys
- * per `TYPOGRAPHY_ID_MIGRATIONS`. If BOTH the old and new ids are present,
- * the new id wins (user actively tweaked it post-migration). Keys mapped to
- * `null` are dropped.
+ * Same as `hydrateOverrides` but also rewrites typography-slice keys per a
+ * caller-supplied rename map. Map values are interpreted as:
+ *
+ *  - A `string` — rename: the value moves to that key. If BOTH the old and
+ *    new ids are present in the payload, the new id wins (post-migration
+ *    user tweak preserved).
+ *  - `null` — drop the legacy id entirely (no replacement in the active
+ *    manifest). Without this, a stray legacy override survives every save
+ *    as dead localStorage data.
+ *
+ * Keys not mentioned in the rename map pass through unchanged.
+ *
+ * The rename map is sourced from `PanelConfig.legacyIdRenameMap` at call time
+ * by `loadPersistedState`. The default is an empty map (no renaming) so
+ * hosts whose manifest ids are stable are not corrupted by an opinionated
+ * built-in rename — see issue #51 and the doc on
+ * `ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP` for the historical zdtp-internal map
+ * that callers can opt into.
  */
-function hydrateTypographyOverrides(raw: unknown): TokenOverrides {
+function hydrateTypographyOverrides(
+  raw: unknown,
+  renameMap: Readonly<Record<string, string | null>> = {},
+): TokenOverrides {
   if (!raw || typeof raw !== 'object') return {};
   const out: TokenOverrides = {};
   for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
     if (typeof v !== 'string') continue;
-    if (k in TYPOGRAPHY_ID_MIGRATIONS) {
-      const target = TYPOGRAPHY_ID_MIGRATIONS[k];
-      if (target === null) continue; // dropped id
-      if (!(target in out)) {
+    // `Object.hasOwn` (not `k in renameMap`) so a payload key like
+    // `toString` / `constructor` cannot match an inherited Object.prototype
+    // method and corrupt the rename target.
+    if (Object.hasOwn(renameMap, k)) {
+      const target = renameMap[k];
+      if (target === null) continue; // dropped legacy id
+      if (!Object.hasOwn(out, target)) {
         // Only take the legacy value if no post-migration value already set.
         out[target] = v;
       }
@@ -894,15 +923,21 @@ export function loadPersistedState(
       if (obj.color && isValidColorShape(obj.color, cluster.paletteSize)) {
         const defaults = colorDefaults ?? tryInitColorFromScheme(cluster);
         const typographySlice = obj.typography !== undefined ? obj.typography : obj.font;
+        // Rename map sourced from the active panel config. Defaults to an
+        // empty map (no renaming) so hosts whose manifest ids are stable are
+        // not corrupted — see issue #51 and the doc on
+        // `ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP` for the opt-in zdtp-internal
+        // map.
+        const renameMap = getPanelConfig().legacyIdRenameMap ?? {};
         const next: TweakState = {
           color: hydrateColorState(obj.color as Partial<ColorTweakState>, defaults),
           // New sections added after v1 migration — tolerate their absence so
           // older v2 payloads (Color-only) still load cleanly.
           spacing: hydrateOverrides(obj.spacing),
-          // Typography slice: run through the id-migration step so payloads
-          // persisted under the old ids (text-caption, text-body, …) survive
-          // the rename to main-site tiers (text-xs, text-base, …).
-          typography: hydrateTypographyOverrides(typographySlice),
+          // Typography slice: apply the host-configured rename map (if any)
+          // so payloads persisted under the host's "old" ids survive a
+          // host-driven id rename without losing the user's tweaks.
+          typography: hydrateTypographyOverrides(typographySlice, renameMap),
           size: hydrateOverrides(obj.size),
           panelPosition: hydratePanelPosition(obj.panelPosition),
         };
@@ -923,6 +958,21 @@ export function loadPersistedState(
             obj.secondary as Partial<ColorTweakState>,
             initSecondaryDefaults(secondaryCluster),
           );
+        }
+        // Renormalize storage when the typography migration actually changed
+        // the slice (rename or null-drop) OR the legacy `font` alias was
+        // used instead of `typography`. Without this, legacy ids and dropped
+        // entries survive on disk indefinitely as dead data, and a host
+        // that later removes the opt-in rename map regresses every user
+        // back to non-applying overrides.
+        const typographyChanged =
+          JSON.stringify(typographySlice ?? {}) !== JSON.stringify(next.typography);
+        if (typographyChanged || obj.typography === undefined) {
+          try {
+            storage.setItem(STORAGE_KEY_V2, JSON.stringify(next));
+          } catch {
+            /* storage full — return the in-memory state anyway */
+          }
         }
         return next;
       }

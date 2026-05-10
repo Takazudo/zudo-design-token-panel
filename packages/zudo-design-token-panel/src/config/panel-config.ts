@@ -111,6 +111,30 @@ export interface PanelConfig {
    * routing map).
    */
   applyRouting?: ApplyRoutingMap;
+  /**
+   * Optional id rename map applied during `loadPersistedState` migration.
+   * Keys are old ids found in persisted state; values are either:
+   *
+   *  - A `string` — new canonical id; the value moves to that key.
+   *  - `null` — drop the id entirely. Use this for legacy ids that have no
+   *    replacement in the current manifest (otherwise stray overrides
+   *    persist indefinitely as dead localStorage data: the apply pipeline
+   *    silently ignores ids missing from the active manifest, but every
+   *    save round-trips the dead key back to disk).
+   *
+   * Defaults to an empty map (no renaming, no drops) so hosts whose
+   * manifest ids are already stable (e.g. `zudo-doc`, whose canonical
+   * typography ids are the same names that an earlier zdtp-internal port
+   * step treated as "old" labels) are not corrupted: an override on a
+   * stable id was being remapped to a non-existent id and silently
+   * dropped.
+   *
+   * zdtp's own astro wiring opts in by passing the legacy zdtp-internal map
+   * (`ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP`, exported from the package root)
+   * via this field, preserving the historical rename + drop behaviour for
+   * callers that depend on it.
+   */
+  legacyIdRenameMap?: Record<string, string | null>;
 }
 
 /**
@@ -380,6 +404,22 @@ export function assertValidPanelConfig(value: unknown): asserts value is PanelCo
       if (typeof v !== 'string') {
         throw new Error(
           `[design-token-panel] PanelConfig.applyRouting[${JSON.stringify(k)}] must be a string`,
+        );
+      }
+    }
+  }
+  if (cfg.legacyIdRenameMap !== undefined) {
+    if (
+      cfg.legacyIdRenameMap === null ||
+      typeof cfg.legacyIdRenameMap !== 'object' ||
+      Array.isArray(cfg.legacyIdRenameMap)
+    ) {
+      throw new Error('[design-token-panel] PanelConfig.legacyIdRenameMap must be a plain object');
+    }
+    for (const [k, v] of Object.entries(cfg.legacyIdRenameMap as Record<string, unknown>)) {
+      if (v !== null && typeof v !== 'string') {
+        throw new Error(
+          `[design-token-panel] PanelConfig.legacyIdRenameMap[${JSON.stringify(k)}] must be a string or null (got ${typeof v})`,
         );
       }
     }
