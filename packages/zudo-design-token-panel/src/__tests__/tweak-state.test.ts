@@ -337,7 +337,9 @@ describe('loadPersistedState — typography rename map (configurable)', () => {
   });
 
   it('exports ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP with the documented historical mappings', () => {
-    // Pin the constant's contents so the opt-in opt-in stays stable.
+    // Pin the constant's contents so the opt-in stays stable. text-micro
+    // maps to null (drop) — its historical "no main-site equivalent"
+    // semantic — so opt-in callers get the full original behaviour.
     expect(ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP).toEqual({
       'text-caption': 'text-xs',
       'text-small': 'text-sm',
@@ -345,6 +347,30 @@ describe('loadPersistedState — typography rename map (configurable)', () => {
       'text-subheading': 'text-lg',
       'text-heading': 'text-3xl',
       'text-display': 'text-5xl',
+      'text-micro': null,
     });
+  });
+
+  it('with legacyIdRenameMap value of null: drops the legacy id entirely (no dead persistence)', () => {
+    // Without drop semantics, a stray legacy id (e.g. text-micro) survives
+    // every save round-trip as dead localStorage data: applyTokenOverrides
+    // silently ignores ids missing from the active manifest, but every
+    // save writes the dead key back to disk. Mapping to `null` ensures the
+    // hydrate step purges it once and never persists it again.
+    installFixturePanelConfig({ legacyIdRenameMap: { 'text-micro': null } });
+    STORAGE_KEY_V2 = getStorageKeyV2();
+
+    const storage = makeStorage({
+      [STORAGE_KEY_V2]: makeV2WithTypography({
+        'text-micro': '0.7rem',
+        'text-base': '1rem',
+      }),
+    });
+
+    const result = loadPersistedState(storage, defaults);
+
+    expect(result).not.toBeNull();
+    expect(result!.typography['text-micro']).toBeUndefined();
+    expect(result!.typography['text-base']).toBe('1rem');
   });
 });

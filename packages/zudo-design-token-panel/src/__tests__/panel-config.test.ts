@@ -232,7 +232,21 @@ describe('panel-config — assertValidPanelConfig accepts and rejects legacyIdRe
     ).not.toThrow();
   });
 
-  it('rejects legacyIdRenameMap with a non-string value', () => {
+  it('accepts legacyIdRenameMap with a null value (drop semantics)', () => {
+    // `null` signals "drop the legacy id entirely" — used for legacy ids
+    // that have no replacement in the current manifest. The validator
+    // must accept it because the historical zdtp-internal map relies on it
+    // (see ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP's text-micro entry).
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          legacyIdRenameMap: { 'text-micro': null, 'text-caption': 'text-xs' },
+        }),
+      ),
+    ).not.toThrow();
+  });
+
+  it('rejects legacyIdRenameMap with a non-string non-null value', () => {
     expect(() =>
       assertValidPanelConfig(
         makeBaseConfig({
@@ -240,7 +254,7 @@ describe('panel-config — assertValidPanelConfig accepts and rejects legacyIdRe
           legacyIdRenameMap: { 'text-caption': 123 as any },
         }),
       ),
-    ).toThrow(/legacyIdRenameMap\["text-caption"\] must be a string/);
+    ).toThrow(/legacyIdRenameMap\["text-caption"\] must be a string or null/);
   });
 
   it('rejects legacyIdRenameMap when set to an array', () => {
@@ -254,18 +268,7 @@ describe('panel-config — assertValidPanelConfig accepts and rejects legacyIdRe
     ).toThrow(/legacyIdRenameMap must be a plain object/);
   });
 
-  it('rejects legacyIdRenameMap with a null value inside', () => {
-    expect(() =>
-      assertValidPanelConfig(
-        makeBaseConfig({
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          legacyIdRenameMap: { 'text-caption': null as any },
-        }),
-      ),
-    ).toThrow(/legacyIdRenameMap\["text-caption"\] must be a string/);
-  });
-
-  it('rejects legacyIdRenameMap when set to null (not a plain object)', () => {
+  it('rejects legacyIdRenameMap when the field itself is set to null', () => {
     expect(() =>
       assertValidPanelConfig(
         makeBaseConfig({
@@ -274,5 +277,16 @@ describe('panel-config — assertValidPanelConfig accepts and rejects legacyIdRe
         }),
       ),
     ).toThrow(/legacyIdRenameMap must be a plain object/);
+  });
+
+  it('rejects legacyIdRenameMap with an array value inside', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          legacyIdRenameMap: { 'text-caption': ['text-xs'] as any },
+        }),
+      ),
+    ).toThrow(/legacyIdRenameMap\["text-caption"\] must be a string or null/);
   });
 });

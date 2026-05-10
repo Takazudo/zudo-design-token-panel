@@ -794,8 +794,10 @@ export interface StorageLike {
  * panel-internal labels (`text-caption`, `text-small`, `text-body`,
  * `text-subheading`, `text-heading`, `text-display`) to main-site Tailwind
  * tiers (`text-xs`, `text-sm`, `text-base`, `text-lg`, `text-3xl`,
- * `text-5xl`). This map preserves persisted user tweaks across that
- * one-time rename for callers that opt in.
+ * `text-5xl`), and dropped `text-micro` entirely (no main-site equivalent
+ * exists). This map preserves persisted user tweaks across that one-time
+ * rename — including the drop of `text-micro` (`null` value) — for callers
+ * that opt in.
  *
  * Critically, this map is NOT applied by default any more (see issue #51):
  * hosts whose canonical manifest ids share names with these "old" labels —
@@ -803,23 +805,23 @@ export interface StorageLike {
  * their valid overrides remapped to non-existent ids and silently dropped.
  * The default `loadPersistedState` path now applies an empty rename map.
  *
- * Note: the historical map also "dropped" `text-micro` (mapped it to null)
- * because no main-site equivalent existed. The new
- * `Record<string, string>` shape can express renames but not drops; a
- * stray `text-micro` override that survives migration is harmless because
- * `applyTokenOverrides` silently ignores ids that are not in the active
- * manifest.
+ * The `text-micro: null` entry exists because dropping is the only way to
+ * keep an obsolete legacy id from persisting indefinitely as dead
+ * localStorage data: `applyTokenOverrides` silently ignores unknown ids,
+ * but every save round-trips the dead key back to disk.
  *
  * Spacing + size manifest ids were NOT renamed (hsp-/vsp- ids kept their
  * labels), so this migration only applies to the typography slice.
  */
-export const ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP: Readonly<Record<string, string>> = {
+export const ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP: Readonly<Record<string, string | null>> = {
   'text-caption': 'text-xs',
   'text-small': 'text-sm',
   'text-body': 'text-base',
   'text-subheading': 'text-lg',
   'text-heading': 'text-3xl',
   'text-display': 'text-5xl',
+  // Dropped — no main-site equivalent. `null` signals "discard".
+  'text-micro': null,
 };
 
 /**
@@ -839,9 +841,16 @@ function hydrateOverrides(raw: unknown): TokenOverrides {
 
 /**
  * Same as `hydrateOverrides` but also rewrites typography-slice keys per a
- * caller-supplied rename map. If BOTH the old and new ids are present, the
- * new id wins (user actively tweaked it post-migration). Keys not mentioned
- * in the rename map pass through unchanged.
+ * caller-supplied rename map. Map values are interpreted as:
+ *
+ *  - A `string` — rename: the value moves to that key. If BOTH the old and
+ *    new ids are present in the payload, the new id wins (post-migration
+ *    user tweak preserved).
+ *  - `null` — drop the legacy id entirely (no replacement in the active
+ *    manifest). Without this, a stray legacy override survives every save
+ *    as dead localStorage data.
+ *
+ * Keys not mentioned in the rename map pass through unchanged.
  *
  * The rename map is sourced from `PanelConfig.legacyIdRenameMap` at call time
  * by `loadPersistedState`. The default is an empty map (no renaming) so
@@ -852,7 +861,7 @@ function hydrateOverrides(raw: unknown): TokenOverrides {
  */
 function hydrateTypographyOverrides(
   raw: unknown,
-  renameMap: Readonly<Record<string, string>> = {},
+  renameMap: Readonly<Record<string, string | null>> = {},
 ): TokenOverrides {
   if (!raw || typeof raw !== 'object') return {};
   const out: TokenOverrides = {};
@@ -860,6 +869,7 @@ function hydrateTypographyOverrides(
     if (typeof v !== 'string') continue;
     if (k in renameMap) {
       const target = renameMap[k];
+      if (target === null) continue; // dropped legacy id
       if (!(target in out)) {
         // Only take the legacy value if no post-migration value already set.
         out[target] = v;

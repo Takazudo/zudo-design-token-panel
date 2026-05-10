@@ -143,20 +143,17 @@ describe('loadPersistedState — spacing / typography / size sections', () => {
     // Payload written under the old id scheme (text-caption / text-body /
     // text-heading / text-display) should land on the new ids (text-xs /
     // text-base / text-3xl / text-5xl) when the host has opted in via
-    // PanelConfig.legacyIdRenameMap.
-    //
-    // Note: text-micro had no main-site equivalent in the historical
-    // hard-coded map, so it was dropped. The new Record<string, string>
-    // shape can only rename, not drop — a stray text-micro override now
-    // passes through verbatim and is silently ignored downstream by the
-    // apply pipeline (no token in the active manifest matches it).
+    // PanelConfig.legacyIdRenameMap. text-micro has no main-site
+    // equivalent so the historical map maps it to `null` (drop) — that
+    // semantic survives the move from a hard-coded internal map to the
+    // configurable opt-in map.
     installFixturePanelConfig({ legacyIdRenameMap: { ...ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP } });
     STORAGE_KEY_V2 = getStorageKeyV2();
 
     const v2 = {
       color: makeColor(),
       typography: {
-        'text-micro': '0.8rem', // not in opt-in map — passes through
+        'text-micro': '0.8rem', // null in opt-in map → dropped
         'text-caption': '1rem',
         'text-small': '1.15rem',
         'text-body': '1.5rem',
@@ -170,7 +167,6 @@ describe('loadPersistedState — spacing / typography / size sections', () => {
     const result = loadPersistedState(storage, defaults);
 
     expect(result!.typography).toEqual({
-      'text-micro': '0.8rem',
       'text-xs': '1rem',
       'text-sm': '1.15rem',
       'text-base': '1.5rem',
