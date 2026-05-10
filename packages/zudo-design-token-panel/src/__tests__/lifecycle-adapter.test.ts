@@ -53,7 +53,14 @@ import {
   panelRootId,
   storageKey_visible,
 } from '../config/panel-config';
-import { setLifecycleAdapter } from '../index';
+import { setLifecycleAdapter, type LifecycleAdapter } from '../index';
+
+/** Cleanup-fn callable signature returned by an adapter installer. */
+type CleanupFn = () => void;
+/** Adapter installer signature: receives the panel's internal handler, returns a cleanup fn. */
+type Installer = (callback: () => void) => CleanupFn;
+/** A vi.fn() typed as an `Installer` so it satisfies the strict `LifecycleAdapter` callback signature. */
+type InstallerMock = ReturnType<typeof vi.fn<Installer>>;
 
 const STORAGE_KEY_VISIBLE = storageKey_visible(getPanelConfig());
 const PANEL_ROOT_ID = panelRootId(getPanelConfig());
@@ -80,32 +87,39 @@ function dispatchAstroPageLoad(): void {
 }
 
 interface AdapterMock {
-  adapter: {
-    onBeforeSwap: ReturnType<typeof vi.fn>;
-    onPageLoad: ReturnType<typeof vi.fn>;
-  };
-  beforeSwapCleanup: ReturnType<typeof vi.fn>;
-  pageLoadCleanup: ReturnType<typeof vi.fn>;
+  /** Typed as `LifecycleAdapter` so it passes `setLifecycleAdapter`'s strict signature. */
+  adapter: LifecycleAdapter;
+  /** Same installer fns kept under their concrete `InstallerMock` type so tests can assert call counts. */
+  onBeforeSwap: InstallerMock;
+  onPageLoad: InstallerMock;
+  beforeSwapCleanup: ReturnType<typeof vi.fn<CleanupFn>>;
+  pageLoadCleanup: ReturnType<typeof vi.fn<CleanupFn>>;
   /** Most recent installer callback captured per hook. */
   capturedBeforeSwap: () => void;
   capturedPageLoad: () => void;
 }
 
 function createAdapterMock(): AdapterMock {
+  const beforeSwapCleanup = vi.fn<CleanupFn>();
+  const pageLoadCleanup = vi.fn<CleanupFn>();
+  const onBeforeSwap = vi.fn<Installer>();
+  const onPageLoad = vi.fn<Installer>();
   const ref: AdapterMock = {
-    adapter: { onBeforeSwap: vi.fn(), onPageLoad: vi.fn() },
-    beforeSwapCleanup: vi.fn(),
-    pageLoadCleanup: vi.fn(),
+    adapter: { onBeforeSwap, onPageLoad },
+    onBeforeSwap,
+    onPageLoad,
+    beforeSwapCleanup,
+    pageLoadCleanup,
     capturedBeforeSwap: () => {},
     capturedPageLoad: () => {},
   };
-  ref.adapter.onBeforeSwap.mockImplementation((cb: () => void) => {
+  onBeforeSwap.mockImplementation((cb: () => void) => {
     ref.capturedBeforeSwap = cb;
-    return ref.beforeSwapCleanup;
+    return beforeSwapCleanup;
   });
-  ref.adapter.onPageLoad.mockImplementation((cb: () => void) => {
+  onPageLoad.mockImplementation((cb: () => void) => {
     ref.capturedPageLoad = cb;
-    return ref.pageLoadCleanup;
+    return pageLoadCleanup;
   });
   return ref;
 }
@@ -153,8 +167,8 @@ describe('design-token-panel lifecycle adapter (#50)', () => {
     const mock = createAdapterMock();
     setLifecycleAdapter(mock.adapter);
 
-    expect(mock.adapter.onBeforeSwap).toHaveBeenCalledTimes(1);
-    expect(mock.adapter.onPageLoad).toHaveBeenCalledTimes(1);
+    expect(mock.onBeforeSwap).toHaveBeenCalledTimes(1);
+    expect(mock.onPageLoad).toHaveBeenCalledTimes(1);
 
     // Astro fallback removed: dispatching the document event must NOT mount.
     dispatchAstroPageLoad();
@@ -185,8 +199,8 @@ describe('design-token-panel lifecycle adapter (#50)', () => {
     expect(adapterA.pageLoadCleanup).toHaveBeenCalledTimes(1);
 
     // B's installers ran once each.
-    expect(adapterB.adapter.onBeforeSwap).toHaveBeenCalledTimes(1);
-    expect(adapterB.adapter.onPageLoad).toHaveBeenCalledTimes(1);
+    expect(adapterB.onBeforeSwap).toHaveBeenCalledTimes(1);
+    expect(adapterB.onPageLoad).toHaveBeenCalledTimes(1);
 
     // Only B routes to the live handler; firing through B mounts the panel.
     adapterB.capturedPageLoad();
