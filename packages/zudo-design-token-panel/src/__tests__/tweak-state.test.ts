@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
+  ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP,
   getStorageKeyV1,
   getStorageKeyV2,
   type ColorTweakState,
@@ -240,5 +241,110 @@ describe('loadPersistedState — v1→v2 migration', () => {
     // migration ran successfully → v1 deleted, v2 overwritten
     expect(storage.entries[STORAGE_KEY_V1]).toBeUndefined();
     expect(storage.entries[STORAGE_KEY_V2]).toBeDefined();
+  });
+});
+
+/**
+ * Typography-id rename behaviour — driven by `PanelConfig.legacyIdRenameMap`.
+ *
+ * Pre-issue-#51 the migration map was hard-coded inside `loadPersistedState`,
+ * which silently corrupted hosts whose canonical manifest ids happened to
+ * match the "old" labels (e.g. `zudo-doc`'s `text-caption` was IS the
+ * stable id, not a legacy one). The map is now an opt-in config field;
+ * these tests pin both ends of that contract.
+ */
+describe('loadPersistedState — typography rename map (configurable)', () => {
+  /** Build a minimal v2 envelope with a single typography override. */
+  function makeV2WithTypography(typography: Record<string, string>): string {
+    return JSON.stringify({
+      color: makeV1(),
+      typography,
+    });
+  }
+
+  it('with NO legacyIdRenameMap configured: preserves stable ids verbatim (issue #51 regression)', () => {
+    // Default fixture config has no `legacyIdRenameMap` → empty rename map.
+    // A host whose canonical manifest id happens to be `text-caption` MUST
+    // see their override survive verbatim instead of being remapped to a
+    // non-existent id and silently dropped.
+    const storage = makeStorage({
+      [STORAGE_KEY_V2]: makeV2WithTypography({ 'text-caption': '0.9rem' }),
+    });
+
+    const result = loadPersistedState(storage, defaults);
+
+    expect(result).not.toBeNull();
+    expect(result!.typography).toEqual({ 'text-caption': '0.9rem' });
+  });
+
+  it('with legacyIdRenameMap = ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP: applies the historical rename', () => {
+    installFixturePanelConfig({ legacyIdRenameMap: { ...ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP } });
+    STORAGE_KEY_V2 = getStorageKeyV2();
+
+    const storage = makeStorage({
+      [STORAGE_KEY_V2]: makeV2WithTypography({
+        'text-caption': '0.9rem',
+        'text-body': '1.4rem',
+      }),
+    });
+
+    const result = loadPersistedState(storage, defaults);
+
+    expect(result).not.toBeNull();
+    expect(result!.typography['text-xs']).toBe('0.9rem');
+    expect(result!.typography['text-base']).toBe('1.4rem');
+    // Old ids are gone after the rename — only the new ids carry the value.
+    expect(result!.typography['text-caption']).toBeUndefined();
+    expect(result!.typography['text-body']).toBeUndefined();
+  });
+
+  it('with a custom partial map: only specified keys are renamed; others pass through', () => {
+    installFixturePanelConfig({
+      legacyIdRenameMap: { 'old-only-key': 'new-key' },
+    });
+    STORAGE_KEY_V2 = getStorageKeyV2();
+
+    const storage = makeStorage({
+      [STORAGE_KEY_V2]: makeV2WithTypography({
+        'old-only-key': '1rem',
+        'unrelated-key': '2rem',
+      }),
+    });
+
+    const result = loadPersistedState(storage, defaults);
+
+    expect(result).not.toBeNull();
+    expect(result!.typography['new-key']).toBe('1rem');
+    expect(result!.typography['unrelated-key']).toBe('2rem');
+    expect(result!.typography['old-only-key']).toBeUndefined();
+  });
+
+  it('when both old and new ids are present: new id wins (post-migration tweak preserved)', () => {
+    installFixturePanelConfig({ legacyIdRenameMap: { ...ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP } });
+    STORAGE_KEY_V2 = getStorageKeyV2();
+
+    const storage = makeStorage({
+      [STORAGE_KEY_V2]: makeV2WithTypography({
+        'text-caption': 'OLD',
+        'text-xs': 'NEW',
+      }),
+    });
+
+    const result = loadPersistedState(storage, defaults);
+
+    expect(result).not.toBeNull();
+    expect(result!.typography['text-xs']).toBe('NEW');
+  });
+
+  it('exports ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP with the documented historical mappings', () => {
+    // Pin the constant's contents so the opt-in opt-in stays stable.
+    expect(ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP).toEqual({
+      'text-caption': 'text-xs',
+      'text-small': 'text-sm',
+      'text-body': 'text-base',
+      'text-subheading': 'text-lg',
+      'text-heading': 'text-3xl',
+      'text-display': 'text-5xl',
+    });
   });
 });

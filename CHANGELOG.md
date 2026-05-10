@@ -4,6 +4,17 @@ All notable changes to `zudo-design-token-panel` are recorded in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Dates and versions may be absent for unreleased entries.
 
+## [Unreleased]
+
+### Changed
+
+- Make typography-id rename map configurable via
+  `PanelConfig.legacyIdRenameMap`; default empty (BREAKING for hosts that
+  relied on the implicit built-in rename — zdtp's own callers can continue
+  to opt in by passing the re-exported `ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP`
+  constant).
+  ([#51](https://github.com/Takazudo/zudo-design-token-panel/issues/51))
+
 ## [0.1.0] — 2026-04-27
 
 Initial OSS port of the design-token panel + bin server from `zmodular`

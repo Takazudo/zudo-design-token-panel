@@ -226,6 +226,12 @@ export function __panelConfigForTest(): PanelConfig {
 // `import type { ColorClusterConfig } from '@takazudo/zudo-design-token-panel'`
 // instead of digging into an internal sub-path.
 export type { ColorClusterConfig } from './state/tweak-state';
+// Opt-in legacy zdtp-internal typography rename map. Hosts that depended on
+// the historical built-in rename (text-caption → text-xs, …) can pass this
+// constant via `PanelConfig.legacyIdRenameMap` to keep the old behaviour;
+// the default `loadPersistedState` path now applies an empty rename map so
+// hosts whose manifest ids are stable are not corrupted (issue #51).
+export { ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP } from './state/tweak-state';
 // Re-exported so hosts can type the entries of their optional
 // `PanelConfig.colorPresets` map without reaching for an internal sub-path.
 export type { ColorScheme, ColorRef } from './config/color-schemes';
