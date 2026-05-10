@@ -373,4 +373,67 @@ describe('loadPersistedState — typography rename map (configurable)', () => {
     expect(result!.typography['text-micro']).toBeUndefined();
     expect(result!.typography['text-base']).toBe('1rem');
   });
+
+  it('persists the renamed envelope back to storage so legacy ids do not survive (issue #51 codex finding)', () => {
+    // The migration must be DURABLE: rewriting in-memory only would leave
+    // legacy keys on disk indefinitely, and a host that later removes the
+    // opt-in rename map would regress every user back to non-applying
+    // overrides on the next reload.
+    installFixturePanelConfig({ legacyIdRenameMap: { ...ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP } });
+    STORAGE_KEY_V2 = getStorageKeyV2();
+
+    const storage = makeStorage({
+      [STORAGE_KEY_V2]: makeV2WithTypography({
+        'text-caption': '0.9rem',
+        'text-micro': '0.6rem',
+      }),
+    });
+
+    loadPersistedState(storage, defaults);
+
+    const rewritten = JSON.parse(storage.entries[STORAGE_KEY_V2]!) as {
+      typography: Record<string, string>;
+    };
+    expect(rewritten.typography['text-xs']).toBe('0.9rem');
+    expect(rewritten.typography['text-caption']).toBeUndefined();
+    expect(rewritten.typography['text-micro']).toBeUndefined();
+  });
+
+  it('does NOT rewrite storage when the typography slice is unchanged (no spurious writes)', () => {
+    // Guard against writeback churn for hosts whose payload already matches
+    // the canonical envelope — every reload would otherwise touch storage.
+    installFixturePanelConfig({ legacyIdRenameMap: {} });
+    STORAGE_KEY_V2 = getStorageKeyV2();
+
+    const original = makeV2WithTypography({ 'text-caption': '0.9rem' });
+    const storage = makeStorage({ [STORAGE_KEY_V2]: original });
+
+    loadPersistedState(storage, defaults);
+
+    expect(storage.entries[STORAGE_KEY_V2]).toBe(original);
+  });
+
+  it('rejects prototype-chain payload keys as rename targets (Object.hasOwn guard)', () => {
+    // A payload key like `toString` / `constructor` / `hasOwnProperty`
+    // would match an inherited Object.prototype method under a `k in
+    // renameMap` check and corrupt the rename target. The Object.hasOwn
+    // guard ensures only own-property keys participate in the rename.
+    installFixturePanelConfig({ legacyIdRenameMap: { 'text-caption': 'text-xs' } });
+    STORAGE_KEY_V2 = getStorageKeyV2();
+
+    const storage = makeStorage({
+      [STORAGE_KEY_V2]: makeV2WithTypography({
+        toString: '1rem',
+        constructor: '2rem',
+        'text-caption': '0.9rem',
+      }),
+    });
+
+    const result = loadPersistedState(storage, defaults);
+
+    expect(result).not.toBeNull();
+    expect(result!.typography['toString']).toBe('1rem');
+    expect(result!.typography['constructor']).toBe('2rem');
+    expect(result!.typography['text-xs']).toBe('0.9rem');
+  });
 });

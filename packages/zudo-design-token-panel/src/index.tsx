@@ -480,17 +480,49 @@ function bindAstroFallback(state: AdapterLifecycleState): void {
  * adapter. Each adapter installer returns a cleanup fn we capture so the
  * next `setLifecycleAdapter` call can drain it.
  *
- * Defensive: if the adapter omits a hook, we skip that hook silently — the
- * intent is "host owns this lifecycle channel, but only the channels it
- * implements". The other channel stays unbound (no astro fallback) because
- * mixing two channels would double-fire the handler on hosts that emit both.
+ * If the adapter omits a hook, the corresponding astro fallback listener is
+ * retained for that channel — otherwise a host registering only one of
+ * `{onBeforeSwap, onPageLoad}` would silently leak the other channel
+ * (no `unmountForSwap` → orphaned Preact tree on body-swapping routers, or
+ * no `reapplyFromStorage` → persisted overrides not re-applied after nav).
+ * The internal handlers are idempotent, so a host that emits both astro
+ * events AND its own custom event observes at most a no-op double-call.
+ *
+ * A `console.warn` fires for partial adapters so authors notice the
+ * fallback was retained — silent acceptance was the original design and
+ * caused a real leak in zfb-style hosts that only have a before-swap event.
  */
 function bindAdapter(state: AdapterLifecycleState, adapter: LifecycleAdapter): void {
+  if (typeof document === 'undefined') return;
   if (adapter.onBeforeSwap) {
     state.cleanups.push(adapter.onBeforeSwap(unmountForSwap));
+  } else {
+    document.addEventListener('astro:before-swap', unmountForSwap);
+    state.cleanups.push(() =>
+      document.removeEventListener('astro:before-swap', unmountForSwap),
+    );
   }
   if (adapter.onPageLoad) {
     state.cleanups.push(adapter.onPageLoad(reapplyFromStorage));
+  } else {
+    document.addEventListener('astro:page-load', reapplyFromStorage);
+    state.cleanups.push(() =>
+      document.removeEventListener('astro:page-load', reapplyFromStorage),
+    );
+  }
+  if (!adapter.onBeforeSwap || !adapter.onPageLoad) {
+    const missing = [
+      !adapter.onBeforeSwap ? 'onBeforeSwap' : null,
+      !adapter.onPageLoad ? 'onPageLoad' : null,
+    ]
+      .filter(Boolean)
+      .join(', ');
+    console.warn(
+      `[design-token-panel] LifecycleAdapter is missing ${missing}. ` +
+        'Astro fallback listener retained for the missing channel(s) so the ' +
+        'panel does not leak the Preact tree or skip override re-apply on ' +
+        'soft-nav. Provide the hook explicitly to silence this warning.',
+    );
   }
 }
 

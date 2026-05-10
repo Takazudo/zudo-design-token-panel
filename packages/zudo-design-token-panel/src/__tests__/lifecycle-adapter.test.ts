@@ -229,4 +229,83 @@ describe('design-token-panel lifecycle adapter (#50)', () => {
     await waitForEffectFlush();
     expect(document.getElementById(PANEL_ROOT_ID)).not.toBeNull();
   });
+
+  /**
+   * Partial-adapter behaviour — codex side-by-side review (P2) and codex
+   * adversarial review (medium) flagged that registering only one of
+   * `{onBeforeSwap, onPageLoad}` would silently drop the other channel
+   * and leak the Preact tree on body-swapping routers (zfb, custom SSGs).
+   * The fix retains the astro fallback for the unregistered channel and
+   * emits a `console.warn` so authors notice the silent gap.
+   */
+  describe('partial adapter (only one hook provided)', () => {
+    it('keeps the astro fallback for onPageLoad when the adapter only registers onBeforeSwap', async () => {
+      localStorage.setItem(STORAGE_KEY_VISIBLE, '1');
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const beforeSwapCleanup = vi.fn<CleanupFn>();
+      const onBeforeSwap = vi.fn<Installer>(() => beforeSwapCleanup);
+      setLifecycleAdapter({ onBeforeSwap });
+
+      // The astro:page-load fallback was retained — dispatching it mounts
+      // the panel as if no adapter had been registered.
+      dispatchAstroPageLoad();
+      await waitForEffectFlush();
+      expect(document.getElementById(PANEL_ROOT_ID)).not.toBeNull();
+
+      expect(onBeforeSwap).toHaveBeenCalledTimes(1);
+      const onPageLoadWarn = warn.mock.calls.find((c) =>
+        typeof c[0] === 'string' && c[0].includes('onPageLoad'),
+      );
+      expect(onPageLoadWarn).toBeDefined();
+
+      warn.mockRestore();
+    });
+
+    it('keeps the astro fallback for onBeforeSwap when the adapter only registers onPageLoad', async () => {
+      localStorage.setItem(STORAGE_KEY_VISIBLE, '1');
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      // Capture the adapter's onPageLoad callback so we can drive it
+      // directly — astro:page-load is now inert (adapter owns that channel).
+      let capturedPageLoad: () => void = () => {};
+      const pageLoadCleanup = vi.fn<CleanupFn>();
+      const onPageLoad = vi.fn<Installer>((cb: () => void) => {
+        capturedPageLoad = cb;
+        return pageLoadCleanup;
+      });
+      setLifecycleAdapter({ onPageLoad });
+
+      // Mount via the adapter's captured callback.
+      capturedPageLoad();
+      await waitForEffectFlush();
+      expect(document.getElementById(PANEL_ROOT_ID)).not.toBeNull();
+
+      // Now exercise the MISSING channel: astro:before-swap should still
+      // unmount because the fallback was retained for the gap.
+      document.dispatchEvent(new CustomEvent('astro:before-swap'));
+      await waitForEffectFlush();
+      expect(document.getElementById(PANEL_ROOT_ID)).toBeNull();
+
+      const onBeforeSwapWarn = warn.mock.calls.find((c) =>
+        typeof c[0] === 'string' && c[0].includes('onBeforeSwap'),
+      );
+      expect(onBeforeSwapWarn).toBeDefined();
+
+      warn.mockRestore();
+    });
+
+    it('does NOT emit the partial-adapter warning for a complete adapter (both hooks provided)', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const mock = createAdapterMock();
+      setLifecycleAdapter(mock.adapter);
+      // Filter on the partial-adapter warning specifically — other warns
+      // (singleton check, etc.) may fire on bootstrap and are unrelated.
+      const partialWarn = warn.mock.calls.find((c) =>
+        typeof c[0] === 'string' && c[0].includes('LifecycleAdapter is missing'),
+      );
+      expect(partialWarn).toBeUndefined();
+      warn.mockRestore();
+    });
+  });
 });

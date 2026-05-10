@@ -867,10 +867,13 @@ function hydrateTypographyOverrides(
   const out: TokenOverrides = {};
   for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
     if (typeof v !== 'string') continue;
-    if (k in renameMap) {
+    // `Object.hasOwn` (not `k in renameMap`) so a payload key like
+    // `toString` / `constructor` cannot match an inherited Object.prototype
+    // method and corrupt the rename target.
+    if (Object.hasOwn(renameMap, k)) {
       const target = renameMap[k];
       if (target === null) continue; // dropped legacy id
-      if (!(target in out)) {
+      if (!Object.hasOwn(out, target)) {
         // Only take the legacy value if no post-migration value already set.
         out[target] = v;
       }
@@ -955,6 +958,21 @@ export function loadPersistedState(
             obj.secondary as Partial<ColorTweakState>,
             initSecondaryDefaults(secondaryCluster),
           );
+        }
+        // Renormalize storage when the typography migration actually changed
+        // the slice (rename or null-drop) OR the legacy `font` alias was
+        // used instead of `typography`. Without this, legacy ids and dropped
+        // entries survive on disk indefinitely as dead data, and a host
+        // that later removes the opt-in rename map regresses every user
+        // back to non-applying overrides.
+        const typographyChanged =
+          JSON.stringify(typographySlice ?? {}) !== JSON.stringify(next.typography);
+        if (typographyChanged || obj.typography === undefined) {
+          try {
+            storage.setItem(STORAGE_KEY_V2, JSON.stringify(next));
+          } catch {
+            /* storage full — return the in-memory state anyway */
+          }
         }
         return next;
       }
