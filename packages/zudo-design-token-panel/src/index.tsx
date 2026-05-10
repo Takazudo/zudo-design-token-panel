@@ -232,6 +232,14 @@ export type { ColorScheme, ColorRef } from './config/color-schemes';
 // Re-export the `TokenManifest` shape so consumers can type their
 // host-supplied `panelConfig.tokens` field.
 export type { TokenManifest, TokenDef } from './tokens/manifest';
+// Re-export the unified `TweakState` envelope and the `emptyOverrides()`
+// factory so external SerDe / persistence layers (e.g. zudo-doc's
+// `design-token-serde.ts`) can construct and type a fully-populated
+// `TweakState` without reaching into the package's internals or the
+// test-only `./testing` sub-export. Type-only export of `TweakState`
+// avoids isolatedModules surprises; `emptyOverrides` is a runtime value.
+export type { TweakState } from './state/tweak-state';
+export { emptyOverrides } from './state/tweak-state';
 
 export function showDesignTokenPanel(): void {
   if (typeof window === 'undefined') return;

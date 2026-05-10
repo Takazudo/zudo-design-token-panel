@@ -4,6 +4,16 @@ All notable changes to `zudo-design-token-panel` are recorded in this file.
 The format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Dates and versions may be absent for unreleased entries.
 
+## [Unreleased]
+
+### Added
+
+- Export `TweakState` (type) and `emptyOverrides` from main entry
+  ([#49](https://github.com/Takazudo/zudo-design-token-panel/issues/49))
+  — external SerDe layers (e.g. zudo-doc's `design-token-serde.ts`)
+  can now construct a fully-populated `TweakState` without reaching into
+  the test-only `./testing` sub-export.
+
 ## [0.1.0] — 2026-04-27
 
 Initial OSS port of the design-token panel + bin server from `zmodular`
