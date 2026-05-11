@@ -42,6 +42,9 @@ export default defineConfig({
       path: "content/prose",
     },
   ],
+  // Demo: opt into every GFM construct via the shorthand.
+  // See ../zfb-tailwind/zfb.config.ts for the per-construct form.
+  markdown: { gfm: true },
   plugins: [
     {
       name: "./plugins/dev-apply-proxy.mjs",
