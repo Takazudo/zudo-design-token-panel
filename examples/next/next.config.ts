@@ -2,6 +2,7 @@ import type { NextConfig } from 'next';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 import createMDX from '@next/mdx';
+import remarkGfm from 'remark-gfm';
 
 /*
  * Next.js config for the Next + React 19 example app.
@@ -75,10 +76,11 @@ const nextConfig: NextConfig = {
 
 /*
  * Wrap the config with @next/mdx so .mdx files are processed as JSX pages.
- * No remark/rehype plugins are needed for the prose demo — raw GFM is
- * sufficient. Static export (output: 'export') is preserved because MDX
- * pages emit only static JSX; no server-only APIs are used.
+ * `remark-gfm` is required for GFM constructs (~~strike~~, tables, autolinks,
+ * task lists). @next/mdx does not enable GFM by default. Static export
+ * (output: 'export') is preserved because MDX pages emit only static JSX;
+ * no server-only APIs are used.
  */
-const withMDX = createMDX({});
+const withMDX = createMDX({ options: { remarkPlugins: [remarkGfm] } });
 
 export default withMDX(nextConfig);
