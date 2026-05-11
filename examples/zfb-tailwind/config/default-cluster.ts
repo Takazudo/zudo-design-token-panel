@@ -2,7 +2,7 @@
  * Demo color cluster for the zfb-tailwind example.
  *
  * The cluster's CSS-var family is `--zfbtailwindexample-*` (palette + base
- * roles + semantic names), declared on `:root` by `styles/tokens.css`. Tweaks
+ * roles + semantic names), declared on `:root` by `styles/global.css`. Tweaks
  * in the panel write through these names; the apply pipeline (when wired
  * through the bin sidecar) rewrites the same names on disk.
  *

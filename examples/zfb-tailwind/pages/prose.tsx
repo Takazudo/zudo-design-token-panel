@@ -2,7 +2,7 @@
  * Prose page for the zfb-tailwind example. Renders the "prose" content
  * collection entry inside a `.zfbtailwindexample-prose` container that
  * applies the flow-space pattern and element styles defined in
- * `styles/tokens.css`.
+ * `styles/global.css`.
  *
  * Content collection wiring
  * -------------------------
@@ -17,7 +17,7 @@
  * ------------------------
  * Per `doc/.claude/prose-token-contract.md`:
  * For zfb demos that do not use framework-level MDX component overrides,
- * container-scoped CSS with `:where()` is acceptable. The `styles/tokens.css`
+ * container-scoped CSS with `:where()` is acceptable. The `styles/global.css`
  * file defines the `.zfbtailwindexample-prose` container rules inside
  * `@layer components`, which keeps them correctly positioned below Tailwind
  * utility classes in the cascade.
@@ -32,7 +32,7 @@
 import { Island, type IslandProps } from '@takazudo/zfb';
 import { getCollection } from '@takazudo/zfb/content';
 import PanelMount from '../components/panel-mount';
-import '../styles/tokens.css';
+import '../styles/global.css';
 
 const BASE_PATH = '/pj/zudo-design-token-panel/examples/zfb-tailwind/';
 
