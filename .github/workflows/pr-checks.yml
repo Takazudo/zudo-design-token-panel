@@ -80,7 +80,11 @@ jobs:
         run: |
           echo "Cache miss — building zfb from source (this may take ~3-5 min)"
           START=$(date +%s)
-          cargo install --path ../zfb/crates/zfb
+          # `--force` because `restore-keys` may have laid down a stale
+          # `~/.cargo/bin/zfb` from a previous zfb SHA's cache. Without it,
+          # `cargo install` errors with "binary `zfb` already exists in
+          # destination" and aborts the job.
+          cargo install --force --path ../zfb/crates/zfb
           END=$(date +%s)
           ELAPSED=$((END - START))
           echo "zfb install completed in ${ELAPSED} seconds"
