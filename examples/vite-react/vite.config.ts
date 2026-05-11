@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import mdx from '@mdx-js/rollup';
+import remarkGfm from 'remark-gfm';
 
 /**
  * Vite + React example for @takazudo/zudo-design-token-panel.
@@ -40,7 +41,7 @@ export default defineConfig({
   plugins: [
     // mdx must come before react() — it transforms .mdx to JSX that react()
     // then processes via the automatic JSX runtime.
-    { enforce: 'pre', ...mdx({ jsxImportSource: 'react', providerImportSource: '@mdx-js/react' }) },
+    { enforce: 'pre', ...mdx({ jsxImportSource: 'react', providerImportSource: '@mdx-js/react', remarkPlugins: [remarkGfm] }) },
     react(),
   ],
   build: {
