@@ -43,6 +43,9 @@ export default defineConfig({
   base: "/pj/zudo-design-token-panel/examples/zfb-tailwind/",
   tailwind: { enabled: true },
   collections: [{ name: "prose", path: "content/prose" }],
+  // Demo: opt into a curated subset via the per-construct form.
+  // See ../zfb/zfb.config.ts for the shorthand form.
+  markdown: { gfm: { strikethrough: true, table: true } },
   plugins: [
     {
       name: "./plugins/dev-apply-proxy.mjs",
