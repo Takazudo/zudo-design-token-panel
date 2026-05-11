@@ -1,3 +1,4 @@
 # zfb build output
 dist/
 .zfb/
+.zfb-build/
