@@ -191,16 +191,29 @@ export default function DesignTokenTweakPanel() {
     }
   }, [open]);
 
-  // Toggle panel via custom event from header icon (new name + deprecated alias)
+  // Sync `open` from the authoritative `localStorage[OPEN_KEY]` whenever the
+  // adapter (`index.tsx`) signals a change. The adapter writes OPEN_KEY itself
+  // (header-button event, public API call, etc.) and then dispatches the
+  // internal sync event on `window`. This component is downstream: it doesn't
+  // compute the toggle from its own `prev` state — it just mirrors storage.
+  //
+  // The two historical public event names (`toggle-design-token-panel` and
+  // its deprecated `toggle-color-tweak-panel` alias) are now handled in
+  // `index.tsx` (see `handleExternalToggleEvent`). Removing them from this
+  // effect eliminates the dual-listener race that caused the
+  // "click-twice-after-close" regression — see `index.tsx` for the full
+  // rationale.
   useEffect(() => {
-    function handleToggle() {
-      setOpen((prev) => !prev);
+    function syncOpenFromStorage() {
+      try {
+        setOpen(localStorage.getItem(getOpenKey()) === '1');
+      } catch {
+        /* ignore */
+      }
     }
-    window.addEventListener('toggle-design-token-panel', handleToggle);
-    window.addEventListener('toggle-color-tweak-panel', handleToggle);
+    window.addEventListener('__zdtp:open-state-changed', syncOpenFromStorage);
     return () => {
-      window.removeEventListener('toggle-design-token-panel', handleToggle);
-      window.removeEventListener('toggle-color-tweak-panel', handleToggle);
+      window.removeEventListener('__zdtp:open-state-changed', syncOpenFromStorage);
     };
   }, []);
 

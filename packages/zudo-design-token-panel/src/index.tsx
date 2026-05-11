@@ -70,6 +70,41 @@ const TOGGLE_EVENT = 'toggle-design-token-panel';
 /** Deprecated — kept so legacy callers still flip the panel. */
 const TOGGLE_EVENT_ALIAS = 'toggle-color-tweak-panel';
 
+/**
+ * Internal sync event. The module-scope toggle handler writes
+ * `localStorage[OPEN_KEY]` to the new desired value and then dispatches this
+ * on `window`; the mounted panel's `useEffect`-installed listener re-reads
+ * `OPEN_KEY` and calls `setOpen` accordingly. Single source of truth lives in
+ * `localStorage[OPEN_KEY]`; the event is just a "go re-read" pulse.
+ *
+ * Internal name (double-underscore prefix) — not part of the public DOM
+ * contract; hosts must continue to dispatch `toggle-design-token-panel`.
+ *
+ * Why this exists: the old design had `panel.tsx`'s own window listener
+ * toggle internal `open` state via `setOpen((prev) => !prev)`. That made the
+ * in-component listener authoritative for the toggle, but its registration is
+ * deferred until Preact's `useEffect` flushes (one rAF after mount). A click
+ * that lands during that window — or any subtle pre-hydration / SPA-nav race
+ * that drops the in-component listener — is silently lost; the user has to
+ * click twice. The internal sync event lets the module-scope handler own the
+ * authoritative write and notify the panel separately, so the panel's job is
+ * the trivial one (re-read storage), not toggle arithmetic.
+ */
+const OPEN_STATE_CHANGED_EVENT = '__zdtp:open-state-changed';
+
+/**
+ * Dispatch the internal sync event so a mounted `panel.tsx` re-reads
+ * `localStorage[OPEN_KEY]` and updates its `open` state. SSR-safe.
+ *
+ * Internal — exported for tests only.
+ */
+function notifyPanelOpenChanged(): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(OPEN_STATE_CHANGED_EVENT));
+}
+
+export const __OPEN_STATE_CHANGED_EVENT_FOR_TEST = OPEN_STATE_CHANGED_EVENT;
+
 // ---------------------------------------------------------------------------
 // Storage helpers (SSR-safe, tolerant of private mode / quota errors)
 // ---------------------------------------------------------------------------
@@ -186,10 +221,14 @@ function ensureMounted(): boolean {
   return true;
 }
 
-function dispatchToggle(): void {
-  if (typeof window === 'undefined') return;
-  window.dispatchEvent(new CustomEvent(TOGGLE_EVENT));
-}
+// NOTE: `dispatchToggle()` was removed in favour of `notifyPanelOpenChanged()`.
+// The public API used to bounce its intent through the same window event the
+// header button uses, relying on `panel.tsx`'s in-component listener to flip
+// the state. That coupled the API to the panel's effect-flush timing and was
+// the structural source of the "click twice after close" regression. The
+// public API now writes `localStorage[OPEN_KEY]` directly and dispatches the
+// internal sync event so the panel just re-reads — no toggle arithmetic in
+// the listener, no race with effect attach.
 
 // ---------------------------------------------------------------------------
 // Public API (consumed by astro/host-adapter.ts)
@@ -249,47 +288,52 @@ export { emptyOverrides } from './state/tweak-state';
 
 export function showDesignTokenPanel(): void {
   if (typeof window === 'undefined') return;
-  // Seed OPEN_KEY *before* a fresh mount. See `seedOpenStateBeforeMount` doc
-  // comment for why we cannot rely on a post-render dispatch.
   const isFreshMount = !findRoot();
-  if (isFreshMount) seedOpenStateBeforeMount(true);
+  // Write OPEN_KEY synchronously so both the fresh-mount path (panel reads on
+  // mount) and the steady-state path (panel reads on sync event) see the
+  // same authoritative value.
+  seedOpenStateBeforeMount(true);
   ensureMounted();
   setStoredVisibility(true);
-  // Fresh-mount path: the seed has already driven `open=true` through
-  // `panel.tsx`'s mount-effect. Avoid the event dispatch entirely — the
-  // listener is not attached yet (Preact's `useEffect` flushes on rAF, well
-  // after our microtask), so it would land in the void.
+  // Fresh mount: panel.tsx's mount-effect picks up OPEN_KEY="1" and renders
+  // open — no listener race because the listener doesn't run yet anyway.
   if (isFreshMount) return;
-  // Steady-state path: panel is already mounted; flipping requires its
-  // listener, which is attached by now, so a synchronous dispatch is safe.
-  if (isPanelCurrentlyOpen()) return;
-  dispatchToggle();
+  // Steady state: notify the mounted panel to re-read OPEN_KEY.
+  if (isPanelCurrentlyOpen() === false) {
+    // OPEN_KEY just changed; sync the panel.
+    notifyPanelOpenChanged();
+  }
+  // (If OPEN_KEY was already "1", panel is already open; nothing to do.)
+  // Note: we read `isPanelCurrentlyOpen` *after* the seed, so this only skips
+  // the notify when the panel state is already in sync — which is harmless
+  // either way because the sync event is idempotent.
 }
 
 export function hideDesignTokenPanel(): void {
   if (typeof window === 'undefined') return;
   const isFreshMount = !findRoot();
-  if (isFreshMount) seedOpenStateBeforeMount(false);
+  seedOpenStateBeforeMount(false);
   ensureMounted();
   setStoredVisibility(false);
   if (isFreshMount) return;
-  if (!isPanelCurrentlyOpen()) return;
-  dispatchToggle();
+  // After the seed, isPanelCurrentlyOpen() returns false. We don't have the
+  // pre-seed value here, so just always notify — the sync event is idempotent
+  // (panel re-reads OPEN_KEY and calls setOpen(false); if already false, no
+  // re-render thanks to Preact's identity check on setState).
+  notifyPanelOpenChanged();
 }
 
 export function toggleDesignPanel(): void {
   if (typeof window === 'undefined') return;
-  // Snapshot intent *before* the toggle flips `OPEN_KEY`.
+  // Snapshot intent *before* the seed flips `OPEN_KEY`.
   const willBeOpen = !isPanelCurrentlyOpen();
   const isFreshMount = !findRoot();
-  if (isFreshMount) seedOpenStateBeforeMount(willBeOpen);
+  seedOpenStateBeforeMount(willBeOpen);
   ensureMounted();
   setStoredVisibility(willBeOpen);
-  // On a fresh mount, the seed already drove `panel.tsx`'s mount-effect to
-  // the desired state — no event dispatch needed (and dispatching here would
-  // race the not-yet-attached listener).
+  // Fresh mount: seed already drove the mount-effect to the desired state.
   if (isFreshMount) return;
-  dispatchToggle();
+  notifyPanelOpenChanged();
 }
 
 /**
@@ -359,25 +403,54 @@ function reapplyFromStorage(): void {
 }
 
 /**
- * Initial-mount trigger: while the shell is not yet mounted, the very first
- * `toggle-design-token-panel` (or alias) dispatched from elsewhere — e.g. a
- * header button click — lands here. The user's intent is to flip the panel,
- * so we seed `OPEN_KEY` to the *opposite* of its current value before the
- * Preact render. The mount-effect in `panel.tsx` then reads that seed and
- * sets `open` synchronously, matching what an event-listener-driven flip
- * would have done — without the timing race that made post-render dispatch
- * unreliable.
+ * Authoritative handler for the public `toggle-design-token-panel` /
+ * `toggle-color-tweak-panel` window events.
  *
- * Once the shell is mounted, this handler short-circuits and `panel.tsx`
- * owns every subsequent toggle. The before-swap unmount resets that state
- * so the seed-then-mount path kicks in again on the next hard-from-nothing
- * toggle.
+ * Owns the full toggle pipeline:
+ *
+ *   1. Compute the new open state by flipping `localStorage[OPEN_KEY]`.
+ *   2. Ensure the Preact shell is mounted (idempotent — no-op when already
+ *      mounted, performs the mount + initial render otherwise).
+ *   3. Dispatch the internal `__zdtp:open-state-changed` sync event so a
+ *      mounted `panel.tsx` re-reads `OPEN_KEY` and updates `open`.
+ *
+ * Why this matters (the "click twice after close" regression):
+ *
+ *   The previous design had this handler short-circuit when the panel root
+ *   div already existed, leaving steady-state toggling entirely to the
+ *   in-component `useEffect`-installed listener inside `panel.tsx`. That
+ *   created two implicit requirements that the runtime could not guarantee
+ *   together:
+ *
+ *     - The in-component listener must be attached. Preact flushes
+ *       `useEffect` on `requestAnimationFrame`, so for one paint frame
+ *       after mount the component has no listener — a click in that
+ *       window only reaches the module-scope handler, which short-
+ *       circuited. The click was silently dropped.
+ *     - The in-component listener must not be subsequently detached.
+ *       In hosts that wrap the panel in deferred Islands / shims /
+ *       bridges, the wrapper layer can re-evaluate or re-mount the bridge
+ *       in ways that leave the in-component listener half-installed.
+ *
+ *   By making the module-scope handler write `OPEN_KEY` itself and notify
+ *   the panel via a separate internal event, both requirements collapse
+ *   into one: `localStorage[OPEN_KEY]` is the only place that holds open
+ *   state, and the panel listens for a "go re-read" pulse rather than
+ *   computing the toggle from its own React state. The panel's listener
+ *   can still miss the pulse during the rAF gap, but the persisted state
+ *   is already correct — so the very next render reads the right value
+ *   from the mount-effect path (line 170 in `panel.tsx`).
  */
-function onMaybeMount(): void {
-  if (findRoot()) return; // already mounted — panel.tsx owns this event
+function handleExternalToggleEvent(): void {
+  const isFreshMount = !findRoot();
   const willBeOpen = !isPanelCurrentlyOpen();
   seedOpenStateBeforeMount(willBeOpen);
   ensureMounted();
+  // Fresh mount: the seed has already driven the mount-effect to the desired
+  // state; no in-component listener exists to notify yet. The sync event
+  // would harmlessly land in the void.
+  if (isFreshMount) return;
+  notifyPanelOpenChanged();
 }
 
 // ---------------------------------------------------------------------------
@@ -552,8 +625,8 @@ if (typeof window !== 'undefined') {
   if (!state.bound) {
     state.bound = true;
 
-    window.addEventListener(TOGGLE_EVENT, onMaybeMount);
-    window.addEventListener(TOGGLE_EVENT_ALIAS, onMaybeMount);
+    window.addEventListener(TOGGLE_EVENT, handleExternalToggleEvent);
+    window.addEventListener(TOGGLE_EVENT_ALIAS, handleExternalToggleEvent);
 
     // Initial bindings: astro fallback. `setLifecycleAdapter(...)` rewrites
     // this set later if a host installs an adapter.
