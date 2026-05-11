@@ -443,7 +443,12 @@ function reapplyFromStorage(): void {
  */
 function handleExternalToggleEvent(): void {
   const isFreshMount = !findRoot();
-  const willBeOpen = !isPanelCurrentlyOpen();
+  // When the panel root is absent (fresh mount, or SPA-nav zombie state where
+  // `unmountForSwap` removed the root but left `OPEN_KEY='1'` behind), the
+  // user's intent on this toggle event is unambiguously "open" — deriving
+  // direction from a possibly-stale `OPEN_KEY` would mount the panel CLOSED
+  // and require a second click. See zudolab/zudo-doc#1633 / #1640 / #1631.
+  const willBeOpen = isFreshMount ? true : !isPanelCurrentlyOpen();
   seedOpenStateBeforeMount(willBeOpen);
   ensureMounted();
   // Fresh mount: the seed has already driven the mount-effect to the desired
