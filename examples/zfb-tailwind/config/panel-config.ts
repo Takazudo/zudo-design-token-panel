@@ -43,7 +43,7 @@ import { defaultCluster } from './default-cluster';
 // file's directory. Inlining avoids the resolution issue without losing
 // the semantic link to the routing contract.
 const scaffoldRouting: Record<string, string> = {
-  zfbtailwindexample: 'styles/tokens.css',
+  zfbtailwindexample: 'styles/global.css',
 };
 
 export const panelConfig: PanelConfig = {

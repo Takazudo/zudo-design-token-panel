@@ -7,7 +7,7 @@
  * Tailwind utility strategy
  * -------------------------
  * All visual styling uses utility classes that resolve back to the
- * --zfbtailwindexample-* tokens via the @theme block in styles/tokens.css:
+ * --zfbtailwindexample-* tokens via the @theme block in styles/global.css:
  *
  *   bg-surface  → background-color: var(--color-surface)
  *               → var(--zfbtailwindexample-color-surface)
@@ -41,7 +41,7 @@
 
 import { Island, type IslandProps } from '@takazudo/zfb';
 import PanelMount from '../components/panel-mount';
-import '../styles/tokens.css';
+import '../styles/global.css';
 
 const PALETTE_INDICES = Array.from({ length: 16 }, (_, i) => i);
 

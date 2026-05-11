@@ -2,7 +2,7 @@
  * Demo token manifest for the zfb example.
  *
  * Every `cssVar` is a `--zfbtailwindexample-*` name. These line up byte-for-byte
- * with the declarations in `styles/tokens.css` so the panel can rewrite
+ * with the declarations in `styles/global.css` so the panel can rewrite
  * the same names live and the apply pipeline can rewrite them on disk.
  *
  * `TokenManifest` is reachable via the indexed-access lookup
