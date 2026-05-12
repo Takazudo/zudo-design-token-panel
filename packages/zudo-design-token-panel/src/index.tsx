@@ -49,6 +49,7 @@ import {
 import {
   getPanelConfig,
   panelRootId,
+  registerPostConfigureHook,
   storageKey_visible,
   type PanelConfig,
 } from './config/panel-config';
@@ -641,6 +642,24 @@ export function setLifecycleAdapter(adapter: LifecycleAdapter | null): void {
   }
 }
 
+/**
+ * H2 fix (#111): reapply must run AFTER configurePanel supplies the host's
+ * storagePrefix. Previously these calls ran at module-init time with DEFAULT
+ * config. With contaminated localStorage (`zudo-design-token-panel:visible=1`),
+ * reapplyFromStorage would mount a default-prefix panel BEFORE configurePanel
+ * ran, then its useEffect would removeItem(getOpenKey()) — now pointing at the
+ * host's prefix — clobbering the first toggle. Registering as a post-configure
+ * hook ensures reapply always uses the host-supplied config.
+ *
+ * Defined as a stable module-level constant so registerPostConfigureHook's
+ * idempotency-by-reference works correctly across calls (e.g. Astro view
+ * transitions that re-run the module-init block via setLifecycleAdapter).
+ */
+const POST_CONFIGURE_REAPPLY_HOOK = (): void => {
+  reapplyPersistedOverrides();
+  reapplyFromStorage();
+};
+
 if (typeof window !== 'undefined') {
   const state = getAdapterState();
   if (!state.bound) {
@@ -653,13 +672,11 @@ if (typeof window !== 'undefined') {
     // this set later if a host installs an adapter.
     bindAstroFallback(state);
 
-    // Apply persisted overrides to `:root` BEFORE any Preact render — kills
-    // the hard-navigation FOUT. `reapplyFromStorage()` below then mounts the
-    // shell only when the user had it open or has a persisted state to
-    // display (and internally reapplies overrides again, which is a cheap
-    // idempotent op — setting the same inline CSS vars twice paints once).
-    reapplyPersistedOverrides();
-    // Initial hard-load parity with the soft-nav path in `reapplyFromStorage`.
-    reapplyFromStorage();
+    // H2 fix (#111): register reapply as a post-configure hook instead of
+    // calling it eagerly here. The eager call ran with DEFAULT_PANEL_CONFIG's
+    // storagePrefix (the host hadn't called configurePanel yet), which caused
+    // a default-prefix panel to mount and remove the host-prefix open key on
+    // first toggle. See notes/zfb-first-toggle-diagnosis.md H2 section.
+    registerPostConfigureHook(POST_CONFIGURE_REAPPLY_HOOK);
   }
 }

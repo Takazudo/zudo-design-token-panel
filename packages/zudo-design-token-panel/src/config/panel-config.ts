@@ -149,13 +149,42 @@ export const DEFAULT_PANEL_CONFIG: PanelConfig = {
 // Singleton storage
 // ---------------------------------------------------------------------------
 
-let configuredConfig: PanelConfig | null = null;
 /**
- * Holding slot for a deferred preset map handed to `setPanelColorPresets`
- * before `configurePanel` has been called. Applied to the active config the
- * first time `getPanelConfig()` is read after configuration.
+ * The symbol key used to store the singleton slot on globalThis.
+ *
+ * WHY globalThis instead of module-scope `let` bindings:
+ * Vite's multi-entry build (e.g. Astro) can produce TWO separate module
+ * instances of panel-config.ts — one in the host-adapter chunk, one in the
+ * panel module chunk. Module-scope variables are per-instance, so
+ * configurePanel() on instance A is invisible to getPanelConfig() on instance
+ * B. Storing state on a Symbol.for() registry key makes all instances share
+ * one slot regardless of chunk fragmentation. See epic #108 for context.
  */
-let pendingColorPresets: Record<string, ColorScheme> | null = null;
+const SLOT_SYMBOL = Symbol.for('@takazudo/zudo-design-token-panel:singleton');
+
+interface SingletonSlot {
+  configuredConfig: PanelConfig | null;
+  pendingColorPresets: Record<string, ColorScheme> | null;
+  /**
+   * Post-configure hooks — callbacks registered by src/index.tsx that must run
+   * AFTER configurePanel supplies the host's storagePrefix. This exists to fix
+   * the H2 bug (#111): module-init in index.tsx would call reapplyPersistedOverrides
+   * and reapplyFromStorage with DEFAULT config before the host supplied its prefix,
+   * causing a default-prefix panel to mount and clobber host-prefix storage keys.
+   * Deferring reapply until configurePanel fires avoids the race entirely.
+   */
+  postConfigureHooks: (() => void)[];
+}
+
+function getSingletonSlot(): SingletonSlot {
+  const g = globalThis as unknown as Record<symbol, SingletonSlot | undefined>;
+  let slot = g[SLOT_SYMBOL];
+  if (!slot) {
+    slot = { configuredConfig: null, pendingColorPresets: null, postConfigureHooks: [] };
+    g[SLOT_SYMBOL] = slot;
+  }
+  return slot;
+}
 
 /**
  * Configure the panel runtime. Call exactly once per page lifecycle, before
@@ -171,17 +200,49 @@ let pendingColorPresets: Record<string, ColorScheme> | null = null;
  * but referentially distinct.
  */
 export function configurePanel(config: PanelConfig): void {
-  if (configuredConfig !== null) {
-    if (structuralEqual(configuredConfig, config)) return;
+  const slot = getSingletonSlot();
+  if (slot.configuredConfig !== null) {
+    if (structuralEqual(slot.configuredConfig, config)) return;
     throw new Error(
       '[design-token-panel] configurePanel() was already called with different values. ' +
         'Configuration is one-shot per page lifecycle.',
     );
   }
-  configuredConfig = pendingColorPresets
-    ? { ...config, colorPresets: pendingColorPresets }
+  slot.configuredConfig = slot.pendingColorPresets
+    ? { ...config, colorPresets: slot.pendingColorPresets }
     : { ...config };
-  pendingColorPresets = null;
+  slot.pendingColorPresets = null;
+  // Fire post-configure hooks. These run AFTER the host's config is installed,
+  // ensuring reapply paths (reapplyPersistedOverrides / reapplyFromStorage) use
+  // the correct storagePrefix — not the DEFAULT sentinel. See issue #111 H2 fix.
+  for (const hook of slot.postConfigureHooks) {
+    hook();
+  }
+}
+
+/**
+ * Register a callback to run once configurePanel has been called with the
+ * host's config. Used by src/index.tsx to defer reapplyPersistedOverrides and
+ * reapplyFromStorage until AFTER the host has supplied the correct storagePrefix.
+ *
+ * H2 fix for issue #111: module-init in index.tsx previously ran reapply
+ * synchronously — before configurePanel — using DEFAULT_PANEL_CONFIG's prefix,
+ * causing a default-prefix panel to mount and clobber host-prefix storage keys
+ * on the first toggle when contaminated localStorage was present.
+ *
+ * Idempotent: if the same hook reference is registered twice, the second call
+ * is a no-op. If configurePanel has already been called, the hook fires
+ * immediately so late registrants don't miss the trigger.
+ */
+export function registerPostConfigureHook(hook: () => void): void {
+  const slot = getSingletonSlot();
+  if (slot.postConfigureHooks.includes(hook)) return; // idempotent on reference
+  slot.postConfigureHooks.push(hook);
+  // If configurePanel was already called, run the hook immediately so ordering
+  // between index.tsx module-init and configurePanel is non-load-bearing.
+  if (slot.configuredConfig !== null) {
+    hook();
+  }
 }
 
 /**
@@ -189,7 +250,7 @@ export function configurePanel(config: PanelConfig): void {
  * if one was supplied, else `DEFAULT_PANEL_CONFIG`.
  */
 export function getPanelConfig(): PanelConfig {
-  return configuredConfig ?? DEFAULT_PANEL_CONFIG;
+  return getSingletonSlot().configuredConfig ?? DEFAULT_PANEL_CONFIG;
 }
 
 /**
@@ -197,8 +258,10 @@ export function getPanelConfig(): PanelConfig {
  * in isolation.
  */
 export function __resetPanelConfigForTests(): void {
-  configuredConfig = null;
-  pendingColorPresets = null;
+  const slot = getSingletonSlot();
+  slot.configuredConfig = null;
+  slot.pendingColorPresets = null;
+  slot.postConfigureHooks = [];
 }
 
 // Re-export cluster resolution helpers so callers can import from panel-config
@@ -573,9 +636,10 @@ export function resolveApplyRouting(cfg: PanelConfig = getPanelConfig()): ApplyR
  * landed last.
  */
 export function setPanelColorPresets(presets: Record<string, ColorScheme>): void {
-  if (configuredConfig === null) {
-    pendingColorPresets = presets;
+  const slot = getSingletonSlot();
+  if (slot.configuredConfig === null) {
+    slot.pendingColorPresets = presets;
     return;
   }
-  configuredConfig = { ...configuredConfig, colorPresets: presets };
+  slot.configuredConfig = { ...slot.configuredConfig, colorPresets: presets };
 }

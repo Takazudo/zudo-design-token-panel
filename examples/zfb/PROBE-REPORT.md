@@ -1,7 +1,7 @@
 # zfb Integration Probe Report
 
 **Probe date:** 2026-05-09
-**zfb commit verified against:** `3f58127`
+**zfb commit verified against:** `aa8e9ac`
 
 This report documents the four zfb gaps surfaced during the planning probe for sub-issue #33 (epic #29: Examples Deploy + zfb Demo). All four were fixed upstream before the zfb demo implementation (sub-issue #35) began.
 
@@ -9,7 +9,7 @@ This report documents the four zfb gaps surfaced during the planning probe for s
 
 ## Upstream fixes — resolved zfb issues
 
-All four issues have been closed and re-verified against zfb commit `3f58127`:
+All four issues have been closed and re-verified against zfb commit `3f58127` (original probe); zfb example re-verified against `aa8e9ac` as part of epic #108 (see Bug history below):
 
 | zfb # | Bug | Fix commit | Status |
 |---|---|---|---|
@@ -24,6 +24,18 @@ All four issues have been closed and re-verified against zfb commit `3f58127`:
 - https://github.com/Takazudo/zudo-front-builder/issues/229
 - https://github.com/Takazudo/zudo-front-builder/issues/230
 - https://github.com/Takazudo/zudo-front-builder/issues/231
+
+---
+
+## Bug history — zdtp internal fixes (epic #108, PR #113)
+
+Two bugs affecting the deployed Cloudflare Pages examples were diagnosed and fixed in [epic #108](https://github.com/Takazudo/zudo-design-token-panel/issues/108).
+
+**Bug 1 — Astro example rendered an empty panel body.** The Astro consumer's Vite build deduplicates chunks in a way that placed `panel-config.ts` into two separate module instances: one in the host-adapter chunk and one in the panel's main chunk. The host adapter wrote `configuredConfig` to its instance; the panel read from the other instance (still `null`), so `getPanelConfig()` returned `DEFAULT_PANEL_CONFIG` with `tabs: []`. Fix (#109): the configuration singleton is now stored on `globalThis[Symbol.for('@takazudo/zudo-design-token-panel:singleton')]` so any number of module instances share the same state slot regardless of bundler chunk layout.
+
+**Bug 2 — zfb first `toggleDesignPanel()` call was a no-op** when the browser's localStorage contained legacy keys from the default storage prefix (e.g. `zudo-design-token-panel:visible=1`). At module-init time, `reapplyFromStorage()` ran with the default prefix before `configurePanel(zfbConfig)` was called. This mounted a default-prefix Preact panel, which then removed the zfb-prefix open key as a side effect, so the zfb panel's mount-effect read `null` and never called `setOpen(true)`. Fix (#111): a post-configure hook system defers `reapplyPersistedOverrides()` and `reapplyFromStorage()` until `configurePanel()` has supplied the host's storage prefix. Existing consumers need no code changes.
+
+Both fixes are transparent to host consumers.
 
 ---
 
