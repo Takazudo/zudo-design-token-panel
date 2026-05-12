@@ -1110,3 +1110,14 @@
   margin-top: 4px;
   padding-top: 8px;
 }
+
+/* Secondary human-readable label shown beneath the cssVar primary label when
+   they differ. Developers see the cssVar identity first; the friendly name is
+   a muted subtitle for context only. */
+.tokenpanel-row-label-sub {
+  display: block;
+  font-size: var(--tokentweak-text-micro, 0.6875rem);
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  line-height: 1.2;
+}

@@ -110,7 +110,7 @@ function TierRefSelector({ tab, tierId, itemId, value, onChange }: TierRefSelect
 
   const currentRefItem = refTier ? resolveCurrentRefItem(refTier, value) : undefined;
   const triggerLabel = currentRefItem
-    ? `${currentRefItem.label} — ${truncatePreview(currentRefItem.default)}`
+    ? `${currentRefItem.cssVar} — ${truncatePreview(currentRefItem.default)}`
     : value || '—';
 
   // -------------------------------------------------------------------------
@@ -250,7 +250,12 @@ function TierRefSelector({ tab, tierId, itemId, value, onChange }: TierRefSelect
               }}
               onMouseEnter={() => setFocusedIndex(idx)}
             >
-              <span className="tokenpanel-tier-ref-option-label">{item.label}</span>
+              <span className="tokenpanel-tier-ref-option-label">
+                {item.cssVar}
+                {item.label !== item.cssVar && (
+                  <span className="tokenpanel-row-label-sub">{item.label}</span>
+                )}
+              </span>
               <span className="tokenpanel-tier-ref-option-preview">
                 {truncatePreview(item.default)}
               </span>

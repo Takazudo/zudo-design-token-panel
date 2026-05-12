@@ -146,7 +146,10 @@ function TierSection({ tab, tier, state, onChange }: TierSectionProps) {
                       data-testid={`tier-ref-row-${item.id}`}
                     >
                       <span className="tokenpanel-row-label" title={item.cssVar}>
-                        {item.label}
+                        {item.cssVar}
+                        {item.label !== item.cssVar && (
+                          <span className="tokenpanel-row-label-sub">{item.label}</span>
+                        )}
                       </span>
                       <TierRefSelector
                         tab={tab}

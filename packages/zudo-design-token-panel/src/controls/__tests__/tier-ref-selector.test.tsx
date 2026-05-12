@@ -155,13 +155,13 @@ function clickTrigger() {
 // ---------------------------------------------------------------------------
 
 describe('TierRefSelector — rendering', () => {
-  it('renders a trigger button with current ref item label and value preview', () => {
+  it('renders a trigger button with current ref item cssVar and value preview', () => {
     renderSelector('ease-out', vi.fn());
 
     const trigger = getTrigger();
-    // The trigger should contain the ref item label "Ease out" and a
+    // The trigger should contain the ref item cssVar "--easing-ease-out" and a
     // truncated preview of its default value.
-    expect(trigger.textContent).toContain('Ease out');
+    expect(trigger.textContent).toContain('--easing-ease-out');
     // "cubic-bezier(0, 0, 0.58, 1)" is 26 chars — fits within PREVIEW_MAX_LEN
     expect(trigger.textContent).toContain('cubic-bezier(0, 0, 0.58, 1)');
   });
@@ -170,8 +170,8 @@ describe('TierRefSelector — rendering', () => {
     // ease-in default is "cubic-bezier(0.42, 0, 1, 1)" — 28 chars, at limit
     renderSelector('ease-in', vi.fn());
     const trigger = getTrigger();
-    // label must be present
-    expect(trigger.textContent).toContain('Ease in');
+    // cssVar must be present
+    expect(trigger.textContent).toContain('--easing-ease-in');
   });
 
   it('does not render the listbox when closed', () => {
@@ -214,11 +214,11 @@ describe('TierRefSelector — opening the dropdown', () => {
     expect(options.length).toBe(4);
   });
 
-  it('each raw item option shows label and value preview', () => {
+  it('each raw item option shows cssVar and value preview', () => {
     renderSelector('linear', vi.fn());
     clickTrigger();
     const options = Array.from(getOptions());
-    const easeInOption = options.find((o) => o.textContent?.includes('Ease in'));
+    const easeInOption = options.find((o) => o.textContent?.includes('--easing-ease-in'));
     expect(easeInOption).not.toBeUndefined();
     // preview of "cubic-bezier(0.42, 0, 1, 1)" (28 chars — at limit, no truncation needed)
     expect(easeInOption?.textContent).toContain('cubic-bezier(0.42, 0, 1, 1)');
@@ -230,7 +230,7 @@ describe('TierRefSelector — opening the dropdown', () => {
     const options = Array.from(getOptions());
     const selected = options.filter((o) => o.getAttribute('aria-selected') === 'true');
     expect(selected.length).toBe(1);
-    expect(selected[0].textContent).toContain('Ease out');
+    expect(selected[0].textContent).toContain('--easing-ease-out');
   });
 
   it('opens with focus on the currently selected item', () => {
@@ -238,14 +238,14 @@ describe('TierRefSelector — opening the dropdown', () => {
     clickTrigger();
     // ease-out is index 1 in raw items
     const focused = getFocusedOption();
-    expect(focused?.textContent).toContain('Ease out');
+    expect(focused?.textContent).toContain('--easing-ease-out');
   });
 
   it('opens with focus on first item when value is unrecognised', () => {
     renderSelector('unknown-id', vi.fn());
     clickTrigger();
     const focused = getFocusedOption();
-    expect(focused?.textContent).toContain('Ease in');
+    expect(focused?.textContent).toContain('--easing-ease-in');
   });
 
   it('Enter on the trigger opens the dropdown', () => {
@@ -268,7 +268,7 @@ describe('TierRefSelector — keyboard navigation', () => {
     clickTrigger();
     fireKey(getListbox()!, 'ArrowDown');
     const focused = getFocusedOption();
-    expect(focused?.textContent).toContain('Ease out');
+    expect(focused?.textContent).toContain('--easing-ease-out');
   });
 
   it('ArrowUp moves focus to the previous option', () => {
@@ -277,7 +277,7 @@ describe('TierRefSelector — keyboard navigation', () => {
     clickTrigger();
     fireKey(getListbox()!, 'ArrowUp');
     const focused = getFocusedOption();
-    expect(focused?.textContent).toContain('Ease in');
+    expect(focused?.textContent).toContain('--easing-ease-in');
   });
 
   it('ArrowDown does not go past the last option', () => {
@@ -333,8 +333,8 @@ describe('TierRefSelector — picking an option', () => {
     clickTrigger();
 
     const options = Array.from(getOptions());
-    // Click on "Linear" (index 2 in raw items).
-    const linearOption = options.find((o) => o.textContent?.includes('Linear'));
+    // Click on the "linear" option (index 2 in raw items) — identified by cssVar.
+    const linearOption = options.find((o) => o.textContent?.includes('--easing-linear'));
     expect(linearOption).not.toBeUndefined();
     act(() => {
       linearOption!.dispatchEvent(

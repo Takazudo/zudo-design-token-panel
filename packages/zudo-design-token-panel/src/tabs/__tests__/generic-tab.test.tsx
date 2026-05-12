@@ -254,7 +254,7 @@ describe('GenericTab — default values', () => {
 });
 
 describe('GenericTab — onChange callbacks', () => {
-  it('renders text input for text items — aria-label matches item label', async () => {
+  it('renders text input for text items — aria-label matches item cssVar', async () => {
     // Verifies the input is present and correctly labeled for accessibility.
     // Full onChange wiring is verified at the integration level (panel.tsx test).
     // jsdom's native event dispatch does not trigger Preact's synthetic onChange,
@@ -266,7 +266,7 @@ describe('GenericTab — onChange callbacks', () => {
       '[data-testid="tier-item-ease-in"] input[type="text"]',
     );
     expect(input).not.toBeNull();
-    expect(input!.getAttribute('aria-label')).toBe('Ease in value');
+    expect(input!.getAttribute('aria-label')).toBe('--test-easing-ease-in value');
   });
 
   it('fires onChange through handleItemChange for a select', async () => {
@@ -279,7 +279,7 @@ describe('GenericTab — onChange callbacks', () => {
       '[data-testid="tier-item-select-item"] select',
     );
     expect(select).not.toBeNull();
-    expect(select!.getAttribute('aria-label')).toBe('Weight value');
+    expect(select!.getAttribute('aria-label')).toBe('--test-select value');
   });
 
   it('fires onChange for color input — correct aria-label', async () => {
@@ -290,7 +290,7 @@ describe('GenericTab — onChange callbacks', () => {
       '[data-testid="tier-item-color-item"] input[type="color"]',
     );
     expect(colorInput).not.toBeNull();
-    expect(colorInput!.getAttribute('aria-label')).toBe('Color value');
+    expect(colorInput!.getAttribute('aria-label')).toBe('--test-color value');
   });
 });
 
