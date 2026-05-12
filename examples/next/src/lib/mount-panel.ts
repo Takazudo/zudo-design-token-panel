@@ -15,13 +15,14 @@
  * Responsibilities (mirror the Astro adapter):
  *
  *  1. Own the `configurePanel(panelConfig)` call. The package's main entry
- *     reads `getPanelConfig()` only from inside functions invoked at
- *     panel-show time (never at module-init time), so calling
- *     configurePanel from inside the dynamic-import resolution is safe and
- *     keeps the panel JS out of the initial chunk. The host application is
- *     therefore the single source of truth for the config object — it
- *     imports `panelConfig` from the local `../config/panel-config` module
- *     and this adapter wires it through.
+ *     installs event listeners and the astro fallback at module-init time;
+ *     reapplyPersistedOverrides and reapplyFromStorage run via a post-configure
+ *     hook that fires AFTER configurePanel supplies the host's storagePrefix
+ *     (H2 fix, issue #111). Calling configurePanel inside the dynamic-import
+ *     resolution is safe and keeps the panel JS out of the initial chunk.
+ *     The host application is the single source of truth for the config
+ *     object — it imports `panelConfig` from the local `../config/panel-config`
+ *     module and this adapter wires it through.
  *  2. Install the console API on `window[cfg.consoleNamespace]`
  *     (`showDesignPanel` / `hideDesignPanel` / `toggleDesignPanel`). The
  *     namespace is a configured field — different consumers can pick
@@ -145,15 +146,16 @@ function hasPersistedOverrides(stateV2Key: string): boolean {
  * which matches the package's one-shot configurePanel contract.
  *
  * Why configurePanel runs HERE (not eagerly in PanelBootstrap.tsx): the
- * package main entry only reads `getPanelConfig()` from inside functions
- * invoked at panel-show time (panel.tsx renders, storage-key derivations,
- * …) — never at module-init time. Calling configurePanel inside the
- * dynamic-import resolution therefore lands the host's config in the
- * singleton before any reader sees it, while keeping the panel JS out of
- * the initial chunk (a static `import { configurePanel }` from the panel
- * package would pull the whole module into the initial chunk and the
- * Next.js bundler would fold the dynamic import below back into the same
- * chunk, defeating the lazy-load demonstration).
+ * package main entry installs event listeners and the astro fallback at
+ * module-init time; reapplyPersistedOverrides and reapplyFromStorage run via
+ * a post-configure hook that fires when configurePanel is called (H2 fix,
+ * issue #111). Calling configurePanel inside the dynamic-import resolution
+ * therefore lands the host's config in the singleton before any reader sees
+ * it, while keeping the panel JS out of the initial chunk (a static
+ * `import { configurePanel }` from the panel package would pull the whole
+ * module into the initial chunk and the Next.js bundler would fold the
+ * dynamic import below back into the same chunk, defeating the lazy-load
+ * demonstration).
  *
  * After configurePanel runs, call `reapplyPersistedOverrides()` so the
  * panel applies persisted overrides ASAP (matches the eager-reapply path
