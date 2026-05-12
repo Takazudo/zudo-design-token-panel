@@ -109,6 +109,17 @@ textarea {
   --zfbexample-color-surface: var(--zfbexample-palette-0);
   --zfbexample-color-muted: var(--zfbexample-palette-8);
   --zfbexample-color-danger: var(--zfbexample-palette-5);
+
+  /* Easing tokens (easing tab — raw tier) */
+  --zfbexample-easing-ease-in:    cubic-bezier(0.42, 0, 1, 1);
+  --zfbexample-easing-ease-out:   cubic-bezier(0, 0, 0.58, 1);
+  --zfbexample-easing-ease-inout: cubic-bezier(0.42, 0, 0.58, 1);
+  --zfbexample-easing-linear:     linear;
+
+  /* Easing tokens (easing tab — semantic tier, reference raw easings) */
+  --zfbexample-easing-tab-open:   var(--zfbexample-easing-ease-in);
+  --zfbexample-easing-tab-close:  var(--zfbexample-easing-ease-out);
+  --zfbexample-easing-modal:      var(--zfbexample-easing-ease-inout);
 }
 
 /* Design token panel chrome — the panel package's bundled stylesheet defines
@@ -192,6 +203,32 @@ body {
 .zfbexample-meta {
   font-size: 0.875rem;
   color: var(--zfbexample-color-muted);
+}
+
+/* ─── Easing demo card ───────────────────────────────────────────────────── */
+.zfbexample-easing-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18rem;
+  height: 6rem;
+  background: var(--zfbexample-color-accent);
+  color: var(--zfbexample-bg);
+  border: none;
+  border-radius: var(--zfbexample-radius);
+  cursor: pointer;
+  font-size: var(--zfbexample-text-base);
+  font-weight: 600;
+  /* Transition uses the easing semantic token — panel changes update motion live */
+  transition: transform 0.4s var(--zfbexample-easing-tab-open);
+}
+
+.zfbexample-easing-card.is-active {
+  transform: translateX(8rem);
+}
+
+.zfbexample-easing-card-label {
+  pointer-events: none;
 }
 
 /* ─── Prose tokens ───────────────────────────────────────────────────────── */

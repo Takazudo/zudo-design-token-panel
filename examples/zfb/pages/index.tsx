@@ -30,9 +30,33 @@
 
 import { Island, type IslandProps } from '@takazudo/zfb';
 import PanelMount from '../components/panel-mount';
+import { useState } from 'preact/hooks';
 import '../styles/global.css';
 
 const PALETTE_INDICES = Array.from({ length: 16 }, (_, i) => i);
+
+/**
+ * Interactive easing demo card.
+ *
+ * Clicking the card toggles it between resting and active position.
+ * The transition uses `var(--zfbexample-easing-tab-open)` so changing the
+ * Easing tab's "Tab Open" semantic role updates the perceived motion live.
+ */
+function EasingDemoCard() {
+  const [active, setActive] = useState(false);
+  return (
+    <button
+      type="button"
+      class={active ? 'zfbexample-easing-card is-active' : 'zfbexample-easing-card'}
+      onClick={() => setActive((v) => !v)}
+      aria-pressed={active}
+    >
+      <span class="zfbexample-easing-card-label">
+        {active ? 'Click to rest ←' : '→ Click to animate'}
+      </span>
+    </button>
+  );
+}
 
 export default function HomePage() {
   return (
@@ -85,6 +109,17 @@ export default function HomePage() {
                 Action button
               </button>
             </p>
+          </section>
+
+          <section>
+            <h2 class="zfbexample-heading">Easing demo</h2>
+            <p>
+              Click the card below to animate it. The motion uses{' '}
+              <code>transition-timing-function: var(--zfbexample-easing-tab-open)</code>.
+              Open the panel, switch to the <strong>Easing</strong> tab, and change the
+              semantic "Tab Open" role — the perceived animation speed changes live.
+            </p>
+            <EasingDemoCard />
           </section>
 
           <section>
