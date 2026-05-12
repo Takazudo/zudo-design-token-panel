@@ -65,10 +65,32 @@
  * Read-only manifest tokens are skipped in both directions.
  */
 
-import type { TokenDef } from '../tokens/manifest';
 import type { ColorTweakState, TokenOverrides, TweakState } from '../state/tweak-state';
 import { getPanelConfig } from '../config/panel-config';
 import { resolvePaletteCssVar } from '../config/cluster-config';
+import type { TierItem } from '../tokens/tier-model';
+
+/** Minimal token-like interface extracted from TierItem for serde lookups. */
+type SerdeItem = Pick<TierItem, 'id' | 'cssVar' | 'default' | 'readonly'>;
+
+/**
+ * Collect all items (across all tiers) from the tab identified by `tabId` in
+ * the active PanelConfig. Returns an empty array when the tab is not found.
+ *
+ * Used by serialize / deserialize to iterate the known items for a tab so
+ * cssVar ↔ id mapping stays consistent with what the UI renders.
+ */
+function getTabItems(tabId: string): readonly SerdeItem[] {
+  const tab = getPanelConfig().tabs.find((t) => t.id === tabId);
+  if (!tab) return [];
+  const items: SerdeItem[] = [];
+  for (const tier of tab.tiers) {
+    for (const item of tier.items) {
+      items.push(item);
+    }
+  }
+  return items;
+}
 
 /** The canonical v2 schema identifier emitted by serialize(). */
 export const SCHEMA_V2 = 'zudo-design-tokens/v2';
@@ -242,19 +264,16 @@ export function serialize(state: TweakState, opts: SerializeOptions = {}): Desig
   const colorTab = serializeColorV2(state.color, opts);
   if (colorTab) tabs['color'] = colorTab;
 
-  // Read manifests from runtime config so a host-supplied manifest drives the
-  // diff pass instead of frozen module-load arrays.
-  const tokens = getPanelConfig().tokens;
-
-  const spacingTab = serializeOverridesV2(tokens.spacing, state.spacing, opts);
-  if (spacingTab) tabs['spacing'] = spacingTab;
-
+  // Read items from tabs[] so a host-supplied config drives the diff pass.
   // The internal state slice is named `typography`; the external tab id is
   // `font` to match the external spec (issue #74). `deserialize()` maps back.
-  const fontTab = serializeOverridesV2(tokens.typography, state.typography, opts);
+  const spacingTab = serializeOverridesV2(getTabItems('spacing'), state.spacing, opts);
+  if (spacingTab) tabs['spacing'] = spacingTab;
+
+  const fontTab = serializeOverridesV2(getTabItems('font'), state.typography, opts);
   if (fontTab) tabs['font'] = fontTab;
 
-  const sizeTab = serializeOverridesV2(tokens.size, state.size, opts);
+  const sizeTab = serializeOverridesV2(getTabItems('size'), state.size, opts);
   if (sizeTab) tabs['size'] = sizeTab;
 
   if (Object.keys(tabs).length > 0) {
@@ -326,13 +345,13 @@ function serializeColorV2(
 }
 
 /**
- * Serialize a flat `TokenOverrides` map (keyed by manifest token id) into the
+ * Serialize a flat `TokenOverrides` map (keyed by item id) into the
  * v2 `raw` tier entry (keyed by CSS var name).
  *
  * Returns `{ raw: { "--cssvar": "value" } }` or undefined if nothing differs.
  */
 function serializeOverridesV2(
-  manifest: readonly TokenDef[],
+  items: readonly SerdeItem[],
   overrides: TokenOverrides,
   opts: SerializeOptions,
 ): V2TabEntry | undefined {
@@ -341,16 +360,16 @@ function serializeOverridesV2(
   let wrote = false;
 
   if (full) {
-    // Dump every editable token: override if set, else manifest default.
-    for (const t of manifest) {
+    // Dump every editable item: override if set, else item default.
+    for (const t of items) {
       if (t.readonly) continue;
       const v = overrides[t.id];
       raw[t.cssVar] = typeof v === 'string' && v.length > 0 ? v : t.default;
       wrote = true;
     }
   } else {
-    // Diff-only: emit only user-modified tokens.
-    for (const t of manifest) {
+    // Diff-only: emit only user-modified items.
+    for (const t of items) {
       if (t.readonly) continue;
       const v = overrides[t.id];
       if (typeof v === 'string' && v.length > 0 && v !== t.default) {
@@ -422,7 +441,6 @@ function deserializeV2(obj: Record<string, unknown>, opts: DeserializeOptions): 
   const warnings: string[] = [];
   const unknownTokens: string[] = [];
   const baseline = opts.colorDefaults ?? neutralColorDefaults();
-  const tokens = getPanelConfig().tokens;
   const cluster = getPanelConfig().colorCluster;
 
   const tabsRaw = obj.tabs && typeof obj.tabs === 'object' && !Array.isArray(obj.tabs)
@@ -438,21 +456,21 @@ function deserializeV2(obj: Record<string, unknown>, opts: DeserializeOptions): 
   const spacingRaw = spacingTab && typeof spacingTab === 'object'
     ? (spacingTab as Record<string, unknown>)['raw']
     : undefined;
-  const spacing = deserializeOverridesV2(spacingRaw, tokens.spacing, 'spacing', unknownTokens, warnings);
+  const spacing = deserializeOverridesV2(spacingRaw, getTabItems('spacing'), 'spacing', unknownTokens, warnings);
 
   // Font tab (id "font" in v2 external, maps to internal "typography").
   const fontTab = tabsRaw['font'];
   const fontRaw = fontTab && typeof fontTab === 'object'
     ? (fontTab as Record<string, unknown>)['raw']
     : undefined;
-  const typography = deserializeOverridesV2(fontRaw, tokens.typography, 'font.raw', unknownTokens, warnings);
+  const typography = deserializeOverridesV2(fontRaw, getTabItems('font'), 'font.raw', unknownTokens, warnings);
 
   // Size tab.
   const sizeTab = tabsRaw['size'];
   const sizeRaw = sizeTab && typeof sizeTab === 'object'
     ? (sizeTab as Record<string, unknown>)['raw']
     : undefined;
-  const size = deserializeOverridesV2(sizeRaw, tokens.size, 'size', unknownTokens, warnings);
+  const size = deserializeOverridesV2(sizeRaw, getTabItems('size'), 'size', unknownTokens, warnings);
 
   return {
     state: { color, spacing, typography, size },
@@ -525,16 +543,16 @@ function deserializeColorV2(
 
 function deserializeOverridesV2(
   raw: unknown,
-  manifest: readonly TokenDef[],
+  items: readonly SerdeItem[],
   label: string,
   unknownTokens: string[],
   warnings: string[],
 ): TokenOverrides {
   if (!raw || typeof raw !== 'object') return emptyOverrides();
 
-  // Build cssVar → TokenDef lookup (skip readonly — they're not editable).
-  const byVar = new Map<string, TokenDef>();
-  for (const t of manifest) {
+  // Build cssVar → SerdeItem lookup (skip readonly — they're not editable).
+  const byVar = new Map<string, SerdeItem>();
+  for (const t of items) {
     if (t.readonly) continue;
     byVar.set(t.cssVar, t);
   }
@@ -565,12 +583,11 @@ function deserializeV1(obj: Record<string, unknown>, opts: DeserializeOptions): 
   const baseline = opts.colorDefaults ?? neutralColorDefaults();
 
   const color = deserializeColorV1(obj.color, baseline, warnings);
-  // Read manifests from runtime config.
-  const tokens = getPanelConfig().tokens;
-  const spacing = deserializeOverridesV1(obj.spacing, tokens.spacing, 'spacing', unknownTokens, warnings);
-  // v1 used "typography" as the key (not "font").
-  const typography = deserializeOverridesV1(obj.typography, tokens.typography, 'typography', unknownTokens, warnings);
-  const size = deserializeOverridesV1(obj.size, tokens.size, 'size', unknownTokens, warnings);
+  // Read items from tabs[] so a host-supplied config drives validation.
+  // v1 used "typography" as the key (not "font") for the typography tab.
+  const spacing = deserializeOverridesV1(obj.spacing, getTabItems('spacing'), 'spacing', unknownTokens, warnings);
+  const typography = deserializeOverridesV1(obj.typography, getTabItems('font'), 'typography', unknownTokens, warnings);
+  const size = deserializeOverridesV1(obj.size, getTabItems('size'), 'size', unknownTokens, warnings);
 
   return {
     state: { color, spacing, typography, size },
@@ -657,16 +674,16 @@ function deserializeColorV1(
 
 function deserializeOverridesV1(
   raw: unknown,
-  manifest: readonly TokenDef[],
+  items: readonly SerdeItem[],
   label: string,
   unknownTokens: string[],
   warnings: string[],
 ): TokenOverrides {
   if (!raw || typeof raw !== 'object') return emptyOverrides();
 
-  // Build cssVar → TokenDef lookup (skip readonly — they're not editable).
-  const byVar = new Map<string, TokenDef>();
-  for (const t of manifest) {
+  // Build cssVar → SerdeItem lookup (skip readonly — they're not editable).
+  const byVar = new Map<string, SerdeItem>();
+  for (const t of items) {
     if (t.readonly) continue;
     byVar.set(t.cssVar, t);
   }

@@ -66,9 +66,17 @@ textarea {
   --zfbexample-spacing-md: 1rem;
   --zfbexample-spacing-lg: 2rem;
 
-  /* Typography tokens (manifest: typography tab) */
-  --zfbexample-text-base: 1rem;
-  --zfbexample-text-heading: 1.75rem;
+  /* Font scale tokens (font tab — raw tier, hidden in advancedTiers disclosure) */
+  --zfbexample-scale-xs: 0.75rem;
+  --zfbexample-scale-sm: 0.875rem;
+  --zfbexample-scale-base: 1rem;
+  --zfbexample-scale-lg: 1.25rem;
+  --zfbexample-scale-xl: 1.75rem;
+  --zfbexample-scale-2xl: 2.5rem;
+
+  /* Semantic font role tokens (font tab — semantic tier, reference raw scale) */
+  --zfbexample-text-base: var(--zfbexample-scale-base);
+  --zfbexample-text-heading: var(--zfbexample-scale-xl);
 
   /* Size tokens (manifest: size tab) */
   --zfbexample-radius: 0.5rem;

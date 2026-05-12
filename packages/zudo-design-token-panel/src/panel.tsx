@@ -34,23 +34,7 @@ import {
 const RESERVED_TAB_IDS = ['color', 'font', 'spacing', 'size'] as const;
 type ReservedTabId = (typeof RESERVED_TAB_IDS)[number];
 
-/** Legacy hard-coded tab strip — used when PanelConfig.tabs is NOT supplied. */
-type LegacyTabId = ReservedTabId;
-
-interface LegacyTabDef {
-  id: LegacyTabId;
-  label: string;
-}
-
-/** Hard-coded fallback tabs for hosts that have not supplied PanelConfig.tabs. */
-const LEGACY_TABS: readonly LegacyTabDef[] = [
-  { id: 'spacing', label: 'Spacing' },
-  { id: 'font', label: 'Font' },
-  { id: 'size', label: 'Size' },
-  { id: 'color', label: 'Color' },
-] as const;
-
-const DEFAULT_LEGACY_TAB: LegacyTabId = 'color';
+const DEFAULT_TAB_ID: ReservedTabId = 'color';
 
 // --- Panel sizing ---
 
@@ -78,50 +62,6 @@ function computePanelSize(
     height: `min(800px, 80vh)`,
     narrow,
   };
-}
-
-// --- Empty-state UI ---
-//
-// Friendly affordance shown in the tab body when a host has not registered
-// any tokens for the active tab's category (i.e. `getPanelConfig().tokens.<cat>`
-// is an empty array). Without this, the tab renders a blank pane — opaque to
-// a developer integrating the panel for the first time. The copy points the
-// reader at `configurePanel({ tokens })` and the package README quick-start
-// section.
-//
-// Scope: spacing / typography / size tabs only. The color tab is driven by
-// the host-supplied `colorCluster`, NOT by `tokens.color` — this package's
-// default manifest deliberately ships `color: []` because the cluster does
-// the work. Showing the empty-state under the color tab on the strength of
-// an empty `tokens.color` array would surface a spurious "configure tokens
-// please" message on every cluster-driven host, which is exactly the
-// regression to avoid.
-//
-// The `<a>` points at the package README anchor for the quick-start section.
-// It is rendered as an absolute GitHub URL so the link still resolves when
-// the panel is bundled into a consumer that ships none of the README
-// alongside the panel runtime.
-const README_QUICK_START_URL =
-  'https://github.com/Takazudo/zudo-design-token-panel#quick-start-astro';
-
-function EmptyState() {
-  return (
-    <div className="tokenpanel-empty-state" role="status">
-      <p className="tokenpanel-empty-state-text">
-        No tokens are registered for this tab. Pass a <code>TokenManifest</code> to{' '}
-        <code>configurePanel({'{ tokens }'})</code> — see the{' '}
-        <a
-          className="tokenpanel-empty-state-link"
-          href={README_QUICK_START_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          package README §3
-        </a>
-        .
-      </p>
-    </div>
-  );
 }
 
 // --- State factory ---
@@ -156,8 +96,7 @@ export default function DesignTokenTweakPanel() {
   const [showApply, setShowApply] = useState(false);
   const [state, setState] = useState<TweakState | null>(null);
   // activeTab holds a string to support host-supplied non-reserved tab ids.
-  // When tabs is NOT supplied, it defaults to the legacy DEFAULT_LEGACY_TAB.
-  const [activeTab, setActiveTab] = useState<string>(DEFAULT_LEGACY_TAB);
+  const [activeTab, setActiveTab] = useState<string>(DEFAULT_TAB_ID);
   const [position, setPosition] = useState<PanelPosition>(DEFAULT_POSITION);
   const [isNarrow, setIsNarrow] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -359,27 +298,19 @@ export default function DesignTokenTweakPanel() {
     setState(freshTweakState());
   }, []);
 
-  // Resolve the active tab list: prefer host-supplied PanelConfig.tabs when
-  // present, fall back to the legacy hard-coded LEGACY_TABS.
+  // Build the active tab list from PanelConfig.tabs (now required).
   // useMemo with no deps is intentional — configurePanel is one-shot per
   // lifecycle, so the list never changes after mount.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const activeTabs = useMemo((): readonly { id: string; label: string }[] => {
-    const cfg = getPanelConfig();
-    if (cfg.tabs && cfg.tabs.length > 0) {
-      return cfg.tabs.map((t: TabConfig) => ({ id: t.id, label: t.label }));
-    }
-    return LEGACY_TABS;
+    return getPanelConfig().tabs.map((t: TabConfig) => ({ id: t.id, label: t.label }));
   }, []);
 
-  // Build an id→TabConfig lookup for GenericTab dispatch (only needed when
-  // host-supplied tabs are present).
+  // Build an id→TabConfig lookup for GenericTab dispatch.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const tabConfigById = useMemo((): Record<string, TabConfig> => {
-    const cfg = getPanelConfig();
-    if (!cfg.tabs) return {};
     const out: Record<string, TabConfig> = {};
-    for (const t of cfg.tabs) {
+    for (const t of getPanelConfig().tabs) {
       out[t.id] = t;
     }
     return out;
@@ -417,12 +348,6 @@ export default function DesignTokenTweakPanel() {
     typeof window !== 'undefined' ? window.innerWidth : 1024,
     typeof window !== 'undefined' ? window.innerHeight : 768,
   );
-
-  // Read host token manifest so we can swap in <EmptyState/> for tabs whose
-  // category has zero tokens registered. The manifest is
-  // pinned by `configurePanel`'s one-shot contract, so re-reading per render
-  // is cheap and never goes stale mid-session.
-  const tokens = getPanelConfig().tokens;
 
   // In narrow mode, ignore saved position — center safely near the top.
   const panelPos =
@@ -553,27 +478,27 @@ export default function DesignTokenTweakPanel() {
                     persistSecondary={persistSecondary}
                   />
                 )}
-                {tab.id === 'spacing' &&
-                  state &&
-                  (tokens.spacing.length === 0 ? (
-                    <EmptyState />
-                  ) : (
-                    <SpacingTab state={state.spacing} persistSpacing={persistSpacing} />
-                  ))}
-                {tab.id === 'font' &&
-                  state &&
-                  (tokens.typography.length === 0 ? (
-                    <EmptyState />
-                  ) : (
-                    <FontTab state={state.typography} persistFont={persistFont} />
-                  ))}
-                {tab.id === 'size' &&
-                  state &&
-                  (tokens.size.length === 0 ? (
-                    <EmptyState />
-                  ) : (
-                    <SizeTab state={state.size} persistSize={persistSize} />
-                  ))}
+                {tab.id === 'spacing' && state && tabConfigById['spacing'] && (
+                  <SpacingTab
+                    tab={tabConfigById['spacing']}
+                    state={state.spacing}
+                    persistSpacing={persistSpacing}
+                  />
+                )}
+                {tab.id === 'font' && state && tabConfigById['font'] && (
+                  <FontTab
+                    tab={tabConfigById['font']}
+                    state={state.typography}
+                    persistFont={persistFont}
+                  />
+                )}
+                {tab.id === 'size' && state && tabConfigById['size'] && (
+                  <SizeTab
+                    tab={tabConfigById['size']}
+                    state={state.size}
+                    persistSize={persistSize}
+                  />
+                )}
                 {!isReserved && tabConfigById[tab.id] && state && (
                   <GenericTab
                     tab={tabConfigById[tab.id]}

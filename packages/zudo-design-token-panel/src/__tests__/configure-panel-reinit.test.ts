@@ -8,7 +8,6 @@ import {
   setPanelColorPresets,
   type PanelConfig,
 } from '../config/panel-config';
-import type { TokenManifest } from '../tokens/manifest';
 import type { ColorClusterDataConfig } from '../config/cluster-config';
 
 /**
@@ -24,13 +23,6 @@ import type { ColorClusterDataConfig } from '../config/cluster-config';
  *    pre-`configurePanel` via the holding slot.
  *  - `assertValidPanelConfig()` trust-boundary validator messages.
  */
-
-const EMPTY_MANIFEST: TokenManifest = {
-  spacing: [],
-  typography: [],
-  size: [],
-  color: [],
-};
 
 const EMPTY_CLUSTER: ColorClusterDataConfig = {
   id: 'empty',
@@ -51,7 +43,7 @@ const BASE: PanelConfig = {
   modalClassPrefix: 'demo-modal',
   schemaId: 'demo/v1',
   exportFilenameBase: 'demo',
-  tokens: EMPTY_MANIFEST,
+  tabs: [],
   colorCluster: EMPTY_CLUSTER,
 };
 
@@ -128,13 +120,14 @@ describe('assertValidPanelConfig — trust-boundary validator (P1-11)', () => {
     );
   });
 
-  it('rejects malformed tokens / colorCluster shapes', () => {
+  it('rejects malformed tabs / colorCluster shapes', () => {
+    // tabs must be an array
     expect(() =>
       assertValidPanelConfig({
         ...BASE,
-        tokens: { spacing: 'not-an-array', typography: [], size: [], color: [] },
+        tabs: 'not-an-array',
       } as unknown),
-    ).toThrow(/tokens\.spacing/);
+    ).toThrow(/tabs must be an array/);
     expect(() =>
       assertValidPanelConfig({
         ...BASE,

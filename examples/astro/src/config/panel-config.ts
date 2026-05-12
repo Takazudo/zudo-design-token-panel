@@ -17,7 +17,7 @@
  */
 
 import type { PanelConfig } from '@takazudo/zudo-design-token-panel/astro';
-import { defaultManifest } from './default-manifest';
+import { defaultTabs } from './default-manifest';
 import { defaultCluster } from './default-cluster';
 import scaffoldRouting from '../../scaffold.routing.json';
 
@@ -27,7 +27,7 @@ export const panelConfig: PanelConfig = {
   modalClassPrefix: 'astro-example-design-token-panel-modal',
   schemaId: 'astro-example-design-tokens/v1',
   exportFilenameBase: 'astro-example-design-tokens',
-  tokens: defaultManifest,
+  tabs: defaultTabs,
   colorCluster: defaultCluster,
   applyEndpoint: '/api/dev/apply',
   applyRouting: scaffoldRouting,

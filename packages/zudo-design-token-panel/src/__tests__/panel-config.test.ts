@@ -16,22 +16,8 @@ import {
   storageKey_visible,
   type PanelConfig,
 } from '../config/panel-config';
-import type { TokenManifest } from '../tokens/manifest';
 import type { ColorClusterDataConfig } from '../config/cluster-config';
 import type { TabConfig } from '../tokens/tier-model';
-
-/**
- * Empty manifest used by tests that don't care about token data — they're
- * exercising the storage / namespace / branding plumbing only. `tokens` is
- * a required field on `PanelConfig`; this stub keeps the fixtures focused
- * on what each test is actually asserting.
- */
-const EMPTY_MANIFEST: TokenManifest = {
-  spacing: [],
-  typography: [],
-  size: [],
-  color: [],
-};
 
 /**
  * Minimal cluster fixture used by tests that don't care about cluster data —
@@ -89,12 +75,9 @@ describe('panel-config — default config literal-equality', () => {
     expect(DEFAULT_PANEL_CONFIG.modalClassPrefix).toBe('zudo-design-token-panel-modal');
     expect(DEFAULT_PANEL_CONFIG.schemaId).toBe('zudo-design-tokens/v1');
     expect(DEFAULT_PANEL_CONFIG.exportFilenameBase).toBe('zudo-design-tokens');
-    // tokens is the empty stub manifest — every slice is an empty array.
-    expect(DEFAULT_PANEL_CONFIG.tokens).toBeDefined();
-    expect(DEFAULT_PANEL_CONFIG.tokens.spacing).toEqual([]);
-    expect(DEFAULT_PANEL_CONFIG.tokens.typography).toEqual([]);
-    expect(DEFAULT_PANEL_CONFIG.tokens.size).toEqual([]);
-    expect(DEFAULT_PANEL_CONFIG.tokens.color).toEqual([]);
+    // tabs is the empty stub array — hosts MUST configure real tabs.
+    expect(DEFAULT_PANEL_CONFIG.tabs).toBeDefined();
+    expect(DEFAULT_PANEL_CONFIG.tabs).toEqual([]);
   });
 
   it('storage-key derivations produce the documented literal strings', () => {
@@ -135,7 +118,7 @@ describe('panel-config — derivation flips with a non-default config', () => {
     modalClassPrefix: 'foo-bar-modal',
     schemaId: 'foo-bar-tokens/v1',
     exportFilenameBase: 'foo-bar-tokens',
-    tokens: EMPTY_MANIFEST,
+    tabs: [],
     colorCluster: EMPTY_CLUSTER,
   };
 
@@ -167,7 +150,7 @@ describe('panel-config — configurePanel idempotency', () => {
     modalClassPrefix: 'aaa-modal',
     schemaId: 'aaa/v1',
     exportFilenameBase: 'aaa',
-    tokens: EMPTY_MANIFEST,
+    tabs: [],
     colorCluster: EMPTY_CLUSTER,
   };
 
@@ -177,7 +160,7 @@ describe('panel-config — configurePanel idempotency', () => {
     modalClassPrefix: 'bbb-modal',
     schemaId: 'bbb/v1',
     exportFilenameBase: 'bbb',
-    tokens: EMPTY_MANIFEST,
+    tabs: [],
     colorCluster: EMPTY_CLUSTER,
   };
 
@@ -211,7 +194,7 @@ describe('panel-config — assertValidPanelConfig accepts and rejects legacyIdRe
       modalClassPrefix: 'p-modal',
       schemaId: 'p/v1',
       exportFilenameBase: 'p',
-      tokens: EMPTY_MANIFEST,
+      tabs: [],
       colorCluster: EMPTY_CLUSTER,
       ...extra,
     };
@@ -310,12 +293,7 @@ describe('panel-config — assertValidPanelConfig host-tabs validation', () => {
       modalClassPrefix: 'p-modal',
       schemaId: 'p/v1',
       exportFilenameBase: 'p',
-      tokens: {
-        spacing: [],
-        typography: [],
-        size: [],
-        color: [],
-      },
+      tabs: [],
       colorCluster: {
         id: 'empty',
         paletteSize: 0,

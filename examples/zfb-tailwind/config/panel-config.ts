@@ -30,7 +30,7 @@
  */
 
 import type { PanelConfig } from '@takazudo/zudo-design-token-panel/astro';
-import { defaultManifest } from './default-manifest';
+import { defaultTabs } from './default-manifest';
 import { defaultCluster } from './default-cluster';
 
 // Inlined from scaffold.routing.json — mirrors the same routing object the
@@ -52,7 +52,7 @@ export const panelConfig: PanelConfig = {
   modalClassPrefix: 'zfb-tailwind-example-design-token-panel-modal',
   schemaId: 'zfb-tailwind-example-design-tokens/v1',
   exportFilenameBase: 'zfb-tailwind-example-design-tokens',
-  tokens: defaultManifest,
+  tabs: defaultTabs,
   colorCluster: defaultCluster,
   // Full base-prefixed URL — NOT the bare `/api/dev/apply` the other examples
   // use. Required because zfb's devMiddleware mounts handlers under `base`.
