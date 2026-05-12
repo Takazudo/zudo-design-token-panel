@@ -35,9 +35,17 @@
   --zfbtailwindexample-spacing-md: 1rem;
   --zfbtailwindexample-spacing-lg: 2rem;
 
-  /* Typography tokens (manifest: typography tab) */
-  --zfbtailwindexample-text-base: 1rem;
-  --zfbtailwindexample-text-heading: 1.75rem;
+  /* Font scale tokens (font tab — raw tier, hidden in advancedTiers disclosure) */
+  --zfbtailwindexample-scale-xs: 0.75rem;
+  --zfbtailwindexample-scale-sm: 0.875rem;
+  --zfbtailwindexample-scale-base: 1rem;
+  --zfbtailwindexample-scale-lg: 1.25rem;
+  --zfbtailwindexample-scale-xl: 1.75rem;
+  --zfbtailwindexample-scale-2xl: 2.5rem;
+
+  /* Semantic font role tokens (font tab — semantic tier, reference raw scale) */
+  --zfbtailwindexample-text-base: var(--zfbtailwindexample-scale-base);
+  --zfbtailwindexample-text-heading: var(--zfbtailwindexample-scale-xl);
 
   /* Size tokens (manifest: size tab) */
   --zfbtailwindexample-radius: 0.5rem;
