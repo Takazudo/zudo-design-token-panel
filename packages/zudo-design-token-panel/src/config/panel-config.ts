@@ -31,7 +31,6 @@
  */
 
 import type { ColorScheme } from './color-schemes';
-import type { ColorClusterDataConfig } from './cluster-config';
 import type { TabConfig } from '../tokens/tier-model';
 import { structuralEqual } from '../utils/structural-equal';
 
@@ -63,29 +62,6 @@ export interface PanelConfig {
   schemaId: string;
   /** Default filename base — exports save as `${exportFilenameBase}.json`. */
   exportFilenameBase: string;
-  /**
-   * Primary color-cluster data. Drives the color tab + the apply / clear /
-   * load helpers in `state/tweak-state.ts`. Must be JSON-serializable.
-   */
-  colorCluster: ColorClusterDataConfig;
-  /**
-   * Optional secondary color-cluster data.
-   *
-   * Renders below the primary cluster on the Color tab and routes through
-   * the apply / clear paths under its own CSS-var family. The host
-   * controls participation:
-   *
-   *  - `undefined` (field omitted) — falls back to `null` (secondary
-   *    cluster hidden / skipped).
-   *  - `null` — explicit opt-out: the secondary palette section is hidden
-   *    and the apply/clear paths skip the secondary cluster entirely.
-   *  - A `ColorClusterDataConfig` object — host-supplied secondary cluster.
-   *
-   * Resolution helper: prefer `resolveSecondaryColorCluster()` over reading
-   * the field directly so the `undefined → null` fallback is applied
-   * consistently at every call site.
-   */
-  secondaryColorCluster?: ColorClusterDataConfig | null;
   /**
    * Optional host-supplied color-scheme presets.
    *
@@ -119,8 +95,10 @@ export interface PanelConfig {
    *  - Any other id dispatches to `GenericTab`, which renders the tab's
    *    `tiers` using kind-appropriate editors.
    *
-   * Hosts MUST supply this field. The ColorTab still reads `colorCluster` for
-   * its palette data (Wave 7 migrates it into the tier model).
+   * Hosts MUST supply this field. The color tab (id 'color') reads its
+   * palette and semantic data from the tier model via `colorExtras` +
+   * `TierItem[]` on the TabConfig. A secondary color tab can be supplied
+   * under the reserved id 'color-secondary'.
    */
   tabs: readonly TabConfig[];
   /**
@@ -150,26 +128,6 @@ export interface PanelConfig {
 }
 
 /**
- * Minimal stub color cluster — used as the default fallback. Carries an
- * empty palette and empty semantic / scheme registries so the color tab
- * shows an empty state. Hosts MUST override via
- * `configurePanel({ colorCluster })`.
- */
-const STUB_COLOR_CLUSTER: ColorClusterDataConfig = {
-  id: 'stub',
-  label: 'STUB',
-  paletteSize: 0,
-  baseRoles: {},
-  paletteCssVarTemplate: '--zudo-stub-p{n}',
-  semanticDefaults: {},
-  semanticCssNames: {},
-  baseDefaults: {},
-  defaultShikiTheme: 'dracula',
-  colorSchemes: {},
-  panelSettings: { colorScheme: '', colorMode: false },
-};
-
-/**
  * Default config — minimal stub values. Hosts MUST call `configurePanel(...)`
  * with real values to see useful behaviour.
  */
@@ -181,10 +139,6 @@ export const DEFAULT_PANEL_CONFIG: PanelConfig = {
   exportFilenameBase: 'zudo-design-tokens',
   // Empty tab list — hosts MUST configure real tabs via configurePanel().
   tabs: [],
-  colorCluster: STUB_COLOR_CLUSTER,
-  // Default to null — secondary cluster is opt-in. Hosts that want one
-  // pass an explicit cluster object via `configurePanel`.
-  secondaryColorCluster: null,
   colorPresets: {},
   // No bundled apply endpoint / routing — hosts wire their own.
   applyEndpoint: undefined,
@@ -247,22 +201,42 @@ export function __resetPanelConfigForTests(): void {
   pendingColorPresets = null;
 }
 
+// Re-export cluster resolution helpers so callers can import from panel-config
+// without reaching into cluster-config directly.
+export {
+  resolvePrimaryColorCluster,
+  resolveSecondaryColorClusterFromTabs,
+} from './cluster-config';
+import {
+  resolvePrimaryColorCluster,
+  resolveSecondaryColorClusterFromTabs,
+} from './cluster-config';
+import type { ColorClusterDataConfig } from './cluster-config';
+
 /**
- * Resolve the active secondary color cluster.
+ * Resolve the active primary color cluster from the panel config's tabs array.
  *
- *  - Explicit `null` on the config — host opted out → returns `null`.
- *    Callers MUST treat this as "do not render / apply / clear secondary
- *    cluster".
- *  - Explicit cluster object — host-supplied secondary cluster → returned
- *    verbatim.
- *  - `undefined` (field omitted) — defaults to `null` (the package itself
- *    ships no bundled secondary cluster).
+ * Returns `undefined` when no color tab is configured or it has no
+ * `colorExtras` (e.g. the default empty config).
+ *
+ * @deprecated Prefer `resolvePrimaryColorCluster(cfg.tabs)` directly.
+ */
+export function resolveActiveColorCluster(
+  cfg: PanelConfig = getPanelConfig(),
+): ColorClusterDataConfig | undefined {
+  return resolvePrimaryColorCluster(cfg.tabs);
+}
+
+/**
+ * Resolve the active secondary color cluster from the panel config's tabs.
+ *
+ * Returns `null` when no 'color-secondary' tab is configured. Callers MUST
+ * treat this as "do not render / apply / clear secondary cluster".
  */
 export function resolveSecondaryColorCluster(
   cfg: PanelConfig = getPanelConfig(),
 ): ColorClusterDataConfig | null {
-  if (cfg.secondaryColorCluster === null || cfg.secondaryColorCluster === undefined) return null;
-  return cfg.secondaryColorCluster;
+  return resolveSecondaryColorClusterFromTabs(cfg.tabs);
 }
 
 // ---------------------------------------------------------------------------
@@ -366,27 +340,6 @@ export function assertValidPanelConfig(value: unknown): asserts value is PanelCo
   // tabs is required — validate it unconditionally.
   assertValidTabs(cfg.tabs);
 
-  if (
-    cfg.colorCluster === null ||
-    typeof cfg.colorCluster !== 'object' ||
-    Array.isArray(cfg.colorCluster)
-  ) {
-    throw new Error('[design-token-panel] PanelConfig.colorCluster must be an object');
-  }
-  const cluster = cfg.colorCluster as Record<string, unknown>;
-  if (typeof cluster.id !== 'string' || cluster.id.length === 0) {
-    throw new Error('[design-token-panel] PanelConfig.colorCluster.id must be a non-empty string');
-  }
-  if (typeof cluster.paletteSize !== 'number' || cluster.paletteSize < 0) {
-    throw new Error(
-      '[design-token-panel] PanelConfig.colorCluster.paletteSize must be a non-negative number',
-    );
-  }
-  if (typeof cluster.paletteCssVarTemplate !== 'string') {
-    throw new Error(
-      '[design-token-panel] PanelConfig.colorCluster.paletteCssVarTemplate must be a string',
-    );
-  }
   // Optional fields — only validate when present.
   if (cfg.applyEndpoint !== undefined && typeof cfg.applyEndpoint !== 'string') {
     throw new Error(

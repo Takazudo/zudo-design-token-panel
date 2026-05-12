@@ -66,6 +66,7 @@
  */
 
 import type { ColorTweakState, TokenOverrides, TweakState } from '../state/tweak-state';
+import { getActivePrimaryCluster } from '../state/tweak-state';
 import { getPanelConfig } from '../config/panel-config';
 import { resolvePaletteCssVar } from '../config/cluster-config';
 import type { TierItem } from '../tokens/tier-model';
@@ -304,7 +305,7 @@ function serializeColorV2(
 ): V2TabEntry | undefined {
   const baseline = opts.colorDefaults;
   const full = opts.includeDefaults === true;
-  const cluster = getPanelConfig().colorCluster;
+  const cluster = getActivePrimaryCluster();
 
   const out: V2TabEntry = {};
   let wrote = false;
@@ -441,7 +442,7 @@ function deserializeV2(obj: Record<string, unknown>, opts: DeserializeOptions): 
   const warnings: string[] = [];
   const unknownTokens: string[] = [];
   const baseline = opts.colorDefaults ?? neutralColorDefaults();
-  const cluster = getPanelConfig().colorCluster;
+  const cluster = getActivePrimaryCluster();
 
   const tabsRaw = obj.tabs && typeof obj.tabs === 'object' && !Array.isArray(obj.tabs)
     ? (obj.tabs as Record<string, unknown>)
@@ -482,7 +483,7 @@ function deserializeV2(obj: Record<string, unknown>, opts: DeserializeOptions): 
 function deserializeColorV2(
   raw: unknown,
   baseline: ColorTweakState,
-  cluster: ReturnType<typeof getPanelConfig>['colorCluster'],
+  cluster: ReturnType<typeof getActivePrimaryCluster>,
   warnings: string[],
 ): ColorTweakState {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
@@ -717,7 +718,7 @@ function numOr(v: unknown, fallback: number): number {
  * Falls back to a length of 16 when no cluster is configured.
  */
 function neutralColorDefaults(): ColorTweakState {
-  const cluster = getPanelConfig().colorCluster;
+  const cluster = getActivePrimaryCluster();
   const size = cluster && cluster.paletteSize > 0 ? cluster.paletteSize : 16;
   const lastIdx = size - 1;
   const palette = Array.from({ length: size }, (_, i) => {

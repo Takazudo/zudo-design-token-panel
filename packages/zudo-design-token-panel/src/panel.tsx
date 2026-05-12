@@ -470,10 +470,12 @@ export default function DesignTokenTweakPanel() {
                 tabIndex={0}
                 hidden={!isSelected}
               >
-                {tab.id === 'color' && state && (
+                {tab.id === 'color' && state && tabConfigById['color'] && (
                   <ColorTab
+                    tab={tabConfigById['color']}
                     state={state.color}
                     persistColor={persistColor}
+                    secondaryTab={tabConfigById['color-secondary'] ?? null}
                     secondaryState={state.secondary ?? initSecondaryFromConfig() ?? null}
                     persistSecondary={persistSecondary}
                   />
