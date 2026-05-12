@@ -2,26 +2,22 @@
 import DocLayout from "@/layouts/doc-layout.astro";
 import { settings } from "@/config/settings";
 import { withBase } from "@/utils/base";
+import { buildNavTree, groupSatelliteNodes, isNavVisible } from "@/utils/docs";
+import { loadLocaleDocs } from "@/utils/locale-docs";
+import { getCategoryOrder } from "@/utils/nav-scope";
+import SiteTreeNav from "@/components/site-tree-nav.tsx";
 import { defaultLocale } from "@/config/i18n";
-import FeatureCard from "@/components/feature-card.astro";
 
+const ctaNav = settings.headerNav[0] ?? null;
+const overview = ctaNav ? withBase(ctaNav.path) : null;
 const logoUrl = withBase("/img/logo.svg");
-const githubUrl = "https://github.com/takazudo/zudo-design-token-panel";
-const gettingStartedHref = withBase("/docs/getting-started");
-const examplesBaseUrl =
-  "https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples";
-const astroExampleUrl = `${examplesBaseUrl}/astro`;
-const viteReactExampleUrl = `${examplesBaseUrl}/vite-react`;
-const nextExampleUrl = `${examplesBaseUrl}/next`;
-const zfbExampleUrl = `${examplesBaseUrl}/zfb`;
-const zfbTailwindExampleUrl = `${examplesBaseUrl}/zfb-tailwind`;
-const liveExamplesBaseUrl =
-  "https://zudo-design-token-panel.pages.dev/pj/zudo-design-token-panel/examples";
-const astroLiveUrl = `${liveExamplesBaseUrl}/astro/`;
-const viteReactLiveUrl = `${liveExamplesBaseUrl}/vite-react/`;
-const nextLiveUrl = `${liveExamplesBaseUrl}/next/`;
-const zfbLiveUrl = `${liveExamplesBaseUrl}/zfb/`;
-const zfbTailwindLiveUrl = `${liveExamplesBaseUrl}/zfb-tailwind/`;
+const categoryOrder = getCategoryOrder();
+
+// Build full nav tree for site index
+const { allDocs, categoryMeta } = await loadLocaleDocs(defaultLocale);
+const navDocs = allDocs.filter(isNavVisible);
+const tree = buildNavTree(navDocs, defaultLocale, categoryMeta);
+const groupedTree = groupSatelliteNodes(tree, categoryOrder);
 ---
 
 <DocLayout title={settings.siteName} lang={defaultLocale} hideSidebar hideToc>
@@ -38,23 +34,24 @@ const zfbTailwindLiveUrl = `${liveExamplesBaseUrl}/zfb-tailwind/`;
       </div>
       <div>
         <h1 class="text-heading font-bold mb-vsp-2xs">{settings.siteName}</h1>
-        <p class="text-muted text-small mb-vsp-sm max-w-[40rem]">
-          A Preact-based live design-token tweak panel and companion Node bin
-          server. Adjust CSS custom properties in the browser and persist the
-          changes back to your source files through the apply pipeline.
+        <p class="text-muted text-small mb-vsp-sm">
+          {settings.siteDescription}
         </p>
         <div
           class="flex flex-wrap items-center justify-center lg:justify-start gap-hsp-md text-small"
         >
+          {
+            overview && (
+              <>
+                <a href={overview} class="text-fg underline hover:text-accent">
+                  Getting Started
+                </a>
+                <span class="text-muted">/</span>
+              </>
+            )
+          }
           <a
-            href={gettingStartedHref}
-            class="text-fg underline hover:text-accent"
-          >
-            Getting Started
-          </a>
-          <span class="text-muted">/</span>
-          <a
-            href={githubUrl}
+            href="https://github.com/takazudo/zudo-design-token-panel"
             class="inline-flex items-center gap-[0.3em] text-fg underline hover:text-accent"
             target="_blank"
             rel="noopener noreferrer"
@@ -70,8 +67,10 @@ const zfbTailwindLiveUrl = `${liveExamplesBaseUrl}/zfb-tailwind/`;
           >
           <span class="text-muted">/</span>
           <a
-            href="#features"
-            class="text-fg underline hover:text-accent">Features</a
+            href="https://x.com/Takazudo"
+            class="text-fg underline hover:text-accent"
+            target="_blank"
+            rel="noopener noreferrer">@Takazudo</a
           >
         </div>
       </div>
@@ -81,108 +80,19 @@ const zfbTailwindLiveUrl = `${liveExamplesBaseUrl}/zfb-tailwind/`;
   <!-- Intro paragraph -->
   <section class="mb-vsp-xl max-w-[52rem] mx-auto text-center">
     <p class="text-body text-muted">
-      zudo-design-token-panel is a standalone OSS port of the design-token-panel
-      originally built inside zmodular. It is host-config-driven, so the same
-      panel works in Astro, Vite + React, Next.js, or zfb — your app supplies a
-      TokenManifest and ColorClusterConfig, and the panel handles the rest.
-      MIT licensed.
+      zudo-design-token-panel is a Preact-based live design-token tweak panel
+      and companion Node bin server. Adjust CSS custom properties in the browser
+      and persist the changes back to your source files through the apply
+      pipeline. Host-config-driven and framework-agnostic — works with Astro,
+      Vite + React, Next.js, and zfb out of the box. MIT licensed.
     </p>
   </section>
 
-  <!-- Feature cards -->
-  <section id="features" class="mb-vsp-xl">
-    <h2 class="text-subheading font-bold mb-vsp-md text-center">
-      What it does
-    </h2>
-    <div
-      class="grid gap-hsp-lg sm:grid-cols-2 lg:grid-cols-2"
-    >
-      <FeatureCard title="Live token tweaking">
-        Drag sliders and color pickers in a docked panel to tune CSS custom
-        properties — colors, spacing, typography — and watch your running app
-        update in real time.
-      </FeatureCard>
-      <FeatureCard title="Apply to source">
-        When a tweak feels right, the companion Node bin server rewrites the
-        underlying token files atomically so your changes land in source
-        control instead of vanishing on reload.
-      </FeatureCard>
-      <FeatureCard title="Framework-agnostic">
-        Drop the panel into Astro, Vite + React, Next.js, or zfb. The runtime
-        is plain Preact and the apply pipeline is a small Node binary, so it
-        slots into whatever stack your product team already uses.
-      </FeatureCard>
-      <FeatureCard title="Host-config-driven">
-        Consumers supply their own TokenManifest and ColorClusterConfig. The
-        panel infers the right controls from your tokens — no hard-coded
-        assumptions about your design system baked into the tool.
-      </FeatureCard>
-    </div>
-  </section>
-
-  <!-- Link cards -->
-  <section class="mb-vsp-xl">
-    <h2 class="text-subheading font-bold mb-vsp-md text-center">
-      Explore
-    </h2>
-    <div class="grid gap-hsp-lg sm:grid-cols-3">
-      <FeatureCard title="Getting Started" href={gettingStartedHref}>
-        Install the panel, wire up your TokenManifest, and start tweaking
-        tokens against your local dev server.
-      </FeatureCard>
-      <FeatureCard title="Example Apps" href="#example-apps">
-        Reference integrations across Astro, Vite + React, Next.js, zfb, and zfb + Tailwind v4.
-        The example apps live alongside the panel package on GitHub, with live
-        demos deployed.
-      </FeatureCard>
-      <FeatureCard title="GitHub" href={githubUrl} external>
-        Source code, issues, and release notes for zudo-design-token-panel.
-      </FeatureCard>
-    </div>
-  </section>
-
-  <!-- Example apps -->
-  <section id="example-apps" class="mb-vsp-xl">
-    <h2 class="text-subheading font-bold mb-vsp-md text-center">
-      Example Apps
-    </h2>
-    <p class="text-muted text-small mb-vsp-md text-center max-w-[40rem] mx-auto">
-      Reference integrations across five popular stacks. Each card links to the
-      live demo; source code lives in the <code>examples/</code> directory on GitHub.
-    </p>
-    <div class="grid gap-hsp-lg sm:grid-cols-2 lg:grid-cols-3">
-      <FeatureCard title="Astro" href={astroLiveUrl} external>
-        Drop the panel into an Astro site. Demonstrates host-config wiring
-        with an Astro dev server and the bin apply pipeline.
-        <br />
-        <a href={astroExampleUrl} target="_blank" rel="noopener noreferrer" class="text-xs underline">GitHub source</a>
-      </FeatureCard>
-      <FeatureCard title="Vite + React" href={viteReactLiveUrl} external>
-        Use the panel from a Vite + React app. Shows how the Preact runtime
-        coexists with React via the compat shim.
-        <br />
-        <a href={viteReactExampleUrl} target="_blank" rel="noopener noreferrer" class="text-xs underline">GitHub source</a>
-      </FeatureCard>
-      <FeatureCard title="Next.js" href={nextLiveUrl} external>
-        Wire the panel into a Next.js app router project, including the bin
-        server side-by-side with the Next dev server.
-        <br />
-        <a href={nextExampleUrl} target="_blank" rel="noopener noreferrer" class="text-xs underline">GitHub source</a>
-      </FeatureCard>
-      <FeatureCard title="zfb" href={zfbLiveUrl} external>
-        Integrate the panel into a zfb project. Uses the plugin
-        <code>devMiddleware</code> hook for the apply proxy and a
-        base-prefixed apply-endpoint URL.
-        <br />
-        <a href={zfbExampleUrl} target="_blank" rel="noopener noreferrer" class="text-xs underline">GitHub source</a>
-      </FeatureCard>
-      <FeatureCard title="zfb + Tailwind v4" href={zfbTailwindLiveUrl} external>
-        Extends the zfb example with Tailwind v4. Tokens are registered via
-        an <code>@theme</code> block so utility classes resolve to panel
-        custom properties at build time.
-        <br />
-        <a href={zfbTailwindExampleUrl} target="_blank" rel="noopener noreferrer" class="text-xs underline">GitHub source</a>
-      </FeatureCard>
-    </div>
-  </section>
+  <!-- Sitemap grid -->
+  <SiteTreeNav
+    tree={groupedTree}
+    categoryOrder={categoryOrder}
+    categoryIgnore={["inbox"]}
+    client:idle
+  />
 </DocLayout>

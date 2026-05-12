@@ -36,7 +36,7 @@ export const settings = {
     respectPrefersColorScheme: true,
   } satisfies ColorModeConfig,
   siteName: "Zudo Token Panel",
-  siteDescription: "" as string,
+  siteDescription: "A Preact-based live design-token tweak panel and companion Node bin server for CSS custom properties." as string,
   base: "/pj/zudo-design-token-panel/",
   trailingSlash: false as boolean,
   noindex: false as boolean,
@@ -79,6 +79,7 @@ export const settings = {
   } satisfies FooterConfig as FooterConfig | false,
   headerNav: [
     { label: "Getting Started", path: "/docs/getting-started", categoryMatch: "getting-started" },
+    { label: "Claude", path: "/docs/claude", categoryMatch: "claude" },
     { label: "Changelog", path: "/docs/changelog", categoryMatch: "changelog" },
   ] as HeaderNavItem[],
   headerRightItems: [
