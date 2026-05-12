@@ -17,8 +17,7 @@
  */
 
 import type { PanelConfig } from '@takazudo/zudo-design-token-panel/astro';
-import { defaultManifest } from './default-manifest';
-import { defaultCluster } from './default-cluster';
+import { defaultTabs } from './default-manifest';
 import scaffoldRouting from '../../scaffold.routing.json';
 
 export const panelConfig: PanelConfig = {
@@ -27,12 +26,7 @@ export const panelConfig: PanelConfig = {
   modalClassPrefix: 'astro-example-design-token-panel-modal',
   schemaId: 'astro-example-design-tokens/v1',
   exportFilenameBase: 'astro-example-design-tokens',
-  tokens: defaultManifest,
-  colorCluster: defaultCluster,
+  tabs: defaultTabs,
   applyEndpoint: '/api/dev/apply',
   applyRouting: scaffoldRouting,
-  // Explicit opt-out for the secondary color cluster — the demo ships a
-  // single primary palette only. `null` (NOT `undefined`) is the documented
-  // signal that the host has no secondary cluster.
-  secondaryColorCluster: null,
 };

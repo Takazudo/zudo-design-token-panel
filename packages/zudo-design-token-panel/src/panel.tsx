@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useId } from 'preact/compat';
+import { useState, useEffect, useCallback, useRef, useId, useMemo } from 'preact/compat';
 import { ExportModal } from './export-modal';
 import { ImportModal } from './import-modal';
 import { ApplyModal } from './apply-modal';
@@ -6,7 +6,9 @@ import ColorTab from './tabs/color-tab';
 import FontTab from './tabs/font-tab';
 import SizeTab from './tabs/size-tab';
 import SpacingTab from './tabs/spacing-tab';
+import GenericTab from './tabs/generic-tab';
 import { getPanelConfig } from './config/panel-config';
+import type { TabConfig } from './tokens/tier-model';
 import { usePersist } from './state/persist';
 import {
   type TweakState,
@@ -28,21 +30,11 @@ import {
 
 // --- Tab configuration ---
 
-type TabId = 'spacing' | 'font' | 'size' | 'color';
+// Reserved tab ids dispatched to their dedicated components.
+const RESERVED_TAB_IDS = ['color', 'font', 'spacing', 'size'] as const;
+type ReservedTabId = (typeof RESERVED_TAB_IDS)[number];
 
-interface TabDef {
-  id: TabId;
-  label: string;
-}
-
-const TABS: readonly TabDef[] = [
-  { id: 'spacing', label: 'Spacing' },
-  { id: 'font', label: 'Font' },
-  { id: 'size', label: 'Size' },
-  { id: 'color', label: 'Color' },
-] as const;
-
-const DEFAULT_TAB: TabId = 'color';
+const DEFAULT_TAB_ID: ReservedTabId = 'color';
 
 // --- Panel sizing ---
 
@@ -70,50 +62,6 @@ function computePanelSize(
     height: `min(800px, 80vh)`,
     narrow,
   };
-}
-
-// --- Empty-state UI ---
-//
-// Friendly affordance shown in the tab body when a host has not registered
-// any tokens for the active tab's category (i.e. `getPanelConfig().tokens.<cat>`
-// is an empty array). Without this, the tab renders a blank pane — opaque to
-// a developer integrating the panel for the first time. The copy points the
-// reader at `configurePanel({ tokens })` and the package README quick-start
-// section.
-//
-// Scope: spacing / typography / size tabs only. The color tab is driven by
-// the host-supplied `colorCluster`, NOT by `tokens.color` — this package's
-// default manifest deliberately ships `color: []` because the cluster does
-// the work. Showing the empty-state under the color tab on the strength of
-// an empty `tokens.color` array would surface a spurious "configure tokens
-// please" message on every cluster-driven host, which is exactly the
-// regression to avoid.
-//
-// The `<a>` points at the package README anchor for the quick-start section.
-// It is rendered as an absolute GitHub URL so the link still resolves when
-// the panel is bundled into a consumer that ships none of the README
-// alongside the panel runtime.
-const README_QUICK_START_URL =
-  'https://github.com/Takazudo/zudo-design-token-panel#quick-start-astro';
-
-function EmptyState() {
-  return (
-    <div className="tokenpanel-empty-state" role="status">
-      <p className="tokenpanel-empty-state-text">
-        No tokens are registered for this tab. Pass a <code>TokenManifest</code> to{' '}
-        <code>configurePanel({'{ tokens }'})</code> — see the{' '}
-        <a
-          className="tokenpanel-empty-state-link"
-          href={README_QUICK_START_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          package README §3
-        </a>
-        .
-      </p>
-    </div>
-  );
 }
 
 // --- State factory ---
@@ -147,11 +95,13 @@ export default function DesignTokenTweakPanel() {
   const [showImport, setShowImport] = useState(false);
   const [showApply, setShowApply] = useState(false);
   const [state, setState] = useState<TweakState | null>(null);
-  const [activeTab, setActiveTab] = useState<TabId>(DEFAULT_TAB);
+  // activeTab holds a string to support host-supplied non-reserved tab ids.
+  const [activeTab, setActiveTab] = useState<string>(DEFAULT_TAB_ID);
   const [position, setPosition] = useState<PanelPosition>(DEFAULT_POSITION);
   const [isNarrow, setIsNarrow] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-  const tabRefs = useRef<Record<TabId, HTMLButtonElement | null>>({
+  // tabRefs is now keyed by string to support host-supplied tab ids.
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({
     spacing: null,
     font: null,
     size: null,
@@ -163,7 +113,7 @@ export default function DesignTokenTweakPanel() {
   // Track active drag listeners for cleanup on unmount
   const dragCleanupRef = useRef<(() => void) | null>(null);
 
-  const { persistColor, persistSpacing, persistFont, persistSize, persistSecondary } =
+  const { persistColor, persistSpacing, persistFont, persistSize, persistSecondary, persistTab } =
     usePersist(setState);
 
   // Restore open state and position from localStorage after mount (avoids SSR hydration mismatch)
@@ -348,26 +298,44 @@ export default function DesignTokenTweakPanel() {
     setState(freshTweakState());
   }, []);
 
+  // Build the active tab list from PanelConfig.tabs (now required).
+  // useMemo with no deps is intentional — configurePanel is one-shot per
+  // lifecycle, so the list never changes after mount.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const activeTabs = useMemo((): readonly { id: string; label: string }[] => {
+    return getPanelConfig().tabs.map((t: TabConfig) => ({ id: t.id, label: t.label }));
+  }, []);
+
+  // Build an id→TabConfig lookup for GenericTab dispatch.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const tabConfigById = useMemo((): Record<string, TabConfig> => {
+    const out: Record<string, TabConfig> = {};
+    for (const t of getPanelConfig().tabs) {
+      out[t.id] = t;
+    }
+    return out;
+  }, []);
+
   // --- Tab keyboard navigation (WAI-ARIA tablist pattern) ---
   const handleTabKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLButtonElement>) => {
-      const idx = TABS.findIndex((t) => t.id === activeTab);
+      const idx = activeTabs.findIndex((t) => t.id === activeTab);
       if (idx === -1) return;
       let nextIdx: number | null = null;
-      if (e.key === 'ArrowRight') nextIdx = (idx + 1) % TABS.length;
-      else if (e.key === 'ArrowLeft') nextIdx = (idx - 1 + TABS.length) % TABS.length;
+      if (e.key === 'ArrowRight') nextIdx = (idx + 1) % activeTabs.length;
+      else if (e.key === 'ArrowLeft') nextIdx = (idx - 1 + activeTabs.length) % activeTabs.length;
       else if (e.key === 'Home') nextIdx = 0;
-      else if (e.key === 'End') nextIdx = TABS.length - 1;
+      else if (e.key === 'End') nextIdx = activeTabs.length - 1;
       if (nextIdx === null) return;
       e.preventDefault();
-      const next = TABS[nextIdx];
+      const next = activeTabs[nextIdx];
       setActiveTab(next.id);
       // Move focus to the newly selected tab so SR announces it
       window.requestAnimationFrame(() => {
         tabRefs.current[next.id]?.focus();
       });
     },
-    [activeTab],
+    [activeTab, activeTabs],
   );
 
   if (!open) return null;
@@ -380,12 +348,6 @@ export default function DesignTokenTweakPanel() {
     typeof window !== 'undefined' ? window.innerWidth : 1024,
     typeof window !== 'undefined' ? window.innerHeight : 768,
   );
-
-  // Read host token manifest so we can swap in <EmptyState/> for tabs whose
-  // category has zero tokens registered. The manifest is
-  // pinned by `configurePanel`'s one-shot contract, so re-reading per render
-  // is cheap and never goes stale mid-session.
-  const tokens = getPanelConfig().tokens;
 
   // In narrow mode, ignore saved position — center safely near the top.
   const panelPos =
@@ -466,9 +428,10 @@ export default function DesignTokenTweakPanel() {
           </button>
         </div>
 
-        {/* Tab bar */}
+        {/* Tab bar — data-driven when PanelConfig.tabs is supplied, otherwise
+            falls back to the legacy hard-coded LEGACY_TABS strip. */}
         <div role="tablist" aria-label="Design token categories" className="tokenpanel-tabbar">
-          {TABS.map((tab) => {
+          {activeTabs.map((tab) => {
             const isSelected = activeTab === tab.id;
             return (
               <button
@@ -492,10 +455,12 @@ export default function DesignTokenTweakPanel() {
           })}
         </div>
 
-        {/* Tab panels */}
+        {/* Tab panels — reserved ids dispatch to their dedicated components;
+            non-reserved ids dispatch to GenericTab. */}
         <div className="tokenpanel-body">
-          {TABS.map((tab) => {
+          {activeTabs.map((tab) => {
             const isSelected = activeTab === tab.id;
+            const isReserved = (RESERVED_TAB_IDS as readonly string[]).includes(tab.id);
             return (
               <div
                 key={tab.id}
@@ -505,35 +470,52 @@ export default function DesignTokenTweakPanel() {
                 tabIndex={0}
                 hidden={!isSelected}
               >
-                {tab.id === 'color' && state && (
+                {tab.id === 'color' && state && tabConfigById['color'] && (
                   <ColorTab
+                    tab={tabConfigById['color']}
                     state={state.color}
                     persistColor={persistColor}
+                    secondaryTab={tabConfigById['color-secondary'] ?? null}
                     secondaryState={state.secondary ?? initSecondaryFromConfig() ?? null}
                     persistSecondary={persistSecondary}
                   />
                 )}
-                {tab.id === 'spacing' &&
-                  state &&
-                  (tokens.spacing.length === 0 ? (
-                    <EmptyState />
-                  ) : (
-                    <SpacingTab state={state.spacing} persistSpacing={persistSpacing} />
-                  ))}
-                {tab.id === 'font' &&
-                  state &&
-                  (tokens.typography.length === 0 ? (
-                    <EmptyState />
-                  ) : (
-                    <FontTab state={state.typography} persistFont={persistFont} />
-                  ))}
-                {tab.id === 'size' &&
-                  state &&
-                  (tokens.size.length === 0 ? (
-                    <EmptyState />
-                  ) : (
-                    <SizeTab state={state.size} persistSize={persistSize} />
-                  ))}
+                {tab.id === 'spacing' && state && tabConfigById['spacing'] && (
+                  <SpacingTab
+                    tab={tabConfigById['spacing']}
+                    state={state.spacing}
+                    persistSpacing={persistSpacing}
+                  />
+                )}
+                {tab.id === 'font' && state && tabConfigById['font'] && (
+                  <FontTab
+                    tab={tabConfigById['font']}
+                    state={state.typography}
+                    persistFont={persistFont}
+                  />
+                )}
+                {tab.id === 'size' && state && tabConfigById['size'] && (
+                  <SizeTab
+                    tab={tabConfigById['size']}
+                    state={state.size}
+                    persistSize={persistSize}
+                  />
+                )}
+                {!isReserved && tabConfigById[tab.id] && state && (
+                  <GenericTab
+                    tab={tabConfigById[tab.id]}
+                    overrides={state.tabs?.[tab.id] ?? {}}
+                    onChange={(tierId, itemId, next) => {
+                      persistTab(tab.id, (prev) => ({
+                        ...prev,
+                        [tierId]: {
+                          ...(prev[tierId] ?? {}),
+                          [itemId]: next,
+                        },
+                      }));
+                    }}
+                  />
+                )}
               </div>
             );
           })}

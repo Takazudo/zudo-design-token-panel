@@ -1,51 +1,75 @@
 ---
-title: Token manifest
+title: Token tiers (tab manifest)
 sidebar_position: 2
-description: TokenManifest, TokenDef, group ordering, and the section-title overrides that drive the spacing / typography / size / color tabs.
+description: TabConfig, TierConfig, TierItem, TierValueKind, PillSpec, and ColorClusterExtras — the types that define every editable tab in the panel.
 ---
 
-The panel does not know which tokens a host site exposes. The host supplies its own token manifest, and the panel iterates it to render rows and apply overrides to `:root`.
+The panel renders its tab strip from a flat array of `TabConfig` objects passed as `PanelConfig.tabs`. Each tab owns one or more *tiers* of editable rows; a tier can hold literal values or references to another tier's items. This page pins every public type in the tier model.
 
-This page pins the public shape of [`TokenManifest`](#tokenmanifest), [`TokenDef`](#tokendef), the per-tab group ordering hooks, and the `groupTitles` table.
+## `TierValueKind`
 
-## `TokenDef`
-
-The atomic unit of the manifest. One `TokenDef` describes one editable design-token row inside the panel.
+Discriminated union that controls which editor widget appears for a row.
 
 ```ts
-export type TokenGroup = string;
+export type TierValueKind =
+  | { kind: 'length'; min: number; max: number; step: number; unit: string }
+  | { kind: 'number'; min: number; max: number; step: number }
+  | { kind: 'select'; options: readonly string[] }
+  | { kind: 'text' }
+  | { kind: 'color' };
+```
 
-export type TokenControl = 'slider' | 'select' | 'text';
+| `kind` | Editor | Extra required fields |
+| --- | --- | --- |
+| `'length'` | Range slider with a unit suffix (e.g. `rem`, `px`) | `min`, `max`, `step`, `unit` |
+| `'number'` | Unitless range slider | `min`, `max`, `step` |
+| `'select'` | Dropdown | `options` (non-empty array of strings) |
+| `'text'` | Free-form text input | — |
+| `'color'` | Color picker — used for palette tiers in the Color tab | — |
 
-export interface TokenDef {
-  /** Stable id used as the Record key in persisted state (e.g. `hsp-2xs`). */
+All items in a given `TierConfig.items` array MUST share the same `kind`. Mixing kinds inside a single tier is rejected at validation time.
+
+## `PillSpec`
+
+Optional pill toggle that supplements the main slider / input for a single `TierItem`.
+
+```ts
+export interface PillSpec {
+  /** Sentinel value emitted when the pill is ON (e.g. `"9999px"` for border-radius-full). */
+  value: string;
+  /** Default CSS value used when the pill is OFF and no override is active. */
+  customDefault: string;
+}
+```
+
+When a `TierItem` carries a `pill`, the tier resolver interprets the override map as follows:
+
+- Override equals `pill.value` → emit the pill sentinel verbatim.
+- No override → use `pill.customDefault` as the baseline (not `item.default`).
+- `item.default` is only reached when neither an override nor a `customDefault` apply.
+
+## `TierItem`
+
+One editable row inside a tier.
+
+```ts
+export interface TierItem {
+  /** Stable id used as the key in persisted state. Rename = state loss. */
   id: string;
-  /** CSS custom property written to `:root` (e.g. `--myapp-spacing-hgap-2xs`). */
+  /** CSS custom property written to `:root` (must start with `--`). */
   cssVar: string;
-  /** Display label shown in the panel row. */
+  /** Human-visible label rendered in the panel row. */
   label: string;
-  /** Manifest group — tab components use this for section headers. */
-  group: TokenGroup;
-  /** Default value as a CSS string (`0.125rem`, `12px`, etc.). */
+  /** Optional group id — used by some tab components for section headers. */
+  group?: string;
+  /** Default CSS string value — used when no override is active. */
   default: string;
-  /** Slider min, in `unit`. Unused when `readonly` or non-slider. */
-  min: number;
-  /** Slider max, in `unit`. */
-  max: number;
-  /** Slider step, in `unit`. */
-  step: number;
-  /** Unit suffix (`rem`, `px`, …). May be empty for unitless / read-only tokens. */
-  unit: string;
-  /** Read-only tokens are displayed but not editable. */
+  /** Discriminated union controlling the edit widget. */
+  type: TierValueKind;
+  /** Opt-in sentinel-value toggle. */
+  pill?: PillSpec;
+  /** Display-only flag — the row is rendered but not editable. */
   readonly?: true;
-  /** Which control renders this token. Defaults to `"slider"` when absent. */
-  control?: TokenControl;
-  /** Select options — only used when `control === "select"`. */
-  options?: readonly string[];
-  /** Hide behind the per-tab Advanced `<details>` disclosure. */
-  advanced?: true;
-  /** Opt-in pill toggle (e.g. for `--radius-full` 9999px sentinel). */
-  pill?: { value: string; customDefault: string };
 }
 ```
 
@@ -53,124 +77,165 @@ export interface TokenDef {
 
 | Field | Required | Notes |
 | --- | --- | --- |
-| `id` | yes | Stable id used as the Record key in persisted state. Renaming an id breaks user state continuity. |
-| `cssVar` | yes | The CSS custom property the panel writes to `:root` on apply. Host-controlled — pick names like `--myapp-spacing-md`. |
-| `label` | yes | Human-visible label rendered in the panel row. |
-| `group` | yes | Group id (a free-form string — see below). Determines the section header the row appears under. |
-| `default` | yes | CSS-string default. Read by the panel's reset behaviour. |
-| `min` / `max` / `step` | yes | Slider bounds, in `unit`. Unused when `readonly` or non-slider. |
-| `unit` | yes | Suffix for slider values (`rem`, `px`, …). May be empty for unitless / read-only tokens. |
-| `readonly` | no | When `true`, the row is displayed but not editable. The panel skips both directions in `applyTokenOverrides`. |
-| `control` | no | `'slider'` (default) / `'select'` / `'text'`. Picks the row's edit widget. |
-| `options` | no | Required when `control === 'select'`; ignored otherwise. |
-| `advanced` | no | When `true`, the row is hidden behind the per-tab Advanced `<details>` disclosure. |
-| `pill` | no | Opt-in pill toggle. Used for sentinel-value tokens like `--radius-full` (`9999px`) where a slider does not make sense. |
+| `id` | yes | Stable key in the persisted override map. Renaming breaks existing user state unless `legacyIdRenameMap` is configured. |
+| `cssVar` | yes | The CSS custom property written to `:root`. Must start with `--` and be non-empty after the prefix; validated by `assertValidPanelConfig`. |
+| `label` | yes | Display label inside the panel row. |
+| `group` | no | Section header grouping key. Some tab components render a heading for each unique group value. |
+| `default` | yes | Fallback CSS string emitted when no override is active. |
+| `type` | yes | Controls which editor renders for this row. |
+| `pill` | no | Adds an opt-in sentinel toggle alongside the main editor. |
+| `readonly` | no | When `true`, the row is shown but not editable and is skipped by the apply pipeline. |
 
-### `TokenGroup` is open
+## `TierConfig`
 
-`TokenGroup` is an alias for `string` — not a closed union — so consumers can coin their own group ids without forking the package types.
+A named group of `TierItem` entries within a tab.
 
 ```ts
-export type TokenGroup = string;
-```
-
-The package ships default orderings (`GROUP_ORDER`, `FONT_GROUP_ORDER`, `SIZE_GROUP_ORDER`) and titles (`GROUP_TITLES`) covering the historical group ids. Hosts coining unknown group ids SHOULD populate `groupTitles` so the section headers carry human-readable labels — the tabs fall back to printing the raw group id otherwise.
-
-### `TokenControl`
-
-```ts
-export type TokenControl = 'slider' | 'select' | 'text';
-```
-
-| Value | Renders | Required companion field |
-| --- | --- | --- |
-| `'slider'` (default) | Range input with min / max / step in `unit`. | none |
-| `'select'` | Dropdown of strings. | `options: readonly string[]` |
-| `'text'` | Free-form text input. | none |
-
-## `TokenManifest`
-
-The container shape carried on `PanelConfig.tokens`. Holds the four arrays the panel consumes plus optional per-tab ordering / titling hooks.
-
-```ts
-export interface TokenManifest {
-  spacing: readonly TokenDef[];
-  typography: readonly TokenDef[];
-  size: readonly TokenDef[];
-  color: readonly TokenDef[];
-  /** Optional spacing-tab group order. Falls back to the package-bundled `GROUP_ORDER`. */
-  spacingGroupOrder?: readonly string[];
-  /** Optional font-tab primary group order. Falls back to `FONT_GROUP_ORDER`. */
-  fontGroupOrder?: readonly string[];
-  /** Optional size-tab group order. Falls back to `SIZE_GROUP_ORDER`. */
-  sizeGroupOrder?: readonly string[];
-  /** Optional human-readable section titles keyed by group id. Falls back to `GROUP_TITLES`. */
-  groupTitles?: Readonly<Record<string, string>>;
+export interface TierConfig {
+  /** Stable id — must be unique within the parent `TabConfig`. */
+  id: string;
+  /** Human-visible label (e.g. "Raw values", "Semantic"). */
+  label: string;
+  /** The editable rows this tier owns. All items must share the same `kind`. */
+  items: readonly TierItem[];
+  /**
+   * When set, this tier holds cross-tier references.
+   * Each item's override value is interpreted as the id of an item in the
+   * tier named by this field. The apply pipeline emits
+   * `var(--that-tier-item-cssVar)` rather than the raw value string.
+   */
+  referencesTier?: string;
 }
 ```
 
-### Required arrays
+A tier with `referencesTier` is called a **reference tier**. Its items don't hold direct CSS values — they hold the id of a *source* item in another (literal) tier. The `referencesTier` value must be the `id` of a tier that exists in the same `TabConfig`. The tier kinds must match (e.g. both `'color'` or both `'length'`).
 
-The host project provides the four manifest arrays:
+## `TabConfig`
 
-| Field on `PanelConfig.tokens` | Notes |
-| --- | --- |
-| `spacing` | Spacing-tab rows. |
-| `typography` | Font-tab rows. (The persist envelope's slice is `typography`; the upstream array constant is often named `FONT_TOKENS`. The panel reads it through `panelConfig.tokens.typography`, so consumers can use either name in their own source — the field on `PanelConfig` is what the contract pins.) |
-| `size` | Size-tab rows. |
-| `color` | Color-tab non-cluster rows. Cluster-driven hosts ship an empty array (color is driven by the cluster, not by per-token rows); the field is still required by the manifest shape so a cluster-less host can provide rows here. |
-
-<Info title="No baked-in manifest">
-The panel package itself ships ZERO baked-in manifest data — the host is the source of truth. The package's role is consuming whatever the host hands in.
-</Info>
-
-### Optional ordering / titling hooks
-
-The four optional fields let a host customise how groups within a tab are ordered and titled. Manifests that omit a field inherit the package-bundled default for that tab.
-
-| Optional field | Falls back to | Purpose |
-| --- | --- | --- |
-| `spacingGroupOrder` | `GROUP_ORDER` | Order in which spacing groups appear inside the Spacing tab. |
-| `fontGroupOrder` | `FONT_GROUP_ORDER` | Order in which primary font groups appear inside the Font tab. |
-| `sizeGroupOrder` | `SIZE_GROUP_ORDER` | Order in which size groups appear inside the Size tab. |
-| `groupTitles` | `GROUP_TITLES` | Map of group id → human-visible section header. Missing entries fall back to the raw group id. |
-
-Example with custom group order:
+The top-level unit — one tab in the panel's strip.
 
 ```ts
-import type { TokenManifest } from '@takazudo/zudo-design-token-panel';
+export interface TabConfig {
+  /** Stable id. Reserved ids dispatch to built-in tab components. */
+  id: string;
+  /** Human-visible tab label. */
+  label: string;
+  /** Ordered tiers rendered inside the tab. */
+  tiers: readonly TierConfig[];
+  /**
+   * Optional list of tier ids hidden behind the per-tab "Advanced" disclosure.
+   * Any tier id listed here is rendered inside a collapsed `<details>` element.
+   */
+  advancedTiers?: readonly string[];
+  /**
+   * Color-tab metadata. Required for the reserved `'color'` and
+   * `'color-secondary'` ids — ignored (and unnecessary) for all other ids.
+   */
+  colorExtras?: ColorClusterExtras;
+}
+```
 
-export const tokens: TokenManifest = {
-  spacing: SPACING_TOKENS,
-  typography: FONT_TOKENS,
-  size: SIZE_TOKENS,
-  color: [],
-  spacingGroupOrder: ['hgap', 'vgap', 'pad', 'inset'],
-  groupTitles: {
-    hgap: 'Horizontal gap',
-    vgap: 'Vertical gap',
-    pad: 'Padding',
-    inset: 'Inset',
-  },
+### Reserved tab ids
+
+| `id` | Dispatches to |
+| --- | --- |
+| `'color'` | Primary color tab — palette + base roles + semantic table. Requires `colorExtras`. |
+| `'color-secondary'` | Secondary color tab. Requires `colorExtras`. |
+| `'font'` | Typography tab. |
+| `'spacing'` | Spacing tab. |
+| `'size'` | Size tab. |
+| Any other string | `GenericTab` — renders the tab's `tiers` using kind-appropriate editors. |
+
+## `ColorClusterExtras`
+
+Non-tier metadata required by the Color tab. Sits on `TabConfig.colorExtras` for any tab with a reserved color id.
+
+```ts
+export interface ColorClusterExtras {
+  /** Stable id forwarded to the internal ColorClusterDataConfig bridge. */
+  id: string;
+  /** Optional label for Color-tab section headings. Falls back to `id.toUpperCase()`. */
+  label?: string;
+  /** CSS custom-property names for base terminal roles. */
+  baseRoles: Partial<Record<BaseRoleKey, string>>;
+  /** Fallback palette indices when a scheme omits a base role. */
+  baseDefaults: Partial<Record<BaseRoleKey, number>>;
+  /** Fallback shikiTheme name when a scheme lacks one. */
+  defaultShikiTheme: string;
+  /** Bundled color-scheme registry keyed by display name. */
+  colorSchemes: Record<string, ColorScheme>;
+  /** Panel-level scheme settings (seed scheme, optional light/dark mode). */
+  panelSettings: ClusterPanelSettings;
+}
+
+export type BaseRoleKey = 'background' | 'foreground' | 'cursor' | 'selectionBg' | 'selectionFg';
+```
+
+## Example: single-tier spacing tab
+
+A simple tab with one literal tier — every item is a length token:
+
+```ts
+import type { TabConfig } from '@takazudo/zudo-design-token-panel';
+
+export const spacingTab: TabConfig = {
+  id: 'spacing',
+  label: 'Spacing',
+  tiers: [
+    {
+      id: 'base',
+      label: 'Base spacing',
+      items: [
+        { id: 'sp-xs', cssVar: '--myapp-spacing-xs', label: 'XS', default: '0.25rem', type: { kind: 'length', min: 0, max: 2, step: 0.125, unit: 'rem' } },
+        { id: 'sp-sm', cssVar: '--myapp-spacing-sm', label: 'SM', default: '0.5rem',  type: { kind: 'length', min: 0, max: 4, step: 0.125, unit: 'rem' } },
+        { id: 'sp-md', cssVar: '--myapp-spacing-md', label: 'MD', default: '1rem',    type: { kind: 'length', min: 0, max: 8, step: 0.25,  unit: 'rem' } },
+      ],
+    },
+  ],
 };
 ```
 
-## Apply behaviour
+## Example: two-tier easing tab (literal + reference)
 
-The panel's internal `applyTokenOverrides(tokens, overrides)` walks each `TokenDef`:
+A generic tab where a *semantic* tier references a *raw* tier. The panel emits `var(--myapp-easing-ease-in)` for a semantic item rather than a raw cubic-bezier string:
 
-- If `readonly`, skip both directions (display-only).
-- If the override map has a non-empty string for `id`, write `document.documentElement.style.setProperty(t.cssVar, value)`.
-- Otherwise, remove the inline property (so the stylesheet default wins).
+```ts
+import type { TabConfig } from '@takazudo/zudo-design-token-panel';
 
-The contract requires this read/write target to be `:root`. No shadow DOM, no scoped overrides — this is intentional; the panel ships a global tweak.
+export const easingTab: TabConfig = {
+  id: 'easing',
+  label: 'Easing',
+  tiers: [
+    {
+      id: 'raw',
+      label: 'Raw values',
+      items: [
+        { id: 'ease-in',    cssVar: '--myapp-easing-ease-in',    label: 'Ease in',    default: 'cubic-bezier(0.42, 0, 1, 1)', type: { kind: 'text' } },
+        { id: 'ease-out',   cssVar: '--myapp-easing-ease-out',   label: 'Ease out',   default: 'cubic-bezier(0, 0, 0.58, 1)', type: { kind: 'text' } },
+        { id: 'ease-inout', cssVar: '--myapp-easing-ease-inout', label: 'Ease in-out',default: 'cubic-bezier(0.42, 0, 0.58, 1)', type: { kind: 'text' } },
+      ],
+    },
+    {
+      id: 'semantic',
+      label: 'Semantic aliases',
+      // referencesTier causes the apply pipeline to emit var(--myapp-easing-*)
+      // rather than the raw cubic-bezier string.
+      referencesTier: 'raw',
+      items: [
+        { id: 'tab-open',  cssVar: '--myapp-transition-tab-open',  label: 'Tab open',  default: 'ease-in',    type: { kind: 'text' } },
+        { id: 'tab-close', cssVar: '--myapp-transition-tab-close', label: 'Tab close', default: 'ease-out',   type: { kind: 'text' } },
+        { id: 'modal',     cssVar: '--myapp-transition-modal',     label: 'Modal',     default: 'ease-inout', type: { kind: 'text' } },
+      ],
+    },
+  ],
+  advancedTiers: ['semantic'],
+};
+```
 
-<Note title="Read vs. write">
-The panel never reads consumer CSS variables (it carries its own defaults via `TokenDef.default`). It only writes the consumer-supplied `cssVar` strings, one per overridden token, plus the cluster's palette / base / semantic vars on apply. See [Color cluster](/docs/reference/color-cluster/) for the cluster-side write contract.
-</Note>
+In this setup, overriding `tab-open` to `'ease-out'` causes the apply pipeline to emit `--myapp-transition-tab-open: var(--myapp-easing-ease-out)` rather than the literal easing string.
 
 ## Cross-references
 
-- [`PanelConfig.tokens`](/docs/reference/configure-panel/#panelconfig-interface) — where the manifest is plugged in.
-- [`ColorClusterConfig`](/docs/reference/color-cluster/) — drives the Color tab's cluster section, complementing or replacing the manifest's `color` array.
-- [Apply pipeline](/docs/reference/apply-pipeline/) — how the panel's per-token writes are forwarded to the bin server when `applyEndpoint` is configured.
+- [`PanelConfig.tabs`](/docs/reference/configure-panel/#panelconfig-interface) — where `TabConfig[]` is plugged in.
+- [Color cluster](/docs/reference/color-cluster/) — how the Color tab derives a `ColorClusterDataConfig` from a `TabConfig` with `colorExtras`.
+- [Apply pipeline](/docs/reference/apply-pipeline/) — how the tier resolver turns overrides and cross-tier refs into CSS-var writes.

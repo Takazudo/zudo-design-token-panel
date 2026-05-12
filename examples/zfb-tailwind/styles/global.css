@@ -35,9 +35,17 @@
   --zfbtailwindexample-spacing-md: 1rem;
   --zfbtailwindexample-spacing-lg: 2rem;
 
-  /* Typography tokens (manifest: typography tab) */
-  --zfbtailwindexample-text-base: 1rem;
-  --zfbtailwindexample-text-heading: 1.75rem;
+  /* Font scale tokens (font tab — raw tier, hidden in advancedTiers disclosure) */
+  --zfbtailwindexample-scale-xs: 0.75rem;
+  --zfbtailwindexample-scale-sm: 0.875rem;
+  --zfbtailwindexample-scale-base: 1rem;
+  --zfbtailwindexample-scale-lg: 1.25rem;
+  --zfbtailwindexample-scale-xl: 1.75rem;
+  --zfbtailwindexample-scale-2xl: 2.5rem;
+
+  /* Semantic font role tokens (font tab — semantic tier, reference raw scale) */
+  --zfbtailwindexample-text-base: var(--zfbtailwindexample-scale-base);
+  --zfbtailwindexample-text-heading: var(--zfbtailwindexample-scale-xl);
 
   /* Size tokens (manifest: size tab) */
   --zfbtailwindexample-radius: 0.5rem;
@@ -70,6 +78,17 @@
   --zfbtailwindexample-color-surface: var(--zfbtailwindexample-palette-0);
   --zfbtailwindexample-color-muted: var(--zfbtailwindexample-palette-8);
   --zfbtailwindexample-color-danger: var(--zfbtailwindexample-palette-5);
+
+  /* Easing tokens — raw curves (easing tab, raw tier) */
+  --zfbtailwindexample-easing-ease-in:    cubic-bezier(0.42, 0, 1, 1);
+  --zfbtailwindexample-easing-ease-out:   cubic-bezier(0, 0, 0.58, 1);
+  --zfbtailwindexample-easing-ease-inout: cubic-bezier(0.42, 0, 0.58, 1);
+  --zfbtailwindexample-easing-linear:     linear;
+
+  /* Easing tokens — semantic roles (easing tab, semantic tier) */
+  --zfbtailwindexample-easing-tab-open:  var(--zfbtailwindexample-easing-ease-in);
+  --zfbtailwindexample-easing-tab-close: var(--zfbtailwindexample-easing-ease-out);
+  --zfbtailwindexample-easing-modal:     var(--zfbtailwindexample-easing-ease-inout);
 
   /* ── Prose tokens (contract: doc/.claude/prose-token-contract.md) ─── */
 
@@ -417,5 +436,35 @@
   .zfbtailwindexample-prose :where(del) {
     text-decoration: line-through;
     color: var(--zfbtailwindexample-color-muted);
+  }
+
+  /* ── Easing demo card ─────────────────────────────────────────────────── */
+  /* Interactive card used in the Easing tab demo. Clicking it toggles the
+     .is-active class; the transition consumes the semantic easing token so
+     changing the panel's "Tab Open" role updates the perceived motion live. */
+  .zfbtailwindexample-easing-card {
+    display: block;
+    width: 100%;
+    padding: var(--zfbtailwindexample-spacing-md);
+    background: var(--zfbtailwindexample-color-surface);
+    border: 1px solid var(--zfbtailwindexample-color-muted);
+    border-radius: var(--zfbtailwindexample-radius);
+    color: var(--zfbtailwindexample-fg);
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+    transform: translateX(0);
+    transition: transform 0.4s var(--zfbtailwindexample-easing-tab-open),
+                background-color 0.4s var(--zfbtailwindexample-easing-tab-open);
+  }
+
+  .zfbtailwindexample-easing-card.is-active {
+    transform: translateX(4rem);
+    background: var(--zfbtailwindexample-color-primary);
+  }
+
+  .zfbtailwindexample-easing-card-label {
+    font-size: var(--zfbtailwindexample-text-base);
+    font-weight: 600;
   }
 }

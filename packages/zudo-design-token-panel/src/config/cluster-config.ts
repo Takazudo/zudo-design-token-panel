@@ -104,3 +104,136 @@ export function resolvePaletteCssVar(
 ): string {
   return cluster.paletteCssVarTemplate.replace('{n}', String(index));
 }
+
+// ---------------------------------------------------------------------------
+// Color tab → ColorClusterDataConfig bridge
+//
+// Wave 7 moved the color cluster data into the tier model (TabConfig). The
+// legacy ColorClusterDataConfig shape is still used internally by apply,
+// serde, and state helpers. These bridge helpers derive a
+// ColorClusterDataConfig from a color TabConfig so those call sites don't
+// all need to be rewritten in one wave.
+// ---------------------------------------------------------------------------
+
+import type { TabConfig } from '../tokens/tier-model';
+
+/**
+ * Derive a `ColorClusterDataConfig` from a color `TabConfig`.
+ *
+ * - Palette items: the first tier whose items all have `kind: 'color'`.
+ *   Each item's `cssVar` becomes a palette slot; `paletteCssVarTemplate` is
+ *   synthesised as `"{item.cssVar}"` with `{n}` replaced by the slot index.
+ *   Because item cssVars are explicit (e.g. `--zfbexample-palette-0`) rather
+ *   than template-based, we derive the template from the first item by
+ *   replacing the terminal digit sequence with `{n}`.
+ *
+ * - Semantic items: the first tier with `referencesTier` set pointing at the
+ *   palette tier. Each item's `id` → `cssVar` mapping becomes `semanticCssNames`;
+ *   the item's `default` (a palette item id) is looked up to produce the index
+ *   for `semanticDefaults`.
+ *
+ * - Metadata comes from `tab.colorExtras` (required on a color tab).
+ *
+ * Returns `undefined` when the tab has no `colorExtras` (not a color tab).
+ */
+export function resolveColorClusterFromTab(
+  tab: TabConfig,
+): ColorClusterDataConfig | undefined {
+  const extras = tab.colorExtras;
+  if (!extras) return undefined;
+
+  // Find the palette tier (first tier with kind: 'color' items).
+  const paletteTier = tab.tiers.find(
+    (t) =>
+      !t.referencesTier &&
+      t.items.length > 0 &&
+      t.items[0].type.kind === 'color',
+  );
+  if (!paletteTier) {
+    // No palette tier — return stub cluster with zero palette.
+    return {
+      id: extras.id,
+      label: extras.label,
+      paletteSize: 0,
+      baseRoles: extras.baseRoles,
+      paletteCssVarTemplate: '--zudo-stub-p{n}',
+      semanticDefaults: {},
+      semanticCssNames: {},
+      baseDefaults: extras.baseDefaults,
+      defaultShikiTheme: extras.defaultShikiTheme,
+      colorSchemes: extras.colorSchemes,
+      panelSettings: extras.panelSettings,
+    };
+  }
+
+  const paletteItems = paletteTier.items;
+  const paletteSize = paletteItems.length;
+
+  // Derive the palette CSS-var template from the first item's cssVar.
+  // e.g. "--zfbexample-palette-0" → "--zfbexample-palette-{n}"
+  // Strategy: replace the LAST run of digits in the cssVar with "{n}".
+  const firstCssVar = paletteItems[0]?.cssVar ?? '--palette-{n}';
+  const paletteCssVarTemplate = firstCssVar.replace(/\d+$/, '{n}');
+
+  // Build palette cssVar lookup for semantic default index resolution.
+  const paletteIdToIndex = new Map<string, number>();
+  for (let i = 0; i < paletteItems.length; i++) {
+    paletteIdToIndex.set(paletteItems[i].id, i);
+  }
+
+  // Find the semantic tier (first tier with referencesTier pointing to paletteTier).
+  const semanticTier = tab.tiers.find(
+    (t) => t.referencesTier === paletteTier.id,
+  );
+
+  const semanticDefaults: Record<string, number> = {};
+  const semanticCssNames: Record<string, string> = {};
+
+  if (semanticTier) {
+    for (const item of semanticTier.items) {
+      semanticCssNames[item.id] = item.cssVar;
+      // item.default is the palette item id; look up its index.
+      const idx = paletteIdToIndex.get(item.default);
+      semanticDefaults[item.id] = idx ?? 0;
+    }
+  }
+
+  return {
+    id: extras.id,
+    label: extras.label,
+    paletteSize,
+    baseRoles: extras.baseRoles,
+    paletteCssVarTemplate,
+    semanticDefaults,
+    semanticCssNames,
+    baseDefaults: extras.baseDefaults,
+    defaultShikiTheme: extras.defaultShikiTheme,
+    colorSchemes: extras.colorSchemes,
+    panelSettings: extras.panelSettings,
+  };
+}
+
+/**
+ * Find the primary color tab (id 'color') in the host's tabs array and
+ * derive its `ColorClusterDataConfig`. Returns `undefined` when no color tab
+ * exists or it has no `colorExtras`.
+ */
+export function resolvePrimaryColorCluster(
+  tabs: readonly TabConfig[],
+): ColorClusterDataConfig | undefined {
+  const colorTab = tabs.find((t) => t.id === 'color');
+  if (!colorTab) return undefined;
+  return resolveColorClusterFromTab(colorTab);
+}
+
+/**
+ * Find the secondary color tab (id 'color-secondary') and derive its
+ * `ColorClusterDataConfig`. Returns `null` when no secondary color tab exists.
+ */
+export function resolveSecondaryColorClusterFromTabs(
+  tabs: readonly TabConfig[],
+): ColorClusterDataConfig | null {
+  const secondaryTab = tabs.find((t) => t.id === 'color-secondary');
+  if (!secondaryTab) return null;
+  return resolveColorClusterFromTab(secondaryTab) ?? null;
+}

@@ -6,6 +6,36 @@ Dates and versions may be absent for unreleased entries.
 
 ## [Unreleased]
 
+### Abstract Token Tiers ([epic #69](https://github.com/Takazudo/zudo-design-token-panel/issues/69), root PR [#91](https://github.com/Takazudo/zudo-design-token-panel/pull/91))
+
+The `@takazudo/zudo-design-token-panel` package now uses a fully data-driven
+tab/tier model for all token categories, including color. Key highlights:
+
+- **`PanelConfig.tabs` (required)** replaces the former `tokens` and
+  `colorCluster` fields. Every visible panel tab — spacing, typography, size,
+  color, and any host-coined custom tab — is expressed as a `TabConfig` entry
+  carrying one or more `TierConfig` objects whose `TierItem` arrays drive both
+  the editor UI and the apply pipeline.
+- **Abstract tier references** (`TierConfig.referencesTier`) let a "semantic"
+  tier point at a "base" tier. The apply pipeline emits `var(--base-cssvar)`
+  for ref-tier items, encoding design-token aliasing relationships directly in
+  the data model.
+- **`GenericTab`** component renders any host-coined tab id via kind-appropriate
+  editors (`length`, `number`, `select`, `text`, `color`) without requiring a
+  bespoke tab component.
+- **Persist envelope v3** adds a `tabs` map so generic host-coined tabs can
+  persist overrides alongside the existing category slices.
+- **JSON serde v2** (`$schema: 'zudo-design-tokens/v2'`) wraps overrides in a
+  `tabs` keyed object with cssVar-keyed leaves; tier-2 ref values are stored as
+  `var(--tier1-cssvar)` strings. `deserialize()` still accepts v1 payloads.
+
+**Breaking changes** (package is pre-1.0 / `0.0.0`):
+
+- `PanelConfig.tokens` and `PanelConfig.colorCluster` / `secondaryColorCluster`
+  are removed. Hosts must migrate to `PanelConfig.tabs`.
+- `TokenManifest` / `TokenDef` types are removed from the public surface;
+  use `TabConfig` / `TierConfig` / `TierItem` instead.
+
 ### Added
 
 - Export `TweakState` (type) and `emptyOverrides` from main entry

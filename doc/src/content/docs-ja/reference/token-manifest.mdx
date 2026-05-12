@@ -1,0 +1,217 @@
+---
+title: トークン階層（タブマニフェスト）
+sidebar_position: 2
+description: TabConfig・TierConfig・TierItem・TierValueKind・PillSpec・ColorClusterExtras — パネルの編集可能タブを定義するすべての型。
+---
+
+パネルは `PanelConfig.tabs` に渡された `TabConfig` オブジェクトの配列からタブストリップをレンダリングします。各タブは 1 つ以上の *ティア*（層）を持ち、ティアはリテラル値またはほかのティアのアイテムへの参照を格納します。このページではティアモデルのすべてのパブリック型を説明します。
+
+## `TierValueKind`
+
+行に表示するエディタウィジェットを制御する判別共用体です。
+
+```ts
+export type TierValueKind =
+  | { kind: 'length'; min: number; max: number; step: number; unit: string }
+  | { kind: 'number'; min: number; max: number; step: number }
+  | { kind: 'select'; options: readonly string[] }
+  | { kind: 'text' }
+  | { kind: 'color' };
+```
+
+| `kind` | エディタ | 追加必須フィールド |
+| --- | --- | --- |
+| `'length'` | 単位付きレンジスライダー（`rem`、`px` など） | `min`、`max`、`step`、`unit` |
+| `'number'` | 単位なしレンジスライダー | `min`、`max`、`step` |
+| `'select'` | ドロップダウン | `options`（空でない文字列配列） |
+| `'text'` | 自由入力テキストフィールド | — |
+| `'color'` | カラーピッカー — カラータブのパレットティアで使用 | — |
+
+1 つの `TierConfig.items` 配列内のすべてのアイテムは同じ `kind` を持つ必要があります。混在はバリデーション時に拒否されます。
+
+## `PillSpec`
+
+単一の `TierItem` のメインスライダー／入力を補足するオプションのピルトグルです。
+
+```ts
+export interface PillSpec {
+  /** ピルがONのときに出力するセンチネル値（例：`"9999px"`）。 */
+  value: string;
+  /** ピルがOFFでオーバーライドもない場合に使用するデフォルトCSS値。 */
+  customDefault: string;
+}
+```
+
+## `TierItem`
+
+ティア内の 1 つの編集可能行です。
+
+```ts
+export interface TierItem {
+  /** 永続化ステートのキーとして使用される安定した id。変更するとステートが失われます。 */
+  id: string;
+  /** `:root` に書き込まれるCSSカスタムプロパティ（`--` で始まる必要があります）。 */
+  cssVar: string;
+  /** パネル行に表示されるラベル。 */
+  label: string;
+  /** オプショナルなグループid — タブコンポーネントがセクションヘッダーに使用します。 */
+  group?: string;
+  /** オーバーライドがない場合に使用されるデフォルトCSS文字列。 */
+  default: string;
+  /** 編集ウィジェットを制御する判別共用体。 */
+  type: TierValueKind;
+  /** オプショナルなセンチネル値トグル。 */
+  pill?: PillSpec;
+  /** 表示専用フラグ — 行は表示されますが編集不可。アプライパイプラインでスキップされます。 */
+  readonly?: true;
+}
+```
+
+### フィールドリファレンス
+
+| フィールド | 必須 | 備考 |
+| --- | --- | --- |
+| `id` | yes | 永続化オーバーライドマップの安定したキー。`legacyIdRenameMap` なしでの変更は既存ユーザーステートを破壊します。 |
+| `cssVar` | yes | `:root` に書き込まれるCSSカスタムプロパティ。`--` で始まりプレフィックス後が空でないこと。 |
+| `label` | yes | パネル行の表示ラベル。 |
+| `group` | no | セクションヘッダーのグルーピングキー。 |
+| `default` | yes | オーバーライドが存在しない場合のフォールバックCSS文字列。 |
+| `type` | yes | 行のエディタを制御。 |
+| `pill` | no | メインエディタに追加するセンチネルトグル。 |
+| `readonly` | no | `true` の場合、表示のみで編集不可。アプライパイプラインでスキップ。 |
+
+## `TierConfig`
+
+タブ内の `TierItem` エントリの名前付きグループです。
+
+```ts
+export interface TierConfig {
+  /** 安定した id — 同じ TabConfig 内でユニークである必要があります。 */
+  id: string;
+  /** 人間が読めるラベル（例："Raw values"、"Semantic"）。 */
+  label: string;
+  /** このティアが所有する編集可能行。すべてのアイテムは同じ `kind` を持つ必要があります。 */
+  items: readonly TierItem[];
+  /**
+   * 設定されている場合、このティアはクロスティア参照を保持します。
+   * 各アイテムのオーバーライド値は、このフィールドが指すティアのアイテム id として解釈されます。
+   * アプライパイプラインはその CSS var を使って `var(--cssVar)` を出力します。
+   */
+  referencesTier?: string;
+}
+```
+
+`referencesTier` を持つティアは**参照ティア**と呼ばれます。アイテムは直接CSS値を保持せず、別のリテラルティアのアイテム id を保持します。`referencesTier` の値は同じ `TabConfig` 内に存在するティアの `id` でなければなりません。ティアの kind は一致する必要があります。
+
+## `TabConfig`
+
+パネルのタブストリップの 1 つのタブを表すトップレベルの型です。
+
+```ts
+export interface TabConfig {
+  /** 安定した id。予約 id は組み込みタブコンポーネントにディスパッチされます。 */
+  id: string;
+  /** 人間が読めるタブラベル。 */
+  label: string;
+  /** タブ内にレンダリングされる順序付きティア。 */
+  tiers: readonly TierConfig[];
+  /**
+   * タブの "Advanced" 開示の後ろに隠すティア id のオプショナルリスト。
+   */
+  advancedTiers?: readonly string[];
+  /**
+   * カラータブのメタデータ。予約 id `'color'` と `'color-secondary'` に必須。
+   * その他の id では無視されます。
+   */
+  colorExtras?: ColorClusterExtras;
+}
+```
+
+### 予約タブ id
+
+| `id` | ディスパッチ先 |
+| --- | --- |
+| `'color'` | プライマリカラータブ — パレット + ベースロール + セマンティックテーブル。`colorExtras` が必須。 |
+| `'color-secondary'` | セカンダリカラータブ。`colorExtras` が必須。 |
+| `'font'` | タイポグラフィタブ。 |
+| `'spacing'` | スペーシングタブ。 |
+| `'size'` | サイズタブ。 |
+| その他の文字列 | `GenericTab` — タブの `tiers` を kind に応じたエディタでレンダリング。 |
+
+## `ColorClusterExtras`
+
+カラータブに必要な非ティアメタデータ。予約カラー id を持つタブの `TabConfig.colorExtras` に配置します。
+
+```ts
+export interface ColorClusterExtras {
+  id: string;
+  label?: string;
+  baseRoles: Partial<Record<BaseRoleKey, string>>;
+  baseDefaults: Partial<Record<BaseRoleKey, number>>;
+  defaultShikiTheme: string;
+  colorSchemes: Record<string, ColorScheme>;
+  panelSettings: ClusterPanelSettings;
+}
+
+export type BaseRoleKey = 'background' | 'foreground' | 'cursor' | 'selectionBg' | 'selectionFg';
+```
+
+## 例: 1 ティアのスペーシングタブ
+
+```ts
+import type { TabConfig } from '@takazudo/zudo-design-token-panel';
+
+export const spacingTab: TabConfig = {
+  id: 'spacing',
+  label: 'Spacing',
+  tiers: [
+    {
+      id: 'base',
+      label: 'Base spacing',
+      items: [
+        { id: 'sp-xs', cssVar: '--myapp-spacing-xs', label: 'XS', default: '0.25rem', type: { kind: 'length', min: 0, max: 2, step: 0.125, unit: 'rem' } },
+        { id: 'sp-md', cssVar: '--myapp-spacing-md', label: 'MD', default: '1rem',    type: { kind: 'length', min: 0, max: 8, step: 0.25,  unit: 'rem' } },
+      ],
+    },
+  ],
+};
+```
+
+## 例: 2 ティアのイージングタブ（リテラル + 参照）
+
+```ts
+import type { TabConfig } from '@takazudo/zudo-design-token-panel';
+
+export const easingTab: TabConfig = {
+  id: 'easing',
+  label: 'Easing',
+  tiers: [
+    {
+      id: 'raw',
+      label: 'Raw values',
+      items: [
+        { id: 'ease-in',  cssVar: '--myapp-easing-ease-in',  label: 'Ease in',  default: 'cubic-bezier(0.42, 0, 1, 1)', type: { kind: 'text' } },
+        { id: 'ease-out', cssVar: '--myapp-easing-ease-out', label: 'Ease out', default: 'cubic-bezier(0, 0, 0.58, 1)', type: { kind: 'text' } },
+      ],
+    },
+    {
+      id: 'semantic',
+      label: 'Semantic aliases',
+      referencesTier: 'raw',
+      items: [
+        { id: 'tab-open',  cssVar: '--myapp-transition-tab-open',  label: 'Tab open',  default: 'ease-in',  type: { kind: 'text' } },
+        { id: 'tab-close', cssVar: '--myapp-transition-tab-close', label: 'Tab close', default: 'ease-out', type: { kind: 'text' } },
+      ],
+    },
+  ],
+  advancedTiers: ['semantic'],
+};
+```
+
+`tab-open` を `'ease-out'` にオーバーライドすると、アプライパイプラインは `--myapp-transition-tab-open: var(--myapp-easing-ease-out)` を出力します。
+
+## 関連リファレンス
+
+- [`PanelConfig.tabs`](/ja/docs/reference/configure-panel/#panelconfig-interface) — `TabConfig[]` を設定する場所。
+- [カラークラスター](/ja/docs/reference/color-cluster/) — カラータブが `colorExtras` を持つ `TabConfig` から `ColorClusterDataConfig` を派生させる方法。
+- [アプライパイプライン](/ja/docs/reference/apply-pipeline/) — ティアリゾルバーがオーバーライドとクロスティア参照をCSSカスタムプロパティの書き込みに変換する方法。

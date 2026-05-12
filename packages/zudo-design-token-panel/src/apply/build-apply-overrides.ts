@@ -42,8 +42,7 @@
  */
 
 import type { ColorTweakState, TweakState, ColorClusterConfig } from '../state/tweak-state';
-import { resolvePaletteCssVar, safeIndex } from '../state/tweak-state';
-import { getPanelConfig } from '../config/panel-config';
+import { resolvePaletteCssVar, safeIndex, getActivePrimaryCluster } from '../state/tweak-state';
 
 /**
  * Produce the flat cssVar → value map for the dev-API handler.
@@ -52,14 +51,15 @@ import { getPanelConfig } from '../config/panel-config';
  * same baseline the panel passes to the Export / Import modals). Pass
  * `undefined` to force the whole color block into the output.
  *
- * `cluster` defaults to `getPanelConfig().colorCluster` so primary-cluster
- * callers do not have to thread the active cluster through every layer.
- * Secondary-cluster callers MUST pass an explicit cluster argument.
+ * `cluster` defaults to the primary color cluster derived from the active
+ * panel config's color TabConfig so primary-cluster callers do not have to
+ * thread the active cluster through every layer. Secondary-cluster callers
+ * MUST pass an explicit cluster argument.
  */
 export function buildApplyOverrides(
   state: TweakState,
   colorDefaults: ColorTweakState | undefined,
-  cluster: ColorClusterConfig = getPanelConfig().colorCluster,
+  cluster: ColorClusterConfig = getActivePrimaryCluster(),
 ): Record<string, string> {
   const out: Record<string, string> = {};
   const color = state.color;

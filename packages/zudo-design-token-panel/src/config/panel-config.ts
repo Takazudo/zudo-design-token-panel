@@ -30,9 +30,8 @@
  * see useful behaviour.
  */
 
-import type { TokenManifest } from '../tokens/manifest';
 import type { ColorScheme } from './color-schemes';
-import type { ColorClusterDataConfig } from './cluster-config';
+import type { TabConfig } from '../tokens/tier-model';
 import { structuralEqual } from '../utils/structural-equal';
 
 /**
@@ -63,31 +62,6 @@ export interface PanelConfig {
   schemaId: string;
   /** Default filename base — exports save as `${exportFilenameBase}.json`. */
   exportFilenameBase: string;
-  /** Editable design tokens grouped per-tab. */
-  tokens: TokenManifest;
-  /**
-   * Primary color-cluster data. Drives the color tab + the apply / clear /
-   * load helpers in `state/tweak-state.ts`. Must be JSON-serializable.
-   */
-  colorCluster: ColorClusterDataConfig;
-  /**
-   * Optional secondary color-cluster data.
-   *
-   * Renders below the primary cluster on the Color tab and routes through
-   * the apply / clear paths under its own CSS-var family. The host
-   * controls participation:
-   *
-   *  - `undefined` (field omitted) — falls back to `null` (secondary
-   *    cluster hidden / skipped).
-   *  - `null` — explicit opt-out: the secondary palette section is hidden
-   *    and the apply/clear paths skip the secondary cluster entirely.
-   *  - A `ColorClusterDataConfig` object — host-supplied secondary cluster.
-   *
-   * Resolution helper: prefer `resolveSecondaryColorCluster()` over reading
-   * the field directly so the `undefined → null` fallback is applied
-   * consistently at every call site.
-   */
-  secondaryColorCluster?: ColorClusterDataConfig | null;
   /**
    * Optional host-supplied color-scheme presets.
    *
@@ -111,6 +85,22 @@ export interface PanelConfig {
    * routing map).
    */
   applyRouting?: ApplyRoutingMap;
+  /**
+   * Host-supplied tab configuration for the data-driven tab strip.
+   *
+   * `panel.tsx` renders the tab strip from this array.
+   *
+   *  - Reserved ids (`color`, `font`, `spacing`, `size`) dispatch to their
+   *    dedicated tab components.
+   *  - Any other id dispatches to `GenericTab`, which renders the tab's
+   *    `tiers` using kind-appropriate editors.
+   *
+   * Hosts MUST supply this field. The color tab (id 'color') reads its
+   * palette and semantic data from the tier model via `colorExtras` +
+   * `TierItem[]` on the TabConfig. A secondary color tab can be supplied
+   * under the reserved id 'color-secondary'.
+   */
+  tabs: readonly TabConfig[];
   /**
    * Optional id rename map applied during `loadPersistedState` migration.
    * Keys are old ids found in persisted state; values are either:
@@ -138,38 +128,6 @@ export interface PanelConfig {
 }
 
 /**
- * Empty token manifest — used as the default fallback so the panel imports
- * cleanly without a `configurePanel(...)` call. Every tab renders an empty
- * state until the host configures real tokens.
- */
-const EMPTY_TOKEN_MANIFEST: TokenManifest = {
-  spacing: [],
-  typography: [],
-  size: [],
-  color: [],
-};
-
-/**
- * Minimal stub color cluster — used as the default fallback. Carries an
- * empty palette and empty semantic / scheme registries so the color tab
- * shows an empty state. Hosts MUST override via
- * `configurePanel({ colorCluster })`.
- */
-const STUB_COLOR_CLUSTER: ColorClusterDataConfig = {
-  id: 'stub',
-  label: 'STUB',
-  paletteSize: 0,
-  baseRoles: {},
-  paletteCssVarTemplate: '--zudo-stub-p{n}',
-  semanticDefaults: {},
-  semanticCssNames: {},
-  baseDefaults: {},
-  defaultShikiTheme: 'dracula',
-  colorSchemes: {},
-  panelSettings: { colorScheme: '', colorMode: false },
-};
-
-/**
  * Default config — minimal stub values. Hosts MUST call `configurePanel(...)`
  * with real values to see useful behaviour.
  */
@@ -179,11 +137,8 @@ export const DEFAULT_PANEL_CONFIG: PanelConfig = {
   modalClassPrefix: 'zudo-design-token-panel-modal',
   schemaId: 'zudo-design-tokens/v1',
   exportFilenameBase: 'zudo-design-tokens',
-  tokens: EMPTY_TOKEN_MANIFEST,
-  colorCluster: STUB_COLOR_CLUSTER,
-  // Default to null — secondary cluster is opt-in. Hosts that want one
-  // pass an explicit cluster object via `configurePanel`.
-  secondaryColorCluster: null,
+  // Empty tab list — hosts MUST configure real tabs via configurePanel().
+  tabs: [],
   colorPresets: {},
   // No bundled apply endpoint / routing — hosts wire their own.
   applyEndpoint: undefined,
@@ -246,22 +201,42 @@ export function __resetPanelConfigForTests(): void {
   pendingColorPresets = null;
 }
 
+// Re-export cluster resolution helpers so callers can import from panel-config
+// without reaching into cluster-config directly.
+export {
+  resolvePrimaryColorCluster,
+  resolveSecondaryColorClusterFromTabs,
+} from './cluster-config';
+import {
+  resolvePrimaryColorCluster,
+  resolveSecondaryColorClusterFromTabs,
+} from './cluster-config';
+import type { ColorClusterDataConfig } from './cluster-config';
+
 /**
- * Resolve the active secondary color cluster.
+ * Resolve the active primary color cluster from the panel config's tabs array.
  *
- *  - Explicit `null` on the config — host opted out → returns `null`.
- *    Callers MUST treat this as "do not render / apply / clear secondary
- *    cluster".
- *  - Explicit cluster object — host-supplied secondary cluster → returned
- *    verbatim.
- *  - `undefined` (field omitted) — defaults to `null` (the package itself
- *    ships no bundled secondary cluster).
+ * Returns `undefined` when no color tab is configured or it has no
+ * `colorExtras` (e.g. the default empty config).
+ *
+ * @deprecated Prefer `resolvePrimaryColorCluster(cfg.tabs)` directly.
+ */
+export function resolveActiveColorCluster(
+  cfg: PanelConfig = getPanelConfig(),
+): ColorClusterDataConfig | undefined {
+  return resolvePrimaryColorCluster(cfg.tabs);
+}
+
+/**
+ * Resolve the active secondary color cluster from the panel config's tabs.
+ *
+ * Returns `null` when no 'color-secondary' tab is configured. Callers MUST
+ * treat this as "do not render / apply / clear secondary cluster".
  */
 export function resolveSecondaryColorCluster(
   cfg: PanelConfig = getPanelConfig(),
 ): ColorClusterDataConfig | null {
-  if (cfg.secondaryColorCluster === null || cfg.secondaryColorCluster === undefined) return null;
-  return cfg.secondaryColorCluster;
+  return resolveSecondaryColorClusterFromTabs(cfg.tabs);
 }
 
 // ---------------------------------------------------------------------------
@@ -275,6 +250,16 @@ export function resolveSecondaryColorCluster(
 /** Storage key for the v2 unified envelope (color + spacing + typography + size + position + secondary cluster). */
 export function storageKey_stateV2(cfg: PanelConfig): string {
   return `${cfg.storagePrefix}-state-v2`;
+}
+
+/**
+ * Storage key for the v3 unified envelope. Adds `tabs: Record<tabId, TabOverrides>` alongside
+ * the existing color/spacing/typography/size slices so generic host-coined tabs can persist
+ * their overrides without schema changes. v2 → v3 migration runs on first load and writes
+ * this key, then deletes the v2 key.
+ */
+export function storageKey_stateV3(cfg: PanelConfig): string {
+  return `${cfg.storagePrefix}-state-v3`;
 }
 
 /** Legacy v1 key (Color-only flat state). Migrated into v2 on first load, then deleted. */
@@ -352,40 +337,9 @@ export function assertValidPanelConfig(value: unknown): asserts value is PanelCo
       );
     }
   }
-  if (cfg.tokens === null || typeof cfg.tokens !== 'object' || Array.isArray(cfg.tokens)) {
-    throw new Error('[design-token-panel] PanelConfig.tokens must be an object');
-  }
-  const tokens = cfg.tokens as Record<string, unknown>;
-  for (const slice of ['spacing', 'typography', 'size', 'color'] as const) {
-    if (!Array.isArray(tokens[slice])) {
-      throw new Error(
-        `[design-token-panel] PanelConfig.tokens.${slice} must be an array (got ${typeof tokens[
-          slice
-        ]})`,
-      );
-    }
-  }
-  if (
-    cfg.colorCluster === null ||
-    typeof cfg.colorCluster !== 'object' ||
-    Array.isArray(cfg.colorCluster)
-  ) {
-    throw new Error('[design-token-panel] PanelConfig.colorCluster must be an object');
-  }
-  const cluster = cfg.colorCluster as Record<string, unknown>;
-  if (typeof cluster.id !== 'string' || cluster.id.length === 0) {
-    throw new Error('[design-token-panel] PanelConfig.colorCluster.id must be a non-empty string');
-  }
-  if (typeof cluster.paletteSize !== 'number' || cluster.paletteSize < 0) {
-    throw new Error(
-      '[design-token-panel] PanelConfig.colorCluster.paletteSize must be a non-negative number',
-    );
-  }
-  if (typeof cluster.paletteCssVarTemplate !== 'string') {
-    throw new Error(
-      '[design-token-panel] PanelConfig.colorCluster.paletteCssVarTemplate must be a string',
-    );
-  }
+  // tabs is required — validate it unconditionally.
+  assertValidTabs(cfg.tabs);
+
   // Optional fields — only validate when present.
   if (cfg.applyEndpoint !== undefined && typeof cfg.applyEndpoint !== 'string') {
     throw new Error(
@@ -420,6 +374,173 @@ export function assertValidPanelConfig(value: unknown): asserts value is PanelCo
       if (v !== null && typeof v !== 'string') {
         throw new Error(
           `[design-token-panel] PanelConfig.legacyIdRenameMap[${JSON.stringify(k)}] must be a string or null (got ${typeof v})`,
+        );
+      }
+    }
+  }
+}
+
+/**
+ * Validate the host-supplied `tabs` array. Called by `assertValidPanelConfig`
+ * when the field is present. Throws with a message naming the offending
+ * tab/tier/item id.
+ */
+function assertValidTabs(tabs: unknown): void {
+  if (!Array.isArray(tabs)) {
+    throw new Error('[design-token-panel] PanelConfig.tabs must be an array');
+  }
+
+  // Rule: every tab.id is unique within the array
+  const tabIds = new Set<string>();
+  for (const tab of tabs) {
+    if (tab === null || typeof tab !== 'object' || Array.isArray(tab)) {
+      throw new Error('[design-token-panel] PanelConfig.tabs: each tab must be a non-null object');
+    }
+    const t = tab as Record<string, unknown>;
+    if (typeof t.id !== 'string' || t.id.length === 0) {
+      throw new Error('[design-token-panel] PanelConfig.tabs: each tab must have a non-empty string id');
+    }
+    if (tabIds.has(t.id)) {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs: duplicate tab id "${t.id}"`,
+      );
+    }
+    tabIds.add(t.id);
+    assertValidTab(t.id, t);
+  }
+}
+
+/**
+ * Validate a single tab entry within `PanelConfig.tabs`.
+ * Checks tier-id uniqueness, item-id uniqueness across all tiers, cssVar
+ * format, and referencesTier integrity (existence + kind compatibility).
+ */
+function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
+  if (!Array.isArray(tab.tiers)) {
+    throw new Error(
+      `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers must be an array`,
+    );
+  }
+
+  // Rule: every tier.id is unique within a tab
+  const tierIds = new Set<string>();
+  // Collect tier kind for referencesTier compatibility check
+  // Maps tier id → the kind string of its first item (or undefined if empty)
+  const tierKindMap = new Map<string, string | undefined>();
+
+  for (const tier of tab.tiers) {
+    if (tier === null || typeof tier !== 'object' || Array.isArray(tier)) {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers: each tier must be a non-null object`,
+      );
+    }
+    const ti = tier as Record<string, unknown>;
+    if (typeof ti.id !== 'string' || ti.id.length === 0) {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers: each tier must have a non-empty string id`,
+      );
+    }
+    if (tierIds.has(ti.id)) {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["${tabId}"]: duplicate tier id "${ti.id}"`,
+      );
+    }
+    tierIds.add(ti.id);
+
+    if (!Array.isArray(ti.items)) {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${ti.id}"].items must be an array`,
+      );
+    }
+
+    // Determine the representative kind for this tier and validate consistency.
+    // All items in a tier must share the same kind — mixed kinds in a tier are
+    // invalid because referencesTier compatibility is defined at the tier level.
+    let tierKind: string | undefined = undefined;
+    for (const rawItem of ti.items as unknown[]) {
+      if (rawItem === null || typeof rawItem !== 'object' || Array.isArray(rawItem)) continue;
+      const rawItemObj = rawItem as Record<string, unknown>;
+      const typeObj = rawItemObj.type;
+      if (typeObj === null || typeof typeObj !== 'object' || Array.isArray(typeObj)) continue;
+      const kind = (typeObj as Record<string, unknown>).kind;
+      if (typeof kind !== 'string') continue;
+      if (tierKind === undefined) {
+        tierKind = kind;
+      } else if (tierKind !== kind) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${ti.id}"]: mixed item kinds — found "${tierKind}" and "${kind}" in the same tier (all items must share the same kind)`,
+        );
+      }
+    }
+    tierKindMap.set(ti.id, tierKind);
+  }
+
+  // Rule: every item.id is unique within a tab (across all tiers)
+  // Rule: every item.cssVar starts with "--" and is non-empty
+  const itemIds = new Set<string>();
+  for (const tier of tab.tiers) {
+    const ti = tier as Record<string, unknown>;
+    const tierId = ti.id as string;
+    for (const item of ti.items as unknown[]) {
+      if (item === null || typeof item !== 'object' || Array.isArray(item)) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].items: each item must be a non-null object`,
+        );
+      }
+      const it = item as Record<string, unknown>;
+      if (typeof it.id !== 'string' || it.id.length === 0) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].items: each item must have a non-empty string id`,
+        );
+      }
+      if (itemIds.has(it.id)) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"]: duplicate item id "${it.id}" (item ids must be unique across all tiers within a tab)`,
+        );
+      }
+      itemIds.add(it.id);
+
+      // Rule: cssVar starts with "--" and is non-empty
+      if (typeof it.cssVar !== 'string' || !it.cssVar.startsWith('--')) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].items["${it.id}"].cssVar must start with "--" (got ${JSON.stringify(it.cssVar)})`,
+        );
+      }
+      if (it.cssVar.length <= 2) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].items["${it.id}"].cssVar must be non-empty after "--"`,
+        );
+      }
+    }
+  }
+
+  // Rule: referencesTier integrity — named tier exists and kinds are compatible
+  for (const tier of tab.tiers) {
+    const ti = tier as Record<string, unknown>;
+    const tierId = ti.id as string;
+    if (ti.referencesTier !== undefined) {
+      if (typeof ti.referencesTier !== 'string') {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].referencesTier must be a string`,
+        );
+      }
+      const refId = ti.referencesTier;
+      // Rule: the named tier exists in the same tab
+      if (!tierIds.has(refId)) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].referencesTier: tier "${refId}" does not exist in this tab`,
+        );
+      }
+      // Rule: kind compatibility — the referencing tier's items' kind must match the referenced tier's items' kind
+      const referencingKind = tierKindMap.get(tierId);
+      const referencedKind = tierKindMap.get(refId);
+      if (
+        referencingKind !== undefined &&
+        referencedKind !== undefined &&
+        referencingKind !== referencedKind
+      ) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].referencesTier: kind mismatch — tier "${tierId}" has kind "${referencingKind}" but referenced tier "${refId}" has kind "${referencedKind}"`,
         );
       }
     }

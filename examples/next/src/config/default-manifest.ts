@@ -1,85 +1,149 @@
 /**
- * Demo token manifest for the Next.js example.
+ * Demo tab config for the Next.js example.
  *
  * Every `cssVar` is a `--nextexample-*` name. These line up byte-for-byte
  * with the declarations in `src/styles/tokens.css` so the panel can rewrite
  * the same names live and the apply pipeline can rewrite them on disk.
  *
- * `TokenManifest` is reachable via the indexed-access lookup
- * `PanelConfig['tokens']` — the package's main entry only re-exports
- * `PanelConfig`, so this avoids a deep import into `dist/tokens/manifest`.
+ * The color tab uses a 2-tier setup (Wave 7):
+ *   - Tier `palette`: 16 hex swatches (kind: 'color')
+ *   - Tier `semantic` (referencesTier: 'palette'): semantic role rows
+ * Color extras (schemes, base roles, etc.) are on colorExtras.
  *
- * `spacingGroupOrder` is set to `['vsp', 'hsp']` (vertical above horizontal),
- * proving the host-supplied ordering field overrides the package default.
+ * Migrated in Wave 5 from TokenManifest to TabConfig[].
+ * Color cluster migrated to TabConfig in Wave 7.
  */
 
 import type { PanelConfig } from '@takazudo/zudo-design-token-panel';
+import { defaultCluster } from './default-cluster';
 
-type TokenManifest = PanelConfig['tokens'];
+type TabConfig = PanelConfig['tabs'][number];
 
-export const defaultManifest: TokenManifest = {
-  spacing: [
-    {
-      id: 'nextexample-spacing-md',
-      cssVar: '--nextexample-spacing-md',
-      label: 'Spacing M',
-      group: 'hsp',
-      default: '1rem',
-      min: 0,
-      max: 4,
-      step: 0.0625,
-      unit: 'rem',
+export const defaultTabs: readonly TabConfig[] = [
+  {
+    id: 'spacing',
+    label: 'Spacing',
+    tiers: [
+      {
+        id: 'raw',
+        label: 'Spacing',
+        items: [
+          {
+            id: 'nextexample-spacing-md',
+            cssVar: '--nextexample-spacing-md',
+            label: 'Spacing M',
+            group: 'hsp',
+            default: '1rem',
+            type: { kind: 'length', min: 0, max: 4, step: 0.0625, unit: 'rem' },
+          },
+          {
+            id: 'nextexample-spacing-lg',
+            cssVar: '--nextexample-spacing-lg',
+            label: 'Spacing L',
+            group: 'vsp',
+            default: '2rem',
+            type: { kind: 'length', min: 0, max: 6, step: 0.0625, unit: 'rem' },
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'font',
+    label: 'Font',
+    tiers: [
+      {
+        id: 'raw',
+        label: 'Font Sizes',
+        items: [
+          {
+            id: 'nextexample-text-base',
+            cssVar: '--nextexample-text-base',
+            label: 'Body Text',
+            group: 'font-size',
+            default: '1rem',
+            type: { kind: 'length', min: 0.75, max: 1.5, step: 0.0625, unit: 'rem' },
+          },
+          {
+            id: 'nextexample-text-heading',
+            cssVar: '--nextexample-text-heading',
+            label: 'Heading Text',
+            group: 'font-size',
+            default: '1.75rem',
+            type: { kind: 'length', min: 1, max: 4, step: 0.0625, unit: 'rem' },
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'size',
+    label: 'Size',
+    tiers: [
+      {
+        id: 'raw',
+        label: 'Border Radius',
+        items: [
+          {
+            id: 'nextexample-radius',
+            cssVar: '--nextexample-radius',
+            label: 'Border Radius',
+            group: 'radius',
+            default: '0.5rem',
+            type: { kind: 'length', min: 0, max: 2, step: 0.0625, unit: 'rem' },
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'color',
+    label: 'Color',
+    // colorExtras carries the non-tier metadata (formerly on ColorClusterDataConfig).
+    colorExtras: {
+      id: defaultCluster.id,
+      label: defaultCluster.label,
+      baseRoles: defaultCluster.baseRoles,
+      baseDefaults: defaultCluster.baseDefaults,
+      defaultShikiTheme: defaultCluster.defaultShikiTheme,
+      colorSchemes: defaultCluster.colorSchemes,
+      panelSettings: defaultCluster.panelSettings,
     },
-    {
-      id: 'nextexample-spacing-lg',
-      cssVar: '--nextexample-spacing-lg',
-      label: 'Spacing L',
-      group: 'vsp',
-      default: '2rem',
-      min: 0,
-      max: 6,
-      step: 0.0625,
-      unit: 'rem',
-    },
-  ],
-  typography: [
-    {
-      id: 'nextexample-text-base',
-      cssVar: '--nextexample-text-base',
-      label: 'Body Text',
-      group: 'font-size',
-      default: '1rem',
-      min: 0.75,
-      max: 1.5,
-      step: 0.0625,
-      unit: 'rem',
-    },
-    {
-      id: 'nextexample-text-heading',
-      cssVar: '--nextexample-text-heading',
-      label: 'Heading Text',
-      group: 'font-size',
-      default: '1.75rem',
-      min: 1,
-      max: 4,
-      step: 0.0625,
-      unit: 'rem',
-    },
-  ],
-  size: [
-    {
-      id: 'nextexample-radius',
-      cssVar: '--nextexample-radius',
-      label: 'Border Radius',
-      group: 'radius',
-      default: '0.5rem',
-      min: 0,
-      max: 2,
-      step: 0.0625,
-      unit: 'rem',
-    },
-  ],
-  // Color tab is driven by the cluster — leave per-token rows empty.
-  color: [],
-  spacingGroupOrder: ['vsp', 'hsp'],
-};
+    tiers: [
+      {
+        id: 'palette',
+        label: 'Palette',
+        items: [
+          { id: 'nextexample-palette-0',  cssVar: '--nextexample-palette-0',  label: 'Palette 0',  default: '#1e1e1e', type: { kind: 'color' as const } },
+          { id: 'nextexample-palette-1',  cssVar: '--nextexample-palette-1',  label: 'Palette 1',  default: '#2d6cdf', type: { kind: 'color' as const } },
+          { id: 'nextexample-palette-2',  cssVar: '--nextexample-palette-2',  label: 'Palette 2',  default: '#3aa676', type: { kind: 'color' as const } },
+          { id: 'nextexample-palette-3',  cssVar: '--nextexample-palette-3',  label: 'Palette 3',  default: '#d97706', type: { kind: 'color' as const } },
+          { id: 'nextexample-palette-4',  cssVar: '--nextexample-palette-4',  label: 'Palette 4',  default: '#9b5de5', type: { kind: 'color' as const } },
+          { id: 'nextexample-palette-5',  cssVar: '--nextexample-palette-5',  label: 'Palette 5',  default: '#e63946', type: { kind: 'color' as const } },
+          { id: 'nextexample-palette-6',  cssVar: '--nextexample-palette-6',  label: 'Palette 6',  default: '#1d3557', type: { kind: 'color' as const } },
+          { id: 'nextexample-palette-7',  cssVar: '--nextexample-palette-7',  label: 'Palette 7',  default: '#06b6d4', type: { kind: 'color' as const } },
+          { id: 'nextexample-palette-8',  cssVar: '--nextexample-palette-8',  label: 'Palette 8',  default: '#475569', type: { kind: 'color' as const } },
+          { id: 'nextexample-palette-9',  cssVar: '--nextexample-palette-9',  label: 'Palette 9',  default: '#94a3b8', type: { kind: 'color' as const } },
+          { id: 'nextexample-palette-10', cssVar: '--nextexample-palette-10', label: 'Palette 10', default: '#cbd5e1', type: { kind: 'color' as const } },
+          { id: 'nextexample-palette-11', cssVar: '--nextexample-palette-11', label: 'Palette 11', default: '#e2e8f0', type: { kind: 'color' as const } },
+          { id: 'nextexample-palette-12', cssVar: '--nextexample-palette-12', label: 'Palette 12', default: '#f1f5f9', type: { kind: 'color' as const } },
+          { id: 'nextexample-palette-13', cssVar: '--nextexample-palette-13', label: 'Palette 13', default: '#fef3c7', type: { kind: 'color' as const } },
+          { id: 'nextexample-palette-14', cssVar: '--nextexample-palette-14', label: 'Palette 14', default: '#bbf7d0', type: { kind: 'color' as const } },
+          { id: 'nextexample-palette-15', cssVar: '--nextexample-palette-15', label: 'Palette 15', default: '#f8fafc', type: { kind: 'color' as const } },
+        ],
+      },
+      {
+        id: 'semantic',
+        label: 'Semantic',
+        referencesTier: 'palette',
+        items: [
+          { id: 'primary', cssVar: '--nextexample-color-primary', label: '--nextexample-color-primary', default: 'nextexample-palette-1', type: { kind: 'color' as const } },
+          { id: 'accent',  cssVar: '--nextexample-color-accent',  label: '--nextexample-color-accent',  default: 'nextexample-palette-3', type: { kind: 'color' as const } },
+          { id: 'surface', cssVar: '--nextexample-color-surface', label: '--nextexample-color-surface', default: 'nextexample-palette-0', type: { kind: 'color' as const } },
+          { id: 'muted',   cssVar: '--nextexample-color-muted',   label: '--nextexample-color-muted',   default: 'nextexample-palette-8', type: { kind: 'color' as const } },
+          { id: 'danger',  cssVar: '--nextexample-color-danger',  label: '--nextexample-color-danger',  default: 'nextexample-palette-5', type: { kind: 'color' as const } },
+        ],
+      },
+    ],
+  },
+];

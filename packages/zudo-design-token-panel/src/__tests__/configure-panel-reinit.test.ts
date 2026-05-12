@@ -8,8 +8,6 @@ import {
   setPanelColorPresets,
   type PanelConfig,
 } from '../config/panel-config';
-import type { TokenManifest } from '../tokens/manifest';
-import type { ColorClusterDataConfig } from '../config/cluster-config';
 
 /**
  * Regression tests covering:
@@ -25,34 +23,13 @@ import type { ColorClusterDataConfig } from '../config/cluster-config';
  *  - `assertValidPanelConfig()` trust-boundary validator messages.
  */
 
-const EMPTY_MANIFEST: TokenManifest = {
-  spacing: [],
-  typography: [],
-  size: [],
-  color: [],
-};
-
-const EMPTY_CLUSTER: ColorClusterDataConfig = {
-  id: 'empty',
-  paletteSize: 4,
-  baseRoles: {},
-  paletteCssVarTemplate: '--empty-{n}',
-  semanticDefaults: {},
-  semanticCssNames: {},
-  baseDefaults: {},
-  defaultShikiTheme: 'dracula',
-  colorSchemes: {},
-  panelSettings: { colorScheme: '', colorMode: false },
-};
-
 const BASE: PanelConfig = {
   storagePrefix: 'demo',
   consoleNamespace: 'demo',
   modalClassPrefix: 'demo-modal',
   schemaId: 'demo/v1',
   exportFilenameBase: 'demo',
-  tokens: EMPTY_MANIFEST,
-  colorCluster: EMPTY_CLUSTER,
+  tabs: [],
 };
 
 beforeEach(() => {
@@ -128,19 +105,14 @@ describe('assertValidPanelConfig — trust-boundary validator (P1-11)', () => {
     );
   });
 
-  it('rejects malformed tokens / colorCluster shapes', () => {
+  it('rejects malformed tabs shapes', () => {
+    // tabs must be an array
     expect(() =>
       assertValidPanelConfig({
         ...BASE,
-        tokens: { spacing: 'not-an-array', typography: [], size: [], color: [] },
+        tabs: 'not-an-array',
       } as unknown),
-    ).toThrow(/tokens\.spacing/);
-    expect(() =>
-      assertValidPanelConfig({
-        ...BASE,
-        colorCluster: { ...EMPTY_CLUSTER, id: '' },
-      } as unknown),
-    ).toThrow(/colorCluster\.id/);
+    ).toThrow(/tabs must be an array/);
   });
 
   it('passes a valid PanelConfig silently', () => {

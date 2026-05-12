@@ -9,7 +9,7 @@
  *
  * **Parameterisation — clusters come from `panelConfig`**
  *
- * The primary color cluster is read from `getPanelConfig().colorCluster` at
+ * The primary color cluster is read from the color TabConfig's colorExtras at
  * call time, so a host that calls `configurePanel({ ..., colorCluster })`
  * sees its own data flow through the apply / clear / load helpers without
  * further plumbing. The package itself ships zero baked-in cluster data —
@@ -49,7 +49,15 @@ import {
   storageKey_position,
   storageKey_stateV1,
   storageKey_stateV2,
+  storageKey_stateV3,
 } from '../config/panel-config';
+import { resolvePrimaryColorCluster } from '../config/cluster-config';
+import type { TabConfig } from '../tokens/tier-model';
+import {
+  type TabOverrides,
+  emitTierItemCssValue,
+  resolveTierItemValue,
+} from '../apply/tier-resolver';
 
 // Re-export the cluster types under their historical names so existing call
 // sites (build-apply-overrides.ts, apply-modal.tsx, tests) keep compiling.
@@ -58,6 +66,11 @@ import {
 export type { BaseRoleKey, ColorClusterDataConfig } from '../config/cluster-config';
 export { resolvePaletteCssVar } from '../config/cluster-config';
 export type ColorClusterConfig = ColorClusterDataConfig;
+
+// Re-export TabOverrides so callers that persist tab-level state can import the
+// type from the state module (the canonical definition stays in tier-resolver
+// to keep that pure module free of state-layer deps).
+export type { TabOverrides } from '../apply/tier-resolver';
 
 // ---------------------------------------------------------------------------
 // Storage keys (derived from panelConfig at access time — see `panel-config.ts`)
@@ -84,6 +97,10 @@ export function getStorageKeyV1(): string {
 
 export function getStorageKeyV2(): string {
   return storageKey_stateV2(getPanelConfig());
+}
+
+export function getStorageKeyV3(): string {
+  return storageKey_stateV3(getPanelConfig());
 }
 
 export function getOpenKey(): string {
@@ -298,6 +315,11 @@ export type TokenOverrides = Record<string, string>;
  * `panelPosition` is persisted alongside the envelope so the user's drag
  * location survives reloads. `secondary` carries a second (optional) color
  * cluster — absent until a host opts in.
+ *
+ * `tabs` is the v3 extension: a tab-keyed map of `TabOverrides` for host-coined
+ * generic tabs that use the tier model. The existing `color`/`spacing`/
+ * `typography`/`size` slices are retained for internal back-compat until Wave 5
+ * migrates those dedicated tab components to consume `TabConfig.tiers` directly.
  */
 export interface TweakState {
   color: ColorTweakState;
@@ -306,6 +328,8 @@ export interface TweakState {
   size: TokenOverrides;
   panelPosition?: PanelPosition;
   secondary?: ColorTweakState;
+  /** Generic tab overrides keyed by tab id. Added in v3 envelope. */
+  tabs?: Record<string, TabOverrides>;
 }
 
 /** Produce an empty overrides map — `TweakState` default for new tabs. */
@@ -324,10 +348,39 @@ export function emptyOverrides(): TokenOverrides {
  * template + base-role set + semantic tables + scheme registry + panel scheme
  * settings.
  *
- * Primary cluster — read from `getPanelConfig().colorCluster` at every call
- * site. The package itself ships ZERO baked-in cluster data; hosts MUST call
- * `configurePanel({ colorCluster })` to provide one.
+ * Primary cluster — derived from the host's color TabConfig (tab.id 'color')
+ * via `getActivePrimaryCluster()`. The package ships ZERO baked-in cluster
+ * data; hosts MUST configure a color tab with `colorExtras` to provide one.
  */
+
+/**
+ * A minimal stub cluster used as fallback when no color tab is configured
+ * (default empty config scenario). The stub carries zero palette slots so the
+ * color tab shows an empty state.
+ */
+const STUB_CLUSTER: ColorClusterDataConfig = {
+  id: 'stub',
+  label: 'STUB',
+  paletteSize: 0,
+  baseRoles: {},
+  paletteCssVarTemplate: '--zudo-stub-p{n}',
+  semanticDefaults: {},
+  semanticCssNames: {},
+  baseDefaults: {},
+  defaultShikiTheme: 'dracula',
+  colorSchemes: {},
+  panelSettings: { colorScheme: '', colorMode: false },
+};
+
+/**
+ * Resolve the active primary color cluster from the panel config's tabs.
+ * Returns the stub cluster when no color tab is configured.
+ */
+export function getActivePrimaryCluster(
+  cfg = getPanelConfig(),
+): ColorClusterDataConfig {
+  return resolvePrimaryColorCluster(cfg.tabs) ?? STUB_CLUSTER;
+}
 
 /**
  * Produce a fresh `ColorTweakState` for a secondary color cluster.
@@ -499,7 +552,7 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
  * without editing the panel package.
  */
 export function getActiveSchemeName(
-  cluster: ColorClusterDataConfig = getPanelConfig().colorCluster,
+  cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
 ): string {
   const settings = cluster.panelSettings;
   if (settings.colorMode) {
@@ -512,7 +565,8 @@ export function getActiveSchemeName(
 
 /**
  * Initialise a `ColorTweakState` from the active color scheme for the given
- * cluster. Defaults to the host's primary cluster (`panelConfig.colorCluster`).
+ * cluster. Defaults to the host's primary cluster (derived from the color
+ * TabConfig).
  *
  * Reads the scheme registry from `cluster.colorSchemes`. Clusters that ship
  * no schemes should not call this directly — they use
@@ -520,7 +574,7 @@ export function getActiveSchemeName(
  * seed from.
  */
 export function initColorFromScheme(
-  cluster: ColorClusterDataConfig = getPanelConfig().colorCluster,
+  cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
 ): ColorTweakState {
   const schemes = cluster.colorSchemes;
   // No schemes → fall back to the deterministic neutral seed. This keeps the
@@ -537,7 +591,7 @@ export function initColorFromScheme(
 
 export function initColorFromSchemeData(
   scheme: ColorScheme,
-  cluster: ColorClusterDataConfig = getPanelConfig().colorCluster,
+  cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
 ): ColorTweakState {
   const palette = scheme.palette.map((c) => cssColorToHex(c));
   const semanticMappings: Record<string, number | 'bg' | 'fg'> = {};
@@ -605,7 +659,7 @@ export function safeIndex(index: number, len: number): number {
 /** Apply a single `ColorTweakState` to the DOM using the given cluster config. */
 export function applyColorState(
   state: ColorTweakState,
-  cluster: ColorClusterDataConfig = getPanelConfig().colorCluster,
+  cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
 ) {
   const len = state.palette.length;
   // Palette slots.
@@ -653,25 +707,84 @@ export function applyTokenOverrides(tokens: readonly TokenDef[], overrides: Toke
  * Apply the full unified `TweakState` — primary color cluster + token
  * overrides + optional secondary cluster.
  *
- * Token manifests AND the primary color cluster are read from `panelConfig`
+ * Tab configs AND the primary color cluster are read from `panelConfig`
  * at call time so a host that calls `configurePanel` before mount sees its
  * own data driving the apply pass.
  */
 export function applyFullState(state: TweakState) {
   const config = getPanelConfig();
-  applyColorState(state.color, config.colorCluster);
-  const tokens = config.tokens;
-  applyTokenOverrides(tokens.spacing, state.spacing);
-  applyTokenOverrides(tokens.typography, state.typography);
-  applyTokenOverrides(tokens.size, state.size);
-  // The secondary cluster is host-driven via
-  // `panelConfig.secondaryColorCluster`. When the host opted out (null),
-  // skip the secondary apply pass entirely; even though `state.secondary`
-  // may still be hydrated for envelope round-trip purposes, no secondary
-  // CSS vars belong to this host.
+  // Primary color cluster is derived from the color TabConfig.
+  applyColorState(state.color, getActivePrimaryCluster(config));
+  // Apply spacing / typography / size from tabs[] (required field post-Wave-5).
+  applyTabOverridesFlat(config.tabs, 'spacing', state.spacing);
+  applyTabOverridesFlat(config.tabs, 'font', state.typography);
+  applyTabOverridesFlat(config.tabs, 'size', state.size);
+  // The secondary cluster is host-driven via the 'color-secondary' tab.
+  // When no such tab is configured, skip the secondary apply pass entirely.
   const secondaryCluster = resolveSecondaryColorCluster(config);
   if (secondaryCluster && state.secondary) {
     applyColorState(state.secondary, secondaryCluster);
+  }
+}
+
+/**
+ * Apply a flat TokenOverrides map against a TabConfig. Finds the tab by id
+ * in `tabs`, then for each tier item resolves the effective CSS value using
+ * the tier resolver (so reference tiers emit `var(--target)`) and writes it
+ * to `:root`. Items not present in the overrides map have their inline
+ * property removed so the stylesheet default re-asserts.
+ *
+ * Skips gracefully when the tab is not found (host config without that tab).
+ */
+function applyTabOverridesFlat(
+  tabs: readonly TabConfig[],
+  tabId: string,
+  overrides: TokenOverrides,
+) {
+  const tab = tabs.find((t) => t.id === tabId);
+  if (!tab) return;
+
+  // Build a TabOverrides-shaped view of the flat overrides so the tier
+  // resolver can do reference-tier resolution. The flat map stores overrides
+  // keyed by item id; we wrap each item into its tier bucket.
+  const tabOverrides: Record<string, Record<string, string>> = {};
+  for (const tier of tab.tiers) {
+    const tierOverrides: Record<string, string> = {};
+    for (const item of tier.items) {
+      const v = overrides[item.id];
+      if (typeof v === 'string' && v.length > 0) {
+        tierOverrides[item.id] = v;
+      }
+    }
+    tabOverrides[tier.id] = tierOverrides;
+  }
+
+  // Apply each item using the resolver so reference tiers emit var() refs.
+  const root = document.documentElement;
+  for (const tier of tab.tiers) {
+    for (const item of tier.items) {
+      if (item.readonly) continue;
+      try {
+        const resolved = resolveTierItemValue(tab, tier.id, item.id, tabOverrides);
+        const cssValue = emitTierItemCssValue(resolved);
+        // Only write if there is actually an override — otherwise remove
+        // so the stylesheet default takes effect.
+        const hasOverride = typeof overrides[item.id] === 'string' && overrides[item.id].length > 0;
+        if (hasOverride || tier.referencesTier !== undefined) {
+          // For reference tiers we always write var(--target) because the
+          // CSS var itself points at the canonical default target, which
+          // may differ from a user-overridden raw tier item. Writing nothing
+          // would leave the previous var() ref or the stylesheet default.
+          setCssVar(item.cssVar, cssValue);
+        } else {
+          root.style.removeProperty(item.cssVar);
+        }
+      } catch {
+        // Resolver errors (misconfigured tab) are non-fatal — remove any
+        // stale inline value and let the stylesheet default through.
+        root.style.removeProperty(item.cssVar);
+      }
+    }
   }
 }
 
@@ -686,13 +799,12 @@ export function applyFullState(state: TweakState) {
  */
 export function clearAppliedStyles(
   clusters: readonly ColorClusterDataConfig[] = (() => {
-    // Default wipe set follows the host's configuration. When the host
-    // opted out of the secondary cluster (null), only the primary
-    // cluster's vars get cleared. Callers can still pass an explicit list
-    // to scope the wipe further.
+    // Default wipe set follows the host's configuration. Derive clusters
+    // from the color tabs (primary + optional secondary).
     const cfg = getPanelConfig();
+    const primary = getActivePrimaryCluster(cfg);
     const secondary = resolveSecondaryColorCluster(cfg);
-    return secondary ? [cfg.colorCluster, secondary] : [cfg.colorCluster];
+    return secondary ? [primary, secondary] : [primary];
   })(),
 ) {
   const root = document.documentElement;
@@ -707,21 +819,17 @@ export function clearAppliedStyles(
       root.style.removeProperty(cssName);
     }
   }
-  // Token manifests — same contract: wipe any inline overrides so stylesheet
-  // defaults take effect again. Read from panelConfig so a host-supplied
-  // manifest's cssVars get cleared.
-  const tokens = getPanelConfig().tokens;
-  for (const t of tokens.spacing) {
-    if (t.readonly) continue;
-    root.style.removeProperty(t.cssVar);
-  }
-  for (const t of tokens.typography) {
-    if (t.readonly) continue;
-    root.style.removeProperty(t.cssVar);
-  }
-  for (const t of tokens.size) {
-    if (t.readonly) continue;
-    root.style.removeProperty(t.cssVar);
+  // Tabs — clear all cssVars for items in spacing/font/size tabs so the
+  // stylesheet defaults take effect again.
+  for (const tab of getPanelConfig().tabs) {
+    // Color tab vars are handled above via cluster clear paths.
+    if (tab.id === 'color') continue;
+    for (const tier of tab.tiers) {
+      for (const item of tier.items) {
+        if (item.readonly) continue;
+        root.style.removeProperty(item.cssVar);
+      }
+    }
   }
 }
 
@@ -925,14 +1033,149 @@ function hydratePanelPosition(raw: unknown): PanelPosition | undefined {
   return undefined;
 }
 
+/**
+ * Hydrate a `tabs` field from a raw persisted value.
+ * Each value under each tab key is expected to be a `Record<tierId, Record<itemId, string>>`.
+ * Unknown shapes are silently dropped; valid string values pass through.
+ */
+function hydrateTabs(raw: unknown): Record<string, TabOverrides> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const result: Record<string, TabOverrides> = {};
+  for (const [tabId, tabVal] of Object.entries(raw as Record<string, unknown>)) {
+    if (!tabVal || typeof tabVal !== 'object' || Array.isArray(tabVal)) continue;
+    const tierMap: Record<string, Record<string, string>> = {};
+    for (const [tierId, tierVal] of Object.entries(tabVal as Record<string, unknown>)) {
+      if (!tierVal || typeof tierVal !== 'object' || Array.isArray(tierVal)) continue;
+      const itemMap: Record<string, string> = {};
+      for (const [itemId, itemVal] of Object.entries(tierVal as Record<string, unknown>)) {
+        if (typeof itemVal === 'string') itemMap[itemId] = itemVal;
+      }
+      tierMap[tierId] = itemMap;
+    }
+    result[tabId] = tierMap;
+  }
+  return result;
+}
+
+/**
+ * Shared logic for hydrating a v2 or v3-shaped persisted object into a `TweakState`.
+ *
+ * Both v2 (from the old `-state-v2` key) and v3 (from `-state-v3`) share the
+ * same top-level shape. The only difference is that v3 adds an optional `tabs`
+ * field — which is backward-tolerated in v2 payloads too (just absent).
+ */
+function hydrateV2OrV3Object(
+  obj: {
+    color?: unknown;
+    spacing?: unknown;
+    typography?: unknown;
+    font?: unknown;
+    size?: unknown;
+    panelPosition?: unknown;
+    secondary?: unknown;
+    tabs?: unknown;
+  },
+  cluster: ColorClusterDataConfig,
+  colorDefaults?: ColorTweakState,
+): TweakState | null {
+  if (!obj.color || !isValidColorShape(obj.color, cluster.paletteSize)) return null;
+
+  const defaults = colorDefaults ?? tryInitColorFromScheme(cluster);
+  const typographySlice = obj.typography !== undefined ? obj.typography : obj.font;
+  // Rename map sourced from the active panel config. Defaults to an
+  // empty map (no renaming) so hosts whose manifest ids are stable are
+  // not corrupted — see issue #51 and the doc on
+  // `ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP` for the opt-in zdtp-internal
+  // map.
+  const renameMap = getPanelConfig().legacyIdRenameMap ?? {};
+  const next: TweakState = {
+    color: hydrateColorState(obj.color as Partial<ColorTweakState>, defaults),
+    // New sections added after v1 migration — tolerate their absence so
+    // older v2 payloads (Color-only) still load cleanly.
+    spacing: hydrateOverrides(obj.spacing),
+    // Typography slice: apply the host-configured rename map (if any)
+    // so payloads persisted under the host's "old" ids survive a
+    // host-driven id rename without losing the user's tweaks.
+    typography: hydrateTypographyOverrides(typographySlice, renameMap),
+    size: hydrateOverrides(obj.size),
+    panelPosition: hydratePanelPosition(obj.panelPosition),
+  };
+  // Optional secondary slice — validated against the active secondary
+  // cluster's palette size, NOT the primary cluster's. When the host
+  // opted out (`secondaryColorCluster: null` or omitted), there is no
+  // secondary cluster to validate against, so we skip hydration
+  // entirely — the apply path also skips secondary writes, and the
+  // JSON envelope simply omits the slice for opt-out hosts. Defaults
+  // come from `initSecondaryDefaults(cluster)`.
+  const secondaryCluster = resolveSecondaryColorCluster();
+  if (
+    secondaryCluster &&
+    obj.secondary &&
+    isValidColorShape(obj.secondary, secondaryCluster.paletteSize)
+  ) {
+    next.secondary = hydrateColorState(
+      obj.secondary as Partial<ColorTweakState>,
+      initSecondaryDefaults(secondaryCluster),
+    );
+  }
+  // v3 extension: generic tab overrides keyed by tab id.
+  const tabs = hydrateTabs(obj.tabs);
+  if (Object.keys(tabs).length > 0) {
+    next.tabs = tabs;
+  }
+  return next;
+}
+
 export function loadPersistedState(
   storage: StorageLike = localStorage,
   colorDefaults?: ColorTweakState,
-  cluster: ColorClusterDataConfig = getPanelConfig().colorCluster,
+  cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
 ): TweakState | null {
   const STORAGE_KEY_V1 = getStorageKeyV1();
   const STORAGE_KEY_V2 = getStorageKeyV2();
-  // 1. v2 wins.
+  const STORAGE_KEY_V3 = getStorageKeyV3();
+
+  // 1. v3 wins.
+  const rawV3 = safeGet(storage, STORAGE_KEY_V3);
+  if (rawV3 !== null) {
+    const parsed = safeParse(rawV3);
+    if (parsed && typeof parsed === 'object') {
+      const obj = parsed as {
+        color?: unknown;
+        spacing?: unknown;
+        typography?: unknown;
+        font?: unknown;
+        size?: unknown;
+        panelPosition?: unknown;
+        secondary?: unknown;
+        tabs?: unknown;
+      };
+      const next = hydrateV2OrV3Object(obj, cluster, colorDefaults);
+      if (next !== null) {
+        // Renormalize storage when the typography migration actually changed
+        // the slice (rename or null-drop) OR the legacy `font` alias was
+        // used instead of `typography`. Without this, legacy ids and dropped
+        // entries survive on disk indefinitely as dead data, and a host
+        // that later removes the opt-in rename map regresses every user
+        // back to non-applying overrides.
+        const typographySlice = obj.typography !== undefined ? obj.typography : obj.font;
+        const typographyChanged =
+          JSON.stringify(typographySlice ?? {}) !== JSON.stringify(next.typography);
+        if (typographyChanged || obj.typography === undefined) {
+          try {
+            storage.setItem(STORAGE_KEY_V3, JSON.stringify(next));
+          } catch {
+            /* storage full — return the in-memory state anyway */
+          }
+        }
+        return next;
+      }
+    }
+    // v3 present but malformed — warn and fall through to v2 check.
+    console.warn(`[tweak] Malformed ${STORAGE_KEY_V3}, attempting v2 migration`);
+  }
+
+  // 2. v2 → v3 migration.
   const rawV2 = safeGet(storage, STORAGE_KEY_V2);
   if (rawV2 !== null) {
     const parsed = safeParse(rawV2);
@@ -941,73 +1184,28 @@ export function loadPersistedState(
         color?: unknown;
         spacing?: unknown;
         typography?: unknown;
-        font?: unknown; // upstream alias — migrated into `typography`
+        font?: unknown;
         size?: unknown;
         panelPosition?: unknown;
         secondary?: unknown;
+        tabs?: unknown;
       };
-      if (obj.color && isValidColorShape(obj.color, cluster.paletteSize)) {
-        const defaults = colorDefaults ?? tryInitColorFromScheme(cluster);
-        const typographySlice = obj.typography !== undefined ? obj.typography : obj.font;
-        // Rename map sourced from the active panel config. Defaults to an
-        // empty map (no renaming) so hosts whose manifest ids are stable are
-        // not corrupted — see issue #51 and the doc on
-        // `ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP` for the opt-in zdtp-internal
-        // map.
-        const renameMap = getPanelConfig().legacyIdRenameMap ?? {};
-        const next: TweakState = {
-          color: hydrateColorState(obj.color as Partial<ColorTweakState>, defaults),
-          // New sections added after v1 migration — tolerate their absence so
-          // older v2 payloads (Color-only) still load cleanly.
-          spacing: hydrateOverrides(obj.spacing),
-          // Typography slice: apply the host-configured rename map (if any)
-          // so payloads persisted under the host's "old" ids survive a
-          // host-driven id rename without losing the user's tweaks.
-          typography: hydrateTypographyOverrides(typographySlice, renameMap),
-          size: hydrateOverrides(obj.size),
-          panelPosition: hydratePanelPosition(obj.panelPosition),
-        };
-        // Optional secondary slice — validated against the active secondary
-        // cluster's palette size, NOT the primary cluster's. When the host
-        // opted out (`secondaryColorCluster: null` or omitted), there is no
-        // secondary cluster to validate against, so we skip hydration
-        // entirely — the apply path also skips secondary writes, and the
-        // JSON envelope simply omits the slice for opt-out hosts. Defaults
-        // come from `initSecondaryDefaults(cluster)`.
-        const secondaryCluster = resolveSecondaryColorCluster();
-        if (
-          secondaryCluster &&
-          obj.secondary &&
-          isValidColorShape(obj.secondary, secondaryCluster.paletteSize)
-        ) {
-          next.secondary = hydrateColorState(
-            obj.secondary as Partial<ColorTweakState>,
-            initSecondaryDefaults(secondaryCluster),
-          );
+      const migrated = hydrateV2OrV3Object(obj, cluster, colorDefaults);
+      if (migrated !== null) {
+        try {
+          storage.setItem(STORAGE_KEY_V3, JSON.stringify(migrated));
+          storage.removeItem(STORAGE_KEY_V2);
+        } catch {
+          /* storage full; still return migrated state for this session */
         }
-        // Renormalize storage when the typography migration actually changed
-        // the slice (rename or null-drop) OR the legacy `font` alias was
-        // used instead of `typography`. Without this, legacy ids and dropped
-        // entries survive on disk indefinitely as dead data, and a host
-        // that later removes the opt-in rename map regresses every user
-        // back to non-applying overrides.
-        const typographyChanged =
-          JSON.stringify(typographySlice ?? {}) !== JSON.stringify(next.typography);
-        if (typographyChanged || obj.typography === undefined) {
-          try {
-            storage.setItem(STORAGE_KEY_V2, JSON.stringify(next));
-          } catch {
-            /* storage full — return the in-memory state anyway */
-          }
-        }
-        return next;
+        return migrated;
       }
     }
     // v2 present but malformed — warn and fall through to v1 check.
     console.warn(`[tweak] Malformed ${STORAGE_KEY_V2}, attempting v1 migration`);
   }
 
-  // 2. v1 migration.
+  // 3. v1 → v3 migration.
   const rawV1 = safeGet(storage, STORAGE_KEY_V1);
   if (rawV1 !== null) {
     const parsed = safeParse(rawV1);
@@ -1026,7 +1224,7 @@ export function loadPersistedState(
         size: emptyOverrides(),
       };
       try {
-        storage.setItem(STORAGE_KEY_V2, JSON.stringify(migrated));
+        storage.setItem(STORAGE_KEY_V3, JSON.stringify(migrated));
         storage.removeItem(STORAGE_KEY_V1);
       } catch {
         /* storage full; still return migrated state for this session */
@@ -1042,21 +1240,26 @@ export function loadPersistedState(
     }
   }
 
-  // 3. Fresh defaults.
+  // 4. Fresh defaults.
   return null;
 }
 
-/** Persist the full `TweakState` to v2. */
+/** Persist the full `TweakState` to v3. */
 export function savePersistedState(state: TweakState, storage: StorageLike = localStorage) {
   try {
-    storage.setItem(getStorageKeyV2(), JSON.stringify(state));
+    storage.setItem(getStorageKeyV3(), JSON.stringify(state));
   } catch {
     // Storage full.
   }
 }
 
-/** Remove v2 (and lingering v1) keys. */
+/** Remove v3 (and lingering v2/v1) keys. */
 export function clearPersistedState(storage: StorageLike = localStorage) {
+  try {
+    storage.removeItem(getStorageKeyV3());
+  } catch {
+    /* ignore */
+  }
   try {
     storage.removeItem(getStorageKeyV2());
   } catch {
