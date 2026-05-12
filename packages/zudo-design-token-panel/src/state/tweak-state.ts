@@ -9,7 +9,7 @@
  *
  * **Parameterisation — clusters come from `panelConfig`**
  *
- * The primary color cluster is read from `getPanelConfig().colorCluster` at
+ * The primary color cluster is read from the color TabConfig's colorExtras at
  * call time, so a host that calls `configurePanel({ ..., colorCluster })`
  * sees its own data flow through the apply / clear / load helpers without
  * further plumbing. The package itself ships zero baked-in cluster data —
@@ -51,6 +51,7 @@ import {
   storageKey_stateV2,
   storageKey_stateV3,
 } from '../config/panel-config';
+import { resolvePrimaryColorCluster } from '../config/cluster-config';
 import type { TabConfig } from '../tokens/tier-model';
 import {
   type TabOverrides,
@@ -347,10 +348,39 @@ export function emptyOverrides(): TokenOverrides {
  * template + base-role set + semantic tables + scheme registry + panel scheme
  * settings.
  *
- * Primary cluster — read from `getPanelConfig().colorCluster` at every call
- * site. The package itself ships ZERO baked-in cluster data; hosts MUST call
- * `configurePanel({ colorCluster })` to provide one.
+ * Primary cluster — derived from the host's color TabConfig (tab.id 'color')
+ * via `getActivePrimaryCluster()`. The package ships ZERO baked-in cluster
+ * data; hosts MUST configure a color tab with `colorExtras` to provide one.
  */
+
+/**
+ * A minimal stub cluster used as fallback when no color tab is configured
+ * (default empty config scenario). The stub carries zero palette slots so the
+ * color tab shows an empty state.
+ */
+const STUB_CLUSTER: ColorClusterDataConfig = {
+  id: 'stub',
+  label: 'STUB',
+  paletteSize: 0,
+  baseRoles: {},
+  paletteCssVarTemplate: '--zudo-stub-p{n}',
+  semanticDefaults: {},
+  semanticCssNames: {},
+  baseDefaults: {},
+  defaultShikiTheme: 'dracula',
+  colorSchemes: {},
+  panelSettings: { colorScheme: '', colorMode: false },
+};
+
+/**
+ * Resolve the active primary color cluster from the panel config's tabs.
+ * Returns the stub cluster when no color tab is configured.
+ */
+export function getActivePrimaryCluster(
+  cfg = getPanelConfig(),
+): ColorClusterDataConfig {
+  return resolvePrimaryColorCluster(cfg.tabs) ?? STUB_CLUSTER;
+}
 
 /**
  * Produce a fresh `ColorTweakState` for a secondary color cluster.
@@ -522,7 +552,7 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
  * without editing the panel package.
  */
 export function getActiveSchemeName(
-  cluster: ColorClusterDataConfig = getPanelConfig().colorCluster,
+  cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
 ): string {
   const settings = cluster.panelSettings;
   if (settings.colorMode) {
@@ -535,7 +565,8 @@ export function getActiveSchemeName(
 
 /**
  * Initialise a `ColorTweakState` from the active color scheme for the given
- * cluster. Defaults to the host's primary cluster (`panelConfig.colorCluster`).
+ * cluster. Defaults to the host's primary cluster (derived from the color
+ * TabConfig).
  *
  * Reads the scheme registry from `cluster.colorSchemes`. Clusters that ship
  * no schemes should not call this directly — they use
@@ -543,7 +574,7 @@ export function getActiveSchemeName(
  * seed from.
  */
 export function initColorFromScheme(
-  cluster: ColorClusterDataConfig = getPanelConfig().colorCluster,
+  cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
 ): ColorTweakState {
   const schemes = cluster.colorSchemes;
   // No schemes → fall back to the deterministic neutral seed. This keeps the
@@ -560,7 +591,7 @@ export function initColorFromScheme(
 
 export function initColorFromSchemeData(
   scheme: ColorScheme,
-  cluster: ColorClusterDataConfig = getPanelConfig().colorCluster,
+  cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
 ): ColorTweakState {
   const palette = scheme.palette.map((c) => cssColorToHex(c));
   const semanticMappings: Record<string, number | 'bg' | 'fg'> = {};
@@ -628,7 +659,7 @@ export function safeIndex(index: number, len: number): number {
 /** Apply a single `ColorTweakState` to the DOM using the given cluster config. */
 export function applyColorState(
   state: ColorTweakState,
-  cluster: ColorClusterDataConfig = getPanelConfig().colorCluster,
+  cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
 ) {
   const len = state.palette.length;
   // Palette slots.
@@ -682,16 +713,14 @@ export function applyTokenOverrides(tokens: readonly TokenDef[], overrides: Toke
  */
 export function applyFullState(state: TweakState) {
   const config = getPanelConfig();
-  applyColorState(state.color, config.colorCluster);
+  // Primary color cluster is derived from the color TabConfig.
+  applyColorState(state.color, getActivePrimaryCluster(config));
   // Apply spacing / typography / size from tabs[] (required field post-Wave-5).
   applyTabOverridesFlat(config.tabs, 'spacing', state.spacing);
   applyTabOverridesFlat(config.tabs, 'font', state.typography);
   applyTabOverridesFlat(config.tabs, 'size', state.size);
-  // The secondary cluster is host-driven via
-  // `panelConfig.secondaryColorCluster`. When the host opted out (null),
-  // skip the secondary apply pass entirely; even though `state.secondary`
-  // may still be hydrated for envelope round-trip purposes, no secondary
-  // CSS vars belong to this host.
+  // The secondary cluster is host-driven via the 'color-secondary' tab.
+  // When no such tab is configured, skip the secondary apply pass entirely.
   const secondaryCluster = resolveSecondaryColorCluster(config);
   if (secondaryCluster && state.secondary) {
     applyColorState(state.secondary, secondaryCluster);
@@ -770,13 +799,12 @@ function applyTabOverridesFlat(
  */
 export function clearAppliedStyles(
   clusters: readonly ColorClusterDataConfig[] = (() => {
-    // Default wipe set follows the host's configuration. When the host
-    // opted out of the secondary cluster (null), only the primary
-    // cluster's vars get cleared. Callers can still pass an explicit list
-    // to scope the wipe further.
+    // Default wipe set follows the host's configuration. Derive clusters
+    // from the color tabs (primary + optional secondary).
     const cfg = getPanelConfig();
+    const primary = getActivePrimaryCluster(cfg);
     const secondary = resolveSecondaryColorCluster(cfg);
-    return secondary ? [cfg.colorCluster, secondary] : [cfg.colorCluster];
+    return secondary ? [primary, secondary] : [primary];
   })(),
 ) {
   const root = document.documentElement;
@@ -1101,7 +1129,7 @@ function hydrateV2OrV3Object(
 export function loadPersistedState(
   storage: StorageLike = localStorage,
   colorDefaults?: ColorTweakState,
-  cluster: ColorClusterDataConfig = getPanelConfig().colorCluster,
+  cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
 ): TweakState | null {
   const STORAGE_KEY_V1 = getStorageKeyV1();
   const STORAGE_KEY_V2 = getStorageKeyV2();

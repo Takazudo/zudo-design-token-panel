@@ -41,7 +41,9 @@ import {
   initColorFromSchemeData,
   resolvePaletteCssVar,
 } from '../state/tweak-state';
-import { getPanelConfig, resolveSecondaryColorCluster } from '../config/panel-config';
+import { getPanelConfig } from '../config/panel-config';
+import { resolveColorClusterFromTab } from '../config/cluster-config';
+import type { TabConfig } from '../tokens/tier-model';
 import type { PersistColor, PersistSecondary } from '../state/persist';
 
 // The bundled scheme registry now lives on
@@ -440,34 +442,55 @@ const PaletteSelector = memo(function PaletteSelector({
 // --- Color tab body ---
 
 interface ColorTabProps {
+  /**
+   * The color tab's TabConfig. Provides palette + semantic tiers and
+   * colorExtras (schemes, base roles, panel settings).
+   */
+  tab: TabConfig;
   state: ColorTweakState;
   persistColor: PersistColor;
   /**
-   * Secondary cluster state, or `null` when the host opted out of the
-   * secondary cluster. The render path below short-circuits when
-   * `secondaryCluster` resolves to `null`, so the slice is only touched
-   * inside that conditional block.
+   * Secondary cluster tab, or `null` when the host has no secondary color tab.
+   * When non-null, its state + persist callbacks render the secondary sections.
    */
+  secondaryTab: TabConfig | null;
   secondaryState: ColorTweakState | null;
   persistSecondary: PersistSecondary;
 }
 
 export default function ColorTab({
+  tab,
   state,
   persistColor,
+  secondaryTab,
   secondaryState,
   persistSecondary,
 }: ColorTabProps) {
-  // Read the active cluster + scheme registry through panelConfig so a host
-  // that calls `configurePanel` with its own colorCluster sees its data
-  // drive both the Scheme… dropdown (bundled schemes) and the palette CSS
-  // var labels (resolvePaletteCssVar).
-  const cluster = getPanelConfig().colorCluster;
-  // Secondary cluster is host-driven. When the host opted out (null) or
-  // omitted the field, `secondaryCluster` is null and the secondary
-  // sections below short-circuit to nothing. When configured, this is
-  // the host-supplied cluster.
-  const secondaryCluster = resolveSecondaryColorCluster();
+  // Derive the cluster from the tab's colorExtras + tiers. This provides the
+  // same shape that the rest of the panel (apply, clear, state) expects.
+  const cluster = useMemo(() => resolveColorClusterFromTab(tab), [tab]);
+  // Fallback to an empty stub cluster when the tab has no colorExtras.
+  const safeCluster = useMemo(
+    () =>
+      cluster ?? {
+        id: 'stub',
+        paletteSize: 0,
+        baseRoles: {},
+        paletteCssVarTemplate: '--stub-p{n}',
+        semanticDefaults: {},
+        semanticCssNames: {},
+        baseDefaults: {},
+        defaultShikiTheme: 'dracula',
+        colorSchemes: {},
+        panelSettings: { colorScheme: '', colorMode: false as const },
+      },
+    [cluster],
+  );
+  // Secondary cluster derived from the secondary tab (if any).
+  const secondaryCluster = useMemo(
+    () => (secondaryTab ? resolveColorClusterFromTab(secondaryTab) ?? null : null),
+    [secondaryTab],
+  );
   // Host-supplied preset list. Read through the panel
   // config so a host that calls `configurePanel({ ..., colorPresets })`
   // surfaces its presets in the Scheme... dropdown. The package itself
@@ -479,23 +502,23 @@ export default function ColorTab({
   // owner's documented defaults (e.g. "Default Light" / "Default Dark"),
   // and the host preset list is the broader experimentation pool.
   const allPresets = useMemo<Record<string, ColorScheme>>(
-    () => ({ ...hostPresets, ...cluster.colorSchemes }),
-    [hostPresets, cluster.colorSchemes],
+    () => ({ ...hostPresets, ...safeCluster.colorSchemes }),
+    [hostPresets, safeCluster.colorSchemes],
   );
-  const bundledNames = useMemo(() => Object.keys(cluster.colorSchemes), [cluster.colorSchemes]);
+  const bundledNames = useMemo(() => Object.keys(safeCluster.colorSchemes), [safeCluster.colorSchemes]);
   const presetNames = useMemo(() => Object.keys(hostPresets).sort(), [hostPresets]);
 
-  // Section headings derive from `cluster.label` (or
-  // `cluster.id.toUpperCase()` as a fallback) so a host-supplied cluster
+  // Section headings derive from `safeCluster.label` (or
+  // `safeCluster.id.toUpperCase()` as a fallback) so a host-supplied cluster
   // gets its sections labelled with whatever the host configured.
-  const primaryLabel = cluster.label ?? cluster.id.toUpperCase();
+  const primaryLabel = safeCluster.label ?? safeCluster.id.toUpperCase();
   const secondaryLabel = secondaryCluster?.label ?? secondaryCluster?.id.toUpperCase() ?? '';
 
   // Stable per-cluster `paletteCssVar` callbacks — passed into memoised
   // ColorSwatch / PaletteSelector so prop equality holds across renders.
   const clusterPaletteCssVar = useCallback(
-    (i: number) => resolvePaletteCssVar(cluster, i),
-    [cluster],
+    (i: number) => resolvePaletteCssVar(safeCluster, i),
+    [safeCluster],
   );
   // Returns `null` (instead of a no-op fn) when the host opted out so we
   // can short-circuit the secondary section render below without a stray
@@ -642,7 +665,7 @@ export default function ColorTab({
               key={i}
               color={color}
               index={i}
-              label={resolvePaletteCssVar(cluster, i)}
+              label={resolvePaletteCssVar(safeCluster, i)}
               onChange={handlePaletteChange}
             />
           ))}
@@ -691,11 +714,11 @@ export default function ColorTab({
             {primaryLabel} — Semantic Tokens
           </h3>
           <div className="tokenpanel-color-base-grid">
-            {Object.entries(cluster.semanticDefaults).map(([key, defaultVal]) => {
+            {Object.entries(safeCluster.semanticDefaults).map(([key, defaultVal]) => {
               return (
                 <PaletteSelector
                   key={key}
-                  label={cluster.semanticCssNames[key] ?? key}
+                  label={safeCluster.semanticCssNames[key] ?? key}
                   idKey={key}
                   value={state.semanticMappings[key] ?? defaultVal}
                   palette={state.palette}

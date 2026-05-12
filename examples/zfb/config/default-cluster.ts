@@ -11,9 +11,7 @@
  * Preact island JSON boundary.
  */
 
-import type { PanelConfig } from '@takazudo/zudo-design-token-panel/astro';
-
-type ColorClusterDataConfig = PanelConfig['colorCluster'];
+import type { ColorClusterConfig as ColorClusterDataConfig } from '@takazudo/zudo-design-token-panel/astro';
 
 export const defaultCluster: ColorClusterDataConfig = {
   id: 'zfbexample-cluster',

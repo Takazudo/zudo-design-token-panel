@@ -121,7 +121,43 @@ export const FIXTURE_TABS: readonly TabConfig[] = [
   {
     id: 'color',
     label: 'Color',
-    tiers: [],
+    // colorExtras carries the non-tier metadata; tiers carry the palette and
+    // semantic rows. The FIXTURE_CLUSTER shape drives these values so tests
+    // that call resolveColorClusterFromTab() get a result consistent with
+    // the direct FIXTURE_CLUSTER constant.
+    colorExtras: {
+      id: FIXTURE_CLUSTER.id,
+      label: FIXTURE_CLUSTER.label,
+      baseRoles: FIXTURE_CLUSTER.baseRoles,
+      baseDefaults: FIXTURE_CLUSTER.baseDefaults,
+      defaultShikiTheme: FIXTURE_CLUSTER.defaultShikiTheme,
+      colorSchemes: FIXTURE_CLUSTER.colorSchemes,
+      panelSettings: FIXTURE_CLUSTER.panelSettings,
+    },
+    tiers: [
+      {
+        id: 'palette',
+        label: 'Palette',
+        // 16 explicit palette slots matching FIXTURE_CLUSTER.paletteSize = 16
+        items: Array.from({ length: 16 }, (_, i) => ({
+          id: `fixture-p${i}`,
+          cssVar: `--fixture-p${i}`,
+          label: `Palette ${i}`,
+          default: '#000000',
+          type: { kind: 'color' as const },
+        })),
+      },
+      {
+        id: 'semantic',
+        label: 'Semantic',
+        referencesTier: 'palette',
+        items: [
+          { id: 'accent', cssVar: '--fixture-semantic-accent', label: 'Accent', default: 'fixture-p6',  type: { kind: 'color' as const } },
+          { id: 'muted',  cssVar: '--fixture-semantic-muted',  label: 'Muted',  default: 'fixture-p8',  type: { kind: 'color' as const } },
+          { id: 'active', cssVar: '--fixture-semantic-active', label: 'Active', default: 'fixture-p14', type: { kind: 'color' as const } },
+        ],
+      },
+    ],
   },
 ];
 
@@ -132,8 +168,6 @@ export const FIXTURE_PANEL_CONFIG: PanelConfig = {
   schemaId: 'zudo-design-tokens/v1',
   exportFilenameBase: 'zudo-design-tokens',
   tabs: FIXTURE_TABS,
-  colorCluster: FIXTURE_CLUSTER,
-  secondaryColorCluster: null,
   colorPresets: {},
 };
 

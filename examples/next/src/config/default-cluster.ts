@@ -11,9 +11,7 @@
  * apply pipeline.
  */
 
-import type { PanelConfig } from '@takazudo/zudo-design-token-panel';
-
-type ColorClusterDataConfig = PanelConfig['colorCluster'];
+import type { ColorClusterConfig as ColorClusterDataConfig } from '@takazudo/zudo-design-token-panel';
 
 export const defaultCluster: ColorClusterDataConfig = {
   id: 'nextexample-cluster',

@@ -24,6 +24,9 @@ export type { PanelConfig } from '../config/panel-config';
 // Re-exported so Astro-host wiring can type the entries of its
 // `colorPresets` map without reaching into an internal sub-path.
 export type { ColorScheme, ColorRef } from '../config/color-schemes';
+// Re-exported so Astro-host `default-cluster.ts` config files can type the
+// cluster object without reaching into an internal sub-path.
+export type { ColorClusterConfig } from '../state/tweak-state';
 // Exposed so host wrappers can lazy-load the preset map AFTER the SSR
 // config blob is parsed. See `setPanelColorPresets` jsdoc in
 // `panel-config.ts` for the rationale.

@@ -16,26 +16,7 @@ import {
   storageKey_visible,
   type PanelConfig,
 } from '../config/panel-config';
-import type { ColorClusterDataConfig } from '../config/cluster-config';
 import type { TabConfig } from '../tokens/tier-model';
-
-/**
- * Minimal cluster fixture used by tests that don't care about cluster data —
- * `colorCluster` is a required field on `PanelConfig`; this stub keeps the
- * storage / namespace / branding fixtures focused on what they assert.
- */
-const EMPTY_CLUSTER: ColorClusterDataConfig = {
-  id: 'empty',
-  paletteSize: 0,
-  baseRoles: {},
-  paletteCssVarTemplate: '--empty-{n}',
-  semanticDefaults: {},
-  semanticCssNames: {},
-  baseDefaults: {},
-  defaultShikiTheme: 'dracula',
-  colorSchemes: {},
-  panelSettings: { colorScheme: '', colorMode: false },
-};
 
 /**
  * `panel-config.ts` contract:
@@ -119,7 +100,6 @@ describe('panel-config — derivation flips with a non-default config', () => {
     schemaId: 'foo-bar-tokens/v1',
     exportFilenameBase: 'foo-bar-tokens',
     tabs: [],
-    colorCluster: EMPTY_CLUSTER,
   };
 
   it('every derivation flips with the new prefix', () => {
@@ -151,7 +131,6 @@ describe('panel-config — configurePanel idempotency', () => {
     schemaId: 'aaa/v1',
     exportFilenameBase: 'aaa',
     tabs: [],
-    colorCluster: EMPTY_CLUSTER,
   };
 
   const CONFIG_B: PanelConfig = {
@@ -161,7 +140,6 @@ describe('panel-config — configurePanel idempotency', () => {
     schemaId: 'bbb/v1',
     exportFilenameBase: 'bbb',
     tabs: [],
-    colorCluster: EMPTY_CLUSTER,
   };
 
   it('calling configurePanel twice with identical values is a no-op (does not throw)', () => {
@@ -195,7 +173,6 @@ describe('panel-config — assertValidPanelConfig accepts and rejects legacyIdRe
       schemaId: 'p/v1',
       exportFilenameBase: 'p',
       tabs: [],
-      colorCluster: EMPTY_CLUSTER,
       ...extra,
     };
   }
@@ -294,18 +271,6 @@ describe('panel-config — assertValidPanelConfig host-tabs validation', () => {
       schemaId: 'p/v1',
       exportFilenameBase: 'p',
       tabs: [],
-      colorCluster: {
-        id: 'empty',
-        paletteSize: 0,
-        baseRoles: {},
-        paletteCssVarTemplate: '--empty-{n}',
-        semanticDefaults: {},
-        semanticCssNames: {},
-        baseDefaults: {},
-        defaultShikiTheme: 'dracula',
-        colorSchemes: {},
-        panelSettings: { colorScheme: '', colorMode: false },
-      },
       ...extra,
     };
   }

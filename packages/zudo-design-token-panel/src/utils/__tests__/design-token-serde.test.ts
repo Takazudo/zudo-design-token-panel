@@ -343,16 +343,35 @@ describe('deserialize — v2 format', () => {
 
   it('respects cluster.paletteSize when generating neutral fallback baseline', () => {
     const SMALL_PALETTE_SIZE = 8;
-    installFixturePanelConfig({
-      colorCluster: {
-        ...FIXTURE_CLUSTER,
+    // Build a color tab with SMALL_PALETTE_SIZE palette items so the bridge
+    // derives a cluster with paletteSize = SMALL_PALETTE_SIZE.
+    const smallColorTab = {
+      id: 'color' as const,
+      label: 'Color',
+      colorExtras: {
         id: 'small',
-        paletteSize: SMALL_PALETTE_SIZE,
-        paletteCssVarTemplate: '--small-p{n}',
-        semanticDefaults: {},
-        semanticCssNames: {},
+        baseRoles: FIXTURE_CLUSTER.baseRoles,
         baseDefaults: {},
+        defaultShikiTheme: FIXTURE_CLUSTER.defaultShikiTheme,
+        colorSchemes: FIXTURE_CLUSTER.colorSchemes,
+        panelSettings: FIXTURE_CLUSTER.panelSettings,
       },
+      tiers: [
+        {
+          id: 'palette',
+          label: 'Palette',
+          items: Array.from({ length: SMALL_PALETTE_SIZE }, (_, i) => ({
+            id: `small-p${i}`,
+            cssVar: `--small-p${i}`,
+            label: `P${i}`,
+            default: '#000000',
+            type: { kind: 'color' as const },
+          })),
+        },
+      ],
+    };
+    installFixturePanelConfig({
+      tabs: [smallColorTab],
     });
 
     const { state } = deserialize({
