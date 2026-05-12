@@ -14,15 +14,15 @@ This repo uses `/x-wt-teams` for multi-topic development. Child agents work in g
 
 ### How it's enforced
 
-`.git/hooks/pre-push` checks whether `pwd` is under `worktrees/`. If yes, the push fails with a clear message. If no (main repo), the push proceeds.
+`.git/hooks/pre-push` is a direct script (not managed via `lefthook.yml`) that blocks any push from a git worktree. Detection uses git's own metadata — `--git-dir` differs from `--git-common-dir` iff we are in a linked worktree — so the guard fires regardless of `pwd`. It is deliberately NOT in `lefthook.yml` because lefthook reads config from the worktree's toplevel and would silently skip the guard when invoked from inside a worktree.
 
-The hook is auto-installed by `pnpm install` (via the `prepare` lifecycle script) and can be re-installed manually with:
+The hook is auto-installed by `pnpm install` (which runs `lefthook install && bash scripts/install-git-hooks.sh` via the `prepare` lifecycle script) and can be re-installed manually with:
 
 ```sh
 pnpm init-worktree
 ```
 
-The installer source lives at `scripts/install-git-hooks.sh`; the hook itself at `scripts/hooks/pre-push`.
+The installer source lives at `scripts/install-git-hooks.sh`; the hook itself at `scripts/hooks/pre-push`. `lefthook.yml` manages pre-commit hooks separately.
 
 ### Emergency bypass (human use)
 
