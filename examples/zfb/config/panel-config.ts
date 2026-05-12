@@ -31,7 +31,6 @@
 
 import type { PanelConfig } from '@takazudo/zudo-design-token-panel/astro';
 import { defaultTabs } from './default-manifest';
-import { defaultCluster } from './default-cluster';
 
 // Inlined from scaffold.routing.json — mirrors the same routing object the
 // bin sidecar reads at startup. Kept in sync byte-for-byte with
@@ -44,6 +43,8 @@ import { defaultCluster } from './default-cluster';
 // the semantic link to the routing contract.
 const scaffoldRouting: Record<string, string> = {
   zfbexample: 'styles/global.css',
+  // Easing tokens (Wave 7 demo) — same file as the other tokens.
+  'zfbexample-easing': 'styles/global.css',
 };
 
 export const panelConfig: PanelConfig = {
@@ -53,14 +54,9 @@ export const panelConfig: PanelConfig = {
   schemaId: 'zfb-example-design-tokens/v1',
   exportFilenameBase: 'zfb-example-design-tokens',
   tabs: defaultTabs,
-  colorCluster: defaultCluster,
   // Full base-prefixed URL — NOT the bare `/api/dev/apply` the other examples
   // use. Required because zfb's devMiddleware mounts handlers under `base`.
   // See the block comment above and PROBE-REPORT.md for the full rationale.
   applyEndpoint: '/pj/zudo-design-token-panel/examples/zfb/api/dev/apply',
   applyRouting: scaffoldRouting,
-  // Explicit opt-out for the secondary color cluster — the demo ships a
-  // single primary palette only. `null` (NOT `undefined`) is the documented
-  // signal that the host has no secondary cluster.
-  secondaryColorCluster: null,
 };
