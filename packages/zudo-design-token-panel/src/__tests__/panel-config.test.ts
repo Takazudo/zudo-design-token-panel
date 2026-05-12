@@ -18,6 +18,7 @@ import {
 } from '../config/panel-config';
 import type { TokenManifest } from '../tokens/manifest';
 import type { ColorClusterDataConfig } from '../config/cluster-config';
+import type { TabConfig } from '../tokens/tier-model';
 
 /**
  * Empty manifest used by tests that don't care about token data — they're
@@ -290,5 +291,396 @@ describe('panel-config — assertValidPanelConfig accepts and rejects legacyIdRe
         }),
       ),
     ).toThrow(/legacyIdRenameMap\["text-caption"\] must be a string or null/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// assertValidPanelConfig — tabs validation
+// ---------------------------------------------------------------------------
+
+describe('panel-config — assertValidPanelConfig host-tabs validation', () => {
+  /**
+   * Shared base-config factory for tabs tests. Mirrors the helper above but
+   * lives in its own scope so the tabs tests are self-contained.
+   */
+  function makeBaseConfig(extra: Partial<PanelConfig> = {}): PanelConfig {
+    return {
+      storagePrefix: 'p',
+      consoleNamespace: 'p',
+      modalClassPrefix: 'p-modal',
+      schemaId: 'p/v1',
+      exportFilenameBase: 'p',
+      tokens: {
+        spacing: [],
+        typography: [],
+        size: [],
+        color: [],
+      },
+      colorCluster: {
+        id: 'empty',
+        paletteSize: 0,
+        baseRoles: {},
+        paletteCssVarTemplate: '--empty-{n}',
+        semanticDefaults: {},
+        semanticCssNames: {},
+        baseDefaults: {},
+        defaultShikiTheme: 'dracula',
+        colorSchemes: {},
+        panelSettings: { colorScheme: '', colorMode: false },
+      },
+      ...extra,
+    };
+  }
+
+  /** A minimal valid single-tier text tab used as a building block. */
+  const VALID_TEXT_TAB: TabConfig = {
+    id: 'easing',
+    label: 'Easing',
+    tiers: [
+      {
+        id: 'raw',
+        label: 'Raw curves',
+        items: [
+          {
+            id: 'ease-in',
+            cssVar: '--my-easing-ease-in',
+            label: 'Ease in',
+            default: 'cubic-bezier(0.42,0,1,1)',
+            type: { kind: 'text' },
+          },
+          {
+            id: 'ease-out',
+            cssVar: '--my-easing-ease-out',
+            label: 'Ease out',
+            default: 'cubic-bezier(0,0,0.58,1)',
+            type: { kind: 'text' },
+          },
+        ],
+      },
+    ],
+  };
+
+  /** A minimal valid two-tier tab (raw + semantic, same kind). */
+  const VALID_TWO_TIER_TAB: TabConfig = {
+    id: 'spacing',
+    label: 'Spacing',
+    tiers: [
+      {
+        id: 'raw',
+        label: 'Raw',
+        items: [
+          {
+            id: 'space-1',
+            cssVar: '--my-spacing-space-1',
+            label: 'Space 1',
+            default: '4px',
+            type: { kind: 'length', min: 0, max: 100, step: 1, unit: 'px' },
+          },
+        ],
+      },
+      {
+        id: 'semantic',
+        label: 'Semantic',
+        referencesTier: 'raw',
+        items: [
+          {
+            id: 'gap-sm',
+            cssVar: '--my-spacing-gap-sm',
+            label: 'Gap small',
+            default: 'space-1',
+            type: { kind: 'length', min: 0, max: 100, step: 1, unit: 'px' },
+          },
+        ],
+      },
+    ],
+  };
+
+  // Happy path ---------------------------------------------------------------
+
+  it('accepts a valid config with no tabs field', () => {
+    expect(() => assertValidPanelConfig(makeBaseConfig())).not.toThrow();
+  });
+
+  it('accepts a valid config with an empty tabs array', () => {
+    expect(() => assertValidPanelConfig(makeBaseConfig({ tabs: [] }))).not.toThrow();
+  });
+
+  it('accepts a valid config with a single-tier tab', () => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [VALID_TEXT_TAB] })),
+    ).not.toThrow();
+  });
+
+  it('accepts a valid config with a two-tier tab using referencesTier', () => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [VALID_TWO_TIER_TAB] })),
+    ).not.toThrow();
+  });
+
+  it('accepts a valid config with multiple tabs', () => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [VALID_TEXT_TAB, VALID_TWO_TIER_TAB] })),
+    ).not.toThrow();
+  });
+
+  // Rule: tabs must be an array -----------------------------------------------
+
+  it('rejects tabs when set to a non-array', () => {
+    expect(() =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      assertValidPanelConfig(makeBaseConfig({ tabs: {} as any })),
+    ).toThrow(/PanelConfig\.tabs must be an array/);
+  });
+
+  // Rule: every tab.id is unique within the array ----------------------------
+
+  it('rejects duplicate tab ids', () => {
+    const dupTab: TabConfig = { ...VALID_TEXT_TAB, id: 'easing' };
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [VALID_TEXT_TAB, dupTab] })),
+    ).toThrow(/duplicate tab id "easing"/);
+  });
+
+  // Rule: every tier.id is unique within a tab --------------------------------
+
+  it('rejects duplicate tier ids within a tab', () => {
+    const tabWithDupTiers: TabConfig = {
+      id: 'my-tab',
+      label: 'My Tab',
+      tiers: [
+        {
+          id: 'raw',
+          label: 'Raw',
+          items: [
+            {
+              id: 'item-a',
+              cssVar: '--my-tab-item-a',
+              label: 'Item A',
+              default: '1',
+              type: { kind: 'number', min: 0, max: 10, step: 1 },
+            },
+          ],
+        },
+        {
+          id: 'raw', // duplicate!
+          label: 'Raw duplicate',
+          items: [
+            {
+              id: 'item-b',
+              cssVar: '--my-tab-item-b',
+              label: 'Item B',
+              default: '2',
+              type: { kind: 'number', min: 0, max: 10, step: 1 },
+            },
+          ],
+        },
+      ],
+    };
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [tabWithDupTiers] })),
+    ).toThrow(/duplicate tier id "raw".*"my-tab"|"my-tab".*duplicate tier id "raw"/);
+  });
+
+  // Rule: every item.id is unique within a tab (across all tiers) -----------
+
+  it('rejects duplicate item ids across tiers within the same tab', () => {
+    const tabWithDupItems: TabConfig = {
+      id: 'dup-items-tab',
+      label: 'Dup Items Tab',
+      tiers: [
+        {
+          id: 'tier-a',
+          label: 'Tier A',
+          items: [
+            {
+              id: 'shared-id',
+              cssVar: '--dup-items-shared-id',
+              label: 'Shared',
+              default: '4px',
+              type: { kind: 'length', min: 0, max: 100, step: 1, unit: 'px' },
+            },
+          ],
+        },
+        {
+          id: 'tier-b',
+          label: 'Tier B',
+          items: [
+            {
+              id: 'shared-id', // duplicate across tiers!
+              cssVar: '--dup-items-shared-id-2',
+              label: 'Shared again',
+              default: '8px',
+              type: { kind: 'length', min: 0, max: 100, step: 1, unit: 'px' },
+            },
+          ],
+        },
+      ],
+    };
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [tabWithDupItems] })),
+    ).toThrow(/duplicate item id "shared-id".*"dup-items-tab"|"dup-items-tab".*duplicate item id "shared-id"/);
+  });
+
+  // Rule: every item.cssVar starts with "--" and is non-empty ----------------
+
+  it('rejects an item whose cssVar does not start with "--"', () => {
+    const tabBadCssVar: TabConfig = {
+      id: 'bad-cssvar-tab',
+      label: 'Bad CssVar Tab',
+      tiers: [
+        {
+          id: 'raw',
+          label: 'Raw',
+          items: [
+            {
+              id: 'item-a',
+              cssVar: 'my-spacing-item-a', // missing "--"
+              label: 'Item A',
+              default: '4px',
+              type: { kind: 'length', min: 0, max: 100, step: 1, unit: 'px' },
+            },
+          ],
+        },
+      ],
+    };
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [tabBadCssVar] })),
+    ).toThrow(/cssVar must start with "--"/);
+  });
+
+  it('rejects an item whose cssVar is exactly "--" (non-empty after "--" rule)', () => {
+    const tabEmptyCssVar: TabConfig = {
+      id: 'empty-cssvar-tab',
+      label: 'Empty CssVar Tab',
+      tiers: [
+        {
+          id: 'raw',
+          label: 'Raw',
+          items: [
+            {
+              id: 'item-a',
+              cssVar: '--', // only "--", nothing after
+              label: 'Item A',
+              default: '4px',
+              type: { kind: 'length', min: 0, max: 100, step: 1, unit: 'px' },
+            },
+          ],
+        },
+      ],
+    };
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [tabEmptyCssVar] })),
+    ).toThrow(/cssVar must be non-empty after "--"/);
+  });
+
+  // Rule: referencesTier must name an existing tier --------------------------
+
+  it('rejects referencesTier that names a non-existent tier', () => {
+    const tabBadRef: TabConfig = {
+      id: 'bad-ref-tab',
+      label: 'Bad Ref Tab',
+      tiers: [
+        {
+          id: 'semantic',
+          label: 'Semantic',
+          referencesTier: 'palette', // "palette" does not exist
+          items: [
+            {
+              id: 'role-a',
+              cssVar: '--bad-ref-role-a',
+              label: 'Role A',
+              default: 'palette-item',
+              type: { kind: 'color' },
+            },
+          ],
+        },
+      ],
+    };
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [tabBadRef] })),
+    ).toThrow(/tier "palette" does not exist/);
+  });
+
+  // Rule: referencesTier kind compatibility ----------------------------------
+
+  it('rejects referencesTier when kinds are incompatible (color vs length)', () => {
+    const tabKindMismatch: TabConfig = {
+      id: 'mismatch-tab',
+      label: 'Mismatch Tab',
+      tiers: [
+        {
+          id: 'raw-lengths',
+          label: 'Raw lengths',
+          items: [
+            {
+              id: 'size-sm',
+              cssVar: '--mismatch-size-sm',
+              label: 'Size sm',
+              default: '4px',
+              type: { kind: 'length', min: 0, max: 100, step: 1, unit: 'px' },
+            },
+          ],
+        },
+        {
+          id: 'semantic-colors',
+          label: 'Semantic colors',
+          referencesTier: 'raw-lengths', // kind mismatch: color vs length
+          items: [
+            {
+              id: 'primary',
+              cssVar: '--mismatch-primary',
+              label: 'Primary',
+              default: 'size-sm',
+              type: { kind: 'color' },
+            },
+          ],
+        },
+      ],
+    };
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [tabKindMismatch] })),
+    ).toThrow(/kind mismatch/);
+  });
+
+  it('accepts referencesTier when kinds are compatible (text-to-text)', () => {
+    // This is exactly the easing tab scenario from the integration tests.
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [VALID_TEXT_TAB, VALID_TWO_TIER_TAB] })),
+    ).not.toThrow();
+  });
+
+  // Rule: all items in a tier must share the same kind ----------------------
+
+  it('rejects a tier with mixed item kinds', () => {
+    const tabMixedKinds: TabConfig = {
+      id: 'mixed-kinds-tab',
+      label: 'Mixed Kinds Tab',
+      tiers: [
+        {
+          id: 'mixed',
+          label: 'Mixed',
+          items: [
+            {
+              id: 'item-color',
+              cssVar: '--mixed-kinds-item-color',
+              label: 'Color item',
+              default: '#ff0000',
+              type: { kind: 'color' },
+            },
+            {
+              id: 'item-length',
+              cssVar: '--mixed-kinds-item-length',
+              label: 'Length item',
+              default: '4px',
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              type: { kind: 'length', min: 0, max: 100, step: 1, unit: 'px' } as any,
+            },
+          ],
+        },
+      ],
+    };
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [tabMixedKinds] })),
+    ).toThrow(/mixed item kinds/);
   });
 });
