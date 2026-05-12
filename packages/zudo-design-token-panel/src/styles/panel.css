@@ -217,21 +217,35 @@
 }
 
 .tokenpanel-tab-section {
+  /* Fieldset-style bordered box; heading floats on the top border. */
+  position: relative;
   flex-shrink: 0;
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: 0.5rem;
+  padding: 18px 14px 14px;
 }
 
 .tokenpanel-tab-section-heading {
-  color: var(--tokentweak-color-muted);
+  /* Absolutely positioned so it overlaps the top border. */
+  position: absolute;
+  top: -0.625rem; /* ~10px — half the line-height so it sits centred on the border */
+  left: 12px;
+  /* Surface-colored bg "cuts" the border behind the text. */
+  background: var(--tokentweak-color-surface);
+  padding: 0 8px;
+  /* Reset browser h3 defaults. */
+  margin: 0;
+  color: var(--tokentweak-color-fg);
   font-weight: 600;
-  margin-bottom: var(--tokentweak-gap-2xs);
   font-size: 0.8125rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  line-height: 1.25rem; /* fixed line-height so top offset is predictable */
+  text-transform: none;
+  letter-spacing: normal;
 }
 
-/* Color-tab uses a slightly bigger heading per the original spec. */
+/* Color-tab uses a slightly bigger heading to maintain its size hierarchy. */
 .tokenpanel-tab-section-heading--color {
-  font-size: 1rem;
+  font-size: 0.875rem;
 }
 
 .tokenpanel-tab-grid {
