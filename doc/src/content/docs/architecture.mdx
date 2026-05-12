@@ -1,18 +1,18 @@
 ---
 title: Architecture
-description: How the design-token panel separates panel UI, host-adapter, and apply-pipeline so it stays portable across hosts.
+description: How the design-token panel separates panel UI, host-adapter, and apply-pipeline across three layers — and how the abstract token-tier model unifies all tab types into a single host-supplied config shape.
 sidebar_position: 2
 ---
 
-The design-token panel is split into three layers that talk to each other through narrow, JSON-serializable contracts. Most of the package's portability story falls out of that split — the panel UI never knows what host it runs in, the host-adapter never knows what tokens you ship, and the apply-pipeline never runs in the browser.
+The design-token panel is split into three layers connected through narrow, JSON-serializable contracts. Host-coined design-token families — spacing, typography, size, color, animation easing, or any custom domain — all pass through the same abstract tier model, so adding a new family to your project requires only a host-config change and zero package changes.
 
-## Overview
+## Three-layer overview
 
-There are three concerns and the package keeps them in three separate layers:
+There are three concerns the package keeps in three separate layers:
 
-1. **Panel UI** — the Preact island that renders the side panel, owns tab/control state, and writes overrides to `:root` via `setProperty`. Lives entirely in the browser.
+1. **Panel UI** — the Preact island that renders the side panel, owns tab and control state, and writes overrides to `:root` via `setProperty`. Lives entirely in the browser.
 2. **Host-adapter** — the thin shim a host imports as a side effect. It reads the inline JSON config, calls `configurePanel(...)`, installs `window.<consoleNamespace>.*`, and gates the lazy-load of the panel module.
-3. **Apply-pipeline** — the optional path from the panel's "Apply" button back to disk. It's the in-package payload builder plus the standalone Node bin server (`design-token-panel-server`) that owns the file rewrites.
+3. **Apply-pipeline** — the optional path from the panel's Apply button back to disk. It is the in-package payload builder plus the standalone Node bin server (`design-token-panel-server`) that owns the file rewrites.
 
 ```
 ┌─ Your dev server (Astro / Vite / any host) ──────────────┐
@@ -41,140 +41,291 @@ There are three concerns and the package keeps them in three separate layers:
                             └──────────────────────────┘
 ```
 
-The boundaries between these three layers are stable — every project-specific identifier (storage prefix, console namespace, palette CSS-var template, semantic names, routing) crosses a layer boundary as plain JSON. That's the lever that lets the same package ship into Astro, Vite, Next, or a Rust SSG without code changes.
+The boundaries between these three layers are stable — every project-specific identifier (storage prefix, console namespace, CSS-var names, tab layout, routing) crosses a layer boundary as plain JSON.
 
-## Layer responsibilities
+## The abstract token-tier model
 
-### Panel UI
+Every tab in the panel — spacing, typography, size, color, easing, or any host-coined domain — is described by the same data shape. The host passes `tabs: readonly TabConfig[]` on `PanelConfig`; the panel iterates it to build the UI, and the resolver turns it into CSS custom property writes.
 
-The Preact tree under [`src/panel.tsx`](https://github.com/Takazudo/zudo-design-token-panel/blob/main/packages/zudo-design-token-panel/src/panel.tsx) plus the per-tab components under `src/tabs/`. It:
+### Why tiers?
 
-- Renders one row per editable token, driven by the host-supplied `TokenManifest`.
-- Renders the color tab (palette + base roles + semantic table) from the host-supplied `ColorClusterConfig`.
-- Owns the in-memory `TweakState` and persists it to `localStorage` under keys derived from `storagePrefix`.
-- Writes overrides to `document.documentElement.style.setProperty(...)` against the consumer's CSS-var names.
+A single-tier tab is a flat list of editable CSS tokens. That works well for simple cases, but design systems often need a two-layer structure: a raw layer of primitive values (e.g. a type scale, a color palette) and a semantic layer that maps role names onto those primitives.
 
-The panel UI never reads consumer CSS variables — it only writes to them. Its own chrome is scoped under the panel-private `--tokentweak-*` namespace.
+Without tiers, a host would need to wire this by hand — maintaining two parallel token arrays, keeping the cross-references consistent, and patching the package whenever a new domain is added.
 
-<Tip>
-The full surface for `TokenManifest` and `ColorClusterConfig` lives at [/docs/reference/configure-panel](/docs/reference/configure-panel). The panel-private chrome variables are documented at [/docs/reference/panel-css-tokens](/docs/reference/panel-css-tokens).
-</Tip>
+With tiers, the host declares the relationship once in config and the resolver takes care of emitting `var(--tier1-cssvar)` so edits to a raw primitive cascade through every semantic role that references it.
 
-### Host-adapter
-
-A small bundle at [`src/astro/host-adapter.ts`](https://github.com/Takazudo/zudo-design-token-panel/blob/main/packages/zudo-design-token-panel/src/astro/host-adapter.ts) that the consumer's layout imports as a side effect:
+### Config shape
 
 ```ts
-void import('@takazudo/zudo-design-token-panel/astro/host-adapter');
+interface PanelConfig {
+  // ...identity and routing fields...
+  tabs: readonly TabConfig[];
+  colorPresets?: readonly ColorPreset[];
+}
+
+interface TabConfig {
+  id: string;
+  label: string;
+  tiers: readonly TierConfig[];
+  advancedTiers?: readonly string[];   // tier ids to hide in Advanced disclosure
+  colorExtras?: ColorClusterExtras;    // color-tab-only non-item metadata
+}
+
+interface TierConfig {
+  id: string;
+  label: string;
+  items: readonly TierItem[];
+  referencesTier?: string;             // when set, items hold refs to another tier
+}
+
+interface TierItem {
+  id: string;
+  cssVar: string;
+  label: string;
+  group?: string;
+  default: string;
+  type: TierValueKind;
+  pill?: PillSpec;
+  readonly?: true;
+}
 ```
 
-It owns the boundary between the host page and the panel module:
+### Value kinds
 
-- **Reads the inline config**: `<DesignTokenPanelHost>` emits a `<script type="application/json" id="tokenpanel-config">` payload; the adapter `JSON.parse`s it and calls `configurePanel(...)` synchronously at module init.
-- **Installs the console API** (`showDesignPanel` / `hideDesignPanel` / `toggleDesignPanel`) on `window[consoleNamespace]` eagerly — even before the panel module has loaded.
-- **Gates the lazy import**: probes `localStorage` for either the `${storagePrefix}-state-v2` payload or the `${storagePrefix}:visible` flag and dynamically imports the panel module only when one is set.
-- **Hooks Astro view-transitions** (`astro:before-swap` / `astro:page-load`) so soft navigation re-applies persisted overrides without a flash and without double-mounting.
+Each `TierItem` carries a `type` discriminated union that determines what edit control renders for it.
 
-The adapter is the only layer that knows about Astro at all. The panel UI itself is framework-agnostic.
+| `type.kind` | Edit control | Use-cases |
+| --- | --- | --- |
+| `'length'` | Slider with `min`, `max`, `step`, `unit` | Spacing, font-size, border-radius |
+| `'number'` | Slider (unitless) | Opacity, line-height, z-index scales |
+| `'select'` | Dropdown | Predefined option sets |
+| `'text'` | Free-form text input | Easing curves, font-family names, raw CSS expressions |
+| `'color'` | Color swatch picker | Palette entries, semantic color roles |
 
-### Apply-pipeline
+```ts
+type TierValueKind =
+  | { kind: 'length'; min: number; max: number; step: number; unit: string }
+  | { kind: 'number'; min: number; max: number; step: number }
+  | { kind: 'select'; options: readonly string[] }
+  | { kind: 'text' }
+  | { kind: 'color' };
+```
 
-Two pieces stitched through HTTP:
+### Flat (1-tier) tab
 
-- **In-package payload builder** under [`src/apply/`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/packages/zudo-design-token-panel/src/apply) — turns the current `TweakState` into a routed token-overrides payload using the host-supplied `applyRouting` map.
-- **Bin server** under [`src/bin/`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/packages/zudo-design-token-panel/src/bin) and [`src/server/`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/packages/zudo-design-token-panel/src/server) — a standalone Node loopback HTTP server (`design-token-panel-server`) that receives the POST, validates the request against the CORS allow-list, validates each routing entry against the `--write-root` sandbox, and rewrites the target CSS files atomically.
+A tab with a single tier in `tiers` behaves like a simple editable token list. Each item's value is a literal CSS string.
 
-The apply-pipeline is **optional**. Hosts that only need export/import omit `applyEndpoint` and `applyRouting` from `PanelConfig`; the Apply button stays disabled with a tooltip.
+```ts
+const spacingTab: TabConfig = {
+  id: 'spacing',
+  label: 'Spacing',
+  tiers: [
+    {
+      id: 'raw',
+      label: 'Spacing',
+      items: [
+        {
+          id: 'myapp-spacing-md',
+          cssVar: '--myapp-spacing-md',
+          label: 'Spacing M',
+          group: 'hsp',
+          default: '1rem',
+          type: { kind: 'length', min: 0, max: 4, step: 0.0625, unit: 'rem' },
+        },
+      ],
+    },
+  ],
+};
+```
 
-<Info>
-Full CLI flag surface, security model, and routing JSON shape are documented at [/docs/reference/apply-pipeline](/docs/reference/apply-pipeline).
-</Info>
+At apply time, the resolver emits `--myapp-spacing-md: 1.25rem` (or whatever the current override is) directly to `:root`.
 
-## Data flow
+### Cross-tier references
 
-Three flows cover the moments the layers actually interact: a tweak (UI-only), an apply (UI → bin → disk), and a view-transition reapply (host re-render).
+When a `TierConfig` declares `referencesTier`, its items do not hold CSS strings — they hold the `id` of an item in the named tier. At apply time the resolver looks up the referenced item and emits `var(--target-cssvar)` instead of a literal value.
 
-### On tweak — user moves a slider
+```ts
+const fontTab: TabConfig = {
+  id: 'font',
+  label: 'Font',
+  advancedTiers: ['raw'],          // hide raw scale in Advanced disclosure
+  tiers: [
+    {
+      id: 'raw',
+      label: 'Type Scale',
+      items: [
+        { id: 'myapp-scale-sm',   cssVar: '--myapp-scale-sm',   label: 'Scale SM',   default: '0.875rem', type: { kind: 'length', min: 0.5, max: 2, step: 0.0625, unit: 'rem' } },
+        { id: 'myapp-scale-base', cssVar: '--myapp-scale-base', label: 'Scale Base', default: '1rem',     type: { kind: 'length', min: 0.5, max: 2, step: 0.0625, unit: 'rem' } },
+        { id: 'myapp-scale-xl',   cssVar: '--myapp-scale-xl',   label: 'Scale XL',   default: '1.75rem',  type: { kind: 'length', min: 1, max: 4, step: 0.0625, unit: 'rem' } },
+      ],
+    },
+    {
+      id: 'semantic',
+      label: 'Semantic Roles',
+      referencesTier: 'raw',      // items point at raw-tier item ids
+      items: [
+        { id: 'myapp-text-body',    cssVar: '--myapp-text-body',    label: 'Body',    default: 'myapp-scale-base', type: { kind: 'text' } },
+        { id: 'myapp-text-heading', cssVar: '--myapp-text-heading', label: 'Heading', default: 'myapp-scale-xl',   type: { kind: 'text' } },
+      ],
+    },
+  ],
+};
+```
+
+With `referencesTier: 'raw'`, the `default` on each semantic item is the `id` of a raw item. The resolver emits:
+
+```css
+--myapp-text-body:    var(--myapp-scale-base);
+--myapp-text-heading: var(--myapp-scale-xl);
+```
+
+Changing `--myapp-scale-base` updates `--myapp-text-body` automatically through the CSS cascade — no extra apply step needed.
+
+### Color extras
+
+The color tab carries extra non-item metadata (HSL picker state, color schemes, base roles, secondary cluster) in `colorExtras` on the `TabConfig`. This metadata does not map to individual TierItems; it drives the color tab's UI chrome and scheme switching.
+
+```ts
+const colorTab: TabConfig = {
+  id: 'color',
+  label: 'Color',
+  colorExtras: {
+    id: 'myapp-colors',
+    baseRoles: { bg: '--myapp-palette-0', text: '--myapp-palette-15' },
+    baseDefaults: { bg: 0, text: 15 },
+    defaultShikiTheme: 'github-dark',
+    colorSchemes: { /* scheme registry */ },
+    panelSettings: { /* cluster UI settings */ },
+  },
+  tiers: [
+    {
+      id: 'palette',
+      label: 'Palette',
+      items: [
+        { id: 'myapp-palette-0', cssVar: '--myapp-palette-0', label: 'Palette 0', default: '#1e1e1e', type: { kind: 'color' } },
+        // ...more palette swatches
+      ],
+    },
+    {
+      id: 'semantic',
+      label: 'Semantic',
+      referencesTier: 'palette',
+      items: [
+        { id: 'primary', cssVar: '--myapp-color-primary', label: 'Primary', default: 'myapp-palette-1', type: { kind: 'color' } },
+        // ...more semantic roles
+      ],
+    },
+  ],
+};
+```
+
+The `tiers` array follows the same raw/semantic pattern as any other tab. `colorExtras` sits alongside `tiers` and is only consumed by the color tab's specialized UI.
+
+## Apply pipeline
 
 ```mermaid
-sequenceDiagram
-    participant U as User
-    participant P as Panel UI (Preact)
-    participant S as Tweak State (memory + localStorage)
-    participant R as Document root
-
-    U->>P: Drag slider
-    P->>S: Update in-memory override
-    S->>S: Debounced write to state-v2 key
-    P->>R: setProperty(cssVar, value)
-    R-->>U: Page restyles instantly
-    Note over U,R: Entirely client-side. No network round-trip.
+flowchart LR
+    A["Host config\nPanelConfig.tabs"] --> B["Panel UI\n(Preact)"]
+    B --> C["TabOverrides\n(in-memory + localStorage)"]
+    C --> D["Resolver\nresolveTierItemValue()"]
+    D -->|"literal tier"| E["CSS string\n(e.g. 1.25rem)"]
+    D -->|"reference tier"| F["var(--raw-cssvar)"]
+    E --> G[":root inline style\nsetProperty()"]
+    F --> G
+    G -->|"Apply button"| H["POST /apply"]
+    H --> I["Bin server\natomic file rewrite"]
 ```
 
-A tweak never leaves the browser. The bin server does not need to be running for the panel to be useful — export/import to JSON works without it, and `:root` is updated synchronously on every change.
+### State to CSS
 
-### On apply — commit overrides to disk
+The panel keeps an in-memory `TabOverrides` map — a two-level nested record:
 
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant P as Panel UI
-    participant A as Apply Pipeline
-    participant B as Bin Server (loopback)
-    participant D as Disk CSS Files
-
-    U->>P: Click Apply
-    P->>A: Build token-overrides payload
-    A-->>P: JSON diff
-    P->>B: POST applyEndpoint with diff
-    B->>B: Validate origin against CORS allow-list
-    B->>B: Validate routing within write-root sandbox
-    B->>D: Atomic rewrite (temp + rename, per-file mutex)
-    D-->>B: Write OK
-    B-->>P: 200 OK with summary
-    P-->>U: Apply modal shows success
-    Note over B,D: On any failure, in-memory snapshot restores all files
+```
+tierId → itemId → overrideValue (CSS string or ref item id)
 ```
 
-The browser side ends at the POST. Everything past that — origin checks, sandbox checks, atomic write, mutex serialisation, rollback-on-failure — happens in the bin process and is identical regardless of the host framework that spawned the bin.
+On every slider drag or color pick, the resolver calls `resolveTierItemValue(tab, tierId, itemId, overrides)` and then `emitTierItemCssValue(resolved)` to get the final CSS string. The result is written to `:root` via `document.documentElement.style.setProperty(cssVar, value)` immediately.
 
-### On view-transition reapply — host re-renders
+### Resolver semantics
 
-```mermaid
-sequenceDiagram
-    participant R as Astro Router
-    participant H as Host Adapter
-    participant M as Panel Module (lazy)
-    participant D as Document root
+| Tier type | Override value | Resolver emits |
+| --- | --- | --- |
+| Literal (no `referencesTier`) | override string | The override string verbatim |
+| Literal, no override | — | `item.pill.customDefault` if pill is set, else `item.default` |
+| Reference (`referencesTier` set) | ref item id | `var(--target-cssvar)` looked up from the named tier |
+| Reference, no override | — | `var(--cssVar-of-item-with-same-id)` in the referenced tier |
 
-    R->>H: astro:before-swap
-    H->>M: render(null, root) — unmount
-    H->>H: Snapshot visibility intent
-    R->>R: Swap body
-    R->>H: astro:page-load
-    H->>H: Probe state-v2 and visible flag in localStorage
-    H->>D: Re-apply persisted overrides synchronously
-    Note over H,D: Runs before first paint — no FOUT
-    alt visibility flag set
-        H->>M: Dynamic import and remount shell
-        M->>M: Resume from persisted state
-    end
+### Optional disk rewrite
+
+A tweak never leaves the browser — `:root` updates synchronously on every change and the state is persisted to `localStorage` under `${storagePrefix}-state-v2`. The bin server only runs when the host passes `applyEndpoint` + `applyRouting` on `PanelConfig`, and even then only activates when the user clicks Apply.
+
+The bin server receives a POST with the current override diff, validates the request origin against its CORS allow-list, validates each routing entry against the write-root sandbox, and rewrites the target CSS files atomically (temp file + rename, per-file mutex). Any write failure triggers an in-memory snapshot rollback so no file is left in a partial state.
+
+## Worked example — easing tab (zfb demo)
+
+The zfb example app ships an easing tab with four raw cubic-bezier primitives and three semantic roles. This is a host-config-only addition — zero package changes required.
+
+```ts
+const easingTab: TabConfig = {
+  id: 'easing',
+  label: 'Easing',
+  tiers: [
+    {
+      id: 'raw',
+      label: 'Raw Easings',
+      items: [
+        { id: 'ease-in',    cssVar: '--zfbexample-easing-ease-in',    label: 'Ease In',    default: 'cubic-bezier(0.42, 0, 1, 1)',    type: { kind: 'text' } },
+        { id: 'ease-out',   cssVar: '--zfbexample-easing-ease-out',   label: 'Ease Out',   default: 'cubic-bezier(0, 0, 0.58, 1)',    type: { kind: 'text' } },
+        { id: 'ease-inout', cssVar: '--zfbexample-easing-ease-inout', label: 'Ease InOut', default: 'cubic-bezier(0.42, 0, 0.58, 1)', type: { kind: 'text' } },
+        { id: 'linear',     cssVar: '--zfbexample-easing-linear',     label: 'Linear',     default: 'linear',                         type: { kind: 'text' } },
+      ],
+    },
+    {
+      id: 'semantic',
+      label: 'Semantic',
+      referencesTier: 'raw',
+      items: [
+        { id: 'tab-open',    cssVar: '--zfbexample-easing-tab-open',  label: 'Tab Open',  default: 'ease-in',    type: { kind: 'text' } },
+        { id: 'tab-close',   cssVar: '--zfbexample-easing-tab-close', label: 'Tab Close', default: 'ease-out',   type: { kind: 'text' } },
+        { id: 'modal-enter', cssVar: '--zfbexample-easing-modal',     label: 'Modal',     default: 'ease-inout', type: { kind: 'text' } },
+      ],
+    },
+  ],
+};
 ```
 
-Soft navigation through Astro's `<ClientRouter />` is the only reason the host-adapter has lifecycle hooks. On non-Astro hosts the same module loads, the same console API is installed, and the same lazy-load gate runs — the `astro:*` listeners simply never fire.
+At apply time the resolver emits:
+
+```css
+/* raw tier — literal values editable in the panel */
+--zfbexample-easing-ease-in:    cubic-bezier(0.42, 0, 1, 1);
+--zfbexample-easing-ease-out:   cubic-bezier(0, 0, 0.58, 1);
+--zfbexample-easing-ease-inout: cubic-bezier(0.42, 0, 0.58, 1);
+--zfbexample-easing-linear:     linear;
+
+/* semantic tier — cascade through raw vars */
+--zfbexample-easing-tab-open:  var(--zfbexample-easing-ease-in);
+--zfbexample-easing-tab-close: var(--zfbexample-easing-ease-out);
+--zfbexample-easing-modal:     var(--zfbexample-easing-ease-inout);
+```
+
+If a user re-maps `tab-open` to point at `ease-inout` instead of `ease-in`, the resolver emits `var(--zfbexample-easing-ease-inout)` for that entry — no code change, just an override stored in the `TabOverrides` map.
 
 ## Why this separation?
 
 The three-layer split is what keeps the package portable. Each layer crosses its boundary through a specific contract, and every contract is JSON-serializable on purpose.
 
-- **Panel UI ↔ host**: a single `PanelConfig` object. Storage prefix, console namespace, modal class prefix, schema id, the editable token list, the entire color cluster (palette + semantics + scheme registry), and the optional preset library — all host-supplied, all plain JSON. The panel UI has no compile-time knowledge of any of them.
-- **Host-adapter ↔ panel UI**: the inline `<script type="application/json" id="tokenpanel-config">` payload plus the `configurePanel(...)` call. Functions, class instances, and `undefined` would silently disappear across this boundary, so the contract forbids them.
-- **Panel UI ↔ bin**: a single POST with `application/json`. The bin doesn't trust the request — it re-validates origin and routing every time. The browser can't reach disk without going through the sandbox.
-
-That last point is worth its own note:
+- **Panel UI ↔ host**: a single `PanelConfig` object. Storage prefix, console namespace, modal class prefix, schema id, all tab definitions, and the optional preset library — all host-supplied, all plain JSON. The panel UI has no compile-time knowledge of any of them.
+- **Host-adapter ↔ panel UI**: the inline `<script type="application/json" id="tokenpanel-config">` payload plus the `configurePanel(...)` call.
+- **Panel UI ↔ bin**: a single POST with `application/json`. The bin re-validates origin and routing every time — the browser cannot reach disk without going through the sandbox.
 
 <Warning>
-The host-adapter contract is a **paired-unit contract** — `<DesignTokenPanelHost>` AND a sibling `<script>void import('...host-adapter')</script>` block must appear together in your layout. Omitting the script tag emits the JSON config but never executes the adapter that reads it; the console API throws `ReferenceError`. See the [package README §4.1.2](https://github.com/Takazudo/zudo-design-token-panel/blob/main/packages/zudo-design-token-panel/README.md#412-drop-the-host-into-your-layout) and [§12.1](https://github.com/Takazudo/zudo-design-token-panel/blob/main/packages/zudo-design-token-panel/README.md#121-host-adapter-side-effect-import-paired-unit-contract) for the full rationale and bundler detail.
+The host-adapter contract is a **paired-unit contract** — `<DesignTokenPanelHost>` AND a sibling `<script>void import('...host-adapter')</script>` block must appear together in your layout. Omitting the script tag emits the JSON config but never executes the adapter that reads it; the console API throws `ReferenceError`.
 </Warning>
 
-The benefit of this design is portability. The benefit you actually feel is that you can drop the panel into a brand-new host and only think about your `PanelConfig`, not about layer wiring.
+## Cross-references
+
+- [Configure Panel reference](/docs/reference/configure-panel) — full `PanelConfig` field reference.
+- [Apply pipeline reference](/docs/reference/apply-pipeline) — CLI flags, security model, routing JSON shape.
+- [Color cluster reference](/docs/reference/color-cluster) — `colorExtras` and `ColorClusterExtras` in depth.
