@@ -277,6 +277,17 @@ export type { ColorScheme, ColorRef } from './config/color-schemes';
 // Re-export the `TokenManifest` shape so consumers can type their
 // host-supplied `panelConfig.tokens` field.
 export type { TokenManifest, TokenDef } from './tokens/manifest';
+// Re-export the abstract tier-model types so consumers can build host-supplied
+// TabConfig trees without reaching into the package internals.
+export type {
+  TierValueKind,
+  PillSpec,
+  TierItem,
+  TierConfig,
+  TabConfig,
+  ColorClusterExtras,
+} from './tokens/tier-model';
+export { isLengthKind, isNumberKind, isSelectKind, isTextKind, isColorKind } from './tokens/tier-model';
 // Re-export the unified `TweakState` envelope and the `emptyOverrides()`
 // factory so external SerDe / persistence layers (e.g. zudo-doc's
 // `design-token-serde.ts`) can construct and type a fully-populated
