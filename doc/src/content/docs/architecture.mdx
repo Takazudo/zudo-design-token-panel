@@ -264,7 +264,7 @@ State is persisted to `localStorage` under `${storagePrefix}-state-v3`. On first
 | Storage key | Contents | Lifecycle |
 | --- | --- | --- |
 | `${storagePrefix}-state-v3` | Current unified override envelope (all tabs). | Live; written on every change. |
-| Previous v2 key | v2 envelope — migrated to v3 on first load, then deleted. | Transitional (see `configure-panel` key table). |
+| Previous v2 key | v2 envelope — migrated to v3 on first load, then deleted. | Transitional — see [Storage-key derivation](/docs/reference/configure-panel/#storage-key-derivation). |
 | `${storagePrefix}-state` | Pre-v2 flat state (color-only). Migrated to v2 on first load, then deleted. | Legacy. |
 
 ### JSON export and import
