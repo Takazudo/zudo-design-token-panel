@@ -1,0 +1,26 @@
+---
+title: レシピ
+description: "@takazudo/zudo-design-token-panel をホストアプリに組み込むための実践的なハウツー集。"
+sidebar_position: 30
+---
+
+これらは `@takazudo/zudo-design-token-panel` の現在のエクスポートに対する、一般的な統合タスクのための小さくコピー&ペーストできるレシピです。各レシピは独立して読めます — 今まさに取り組んでいるシナリオに合うレシピから始め、完全な API 仕様が必要になったときは[リファレンスページ](/docs/reference/configure-panel)を参照してください。
+
+## どのレシピを使うか
+
+- 新しいプロジェクトのためにパレットとセマンティックテーブルを新規作成 →
+  [カスタムカラークラスター](/docs/recipes/custom-color-cluster)。
+- トークンタブの追加・削除、カスタムグループIDの設定、グループ順序の制御 →
+  [カスタムトークンマニフェスト](/docs/recipes/custom-token-manifest)。
+- セカンダリクラスターの配置、非表示、または完全無効化の判断 →
+  [セカンダリクラスター: 設定または無効化](/docs/recipes/secondary-cluster-or-disable)。
+- 非 Astro の dev スクリプトへのディスク書き込みパイプラインの組み込み →
+  [Apply パイプライン設定](/docs/recipes/apply-pipeline-setup)。
+- 大規模なプリセットライブラリを SSR 設定ブロブから遅延ロード →
+  [カラープリセットの遅延ロード](/docs/recipes/lazy-color-presets)。
+- `referencesTier` を使った 2 層のロー＋セマンティックトークン設定 →
+  [マルチ階層トークン](/docs/recipes/multi-tier-tokens)。
+
+<Tip>
+これらのページのすべてのコードスニペットはパッケージの現在の公開エクスポートに対してコンパイルされます。ズレが生じた場合はイシューを報告してください — レシピはコントラクトの「これはまだ動くか」という煙テストとしても機能します。
+</Tip>

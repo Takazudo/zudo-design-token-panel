@@ -1,0 +1,264 @@
+---
+title: マルチ階層トークン
+description: referencesTier を使った 2 層のロー＋セマンティック設定で、セマンティックロールが指定したローティアトークンに var() 経由で解決されるようにする。
+sidebar_position: 6
+---
+
+単一ティアタブはすべてのアイテムに対して固定の CSS 値を書き込みます。2 層構成では、**セマンティック層**を追加します。このティアのアイテムは生の値ではなくローティアのアイテム ID へのポインターを保持します。パネルはセマンティックアイテムごとに `var(--raw-cssVar)` を出力するため、ロー値を変更するとそれを参照するセマンティックなコンシューマーが自動的に更新されます。
+
+このレシピは `zfb` デモのイージングタブをエンドツーエンドで説明します:
+
+1. ホストマニフェストでタブを宣言する
+2. ホストスタイルシートに対応する CSS 変数宣言を追加する
+3. UI 要素をセマンティックイージングトークンにつなげる
+4. パネルが解決された値をライブで更新するのを確認する
+
+## コンセプト: 参照ティア
+
+`referencesTier` が設定された `TierConfig` は生の CSS 値を保持しません — 参照されたティアのアイテム ID を保持します。Apply パイプラインはポインターを読み取り、出力ファイルに `var(--referenced-cssVar)` を出力するため、ブラウザは CSS カスタムプロパティチェーンを通じて値を解決します。
+
+```
+ローティア:      --myapp-easing-ease-in = cubic-bezier(0.42, 0, 1, 1)
+セマンティックティア: --myapp-easing-tab-open = var(--myapp-easing-ease-in)
+                                                     ↑
+                                            "ease-in" はローアイテムの ID
+```
+
+ロー値を変更したり、セマンティックロールを別のローアイテムに再指定したりすると、そのセマンティック変数が使用されているすべての場所に反映されます。
+
+## ステップ 1: ホストマニフェストでイージングタブを宣言する
+
+```ts
+// src/lib/my-tabs.ts
+import type { PanelConfig } from '@takazudo/zudo-design-token-panel';
+
+type TabConfig = PanelConfig['tabs'][number];
+
+export const easingTab: TabConfig = {
+  id: 'easing',
+  label: 'イージング',
+  tiers: [
+    {
+      // ローティア: 4 つの名前付きイージング関数
+      id: 'raw',
+      label: 'ローイージング',
+      items: [
+        {
+          id: 'ease-in',
+          cssVar: '--myapp-easing-ease-in',
+          label: 'Ease In',
+          group: 'easings',
+          default: 'cubic-bezier(0.42, 0, 1, 1)',
+          type: { kind: 'text' },
+        },
+        {
+          id: 'ease-out',
+          cssVar: '--myapp-easing-ease-out',
+          label: 'Ease Out',
+          group: 'easings',
+          default: 'cubic-bezier(0, 0, 0.58, 1)',
+          type: { kind: 'text' },
+        },
+        {
+          id: 'ease-inout',
+          cssVar: '--myapp-easing-ease-inout',
+          label: 'Ease InOut',
+          group: 'easings',
+          default: 'cubic-bezier(0.42, 0, 0.58, 1)',
+          type: { kind: 'text' },
+        },
+        {
+          id: 'linear',
+          cssVar: '--myapp-easing-linear',
+          label: 'リニア',
+          group: 'easings',
+          default: 'linear',
+          type: { kind: 'text' },
+        },
+      ],
+    },
+    {
+      // セマンティックティア: ローアイテムを指定する名前付きロール
+      // referencesTier: 'raw' は Apply パイプラインに var(--raw-cssVar) を出力するよう指示する
+      id: 'semantic',
+      label: 'セマンティックロール',
+      referencesTier: 'raw',
+      items: [
+        {
+          id: 'tab-open',
+          cssVar: '--myapp-easing-tab-open',
+          label: 'タブオープン',
+          group: 'roles',
+          // 値はローアイテム ID — CSS 値ではない
+          default: 'ease-in',
+          type: { kind: 'text' },
+        },
+        {
+          id: 'tab-close',
+          cssVar: '--myapp-easing-tab-close',
+          label: 'タブクローズ',
+          group: 'roles',
+          default: 'ease-out',
+          type: { kind: 'text' },
+        },
+        {
+          id: 'modal-enter',
+          cssVar: '--myapp-easing-modal',
+          label: 'モーダル',
+          group: 'roles',
+          default: 'ease-inout',
+          type: { kind: 'text' },
+        },
+      ],
+    },
+  ],
+};
+```
+
+`easingTab` を `PanelConfig.tabs` 配列に追加します:
+
+```ts
+// src/lib/my-panel-config.ts
+import type { PanelConfig } from '@takazudo/zudo-design-token-panel';
+import { easingTab } from './my-tabs';
+// ...他のタブ...
+
+export const myPanelConfig: PanelConfig = {
+  storagePrefix: 'myapp-design-token-panel',
+  consoleNamespace: 'myapp',
+  modalClassPrefix: 'myapp-design-token-panel-modal',
+  schemaId: 'myapp-design-tokens/v1',
+  exportFilenameBase: 'myapp-design-tokens',
+  tabs: [
+    // ...spacingTab、fontTab など...
+    easingTab,
+  ],
+  applyEndpoint: 'http://127.0.0.1:24681/apply',
+  applyRouting: { myapp: 'src/styles/tokens.css' },
+};
+```
+
+## ステップ 2: ホストスタイルシートに対応する CSS 宣言を追加する
+
+ホストスタイルシートは両方のティアを宣言します。セマンティックティアは `var()` を使ってローティアに連鎖します — これが Apply パイプラインがユーザーに Apply をクリックしたときにディスクに書き込む出力そのものです。
+
+```css
+/* src/styles/tokens.css */
+:root {
+  /* イージング — ローティア */
+  --myapp-easing-ease-in:    cubic-bezier(0.42, 0, 1, 1);
+  --myapp-easing-ease-out:   cubic-bezier(0, 0, 0.58, 1);
+  --myapp-easing-ease-inout: cubic-bezier(0.42, 0, 0.58, 1);
+  --myapp-easing-linear:     linear;
+
+  /* イージング — セマンティックティア（var() 経由でローを参照） */
+  --myapp-easing-tab-open:  var(--myapp-easing-ease-in);
+  --myapp-easing-tab-close: var(--myapp-easing-ease-out);
+  --myapp-easing-modal:     var(--myapp-easing-ease-inout);
+}
+```
+
+<Note>
+Apply パイプラインはこれらの正確な変数名を書き換えます。`applyRouting` の `myapp` プレフィックスがルーティングキーで、bin はすべての `--myapp-*` 変数をこのファイルにマッチさせ、`:root {}` ブロックをアトミックに更新します。
+</Note>
+
+## ステップ 3: セマンティックイージングトークンを CSS で消費する
+
+UI 要素をセマンティックトークンに接続します。パネルのライブ編集はインメモリで `:root` をオーバーライドするため、ページリフレッシュなしに解決された値が更新されます。
+
+```css
+/* セマンティックイージングを使用するコンポーネント */
+.myapp-tab-panel {
+  /* トランジションがセマンティックイージングトークンを使用している。
+     ユーザーがパネルで --myapp-easing-tab-open を変更すると、
+     このアニメーションは var() チェーンを通じて即座に更新される。 */
+  transition: transform 0.3s var(--myapp-easing-tab-open);
+}
+
+.myapp-modal {
+  transition:
+    opacity 0.25s var(--myapp-easing-modal),
+    transform 0.25s var(--myapp-easing-modal);
+}
+```
+
+## ステップ 4: パネルを開いてロー値を編集する
+
+パネルを開きます（デフォルトは `Alt+Shift+P`、または `window.myapp.showDesignPanel()` を呼び出す）。**イージング**タブに移動します。
+
+- **ローイージング**セクションには 4 つの名前付きイージング関数がテキスト入力として表示されます。`Ease In` を編集すると `--myapp-easing-ease-in` 変数が `:root` 上でライブにオーバーライドされます。
+
+- `--myapp-easing-tab-open` が `var(--myapp-easing-ease-in)` として宣言されているため、`.myapp-tab-panel` の `transition` はそれ以上の変更なしに新しい値を反映します。
+
+- **セマンティックロール**セクションではロールを別のローアイテムに再指定できます。`タブオープン` を `ease-in` から `ease-inout` に変更すると、Apply をクリックしたとき、パネルは `--myapp-easing-tab-open: var(--myapp-easing-ease-inout)` をディスクに書き込みます。
+
+## ステップ 5: applyRouting を設定してディスク書き込みを有効にする
+
+`applyRouting` マップは新しいプレフィックスをカバーする必要があります。bin はすべての `--myapp-*` 変数を `src/styles/tokens.css` に解決し、そのブロックを書き換えます。
+
+```json
+// panel-routing.json
+{
+  "myapp": "src/styles/tokens.css"
+}
+```
+
+オブジェクトを二重定義しないよう、同じファイルを `PanelConfig` にインポートして使います:
+
+```ts
+import routing from '../../panel-routing.json' assert { type: 'json' };
+
+export const myPanelConfig: PanelConfig = {
+  // ...
+  applyRouting: routing,
+};
+```
+
+dev サーバーと並行して bin を起動します:
+
+```sh
+pnpm exec design-token-panel-server \
+  --routing ./panel-routing.json \
+  --write-root ./src/styles \
+  --allow-origin http://localhost:5173
+```
+
+パネルで **Apply** をクリックすると、`src/styles/tokens.css` が書き換えられ、ステップ 2 の `var()` チェーンが現在のパネル状態を反映します。
+
+## ローティアを折りたたみの後ろに隠す
+
+ロートークンがほとんどのユーザーには触れてほしくない実装の詳細である場合、ローティア ID を `advancedTiers` に追加します。ティアは「Advanced」折りたたみリンクの後ろに隠れ、セマンティックロールは最上位に表示され続けます。
+
+```ts
+const easingTab: TabConfig = {
+  id: 'easing',
+  label: 'イージング',
+  advancedTiers: ['raw'],   // raw ティアを折りたたみの後ろに隠す
+  tiers: [
+    { id: 'raw', label: 'ローイージング', items: [ /* ... */ ] },
+    {
+      id: 'semantic',
+      label: 'セマンティックロール',
+      referencesTier: 'raw',
+      items: [ /* ... */ ],
+    },
+  ],
+};
+```
+
+## Apply パイプラインが参照ティアを処理する方法
+
+Apply パイプラインが `referencesTier` を持つティアのセマンティックアイテムを書き込む際、セマンティックアイテムの現在値に一致するローアイテムを探し、リテラル文字列ではなく `var(--raw-item-cssVar)` を出力します。例:
+
+| セマンティック値（パネル状態） | CSS ファイルに書き込まれる内容 |
+|---|---|
+| `ease-in`（デフォルト） | `var(--myapp-easing-ease-in)` |
+| `ease-inout`（ユーザーが変更） | `var(--myapp-easing-ease-inout)` |
+
+これによりディスク上の表現は常に有効な CSS `var()` 参照になり、生のイージング文字列にはなりません — Apply 後もセマンティックな関係が保持されます。
+
+## 関連ドキュメント
+
+- [カスタムトークンマニフェスト](/docs/recipes/custom-token-manifest) — すべてのバリュー種別と完全な `TabConfig` の形状。
+- [Apply パイプライン設定](/docs/recipes/apply-pipeline-setup) — bin サーバー、CORS、ルーティング JSON の完全な設定。
+- [トークンマニフェストリファレンス](/docs/reference/token-manifest) — `TierConfig`、`TierItem`、`referencesTier` コントラクト。
