@@ -3,7 +3,12 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "jsxImportSource": "preact",
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@takazudo/zudo-design-token-panel": ["../../packages/zudo-design-token-panel/src/index.tsx"],
+      "@takazudo/zudo-design-token-panel/astro": ["../../packages/zudo-design-token-panel/src/astro/index.ts"]
+    }
   },
   "exclude": ["dist"]
 }
