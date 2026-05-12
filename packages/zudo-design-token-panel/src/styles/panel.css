@@ -945,3 +945,168 @@
   color: var(--tokentweak-color-fg);
   border-color: var(--tokentweak-color-fg);
 }
+
+/* ===========================================================================
+ * Tier-ref selector (anchored popover with arrow tip)
+ *
+ * Implements the Pattern-12 anchored-popover style for the Easing / Font /
+ * Spacing / Size "semantic → raw" reference selector. The component lives in
+ * controls/tier-ref-selector.tsx; every class and attribute targeted here is
+ * already emitted by that component — NO JSX changes needed.
+ *
+ * Variable mapping (no accent-soft or surface-hi token in this package):
+ *   accent-soft bg  → rgb(from var(--tokentweak-color-accent) r g b / 0.16)
+ *   surface-hi      → var(--tokentweak-color-surface)  (border+shadow carry the elevation)
+ *   line-strong     → var(--tokentweak-color-muted)
+ *
+ * The tick mark on each option is rendered via ::before pseudo-element so the
+ * three-column grid layout (tick | label | preview) works without touching the
+ * existing markup. aria-selected='true' on the <li> makes the tick visible.
+ * ========================================================================= */
+
+/* Relative-positioned anchor for the popover */
+.tokenpanel-tier-ref-selector {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Trigger button — compact mono label + chevron */
+.tokenpanel-tier-ref-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background-color: var(--tokentweak-color-surface);
+  color: var(--tokentweak-color-fg);
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: var(--radius-tokentweak);
+  padding-inline: var(--tokentweak-pad-sm);
+  padding-block: 4px;
+  font-family: var(--tokentweak-font-mono);
+  font-size: 0.75rem;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+.tokenpanel-tier-ref-trigger:hover {
+  border-color: var(--tokentweak-color-fg);
+}
+
+/* Open state — accent border + soft focus ring (Pattern 12 verbatim) */
+.tokenpanel-tier-ref-trigger[aria-expanded='true'] {
+  border-color: var(--tokentweak-color-accent);
+  box-shadow: 0 0 0 2px rgb(from var(--tokentweak-color-accent) r g b / 0.16);
+}
+
+/* Label inside the trigger — fills remaining width, truncated */
+.tokenpanel-tier-ref-trigger-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Chevron — muted, does not shrink */
+.tokenpanel-tier-ref-trigger-arrow {
+  color: var(--tokentweak-color-muted);
+  font-size: 9px;
+  flex-shrink: 0;
+}
+
+/* Listbox popover — absolute, beneath trigger, elevated via border + shadow */
+.tokenpanel-tier-ref-listbox {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  right: 0;
+  z-index: 60;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background-color: var(--tokentweak-color-surface);
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: var(--radius-tokentweak);
+  box-shadow: 0 12px 28px rgb(0 0 0 / 0.5);
+  outline: none; /* tabIndex={-1} focus ring suppressed; per-option --focused handles it */
+}
+
+/* Arrow tip pointing up at the trigger (::before rotated 45°) */
+.tokenpanel-tier-ref-listbox::before {
+  content: '';
+  position: absolute;
+  top: -7px;
+  left: 22px;
+  width: 12px;
+  height: 12px;
+  background-color: var(--tokentweak-color-surface);
+  border-left: 1px solid var(--tokentweak-color-muted);
+  border-top: 1px solid var(--tokentweak-color-muted);
+  transform: rotate(45deg);
+}
+
+/* Option row — three-column grid: tick | label | preview
+ * Tick is provided by ::before pseudo-element so the existing markup needs
+ * no changes. The tick character is always present; color toggles via
+ * aria-selected. */
+.tokenpanel-tier-ref-option {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  gap: 6px;
+  align-items: center;
+  padding: 5px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: var(--tokentweak-font-mono);
+  font-size: 0.8125rem;
+  color: var(--tokentweak-color-fg);
+  list-style: none;
+}
+
+/* Tick pseudo-element — always rendered, color toggled by aria-selected */
+.tokenpanel-tier-ref-option::before {
+  content: '✓';
+  font-size: 11px;
+  color: transparent; /* hidden by default */
+  line-height: 1;
+}
+
+/* Show tick on selected option */
+.tokenpanel-tier-ref-option[aria-selected='true']::before {
+  color: var(--tokentweak-color-accent);
+}
+
+/* Label — left column, truncated */
+.tokenpanel-tier-ref-option-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Value preview — right column, muted + smaller */
+.tokenpanel-tier-ref-option-preview {
+  font-size: 0.6875rem;
+  color: var(--tokentweak-color-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 10rem;
+}
+
+/* Keyboard focus / hover highlight */
+.tokenpanel-tier-ref-option--focused {
+  background-color: rgb(from var(--tokentweak-color-accent) r g b / 0.16);
+}
+
+/* "Literal…" option — italic muted, separator above */
+.tokenpanel-tier-ref-option--literal {
+  font-style: italic;
+  color: var(--tokentweak-color-muted);
+  border-top: 1px solid var(--tokentweak-color-muted);
+  margin-top: 4px;
+  padding-top: 8px;
+}
