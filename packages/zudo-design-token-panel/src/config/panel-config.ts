@@ -149,13 +149,33 @@ export const DEFAULT_PANEL_CONFIG: PanelConfig = {
 // Singleton storage
 // ---------------------------------------------------------------------------
 
-let configuredConfig: PanelConfig | null = null;
 /**
- * Holding slot for a deferred preset map handed to `setPanelColorPresets`
- * before `configurePanel` has been called. Applied to the active config the
- * first time `getPanelConfig()` is read after configuration.
+ * The symbol key used to store the singleton slot on globalThis.
+ *
+ * WHY globalThis instead of module-scope `let` bindings:
+ * Vite's multi-entry build (e.g. Astro) can produce TWO separate module
+ * instances of panel-config.ts — one in the host-adapter chunk, one in the
+ * panel module chunk. Module-scope variables are per-instance, so
+ * configurePanel() on instance A is invisible to getPanelConfig() on instance
+ * B. Storing state on a Symbol.for() registry key makes all instances share
+ * one slot regardless of chunk fragmentation. See epic #108 for context.
  */
-let pendingColorPresets: Record<string, ColorScheme> | null = null;
+const SLOT_SYMBOL = Symbol.for('@takazudo/zudo-design-token-panel:singleton');
+
+interface SingletonSlot {
+  configuredConfig: PanelConfig | null;
+  pendingColorPresets: Record<string, ColorScheme> | null;
+}
+
+function getSingletonSlot(): SingletonSlot {
+  const g = globalThis as unknown as Record<symbol, SingletonSlot | undefined>;
+  let slot = g[SLOT_SYMBOL];
+  if (!slot) {
+    slot = { configuredConfig: null, pendingColorPresets: null };
+    g[SLOT_SYMBOL] = slot;
+  }
+  return slot;
+}
 
 /**
  * Configure the panel runtime. Call exactly once per page lifecycle, before
@@ -171,17 +191,18 @@ let pendingColorPresets: Record<string, ColorScheme> | null = null;
  * but referentially distinct.
  */
 export function configurePanel(config: PanelConfig): void {
-  if (configuredConfig !== null) {
-    if (structuralEqual(configuredConfig, config)) return;
+  const slot = getSingletonSlot();
+  if (slot.configuredConfig !== null) {
+    if (structuralEqual(slot.configuredConfig, config)) return;
     throw new Error(
       '[design-token-panel] configurePanel() was already called with different values. ' +
         'Configuration is one-shot per page lifecycle.',
     );
   }
-  configuredConfig = pendingColorPresets
-    ? { ...config, colorPresets: pendingColorPresets }
+  slot.configuredConfig = slot.pendingColorPresets
+    ? { ...config, colorPresets: slot.pendingColorPresets }
     : { ...config };
-  pendingColorPresets = null;
+  slot.pendingColorPresets = null;
 }
 
 /**
@@ -189,7 +210,7 @@ export function configurePanel(config: PanelConfig): void {
  * if one was supplied, else `DEFAULT_PANEL_CONFIG`.
  */
 export function getPanelConfig(): PanelConfig {
-  return configuredConfig ?? DEFAULT_PANEL_CONFIG;
+  return getSingletonSlot().configuredConfig ?? DEFAULT_PANEL_CONFIG;
 }
 
 /**
@@ -197,8 +218,9 @@ export function getPanelConfig(): PanelConfig {
  * in isolation.
  */
 export function __resetPanelConfigForTests(): void {
-  configuredConfig = null;
-  pendingColorPresets = null;
+  const slot = getSingletonSlot();
+  slot.configuredConfig = null;
+  slot.pendingColorPresets = null;
 }
 
 // Re-export cluster resolution helpers so callers can import from panel-config
@@ -573,9 +595,10 @@ export function resolveApplyRouting(cfg: PanelConfig = getPanelConfig()): ApplyR
  * landed last.
  */
 export function setPanelColorPresets(presets: Record<string, ColorScheme>): void {
-  if (configuredConfig === null) {
-    pendingColorPresets = presets;
+  const slot = getSingletonSlot();
+  if (slot.configuredConfig === null) {
+    slot.pendingColorPresets = presets;
     return;
   }
-  configuredConfig = { ...configuredConfig, colorPresets: presets };
+  slot.configuredConfig = { ...slot.configuredConfig, colorPresets: presets };
 }
