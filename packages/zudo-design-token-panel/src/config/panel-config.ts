@@ -156,16 +156,6 @@ export interface PanelConfig {
    * callers that depend on it.
    */
   legacyIdRenameMap?: Record<string, string | null>;
-  /**
-   * Optional host-supplied tab configurations using the abstract token-tier
-   * model. When present, each tab declares one or more `TierConfig`s of
-   * typed `TierItem`s; the panel renders them via `GenericTab`.
-   *
-   * Opt-in — legacy `tokens` + `colorCluster` fields remain valid during
-   * the multi-wave migration. Wave 5+ enforces tabs presence for migrated
-   * slices; until then both shapes coexist.
-   */
-  tabs?: readonly TabConfig[];
 }
 
 /**

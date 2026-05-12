@@ -11,69 +11,22 @@
  *   text            → free-form text input
  *   color           → <input type="color"> (native OS color picker)
  *
- * For items in a tier with `referencesTier`, the TierRefSelector control is
- * rendered instead (imported from '../controls/tier-ref-selector').
- *
- * Cross-topic dependency stubs (resolved at merge time):
- *
- *   1. TierRefSelector — W3-S2 (#75) lands this in worktree w3-s2-tierrefselector.
- *      A thin local placeholder is used below so this file compiles standalone.
- *      The merge step replaces the placeholder import with the real one.
- *
- *   2. persistTab(tabId, updater) — W3-S1 (#74) adds this to usePersist in
- *      worktree w3-s1-persist. Until that merges, onChange handlers are
- *      no-ops with a TODO comment. The merge step wires the real persist call.
+ * For items in a tier with `referencesTier`, TierRefSelector is rendered
+ * instead, so the user can either pick a tier-1 item id (emitted as
+ * `var(--target-cssvar)` at apply time) or flip the item back to literal mode.
  */
 
 import { useCallback } from 'preact/compat';
 import type { TabConfig, TierConfig, TierItem, TierValueKind } from '../tokens/tier-model';
 import type { TabOverrides } from '../apply/tier-resolver';
-
-// ---------------------------------------------------------------------------
-// Cross-topic dependency: TierRefSelector (W3-S2 #75)
-//
-// W3-S2 (worktree w3-s2-tierrefselector) adds this control. Until the two
-// branches merge into base/abstract-token-tiers, this file uses a thin local
-// placeholder that renders a disabled select with a "(pending W3-S2)" label.
-// The merger MUST replace this import with:
-//   import TierRefSelector from '../controls/tier-ref-selector';
-// ---------------------------------------------------------------------------
-
-// Placeholder TierRefSelector — DELETE and replace with the real import after
-// W3-S2 merges into base/abstract-token-tiers.
-function TierRefSelectorPlaceholder({
-  tier,
-  item,
-}: {
-  tier: TierConfig;
-  item: TierItem;
-  value: string;
-  onChange: (itemId: string, refItemId: string) => void;
-}) {
-  return (
-    <div className="tokenpanel-row" data-testid={`tier-ref-row-${item.id}`}>
-      <span className="tokenpanel-row-label" title={item.cssVar}>
-        {item.label}
-      </span>
-      {/* TODO(W3-S2 merge): replace with real TierRefSelector — references tier "{tier.id}" */}
-      <select
-        disabled
-        className="tokenpanel-row-select"
-        aria-label={`${item.cssVar} tier ref (pending W3-S2)`}
-        value=""
-        onChange={() => undefined}
-      >
-        <option value="">(pending W3-S2 — refs {tier.referencesTier})</option>
-      </select>
-    </div>
-  );
-}
+import TierRefSelector from '../controls/tier-ref-selector';
 
 // ---------------------------------------------------------------------------
 // Item editor dispatch
 // ---------------------------------------------------------------------------
 
 interface ItemEditorProps {
+  tab: TabConfig;
   tier: TierConfig;
   item: TierItem;
   value: string;
@@ -85,16 +38,22 @@ interface ItemEditorProps {
  * Dispatch to TierRefSelector for reference tiers, otherwise render the
  * kind-appropriate editor (slider, select, text, color).
  */
-function ItemEditor({ tier, item, value, onChange }: ItemEditorProps) {
+function ItemEditor({ tab, tier, item, value, onChange }: ItemEditorProps) {
   // Reference tier: delegate to TierRefSelector.
   if (tier.referencesTier !== undefined) {
     return (
-      <TierRefSelectorPlaceholder
-        tier={tier}
-        item={item}
-        value={value}
-        onChange={onChange}
-      />
+      <div className="tokenpanel-row" data-testid={`tier-ref-row-${item.id}`}>
+        <span className="tokenpanel-row-label" title={item.cssVar}>
+          {item.label}
+        </span>
+        <TierRefSelector
+          tab={tab}
+          tierId={tier.id}
+          itemId={item.id}
+          value={value}
+          onChange={onChange}
+        />
+      </div>
     );
   }
 
@@ -246,12 +205,13 @@ function ItemEditor({ tier, item, value, onChange }: ItemEditorProps) {
 // ---------------------------------------------------------------------------
 
 interface TierSectionProps {
+  tab: TabConfig;
   tier: TierConfig;
   overrides: Record<string, string>;
   onItemChange: (tierId: string, itemId: string, next: string) => void;
 }
 
-function TierSection({ tier, overrides, onItemChange }: TierSectionProps) {
+function TierSection({ tab, tier, overrides, onItemChange }: TierSectionProps) {
   const handleItemChange = useCallback(
     (itemId: string, next: string) => {
       onItemChange(tier.id, itemId, next);
@@ -268,6 +228,7 @@ function TierSection({ tier, overrides, onItemChange }: TierSectionProps) {
           return (
             <ItemEditor
               key={item.id}
+              tab={tab}
               tier={tier}
               item={item}
               value={value}
@@ -295,16 +256,7 @@ export interface GenericTabProps {
    * When an item has no override, its `TierItem.default` is used.
    */
   overrides: TabOverrides;
-  /**
-   * Called when the user commits a change to any item.
-   *
-   * TODO(W3-S1 merge): replace the `onChange` prop pattern with a call to
-   * `persistTab(tab.id, updater)` from the W3-S1 persist API once that branch
-   * merges into base/abstract-token-tiers. Until then, the caller (panel.tsx)
-   * is responsible for wiring this to whatever state management it exposes for
-   * generic tabs. The panel.tsx integration passes a local useState setter as
-   * a placeholder.
-   */
+  /** Called when the user commits a change to any item. */
   onChange: (tierId: string, itemId: string, next: string) => void;
 }
 
@@ -335,6 +287,7 @@ export default function GenericTab({ tab, overrides, onChange }: GenericTabProps
         return (
           <TierSection
             key={tier.id}
+            tab={tab}
             tier={tier}
             overrides={tierOverrides}
             onItemChange={handleItemChange}

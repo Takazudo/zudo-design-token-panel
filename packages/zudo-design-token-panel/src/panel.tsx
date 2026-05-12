@@ -9,7 +9,6 @@ import SpacingTab from './tabs/spacing-tab';
 import GenericTab from './tabs/generic-tab';
 import { getPanelConfig } from './config/panel-config';
 import type { TabConfig } from './tokens/tier-model';
-import type { TabOverrides } from './apply/tier-resolver';
 import { usePersist } from './state/persist';
 import {
   type TweakState,
@@ -169,17 +168,13 @@ export default function DesignTokenTweakPanel() {
     size: null,
     color: null,
   });
-  // Per-tab overrides for GenericTab instances.
-  // TODO(W3-S1 merge): replace this local state with persistTab(tabId, updater)
-  // from the W3-S1 persist API once that branch merges into base/abstract-token-tiers.
-  const [genericTabOverrides, setGenericTabOverrides] = useState<Record<string, TabOverrides>>({});
   const positionRef = useRef<PanelPosition>(DEFAULT_POSITION);
   // Keep ref in sync with state for use in drag handlers (avoids stale closure)
   positionRef.current = position;
   // Track active drag listeners for cleanup on unmount
   const dragCleanupRef = useRef<(() => void) | null>(null);
 
-  const { persistColor, persistSpacing, persistFont, persistSize, persistSecondary } =
+  const { persistColor, persistSpacing, persistFont, persistSize, persistSecondary, persistTab } =
     usePersist(setState);
 
   // Restore open state and position from localStorage after mount (avoids SSR hydration mismatch)
@@ -579,23 +574,16 @@ export default function DesignTokenTweakPanel() {
                   ) : (
                     <SizeTab state={state.size} persistSize={persistSize} />
                   ))}
-                {!isReserved && tabConfigById[tab.id] && (
+                {!isReserved && tabConfigById[tab.id] && state && (
                   <GenericTab
                     tab={tabConfigById[tab.id]}
-                    overrides={genericTabOverrides[tab.id] ?? {}}
+                    overrides={state.tabs?.[tab.id] ?? {}}
                     onChange={(tierId, itemId, next) => {
-                      // TODO(W3-S1 merge): replace this local setState with
-                      // persistTab(tab.id, updater) from the W3-S1 persist
-                      // API. For now we only update local component state
-                      // (no CSS-var apply, no localStorage write).
-                      setGenericTabOverrides((prev) => ({
+                      persistTab(tab.id, (prev) => ({
                         ...prev,
-                        [tab.id]: {
-                          ...prev[tab.id],
-                          [tierId]: {
-                            ...(prev[tab.id]?.[tierId] ?? {}),
-                            [itemId]: next,
-                          },
+                        [tierId]: {
+                          ...(prev[tierId] ?? {}),
+                          [itemId]: next,
                         },
                       }));
                     }}
