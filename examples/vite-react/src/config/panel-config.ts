@@ -24,7 +24,7 @@
  */
 
 import type { PanelConfig } from '@takazudo/zudo-design-token-panel';
-import { defaultManifest } from './default-manifest';
+import { defaultTabs } from './default-manifest';
 import { defaultCluster } from './default-cluster';
 import scaffoldRouting from '../../scaffold.routing.json';
 
@@ -34,7 +34,7 @@ export const panelConfig: PanelConfig = {
   modalClassPrefix: 'vite-react-example-design-token-panel-modal',
   schemaId: 'vite-react-example-design-tokens/v1',
   exportFilenameBase: 'vite-react-example-design-tokens',
-  tokens: defaultManifest,
+  tabs: defaultTabs,
   colorCluster: defaultCluster,
   applyEndpoint: '/api/dev/apply',
   applyRouting: scaffoldRouting,
