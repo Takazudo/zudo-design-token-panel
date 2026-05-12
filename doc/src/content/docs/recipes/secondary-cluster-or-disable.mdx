@@ -1,42 +1,42 @@
 ---
 title: "Secondary cluster: configure or disable"
-description: "Three-state semantics: undefined (hidden), null (hard opt-out), or a ColorClusterConfig (host-supplied)."
+description: "Two-state semantics: omit the secondary color tab (hidden) or add a TabConfig with id 'color-secondary' (host-supplied)."
 sidebar_position: 3
 ---
 
-`PanelConfig.secondaryColorCluster` is a three-state field. The state you
-pick controls both what the Color tab renders and which apply / clear / load
-code paths run. This recipe covers the three cases with concrete snippets.
+The panel supports an optional second Color tab keyed to the reserved id
+`'color-secondary'`. Whether to show it, hide it, or never wire it at all is
+a matter of whether that tab appears in `PanelConfig.tabs`. This recipe covers
+the two cases with concrete snippets.
 
 For the underlying contract, see
 [Color cluster reference](/docs/reference/color-cluster) (multi-cluster
-section) and the `resolveSecondaryColorCluster` helper.
+section).
 
-## The three states
+## The two states
 
-| Value | Render | Apply / clear / load |
+| `tabs` contains `id: 'color-secondary'`? | Render | Apply / clear / load |
 |---|---|---|
-| `undefined` (field omitted) | Secondary section hidden. | No write. The persist envelope's secondary slice stays inert. |
-| `null` | Secondary section hidden — **same as `undefined` visually**. | Hard opt-out: every secondary code path skips. The persist envelope's secondary slice is **not** hydrated even if it exists in `localStorage`. |
-| `ColorClusterConfig` | Secondary palette + semantic table render below the primary. | Same write semantics as the primary, scoped to the secondary palette + names. |
+| No (tab omitted) | Secondary section hidden. | No write. The persist envelope's secondary slice stays inert. |
+| Yes (tab present with `colorExtras`) | Secondary palette + semantic table render below the primary. | Same write semantics as the primary, scoped to the secondary palette and CSS-var names. |
 
 <Tip>
-**Why `null` is not the same as `undefined`.** Both hide the section, but
-only `null` skips the secondary load path. A host that previously shipped a
-secondary cluster and now wants to permanently retire it should set
-`secondaryColorCluster: null` so old saved states do not silently re-apply
-on next page load.
+**Previously there was a `null` opt-out.** Older docs described a three-state
+`secondaryColorCluster` field where `null` would hard-skip the secondary load
+path. In the current `tabs`-based config, simply omitting the
+`'color-secondary'` tab achieves the same result — no secondary state is
+hydrated.
 </Tip>
 
 ## Case 1 — secondary hidden (default)
 
-Just omit the field. This is the recommended starting point for every new
-host.
+Just omit the `'color-secondary'` tab from your `tabs` array. This is the
+recommended starting point for every new host.
 
 ```ts
 // src/lib/my-panel-config.ts
 import type { PanelConfig } from '@takazudo/zudo-design-token-panel';
-import { primaryCluster } from './primary-cluster';
+import { colorTab } from './my-tabs';
 
 export const myPanelConfig: PanelConfig = {
   storagePrefix: 'myapp-design-token-panel',
@@ -44,53 +44,22 @@ export const myPanelConfig: PanelConfig = {
   modalClassPrefix: 'myapp-design-token-panel-modal',
   schemaId: 'myapp-design-tokens/v1',
   exportFilenameBase: 'myapp-design-tokens',
-  tokens: {
-    spacing: [],
-    typography: [],
-    size: [],
-    color: [],
-  },
-  colorCluster: primaryCluster,
-  // secondaryColorCluster intentionally omitted.
+  tabs: [colorTab],
+  // No 'color-secondary' tab — secondary section is hidden.
 };
 ```
 
-## Case 2 — explicit opt-out
+## Case 2 — host-supplied secondary cluster
 
-Use `null` after a previous deploy carried a secondary cluster, and you want
-to make sure no user's saved state will resurrect it on next load.
-
-```ts
-export const myPanelConfig: PanelConfig = {
-  // ...common fields...
-  colorCluster: primaryCluster,
-  secondaryColorCluster: null,
-};
-```
-
-<Warning>
-The persisted envelope under `${storagePrefix}-state-v2` may still contain
-a secondary slice from earlier versions. With `secondaryColorCluster: null`
-the package skips that slice on load, so users do not see stale secondary
-overrides. The slice itself is preserved in storage for round-trip safety —
-flipping back to a real `ColorClusterConfig` later will pick it up again
-unless you also bump `storagePrefix` or `schemaId`.
-</Warning>
-
-## Case 3 — host-supplied secondary cluster
-
-The secondary cluster has the same shape as the primary
-([`ColorClusterConfig`](/docs/reference/color-cluster)). Use a different
-`paletteCssVarTemplate` and different `baseRoles` / `semanticCssNames` so
-the writes do not collide with the primary cluster.
+Add a second `TabConfig` with `id: 'color-secondary'` to `tabs`. Use a
+different `cssVar` prefix for palette and semantic items so the writes do not
+collide with the primary Color tab.
 
 ```ts
-import type {
-  ColorClusterConfig,
-  ColorScheme,
-  PanelConfig,
-} from '@takazudo/zudo-design-token-panel';
-import { primaryCluster } from './primary-cluster';
+// src/lib/my-tabs.ts
+import type { PanelConfig, ColorScheme } from '@takazudo/zudo-design-token-panel';
+
+type TabConfig = PanelConfig['tabs'][number];
 
 const accentDark: ColorScheme = {
   background: 0,
@@ -107,72 +76,114 @@ const accentDark: ColorScheme = {
   shikiTheme: 'github-dark',
 };
 
-const secondaryCluster: ColorClusterConfig = {
-  id: 'myapp-accent',
-  label: 'Accent surface',
-  paletteSize: 16,
-  paletteCssVarTemplate: '--myapp-accent-p{n}',
-  baseRoles: {
-    background: '--myapp-accent-bg',
-    foreground: '--myapp-accent-fg',
+export const colorSecondaryTab: TabConfig = {
+  id: 'color-secondary',
+  label: 'Accent',
+  colorExtras: {
+    id: 'myapp-accent',
+    label: 'Accent surface',
+    baseRoles: {
+      background: '--myapp-accent-bg',
+      foreground: '--myapp-accent-fg',
+    },
+    baseDefaults: {
+      background: 0,
+      foreground: 7,
+    },
+    defaultShikiTheme: 'github-dark',
+    colorSchemes: {
+      'Accent Dark': accentDark,
+    },
+    panelSettings: {
+      colorScheme: 'Accent Dark',
+      colorMode: false,
+    },
   },
-  baseDefaults: {
-    background: 0,
-    foreground: 7,
-  },
-  semanticDefaults: {
-    surface: 0,
-    onSurface: 7,
-  },
-  semanticCssNames: {
-    surface: '--myapp-accent-surface',
-    onSurface: '--myapp-accent-on-surface',
-  },
-  defaultShikiTheme: 'github-dark',
-  colorSchemes: {
-    'Accent Dark': accentDark,
-  },
-  panelSettings: {
-    colorScheme: 'Accent Dark',
-    colorMode: false,
-  },
-};
-
-export const myPanelConfig: PanelConfig = {
-  // ...common fields...
-  colorCluster: primaryCluster,
-  secondaryColorCluster: secondaryCluster,
+  tiers: [
+    {
+      id: 'palette',
+      label: 'Palette',
+      items: [
+        { id: 'myapp-accent-p0',  cssVar: '--myapp-accent-p0',  label: 'P0',  default: '#202124', type: { kind: 'color' } },
+        { id: 'myapp-accent-p1',  cssVar: '--myapp-accent-p1',  label: 'P1',  default: '#ff7597', type: { kind: 'color' } },
+        { id: 'myapp-accent-p2',  cssVar: '--myapp-accent-p2',  label: 'P2',  default: '#7cd992', type: { kind: 'color' } },
+        { id: 'myapp-accent-p3',  cssVar: '--myapp-accent-p3',  label: 'P3',  default: '#f5d97a', type: { kind: 'color' } },
+        { id: 'myapp-accent-p4',  cssVar: '--myapp-accent-p4',  label: 'P4',  default: '#7ab0f5', type: { kind: 'color' } },
+        { id: 'myapp-accent-p5',  cssVar: '--myapp-accent-p5',  label: 'P5',  default: '#c79df0', type: { kind: 'color' } },
+        { id: 'myapp-accent-p6',  cssVar: '--myapp-accent-p6',  label: 'P6',  default: '#7fdacf', type: { kind: 'color' } },
+        { id: 'myapp-accent-p7',  cssVar: '--myapp-accent-p7',  label: 'P7',  default: '#dde2ec', type: { kind: 'color' } },
+        { id: 'myapp-accent-p8',  cssVar: '--myapp-accent-p8',  label: 'P8',  default: '#3a3d44', type: { kind: 'color' } },
+        { id: 'myapp-accent-p9',  cssVar: '--myapp-accent-p9',  label: 'P9',  default: '#ff7597', type: { kind: 'color' } },
+        { id: 'myapp-accent-p10', cssVar: '--myapp-accent-p10', label: 'P10', default: '#7cd992', type: { kind: 'color' } },
+        { id: 'myapp-accent-p11', cssVar: '--myapp-accent-p11', label: 'P11', default: '#f5d97a', type: { kind: 'color' } },
+        { id: 'myapp-accent-p12', cssVar: '--myapp-accent-p12', label: 'P12', default: '#7ab0f5', type: { kind: 'color' } },
+        { id: 'myapp-accent-p13', cssVar: '--myapp-accent-p13', label: 'P13', default: '#c79df0', type: { kind: 'color' } },
+        { id: 'myapp-accent-p14', cssVar: '--myapp-accent-p14', label: 'P14', default: '#7fdacf', type: { kind: 'color' } },
+        { id: 'myapp-accent-p15', cssVar: '--myapp-accent-p15', label: 'P15', default: '#bfc6d4', type: { kind: 'color' } },
+      ],
+    },
+    {
+      id: 'semantic',
+      label: 'Semantic',
+      referencesTier: 'palette',
+      items: [
+        { id: 'surface',   cssVar: '--myapp-accent-surface',    label: 'Surface',    default: 'myapp-accent-p0', type: { kind: 'color' } },
+        { id: 'onSurface', cssVar: '--myapp-accent-on-surface', label: 'On surface', default: 'myapp-accent-p7', type: { kind: 'color' } },
+      ],
+    },
+  ],
 };
 ```
 
-## Case 4 — light/dark pairing on the secondary
+Then include both tabs in `PanelConfig.tabs`:
 
-Same shape, but with the `panelSettings.colorMode` light/dark pairing
+```ts
+// src/lib/my-panel-config.ts
+import type { PanelConfig } from '@takazudo/zudo-design-token-panel';
+import { colorTab, colorSecondaryTab } from './my-tabs';
+
+export const myPanelConfig: PanelConfig = {
+  storagePrefix: 'myapp-design-token-panel',
+  consoleNamespace: 'myapp',
+  modalClassPrefix: 'myapp-design-token-panel-modal',
+  schemaId: 'myapp-design-tokens/v1',
+  exportFilenameBase: 'myapp-design-tokens',
+  tabs: [colorTab, colorSecondaryTab],
+};
+```
+
+## Case 3 — light/dark pairing on the secondary
+
+Same shape as Case 2, but with `panelSettings.colorMode` light/dark pairing
 enabled. The panel watches `document.documentElement[data-theme]` and
 swaps schemes accordingly on init.
 
 ```ts
-const secondaryCluster: ColorClusterConfig = {
-  // ...same fields as Case 3...
-  colorSchemes: {
-    'Accent Light': accentLight,
-    'Accent Dark': accentDark,
-  },
-  panelSettings: {
-    colorScheme: 'Accent Dark',
-    colorMode: {
-      defaultMode: 'dark',
-      lightScheme: 'Accent Light',
-      darkScheme: 'Accent Dark',
+export const colorSecondaryTab: TabConfig = {
+  id: 'color-secondary',
+  label: 'Accent',
+  colorExtras: {
+    // ...same id, baseRoles, baseDefaults, defaultShikiTheme...
+    colorSchemes: {
+      'Accent Light': accentLight,
+      'Accent Dark': accentDark,
+    },
+    panelSettings: {
+      colorScheme: 'Accent Dark',
+      colorMode: {
+        defaultMode: 'dark',
+        lightScheme: 'Accent Light',
+        darkScheme: 'Accent Dark',
+      },
     },
   },
+  tiers: [ /* ...same tiers as Case 2... */ ],
 };
 ```
 
 <Info>
 `colorMode` is independent on the primary and the secondary. You can set it
-on one and leave the other as `false`; the panel resolves them separately
-through `resolveSecondaryColorCluster`.
+on one and leave the other as `false`; the panel resolves them separately.
 </Info>
 
 ## Related
@@ -183,4 +194,4 @@ through `resolveSecondaryColorCluster`.
 - [Custom color cluster](/docs/recipes/custom-color-cluster) — wiring
   the primary cluster from scratch.
 - [`configurePanel` reference](/docs/reference/configure-panel) —
-  `PanelConfig.secondaryColorCluster` field documentation.
+  `PanelConfig.tabs` and the reserved `'color-secondary'` id.

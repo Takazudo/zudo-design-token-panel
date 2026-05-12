@@ -97,8 +97,7 @@ agree without two declarations to keep in sync.
 // src/lib/my-panel-config.ts
 import type { PanelConfig } from '@takazudo/zudo-design-token-panel';
 import routing from '../../panel-routing.json' assert { type: 'json' };
-import { myColorCluster } from './my-color-cluster';
-import { myTokens } from './my-tokens';
+import { myTabs } from './my-tabs';
 
 export const myPanelConfig: PanelConfig = {
   storagePrefix: 'myapp-design-token-panel',
@@ -106,8 +105,7 @@ export const myPanelConfig: PanelConfig = {
   modalClassPrefix: 'myapp-design-token-panel-modal',
   schemaId: 'myapp-design-tokens/v1',
   exportFilenameBase: 'myapp-design-tokens',
-  tokens: myTokens,
-  colorCluster: myColorCluster,
+  tabs: myTabs,
   applyEndpoint: 'http://127.0.0.1:24681/apply',
   applyRouting: routing,
 };

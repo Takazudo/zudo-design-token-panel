@@ -1,6 +1,6 @@
 ---
 title: configurePanel
-sidebar_position: 1
+sidebar_position: 2
 description: Configure-once init, the PanelConfig shape with tabs-based manifest, and the lifecycle helpers (show / hide / toggle / reapply).
 ---
 
@@ -145,6 +145,39 @@ The `visible` key uses a `:` separator; every other derived key uses `-`. This i
 
 Hosts whose item ids are stable (no historical renames) can omit this field — the default is an empty map (no renaming, no drops).
 
+### `ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP`
+
+```ts
+import { ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP } from '@takazudo/zudo-design-token-panel';
+
+configurePanel({
+  // ...
+  legacyIdRenameMap: ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP,
+});
+```
+
+`ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP` is the historical internal rename map that was applied automatically in versions prior to the `legacyIdRenameMap` field. It is now exported for opt-in callers whose persisted state predates that version. Hosts that never relied on the historical internal renames should leave `legacyIdRenameMap` undefined (or pass an empty object).
+
+## Persisted state / external SerDe
+
+The panel exports two primitives for hosts that need to read or write panel state outside the panel itself — for example, synchronising token overrides across tabs or building a custom import/export flow.
+
+### `TweakState`
+
+```ts
+import type { TweakState } from '@takazudo/zudo-design-token-panel';
+```
+
+`TweakState` is the TypeScript type of the serialisable override state that the panel persists in `localStorage` and embeds in JSON exports. Import it when building typed SerDe utilities that consume or produce panel state.
+
+### `emptyOverrides`
+
+```ts
+import { emptyOverrides } from '@takazudo/zudo-design-token-panel';
+```
+
+`emptyOverrides` is a ready-made `TweakState` value with all override maps empty. Use it as a starting point when constructing a fresh state object or when resetting overrides programmatically.
+
 ## Complete example
 
 ```ts
@@ -260,6 +293,21 @@ window[consoleNamespace].toggleDesignPanel = () => Promise<void>;
 
 Each helper lazy-imports the adapter module and forwards to its corresponding synchronous public function.
 </Tip>
+
+### `setLifecycleAdapter(adapter)`
+
+```ts
+import { setLifecycleAdapter } from '@takazudo/zudo-design-token-panel';
+
+setLifecycleAdapter({
+  onBeforeSwap: (cb) => { /* register a before-swap hook */ },
+  onPageLoad:   (cb) => { /* register a page-load hook  */ },
+});
+```
+
+Registers lifecycle hooks for non-Astro hosts (Vite, plain HTML, Next.js, etc.). The Astro host-adapter wires these automatically via `astro:before-swap` and `astro:page-load` events; non-Astro hosts must call `setLifecycleAdapter` before the panel dynamically loads to ensure `reapplyPersistedOverrides` fires on each navigation.
+
+Call `setLifecycleAdapter` after `configurePanel` and before the panel is first shown. Calling it more than once replaces the previous adapter.
 
 ## `setPanelColorPresets(presets)`
 
