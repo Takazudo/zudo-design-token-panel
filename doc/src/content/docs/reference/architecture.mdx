@@ -1,7 +1,7 @@
 ---
 title: Architecture
 description: How the design-token panel separates panel UI, host-adapter, and apply-pipeline across three layers — and how the abstract token-tier model unifies all tab types into a single host-supplied config shape.
-sidebar_position: 2
+sidebar_position: 1
 ---
 
 The design-token panel is split into three layers connected through narrow, JSON-serializable contracts. Host-coined design-token families — spacing, typography, size, color, animation easing, or any custom domain — all pass through the same abstract tier model, so adding a new family to your project requires only a host-config change and zero package changes.

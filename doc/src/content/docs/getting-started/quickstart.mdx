@@ -95,7 +95,7 @@ export const myTabs: readonly TabConfig[] = [
 `cssVar` is the CSS custom property the panel writes to `:root` via `setProperty()` — make sure your stylesheet reads from the same variable names. The `type` field is a discriminated union (`'length'`, `'number'`, `'select'`, `'text'`, `'color'`) that controls which editor widget renders for the row.
 
 <Note title="The abstract tier model">
-  Every tab family — spacing, typography, size, color, easing, or any custom domain — uses the same `TabConfig` shape. A tab can have multiple tiers, and a tier can reference another tier's items by id so edits to a raw primitive cascade through semantic roles automatically. For the full mental model and a two-tier cross-reference example, see [The abstract token-tier model](/docs/architecture#the-abstract-token-tier-model).
+  Every tab family — spacing, typography, size, color, easing, or any custom domain — uses the same `TabConfig` shape. A tab can have multiple tiers, and a tier can reference another tier's items by id so edits to a raw primitive cascade through semantic roles automatically. For the full mental model and a two-tier cross-reference example, see [The abstract token-tier model](/docs/reference/architecture#the-abstract-token-tier-model).
 </Note>
 
 ## Step 3 — Call `configurePanel(...)` and toggle the panel

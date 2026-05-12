@@ -1,11 +1,11 @@
 ---
 title: Token tiers (tab manifest)
-sidebar_position: 2
+sidebar_position: 3
 description: TabConfig, TierConfig, TierItem, TierValueKind, PillSpec, and ColorClusterExtras — the types that define every editable tab in the panel.
 ---
 
 <Info title="Concept overview">
-This page is the type-by-type pin-down of the tier model. If you want to understand the design rationale and the literal / reference tier relationship first, read [The abstract token-tier model](/docs/architecture#the-abstract-token-tier-model).
+This page is the type-by-type pin-down of the tier model. If you want to understand the design rationale and the literal / reference tier relationship first, read [The abstract token-tier model](/docs/reference/architecture#the-abstract-token-tier-model).
 </Info>
 
 The panel renders its tab strip from a flat array of `TabConfig` objects passed as `PanelConfig.tabs`. Each tab owns one or more *tiers* of editable rows; a tier can hold literal values or references to another tier's items. This page pins every public type in the tier model.
