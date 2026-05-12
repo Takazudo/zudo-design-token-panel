@@ -79,8 +79,10 @@ export const settings = {
   } satisfies FooterConfig as FooterConfig | false,
   headerNav: [
     { label: "Getting Started", path: "/docs/getting-started", categoryMatch: "getting-started" },
-    { label: "Claude", path: "/docs/claude", categoryMatch: "claude" },
+    { label: "Reference", path: "/docs/reference", categoryMatch: "reference" },
+    { label: "Recipes", path: "/docs/recipes", categoryMatch: "recipes" },
     { label: "Changelog", path: "/docs/changelog", categoryMatch: "changelog" },
+    { label: "Claude", path: "/docs/claude", categoryMatch: "claude" },
   ] as HeaderNavItem[],
   headerRightItems: [
     { type: "component", component: "version-switcher" },
