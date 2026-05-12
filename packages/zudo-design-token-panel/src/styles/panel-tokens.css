@@ -2,9 +2,9 @@
  * Panel-private CSS custom properties.
  *
  * The design-token panel package owns its own visual tokens instead of
- * leaking them through the host's theme. The values match what the
- * package's example design system declares, so the default look stays
- * identical to the example.
+ * leaking them through the host's theme. Fallback colors use a low-saturation
+ * neutral dark palette so the panel reads as neutral near-black without any
+ * host theme tokens.
  *
  * Scope
  * -----
@@ -44,18 +44,18 @@
    *   override; bypasses the host's own theme).
    * - Host declares neither             → the fallback paints the panel.
    *
-   * Fallback values are picked to match what the package's example
-   * design-system declares, so the panel's default look stays identical
-   * to the example.
+   * Fallback values use a low-saturation neutral dark palette (~#181818
+   * body / ~#1c1c1c surface family) so the panel reads as neutral near-black
+   * without host theme tokens. Accent and status colors are unchanged.
    * ---------------------------------------------------------------------- */
-  --tokentweak-color-fg: var(--color-fg, oklch(87% 0.01 60));
-  --tokentweak-color-bg: var(--color-bg, oklch(18% 0.01 50));
-  --tokentweak-color-muted: var(--color-muted, oklch(70% 0.01 60));
-  --tokentweak-color-surface: var(--color-surface, oklch(22% 0.01 50));
+  --tokentweak-color-fg: var(--color-fg, oklch(80% 0 0));
+  --tokentweak-color-bg: var(--color-bg, oklch(20.5% 0 0));
+  --tokentweak-color-muted: var(--color-muted, oklch(63% 0 0));
+  --tokentweak-color-surface: var(--color-surface, oklch(22.5% 0 0));
   --tokentweak-color-accent: var(--color-accent, oklch(65% 0.2 45));
   --tokentweak-color-accent-hover: var(--color-accent-hover, oklch(55% 0.18 45));
-  --tokentweak-color-code-bg: var(--color-code-bg, oklch(17% 0.005 50));
-  --tokentweak-color-code-fg: var(--color-code-fg, oklch(87% 0.01 60));
+  --tokentweak-color-code-bg: var(--color-code-bg, oklch(19% 0 0));
+  --tokentweak-color-code-fg: var(--color-code-fg, oklch(80% 0 0));
   --tokentweak-color-success: var(--color-success, oklch(65% 0.19 145));
   --tokentweak-color-danger: var(--color-danger, oklch(60% 0.2 10));
   --tokentweak-color-warning: var(--color-warning, oklch(75% 0.17 75));
