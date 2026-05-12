@@ -419,3 +419,55 @@ describe('resolveTierItemValue — ref with no overrides', () => {
     expect(result).toEqual({ kind: 'ref', targetCssVar: '--zfb-easing-ease-in' });
   });
 });
+
+// ---------------------------------------------------------------------------
+// 11. Empty referenced tier → error
+// ---------------------------------------------------------------------------
+
+describe('resolveTierItemValue — empty referenced tier', () => {
+  it('throws TierResolverError when the referenced tier has zero items', () => {
+    const tabWithEmptyRefTier: TabConfig = {
+      id: 'test',
+      label: 'Test',
+      tiers: [
+        {
+          id: 'raw',
+          label: 'Raw',
+          items: [],
+        },
+        {
+          id: 'semantic',
+          label: 'Semantic',
+          referencesTier: 'raw',
+          items: [rawItem('my-token', '--test-my-token', 'fallback')],
+        },
+      ],
+    };
+    expect(() =>
+      resolveTierItemValue(tabWithEmptyRefTier, 'semantic', 'my-token', EMPTY_OVERRIDES),
+    ).toThrowError(TierResolverError);
+  });
+
+  it('error message identifies the empty referenced tier', () => {
+    const tabWithEmptyRefTier: TabConfig = {
+      id: 'test',
+      label: 'Test',
+      tiers: [
+        {
+          id: 'raw',
+          label: 'Raw',
+          items: [],
+        },
+        {
+          id: 'semantic',
+          label: 'Semantic',
+          referencesTier: 'raw',
+          items: [rawItem('my-token', '--test-my-token', 'fallback')],
+        },
+      ],
+    };
+    expect(() =>
+      resolveTierItemValue(tabWithEmptyRefTier, 'semantic', 'my-token', EMPTY_OVERRIDES),
+    ).toThrow(/raw/);
+  });
+});
