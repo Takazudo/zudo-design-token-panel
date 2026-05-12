@@ -9,8 +9,8 @@ that pins the surface it touches.
 The package extracts every project-specific identifier behind a single
 configure-once init (`configurePanel({...})`) so the same package can ship
 into any Preact-supporting Astro / Vite / Next.js / Rust-SSG consumer. Storage
-keys, console namespace, modal class prefixes, schema id, palette CSS-var
-pattern, the token manifest, and the color cluster are all host-supplied.
+keys, console namespace, modal class prefixes, schema id, and the entire tab
+configuration (tiers, items, color cluster extras) are all host-supplied.
 
 ---
 
@@ -19,7 +19,7 @@ pattern, the token manifest, and the color cluster are all host-supplied.
 The package exposes a single, idempotent setup function. Hosts call it exactly
 once per page lifecycle, before the panel adapter is dynamically imported
 (typically from a small Astro host script that gates the adapter behind a
-visibility / persistence probe — see §5).
+visibility / persistence probe — see §6).
 
 ```ts
 export interface PanelConfig {
@@ -33,24 +33,19 @@ export interface PanelConfig {
   schemaId: string;
   /** Default filename base — exports save as `${exportFilenameBase}.json`. */
   exportFilenameBase: string;
-  /** Editable design tokens grouped per-tab. See §3. */
-  tokens: TokenManifest;
-  /** Palette + base roles + semantic table. See §4. */
-  colorCluster: ColorClusterConfig;
   /**
-   * Optional secondary color cluster. Host-driven:
-   *  - `undefined` (field omitted) — secondary section hidden.
-   *  - `null` — explicit opt-out: secondary section hidden + apply/clear skipped.
-   *  - `ColorClusterConfig` — host-supplied secondary cluster.
-   * See §4.3 for the resolution contract.
+   * Host-supplied tab configuration (required). The panel renders a tab strip
+   * from this array. See §3 for the full tab/tier model.
+   *
+   * Hosts MUST supply this field. An empty array is legal but produces a panel
+   * with no tabs. The colour tab (id 'color') is driven by tiers + colorExtras
+   * on the matching TabConfig entry (no separate colorCluster field).
    */
-  secondaryColorCluster?: ColorClusterConfig | null;
+  tabs: readonly TabConfig[];
   /**
    * Optional host-supplied color-scheme presets. Surfaces additional named
-   * `ColorScheme` entries in the Color tab "Scheme..." dropdown alongside
-   * `colorCluster.colorSchemes`. The package itself ships zero presets —
-   * this is the host's escape hatch for shipping a larger preset library
-   * without bloating the panel bundle for every consumer. Defaults to `{}`.
+   * `ColorScheme` entries in the Color tab "Scheme..." dropdown alongside the
+   * schemes bundled in the color TabConfig's colorExtras. Defaults to `{}`.
    * See §4.5 for the merge contract.
    */
   colorPresets?: Record<string, ColorScheme>;
@@ -58,8 +53,7 @@ export interface PanelConfig {
    * Optional dev-API endpoint URL. When the host wires the panel into a
    * project that ships its own design-tokens-apply route, supply the URL
    * here; the Apply button POSTs its diff payload to it. When `undefined`,
-   * the Apply button stays disabled with a tooltip — hosts that ship
-   * export/import only can omit this field.
+   * the Apply button stays disabled with a tooltip.
    */
   applyEndpoint?: string;
   /**
@@ -79,6 +73,13 @@ export interface PanelConfig {
    * ```
    */
   applyRouting?: Record<string, string>;
+  /**
+   * Optional id rename map applied during `loadPersistedState` migration.
+   * Keys are old ids found in persisted state; values are either the new
+   * canonical id (string) or `null` to drop the legacy id entirely.
+   * Defaults to an empty map (no renaming).
+   */
+  legacyIdRenameMap?: Record<string, string | null>;
 }
 
 export function configurePanel(config: PanelConfig): void;
@@ -87,7 +88,7 @@ export function configurePanel(config: PanelConfig): void;
  * Lazy preset attachment. Hosts that don't want to ship the preset library
  * inline in the SSR config blob can call this AFTER the panel has been
  * configured to attach the preset map from a deferred dynamic import. Same
- * precedence rules as `PanelConfig.colorPresets` — see §4.4.
+ * precedence rules as `PanelConfig.colorPresets` — see §4.5.
  */
 export function setPanelColorPresets(presets: Record<string, ColorScheme>): void;
 
@@ -109,14 +110,14 @@ Required behaviours:
 - **Synchronous.** No I/O, no awaits. The call must be cheap enough to run
   inline at module-init from the Astro frontmatter side.
 - **Pure data only.** Every field on `PanelConfig` (and every nested field
-  inside `tokens` / `colorCluster`) MUST be JSON-serializable. This is the
-  hard precondition for the Astro frontmatter → island prop handoff (§5):
-  Astro stringifies props, so functions / class instances do not survive.
+  inside `tabs`) MUST be JSON-serializable. This is the hard precondition for
+  the Astro frontmatter → island prop handoff (§6): Astro stringifies props,
+  so functions / class instances do not survive.
 - **No default `PanelConfig` baked into the package.** Hosts MUST configure
   the panel explicitly via `<DesignTokenPanelHost config={...} />` or a
   direct `configurePanel({...})` call. The package ships zero baked-in
-  identifiers — every storage prefix, namespace, palette template, and
-  manifest entry comes from the host.
+  identifiers — every storage prefix, namespace, and manifest entry comes
+  from the host.
 
 ---
 
@@ -127,11 +128,12 @@ derives the keys at runtime from this single base.
 
 | Logical key | Derivation                  | Owner                | Purpose                                                                                                                                                      |
 | ----------- | --------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `state-v2`  | `${storagePrefix}-state-v2` | tweak-state          | Unified envelope: color + spacing + typography + size + panelPosition + optional secondary cluster slice.                                                    |
-| `state-v1`  | `${storagePrefix}-state`    | tweak-state (legacy) | Pre-v2 flat-state format (Color-only). Migrated into `state-v2` on first load, then deleted.                                                                 |
+| `state-v3`  | `${storagePrefix}-state-v3` | tweak-state          | Current unified envelope: tabs map + color + spacing + typography + size + panelPosition. Added `tabs` map for generic host-coined tabs.                     |
+| `state-v2`  | `${storagePrefix}-state-v2` | tweak-state (legacy) | Pre-v3 unified envelope (color + spacing + typography + size + panelPosition). Migrated into `state-v3` on first load, then deleted.                        |
+| `state-v1`  | `${storagePrefix}-state`    | tweak-state (legacy) | Pre-v2 flat-state format (Color-only). Migrated into `state-v3` on first load, then deleted.                                                                |
 | `open`      | `${storagePrefix}-open`     | panel                | Mirror of the panel's `open` boolean state (so the next mount opens directly into the user's last state without a post-render toggle dispatch).              |
 | `position`  | `${storagePrefix}-position` | panel                | Drag position (`{ top, right }`) so the panel reappears where the user left it.                                                                              |
-| `visible`   | `${storagePrefix}:visible`  | adapter              | Adapter-level visibility-intent flag, owned by the lazy-load gate (§5).                                                                                      |
+| `visible`   | `${storagePrefix}:visible`  | adapter              | Adapter-level visibility-intent flag, owned by the lazy-load gate (§6).                                                                                      |
 
 **Constraint — colon, not dash, for `visible`.** The `visible` key uses a
 `:` separator, every other derived key uses `-`. This is a historical artifact
@@ -143,6 +145,7 @@ do not "fix" it during refactors.
 the derivation produces:
 
 ```
+myapp-design-token-panel-state-v3
 myapp-design-token-panel-state-v2
 myapp-design-token-panel-state
 myapp-design-token-panel-open
@@ -151,192 +154,190 @@ myapp-design-token-panel:visible
 ```
 
 Unit tests in the package verify these derivations with literal-equality
-checks, and the v1 → v2 migration path at first-load is part of the test
-matrix.
+checks, and the v1 → v3 / v2 → v3 migration paths at first-load are part of
+the test matrix.
 
 ---
 
-## 3. Token manifest contract
+## 3. Tab / tier model contract
 
-The panel does not know which tokens a host site exposes. The host supplies
-its own token manifest, and the panel iterates it to render rows + apply
-overrides to `:root`.
+The panel is data-driven through a `tabs` array on `PanelConfig`. Every
+visible tab, including the color tab, is expressed as a `TabConfig` entry.
 
 ### 3.1 Public interfaces
 
-These shapes already exist in `src/tokens/manifest.ts`. The portable contract
-freezes them as the public surface:
+These shapes are defined in `src/tokens/tier-model.ts` and frozen as the
+public surface:
 
 ```ts
-export type TokenGroup = string;
+// Value-kind discriminated union — describes how a tier item is edited.
+export type TierValueKind =
+  | { kind: 'length'; min: number; max: number; step: number; unit: string }
+  | { kind: 'number'; min: number; max: number; step: number }
+  | { kind: 'select'; options: readonly string[] }
+  | { kind: 'text' }
+  | { kind: 'color' };
 
-export type TokenControl = 'slider' | 'select' | 'text';
+export interface PillSpec {
+  value: string;
+  customDefault: string;
+}
 
-export interface TokenDef {
-  /** Stable id used as the Record key in persisted state (e.g. `hsp-2xs`). */
+/** A single editable or reference token within a tier. */
+export interface TierItem {
+  /** Stable id used as the key in persisted state (e.g. `hsp-2xs`). */
   id: string;
   /** CSS custom property written to `:root` (e.g. `--myapp-spacing-hgap-2xs`). */
   cssVar: string;
   /** Display label shown in the panel row. */
   label: string;
-  /** Manifest group — tab components use this for section headers. */
-  group: TokenGroup;
+  /** Optional manifest group — tab components use this for section headers. */
+  group?: string;
   /** Default value as a CSS string (`0.125rem`, `12px`, etc.). */
   default: string;
-  /** Slider min, in `unit`. Unused when `readonly` or non-slider. */
-  min: number;
-  /** Slider max, in `unit`. */
-  max: number;
-  /** Slider step, in `unit`. */
-  step: number;
-  /** Unit suffix (`rem`, `px`, …). May be empty for unitless / read-only tokens. */
-  unit: string;
-  /** Read-only tokens are displayed but not editable. */
+  /** Discriminated union describing the control kind and its metadata. */
+  type: TierValueKind;
+  /** Opt-in pill toggle (e.g. for a `--radius-full` 9999px sentinel). */
+  pill?: PillSpec;
+  /** Read-only items are displayed but not editable. */
   readonly?: true;
-  /** Which control renders this token. Defaults to `"slider"` when absent. */
-  control?: TokenControl;
-  /** Select options — only used when `control === "select"`. */
-  options?: readonly string[];
-  /** Hide behind the per-tab Advanced `<details>` disclosure. */
-  advanced?: true;
-  /** Opt-in pill toggle (e.g. for `--radius-full` 9999px sentinel). */
-  pill?: { value: string; customDefault: string };
 }
 
-export interface TokenManifest {
-  spacing: readonly TokenDef[];
-  typography: readonly TokenDef[];
-  size: readonly TokenDef[];
-  color: readonly TokenDef[];
-  /** Optional spacing-tab group order. Falls back to the package-bundled `GROUP_ORDER`. */
-  spacingGroupOrder?: readonly string[];
-  /** Optional font-tab primary group order. Falls back to `FONT_GROUP_ORDER`. */
-  fontGroupOrder?: readonly string[];
-  /** Optional size-tab group order. Falls back to `SIZE_GROUP_ORDER`. */
-  sizeGroupOrder?: readonly string[];
-  /** Optional human-readable section titles keyed by group id. Falls back to `GROUP_TITLES`. */
-  groupTitles?: Readonly<Record<string, string>>;
+/** A named set of tier items that share a value kind. */
+export interface TierConfig {
+  /** Stable id for this tier (e.g. `base`, `scale`, `semantic`). */
+  id: string;
+  /** Display label for the tier heading. */
+  label: string;
+  /** Ordered list of items in this tier. All items MUST share the same kind. */
+  items: readonly TierItem[];
+  /**
+   * When set, this tier's items hold references. Each item's `default` is the
+   * id of an item in the tier whose id matches `referencesTier`. The apply
+   * pipeline emits `var(--target-cssvar)` for ref-tier items at apply time.
+   */
+  referencesTier?: string;
+}
+
+/**
+ * Color-cluster extras — the non-tier fields required for the color tab.
+ * Palette and semantic data move into the tier model as TierItems; ColorClusterExtras
+ * carries the structural metadata (base roles, scheme registry, panel settings).
+ */
+export interface ColorClusterExtras {
+  id: string;
+  label?: string;
+  baseRoles: Partial<Record<BaseRoleKey, string>>;
+  baseDefaults: Partial<Record<BaseRoleKey, number>>;
+  defaultShikiTheme: string;
+  colorSchemes: Record<string, ColorScheme>;
+  panelSettings: ClusterPanelSettings;
+}
+
+/** Top-level tab entry on PanelConfig.tabs. */
+export interface TabConfig {
+  /** Stable id. Reserved ids: 'color' (primary color tab), 'color-secondary'. */
+  id: string;
+  /** Display label rendered on the tab strip. */
+  label: string;
+  /** Ordered list of tiers within this tab. */
+  tiers: readonly TierConfig[];
+  /** Tier ids whose rows are hidden behind an Advanced <details> disclosure. */
+  advancedTiers?: readonly string[];
+  /**
+   * Required on color tabs (id 'color' / 'color-secondary'). Carries the
+   * structural metadata (base roles, scheme registry, panel settings) for the
+   * color tab's palette picker and semantic table. Absent on non-color tabs.
+   */
+  colorExtras?: ColorClusterExtras;
 }
 ```
 
-**Note on `TokenGroup`.** `TokenGroup` is `string` (not a closed union) so
-consumers can coin their own group ids without forking the package types.
-The four optional fields above (`spacingGroupOrder`, `fontGroupOrder`,
-`sizeGroupOrder`, `groupTitles`) let a host customise how groups within a
-tab are ordered and titled. Manifests that omit a field inherit the
-package-bundled default ordering for that tab. Consumers coining unknown
-group ids SHOULD populate `groupTitles` so the section headers carry
-human-readable labels — the tabs fall back to printing the raw group id
-otherwise.
+### 3.2 Reserved tab ids
 
-### 3.2 Helpers (re-exported from the package root)
+| Tab id             | Meaning                                            |
+| ------------------ | -------------------------------------------------- |
+| `color`            | Primary color tab — palette + base roles + semantics + scheme picker. Requires `colorExtras`. |
+| `color-secondary`  | Secondary color tab (same shape as `color`). Requires `colorExtras`. |
 
-These shipped helpers are part of the contract — consumers MAY call them when
-authoring their manifest:
+Any other id dispatches to `GenericTab`, which renders the tab's `tiers`
+using kind-appropriate editors.
 
-| Helper              | Signature                                                                   | Purpose                                                                                                                                    |
-| ------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `parseNumericValue` | `(value: string) => number \| null`                                         | Strip the leading numeric portion from a CSS length string (`"1.5rem"` → `1.5`). Returns `null` for unparseable input (e.g. `clamp(...)`). |
-| `formatValue`       | `(n: number, unit: string) => string`                                       | Re-format a numeric slider value back into the stored string form (`(1.5, "rem")` → `"1.5rem"`).                                           |
-| `buildTokenIndex`   | `(...groups: readonly (readonly TokenDef[])[]) => Record<string, TokenDef>` | Convenience: build a flat lookup keyed by `TokenDef.id`.                                                                                   |
+### 3.3 Validation rules
 
-### 3.3 Consumer responsibility
+`assertValidPanelConfig` enforces these structural rules at the host-adapter
+trust boundary:
 
-The host project provides the four manifest arrays:
+- `tabs` must be an array.
+- Every tab must have a unique, non-empty `id`.
+- Every tier within a tab must have a unique, non-empty `id`.
+- Every item within a tab must have a unique `id` across all tiers in that tab.
+- Every `item.cssVar` must start with `--` and be non-empty after the prefix.
+- All items within a single tier must share the same `kind` (mixed kinds in a
+  tier are rejected).
+- `referencesTier` must name an existing tier in the same tab, and the
+  referencing tier's kind must match the referenced tier's kind.
 
-- `SPACING_TOKENS` — passed as `tokens.spacing`.
-- `FONT_TOKENS` — passed as `tokens.typography`. (Note the slice / array name
-  divergence: the persist envelope's slice is `typography`; the array constant
-  uses the upstream `FONT_TOKENS` name. The panel reads them through
-  `panelConfig.tokens.typography`, so consumers can use either name in their
-  source — the field on `PanelConfig` is what the contract pins.)
-- `SIZE_TOKENS` — passed as `tokens.size`.
-- `COLOR_TOKENS` — passed as `tokens.color`. Cluster-driven hosts ship an
-  empty array (color is driven by the cluster, not by per-token rows); the
-  field is required by the manifest shape so a cluster-less host can
-  provide rows here.
+### 3.4 Apply behaviour for ref-tier items
 
-The panel package itself ships ZERO baked-in manifest data — the host is
-the source of truth. The package's role is consuming whatever the host
-hands in.
-
-### 3.4 Apply behaviour
-
-The panel's `applyTokenOverrides(tokens, overrides)` (already present in
-`state/tweak-state.ts`) walks each `TokenDef`:
-
-- If `readonly`, skip both directions (display-only).
-- If the override map has a non-empty string for `id`, write
-  `document.documentElement.style.setProperty(t.cssVar, value)`.
-- Otherwise, remove the inline property (so the stylesheet default wins).
+When a `TierConfig` carries `referencesTier`, the apply pipeline treats each
+item's persisted value as the id of an item in the referenced tier. The
+emitted CSS override is `var(--target-cssvar)` where `target-cssvar` is the
+`cssVar` of the matched item in the base tier.
 
 The contract requires this read/write target to be `:root`. No shadow DOM, no
 scoped overrides — this is intentional, the panel ships a global tweak.
 
+### 3.5 Helpers (re-exported from the package root)
+
+```ts
+export function isLengthKind(v: TierValueKind): boolean;
+export function isNumberKind(v: TierValueKind): boolean;
+export function isSelectKind(v: TierValueKind): boolean;
+export function isTextKind(v: TierValueKind): boolean;
+export function isColorKind(v: TierValueKind): boolean;
+```
+
 ---
 
-## 4. Color cluster contract
+## 4. Color tab contract
 
 The color tab — palette + base roles + semantic table + scheme list — is
-parameterised through a `ColorClusterConfig` so a portable host can ship a
-different palette size, a different CSS-var family, or a different semantic
-vocabulary without touching the panel internals.
+expressed as a `TabConfig` with `id: 'color'` and a `colorExtras` field.
+Palette and semantic tokens are `TierItem` entries inside the tab's `tiers`;
+the `colorExtras` object carries the structural metadata.
 
-### 4.1 `ColorClusterConfig` interface
+### 4.1 `ColorClusterExtras` interface
 
 ```ts
 export type BaseRoleKey = 'background' | 'foreground' | 'cursor' | 'selectionBg' | 'selectionFg';
 
-export interface ColorClusterConfig {
+export interface ColorClusterExtras {
   /** Stable id — used for debugging / logging only. */
   id: string;
   /**
-   * Optional human-visible label rendered in the Color tab section
-   * headings. When absent, the tab falls back to `id.toUpperCase()`.
+   * Optional human-visible label rendered in the Color tab section headings.
+   * When absent, the tab falls back to `id.toUpperCase()`.
    */
   label?: string;
-  /** Expected palette length. Drives init + persisted-state validation. */
-  paletteSize: number;
-  /**
-   * Palette-slot CSS var template. The panel substitutes `{n}` with the
-   * palette index at apply time.
-   *
-   *   paletteCssVarTemplate: '--myapp-p{n}'    →  --myapp-p0, --myapp-p1, ...
-   *   paletteCssVarTemplate: '--brand-pa{n}'   →  --brand-pa0, --brand-pa1, ...
-   *
-   * String form is mandatory because the cluster config must round-trip
-   * through Astro frontmatter as a JSON-serialised prop (§5).
-   */
-  paletteCssVarTemplate: string;
   /**
    * Map of base-role name → CSS custom-property name. A cluster MAY declare
    * a subset (an empty map is legal); only declared roles are written on apply.
    */
   baseRoles: Partial<Record<BaseRoleKey, string>>;
-  /** Semantic token name → default palette index. */
-  semanticDefaults: Record<string, number>;
-  /** Semantic token name → CSS custom-property name. */
-  semanticCssNames: Record<string, string>;
   /**
-   * Fallback palette indices when a scheme omits a base role. Same partial
-   * shape as `baseRoles`. `ColorTweakState` always carries all 5 numeric
-   * fields for envelope round-trip, but inert roles emit zero CSS writes.
+   * Fallback palette indices when a scheme omits a base role.
    */
   baseDefaults: Partial<Record<BaseRoleKey, number>>;
   /** Fallback `shikiTheme` when a scheme lacks one. (Inert when no shiki integration.) */
   defaultShikiTheme: string;
   /**
    * Color-scheme registry. Keyed by display name (`"Default Dark"`, etc.).
-   * Each entry mirrors the existing `ColorScheme` shape from
-   * `config/color-schemes.ts` (palette: 16-tuple, optional semantic overrides,
-   * etc.). The portable contract requires this to be a plain object — no
-   * dynamic loaders. Pass `{}` for clusters that don't use schemes.
+   * Pass `{}` for clusters that don't use schemes.
    */
   colorSchemes: Record<string, ColorScheme>;
   /**
-   * Panel-level scheme settings. Carried inside the cluster (rather than as a
-   * separate import) so `getActiveSchemeName` / `initColorFromScheme` can
-   * read everything from the cluster argument.
+   * Panel-level scheme settings. Drives `getActiveSchemeName` / `initColorFromScheme`.
    */
   panelSettings: {
     /** Scheme name to seed state from when `colorMode` is `false`. */
@@ -351,14 +352,7 @@ export interface ColorClusterConfig {
 }
 ```
 
-> **Public alias** — the runtime type that ships in the package source is
-> `ColorClusterDataConfig` (in `src/config/`). `ColorClusterConfig` is
-> re-exported from the package root as the public-facing alias for this
-> same shape:
-> `import type { ColorClusterConfig } from '@takazudo/zudo-design-token-panel'`.
-> The two names are interchangeable.
-
-`ColorScheme` itself stays the same shape used today (`config/color-schemes.ts`):
+`ColorScheme` shape:
 
 ```ts
 export type ColorRef = number | string;
@@ -369,145 +363,99 @@ export interface ColorScheme {
   cursor: ColorRef;
   selectionBg: ColorRef;
   selectionFg: ColorRef;
-  palette: readonly string[]; // length must match cluster.paletteSize
+  palette: readonly string[]; // length must match the palette tier's item count
   shikiTheme: string;
-  semantic?: Record<string, ColorRef>; // keys must be a subset of cluster.semanticDefaults
+  semantic?: Record<string, ColorRef>;
 }
 ```
 
+> **Public alias** — the runtime type in `src/config/` is
+> `ColorClusterDataConfig`. `ColorClusterConfig` is re-exported from the
+> package root as the public-facing alias for the same shape:
+> `import type { ColorClusterConfig } from '@takazudo/zudo-design-token-panel'`.
+
 ### 4.2 JSON-serializable constraint
 
-**Every field on `ColorClusterConfig` (and on each `ColorScheme` it nests)
-MUST be JSON-serializable.** No function fields, no class instances, no
-`Symbol` keys, no `undefined` where `null` is meant. This is enforced by Astro
-frontmatter → component prop handoff: the host adapter (§5) stringifies the
-config into the rendered island and parses it back at runtime. Function
-fields silently disappear under that round-trip and would surface as cryptic
-runtime errors.
+**Every field on the color `TabConfig` (including `colorExtras` and every
+`ColorScheme` it nests) MUST be JSON-serializable.** No function fields, no
+class instances, no `Symbol` keys, no `undefined` where `null` is meant. This
+is enforced by the Astro frontmatter → component prop handoff (§6).
 
-The palette CSS-var name is therefore expressed as a string template, not a
-function:
-
-```ts
-// wrong (function — silently dropped by JSON.stringify)
-// paletteCssVar: (i) => `--myapp-p${i}`,
-
-// right (string template, JSON-serializable)
-paletteCssVarTemplate: '--myapp-p{n}',
-```
-
-The panel resolves `{n}` to the palette index at every call site that
-previously called `paletteCssVar(i)` (palette apply, clear-applied, scheme
-diff). The substitution is plain string replacement — no template-engine
-features. `{n}` is the only placeholder; literal `{n}` text in an output var
-name is not a use case the contract supports.
+Palette CSS-var names are therefore expressed as `TierItem.cssVar` strings, not
+as function templates. Each palette slot is an explicit `TierItem`.
 
 ### 4.3 Multi-cluster support
 
-The package supports a primary cluster and an optional secondary cluster.
-`PanelConfig.colorCluster` is the primary cluster (always required).
-`PanelConfig.secondaryColorCluster` is the secondary cluster slot —
-host-driven, three states:
+The package supports a primary color cluster and an optional secondary cluster.
 
-| `secondaryColorCluster` value | Meaning | Effect |
-|---|---|---|
-| `undefined` (field omitted) | Secondary section hidden | The Color tab does not render a secondary palette / semantic section. |
-| `null` | Explicit opt-out | Same render-side effect as `undefined`; in addition, apply / clear / load skip every secondary code path. The persist envelope's secondary-cluster slice is NOT hydrated. |
-| `ColorClusterDataConfig` object | Host-supplied secondary cluster | Same render / apply / clear contract as the primary cluster, scoped to the supplied palette + semantic vocabulary. |
+| Tab id             | Meaning                                             |
+| ------------------ | --------------------------------------------------- |
+| `color`            | Primary cluster (required for color support).       |
+| `color-secondary`  | Secondary cluster (optional — omit the tab to hide the secondary section). |
 
-The resolution is performed through the `resolveSecondaryColorCluster()`
-helper exported from `config/panel-config.ts`. Call sites (color-tab render,
-apply-modal flatten, tweak-state apply / clear / load) MUST read through that
-helper rather than the raw field so every code path treats the three states
-consistently.
-
-The persist envelope's secondary-cluster slice (the slot name is historical
-and remains stable for storage continuity) is the on-disk shape for the
-secondary cluster.
+Both tabs follow the same render / apply / clear contract, scoped to their
+respective palette and semantic vocabulary.
 
 ### 4.4 Host-supplied scheme presets — `colorPresets`
 
-`PanelConfig.colorPresets` is the optional, host-supplied preset map
-surfaced by the Color tab "Scheme..." dropdown. It defaults to `{}` and
-the package itself ships zero presets — hosts that want a curated preset
-library (Dracula / Solarized / Tokyo Night / etc.) ship it themselves so
-consumers do not pay for it by default.
+`PanelConfig.colorPresets` is the optional, host-supplied preset map surfaced
+by the Color tab "Scheme..." dropdown. It defaults to `{}` and the package
+itself ships zero presets.
 
-| `colorPresets` value | Meaning | Effect |
-|---|---|---|
-| `undefined` (field omitted) | Default | Equivalent to `{}` — only `colorCluster.colorSchemes` populates the dropdown. |
-| `{}` | Explicit empty | Same as `undefined`. |
-| `Record<string, ColorScheme>` | Host-supplied | Each key surfaces as a `<option>` below the cluster's bundled schemes. Sorted alphabetically. |
+| `colorPresets` value           | Meaning         | Effect                                                                |
+| ------------------------------ | --------------- | --------------------------------------------------------------------- |
+| `undefined` (field omitted)    | Default         | Equivalent to `{}` — only `colorExtras.colorSchemes` populates the dropdown. |
+| `{}`                           | Explicit empty  | Same as `undefined`.                                                  |
+| `Record<string, ColorScheme>`  | Host-supplied   | Each key surfaces as a `<option>` below the cluster's bundled schemes. Sorted alphabetically. |
 
 **Merge order in the dropdown:**
 
 ```
 <option disabled>Scheme...</option>
-... cluster.colorSchemes (insertion order) ...
+... colorExtras.colorSchemes (insertion order) ...
 <hr />
 ... colorPresets (alphabetical) ...
 ```
 
 **Key collision** — if a `colorPresets` entry shares a name with one in
-`colorCluster.colorSchemes`, the cluster's bundled scheme wins for the
-`handleLoadPreset` lookup. The bundled cluster scheme is the cluster
-owner's documented default (typically `"Default"` / `"Default Light"` /
-`"Default Dark"`) and overrides the optional host preset list. The
-dropdown still renders both `<option>` entries — visually deduplicated
-display is out of scope for the Color tab and would require a bespoke
-`<select>` widget; a duplicate name is the host's signal to rename one of
-its own preset keys.
+`colorExtras.colorSchemes`, the bundled scheme wins for the
+`handleLoadPreset` lookup.
 
-**JSON-serializable** — every `ColorScheme` MUST satisfy the same
-JSON-serializable constraint as the cluster (§4.2). The map is read at
-render time through `getPanelConfig().colorPresets`, so the standard
-Astro frontmatter → island handoff applies.
-
-**Lazy attachment via `setPanelColorPresets()`** — hosts that ship a
-large preset library can omit `colorPresets` from the SSR config blob and
-call `setPanelColorPresets(presets)` from a client-side dynamic import.
-This keeps the preset payload out of the inline
-`<script type="application/json">` and lets the bundler emit it as a
-separate JS chunk. The trailing call wins on conflict (no throw, unlike
-`configurePanel`); a host that pre-calls `setPanelColorPresets` before
-`configurePanel` is serviced via a holding slot inside `panel-config.ts`.
+**Lazy attachment via `setPanelColorPresets()`** — hosts that ship a large
+preset library can omit `colorPresets` from the SSR config blob and call
+`setPanelColorPresets(presets)` from a client-side dynamic import.
 
 ### 4.5 Apply behaviour
 
-The contract follows `applyColorState(state, cluster)` from
-`state/tweak-state.ts`:
+The apply pipeline for color tabs:
 
-- For each palette slot `i` in `0..cluster.paletteSize`, write
-  `cluster.paletteCssVarTemplate.replace('{n}', String(i))` ← `palette[i]`.
-- For each `(roleKey, cssName)` in `cluster.baseRoles`, write
-  `cssName` ← `palette[state[roleKey]]`. Roles absent from `baseRoles` are
-  not written.
-- For each `(semanticKey, cssName)` in `cluster.semanticCssNames`, resolve
-  `state.semanticMappings[semanticKey] ?? cluster.semanticDefaults[semanticKey]`
-  through `resolveMapping` (handles `"bg"` / `"fg"` shorthands) and write
-  `cssName` ← resolved hex.
-- `clearAppliedStyles(clusters)` removes every property the cluster could
-  have set (palette + base roles + semantic). Default wipes both primary and
-  any optional secondary cluster.
+- For each palette `TierItem` in the palette tier, write
+  `item.cssVar` ← `palette[i]` from the active scheme / user override.
+- For each `(roleKey, cssName)` in `colorExtras.baseRoles`, write
+  `cssName` ← `palette[state[roleKey]]`.
+- For each semantic `TierItem`, resolve
+  `state.semanticMappings[key] ?? colorExtras.semanticDefaults[key]`
+  through `resolveMapping` and write `item.cssVar` ← resolved hex.
+- `clearAppliedStyles()` removes every property the cluster could have set.
 
-### 4.6 `applyEndpoint` and `applyRouting` — panel config fields
+### 4.6 `applyEndpoint` and `applyRouting`
 
 The Apply modal's button is gated on two `PanelConfig` fields:
 
-| Field | Type | Purpose |
-|---|---|---|
-| `applyEndpoint` | `string` | URL the Apply button POSTs the flat cssVar diff to. The host's dev-API handler routes the diff to the bin. |
-| `applyRouting` | `Record<string, string>` | Map of CSS-var prefix family (without leading `--` and trailing `-`) → repo-relative source-file path. Passed to the bin via `--routing <json>` flag. |
+| Field          | Type                    | Purpose                                                                 |
+| -------------- | ----------------------- | ----------------------------------------------------------------------- |
+| `applyEndpoint` | `string`               | URL the Apply button POSTs the flat cssVar diff to.                     |
+| `applyRouting` | `Record<string, string>` | CSS-var prefix family → repo-relative source-file path.                |
 
-When both are set (and the routing map is non-empty), the Apply button is enabled. When either is missing, the modal still mounts so the user can preview the diff, but the action stays disabled with a tooltip.
-
-**Note:** Routing configuration is documented under §5 Apply pipeline (see §5.4) as the canonical location. The bin and the panel UI both read the same JSON file to eliminate drift hazards.
+When both are set (and the routing map is non-empty), the Apply button is
+enabled. When either is missing, the modal still mounts so the user can
+preview the diff, but the action stays disabled with a tooltip.
 
 ---
 
 ## 5. Apply pipeline
 
-The **bin server** is the reference implementation for the apply contract. When a user clicks "Apply" in the panel UI, it POSTs a flat CSS-var diff to the host's endpoint, which routes the diff to the bin, which atomically rewrites source files.
+The **bin server** is the reference implementation for the apply contract.
 
 ### 5.1 Request & response envelopes
 
@@ -527,8 +475,6 @@ Content-Type: application/json
 }
 ```
 
-The `tokens` field is mandatory and must be a JSON object with string keys (CSS custom property names, prefixed with `--`) and string values (CSS strings, no validation at the panel level).
-
 **Response 200 (success)**
 
 ```json
@@ -547,10 +493,6 @@ The `tokens` field is mandatory and must be a JSON object with string keys (CSS 
 }
 ```
 
-- `ok: true` marks success.
-- `updated[]` per-file results: `file` is repo-relative, `changed[]` lists tokens that were rewritten, `unchanged[]` lists tokens found in the file but not in the diff, `unknown[]` lists tokens in the diff that don't exist in the file's `:root` block.
-- `unknownCssVars` and `unchangedCssVars` are flattened across all files for UI feedback.
-
 **Response 400 (bad request)**
 
 ```json
@@ -561,40 +503,25 @@ The `tokens` field is mandatory and must be a JSON object with string keys (CSS 
 }
 ```
 
-Returned for:
-- Malformed JSON: `"Invalid JSON in request body"`
-- Body not an object: `"Request body must be a JSON object"`
-- Missing `tokens` field or not an object: `"tokens must be a JSON object"`
-- Empty tokens map: `"tokens must contain at least one entry"`
-- Invalid token names (no `--` prefix, spaces, slashes, etc.): `"..."` with optional `rejected[]` array
-- Unsupported CSS-var prefix (no route configured): `"Unsupported cssVar prefix"` with `rejected[]` listing the offending prefixes
-- Path escape attempt (`../../etc/passwd`): `"Path not allowed: <relativePath>"`
+Returned for: malformed JSON, missing `tokens` field, empty tokens map,
+invalid token names (no `--` prefix, spaces, slashes), unsupported CSS-var
+prefix, path escape attempts.
 
 **Response 403 (Forbidden)**
 
 ```json
-{
-  "ok": false,
-  "error": "Origin not allowed"
-}
+{ "ok": false, "error": "Origin not allowed" }
 ```
-
-No `Access-Control-Allow-Origin` header. The bin rejects cross-origin requests.
 
 **Response 405 (Method not allowed)**
 
-Empty body, `Allow: POST, OPTIONS` header. The endpoint accepts only POST and OPTIONS.
+Empty body, `Allow: POST, OPTIONS` header.
 
 **Response 409 (Conflict)**
 
 ```json
-{
-  "ok": false,
-  "error": "No top-level :root { ... } block in <file>"
-}
+{ "ok": false, "error": "No top-level :root { ... } block in <file>" }
 ```
-
-The target CSS file has no `:root` block. The bin cannot apply token overrides without one.
 
 **Response 500 (Internal server error)**
 
@@ -607,45 +534,46 @@ The target CSS file has no `:root` block. The bin cannot apply token overrides w
 }
 ```
 
-Returned for:
-- File read/parse failure: `"Failed to read or parse source file"`
-- Write failure with rollback: `"Failed to write file <file>; previously-written files were restored."` + `failedFile`
-- Rollback failure: `"Failed to write file <file>; rollback also failed for N file(s) — disk state is inconsistent. Inspect the listed files manually."` + `failedFile` + `restoreFailures[]`
-
 ### 5.2 Reference implementation
 
-The bin server (`src/bin/server.ts`) inside this package is the reference for this contract. It reads `--routing <json>` at startup and exposes a Fetch API handler (`createApplyHandler` from `src/server/create-apply-handler.ts`).
-
-The handler validates every token name, routes by prefix, resolves absolute paths with sandbox checks, computes rewrites in memory, writes atomically, and responds with the exact shapes pinned above. Read the handler source as the spec.
+The bin server (`src/bin/server.ts`) is the reference for this contract. It
+reads `--routing <json>` at startup and exposes a Fetch API handler
+(`createApplyHandler` from `src/server/create-apply-handler.ts`). Read the
+handler source as the spec.
 
 ### 5.3 Implementing the contract natively (advanced)
 
-Hosts physically unable to spawn Node.js can implement the apply contract natively. The implementation must:
+Hosts physically unable to spawn Node.js must:
 
-1. **Validate token names** — reject names without `--` prefix, with spaces, slashes, or special characters.
-2. **Sanitize and route** — split each CSS-var prefix, look up the target file in the routing map, reject prefixes not in the map.
-3. **Path safety** — resolve each target path to an absolute path, verify it sits within `writeRoot`, reject path-escape attempts.
-4. **Read & parse** — load each CSS file, find the `:root { ... }` block (fail 409 if missing), parse the existing variable values.
-5. **Compute rewrite** — for each token in the diff, decide which are already present (`unchanged`), which are new (`unknown`), which are being changed (`changed`). Build the updated `:root` block.
-6. **Atomic write** — keep the original file content in memory. Write the updated content to a temp file. Atomically rename temp to target. If any write fails, restore every file written so far from the in-memory original.
-7. **Respond** — return the exact JSON envelope shapes pinned in §5.1.
-
-The panel package's source code (`src/apply/apply-token-overrides.ts`, `src/server/create-apply-handler.ts`, `src/server/path-safety.ts`) documents the exact algorithm. Native implementations should mirror it.
+1. Validate token names — reject names without `--` prefix, with spaces or slashes.
+2. Sanitize and route — split each CSS-var prefix, look up the target file in
+   the routing map, reject prefixes not in the map.
+3. Path safety — resolve each target path to an absolute path, verify it sits
+   within `writeRoot`, reject path-escape attempts.
+4. Read & parse — load each CSS file, find the `:root { ... }` block (fail
+   409 if missing), parse the existing variable values.
+5. Compute rewrite — compute `changed` / `unchanged` / `unknown`, build the
+   updated `:root` block.
+6. Atomic write — keep the original file content in memory. Write updated
+   content to a temp file. Atomically rename temp to target. If any write
+   fails, restore every previously-written file.
+7. Respond — return the exact JSON envelope shapes pinned in §5.1.
 
 ### 5.4 Routing config — single source of truth
 
-Both the **panel UI** (`PanelConfig.applyRouting`) and the **bin** (`--routing` flag) read the same JSON file. The map is keyed by the CSS-var prefix family (without leading `--` and trailing `-`); the value is a repo-relative path to the source file the bin rewrites. See README §3.2 for invocation patterns.
+Both the **panel UI** (`PanelConfig.applyRouting`) and the **bin** (`--routing`
+flag) read the same JSON file. The map is keyed by the CSS-var prefix family
+(without leading `--` and trailing `-`); the value is a repo-relative path to
+the source file the bin rewrites.
 
 ---
 
 ## 6. Astro export contract
 
-The package exposes a second entry point, `./astro`, for Astro projects. It
-ships a single component:
+The package exposes a second entry point, `./astro`, for Astro projects.
 
 ```astro
 ---
-// astro frontmatter
 import { DesignTokenPanelHost } from '@takazudo/zudo-design-token-panel/astro';
 import { panelConfig } from '~/lib/design-token-panel-config';
 ---
@@ -657,19 +585,11 @@ import { panelConfig } from '~/lib/design-token-panel-config';
 
 The component accepts the full `PanelConfig` from §1 as its `config` prop.
 Astro frontmatter passes the value at SSR time; the adapter serialises it into
-the rendered island (typically as a `JSON.stringify(config)` payload on a
-`data-*` attribute or inline `<script type="application/json">`) and reads it
-back at runtime to call `configurePanel(config)` before importing the panel
-module.
+the rendered island and reads it back at runtime to call `configurePanel(config)`.
 
-This is the reason the JSON-serializable constraint in §4.2 is non-negotiable:
-Astro frontmatter cannot send a function across the SSR boundary.
+This is the reason the JSON-serializable constraint in §4.2 is non-negotiable.
 
 ### 6.2 Lazy-load gate
-
-The host script's eager-import gate is the package's mechanism for
-keeping the panel out of the initial bundle while still re-applying
-persisted overrides on hard reload:
 
 ```ts
 if (wasVisible() || hasPersistedOverrides()) {
@@ -677,62 +597,26 @@ if (wasVisible() || hasPersistedOverrides()) {
 }
 ```
 
-- `wasVisible()` reads `${storagePrefix}:visible` (the colon-form key from
-  §2). Returns `true` when the user had the panel open at last unload.
-- `hasPersistedOverrides()` probes `${storagePrefix}-state-v2`. Returns
-  `true` when the user has any saved tweaks — overrides MUST be re-applied
-  to `:root` even when the panel itself stays hidden, otherwise hard-nav
-  produces a FOUT.
-
-The gate's contract:
-
-- When neither probe is true, the adapter stays out of the initial bundle.
-- When either probe is true, the adapter is dynamically imported. Its
-  module-init side-effects re-apply persisted overrides synchronously and,
-  if `wasVisible()` was true, re-mount the Preact shell.
-- The console API (`window[consoleNamespace].showDesignPanel`,
-  `hideDesignPanel`, `toggleDesignPanel`) is installed eagerly — calling
-  them is what triggers `loadPanelModule()` for cold-start users.
-
-The gate's two probes use the storage keys derived from `panelConfig.storagePrefix`,
-not hardcoded literals. The host script (which ships from the package's
-`./astro` sub-export) reads `panelConfig.storagePrefix` and derives both
-probe keys from it.
+- `wasVisible()` reads `${storagePrefix}:visible` (colon-form key from §2).
+- `hasPersistedOverrides()` probes `${storagePrefix}-state-v3`. Returns `true`
+  when the user has any saved tweaks — overrides MUST be re-applied to `:root`
+  even when the panel itself stays hidden, otherwise hard-nav produces a FOUT.
 
 ### 6.3 Astro view-transition lifecycle
 
 The adapter's existing `astro:before-swap` and `astro:page-load` listeners
-stay. They are Astro-specific and only register when `document` is available.
-The adapter MUST continue to:
+stay. They are Astro-specific and only register when `document` is available:
 
-- `astro:before-swap` → unmount the Preact tree (`render(null, root)`),
-  remove the host node, and snapshot/restore visibility intent so the
-  remount decision survives the body swap.
-- `astro:page-load` → re-apply persisted overrides + re-materialise the
-  shell when either gate probe is true.
-
-A non-Astro host (Vite-only) gets a degraded but functional adapter: the
-soft-nav lifecycle hooks are no-ops, but the storage / mount / apply paths
-all work. The `./astro` sub-export is the only place that imports anything
-Astro-flavoured.
+- `astro:before-swap` → unmount the Preact tree, remove the host node, snapshot/restore visibility intent.
+- `astro:page-load` → re-apply persisted overrides + re-materialise the shell when either gate probe is true.
 
 ### 6.4 Console API
 
-`configurePanel.consoleNamespace` controls the global object the package
-installs. Today's installation:
-
 ```ts
-window[consoleNamespace].showDesignPanel = () => Promise<void>;
-window[consoleNamespace].hideDesignPanel = () => Promise<void>;
+window[consoleNamespace].showDesignPanel  = () => Promise<void>;
+window[consoleNamespace].hideDesignPanel  = () => Promise<void>;
 window[consoleNamespace].toggleDesignPanel = () => Promise<void>;
 ```
-
-Each helper lazy-imports the adapter module and forwards to its
-corresponding non-async public function (`showDesignTokenPanel`,
-`hideDesignTokenPanel`, `toggleDesignPanel`). The host script preserves
-co-existing namespace fields (e.g. `window.myapp.someOtherDevTool` from a
-sibling package); installation MUST merge into the existing namespace,
-not overwrite it.
 
 ---
 
@@ -740,88 +624,50 @@ not overwrite it.
 
 ### 7.1 Panel-private namespace
 
-The panel ships its own bundled CSS (no Tailwind dependency in the
-consumer). The bundled stylesheets MUST declare every panel-chrome
-variable under a panel-private namespace, scoped to the panel shell +
-modal class prefix:
+The panel ships its own bundled CSS. All panel-chrome variables use the
+`--tokentweak-*` prefix, scoped to the panel shell + modal class prefix:
 
 ```css
 :where(.tokenpanel-shell, [data-design-token-panel-modal]) {
   --tokentweak-pad-md: …;
   --tokentweak-gap-sm: …;
-  --tokentweak-text-body: …;
-  --radius-tokentweak: …;
+  --tokentweak-color-fg: var(--color-fg, oklch(87% 0.01 60));
   /* …every panel-chrome value lives here */
 }
 ```
 
-- **Naming:** `--tokentweak-*` is the only allowed prefix for panel-private
-  vars. No consumer-namespaced identifiers may appear in the panel chrome.
-  `panel.css` MUST read only `--tokentweak-*` — it MUST NOT read host
-  vars like `--color-*` or `--font-mono` directly. `panel-tokens.css` is
-  the single indirection point where host vars are consumed (see §7.4).
-- **Files:** `panel.css` (chrome layout / typography / controls) +
-  `panel-tokens.css` (the `--tokentweak-*` declarations). Both ship from
-  the package, combined into a single `dist/design-token-panel.css` by the
-  Vite library build. Vite library mode strips the source `import './styles/panel.css'`
-  from the emitted JS, so the consumer MUST import the combined stylesheet
-  exactly once on their static module graph (typically next to where they
-  mount `<DesignTokenPanelHost>`):
+- **No Tailwind dependency.** The package builds and runs without Tailwind in
+  the consumer.
+- **Consumer import required.** The `./styles` sub-export must be imported
+  exactly once from the consumer's static module graph:
 
   ```ts
   import '@takazudo/zudo-design-token-panel/styles';
   ```
 
-  The `./styles` sub-export (alias `./styles.css`) resolves to
-  `dist/design-token-panel.css`. Skipping the import leaves the panel JS
-  fully functional but every chrome rule missing — `.tokenpanel-shell`
-  renders with the host page's transparent background and default font, so
-  the panel appears invisible. See README §3.4 / §11 for the full rationale.
-- **No Tailwind dependency.** The package MUST build and run without
-  Tailwind in the consumer. The panel JSX uses hand-authored CSS classes
-  backed by `--tokentweak-*` vars exclusively.
-
 ### 7.2 Consumer's editable tokens
 
-The tokens the panel writes to (the `cssVar` field on each `TokenDef`,
-plus the cluster's `paletteCssVarTemplate`, base-role names, and
-semantic-CSS names) are entirely consumer-controlled. Hosts pick names
-like `--myapp-spacing-hgap-md`, `--myapp-p0`, `--myapp-semantic-bg`
-themselves; the panel just writes them through `setProperty` on `:root`.
+The tokens the panel writes to (the `cssVar` field on each `TierItem`) are
+entirely consumer-controlled. The package just writes them through `setProperty`
+on `:root`.
 
-The package contract is therefore:
-
-- **Read:** the panel never reads consumer CSS variables (it carries its
-  own defaults via `TokenDef.default`).
-- **Write:** the panel only writes the consumer-supplied `cssVar` strings,
-  one per overridden token, plus the cluster's palette / base / semantic
-  vars on apply.
+- **Read:** the panel never reads consumer CSS variables (it carries its own
+  defaults via `TierItem.default`).
+- **Write:** the panel only writes the consumer-supplied `cssVar` strings.
 
 ### 7.3 Modal class prefix + `data-design-token-panel-modal`
 
-`configurePanel.modalClassPrefix` controls the BEM root for every modal
-the panel owns (export, import, apply). The host picks any string and
-the panel emits classes like `${modalClassPrefix}__overlay`,
-`${modalClassPrefix}__panel`, `${modalClassPrefix}__header`, etc.
-
-**The bundled CSS keys on the data attribute, NOT on the class prefix.**
-Every modal `<dialog>` element emits `data-design-token-panel-modal=""`
-(with `data-design-token-panel-modal-variant` set to `"apply"` /
-`"export"` / `"import"`). `panel.css` anchors all modal chrome rules on
-`[data-design-token-panel-modal]` and matches sub-elements via
-`[class*='__title']`-style attribute selectors. This means a host that
-customises `modalClassPrefix` still inherits the bundled chrome —
-selecting on the literal class prefix would leave any non-default host
-with unstyled modals.
-
-The class prefix remains useful as a higher-specificity hook for hosts
-that want to layer custom rules on top of the bundled chrome.
+`PanelConfig.modalClassPrefix` controls the BEM root for every modal the
+panel owns. **The bundled CSS keys on the data attribute, NOT on the class
+prefix.** Every modal `<dialog>` element emits
+`data-design-token-panel-modal=""`. `panel.css` anchors all modal chrome
+rules on `[data-design-token-panel-modal]`.
 
 ### 7.4 Host-CSS-var indirection ladder for chrome colors
 
 The panel-chrome color tokens are declared in `panel-tokens.css` as a
-`var(--host, fallback)` ladder so a host that does not define
-`--color-*` / `--font-mono` still gets a sane paint:
+`var(--host, fallback)` ladder so a host that does not define `--color-*`
+tokens still gets a sane paint:
 
 ```css
 :where(.tokenpanel-shell, [data-design-token-panel-modal]) {
@@ -840,33 +686,19 @@ The panel-chrome color tokens are declared in `panel-tokens.css` as a
 }
 ```
 
-- **Public surface:** `--tokentweak-color-fg`, `--tokentweak-color-bg`,
-  `--tokentweak-color-muted`, `--tokentweak-color-surface`,
-  `--tokentweak-color-accent`, `--tokentweak-color-accent-hover`,
-  `--tokentweak-color-code-bg`, `--tokentweak-color-code-fg`,
-  `--tokentweak-color-success`, `--tokentweak-color-danger`,
-  `--tokentweak-color-warning`, `--tokentweak-font-mono`. These are
-  panel-private variables that hosts MAY override on the same scope to
-  retheme the panel chrome without touching their own `--color-*` theme.
-- **Override layers:** a host can override at the `--color-*` level
-  (cascades into the panel via the fallback ladder) or at the
-  `--tokentweak-color-*` level (panel-only, bypasses the host theme).
-- **Fallback values** are picked to be a sensible neutral dark theme so
-  the panel paints readably without any host theme declared.
-- **Invariant:** `panel.css` MUST NOT read `--color-*` or `--font-mono`
-  directly. The only legal site for those reads is the indirection
-  ladder in `panel-tokens.css`. Acceptance check:
+**Invariant:** `panel.css` MUST NOT read `--color-*` or `--font-mono`
+directly. The only legal site for those reads is the indirection ladder in
+`panel-tokens.css`. Acceptance check:
 
-  ```bash
-  grep -n 'var(--color-' src/styles/panel.css   # → 0
-  grep -n 'var(--font-mono' src/styles/panel.css # → 0
-  ```
+```bash
+grep -n 'var(--color-' src/styles/panel.css   # → 0
+grep -n 'var(--font-mono' src/styles/panel.css # → 0
+```
 
 ### 7.5 Host-adapter side-effect import (paired-unit obligation)
 
-Alongside the `./styles` import (§6.1), the consumer MUST also own a side-effect import for the host-adapter, paired with `<DesignTokenPanelHost>`. The `<DesignTokenPanelHost>` component AND a sibling `<script>` block loading `@takazudo/zudo-design-token-panel/astro/host-adapter` are a single unit — both lines are required, always together.
-
-Required wiring shape (mirrors README §3.2):
+Alongside the `./styles` import, the consumer MUST own a side-effect import
+for the host-adapter, paired with `<DesignTokenPanelHost>`:
 
 ```astro
 <DesignTokenPanelHost config={myPanelConfig} />
@@ -876,107 +708,123 @@ Required wiring shape (mirrors README §3.2):
 </script>
 ```
 
-- **Why a dynamic `void import('...')` rather than a top-level `import '...';`?** Both forms work — the package's `package.json` lists `dist/astro/host-adapter.js` in `sideEffects` so Rollup preserves consumer-side imports of the host-adapter regardless of whether the result is used. The dynamic form is the recommended canonical wiring because it loads the host-adapter chunk off the critical page-load path (mirrors the existing color-presets lazy-loader pattern) and is robust to future packaging changes that could miss-configure `sideEffects`.
-- **Why not the `./styles`-style "single import per page" pattern?** Browser caching makes the duplicated `import()` cheap (one network fetch per session), and the wrapper component is the single authoritative mount point so duplicating the import there is a non-issue.
-- **Skipping this import** leaves the JSON config payload from `<DesignTokenPanelHost>` on the page with no JS to read it, so calling `window.<consoleNamespace>.showDesignPanel()` throws `ReferenceError`. Symptom in deployed builds: silent failure, no panel chrome ever paints.
-
-The `./astro/host-adapter` sub-export points at the built `dist/astro/host-adapter.js` file plus its `.d.ts` types. Acceptance check (vitest):
-
-```bash
-pnpm --filter @takazudo/zudo-design-token-panel test -- package-exports
-```
-
-This test pins the exports-map shape against accidental edits — see `src/__tests__/package-exports.test.ts`.
-
 ---
 
 ## 8. Storage-key continuity & migration paths
 
 ### 8.1 No default `PanelConfig`
 
-The package ships **zero** baked-in identifiers — no default storage prefix,
-no default console namespace, no default palette template, no default token
-manifest. The host MUST configure the panel explicitly via
-`<DesignTokenPanelHost config={...} />` or a direct `configurePanel({...})`
-call. A package import without an explicit configure-call surfaces a clear
-runtime error that names the missing field.
+The package ships **zero** baked-in identifiers. The host MUST configure the
+panel explicitly. A package import without an explicit configure-call surfaces
+a clear runtime error.
 
 ### 8.2 Storage-key derivation is literal
 
-For any host's chosen `storagePrefix`, the derivation produces
-deterministic, literal-equal storage keys (see §2). Unit tests pin the
-five derived keys to literal strings so a future refactor cannot silently
-break the v1 → v2 migration path.
+For any host's chosen `storagePrefix`, the derivation produces deterministic,
+literal-equal storage keys (see §2). Unit tests pin the derived keys to
+literal strings.
 
-For example, with `storagePrefix: 'myapp-design-token-panel'`:
+### 8.3 v1 / v2 → v3 in-place migration
 
+On first load, `loadPersistedState` migrates forward through the chain:
+
+| Source key              | Target key               | Action after migration |
+| ----------------------- | ------------------------ | ---------------------- |
+| `${storagePrefix}-state` (v1)    | `${storagePrefix}-state-v3` | v1 key deleted |
+| `${storagePrefix}-state-v2` (v2) | `${storagePrefix}-state-v3` | v2 key deleted |
+
+A user who last opened the panel before v3 landed gets their old color/spacing
+tweaks lifted into the new envelope on first load.
+
+The v3 envelope adds a `tabs` map alongside the existing per-category slices:
+
+```ts
+// Simplified v3 localStorage envelope shape
+{
+  // legacy category slices — preserved for round-trip compatibility
+  color:      { ... },
+  spacing:    { ... },
+  typography: { ... },
+  size:       { ... },
+  // v3 extension — generic tab overrides keyed by tab id
+  tabs: {
+    "my-custom-tab": { "item-id-1": "some-value", ... },
+    ...
+  }
+}
 ```
-myapp-design-token-panel-state-v2
-myapp-design-token-panel-state
-myapp-design-token-panel-open
-myapp-design-token-panel-position
-myapp-design-token-panel:visible
-```
-
-### 8.3 v1 → v2 in-place migration
-
-The v1 → v2 migration in `loadPersistedState` (drop the legacy flat-state
-key, re-write the unified envelope) is performed in-place per
-`storagePrefix`. A user who last opened the panel before v2 landed gets
-their old color tweaks lifted into the new envelope on first load:
-
-- v1 read key: `${storagePrefix}-state`
-- v2 write key: `${storagePrefix}-state-v2`
-
-After the rewrite, the v1 key is deleted.
 
 ### 8.4 Typography-id rename map
 
-The typography-id rename applied during `loadPersistedState` migration is
-configurable via the optional `legacyIdRenameMap` field on `PanelConfig`
-(`Record<string, string | null>`). Keys are old ids found in persisted
-state; values are either the new canonical id (`string`) or `null` to drop
-the legacy id entirely. If both the old and new id are present in the
-payload, the new id wins (post-migration tweak preserved).
+The optional `PanelConfig.legacyIdRenameMap` (`Record<string, string | null>`)
+enables host-controlled id rename / drop during `loadPersistedState` migration.
+`null` drops the id entirely. The default is an empty map (no renaming).
 
-`null` (drop) is the only safe way to retire an obsolete legacy id:
-`applyTokenOverrides` silently ignores ids missing from the active
-manifest, but every save round-trips the dead key back to disk, so a
-stray legacy override would otherwise persist indefinitely.
-
-**The default is an empty map** — i.e. no renaming happens unless the host
-opts in. Hosts whose canonical manifest ids happen to match what an
-implementation might consider "old" labels (e.g. `text-caption` is a
-stable id in some manifests) are therefore not corrupted by an opinionated
-built-in rename. (Pre-issue-#51 the rename was hard-coded inside
-`loadPersistedState` and applied unconditionally; that path silently
-dropped overrides on stable ids.)
-
-For callers who depended on the historical zdtp-internal rename
-(`text-caption` → `text-xs`, `text-small` → `text-sm`, `text-body` →
-`text-base`, `text-subheading` → `text-lg`, `text-heading` → `text-3xl`,
-`text-display` → `text-5xl`, `text-micro` → drop), the package re-exports
-the same map as `ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP` from the package root.
-Pass it via `legacyIdRenameMap` on `configurePanel` to keep the old
-behaviour.
+The historical zdtp-internal map is exported as `ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP`.
 
 ---
 
-## 9. Out-of-scope (deferred)
+## 9. JSON export / import schema (serde v2)
+
+### 9.1 Schema versioning
+
+| `$schema` value         | Status  | Structure                                              |
+| ----------------------- | ------- | ------------------------------------------------------ |
+| `zudo-design-tokens/v1` | Legacy  | Flat top-level `color`/`spacing`/`typography`/`size` keys |
+| `zudo-design-tokens/v2` | Current | `tabs` wrapper keyed by tab id; cssVar-keyed leaves    |
+
+`serialize()` always emits v2. `deserialize()` accepts both v1 and v2 and
+normalises to an internal `TweakState`.
+
+### 9.2 v2 format
+
+```jsonc
+{
+  "$schema": "zudo-design-tokens/v2",
+  "exportedAt": "2026-01-01T00:00:00.000Z",
+  "tabs": {
+    "spacing": {
+      "raw": { "--myapp-spacing-md": "1.25rem" }
+    },
+    "font": {
+      "raw":      { "--myapp-scale-base": "1rem" },
+      "semantic": { "--myapp-text-base": "var(--myapp-scale-base)" }
+    },
+    "color": {
+      "palette":  { "--myapp-palette-1": "#2d6cdf" },
+      "semantic": { "--myapp-color-primary": 1 }
+    }
+  }
+}
+```
+
+Key decisions:
+
+- **cssVar-keyed leaves** — portable across host id renames.
+- **Tier-2 ref values** stored as the literal `var(--tier1-cssvar)` CSS string
+  (no discriminated union — keeps the format flat and hand-editable).
+- **Color `semantic` values** are palette-index integers (preserved from v1 so
+  the swatch UI can render the resolved color).
+
+### 9.3 Diff-only by default
+
+`serialize()` only emits tokens the user has changed relative to manifest
+defaults. Pass `includeDefaults: true` to dump the full state. A tab key is
+omitted entirely when nothing in it differs.
+
+---
+
+## 10. Out-of-scope (deferred)
 
 Items this contract deliberately does NOT pin down:
 
-- **Persist envelope shape** (`TweakState`'s `color` / `spacing` /
-  `typography` / `size` / `panelPosition` / secondary-cluster slices) —
-  frozen at the current shape so existing user state round-trips
-  without migration.
+- **Persist envelope internal shape** — frozen at the current shape so
+  existing user state round-trips without migration.
 - **Schema id versioning.** `schemaId` is a configure-time string; bumping
-  it is the host's responsibility and is out of scope for this contract.
-- **Shadow-DOM scoping.** The panel writes to `:root` only. Per-component
-  scoping is a future feature, not part of this contract.
+  it is the host's responsibility.
+- **Shadow-DOM scoping.** The panel writes to `:root` only.
 - **Theme-API surface.** The panel does not expose a programmatic API for
-  reading the current overrides outside the persist envelope. Hosts that
-  need that today should `JSON.parse(localStorage.getItem(state-v2-key))`.
+  reading the current overrides outside the persist envelope.
 
 ---
 
@@ -984,21 +832,23 @@ Items this contract deliberately does NOT pin down:
 
 Cross-reference table — what each section pins down.
 
-| Topic                                                                              | Section     |
-| ---------------------------------------------------------------------------------- | ----------- |
-| `configurePanel({...})` signature and lifecycle                                    | §1          |
-| Storage-key derivation                                                             | §2, §8      |
-| `TokenManifest` / `TokenDef` / `TokenGroup` / `TokenControl` and helpers           | §3          |
-| `ColorClusterConfig` shape and `paletteCssVarTemplate` constraint                  | §4.1, §4.2  |
-| Multi-cluster (primary + secondary) resolution                                     | §4.3        |
-| `colorPresets` and `setPanelColorPresets()` lazy attachment                        | §4.4        |
-| Apply pipeline request / response envelopes                                        | §5.1        |
-| Reference-implementation algorithm + native-implementation guidance                | §5.2, §5.3  |
-| Routing config single-source                                                       | §5.4        |
-| Astro `<DesignTokenPanelHost>` prop, lazy-load gate, console API                   | §6          |
-| `--tokentweak-*` namespace and Tailwind-free CSS contract                          | §7.1        |
-| Modal class prefix and `data-design-token-panel-modal` selector contract           | §7.3        |
-| Host-CSS-var indirection ladder for chrome colors                                  | §7.4        |
-| Host-adapter side-effect import (paired-unit obligation)                           | §7.5        |
-| v1 → v2 storage migration and typography-id rename map                             | §8.3, §8.4  |
-| Out-of-scope / deferred concerns                                                   | §9          |
+| Topic                                                                                       | Section       |
+| ------------------------------------------------------------------------------------------- | ------------- |
+| `configurePanel({...})` signature and lifecycle                                             | §1            |
+| Storage-key derivation                                                                      | §2, §8        |
+| `TabConfig` / `TierConfig` / `TierItem` / `TierValueKind` interfaces and apply behaviour   | §3            |
+| `ColorClusterExtras` shape and multi-cluster support                                        | §4.1, §4.3    |
+| JSON-serializable constraint on color tab config                                            | §4.2          |
+| `colorPresets` and `setPanelColorPresets()` lazy attachment                                 | §4.4          |
+| Color apply behaviour                                                                       | §4.5          |
+| Apply pipeline request / response envelopes                                                 | §5.1          |
+| Reference-implementation algorithm + native-implementation guidance                         | §5.2, §5.3    |
+| Routing config single-source                                                                | §5.4          |
+| Astro `<DesignTokenPanelHost>` prop, lazy-load gate, console API                           | §6            |
+| `--tokentweak-*` namespace and Tailwind-free CSS contract                                   | §7.1          |
+| Modal class prefix and `data-design-token-panel-modal` selector contract                    | §7.3          |
+| Host-CSS-var indirection ladder for chrome colors                                           | §7.4          |
+| Host-adapter side-effect import (paired-unit obligation)                                    | §7.5          |
+| v1/v2 → v3 storage migration and typography-id rename map                                   | §8.3, §8.4    |
+| JSON export/import schema v2 (serde v2)                                                     | §9            |
+| Out-of-scope / deferred concerns                                                            | §10           |

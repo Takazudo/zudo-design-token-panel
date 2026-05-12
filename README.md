@@ -24,6 +24,16 @@ package, the bin server, and the example apps are still being ported from
 [super-epic issue #2](https://github.com/Takazudo/zudo-design-token-panel/issues/2).
 The remaining work is split across Epics 2 through 7.
 
+The **abstract token tiers** feature
+([epic #69](https://github.com/Takazudo/zudo-design-token-panel/issues/69)) has
+landed on the `base/abstract-token-tiers` branch and is pending merge. It
+replaces the former `tokens` + `colorCluster` fields on `PanelConfig` with a
+fully data-driven `tabs` array (`TabConfig` / `TierConfig` / `TierItem`).
+Semantic tokens can reference base tokens via `TierConfig.referencesTier`,
+and the apply pipeline emits `var(--base-cssvar)` for ref-tier items.
+See `packages/zudo-design-token-panel/PORTABLE-CONTRACT.md` §3 and the package
+`CHANGELOG.md` for details.
+
 ## Repository layout
 
 ```
