@@ -255,6 +255,7 @@ On every slider drag or color pick, the resolver calls `resolveTierItemValue(tab
 | Literal, no override | — | `item.pill.customDefault` if pill is set, else `item.default` |
 | Reference (`referencesTier` set) | ref item id | `var(--target-cssvar)` looked up from the named tier |
 | Reference, no override | — | `var(--cssVar-of-item-with-same-id)` in the referenced tier |
+| Reference, override points at unknown id | stale or missing id | Falls back to the item in the referenced tier whose id matches `itemId`; if that also doesn't exist, falls back to the first item in the referenced tier. No error is thrown. |
 
 ### Optional disk rewrite
 

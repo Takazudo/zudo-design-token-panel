@@ -255,6 +255,7 @@ tierId → itemId → overrideValue (CSS 文字列、または参照アイテム
 | リテラル、オーバーライドなし | — | pill が設定されていれば `item.pill.customDefault`、なければ `item.default` |
 | 参照（`referencesTier` あり） | 参照アイテム id | 名前付きティアから検索した `var(--target-cssvar)` |
 | 参照、オーバーライドなし | — | 参照ティアの同 id アイテムの `var(--cssVar)` |
+| 参照、オーバーライドが存在しない id を指す | 古くなった id または欠損 id | 参照ティア内で `itemId` と同じ id のアイテムにフォールバック。そのアイテムもなければ、参照ティアの最初のアイテムにフォールバック。エラーは発生しない。 |
 
 ### 任意のディスク書き換え
 
