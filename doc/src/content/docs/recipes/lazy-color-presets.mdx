@@ -96,7 +96,7 @@ only the cluster's bundled schemes ride along on first paint.
 ```ts
 // src/lib/my-panel-config.ts
 import type { PanelConfig } from '@takazudo/zudo-design-token-panel';
-import { myColorCluster } from './my-color-cluster';
+import { myTabs } from './my-tabs';
 
 export const myPanelConfig: PanelConfig = {
   storagePrefix: 'myapp-design-token-panel',
@@ -104,13 +104,7 @@ export const myPanelConfig: PanelConfig = {
   modalClassPrefix: 'myapp-design-token-panel-modal',
   schemaId: 'myapp-design-tokens/v1',
   exportFilenameBase: 'myapp-design-tokens',
-  tokens: {
-    spacing: [],
-    typography: [],
-    size: [],
-    color: [],
-  },
-  colorCluster: myColorCluster,
+  tabs: myTabs,
   // colorPresets intentionally omitted — wired lazily below.
 };
 ```
@@ -166,8 +160,8 @@ configure runs. The trailing call wins if you call
   first paint and re-renders on hydrate. Inline the map instead.
 - **Cluster owner's defaults.** Schemes that should be the cluster's
   documented defaults (e.g. `"Default Light"` / `"Default Dark"`) belong
-  on `colorCluster.colorSchemes`, not on `colorPresets` — they are part
-  of the cluster identity, not optional add-ons.
+  in `colorExtras.colorSchemes` on your color `TabConfig`, not on
+  `colorPresets` — they are part of the cluster identity, not optional add-ons.
 
 ## Related
 
