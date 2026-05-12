@@ -33,7 +33,6 @@
 
 import type { PanelConfig } from '@takazudo/zudo-design-token-panel';
 import { defaultTabs } from './default-manifest';
-import { defaultCluster } from './default-cluster';
 import scaffoldRouting from '../../scaffold.routing.json';
 
 export const panelConfig: PanelConfig = {
@@ -43,11 +42,6 @@ export const panelConfig: PanelConfig = {
   schemaId: 'next-example-design-tokens/v1',
   exportFilenameBase: 'next-example-design-tokens',
   tabs: defaultTabs,
-  colorCluster: defaultCluster,
   applyEndpoint: '/api/dev/apply',
   applyRouting: scaffoldRouting,
-  // Explicit opt-out for the secondary color cluster — the demo ships a
-  // single primary palette only. `null` (NOT `undefined`) is the documented
-  // signal that the host has no secondary cluster.
-  secondaryColorCluster: null,
 };

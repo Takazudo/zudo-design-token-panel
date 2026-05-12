@@ -5,10 +5,17 @@
  * with the declarations in `src/styles/tokens.css` so the panel can rewrite
  * the same names live and the apply pipeline can rewrite them on disk.
  *
+ * The color tab uses a 2-tier setup (Wave 7):
+ *   - Tier `palette`: 16 hex swatches (kind: 'color')
+ *   - Tier `semantic` (referencesTier: 'palette'): semantic role rows
+ * Color extras (schemes, base roles, etc.) are on colorExtras.
+ *
  * Migrated in Wave 5 from TokenManifest to TabConfig[].
+ * Color cluster migrated to TabConfig in Wave 7.
  */
 
 import type { PanelConfig } from '@takazudo/zudo-design-token-panel/astro';
+import { defaultCluster } from './default-cluster';
 
 type TabConfig = PanelConfig['tabs'][number];
 
@@ -92,7 +99,51 @@ export const defaultTabs: readonly TabConfig[] = [
   {
     id: 'color',
     label: 'Color',
-    // Color tab is driven by colorCluster — no tiers needed here.
-    tiers: [],
+    // colorExtras carries the non-tier metadata (formerly on ColorClusterDataConfig).
+    colorExtras: {
+      id: defaultCluster.id,
+      label: defaultCluster.label,
+      baseRoles: defaultCluster.baseRoles,
+      baseDefaults: defaultCluster.baseDefaults,
+      defaultShikiTheme: defaultCluster.defaultShikiTheme,
+      colorSchemes: defaultCluster.colorSchemes,
+      panelSettings: defaultCluster.panelSettings,
+    },
+    tiers: [
+      {
+        id: 'palette',
+        label: 'Palette',
+        items: [
+          { id: 'astroexample-palette-0',  cssVar: '--astroexample-palette-0',  label: 'Palette 0',  default: '#1e1e1e', type: { kind: 'color' as const } },
+          { id: 'astroexample-palette-1',  cssVar: '--astroexample-palette-1',  label: 'Palette 1',  default: '#2d6cdf', type: { kind: 'color' as const } },
+          { id: 'astroexample-palette-2',  cssVar: '--astroexample-palette-2',  label: 'Palette 2',  default: '#3aa676', type: { kind: 'color' as const } },
+          { id: 'astroexample-palette-3',  cssVar: '--astroexample-palette-3',  label: 'Palette 3',  default: '#d97706', type: { kind: 'color' as const } },
+          { id: 'astroexample-palette-4',  cssVar: '--astroexample-palette-4',  label: 'Palette 4',  default: '#9b5de5', type: { kind: 'color' as const } },
+          { id: 'astroexample-palette-5',  cssVar: '--astroexample-palette-5',  label: 'Palette 5',  default: '#e63946', type: { kind: 'color' as const } },
+          { id: 'astroexample-palette-6',  cssVar: '--astroexample-palette-6',  label: 'Palette 6',  default: '#1d3557', type: { kind: 'color' as const } },
+          { id: 'astroexample-palette-7',  cssVar: '--astroexample-palette-7',  label: 'Palette 7',  default: '#06b6d4', type: { kind: 'color' as const } },
+          { id: 'astroexample-palette-8',  cssVar: '--astroexample-palette-8',  label: 'Palette 8',  default: '#475569', type: { kind: 'color' as const } },
+          { id: 'astroexample-palette-9',  cssVar: '--astroexample-palette-9',  label: 'Palette 9',  default: '#94a3b8', type: { kind: 'color' as const } },
+          { id: 'astroexample-palette-10', cssVar: '--astroexample-palette-10', label: 'Palette 10', default: '#cbd5e1', type: { kind: 'color' as const } },
+          { id: 'astroexample-palette-11', cssVar: '--astroexample-palette-11', label: 'Palette 11', default: '#e2e8f0', type: { kind: 'color' as const } },
+          { id: 'astroexample-palette-12', cssVar: '--astroexample-palette-12', label: 'Palette 12', default: '#f1f5f9', type: { kind: 'color' as const } },
+          { id: 'astroexample-palette-13', cssVar: '--astroexample-palette-13', label: 'Palette 13', default: '#fef3c7', type: { kind: 'color' as const } },
+          { id: 'astroexample-palette-14', cssVar: '--astroexample-palette-14', label: 'Palette 14', default: '#bbf7d0', type: { kind: 'color' as const } },
+          { id: 'astroexample-palette-15', cssVar: '--astroexample-palette-15', label: 'Palette 15', default: '#f8fafc', type: { kind: 'color' as const } },
+        ],
+      },
+      {
+        id: 'semantic',
+        label: 'Semantic',
+        referencesTier: 'palette',
+        items: [
+          { id: 'primary', cssVar: '--astroexample-color-primary', label: '--astroexample-color-primary', default: 'astroexample-palette-1', type: { kind: 'color' as const } },
+          { id: 'accent',  cssVar: '--astroexample-color-accent',  label: '--astroexample-color-accent',  default: 'astroexample-palette-3', type: { kind: 'color' as const } },
+          { id: 'surface', cssVar: '--astroexample-color-surface', label: '--astroexample-color-surface', default: 'astroexample-palette-0', type: { kind: 'color' as const } },
+          { id: 'muted',   cssVar: '--astroexample-color-muted',   label: '--astroexample-color-muted',   default: 'astroexample-palette-8', type: { kind: 'color' as const } },
+          { id: 'danger',  cssVar: '--astroexample-color-danger',  label: '--astroexample-color-danger',  default: 'astroexample-palette-5', type: { kind: 'color' as const } },
+        ],
+      },
+    ],
   },
 ];
