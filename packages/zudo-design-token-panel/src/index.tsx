@@ -43,6 +43,7 @@ import {
   applyFullState,
   getOpenKey,
   getStorageKeyV2,
+  getStorageKeyV3,
   loadPersistedState,
 } from './state/tweak-state';
 import {
@@ -130,7 +131,11 @@ function wasVisible(): boolean {
 function hasPersistedOverrides(): boolean {
   if (typeof window === 'undefined') return false;
   try {
-    return window.localStorage.getItem(getStorageKeyV2()) !== null;
+    // Check v3 key first; fall back to v2 for sessions that have not yet
+    // migrated (migration runs on first loadPersistedState call, i.e. once
+    // the panel mounts — before mount we may only see the v2 key).
+    const ls = window.localStorage;
+    return ls.getItem(getStorageKeyV3()) !== null || ls.getItem(getStorageKeyV2()) !== null;
   } catch {
     return false;
   }

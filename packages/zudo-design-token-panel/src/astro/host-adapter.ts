@@ -53,6 +53,7 @@ import {
   configurePanel,
   getPanelConfig,
   storageKey_stateV2,
+  storageKey_stateV3,
   storageKey_visible,
   type PanelConfig,
 } from '../config/panel-config';
@@ -150,9 +151,11 @@ function wasVisible(visibleKey: string): boolean {
   }
 }
 
-function hasPersistedOverrides(stateV2Key: string): boolean {
+function hasPersistedOverrides(stateV2Key: string, stateV3Key: string): boolean {
   try {
-    return window.localStorage.getItem(stateV2Key) !== null;
+    // Check v3 first; fall back to v2 for sessions pre-migration.
+    const ls = window.localStorage;
+    return ls.getItem(stateV3Key) !== null || ls.getItem(stateV2Key) !== null;
   } catch {
     return false;
   }
@@ -278,7 +281,8 @@ function installConsoleApi(
   //    means the panel must boot before first paint to avoid an FOUT.
   const visibleKey = storageKey_visible(cfg);
   const stateV2Key = storageKey_stateV2(cfg);
-  if (wasVisible(visibleKey) || hasPersistedOverrides(stateV2Key)) {
+  const stateV3Key = storageKey_stateV3(cfg);
+  if (wasVisible(visibleKey) || hasPersistedOverrides(stateV2Key, stateV3Key)) {
     void loadPanelModule(state);
   }
 })();

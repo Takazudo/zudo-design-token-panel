@@ -12,6 +12,7 @@ import {
   storageKey_position,
   storageKey_stateV1,
   storageKey_stateV2,
+  storageKey_stateV3,
   storageKey_visible,
   type PanelConfig,
 } from '../config/panel-config';
@@ -99,6 +100,7 @@ describe('panel-config — default config literal-equality', () => {
     const cfg = DEFAULT_PANEL_CONFIG;
     expect(storageKey_stateV1(cfg)).toBe('zudo-design-token-panel-state');
     expect(storageKey_stateV2(cfg)).toBe('zudo-design-token-panel-state-v2');
+    expect(storageKey_stateV3(cfg)).toBe('zudo-design-token-panel-state-v3');
     expect(storageKey_open(cfg)).toBe('zudo-design-token-panel-open');
     expect(storageKey_position(cfg)).toBe('zudo-design-token-panel-position');
     // NOTE: colon, not dash — historical artifact preserved.

@@ -19,6 +19,7 @@ import {
   applyFullState,
   savePersistedState,
   type ColorTweakState,
+  type TabOverrides,
   type TokenOverrides,
   type TweakState,
 } from './tweak-state';
@@ -37,6 +38,31 @@ export function usePersist(setState: SetState<TweakState>) {
       });
     },
     [setState],
+  );
+
+  /**
+   * Persist overrides for a single generic tab (identified by `tabId`).
+   *
+   * This is the general-purpose entry point for host-coined tabs that use the
+   * tier model. The existing slice-specific helpers (`persistColor`,
+   * `persistSpacing`, etc.) remain as thin forwards so the internal tab
+   * components keep compiling until Wave 5 / Wave 7 migrates them.
+   */
+  const persistTab = useCallback(
+    (tabId: string, updater: (prev: TabOverrides) => TabOverrides) => {
+      persist((prev) => {
+        const prevTabOverrides = prev.tabs?.[tabId] ?? {};
+        const nextTabOverrides = updater(prevTabOverrides);
+        return {
+          ...prev,
+          tabs: {
+            ...prev.tabs,
+            [tabId]: nextTabOverrides,
+          },
+        };
+      });
+    },
+    [persist],
   );
 
   const persistColor = useCallback(
@@ -95,6 +121,7 @@ export function usePersist(setState: SetState<TweakState>) {
 
   return {
     persist,
+    persistTab,
     persistColor,
     persistSpacing,
     persistTypography,
@@ -111,6 +138,7 @@ export function usePersist(setState: SetState<TweakState>) {
 }
 
 export type Persist = ReturnType<typeof usePersist>['persist'];
+export type PersistTab = ReturnType<typeof usePersist>['persistTab'];
 export type PersistColor = ReturnType<typeof usePersist>['persistColor'];
 export type PersistSpacing = ReturnType<typeof usePersist>['persistSpacing'];
 export type PersistTypography = ReturnType<typeof usePersist>['persistTypography'];
