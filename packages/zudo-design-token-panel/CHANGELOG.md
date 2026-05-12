@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### Fixed (panel-singleton & first-toggle bugfixes — [#108](https://github.com/Takazudo/zudo-design-token-panel/issues/108), root PR [#113](https://github.com/Takazudo/zudo-design-token-panel/pull/113))
+
+- **Cross-instance singleton sharing** — configuration singletons (`configuredConfig`,
+  post-configure hooks) are now stored on `globalThis[Symbol.for('@takazudo/zudo-design-token-panel:singleton')]`
+  instead of module-scope variables. When a bundler produces two separate module instances of
+  `panel-config.ts` (e.g. Vite chunk-dedup in Astro consumers), both instances now share the same
+  slot, so `configurePanel()` writes and `getPanelConfig()` reads from the same object regardless
+  of which module instance each call landed in. Public API is bit-identical.
+  ([#109](https://github.com/Takazudo/zudo-design-token-panel/issues/109))
+
+- **Deferred reapply via post-configure hooks** — `reapplyPersistedOverrides()` and
+  `reapplyFromStorage()` are no longer called at module-init time. They are now registered as a
+  post-configure hook (via the new `registerPostConfigureHook` API) and fire only after
+  `configurePanel()` supplies the host's storage prefix. This prevents a default-prefix Preact
+  panel from mounting before the host's prefix is known, which was the root cause of the first
+  `toggleDesignPanel()` call being a no-op when legacy default-prefix keys existed in localStorage.
+  Late-registration semantics: if `configurePanel()` has already been called when a hook is
+  registered, the hook fires immediately. View-transition re-run safety is preserved via a stable
+  module-level hook constant. ([#111](https://github.com/Takazudo/zudo-design-token-panel/issues/111))
+
 ### Added (abstract-token-tiers epic — [#69](https://github.com/Takazudo/zudo-design-token-panel/issues/69), root PR [#91](https://github.com/Takazudo/zudo-design-token-panel/pull/91))
 
 > **Note:** the package version is still `0.0.0` (pre-1.0, in active

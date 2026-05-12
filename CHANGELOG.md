@@ -6,6 +6,27 @@ Dates and versions may be absent for unreleased entries.
 
 ## [Unreleased]
 
+### Panel Singleton & First-Toggle Bugfixes ([epic #108](https://github.com/Takazudo/zudo-design-token-panel/issues/108), root PR [#113](https://github.com/Takazudo/zudo-design-token-panel/pull/113))
+
+#### Fixed
+
+- **Empty panel body in Astro consumer** — when a bundler (e.g. Vite's chunk-dedup) produces two
+  separate module instances of `panel-config.ts`, the host adapter's `configurePanel()` call wrote
+  to one instance while the panel's own render tree read from the other (still `null`), causing the
+  panel to fall back to `DEFAULT_PANEL_CONFIG` with empty `tabs: []`. The package now stores its
+  configuration singleton on `globalThis[Symbol.for('@takazudo/zudo-design-token-panel:singleton')]`
+  so all instances share the same slot regardless of bundler chunk layout. Existing consumers do not
+  need code changes. ([#109](https://github.com/Takazudo/zudo-design-token-panel/issues/109))
+
+- **First `toggleDesignPanel()` call being a no-op in non-Astro consumers** — when the browser's
+  localStorage contained legacy keys from the default storage prefix (e.g. `zudo-design-token-panel:visible=1`),
+  `reapplyFromStorage()` ran at module-init time with the default prefix before `configurePanel()`
+  supplied the host's actual prefix. This mounted a default-prefix Preact panel which then removed
+  the host-prefix open key as a side effect, so the host panel's mount-effect never called `setOpen(true)`.
+  The package now defers the reapply calls via a post-configure hook system that fires only after
+  `configurePanel()` has supplied the host's storage prefix. Existing consumers do not need code
+  changes — the deferral is automatic. ([#111](https://github.com/Takazudo/zudo-design-token-panel/issues/111))
+
 ### Abstract Token Tiers ([epic #69](https://github.com/Takazudo/zudo-design-token-panel/issues/69), root PR [#91](https://github.com/Takazudo/zudo-design-token-panel/pull/91))
 
 The `@takazudo/zudo-design-token-panel` package now uses a fully data-driven
