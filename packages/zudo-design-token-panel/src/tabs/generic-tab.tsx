@@ -44,7 +44,10 @@ function ItemEditor({ tab, tier, item, value, onChange }: ItemEditorProps) {
     return (
       <div className="tokenpanel-row" data-testid={`tier-ref-row-${item.id}`}>
         <span className="tokenpanel-row-label" title={item.cssVar}>
-          {item.label}
+          {item.cssVar}
+          {item.label !== item.cssVar && (
+            <span className="tokenpanel-row-label-sub">{item.label}</span>
+          )}
         </span>
         <TierRefSelector
           tab={tab}
@@ -88,7 +91,10 @@ function ItemEditor({ tab, tier, item, value, onChange }: ItemEditorProps) {
         <div className="tokenpanel-row--stacked" data-testid={`tier-item-${item.id}`}>
           <div className="tokenpanel-row-head">
             <span className="tokenpanel-row-label" title={item.cssVar}>
-              {item.label}
+              {item.cssVar}
+              {item.label !== item.cssVar && (
+                <span className="tokenpanel-row-label-sub">{item.label}</span>
+              )}
             </span>
             <div className="tokenpanel-row-input-group">
               <input
@@ -98,7 +104,7 @@ function ItemEditor({ tab, tier, item, value, onChange }: ItemEditorProps) {
                 onChange={handleNumber}
                 disabled={isReadonly}
                 className="tokenpanel-row-number-input"
-                aria-label={`${item.label} value`}
+                aria-label={`${item.cssVar} value`}
               />
               {unit && <span className="tokenpanel-row-unit">{unit}</span>}
             </div>
@@ -112,7 +118,7 @@ function ItemEditor({ tab, tier, item, value, onChange }: ItemEditorProps) {
             onChange={handleSlider}
             disabled={isReadonly}
             className="tokenpanel-row-slider"
-            aria-label={`${item.label} slider`}
+            aria-label={`${item.cssVar} slider`}
           />
         </div>
       );
@@ -126,14 +132,17 @@ function ItemEditor({ tab, tier, item, value, onChange }: ItemEditorProps) {
       return (
         <div className="tokenpanel-row" data-testid={`tier-item-${item.id}`}>
           <span className="tokenpanel-row-label" title={item.cssVar}>
-            {item.label}
+            {item.cssVar}
+            {item.label !== item.cssVar && (
+              <span className="tokenpanel-row-label-sub">{item.label}</span>
+            )}
           </span>
           <select
             value={value}
             onChange={handleChange}
             disabled={isReadonly}
             className="tokenpanel-row-select"
-            aria-label={`${item.label} value`}
+            aria-label={`${item.cssVar} value`}
           >
             {options.map((opt) => (
               <option key={opt} value={opt}>
@@ -152,7 +161,10 @@ function ItemEditor({ tab, tier, item, value, onChange }: ItemEditorProps) {
       return (
         <div className="tokenpanel-row" data-testid={`tier-item-${item.id}`}>
           <span className="tokenpanel-row-label tokenpanel-row-label--narrow" title={item.cssVar}>
-            {item.label}
+            {item.cssVar}
+            {item.label !== item.cssVar && (
+              <span className="tokenpanel-row-label-sub">{item.label}</span>
+            )}
           </span>
           <input
             type="text"
@@ -160,7 +172,7 @@ function ItemEditor({ tab, tier, item, value, onChange }: ItemEditorProps) {
             onChange={handleChange}
             disabled={isReadonly}
             className="tokenpanel-row-text-input"
-            aria-label={`${item.label} value`}
+            aria-label={`${item.cssVar} value`}
             spellcheck={false}
             autoCapitalize="off"
             autoCorrect="off"
@@ -177,7 +189,10 @@ function ItemEditor({ tab, tier, item, value, onChange }: ItemEditorProps) {
       return (
         <div className="tokenpanel-row" data-testid={`tier-item-${item.id}`}>
           <span className="tokenpanel-row-label" title={item.cssVar}>
-            {item.label}
+            {item.cssVar}
+            {item.label !== item.cssVar && (
+              <span className="tokenpanel-row-label-sub">{item.label}</span>
+            )}
           </span>
           <input
             type="color"
@@ -185,7 +200,7 @@ function ItemEditor({ tab, tier, item, value, onChange }: ItemEditorProps) {
             onChange={handleChange}
             disabled={isReadonly}
             className="tokenpanel-row-color-input"
-            aria-label={`${item.label} value`}
+            aria-label={`${item.cssVar} value`}
           />
         </div>
       );

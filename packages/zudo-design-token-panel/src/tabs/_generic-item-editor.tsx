@@ -76,7 +76,10 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
         <div className="tokenpanel-row--stacked" data-testid={`tier-item-${item.id}`}>
           <div className="tokenpanel-row-head">
             <span className="tokenpanel-row-label" title={item.cssVar}>
-              {item.label}
+              {item.cssVar}
+              {item.label !== item.cssVar && (
+                <span className="tokenpanel-row-label-sub">{item.label}</span>
+              )}
             </span>
             <div className="tokenpanel-row-input-group">
               <input
@@ -86,7 +89,7 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
                 onChange={handleNumber}
                 disabled={effectiveReadonly}
                 className="tokenpanel-row-number-input"
-                aria-label={`${item.label} value`}
+                aria-label={`${item.cssVar} value`}
               />
               {unit && <span className="tokenpanel-row-unit">{unit}</span>}
             </div>
@@ -100,7 +103,7 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
             onChange={handleSlider}
             disabled={effectiveReadonly}
             className="tokenpanel-row-slider"
-            aria-label={`${item.label} slider`}
+            aria-label={`${item.cssVar} slider`}
           />
         </div>
       );
@@ -136,14 +139,17 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
       return (
         <div className="tokenpanel-row" data-testid={`tier-item-${item.id}`}>
           <span className="tokenpanel-row-label" title={item.cssVar}>
-            {item.label}
+            {item.cssVar}
+            {item.label !== item.cssVar && (
+              <span className="tokenpanel-row-label-sub">{item.label}</span>
+            )}
           </span>
           <select
             value={selectDraft}
             onChange={handleChange}
             disabled={isReadonly}
             className="tokenpanel-row-select"
-            aria-label={`${item.label} value`}
+            aria-label={`${item.cssVar} value`}
           >
             {options.map((opt) => (
               <option key={opt} value={opt}>
@@ -162,7 +168,10 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
       return (
         <div className="tokenpanel-row" data-testid={`tier-item-${item.id}`}>
           <span className="tokenpanel-row-label tokenpanel-row-label--narrow" title={item.cssVar}>
-            {item.label}
+            {item.cssVar}
+            {item.label !== item.cssVar && (
+              <span className="tokenpanel-row-label-sub">{item.label}</span>
+            )}
           </span>
           <input
             type="text"
@@ -170,7 +179,7 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
             onChange={handleChange}
             disabled={isReadonly}
             className="tokenpanel-row-text-input"
-            aria-label={`${item.label} value`}
+            aria-label={`${item.cssVar} value`}
             spellcheck={false}
             autoCapitalize="off"
             autoCorrect="off"
@@ -187,7 +196,10 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
       return (
         <div className="tokenpanel-row" data-testid={`tier-item-${item.id}`}>
           <span className="tokenpanel-row-label" title={item.cssVar}>
-            {item.label}
+            {item.cssVar}
+            {item.label !== item.cssVar && (
+              <span className="tokenpanel-row-label-sub">{item.label}</span>
+            )}
           </span>
           <input
             type="color"
@@ -195,7 +207,7 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
             onChange={handleChange}
             disabled={isReadonly}
             className="tokenpanel-row-color-input"
-            aria-label={`${item.label} value`}
+            aria-label={`${item.cssVar} value`}
           />
         </div>
       );
