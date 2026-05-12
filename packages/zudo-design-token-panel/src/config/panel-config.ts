@@ -33,7 +33,9 @@
 import type { TokenManifest } from '../tokens/manifest';
 import type { ColorScheme } from './color-schemes';
 import type { ColorClusterDataConfig } from './cluster-config';
+import type { TabConfig } from '../tokens/tier-model';
 import { structuralEqual } from '../utils/structural-equal';
+import { liftLegacyConfigToTabs } from './lift-legacy-config';
 
 /**
  * Apply-routing map.
@@ -135,6 +137,16 @@ export interface PanelConfig {
    * callers that depend on it.
    */
   legacyIdRenameMap?: Record<string, string | null>;
+  /**
+   * Optional host-supplied tab configuration.
+   *
+   * When present, the back-compat shim (`liftLegacyConfigToTabs`) is NOT
+   * called — legacy `tokens` and `colorCluster` fields are ignored for
+   * tab rendering purposes. Hosts that want the new tier-based model opt
+   * in by passing this field. Existing hosts omit it and continue to have
+   * their legacy fields lifted lazily onto the new shape at runtime.
+   */
+  tabs?: readonly TabConfig[];
 }
 
 /**
@@ -201,6 +213,11 @@ let configuredConfig: PanelConfig | null = null;
  * first time `getPanelConfig()` is read after configuration.
  */
 let pendingColorPresets: Record<string, ColorScheme> | null = null;
+/**
+ * Memoised `tabs` for `DEFAULT_PANEL_CONFIG` (the no-host-call fallback path).
+ * Kept separate from the const so we never mutate the exported default object.
+ */
+let defaultConfigTabs: readonly TabConfig[] | null = null;
 
 /**
  * Configure the panel runtime. Call exactly once per page lifecycle, before
@@ -238,12 +255,38 @@ export function getPanelConfig(): PanelConfig {
 }
 
 /**
+ * Return the `TabConfig[]` for the active config.
+ *
+ * When the host supplied `tabs` on the config, they are returned as-is and
+ * the legacy `tokens` / `colorCluster` fields are ignored. When `tabs` is
+ * absent, `liftLegacyConfigToTabs` is called lazily and the result is
+ * memoised on the singleton so the lift runs at most once per
+ * `configurePanel` call.
+ */
+export function getPanelTabs(cfg: PanelConfig = getPanelConfig()): readonly TabConfig[] {
+  if (cfg.tabs !== undefined) return cfg.tabs;
+  // Default fallback path: memoised on defaultConfigTabs so DEFAULT_PANEL_CONFIG
+  // is never mutated.
+  if (cfg === DEFAULT_PANEL_CONFIG) {
+    if (defaultConfigTabs === null) {
+      defaultConfigTabs = liftLegacyConfigToTabs(cfg);
+    }
+    return defaultConfigTabs;
+  }
+  // configuredConfig path: attach tabs in place for memoisation.
+  const tabs = liftLegacyConfigToTabs(cfg);
+  (cfg as { tabs: readonly TabConfig[] }).tabs = tabs;
+  return tabs;
+}
+
+/**
  * Test-only: clear the singleton so unit tests can exercise different configs
  * in isolation.
  */
 export function __resetPanelConfigForTests(): void {
   configuredConfig = null;
   pendingColorPresets = null;
+  defaultConfigTabs = null;
 }
 
 /**

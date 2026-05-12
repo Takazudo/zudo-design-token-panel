@@ -1,0 +1,1921 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`liftLegacyConfigToTabs — astro example > produces a stable snapshot 1`] = `
+[
+  {
+    "id": "spacing",
+    "label": "Spacing",
+    "spacingGroupOrder": [
+      "vsp",
+      "hsp",
+    ],
+    "tiers": [
+      {
+        "id": "raw",
+        "items": [
+          {
+            "cssVar": "--astroexample-spacing-md",
+            "default": "1rem",
+            "group": "hsp",
+            "id": "astroexample-spacing-md",
+            "label": "Spacing M",
+            "type": {
+              "kind": "length",
+              "max": 4,
+              "min": 0,
+              "step": 0.0625,
+              "unit": "rem",
+            },
+          },
+          {
+            "cssVar": "--astroexample-spacing-lg",
+            "default": "2rem",
+            "group": "vsp",
+            "id": "astroexample-spacing-lg",
+            "label": "Spacing L",
+            "type": {
+              "kind": "length",
+              "max": 6,
+              "min": 0,
+              "step": 0.0625,
+              "unit": "rem",
+            },
+          },
+        ],
+        "label": "Spacing",
+      },
+    ],
+  },
+  {
+    "id": "font",
+    "label": "Font",
+    "tiers": [
+      {
+        "id": "raw",
+        "items": [
+          {
+            "cssVar": "--astroexample-text-base",
+            "default": "1rem",
+            "group": "font-size",
+            "id": "astroexample-text-base",
+            "label": "Body Text",
+            "type": {
+              "kind": "length",
+              "max": 1.5,
+              "min": 0.75,
+              "step": 0.0625,
+              "unit": "rem",
+            },
+          },
+          {
+            "cssVar": "--astroexample-text-heading",
+            "default": "1.75rem",
+            "group": "font-size",
+            "id": "astroexample-text-heading",
+            "label": "Heading Text",
+            "type": {
+              "kind": "length",
+              "max": 4,
+              "min": 1,
+              "step": 0.0625,
+              "unit": "rem",
+            },
+          },
+        ],
+        "label": "Typography",
+      },
+    ],
+  },
+  {
+    "id": "size",
+    "label": "Size",
+    "tiers": [
+      {
+        "id": "raw",
+        "items": [
+          {
+            "cssVar": "--astroexample-radius",
+            "default": "0.5rem",
+            "group": "radius",
+            "id": "astroexample-radius",
+            "label": "Border Radius",
+            "type": {
+              "kind": "length",
+              "max": 2,
+              "min": 0,
+              "step": 0.0625,
+              "unit": "rem",
+            },
+          },
+        ],
+        "label": "Size",
+      },
+    ],
+  },
+  {
+    "colorExtras": {
+      "baseDefaults": {
+        "background": 0,
+        "foreground": 15,
+      },
+      "baseRoles": {
+        "background": "--astroexample-bg",
+        "foreground": "--astroexample-fg",
+      },
+      "colorSchemes": {
+        "Default": {
+          "background": 0,
+          "cursor": 4,
+          "foreground": 15,
+          "palette": [
+            "#1e1e1e",
+            "#2d6cdf",
+            "#3aa676",
+            "#d97706",
+            "#9b5de5",
+            "#e63946",
+            "#1d3557",
+            "#06b6d4",
+            "#475569",
+            "#94a3b8",
+            "#cbd5e1",
+            "#e2e8f0",
+            "#f1f5f9",
+            "#fef3c7",
+            "#bbf7d0",
+            "#f8fafc",
+          ],
+          "selectionBg": 1,
+          "selectionFg": 15,
+          "shikiTheme": "github-dark",
+        },
+      },
+      "defaultShikiTheme": "github-dark",
+      "id": "astroexample-cluster",
+      "label": "Astro Example",
+      "paletteCssVarTemplate": "--astroexample-palette-{n}",
+      "paletteSize": 16,
+      "panelSettings": {
+        "colorMode": false,
+        "colorScheme": "Default",
+      },
+      "semanticCssNames": {
+        "accent": "--astroexample-color-accent",
+        "danger": "--astroexample-color-danger",
+        "muted": "--astroexample-color-muted",
+        "primary": "--astroexample-color-primary",
+        "surface": "--astroexample-color-surface",
+      },
+      "semanticDefaults": {
+        "accent": 3,
+        "danger": 5,
+        "muted": 8,
+        "primary": 1,
+        "surface": 0,
+      },
+    },
+    "id": "color",
+    "label": "Color",
+    "tiers": [
+      {
+        "id": "palette",
+        "items": [
+          {
+            "cssVar": "--astroexample-palette-0",
+            "default": "",
+            "id": "palette-0",
+            "label": "Palette 0",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--astroexample-palette-1",
+            "default": "",
+            "id": "palette-1",
+            "label": "Palette 1",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--astroexample-palette-2",
+            "default": "",
+            "id": "palette-2",
+            "label": "Palette 2",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--astroexample-palette-3",
+            "default": "",
+            "id": "palette-3",
+            "label": "Palette 3",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--astroexample-palette-4",
+            "default": "",
+            "id": "palette-4",
+            "label": "Palette 4",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--astroexample-palette-5",
+            "default": "",
+            "id": "palette-5",
+            "label": "Palette 5",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--astroexample-palette-6",
+            "default": "",
+            "id": "palette-6",
+            "label": "Palette 6",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--astroexample-palette-7",
+            "default": "",
+            "id": "palette-7",
+            "label": "Palette 7",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--astroexample-palette-8",
+            "default": "",
+            "id": "palette-8",
+            "label": "Palette 8",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--astroexample-palette-9",
+            "default": "",
+            "id": "palette-9",
+            "label": "Palette 9",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--astroexample-palette-10",
+            "default": "",
+            "id": "palette-10",
+            "label": "Palette 10",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--astroexample-palette-11",
+            "default": "",
+            "id": "palette-11",
+            "label": "Palette 11",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--astroexample-palette-12",
+            "default": "",
+            "id": "palette-12",
+            "label": "Palette 12",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--astroexample-palette-13",
+            "default": "",
+            "id": "palette-13",
+            "label": "Palette 13",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--astroexample-palette-14",
+            "default": "",
+            "id": "palette-14",
+            "label": "Palette 14",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--astroexample-palette-15",
+            "default": "",
+            "id": "palette-15",
+            "label": "Palette 15",
+            "type": {
+              "kind": "color",
+            },
+          },
+        ],
+        "label": "Palette",
+      },
+      {
+        "id": "semantic",
+        "items": [
+          {
+            "cssVar": "--astroexample-color-primary",
+            "default": "1",
+            "id": "semantic-primary",
+            "label": "primary",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--astroexample-color-accent",
+            "default": "3",
+            "id": "semantic-accent",
+            "label": "accent",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--astroexample-color-surface",
+            "default": "0",
+            "id": "semantic-surface",
+            "label": "surface",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--astroexample-color-muted",
+            "default": "8",
+            "id": "semantic-muted",
+            "label": "muted",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--astroexample-color-danger",
+            "default": "5",
+            "id": "semantic-danger",
+            "label": "danger",
+            "type": {
+              "kind": "color",
+            },
+          },
+        ],
+        "label": "Semantic",
+        "referencesTier": "palette",
+      },
+    ],
+  },
+]
+`;
+
+exports[`liftLegacyConfigToTabs — next example > produces a stable snapshot 1`] = `
+[
+  {
+    "id": "spacing",
+    "label": "Spacing",
+    "spacingGroupOrder": [
+      "vsp",
+      "hsp",
+    ],
+    "tiers": [
+      {
+        "id": "raw",
+        "items": [
+          {
+            "cssVar": "--nextexample-spacing-md",
+            "default": "1rem",
+            "group": "hsp",
+            "id": "nextexample-spacing-md",
+            "label": "Spacing M",
+            "type": {
+              "kind": "length",
+              "max": 4,
+              "min": 0,
+              "step": 0.0625,
+              "unit": "rem",
+            },
+          },
+          {
+            "cssVar": "--nextexample-spacing-lg",
+            "default": "2rem",
+            "group": "vsp",
+            "id": "nextexample-spacing-lg",
+            "label": "Spacing L",
+            "type": {
+              "kind": "length",
+              "max": 6,
+              "min": 0,
+              "step": 0.0625,
+              "unit": "rem",
+            },
+          },
+        ],
+        "label": "Spacing",
+      },
+    ],
+  },
+  {
+    "id": "font",
+    "label": "Font",
+    "tiers": [
+      {
+        "id": "raw",
+        "items": [
+          {
+            "cssVar": "--nextexample-text-base",
+            "default": "1rem",
+            "group": "font-size",
+            "id": "nextexample-text-base",
+            "label": "Body Text",
+            "type": {
+              "kind": "length",
+              "max": 1.5,
+              "min": 0.75,
+              "step": 0.0625,
+              "unit": "rem",
+            },
+          },
+          {
+            "cssVar": "--nextexample-text-heading",
+            "default": "1.75rem",
+            "group": "font-size",
+            "id": "nextexample-text-heading",
+            "label": "Heading Text",
+            "type": {
+              "kind": "length",
+              "max": 4,
+              "min": 1,
+              "step": 0.0625,
+              "unit": "rem",
+            },
+          },
+        ],
+        "label": "Typography",
+      },
+    ],
+  },
+  {
+    "id": "size",
+    "label": "Size",
+    "tiers": [
+      {
+        "id": "raw",
+        "items": [
+          {
+            "cssVar": "--nextexample-radius",
+            "default": "0.5rem",
+            "group": "radius",
+            "id": "nextexample-radius",
+            "label": "Border Radius",
+            "type": {
+              "kind": "length",
+              "max": 2,
+              "min": 0,
+              "step": 0.0625,
+              "unit": "rem",
+            },
+          },
+        ],
+        "label": "Size",
+      },
+    ],
+  },
+  {
+    "colorExtras": {
+      "baseDefaults": {
+        "background": 0,
+        "foreground": 15,
+      },
+      "baseRoles": {
+        "background": "--nextexample-bg",
+        "foreground": "--nextexample-fg",
+      },
+      "colorSchemes": {
+        "Default": {
+          "background": 0,
+          "cursor": 4,
+          "foreground": 15,
+          "palette": [
+            "#1e1e1e",
+            "#2d6cdf",
+            "#3aa676",
+            "#d97706",
+            "#9b5de5",
+            "#e63946",
+            "#1d3557",
+            "#06b6d4",
+            "#475569",
+            "#94a3b8",
+            "#cbd5e1",
+            "#e2e8f0",
+            "#f1f5f9",
+            "#fef3c7",
+            "#bbf7d0",
+            "#f8fafc",
+          ],
+          "selectionBg": 1,
+          "selectionFg": 15,
+          "shikiTheme": "github-dark",
+        },
+      },
+      "defaultShikiTheme": "github-dark",
+      "id": "nextexample-cluster",
+      "label": "Next.js Example",
+      "paletteCssVarTemplate": "--nextexample-palette-{n}",
+      "paletteSize": 16,
+      "panelSettings": {
+        "colorMode": false,
+        "colorScheme": "Default",
+      },
+      "semanticCssNames": {
+        "accent": "--nextexample-color-accent",
+        "danger": "--nextexample-color-danger",
+        "muted": "--nextexample-color-muted",
+        "primary": "--nextexample-color-primary",
+        "surface": "--nextexample-color-surface",
+      },
+      "semanticDefaults": {
+        "accent": 3,
+        "danger": 5,
+        "muted": 8,
+        "primary": 1,
+        "surface": 0,
+      },
+    },
+    "id": "color",
+    "label": "Color",
+    "tiers": [
+      {
+        "id": "palette",
+        "items": [
+          {
+            "cssVar": "--nextexample-palette-0",
+            "default": "",
+            "id": "palette-0",
+            "label": "Palette 0",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--nextexample-palette-1",
+            "default": "",
+            "id": "palette-1",
+            "label": "Palette 1",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--nextexample-palette-2",
+            "default": "",
+            "id": "palette-2",
+            "label": "Palette 2",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--nextexample-palette-3",
+            "default": "",
+            "id": "palette-3",
+            "label": "Palette 3",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--nextexample-palette-4",
+            "default": "",
+            "id": "palette-4",
+            "label": "Palette 4",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--nextexample-palette-5",
+            "default": "",
+            "id": "palette-5",
+            "label": "Palette 5",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--nextexample-palette-6",
+            "default": "",
+            "id": "palette-6",
+            "label": "Palette 6",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--nextexample-palette-7",
+            "default": "",
+            "id": "palette-7",
+            "label": "Palette 7",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--nextexample-palette-8",
+            "default": "",
+            "id": "palette-8",
+            "label": "Palette 8",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--nextexample-palette-9",
+            "default": "",
+            "id": "palette-9",
+            "label": "Palette 9",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--nextexample-palette-10",
+            "default": "",
+            "id": "palette-10",
+            "label": "Palette 10",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--nextexample-palette-11",
+            "default": "",
+            "id": "palette-11",
+            "label": "Palette 11",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--nextexample-palette-12",
+            "default": "",
+            "id": "palette-12",
+            "label": "Palette 12",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--nextexample-palette-13",
+            "default": "",
+            "id": "palette-13",
+            "label": "Palette 13",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--nextexample-palette-14",
+            "default": "",
+            "id": "palette-14",
+            "label": "Palette 14",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--nextexample-palette-15",
+            "default": "",
+            "id": "palette-15",
+            "label": "Palette 15",
+            "type": {
+              "kind": "color",
+            },
+          },
+        ],
+        "label": "Palette",
+      },
+      {
+        "id": "semantic",
+        "items": [
+          {
+            "cssVar": "--nextexample-color-primary",
+            "default": "1",
+            "id": "semantic-primary",
+            "label": "primary",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--nextexample-color-accent",
+            "default": "3",
+            "id": "semantic-accent",
+            "label": "accent",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--nextexample-color-surface",
+            "default": "0",
+            "id": "semantic-surface",
+            "label": "surface",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--nextexample-color-muted",
+            "default": "8",
+            "id": "semantic-muted",
+            "label": "muted",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--nextexample-color-danger",
+            "default": "5",
+            "id": "semantic-danger",
+            "label": "danger",
+            "type": {
+              "kind": "color",
+            },
+          },
+        ],
+        "label": "Semantic",
+        "referencesTier": "palette",
+      },
+    ],
+  },
+]
+`;
+
+exports[`liftLegacyConfigToTabs — vite-react example > produces a stable snapshot 1`] = `
+[
+  {
+    "id": "spacing",
+    "label": "Spacing",
+    "spacingGroupOrder": [
+      "vsp",
+      "hsp",
+    ],
+    "tiers": [
+      {
+        "id": "raw",
+        "items": [
+          {
+            "cssVar": "--vitereact-spacing-md",
+            "default": "1rem",
+            "group": "hsp",
+            "id": "vitereact-spacing-md",
+            "label": "Spacing M",
+            "type": {
+              "kind": "length",
+              "max": 4,
+              "min": 0,
+              "step": 0.0625,
+              "unit": "rem",
+            },
+          },
+          {
+            "cssVar": "--vitereact-spacing-lg",
+            "default": "2rem",
+            "group": "vsp",
+            "id": "vitereact-spacing-lg",
+            "label": "Spacing L",
+            "type": {
+              "kind": "length",
+              "max": 6,
+              "min": 0,
+              "step": 0.0625,
+              "unit": "rem",
+            },
+          },
+        ],
+        "label": "Spacing",
+      },
+    ],
+  },
+  {
+    "id": "font",
+    "label": "Font",
+    "tiers": [
+      {
+        "id": "raw",
+        "items": [
+          {
+            "cssVar": "--vitereact-text-base",
+            "default": "1rem",
+            "group": "font-size",
+            "id": "vitereact-text-base",
+            "label": "Body Text",
+            "type": {
+              "kind": "length",
+              "max": 1.5,
+              "min": 0.75,
+              "step": 0.0625,
+              "unit": "rem",
+            },
+          },
+          {
+            "cssVar": "--vitereact-text-heading",
+            "default": "1.75rem",
+            "group": "font-size",
+            "id": "vitereact-text-heading",
+            "label": "Heading Text",
+            "type": {
+              "kind": "length",
+              "max": 4,
+              "min": 1,
+              "step": 0.0625,
+              "unit": "rem",
+            },
+          },
+        ],
+        "label": "Typography",
+      },
+    ],
+  },
+  {
+    "id": "size",
+    "label": "Size",
+    "tiers": [
+      {
+        "id": "raw",
+        "items": [
+          {
+            "cssVar": "--vitereact-radius",
+            "default": "0.5rem",
+            "group": "radius",
+            "id": "vitereact-radius",
+            "label": "Border Radius",
+            "type": {
+              "kind": "length",
+              "max": 2,
+              "min": 0,
+              "step": 0.0625,
+              "unit": "rem",
+            },
+          },
+        ],
+        "label": "Size",
+      },
+    ],
+  },
+  {
+    "colorExtras": {
+      "baseDefaults": {
+        "background": 0,
+        "foreground": 15,
+      },
+      "baseRoles": {
+        "background": "--vitereact-bg",
+        "foreground": "--vitereact-fg",
+      },
+      "colorSchemes": {
+        "Default": {
+          "background": 0,
+          "cursor": 4,
+          "foreground": 15,
+          "palette": [
+            "#1e1e1e",
+            "#2d6cdf",
+            "#3aa676",
+            "#d97706",
+            "#9b5de5",
+            "#e63946",
+            "#1d3557",
+            "#06b6d4",
+            "#475569",
+            "#94a3b8",
+            "#cbd5e1",
+            "#e2e8f0",
+            "#f1f5f9",
+            "#fef3c7",
+            "#bbf7d0",
+            "#f8fafc",
+          ],
+          "selectionBg": 1,
+          "selectionFg": 15,
+          "shikiTheme": "github-dark",
+        },
+      },
+      "defaultShikiTheme": "github-dark",
+      "id": "vitereact-cluster",
+      "label": "Vite + React Example",
+      "paletteCssVarTemplate": "--vitereact-palette-{n}",
+      "paletteSize": 16,
+      "panelSettings": {
+        "colorMode": false,
+        "colorScheme": "Default",
+      },
+      "semanticCssNames": {
+        "accent": "--vitereact-color-accent",
+        "danger": "--vitereact-color-danger",
+        "muted": "--vitereact-color-muted",
+        "primary": "--vitereact-color-primary",
+        "surface": "--vitereact-color-surface",
+      },
+      "semanticDefaults": {
+        "accent": 3,
+        "danger": 5,
+        "muted": 8,
+        "primary": 1,
+        "surface": 0,
+      },
+    },
+    "id": "color",
+    "label": "Color",
+    "tiers": [
+      {
+        "id": "palette",
+        "items": [
+          {
+            "cssVar": "--vitereact-palette-0",
+            "default": "",
+            "id": "palette-0",
+            "label": "Palette 0",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--vitereact-palette-1",
+            "default": "",
+            "id": "palette-1",
+            "label": "Palette 1",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--vitereact-palette-2",
+            "default": "",
+            "id": "palette-2",
+            "label": "Palette 2",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--vitereact-palette-3",
+            "default": "",
+            "id": "palette-3",
+            "label": "Palette 3",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--vitereact-palette-4",
+            "default": "",
+            "id": "palette-4",
+            "label": "Palette 4",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--vitereact-palette-5",
+            "default": "",
+            "id": "palette-5",
+            "label": "Palette 5",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--vitereact-palette-6",
+            "default": "",
+            "id": "palette-6",
+            "label": "Palette 6",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--vitereact-palette-7",
+            "default": "",
+            "id": "palette-7",
+            "label": "Palette 7",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--vitereact-palette-8",
+            "default": "",
+            "id": "palette-8",
+            "label": "Palette 8",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--vitereact-palette-9",
+            "default": "",
+            "id": "palette-9",
+            "label": "Palette 9",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--vitereact-palette-10",
+            "default": "",
+            "id": "palette-10",
+            "label": "Palette 10",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--vitereact-palette-11",
+            "default": "",
+            "id": "palette-11",
+            "label": "Palette 11",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--vitereact-palette-12",
+            "default": "",
+            "id": "palette-12",
+            "label": "Palette 12",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--vitereact-palette-13",
+            "default": "",
+            "id": "palette-13",
+            "label": "Palette 13",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--vitereact-palette-14",
+            "default": "",
+            "id": "palette-14",
+            "label": "Palette 14",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--vitereact-palette-15",
+            "default": "",
+            "id": "palette-15",
+            "label": "Palette 15",
+            "type": {
+              "kind": "color",
+            },
+          },
+        ],
+        "label": "Palette",
+      },
+      {
+        "id": "semantic",
+        "items": [
+          {
+            "cssVar": "--vitereact-color-primary",
+            "default": "1",
+            "id": "semantic-primary",
+            "label": "primary",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--vitereact-color-accent",
+            "default": "3",
+            "id": "semantic-accent",
+            "label": "accent",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--vitereact-color-surface",
+            "default": "0",
+            "id": "semantic-surface",
+            "label": "surface",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--vitereact-color-muted",
+            "default": "8",
+            "id": "semantic-muted",
+            "label": "muted",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--vitereact-color-danger",
+            "default": "5",
+            "id": "semantic-danger",
+            "label": "danger",
+            "type": {
+              "kind": "color",
+            },
+          },
+        ],
+        "label": "Semantic",
+        "referencesTier": "palette",
+      },
+    ],
+  },
+]
+`;
+
+exports[`liftLegacyConfigToTabs — zfb example > produces a stable snapshot 1`] = `
+[
+  {
+    "id": "spacing",
+    "label": "Spacing",
+    "spacingGroupOrder": [
+      "vsp",
+      "hsp",
+    ],
+    "tiers": [
+      {
+        "id": "raw",
+        "items": [
+          {
+            "cssVar": "--zfbexample-spacing-md",
+            "default": "1rem",
+            "group": "hsp",
+            "id": "zfbexample-spacing-md",
+            "label": "Spacing M",
+            "type": {
+              "kind": "length",
+              "max": 4,
+              "min": 0,
+              "step": 0.0625,
+              "unit": "rem",
+            },
+          },
+          {
+            "cssVar": "--zfbexample-spacing-lg",
+            "default": "2rem",
+            "group": "vsp",
+            "id": "zfbexample-spacing-lg",
+            "label": "Spacing L",
+            "type": {
+              "kind": "length",
+              "max": 6,
+              "min": 0,
+              "step": 0.0625,
+              "unit": "rem",
+            },
+          },
+        ],
+        "label": "Spacing",
+      },
+    ],
+  },
+  {
+    "id": "font",
+    "label": "Font",
+    "tiers": [
+      {
+        "id": "raw",
+        "items": [
+          {
+            "cssVar": "--zfbexample-text-base",
+            "default": "1rem",
+            "group": "font-size",
+            "id": "zfbexample-text-base",
+            "label": "Body Text",
+            "type": {
+              "kind": "length",
+              "max": 1.5,
+              "min": 0.75,
+              "step": 0.0625,
+              "unit": "rem",
+            },
+          },
+          {
+            "cssVar": "--zfbexample-text-heading",
+            "default": "1.75rem",
+            "group": "font-size",
+            "id": "zfbexample-text-heading",
+            "label": "Heading Text",
+            "type": {
+              "kind": "length",
+              "max": 4,
+              "min": 1,
+              "step": 0.0625,
+              "unit": "rem",
+            },
+          },
+        ],
+        "label": "Typography",
+      },
+    ],
+  },
+  {
+    "id": "size",
+    "label": "Size",
+    "tiers": [
+      {
+        "id": "raw",
+        "items": [
+          {
+            "cssVar": "--zfbexample-radius",
+            "default": "0.5rem",
+            "group": "radius",
+            "id": "zfbexample-radius",
+            "label": "Border Radius",
+            "type": {
+              "kind": "length",
+              "max": 2,
+              "min": 0,
+              "step": 0.0625,
+              "unit": "rem",
+            },
+          },
+        ],
+        "label": "Size",
+      },
+    ],
+  },
+  {
+    "colorExtras": {
+      "baseDefaults": {
+        "background": 0,
+        "foreground": 15,
+      },
+      "baseRoles": {
+        "background": "--zfbexample-bg",
+        "foreground": "--zfbexample-fg",
+      },
+      "colorSchemes": {
+        "Default": {
+          "background": 0,
+          "cursor": 4,
+          "foreground": 15,
+          "palette": [
+            "#1e1e1e",
+            "#2d6cdf",
+            "#3aa676",
+            "#d97706",
+            "#9b5de5",
+            "#e63946",
+            "#1d3557",
+            "#06b6d4",
+            "#475569",
+            "#94a3b8",
+            "#cbd5e1",
+            "#e2e8f0",
+            "#f1f5f9",
+            "#fef3c7",
+            "#bbf7d0",
+            "#f8fafc",
+          ],
+          "selectionBg": 1,
+          "selectionFg": 15,
+          "shikiTheme": "github-dark",
+        },
+      },
+      "defaultShikiTheme": "github-dark",
+      "id": "zfbexample-cluster",
+      "label": "zfb Example",
+      "paletteCssVarTemplate": "--zfbexample-palette-{n}",
+      "paletteSize": 16,
+      "panelSettings": {
+        "colorMode": false,
+        "colorScheme": "Default",
+      },
+      "semanticCssNames": {
+        "accent": "--zfbexample-color-accent",
+        "danger": "--zfbexample-color-danger",
+        "muted": "--zfbexample-color-muted",
+        "primary": "--zfbexample-color-primary",
+        "surface": "--zfbexample-color-surface",
+      },
+      "semanticDefaults": {
+        "accent": 3,
+        "danger": 5,
+        "muted": 8,
+        "primary": 1,
+        "surface": 0,
+      },
+    },
+    "id": "color",
+    "label": "Color",
+    "tiers": [
+      {
+        "id": "palette",
+        "items": [
+          {
+            "cssVar": "--zfbexample-palette-0",
+            "default": "",
+            "id": "palette-0",
+            "label": "Palette 0",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbexample-palette-1",
+            "default": "",
+            "id": "palette-1",
+            "label": "Palette 1",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbexample-palette-2",
+            "default": "",
+            "id": "palette-2",
+            "label": "Palette 2",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbexample-palette-3",
+            "default": "",
+            "id": "palette-3",
+            "label": "Palette 3",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbexample-palette-4",
+            "default": "",
+            "id": "palette-4",
+            "label": "Palette 4",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbexample-palette-5",
+            "default": "",
+            "id": "palette-5",
+            "label": "Palette 5",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbexample-palette-6",
+            "default": "",
+            "id": "palette-6",
+            "label": "Palette 6",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbexample-palette-7",
+            "default": "",
+            "id": "palette-7",
+            "label": "Palette 7",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbexample-palette-8",
+            "default": "",
+            "id": "palette-8",
+            "label": "Palette 8",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbexample-palette-9",
+            "default": "",
+            "id": "palette-9",
+            "label": "Palette 9",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbexample-palette-10",
+            "default": "",
+            "id": "palette-10",
+            "label": "Palette 10",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbexample-palette-11",
+            "default": "",
+            "id": "palette-11",
+            "label": "Palette 11",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbexample-palette-12",
+            "default": "",
+            "id": "palette-12",
+            "label": "Palette 12",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbexample-palette-13",
+            "default": "",
+            "id": "palette-13",
+            "label": "Palette 13",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbexample-palette-14",
+            "default": "",
+            "id": "palette-14",
+            "label": "Palette 14",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbexample-palette-15",
+            "default": "",
+            "id": "palette-15",
+            "label": "Palette 15",
+            "type": {
+              "kind": "color",
+            },
+          },
+        ],
+        "label": "Palette",
+      },
+      {
+        "id": "semantic",
+        "items": [
+          {
+            "cssVar": "--zfbexample-color-primary",
+            "default": "1",
+            "id": "semantic-primary",
+            "label": "primary",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbexample-color-accent",
+            "default": "3",
+            "id": "semantic-accent",
+            "label": "accent",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbexample-color-surface",
+            "default": "0",
+            "id": "semantic-surface",
+            "label": "surface",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbexample-color-muted",
+            "default": "8",
+            "id": "semantic-muted",
+            "label": "muted",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbexample-color-danger",
+            "default": "5",
+            "id": "semantic-danger",
+            "label": "danger",
+            "type": {
+              "kind": "color",
+            },
+          },
+        ],
+        "label": "Semantic",
+        "referencesTier": "palette",
+      },
+    ],
+  },
+]
+`;
+
+exports[`liftLegacyConfigToTabs — zfb-tailwind example > produces a stable snapshot 1`] = `
+[
+  {
+    "id": "spacing",
+    "label": "Spacing",
+    "spacingGroupOrder": [
+      "vsp",
+      "hsp",
+    ],
+    "tiers": [
+      {
+        "id": "raw",
+        "items": [
+          {
+            "cssVar": "--zfbtailwindexample-spacing-md",
+            "default": "1rem",
+            "group": "hsp",
+            "id": "zfbtailwindexample-spacing-md",
+            "label": "Spacing M",
+            "type": {
+              "kind": "length",
+              "max": 4,
+              "min": 0,
+              "step": 0.0625,
+              "unit": "rem",
+            },
+          },
+          {
+            "cssVar": "--zfbtailwindexample-spacing-lg",
+            "default": "2rem",
+            "group": "vsp",
+            "id": "zfbtailwindexample-spacing-lg",
+            "label": "Spacing L",
+            "type": {
+              "kind": "length",
+              "max": 6,
+              "min": 0,
+              "step": 0.0625,
+              "unit": "rem",
+            },
+          },
+        ],
+        "label": "Spacing",
+      },
+    ],
+  },
+  {
+    "id": "font",
+    "label": "Font",
+    "tiers": [
+      {
+        "id": "raw",
+        "items": [
+          {
+            "cssVar": "--zfbtailwindexample-text-base",
+            "default": "1rem",
+            "group": "font-size",
+            "id": "zfbtailwindexample-text-base",
+            "label": "Body Text",
+            "type": {
+              "kind": "length",
+              "max": 1.5,
+              "min": 0.75,
+              "step": 0.0625,
+              "unit": "rem",
+            },
+          },
+          {
+            "cssVar": "--zfbtailwindexample-text-heading",
+            "default": "1.75rem",
+            "group": "font-size",
+            "id": "zfbtailwindexample-text-heading",
+            "label": "Heading Text",
+            "type": {
+              "kind": "length",
+              "max": 4,
+              "min": 1,
+              "step": 0.0625,
+              "unit": "rem",
+            },
+          },
+        ],
+        "label": "Typography",
+      },
+    ],
+  },
+  {
+    "id": "size",
+    "label": "Size",
+    "tiers": [
+      {
+        "id": "raw",
+        "items": [
+          {
+            "cssVar": "--zfbtailwindexample-radius",
+            "default": "0.5rem",
+            "group": "radius",
+            "id": "zfbtailwindexample-radius",
+            "label": "Border Radius",
+            "type": {
+              "kind": "length",
+              "max": 2,
+              "min": 0,
+              "step": 0.0625,
+              "unit": "rem",
+            },
+          },
+        ],
+        "label": "Size",
+      },
+    ],
+  },
+  {
+    "colorExtras": {
+      "baseDefaults": {
+        "background": 0,
+        "foreground": 15,
+      },
+      "baseRoles": {
+        "background": "--zfbtailwindexample-bg",
+        "foreground": "--zfbtailwindexample-fg",
+      },
+      "colorSchemes": {
+        "Default": {
+          "background": 0,
+          "cursor": 4,
+          "foreground": 15,
+          "palette": [
+            "#1e1e1e",
+            "#2d6cdf",
+            "#3aa676",
+            "#d97706",
+            "#9b5de5",
+            "#e63946",
+            "#1d3557",
+            "#06b6d4",
+            "#475569",
+            "#94a3b8",
+            "#cbd5e1",
+            "#e2e8f0",
+            "#f1f5f9",
+            "#fef3c7",
+            "#bbf7d0",
+            "#f8fafc",
+          ],
+          "selectionBg": 1,
+          "selectionFg": 15,
+          "shikiTheme": "github-dark",
+        },
+      },
+      "defaultShikiTheme": "github-dark",
+      "id": "zfbtailwindexample-cluster",
+      "label": "zfb Tailwind Example",
+      "paletteCssVarTemplate": "--zfbtailwindexample-palette-{n}",
+      "paletteSize": 16,
+      "panelSettings": {
+        "colorMode": false,
+        "colorScheme": "Default",
+      },
+      "semanticCssNames": {
+        "accent": "--zfbtailwindexample-color-accent",
+        "danger": "--zfbtailwindexample-color-danger",
+        "muted": "--zfbtailwindexample-color-muted",
+        "primary": "--zfbtailwindexample-color-primary",
+        "surface": "--zfbtailwindexample-color-surface",
+      },
+      "semanticDefaults": {
+        "accent": 3,
+        "danger": 5,
+        "muted": 8,
+        "primary": 1,
+        "surface": 0,
+      },
+    },
+    "id": "color",
+    "label": "Color",
+    "tiers": [
+      {
+        "id": "palette",
+        "items": [
+          {
+            "cssVar": "--zfbtailwindexample-palette-0",
+            "default": "",
+            "id": "palette-0",
+            "label": "Palette 0",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbtailwindexample-palette-1",
+            "default": "",
+            "id": "palette-1",
+            "label": "Palette 1",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbtailwindexample-palette-2",
+            "default": "",
+            "id": "palette-2",
+            "label": "Palette 2",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbtailwindexample-palette-3",
+            "default": "",
+            "id": "palette-3",
+            "label": "Palette 3",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbtailwindexample-palette-4",
+            "default": "",
+            "id": "palette-4",
+            "label": "Palette 4",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbtailwindexample-palette-5",
+            "default": "",
+            "id": "palette-5",
+            "label": "Palette 5",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbtailwindexample-palette-6",
+            "default": "",
+            "id": "palette-6",
+            "label": "Palette 6",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbtailwindexample-palette-7",
+            "default": "",
+            "id": "palette-7",
+            "label": "Palette 7",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbtailwindexample-palette-8",
+            "default": "",
+            "id": "palette-8",
+            "label": "Palette 8",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbtailwindexample-palette-9",
+            "default": "",
+            "id": "palette-9",
+            "label": "Palette 9",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbtailwindexample-palette-10",
+            "default": "",
+            "id": "palette-10",
+            "label": "Palette 10",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbtailwindexample-palette-11",
+            "default": "",
+            "id": "palette-11",
+            "label": "Palette 11",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbtailwindexample-palette-12",
+            "default": "",
+            "id": "palette-12",
+            "label": "Palette 12",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbtailwindexample-palette-13",
+            "default": "",
+            "id": "palette-13",
+            "label": "Palette 13",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbtailwindexample-palette-14",
+            "default": "",
+            "id": "palette-14",
+            "label": "Palette 14",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbtailwindexample-palette-15",
+            "default": "",
+            "id": "palette-15",
+            "label": "Palette 15",
+            "type": {
+              "kind": "color",
+            },
+          },
+        ],
+        "label": "Palette",
+      },
+      {
+        "id": "semantic",
+        "items": [
+          {
+            "cssVar": "--zfbtailwindexample-color-primary",
+            "default": "1",
+            "id": "semantic-primary",
+            "label": "primary",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbtailwindexample-color-accent",
+            "default": "3",
+            "id": "semantic-accent",
+            "label": "accent",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbtailwindexample-color-surface",
+            "default": "0",
+            "id": "semantic-surface",
+            "label": "surface",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbtailwindexample-color-muted",
+            "default": "8",
+            "id": "semantic-muted",
+            "label": "muted",
+            "type": {
+              "kind": "color",
+            },
+          },
+          {
+            "cssVar": "--zfbtailwindexample-color-danger",
+            "default": "5",
+            "id": "semantic-danger",
+            "label": "danger",
+            "type": {
+              "kind": "color",
+            },
+          },
+        ],
+        "label": "Semantic",
+        "referencesTier": "palette",
+      },
+    ],
+  },
+]
+`;
