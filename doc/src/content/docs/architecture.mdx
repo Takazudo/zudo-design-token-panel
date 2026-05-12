@@ -257,9 +257,23 @@ On every slider drag or color pick, the resolver calls `resolveTierItemValue(tab
 | Reference, no override | — | `var(--cssVar-of-item-with-same-id)` in the referenced tier |
 | Reference, override points at unknown id | stale or missing id | Falls back to the item in the referenced tier whose id matches `itemId`; if that also doesn't exist, falls back to the first item in the referenced tier. No error is thrown. |
 
+### Storage schema and migration
+
+State is persisted to `localStorage` under `${storagePrefix}-state-v3`. On first load after an upgrade the panel automatically migrates any existing v2 state into the v3 envelope and removes the old key; v1 state is promoted to v2 in the same pass. No user action is required.
+
+| Storage key | Contents | Lifecycle |
+| --- | --- | --- |
+| `${storagePrefix}-state-v3` | Current unified override envelope (all tabs). | Live; written on every change. |
+| Previous v2 key | v2 envelope — migrated to v3 on first load, then deleted. | Transitional — see [Storage-key derivation](/docs/reference/configure-panel/#storage-key-derivation). |
+| `${storagePrefix}-state` | Pre-v2 flat state (color-only). Migrated to v2 on first load, then deleted. | Legacy. |
+
+### JSON export and import
+
+The **Export** button emits a JSON file whose `$schema` field identifies it as the v2 export schema. The **Import** modal accepts both v1 and v2 export files and normalises them to v2 before applying. The export schema version is independent of the localStorage schema version — bumps to one do not imply a bump to the other.
+
 ### Optional disk rewrite
 
-A tweak never leaves the browser — `:root` updates synchronously on every change and the state is persisted to `localStorage` under `${storagePrefix}-state-v2`. The bin server only runs when the host passes `applyEndpoint` + `applyRouting` on `PanelConfig`, and even then only activates when the user clicks Apply.
+A tweak never leaves the browser — `:root` updates synchronously on every change and the state is persisted to `localStorage` under `${storagePrefix}-state-v3`. The bin server only runs when the host passes `applyEndpoint` + `applyRouting` on `PanelConfig`, and even then only activates when the user clicks Apply.
 
 The bin server receives a POST with the current override diff, validates the request origin against its CORS allow-list, validates each routing entry against the write-root sandbox, and rewrites the target CSS files atomically (temp file + rename, per-file mutex). Any write failure triggers an in-memory snapshot rollback so no file is left in a partial state.
 
