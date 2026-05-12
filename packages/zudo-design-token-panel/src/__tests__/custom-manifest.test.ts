@@ -5,19 +5,18 @@ import {
   DEFAULT_PANEL_CONFIG,
   getPanelConfig,
 } from '../config/panel-config';
-import type { TokenDef } from '../tokens/manifest';
+import type { TabConfig } from '../tokens/tier-model';
 
 /**
- * Consumer-supplied manifest works end-to-end at the config level.
+ * Consumer-supplied tabs[] works end-to-end at the config level.
  *
- * The portable contract lets a host pass an arbitrary `TokenManifest` into
- * `configurePanel`. The package itself ships an empty stub manifest;
- * different consumers can ship distinct manifests of any shape. Passing 3
- * spacing tokens and zero typography tokens MUST produce a panel that
- * surfaces 3 spacing rows and zero typography rows.
+ * The portable contract lets a host pass `tabs: TabConfig[]` into
+ * `configurePanel`. The package itself ships an empty stub tabs array;
+ * different consumers can ship distinct tab configs. Passing a spacing tab
+ * with 3 items MUST produce a panel config that surfaces those 3 items.
  *
- * This test exercises the plumbing — `configurePanel` accepts a smaller
- * manifest, `getPanelConfig().tokens` reflects it.
+ * This test exercises the plumbing — `configurePanel` accepts custom tabs,
+ * `getPanelConfig().tabs` reflects them.
  */
 
 beforeEach(() => {
@@ -28,70 +27,61 @@ afterEach(() => {
   __resetPanelConfigForTests();
 });
 
-const FAKE_SPACING_TOKENS: readonly TokenDef[] = [
-  {
-    id: 'demo-sm',
-    cssVar: '--demo-sm',
-    label: 'demo-sm',
-    group: 'hsp',
-    default: '4px',
-    min: 0,
-    max: 32,
-    step: 1,
-    unit: 'px',
-  },
-  {
-    id: 'demo-md',
-    cssVar: '--demo-md',
-    label: 'demo-md',
-    group: 'hsp',
-    default: '8px',
-    min: 0,
-    max: 32,
-    step: 1,
-    unit: 'px',
-  },
-  {
-    id: 'demo-lg',
-    cssVar: '--demo-lg',
-    label: 'demo-lg',
-    group: 'hsp',
-    default: '16px',
-    min: 0,
-    max: 64,
-    step: 1,
-    unit: 'px',
-  },
-] as const;
+const FAKE_SPACING_TAB: TabConfig = {
+  id: 'spacing',
+  label: 'Spacing',
+  tiers: [
+    {
+      id: 'raw',
+      label: 'Raw',
+      items: [
+        {
+          id: 'demo-sm',
+          cssVar: '--demo-sm',
+          label: 'demo-sm',
+          default: '4px',
+          type: { kind: 'length', min: 0, max: 32, step: 1, unit: 'px' },
+        },
+        {
+          id: 'demo-md',
+          cssVar: '--demo-md',
+          label: 'demo-md',
+          default: '8px',
+          type: { kind: 'length', min: 0, max: 32, step: 1, unit: 'px' },
+        },
+        {
+          id: 'demo-lg',
+          cssVar: '--demo-lg',
+          label: 'demo-lg',
+          default: '16px',
+          type: { kind: 'length', min: 0, max: 64, step: 1, unit: 'px' },
+        },
+      ],
+    },
+  ],
+};
 
-describe('configurePanel — consumer-supplied smaller manifest', () => {
-  it('exposes a 3-token spacing manifest with no typography tokens', () => {
+describe('configurePanel — consumer-supplied tabs', () => {
+  it('exposes a 3-item spacing tab with no font or size tabs', () => {
     configurePanel({
       ...DEFAULT_PANEL_CONFIG,
-      tokens: {
-        spacing: FAKE_SPACING_TOKENS,
-        typography: [],
-        size: [],
-        color: [],
-      },
+      tabs: [FAKE_SPACING_TAB],
     });
 
-    const tokens = getPanelConfig().tokens;
-    expect(tokens.spacing.length).toBe(3);
-    expect(tokens.typography.length).toBe(0);
-    expect(tokens.size.length).toBe(0);
-    expect(tokens.color.length).toBe(0);
-    expect(tokens.spacing.map((t) => t.id)).toEqual(['demo-sm', 'demo-md', 'demo-lg']);
+    const tabs = getPanelConfig().tabs;
+    expect(tabs.length).toBe(1);
+    const spacing = tabs.find((t) => t.id === 'spacing');
+    expect(spacing).toBeDefined();
+    const items = spacing!.tiers[0].items;
+    expect(items.length).toBe(3);
+    expect(items.map((t) => t.id)).toEqual(['demo-sm', 'demo-md', 'demo-lg']);
   });
 
-  it('default config exposes the empty stub manifest when configurePanel is not called', () => {
+  it('default config exposes the empty tabs array when configurePanel is not called', () => {
     // No configurePanel call — the singleton stays null, getPanelConfig
-    // returns DEFAULT_PANEL_CONFIG, which ships an empty stub manifest.
+    // returns DEFAULT_PANEL_CONFIG, which ships an empty tabs array.
     // Hosts MUST call configurePanel to drive useful behaviour.
-    const tokens = getPanelConfig().tokens;
-    expect(tokens.spacing).toEqual([]);
-    expect(tokens.typography).toEqual([]);
-    expect(tokens.size).toEqual([]);
-    expect(tokens.color).toEqual([]);
+    const tabs = getPanelConfig().tabs;
+    expect(tabs).toEqual([]);
   });
 });

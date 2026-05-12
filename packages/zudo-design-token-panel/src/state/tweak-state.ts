@@ -51,7 +51,12 @@ import {
   storageKey_stateV2,
   storageKey_stateV3,
 } from '../config/panel-config';
-import type { TabOverrides } from '../apply/tier-resolver';
+import type { TabConfig } from '../tokens/tier-model';
+import {
+  type TabOverrides,
+  emitTierItemCssValue,
+  resolveTierItemValue,
+} from '../apply/tier-resolver';
 
 // Re-export the cluster types under their historical names so existing call
 // sites (build-apply-overrides.ts, apply-modal.tsx, tests) keep compiling.
@@ -671,17 +676,17 @@ export function applyTokenOverrides(tokens: readonly TokenDef[], overrides: Toke
  * Apply the full unified `TweakState` — primary color cluster + token
  * overrides + optional secondary cluster.
  *
- * Token manifests AND the primary color cluster are read from `panelConfig`
+ * Tab configs AND the primary color cluster are read from `panelConfig`
  * at call time so a host that calls `configurePanel` before mount sees its
  * own data driving the apply pass.
  */
 export function applyFullState(state: TweakState) {
   const config = getPanelConfig();
   applyColorState(state.color, config.colorCluster);
-  const tokens = config.tokens;
-  applyTokenOverrides(tokens.spacing, state.spacing);
-  applyTokenOverrides(tokens.typography, state.typography);
-  applyTokenOverrides(tokens.size, state.size);
+  // Apply spacing / typography / size from tabs[] (required field post-Wave-5).
+  applyTabOverridesFlat(config.tabs, 'spacing', state.spacing);
+  applyTabOverridesFlat(config.tabs, 'font', state.typography);
+  applyTabOverridesFlat(config.tabs, 'size', state.size);
   // The secondary cluster is host-driven via
   // `panelConfig.secondaryColorCluster`. When the host opted out (null),
   // skip the secondary apply pass entirely; even though `state.secondary`
@@ -690,6 +695,67 @@ export function applyFullState(state: TweakState) {
   const secondaryCluster = resolveSecondaryColorCluster(config);
   if (secondaryCluster && state.secondary) {
     applyColorState(state.secondary, secondaryCluster);
+  }
+}
+
+/**
+ * Apply a flat TokenOverrides map against a TabConfig. Finds the tab by id
+ * in `tabs`, then for each tier item resolves the effective CSS value using
+ * the tier resolver (so reference tiers emit `var(--target)`) and writes it
+ * to `:root`. Items not present in the overrides map have their inline
+ * property removed so the stylesheet default re-asserts.
+ *
+ * Skips gracefully when the tab is not found (host config without that tab).
+ */
+function applyTabOverridesFlat(
+  tabs: readonly TabConfig[],
+  tabId: string,
+  overrides: TokenOverrides,
+) {
+  const tab = tabs.find((t) => t.id === tabId);
+  if (!tab) return;
+
+  // Build a TabOverrides-shaped view of the flat overrides so the tier
+  // resolver can do reference-tier resolution. The flat map stores overrides
+  // keyed by item id; we wrap each item into its tier bucket.
+  const tabOverrides: Record<string, Record<string, string>> = {};
+  for (const tier of tab.tiers) {
+    const tierOverrides: Record<string, string> = {};
+    for (const item of tier.items) {
+      const v = overrides[item.id];
+      if (typeof v === 'string' && v.length > 0) {
+        tierOverrides[item.id] = v;
+      }
+    }
+    tabOverrides[tier.id] = tierOverrides;
+  }
+
+  // Apply each item using the resolver so reference tiers emit var() refs.
+  const root = document.documentElement;
+  for (const tier of tab.tiers) {
+    for (const item of tier.items) {
+      if (item.readonly) continue;
+      try {
+        const resolved = resolveTierItemValue(tab, tier.id, item.id, tabOverrides);
+        const cssValue = emitTierItemCssValue(resolved);
+        // Only write if there is actually an override — otherwise remove
+        // so the stylesheet default takes effect.
+        const hasOverride = typeof overrides[item.id] === 'string' && overrides[item.id].length > 0;
+        if (hasOverride || tier.referencesTier !== undefined) {
+          // For reference tiers we always write var(--target) because the
+          // CSS var itself points at the canonical default target, which
+          // may differ from a user-overridden raw tier item. Writing nothing
+          // would leave the previous var() ref or the stylesheet default.
+          setCssVar(item.cssVar, cssValue);
+        } else {
+          root.style.removeProperty(item.cssVar);
+        }
+      } catch {
+        // Resolver errors (misconfigured tab) are non-fatal — remove any
+        // stale inline value and let the stylesheet default through.
+        root.style.removeProperty(item.cssVar);
+      }
+    }
   }
 }
 
@@ -725,21 +791,17 @@ export function clearAppliedStyles(
       root.style.removeProperty(cssName);
     }
   }
-  // Token manifests — same contract: wipe any inline overrides so stylesheet
-  // defaults take effect again. Read from panelConfig so a host-supplied
-  // manifest's cssVars get cleared.
-  const tokens = getPanelConfig().tokens;
-  for (const t of tokens.spacing) {
-    if (t.readonly) continue;
-    root.style.removeProperty(t.cssVar);
-  }
-  for (const t of tokens.typography) {
-    if (t.readonly) continue;
-    root.style.removeProperty(t.cssVar);
-  }
-  for (const t of tokens.size) {
-    if (t.readonly) continue;
-    root.style.removeProperty(t.cssVar);
+  // Tabs — clear all cssVars for items in spacing/font/size tabs so the
+  // stylesheet defaults take effect again.
+  for (const tab of getPanelConfig().tabs) {
+    // Color tab vars are handled above via cluster clear paths.
+    if (tab.id === 'color') continue;
+    for (const tier of tab.tiers) {
+      for (const item of tier.items) {
+        if (item.readonly) continue;
+        root.style.removeProperty(item.cssVar);
+      }
+    }
   }
 }
 

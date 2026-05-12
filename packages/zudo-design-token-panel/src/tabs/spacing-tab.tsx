@@ -1,29 +1,42 @@
 import { useCallback, useMemo } from 'preact/compat';
-import SliderRow from '../controls/slider-row';
-import { GROUP_ORDER, GROUP_TITLES, type TokenDef } from '../tokens/manifest';
-import { getPanelConfig } from '../config/panel-config';
+import type { TabConfig, TierConfig, TierItem } from '../tokens/tier-model';
 import type { TokenOverrides } from '../state/tweak-state';
 import type { PersistSpacing } from '../state/persist';
+import TierRefSelector from '../controls/tier-ref-selector';
+import { TIER_REF_LITERAL_SIGNAL } from '../controls/tier-ref-selector';
+import GenericItemEditor from './_generic-item-editor';
 
 interface SpacingTabProps {
+  tab: TabConfig;
   state: TokenOverrides;
   persistSpacing: PersistSpacing;
 }
 
 /**
- * Spacing tab — fully manifest-driven.
+ * Spacing tab — TabConfig.tiers driven.
  *
- * Reads `panelConfig.tokens.spacing` at mount, groups by
- * `group` field, renders one `SliderRow` per token, and wires each row
- * through `persistSpacing` so CSS vars + storage stay in sync.
+ * Renders tiers in declaration order. Items within each tier are grouped by
+ * `item.group`. Tiers listed in `tab.advancedTiers` are rendered under a
+ * `<details>` disclosure. When a tier has `referencesTier`, its items render
+ * `TierRefSelector` instead of the kind-specific control.
  *
- * The token list is captured once with `useMemo([])` because `configurePanel`
- * is one-shot per page lifecycle — a remount-grade re-config is the only
- * legal way the manifest can change, and that resets this hook anyway.
+ * The persist path remains the same: `state.spacing` is a flat `TokenOverrides`
+ * map keyed by item id. Reference values are stored as the target item id; the
+ * apply pipeline emits `var(--targetCssVar)`.
  */
-export default function SpacingTab({ state, persistSpacing }: SpacingTabProps) {
+export default function SpacingTab({ tab, state, persistSpacing }: SpacingTabProps) {
   const handleChange = useCallback(
     (id: string, next: string) => {
+      // TIER_REF_LITERAL_SIGNAL means the user wants to flip back to literal
+      // mode — drop the stored ref id so the item reverts to its default.
+      if (next === TIER_REF_LITERAL_SIGNAL) {
+        persistSpacing((prev) => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+        return;
+      }
       persistSpacing((prev) => ({ ...prev, [id]: next }));
     },
     [persistSpacing],
@@ -33,25 +46,13 @@ export default function SpacingTab({ state, persistSpacing }: SpacingTabProps) {
     persistSpacing(() => ({}));
   }, [persistSpacing]);
 
-  // Read the manifest from runtime config (consumer-supplied).
-  // Group ordering and section titles fall back to the package-bundled
-  // defaults when the manifest doesn't override them.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const tokens = useMemo(() => getPanelConfig().tokens, []);
-  const spacingTokens = tokens.spacing;
-  const groupOrder = tokens.spacingGroupOrder ?? GROUP_ORDER;
-  const groupTitles = tokens.groupTitles ?? GROUP_TITLES;
+  const advancedTierIds = useMemo(
+    () => new Set<string>(tab.advancedTiers ?? []),
+    [tab.advancedTiers],
+  );
 
-  // Group tokens once so the render loop stays cheap and the display order
-  // stays stable across re-renders. Keyed by plain string so consumer-coined
-  // group ids work without changing the type.
-  const grouped = useMemo(() => {
-    const out: Record<string, TokenDef[]> = {};
-    for (const t of spacingTokens) {
-      (out[t.group] ??= []).push(t);
-    }
-    return out;
-  }, [spacingTokens]);
+  const normalTiers = tab.tiers.filter((t) => !advancedTierIds.has(t.id));
+  const advancedTiers = tab.tiers.filter((t) => advancedTierIds.has(t.id));
 
   return (
     <div className="tokenpanel-tab-content">
@@ -62,26 +63,114 @@ export default function SpacingTab({ state, persistSpacing }: SpacingTabProps) {
         </button>
       </div>
 
+      {normalTiers.map((tier) => (
+        <TierSection
+          key={tier.id}
+          tab={tab}
+          tier={tier}
+          state={state}
+          onChange={handleChange}
+        />
+      ))}
+
+      {advancedTiers.length > 0 && (
+        <details className="tokenpanel-tab-advanced">
+          <summary className="tokenpanel-tab-advanced-summary">
+            {advancedTiers.length === 1 ? advancedTiers[0].label : 'Advanced'}
+          </summary>
+          <div className="tokenpanel-tab-advanced-body">
+            {advancedTiers.map((tier) => (
+              <TierSection
+                key={tier.id}
+                tab={tab}
+                tier={tier}
+                state={state}
+                onChange={handleChange}
+              />
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TierSection
+// ---------------------------------------------------------------------------
+
+interface TierSectionProps {
+  tab: TabConfig;
+  tier: TierConfig;
+  state: TokenOverrides;
+  onChange: (id: string, next: string) => void;
+}
+
+function TierSection({ tab, tier, state, onChange }: TierSectionProps) {
+  // Group items by item.group for section headers. Items without a group go
+  // into the '' bucket rendered without a heading.
+  const { groupOrder, grouped } = useMemo(() => {
+    const groups: string[] = [];
+    const seenGroups = new Set<string>();
+    const grouped: Record<string, TierItem[]> = {};
+    for (const item of tier.items) {
+      const g = item.group ?? '';
+      if (!seenGroups.has(g)) {
+        seenGroups.add(g);
+        groups.push(g);
+      }
+      (grouped[g] ??= []).push(item);
+    }
+    return { groupOrder: groups, grouped };
+  }, [tier.items]);
+
+  const isRefTier = tier.referencesTier !== undefined;
+
+  return (
+    <section className="tokenpanel-tab-section" data-testid={`spacing-tier-${tier.id}`}>
+      <h3 className="tokenpanel-tab-section-heading">{tier.label}</h3>
       {groupOrder.map((group) => {
-        const sectionTokens = grouped[group];
-        if (!sectionTokens || sectionTokens.length === 0) return null;
+        const items = grouped[group];
+        if (!items || items.length === 0) return null;
         return (
-          <section key={group} className="tokenpanel-tab-section">
-            <h3 className="tokenpanel-tab-section-heading">{groupTitles[group] ?? group}</h3>
+          <div key={group} className="tokenpanel-tier-group">
+            {group && <h4 className="tokenpanel-tier-group-heading">{group}</h4>}
             <div className="tokenpanel-tab-grid">
-              {sectionTokens.map((token) => {
-                const value = state[token.id] ?? token.default;
-                // Pass `handleChange` directly — the row supplies its own
-                // `token.id` back via the (id, next) signature, so React.memo
-                // on SliderRow stays effective across re-renders.
+              {items.map((item) => {
+                const value = state[item.id] ?? item.default;
+                if (isRefTier) {
+                  return (
+                    <div
+                      key={item.id}
+                      className="tokenpanel-row"
+                      data-testid={`tier-ref-row-${item.id}`}
+                    >
+                      <span className="tokenpanel-row-label" title={item.cssVar}>
+                        {item.label}
+                      </span>
+                      <TierRefSelector
+                        tab={tab}
+                        tierId={tier.id}
+                        itemId={item.id}
+                        value={value}
+                        onChange={onChange}
+                      />
+                    </div>
+                  );
+                }
                 return (
-                  <SliderRow key={token.id} token={token} value={value} onChange={handleChange} />
+                  <GenericItemEditor
+                    key={item.id}
+                    item={item}
+                    value={value}
+                    onChange={onChange}
+                  />
                 );
               })}
             </div>
-          </section>
+          </div>
         );
       })}
-    </div>
+    </section>
   );
 }

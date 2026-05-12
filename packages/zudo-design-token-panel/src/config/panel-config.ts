@@ -30,7 +30,6 @@
  * see useful behaviour.
  */
 
-import type { TokenManifest } from '../tokens/manifest';
 import type { ColorScheme } from './color-schemes';
 import type { ColorClusterDataConfig } from './cluster-config';
 import type { TabConfig } from '../tokens/tier-model';
@@ -64,8 +63,6 @@ export interface PanelConfig {
   schemaId: string;
   /** Default filename base — exports save as `${exportFilenameBase}.json`. */
   exportFilenameBase: string;
-  /** Editable design tokens grouped per-tab. */
-  tokens: TokenManifest;
   /**
    * Primary color-cluster data. Drives the color tab + the apply / clear /
    * load helpers in `state/tweak-state.ts`. Must be JSON-serializable.
@@ -113,25 +110,19 @@ export interface PanelConfig {
    */
   applyRouting?: ApplyRoutingMap;
   /**
-   * Optional host-supplied tab configuration for the data-driven tab strip.
+   * Host-supplied tab configuration for the data-driven tab strip.
    *
-   * When supplied, `panel.tsx` renders the tab strip from this array instead
-   * of the hard-coded color/font/spacing/size buttons.
+   * `panel.tsx` renders the tab strip from this array.
    *
    *  - Reserved ids (`color`, `font`, `spacing`, `size`) dispatch to their
-   *    dedicated tab components (unchanged behaviour).
+   *    dedicated tab components.
    *  - Any other id dispatches to `GenericTab`, which renders the tab's
    *    `tiers` using kind-appropriate editors.
    *
-   * When absent (field omitted), panel.tsx falls back to the current
-   * hard-coded four-tab strip — existing hosts that have not migrated to the
-   * new shape see no change.
-   *
-   * Wave-5 tab migrations will populate this field for the reserved tabs so
-   * those components also consume `TabConfig.tiers`. For now only non-reserved
-   * tabs reach `GenericTab`.
+   * Hosts MUST supply this field. The ColorTab still reads `colorCluster` for
+   * its palette data (Wave 7 migrates it into the tier model).
    */
-  tabs?: readonly TabConfig[];
+  tabs: readonly TabConfig[];
   /**
    * Optional id rename map applied during `loadPersistedState` migration.
    * Keys are old ids found in persisted state; values are either:
@@ -157,18 +148,6 @@ export interface PanelConfig {
    */
   legacyIdRenameMap?: Record<string, string | null>;
 }
-
-/**
- * Empty token manifest — used as the default fallback so the panel imports
- * cleanly without a `configurePanel(...)` call. Every tab renders an empty
- * state until the host configures real tokens.
- */
-const EMPTY_TOKEN_MANIFEST: TokenManifest = {
-  spacing: [],
-  typography: [],
-  size: [],
-  color: [],
-};
 
 /**
  * Minimal stub color cluster — used as the default fallback. Carries an
@@ -200,7 +179,8 @@ export const DEFAULT_PANEL_CONFIG: PanelConfig = {
   modalClassPrefix: 'zudo-design-token-panel-modal',
   schemaId: 'zudo-design-tokens/v1',
   exportFilenameBase: 'zudo-design-tokens',
-  tokens: EMPTY_TOKEN_MANIFEST,
+  // Empty tab list — hosts MUST configure real tabs via configurePanel().
+  tabs: [],
   colorCluster: STUB_COLOR_CLUSTER,
   // Default to null — secondary cluster is opt-in. Hosts that want one
   // pass an explicit cluster object via `configurePanel`.
@@ -383,19 +363,9 @@ export function assertValidPanelConfig(value: unknown): asserts value is PanelCo
       );
     }
   }
-  if (cfg.tokens === null || typeof cfg.tokens !== 'object' || Array.isArray(cfg.tokens)) {
-    throw new Error('[design-token-panel] PanelConfig.tokens must be an object');
-  }
-  const tokens = cfg.tokens as Record<string, unknown>;
-  for (const slice of ['spacing', 'typography', 'size', 'color'] as const) {
-    if (!Array.isArray(tokens[slice])) {
-      throw new Error(
-        `[design-token-panel] PanelConfig.tokens.${slice} must be an array (got ${typeof tokens[
-          slice
-        ]})`,
-      );
-    }
-  }
+  // tabs is required — validate it unconditionally.
+  assertValidTabs(cfg.tabs);
+
   if (
     cfg.colorCluster === null ||
     typeof cfg.colorCluster !== 'object' ||
@@ -454,9 +424,6 @@ export function assertValidPanelConfig(value: unknown): asserts value is PanelCo
         );
       }
     }
-  }
-  if (cfg.tabs !== undefined) {
-    assertValidTabs(cfg.tabs);
   }
 }
 

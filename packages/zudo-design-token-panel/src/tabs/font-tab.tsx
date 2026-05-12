@@ -1,34 +1,40 @@
 import { useCallback, useMemo } from 'preact/compat';
-import SelectRow from '../controls/select-row';
-import SliderRow from '../controls/slider-row';
-import TextRow from '../controls/text-row';
-import { FONT_GROUP_ORDER, GROUP_TITLES, type TokenDef } from '../tokens/manifest';
-import { getPanelConfig } from '../config/panel-config';
+import type { TabConfig, TierConfig, TierItem } from '../tokens/tier-model';
 import type { TokenOverrides } from '../state/tweak-state';
 import type { PersistFont } from '../state/persist';
+import TierRefSelector from '../controls/tier-ref-selector';
+import { TIER_REF_LITERAL_SIGNAL } from '../controls/tier-ref-selector';
+import GenericItemEditor from './_generic-item-editor';
 
 interface FontTabProps {
+  tab: TabConfig;
   state: TokenOverrides;
   persistFont: PersistFont;
 }
 
 /**
- * Font tab — manifest-driven.
+ * Font tab — TabConfig.tiers driven.
  *
- * Top-level sections (in `FONT_GROUP_ORDER`):
- *   - FONT SIZES        → slider rows (`--text-*`)
- *   - LINE HEIGHTS      → slider rows (`--leading-*`, unitless)
- *   - FONT WEIGHTS      → select rows (`--font-weight-*`, 100..900)
- *   - FONT FAMILIES     → text rows   (`--font-sans`, `--font-mono`)
+ * Renders tiers in declaration order. Items within each tier are grouped by
+ * `item.group`. Tiers listed in `tab.advancedTiers` are rendered under a
+ * `<details>` disclosure (replaces the legacy `advanced: true` per-item flag).
+ * When a tier has `referencesTier`, its items render `TierRefSelector`.
  *
- * Advanced disclosure (`<details>`, collapsed by default) reveals the Tier 1
- * abstract scale (`--text-scale-*`). The Tier 2 font-size tokens above resolve
- * from these via `var()` in `global.css`, so edits to the scale cascade
- * automatically to the primary size rows without any extra wiring here.
+ * The persist path: `state.typography` is a flat `TokenOverrides` map keyed
+ * by item id. Reference values store the target item id; apply emits
+ * `var(--targetCssVar)`.
  */
-export default function FontTab({ state, persistFont }: FontTabProps) {
+export default function FontTab({ tab, state, persistFont }: FontTabProps) {
   const handleChange = useCallback(
     (id: string, next: string) => {
+      if (next === TIER_REF_LITERAL_SIGNAL) {
+        persistFont((prev) => {
+          const n = { ...prev };
+          delete n[id];
+          return n;
+        });
+        return;
+      }
       persistFont((prev) => ({ ...prev, [id]: next }));
     },
     [persistFont],
@@ -38,33 +44,13 @@ export default function FontTab({ state, persistFont }: FontTabProps) {
     persistFont(() => ({}));
   }, [persistFont]);
 
-  // Read the manifest from runtime config (consumer-supplied).
-  // Note the field is `typography` (not `font`) per PORTABLE-CONTRACT.md §3.3
-  // — that's the persist envelope's slice name. Group ordering and section
-  // titles fall back to the package-bundled defaults when the manifest
-  // doesn't override them.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const tokens = useMemo(() => getPanelConfig().tokens, []);
-  const fontTokens = tokens.typography;
-  const fontGroupOrder = tokens.fontGroupOrder ?? FONT_GROUP_ORDER;
-  const groupTitles = tokens.groupTitles ?? GROUP_TITLES;
+  const advancedTierIds = useMemo(
+    () => new Set<string>(tab.advancedTiers ?? []),
+    [tab.advancedTiers],
+  );
 
-  // Group tokens once. Primary groups come from `fontGroupOrder`; everything
-  // flagged `advanced` goes into the disclosure section.
-  const { primary, advanced } = useMemo(() => {
-    const primary = new Map<string, TokenDef[]>();
-    const advanced: TokenDef[] = [];
-    for (const t of fontTokens) {
-      if (t.advanced) {
-        advanced.push(t);
-        continue;
-      }
-      const arr = primary.get(t.group) ?? [];
-      arr.push(t);
-      primary.set(t.group, arr);
-    }
-    return { primary, advanced };
-  }, [fontTokens]);
+  const normalTiers = tab.tiers.filter((t) => !advancedTierIds.has(t.id));
+  const advancedTiers = tab.tiers.filter((t) => advancedTierIds.has(t.id));
 
   return (
     <div className="tokenpanel-tab-content">
@@ -75,40 +61,28 @@ export default function FontTab({ state, persistFont }: FontTabProps) {
         </button>
       </div>
 
-      {fontGroupOrder.map((group) => {
-        const sectionTokens = primary.get(group);
-        if (!sectionTokens || sectionTokens.length === 0) return null;
-        return (
-          <section key={group} className="tokenpanel-tab-section">
-            <h3 className="tokenpanel-tab-section-heading">{groupTitles[group] ?? group}</h3>
-            <div className="tokenpanel-tab-grid">
-              {sectionTokens.map((token) => (
-                // Pass `handleChange` directly — TokenRow forwards it to the
-                // memoised row primitives whose (id, next) signature lets us
-                // share one stable handler across all rows.
-                <TokenRow
-                  key={token.id}
-                  token={token}
-                  value={state[token.id] ?? token.default}
-                  onChange={handleChange}
-                />
-              ))}
-            </div>
-          </section>
-        );
-      })}
+      {normalTiers.map((tier) => (
+        <TierSection
+          key={tier.id}
+          tab={tab}
+          tier={tier}
+          state={state}
+          onChange={handleChange}
+        />
+      ))}
 
-      {advanced.length > 0 && (
+      {advancedTiers.length > 0 && (
         <details className="tokenpanel-tab-advanced">
           <summary className="tokenpanel-tab-advanced-summary">
-            {groupTitles['font-scale'] ?? 'font-scale'}
+            {advancedTiers.length === 1 ? advancedTiers[0].label : 'Advanced'}
           </summary>
-          <div className="tokenpanel-tab-advanced-grid">
-            {advanced.map((token) => (
-              <TokenRow
-                key={token.id}
-                token={token}
-                value={state[token.id] ?? token.default}
+          <div className="tokenpanel-tab-advanced-body">
+            {advancedTiers.map((tier) => (
+              <TierSection
+                key={tier.id}
+                tab={tab}
+                tier={tier}
+                state={state}
                 onChange={handleChange}
               />
             ))}
@@ -119,29 +93,80 @@ export default function FontTab({ state, persistFont }: FontTabProps) {
   );
 }
 
-/**
- * Dispatch to the right control based on `token.control`. Defaults to slider.
- *
- * `onChange` carries the `(id, next)` signature so the parent can use a
- * single stable handler across every row, keeping React.memo on each row
- * primitive effective.
- */
-function TokenRow({
-  token,
-  value,
-  onChange,
-}: {
-  token: TokenDef;
-  value: string;
+// ---------------------------------------------------------------------------
+// TierSection
+// ---------------------------------------------------------------------------
+
+interface TierSectionProps {
+  tab: TabConfig;
+  tier: TierConfig;
+  state: TokenOverrides;
   onChange: (id: string, next: string) => void;
-}) {
-  switch (token.control) {
-    case 'select':
-      return <SelectRow token={token} value={value} onChange={onChange} />;
-    case 'text':
-      return <TextRow token={token} value={value} onChange={onChange} />;
-    case 'slider':
-    default:
-      return <SliderRow token={token} value={value} onChange={onChange} />;
-  }
+}
+
+function TierSection({ tab, tier, state, onChange }: TierSectionProps) {
+  const { groupOrder, grouped } = useMemo(() => {
+    const groups: string[] = [];
+    const seenGroups = new Set<string>();
+    const grouped: Record<string, TierItem[]> = {};
+    for (const item of tier.items) {
+      const g = item.group ?? '';
+      if (!seenGroups.has(g)) {
+        seenGroups.add(g);
+        groups.push(g);
+      }
+      (grouped[g] ??= []).push(item);
+    }
+    return { groupOrder: groups, grouped };
+  }, [tier.items]);
+
+  const isRefTier = tier.referencesTier !== undefined;
+
+  return (
+    <section className="tokenpanel-tab-section" data-testid={`font-tier-${tier.id}`}>
+      <h3 className="tokenpanel-tab-section-heading">{tier.label}</h3>
+      {groupOrder.map((group) => {
+        const items = grouped[group];
+        if (!items || items.length === 0) return null;
+        return (
+          <div key={group} className="tokenpanel-tier-group">
+            {group && <h4 className="tokenpanel-tier-group-heading">{group}</h4>}
+            <div className="tokenpanel-tab-grid">
+              {items.map((item) => {
+                const value = state[item.id] ?? item.default;
+                if (isRefTier) {
+                  return (
+                    <div
+                      key={item.id}
+                      className="tokenpanel-row"
+                      data-testid={`tier-ref-row-${item.id}`}
+                    >
+                      <span className="tokenpanel-row-label" title={item.cssVar}>
+                        {item.label}
+                      </span>
+                      <TierRefSelector
+                        tab={tab}
+                        tierId={tier.id}
+                        itemId={item.id}
+                        value={value}
+                        onChange={onChange}
+                      />
+                    </div>
+                  );
+                }
+                return (
+                  <GenericItemEditor
+                    key={item.id}
+                    item={item}
+                    value={value}
+                    onChange={onChange}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </section>
+  );
 }
