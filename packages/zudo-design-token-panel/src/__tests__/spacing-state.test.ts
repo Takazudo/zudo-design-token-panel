@@ -3,6 +3,7 @@ import {
   ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP,
   getStorageKeyV1,
   getStorageKeyV2,
+  getStorageKeyV3,
   type ColorTweakState,
   type StorageLike,
   loadPersistedState,
@@ -13,8 +14,8 @@ import { installFixturePanelConfig } from './_test-helpers';
 /**
  * Spacing / typography / size sections:
  *   - v1 migration initialises them to empty maps (v1 only knew about color).
- *   - v2 payloads missing the sections hydrate to `{}` without warnings.
- *   - v2 payloads containing overrides pass them through unchanged.
+ *   - v3 payloads missing the sections hydrate to `{}` without warnings.
+ *   - v3 payloads containing overrides pass them through unchanged.
  *   - Non-string values inside `spacing` are silently dropped (defensive
  *     hydration — we don't want a broken entry to crash the panel).
  *
@@ -70,10 +71,12 @@ function makeColor(): ColorTweakState {
 let warnSpy: ReturnType<typeof vi.spyOn>;
 let STORAGE_KEY_V1 = '';
 let STORAGE_KEY_V2 = '';
+let STORAGE_KEY_V3 = '';
 beforeEach(() => {
   installFixturePanelConfig();
   STORAGE_KEY_V1 = getStorageKeyV1();
   STORAGE_KEY_V2 = getStorageKeyV2();
+  STORAGE_KEY_V3 = getStorageKeyV3();
   warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
 afterEach(() => {
@@ -93,16 +96,16 @@ describe('loadPersistedState — spacing / typography / size sections', () => {
     expect(result!.typography).toEqual({});
     expect(result!.size).toEqual({});
 
-    // Persisted v2 carries the empty sections so future loads stay stable.
-    const persisted = JSON.parse(storage.entries[STORAGE_KEY_V2]);
+    // Persisted v3 carries the empty sections so future loads stay stable.
+    const persisted = JSON.parse(storage.entries[STORAGE_KEY_V3]);
     expect(persisted.spacing).toEqual({});
     expect(persisted.typography).toEqual({});
     expect(persisted.size).toEqual({});
   });
 
-  it('hydrates v2 missing the new sections to empty maps (no warn)', () => {
-    const v2 = { color: makeColor() }; // no spacing/typography/size keys
-    const storage = makeStorage({ [STORAGE_KEY_V2]: JSON.stringify(v2) });
+  it('hydrates v3 missing the new sections to empty maps (no warn)', () => {
+    const v3 = { color: makeColor() }; // no spacing/typography/size keys
+    const storage = makeStorage({ [STORAGE_KEY_V3]: JSON.stringify(v3) });
 
     const result = loadPersistedState(storage, defaults);
 
@@ -113,14 +116,14 @@ describe('loadPersistedState — spacing / typography / size sections', () => {
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  it('round-trips spacing overrides from v2', () => {
-    const v2 = {
+  it('round-trips spacing overrides from v3', () => {
+    const v3 = {
       color: makeColor(),
       spacing: { 'hsp-sm': '0.75rem', 'vsp-md': '2rem' },
       typography: {},
       size: {},
     };
-    const storage = makeStorage({ [STORAGE_KEY_V2]: JSON.stringify(v2) });
+    const storage = makeStorage({ [STORAGE_KEY_V3]: JSON.stringify(v3) });
 
     const result = loadPersistedState(storage, defaults);
 
@@ -128,18 +131,18 @@ describe('loadPersistedState — spacing / typography / size sections', () => {
   });
 
   it('drops non-string entries inside spacing (defensive hydration)', () => {
-    const v2 = {
+    const v3 = {
       color: makeColor(),
       spacing: { 'hsp-sm': '0.75rem', 'hsp-md': 42, bogus: null },
     };
-    const storage = makeStorage({ [STORAGE_KEY_V2]: JSON.stringify(v2) });
+    const storage = makeStorage({ [STORAGE_KEY_V3]: JSON.stringify(v3) });
 
     const result = loadPersistedState(storage, defaults);
 
     expect(result!.spacing).toEqual({ 'hsp-sm': '0.75rem' });
   });
 
-  it('migrates legacy typography ids when the host opts into ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP', () => {
+  it('migrates legacy typography ids when the host opts into ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP (via v2)', () => {
     // Payload written under the old id scheme (text-caption / text-body /
     // text-heading / text-display) should land on the new ids (text-xs /
     // text-base / text-3xl / text-5xl) when the host has opted in via
@@ -181,16 +184,16 @@ describe('loadPersistedState — spacing / typography / size sections', () => {
     // see an ancient text-body value lingering in storage, the fresh one
     // wins — we must not clobber the user's post-rename edit.
     installFixturePanelConfig({ legacyIdRenameMap: { ...ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP } });
-    STORAGE_KEY_V2 = getStorageKeyV2();
+    STORAGE_KEY_V3 = getStorageKeyV3();
 
-    const v2 = {
+    const v3 = {
       color: makeColor(),
       typography: {
         'text-body': '1.5rem', // legacy
         'text-base': '1.6rem', // current — wins
       },
     };
-    const storage = makeStorage({ [STORAGE_KEY_V2]: JSON.stringify(v2) });
+    const storage = makeStorage({ [STORAGE_KEY_V3]: JSON.stringify(v3) });
 
     const result = loadPersistedState(storage, defaults);
 
@@ -201,14 +204,14 @@ describe('loadPersistedState — spacing / typography / size sections', () => {
     // Default fixture has no legacyIdRenameMap → the rename is a no-op.
     // A stable id like text-caption that happens to match what the
     // historical zdtp-internal map called "old" MUST survive verbatim.
-    const v2 = {
+    const v3 = {
       color: makeColor(),
       typography: {
         'text-caption': '1rem',
         'text-body': '1.5rem',
       },
     };
-    const storage = makeStorage({ [STORAGE_KEY_V2]: JSON.stringify(v2) });
+    const storage = makeStorage({ [STORAGE_KEY_V3]: JSON.stringify(v3) });
 
     const result = loadPersistedState(storage, defaults);
 

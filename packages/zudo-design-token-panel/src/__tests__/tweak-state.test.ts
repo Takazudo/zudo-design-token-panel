@@ -3,6 +3,7 @@ import {
   ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP,
   getStorageKeyV1,
   getStorageKeyV2,
+  getStorageKeyV3,
   type ColorTweakState,
   type StorageLike,
   loadPersistedState,
@@ -11,7 +12,7 @@ import { __resetPanelConfigForTests } from '../config/panel-config';
 import { installFixturePanelConfig } from './_test-helpers';
 
 /**
- * v1→v2 migration tests.
+ * v1→v3 and v2→v3 migration tests.
  *
  * We use an in-memory storage double so the tests run in node without a DOM.
  * The color defaults are injected explicitly so the migration does not need to
@@ -74,11 +75,13 @@ let warnSpy: ReturnType<typeof vi.spyOn>;
 // helpers accept the 16-slot fixtures below).
 let STORAGE_KEY_V1 = '';
 let STORAGE_KEY_V2 = '';
+let STORAGE_KEY_V3 = '';
 
 beforeEach(() => {
   installFixturePanelConfig();
   STORAGE_KEY_V1 = getStorageKeyV1();
   STORAGE_KEY_V2 = getStorageKeyV2();
+  STORAGE_KEY_V3 = getStorageKeyV3();
   warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
 
@@ -87,14 +90,14 @@ afterEach(() => {
   warnSpy.mockRestore();
 });
 
-describe('loadPersistedState — v1→v2 migration', () => {
+describe('loadPersistedState — v1→v3 and v2→v3 migrations', () => {
   it('returns null when nothing is stored (fresh defaults)', () => {
     const storage = makeStorage();
     const result = loadPersistedState(storage, defaults);
     expect(result).toBeNull();
   });
 
-  it('loads a valid v1 state and writes it to v2, deleting v1', () => {
+  it('loads a valid v1 state and writes it to v3, deleting v1', () => {
     const v1 = makeV1();
     const storage = makeStorage({ [STORAGE_KEY_V1]: JSON.stringify(v1) });
 
@@ -106,11 +109,11 @@ describe('loadPersistedState — v1→v2 migration', () => {
     expect(result!.color.shikiTheme).toBe('tokyo-night');
     expect(result!.color.palette).toEqual(v1.palette);
 
-    // v2 was written, v1 was removed.
-    expect(storage.entries[STORAGE_KEY_V2]).toBeDefined();
+    // v3 was written, v1 was removed.
+    expect(storage.entries[STORAGE_KEY_V3]).toBeDefined();
     expect(storage.entries[STORAGE_KEY_V1]).toBeUndefined();
 
-    const persisted = JSON.parse(storage.entries[STORAGE_KEY_V2]);
+    const persisted = JSON.parse(storage.entries[STORAGE_KEY_V3]);
     expect(persisted.color.background).toBe(1);
     expect(persisted.color.shikiTheme).toBe('tokyo-night');
   });
@@ -136,8 +139,8 @@ describe('loadPersistedState — v1→v2 migration', () => {
     expect(result!.color.shikiTheme).toBe(defaults.shikiTheme);
     // missing semantic keys filled from defaults
     expect(result!.color.semanticMappings.accent).toBe(defaults.semanticMappings.accent);
-    // v2 written
-    expect(storage.entries[STORAGE_KEY_V2]).toBeDefined();
+    // v3 written
+    expect(storage.entries[STORAGE_KEY_V3]).toBeDefined();
     // v1 removed
     expect(storage.entries[STORAGE_KEY_V1]).toBeUndefined();
   });
@@ -152,29 +155,58 @@ describe('loadPersistedState — v1→v2 migration', () => {
     expect(storage.entries[STORAGE_KEY_V1]).toBeUndefined();
   });
 
-  it('prefers v2 when both v1 and v2 are present', () => {
-    const v1 = makeV1({ shikiTheme: 'v1-theme' });
+  it('migrates v2 to v3 when only v2 is present', () => {
     const v2 = { color: { ...makeV1({ shikiTheme: 'v2-theme' }) } };
-    const storage = makeStorage({
-      [STORAGE_KEY_V1]: JSON.stringify(v1),
-      [STORAGE_KEY_V2]: JSON.stringify(v2),
-    });
+    const storage = makeStorage({ [STORAGE_KEY_V2]: JSON.stringify(v2) });
 
     const result = loadPersistedState(storage, defaults);
 
     expect(result).not.toBeNull();
     expect(result!.color.shikiTheme).toBe('v2-theme');
-    // v1 was NOT touched (v2 wins means we don't run migration)
+    // v3 written, v2 removed
+    expect(storage.entries[STORAGE_KEY_V3]).toBeDefined();
+    expect(storage.entries[STORAGE_KEY_V2]).toBeUndefined();
+  });
+
+  it('prefers v3 over v2 when both are present', () => {
+    const v2 = { color: { ...makeV1({ shikiTheme: 'v2-theme' }) } };
+    const v3 = { color: { ...makeV1({ shikiTheme: 'v3-theme' }) } };
+    const storage = makeStorage({
+      [STORAGE_KEY_V2]: JSON.stringify(v2),
+      [STORAGE_KEY_V3]: JSON.stringify(v3),
+    });
+
+    const result = loadPersistedState(storage, defaults);
+
+    expect(result).not.toBeNull();
+    expect(result!.color.shikiTheme).toBe('v3-theme');
+    // v2 was NOT touched (v3 wins means we don't run migration)
+    expect(storage.entries[STORAGE_KEY_V2]).toBeDefined();
+  });
+
+  it('prefers v3 over v1 when both are present', () => {
+    const v1 = makeV1({ shikiTheme: 'v1-theme' });
+    const v3 = { color: { ...makeV1({ shikiTheme: 'v3-theme' }) } };
+    const storage = makeStorage({
+      [STORAGE_KEY_V1]: JSON.stringify(v1),
+      [STORAGE_KEY_V3]: JSON.stringify(v3),
+    });
+
+    const result = loadPersistedState(storage, defaults);
+
+    expect(result).not.toBeNull();
+    expect(result!.color.shikiTheme).toBe('v3-theme');
+    // v1 was NOT touched (v3 wins means we don't run migration)
     expect(storage.entries[STORAGE_KEY_V1]).toBeDefined();
   });
 
-  it('fills in missing semantic keys from defaults when v2 state predates them', () => {
-    // Simulate a v2 state written by an older build that did not yet know
+  it('fills in missing semantic keys from defaults when v3 state predates them', () => {
+    // Simulate a v3 state written by an older build that did not yet know
     // about `price` / `sold` / `active`. The persisted semanticMappings has
     // the old keys only; loading it should backfill the new keys from the
     // caller-supplied defaults rather than leaving them undefined (which
     // would blow up `applyColorState`).
-    const legacyV2 = {
+    const legacyV3 = {
       color: {
         palette: palette16,
         background: 1,
@@ -196,7 +228,7 @@ describe('loadPersistedState — v1→v2 migration', () => {
         active: 14,
       },
     };
-    const storage = makeStorage({ [STORAGE_KEY_V2]: JSON.stringify(legacyV2) });
+    const storage = makeStorage({ [STORAGE_KEY_V3]: JSON.stringify(legacyV3) });
 
     const result = loadPersistedState(storage, freshDefaults);
 
@@ -211,7 +243,7 @@ describe('loadPersistedState — v1→v2 migration', () => {
     expect(result!.color.semanticMappings.active).toBe(14);
   });
 
-  it('preserves a user-remapped active mapping through v1 → v2 migration', () => {
+  it('preserves a user-remapped active mapping through v1 → v3 migration', () => {
     // User remapped `active` away from the default p14 before upgrading. The
     // migration must preserve their choice, not overwrite with defaults.
     const v1 = makeV1({ semanticMappings: { accent: 6, muted: 8, active: 5 } });
@@ -221,16 +253,34 @@ describe('loadPersistedState — v1→v2 migration', () => {
 
     expect(result).not.toBeNull();
     expect(result!.color.semanticMappings.active).toBe(5);
-    // v2 written, v1 removed.
-    expect(storage.entries[STORAGE_KEY_V2]).toBeDefined();
+    // v3 written, v1 removed.
+    expect(storage.entries[STORAGE_KEY_V3]).toBeDefined();
     expect(storage.entries[STORAGE_KEY_V1]).toBeUndefined();
   });
 
-  it('falls back to v1 when v2 is malformed (with console.warn)', () => {
+  it('falls back to v2 when v3 is malformed, migrating v2 to v3', () => {
+    const v2 = { color: makeV1({ shikiTheme: 'v2-theme' }) };
+    const storage = makeStorage({
+      [STORAGE_KEY_V2]: JSON.stringify(v2),
+      [STORAGE_KEY_V3]: '{broken',
+    });
+
+    const result = loadPersistedState(storage, defaults);
+
+    expect(result).not.toBeNull();
+    expect(result!.color.shikiTheme).toBe('v2-theme');
+    expect(warnSpy).toHaveBeenCalled();
+    // v2 migrated → v2 deleted, v3 overwritten
+    expect(storage.entries[STORAGE_KEY_V2]).toBeUndefined();
+    expect(storage.entries[STORAGE_KEY_V3]).toBeDefined();
+  });
+
+  it('falls back to v1 when v3 and v2 are both malformed', () => {
     const v1 = makeV1();
     const storage = makeStorage({
       [STORAGE_KEY_V1]: JSON.stringify(v1),
       [STORAGE_KEY_V2]: '{broken',
+      [STORAGE_KEY_V3]: '{broken',
     });
 
     const result = loadPersistedState(storage, defaults);
@@ -238,9 +288,48 @@ describe('loadPersistedState — v1→v2 migration', () => {
     expect(result).not.toBeNull();
     expect(result!.color.shikiTheme).toBe(v1.shikiTheme);
     expect(warnSpy).toHaveBeenCalled();
-    // migration ran successfully → v1 deleted, v2 overwritten
+    // migration ran successfully → v1 deleted, v3 written
     expect(storage.entries[STORAGE_KEY_V1]).toBeUndefined();
-    expect(storage.entries[STORAGE_KEY_V2]).toBeDefined();
+    expect(storage.entries[STORAGE_KEY_V3]).toBeDefined();
+  });
+
+  it('round-trips tabs overrides through v3 storage', () => {
+    const v3 = {
+      color: makeV1(),
+      tabs: {
+        easing: {
+          raw: { 'ease-in': 'cubic-bezier(0.42, 0, 1, 1)' },
+          semantic: { 'tab-open': 'ease-in' },
+        },
+      },
+    };
+    const storage = makeStorage({ [STORAGE_KEY_V3]: JSON.stringify(v3) });
+
+    const result = loadPersistedState(storage, defaults);
+
+    expect(result).not.toBeNull();
+    expect(result!.tabs).toBeDefined();
+    expect(result!.tabs!['easing']).toBeDefined();
+    expect(result!.tabs!['easing']['raw']).toEqual({ 'ease-in': 'cubic-bezier(0.42, 0, 1, 1)' });
+    expect(result!.tabs!['easing']['semantic']).toEqual({ 'tab-open': 'ease-in' });
+  });
+
+  it('migrates v2 that has no tabs field — tabs is undefined after migration', () => {
+    const v2 = {
+      color: makeV1(),
+      spacing: { 'hsp-md': '20px' },
+    };
+    const storage = makeStorage({ [STORAGE_KEY_V2]: JSON.stringify(v2) });
+
+    const result = loadPersistedState(storage, defaults);
+
+    expect(result).not.toBeNull();
+    expect(result!.spacing).toEqual({ 'hsp-md': '20px' });
+    // No tabs — absent field, not empty object, since we only add it when non-empty
+    expect(result!.tabs).toBeUndefined();
+    // v3 was written, v2 removed
+    expect(storage.entries[STORAGE_KEY_V3]).toBeDefined();
+    expect(storage.entries[STORAGE_KEY_V2]).toBeUndefined();
   });
 });
 
@@ -254,8 +343,8 @@ describe('loadPersistedState — v1→v2 migration', () => {
  * these tests pin both ends of that contract.
  */
 describe('loadPersistedState — typography rename map (configurable)', () => {
-  /** Build a minimal v2 envelope with a single typography override. */
-  function makeV2WithTypography(typography: Record<string, string>): string {
+  /** Build a minimal v3 envelope with a single typography override. */
+  function makeV3WithTypography(typography: Record<string, string>): string {
     return JSON.stringify({
       color: makeV1(),
       typography,
@@ -268,7 +357,7 @@ describe('loadPersistedState — typography rename map (configurable)', () => {
     // see their override survive verbatim instead of being remapped to a
     // non-existent id and silently dropped.
     const storage = makeStorage({
-      [STORAGE_KEY_V2]: makeV2WithTypography({ 'text-caption': '0.9rem' }),
+      [STORAGE_KEY_V3]: makeV3WithTypography({ 'text-caption': '0.9rem' }),
     });
 
     const result = loadPersistedState(storage, defaults);
@@ -279,10 +368,10 @@ describe('loadPersistedState — typography rename map (configurable)', () => {
 
   it('with legacyIdRenameMap = ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP: applies the historical rename', () => {
     installFixturePanelConfig({ legacyIdRenameMap: { ...ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP } });
-    STORAGE_KEY_V2 = getStorageKeyV2();
+    STORAGE_KEY_V3 = getStorageKeyV3();
 
     const storage = makeStorage({
-      [STORAGE_KEY_V2]: makeV2WithTypography({
+      [STORAGE_KEY_V3]: makeV3WithTypography({
         'text-caption': '0.9rem',
         'text-body': '1.4rem',
       }),
@@ -302,10 +391,10 @@ describe('loadPersistedState — typography rename map (configurable)', () => {
     installFixturePanelConfig({
       legacyIdRenameMap: { 'old-only-key': 'new-key' },
     });
-    STORAGE_KEY_V2 = getStorageKeyV2();
+    STORAGE_KEY_V3 = getStorageKeyV3();
 
     const storage = makeStorage({
-      [STORAGE_KEY_V2]: makeV2WithTypography({
+      [STORAGE_KEY_V3]: makeV3WithTypography({
         'old-only-key': '1rem',
         'unrelated-key': '2rem',
       }),
@@ -321,10 +410,10 @@ describe('loadPersistedState — typography rename map (configurable)', () => {
 
   it('when both old and new ids are present: new id wins (post-migration tweak preserved)', () => {
     installFixturePanelConfig({ legacyIdRenameMap: { ...ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP } });
-    STORAGE_KEY_V2 = getStorageKeyV2();
+    STORAGE_KEY_V3 = getStorageKeyV3();
 
     const storage = makeStorage({
-      [STORAGE_KEY_V2]: makeV2WithTypography({
+      [STORAGE_KEY_V3]: makeV3WithTypography({
         'text-caption': 'OLD',
         'text-xs': 'NEW',
       }),
@@ -358,10 +447,10 @@ describe('loadPersistedState — typography rename map (configurable)', () => {
     // save writes the dead key back to disk. Mapping to `null` ensures the
     // hydrate step purges it once and never persists it again.
     installFixturePanelConfig({ legacyIdRenameMap: { 'text-micro': null } });
-    STORAGE_KEY_V2 = getStorageKeyV2();
+    STORAGE_KEY_V3 = getStorageKeyV3();
 
     const storage = makeStorage({
-      [STORAGE_KEY_V2]: makeV2WithTypography({
+      [STORAGE_KEY_V3]: makeV3WithTypography({
         'text-micro': '0.7rem',
         'text-base': '1rem',
       }),
@@ -374,16 +463,16 @@ describe('loadPersistedState — typography rename map (configurable)', () => {
     expect(result!.typography['text-base']).toBe('1rem');
   });
 
-  it('persists the renamed envelope back to storage so legacy ids do not survive (issue #51 codex finding)', () => {
+  it('persists the renamed envelope back to v3 so legacy ids do not survive (issue #51 codex finding)', () => {
     // The migration must be DURABLE: rewriting in-memory only would leave
     // legacy keys on disk indefinitely, and a host that later removes the
     // opt-in rename map would regress every user back to non-applying
     // overrides on the next reload.
     installFixturePanelConfig({ legacyIdRenameMap: { ...ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP } });
-    STORAGE_KEY_V2 = getStorageKeyV2();
+    STORAGE_KEY_V3 = getStorageKeyV3();
 
     const storage = makeStorage({
-      [STORAGE_KEY_V2]: makeV2WithTypography({
+      [STORAGE_KEY_V3]: makeV3WithTypography({
         'text-caption': '0.9rem',
         'text-micro': '0.6rem',
       }),
@@ -391,7 +480,7 @@ describe('loadPersistedState — typography rename map (configurable)', () => {
 
     loadPersistedState(storage, defaults);
 
-    const rewritten = JSON.parse(storage.entries[STORAGE_KEY_V2]!) as {
+    const rewritten = JSON.parse(storage.entries[STORAGE_KEY_V3]!) as {
       typography: Record<string, string>;
     };
     expect(rewritten.typography['text-xs']).toBe('0.9rem');
@@ -403,14 +492,14 @@ describe('loadPersistedState — typography rename map (configurable)', () => {
     // Guard against writeback churn for hosts whose payload already matches
     // the canonical envelope — every reload would otherwise touch storage.
     installFixturePanelConfig({ legacyIdRenameMap: {} });
-    STORAGE_KEY_V2 = getStorageKeyV2();
+    STORAGE_KEY_V3 = getStorageKeyV3();
 
-    const original = makeV2WithTypography({ 'text-caption': '0.9rem' });
-    const storage = makeStorage({ [STORAGE_KEY_V2]: original });
+    const original = makeV3WithTypography({ 'text-caption': '0.9rem' });
+    const storage = makeStorage({ [STORAGE_KEY_V3]: original });
 
     loadPersistedState(storage, defaults);
 
-    expect(storage.entries[STORAGE_KEY_V2]).toBe(original);
+    expect(storage.entries[STORAGE_KEY_V3]).toBe(original);
   });
 
   it('rejects prototype-chain payload keys as rename targets (Object.hasOwn guard)', () => {
@@ -419,10 +508,10 @@ describe('loadPersistedState — typography rename map (configurable)', () => {
     // renameMap` check and corrupt the rename target. The Object.hasOwn
     // guard ensures only own-property keys participate in the rename.
     installFixturePanelConfig({ legacyIdRenameMap: { 'text-caption': 'text-xs' } });
-    STORAGE_KEY_V2 = getStorageKeyV2();
+    STORAGE_KEY_V3 = getStorageKeyV3();
 
     const storage = makeStorage({
-      [STORAGE_KEY_V2]: makeV2WithTypography({
+      [STORAGE_KEY_V3]: makeV3WithTypography({
         toString: '1rem',
         constructor: '2rem',
         'text-caption': '0.9rem',

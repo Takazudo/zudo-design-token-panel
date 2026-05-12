@@ -277,6 +277,16 @@ export function storageKey_stateV2(cfg: PanelConfig): string {
   return `${cfg.storagePrefix}-state-v2`;
 }
 
+/**
+ * Storage key for the v3 unified envelope. Adds `tabs: Record<tabId, TabOverrides>` alongside
+ * the existing color/spacing/typography/size slices so generic host-coined tabs can persist
+ * their overrides without schema changes. v2 → v3 migration runs on first load and writes
+ * this key, then deletes the v2 key.
+ */
+export function storageKey_stateV3(cfg: PanelConfig): string {
+  return `${cfg.storagePrefix}-state-v3`;
+}
+
 /** Legacy v1 key (Color-only flat state). Migrated into v2 on first load, then deleted. */
 export function storageKey_stateV1(cfg: PanelConfig): string {
   return `${cfg.storagePrefix}-state`;
