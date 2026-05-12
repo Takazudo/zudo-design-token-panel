@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useId } from 'preact/compat';
+import { useState, useEffect, useCallback, useRef, useId, useMemo } from 'preact/compat';
 import { ExportModal } from './export-modal';
 import { ImportModal } from './import-modal';
 import { ApplyModal } from './apply-modal';
@@ -6,7 +6,10 @@ import ColorTab from './tabs/color-tab';
 import FontTab from './tabs/font-tab';
 import SizeTab from './tabs/size-tab';
 import SpacingTab from './tabs/spacing-tab';
+import GenericTab from './tabs/generic-tab';
 import { getPanelConfig } from './config/panel-config';
+import type { TabConfig } from './tokens/tier-model';
+import type { TabOverrides } from './apply/tier-resolver';
 import { usePersist } from './state/persist';
 import {
   type TweakState,
@@ -28,21 +31,27 @@ import {
 
 // --- Tab configuration ---
 
-type TabId = 'spacing' | 'font' | 'size' | 'color';
+// Reserved tab ids dispatched to their dedicated components.
+const RESERVED_TAB_IDS = ['color', 'font', 'spacing', 'size'] as const;
+type ReservedTabId = (typeof RESERVED_TAB_IDS)[number];
 
-interface TabDef {
-  id: TabId;
+/** Legacy hard-coded tab strip — used when PanelConfig.tabs is NOT supplied. */
+type LegacyTabId = ReservedTabId;
+
+interface LegacyTabDef {
+  id: LegacyTabId;
   label: string;
 }
 
-const TABS: readonly TabDef[] = [
+/** Hard-coded fallback tabs for hosts that have not supplied PanelConfig.tabs. */
+const LEGACY_TABS: readonly LegacyTabDef[] = [
   { id: 'spacing', label: 'Spacing' },
   { id: 'font', label: 'Font' },
   { id: 'size', label: 'Size' },
   { id: 'color', label: 'Color' },
 ] as const;
 
-const DEFAULT_TAB: TabId = 'color';
+const DEFAULT_LEGACY_TAB: LegacyTabId = 'color';
 
 // --- Panel sizing ---
 
@@ -147,16 +156,23 @@ export default function DesignTokenTweakPanel() {
   const [showImport, setShowImport] = useState(false);
   const [showApply, setShowApply] = useState(false);
   const [state, setState] = useState<TweakState | null>(null);
-  const [activeTab, setActiveTab] = useState<TabId>(DEFAULT_TAB);
+  // activeTab holds a string to support host-supplied non-reserved tab ids.
+  // When tabs is NOT supplied, it defaults to the legacy DEFAULT_LEGACY_TAB.
+  const [activeTab, setActiveTab] = useState<string>(DEFAULT_LEGACY_TAB);
   const [position, setPosition] = useState<PanelPosition>(DEFAULT_POSITION);
   const [isNarrow, setIsNarrow] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-  const tabRefs = useRef<Record<TabId, HTMLButtonElement | null>>({
+  // tabRefs is now keyed by string to support host-supplied tab ids.
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({
     spacing: null,
     font: null,
     size: null,
     color: null,
   });
+  // Per-tab overrides for GenericTab instances.
+  // TODO(W3-S1 merge): replace this local state with persistTab(tabId, updater)
+  // from the W3-S1 persist API once that branch merges into base/abstract-token-tiers.
+  const [genericTabOverrides, setGenericTabOverrides] = useState<Record<string, TabOverrides>>({});
   const positionRef = useRef<PanelPosition>(DEFAULT_POSITION);
   // Keep ref in sync with state for use in drag handlers (avoids stale closure)
   positionRef.current = position;
@@ -348,26 +364,52 @@ export default function DesignTokenTweakPanel() {
     setState(freshTweakState());
   }, []);
 
+  // Resolve the active tab list: prefer host-supplied PanelConfig.tabs when
+  // present, fall back to the legacy hard-coded LEGACY_TABS.
+  // useMemo with no deps is intentional — configurePanel is one-shot per
+  // lifecycle, so the list never changes after mount.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const activeTabs = useMemo((): readonly { id: string; label: string }[] => {
+    const cfg = getPanelConfig();
+    if (cfg.tabs && cfg.tabs.length > 0) {
+      return cfg.tabs.map((t: TabConfig) => ({ id: t.id, label: t.label }));
+    }
+    return LEGACY_TABS;
+  }, []);
+
+  // Build an id→TabConfig lookup for GenericTab dispatch (only needed when
+  // host-supplied tabs are present).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const tabConfigById = useMemo((): Record<string, TabConfig> => {
+    const cfg = getPanelConfig();
+    if (!cfg.tabs) return {};
+    const out: Record<string, TabConfig> = {};
+    for (const t of cfg.tabs) {
+      out[t.id] = t;
+    }
+    return out;
+  }, []);
+
   // --- Tab keyboard navigation (WAI-ARIA tablist pattern) ---
   const handleTabKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLButtonElement>) => {
-      const idx = TABS.findIndex((t) => t.id === activeTab);
+      const idx = activeTabs.findIndex((t) => t.id === activeTab);
       if (idx === -1) return;
       let nextIdx: number | null = null;
-      if (e.key === 'ArrowRight') nextIdx = (idx + 1) % TABS.length;
-      else if (e.key === 'ArrowLeft') nextIdx = (idx - 1 + TABS.length) % TABS.length;
+      if (e.key === 'ArrowRight') nextIdx = (idx + 1) % activeTabs.length;
+      else if (e.key === 'ArrowLeft') nextIdx = (idx - 1 + activeTabs.length) % activeTabs.length;
       else if (e.key === 'Home') nextIdx = 0;
-      else if (e.key === 'End') nextIdx = TABS.length - 1;
+      else if (e.key === 'End') nextIdx = activeTabs.length - 1;
       if (nextIdx === null) return;
       e.preventDefault();
-      const next = TABS[nextIdx];
+      const next = activeTabs[nextIdx];
       setActiveTab(next.id);
       // Move focus to the newly selected tab so SR announces it
       window.requestAnimationFrame(() => {
         tabRefs.current[next.id]?.focus();
       });
     },
-    [activeTab],
+    [activeTab, activeTabs],
   );
 
   if (!open) return null;
@@ -466,9 +508,10 @@ export default function DesignTokenTweakPanel() {
           </button>
         </div>
 
-        {/* Tab bar */}
+        {/* Tab bar — data-driven when PanelConfig.tabs is supplied, otherwise
+            falls back to the legacy hard-coded LEGACY_TABS strip. */}
         <div role="tablist" aria-label="Design token categories" className="tokenpanel-tabbar">
-          {TABS.map((tab) => {
+          {activeTabs.map((tab) => {
             const isSelected = activeTab === tab.id;
             return (
               <button
@@ -492,10 +535,12 @@ export default function DesignTokenTweakPanel() {
           })}
         </div>
 
-        {/* Tab panels */}
+        {/* Tab panels — reserved ids dispatch to their dedicated components;
+            non-reserved ids dispatch to GenericTab. */}
         <div className="tokenpanel-body">
-          {TABS.map((tab) => {
+          {activeTabs.map((tab) => {
             const isSelected = activeTab === tab.id;
+            const isReserved = (RESERVED_TAB_IDS as readonly string[]).includes(tab.id);
             return (
               <div
                 key={tab.id}
@@ -534,6 +579,28 @@ export default function DesignTokenTweakPanel() {
                   ) : (
                     <SizeTab state={state.size} persistSize={persistSize} />
                   ))}
+                {!isReserved && tabConfigById[tab.id] && (
+                  <GenericTab
+                    tab={tabConfigById[tab.id]}
+                    overrides={genericTabOverrides[tab.id] ?? {}}
+                    onChange={(tierId, itemId, next) => {
+                      // TODO(W3-S1 merge): replace this local setState with
+                      // persistTab(tab.id, updater) from the W3-S1 persist
+                      // API. For now we only update local component state
+                      // (no CSS-var apply, no localStorage write).
+                      setGenericTabOverrides((prev) => ({
+                        ...prev,
+                        [tab.id]: {
+                          ...prev[tab.id],
+                          [tierId]: {
+                            ...(prev[tab.id]?.[tierId] ?? {}),
+                            [itemId]: next,
+                          },
+                        },
+                      }));
+                    }}
+                  />
+                )}
               </div>
             );
           })}

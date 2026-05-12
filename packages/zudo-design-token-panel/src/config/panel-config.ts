@@ -33,6 +33,7 @@
 import type { TokenManifest } from '../tokens/manifest';
 import type { ColorScheme } from './color-schemes';
 import type { ColorClusterDataConfig } from './cluster-config';
+import type { TabConfig } from '../tokens/tier-model';
 import { structuralEqual } from '../utils/structural-equal';
 
 /**
@@ -111,6 +112,26 @@ export interface PanelConfig {
    * routing map).
    */
   applyRouting?: ApplyRoutingMap;
+  /**
+   * Optional host-supplied tab configuration for the data-driven tab strip.
+   *
+   * When supplied, `panel.tsx` renders the tab strip from this array instead
+   * of the hard-coded color/font/spacing/size buttons.
+   *
+   *  - Reserved ids (`color`, `font`, `spacing`, `size`) dispatch to their
+   *    dedicated tab components (unchanged behaviour).
+   *  - Any other id dispatches to `GenericTab`, which renders the tab's
+   *    `tiers` using kind-appropriate editors.
+   *
+   * When absent (field omitted), panel.tsx falls back to the current
+   * hard-coded four-tab strip — existing hosts that have not migrated to the
+   * new shape see no change.
+   *
+   * Wave-5 tab migrations will populate this field for the reserved tabs so
+   * those components also consume `TabConfig.tiers`. For now only non-reserved
+   * tabs reach `GenericTab`.
+   */
+  tabs?: readonly TabConfig[];
   /**
    * Optional id rename map applied during `loadPersistedState` migration.
    * Keys are old ids found in persisted state; values are either:
