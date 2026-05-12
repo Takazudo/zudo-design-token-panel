@@ -33,6 +33,7 @@
 import type { TokenManifest } from '../tokens/manifest';
 import type { ColorScheme } from './color-schemes';
 import type { ColorClusterDataConfig } from './cluster-config';
+import type { TabConfig } from '../tokens/tier-model';
 import { structuralEqual } from '../utils/structural-equal';
 
 /**
@@ -135,6 +136,16 @@ export interface PanelConfig {
    * callers that depend on it.
    */
   legacyIdRenameMap?: Record<string, string | null>;
+  /**
+   * Optional host-supplied tab configurations using the abstract token-tier
+   * model. When present, each tab declares one or more `TierConfig`s of
+   * typed `TierItem`s; the panel renders them via `GenericTab`.
+   *
+   * Opt-in — legacy `tokens` + `colorCluster` fields remain valid during
+   * the multi-wave migration. Wave 5+ enforces tabs presence for migrated
+   * slices; until then both shapes coexist.
+   */
+  tabs?: readonly TabConfig[];
 }
 
 /**
@@ -420,6 +431,170 @@ export function assertValidPanelConfig(value: unknown): asserts value is PanelCo
       if (v !== null && typeof v !== 'string') {
         throw new Error(
           `[design-token-panel] PanelConfig.legacyIdRenameMap[${JSON.stringify(k)}] must be a string or null (got ${typeof v})`,
+        );
+      }
+    }
+  }
+  if (cfg.tabs !== undefined) {
+    assertValidTabs(cfg.tabs);
+  }
+}
+
+/**
+ * Validate the host-supplied `tabs` array. Called by `assertValidPanelConfig`
+ * when the field is present. Throws with a message naming the offending
+ * tab/tier/item id.
+ */
+function assertValidTabs(tabs: unknown): void {
+  if (!Array.isArray(tabs)) {
+    throw new Error('[design-token-panel] PanelConfig.tabs must be an array');
+  }
+
+  // Rule: every tab.id is unique within the array
+  const tabIds = new Set<string>();
+  for (const tab of tabs) {
+    if (tab === null || typeof tab !== 'object' || Array.isArray(tab)) {
+      throw new Error('[design-token-panel] PanelConfig.tabs: each tab must be a non-null object');
+    }
+    const t = tab as Record<string, unknown>;
+    if (typeof t.id !== 'string' || t.id.length === 0) {
+      throw new Error('[design-token-panel] PanelConfig.tabs: each tab must have a non-empty string id');
+    }
+    if (tabIds.has(t.id)) {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs: duplicate tab id "${t.id}"`,
+      );
+    }
+    tabIds.add(t.id);
+    assertValidTab(t.id, t);
+  }
+}
+
+/**
+ * Validate a single tab entry within `PanelConfig.tabs`.
+ * Checks tier-id uniqueness, item-id uniqueness across all tiers, cssVar
+ * format, and referencesTier integrity (existence + kind compatibility).
+ */
+function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
+  if (!Array.isArray(tab.tiers)) {
+    throw new Error(
+      `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers must be an array`,
+    );
+  }
+
+  // Rule: every tier.id is unique within a tab
+  const tierIds = new Set<string>();
+  // Collect tier kind for referencesTier compatibility check
+  // Maps tier id → the kind string of its first item (or undefined if empty)
+  const tierKindMap = new Map<string, string | undefined>();
+
+  for (const tier of tab.tiers) {
+    if (tier === null || typeof tier !== 'object' || Array.isArray(tier)) {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers: each tier must be a non-null object`,
+      );
+    }
+    const ti = tier as Record<string, unknown>;
+    if (typeof ti.id !== 'string' || ti.id.length === 0) {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers: each tier must have a non-empty string id`,
+      );
+    }
+    if (tierIds.has(ti.id)) {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["${tabId}"]: duplicate tier id "${ti.id}"`,
+      );
+    }
+    tierIds.add(ti.id);
+
+    if (!Array.isArray(ti.items)) {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${ti.id}"].items must be an array`,
+      );
+    }
+
+    // Determine the kind of this tier from its first item (if any)
+    const firstItem = (ti.items as unknown[])[0];
+    if (firstItem !== null && typeof firstItem === 'object' && !Array.isArray(firstItem)) {
+      const firstItemObj = firstItem as Record<string, unknown>;
+      const typeObj = firstItemObj.type;
+      if (typeObj !== null && typeof typeObj === 'object' && !Array.isArray(typeObj)) {
+        const kind = (typeObj as Record<string, unknown>).kind;
+        tierKindMap.set(ti.id, typeof kind === 'string' ? kind : undefined);
+      } else {
+        tierKindMap.set(ti.id, undefined);
+      }
+    } else {
+      tierKindMap.set(ti.id, undefined);
+    }
+  }
+
+  // Rule: every item.id is unique within a tab (across all tiers)
+  // Rule: every item.cssVar starts with "--" and is non-empty
+  const itemIds = new Set<string>();
+  for (const tier of tab.tiers) {
+    const ti = tier as Record<string, unknown>;
+    const tierId = ti.id as string;
+    for (const item of ti.items as unknown[]) {
+      if (item === null || typeof item !== 'object' || Array.isArray(item)) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].items: each item must be a non-null object`,
+        );
+      }
+      const it = item as Record<string, unknown>;
+      if (typeof it.id !== 'string' || it.id.length === 0) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].items: each item must have a non-empty string id`,
+        );
+      }
+      if (itemIds.has(it.id)) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"]: duplicate item id "${it.id}" (item ids must be unique across all tiers within a tab)`,
+        );
+      }
+      itemIds.add(it.id);
+
+      // Rule: cssVar starts with "--" and is non-empty
+      if (typeof it.cssVar !== 'string' || !it.cssVar.startsWith('--')) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].items["${it.id}"].cssVar must start with "--" (got ${JSON.stringify(it.cssVar)})`,
+        );
+      }
+      if (it.cssVar.length <= 2) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].items["${it.id}"].cssVar must be non-empty after "--"`,
+        );
+      }
+    }
+  }
+
+  // Rule: referencesTier integrity — named tier exists and kinds are compatible
+  for (const tier of tab.tiers) {
+    const ti = tier as Record<string, unknown>;
+    const tierId = ti.id as string;
+    if (ti.referencesTier !== undefined) {
+      if (typeof ti.referencesTier !== 'string') {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].referencesTier must be a string`,
+        );
+      }
+      const refId = ti.referencesTier;
+      // Rule: the named tier exists in the same tab
+      if (!tierIds.has(refId)) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].referencesTier: tier "${refId}" does not exist in this tab`,
+        );
+      }
+      // Rule: kind compatibility — the referencing tier's items' kind must match the referenced tier's items' kind
+      const referencingKind = tierKindMap.get(tierId);
+      const referencedKind = tierKindMap.get(refId);
+      if (
+        referencingKind !== undefined &&
+        referencedKind !== undefined &&
+        referencingKind !== referencedKind
+      ) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].referencesTier: kind mismatch — tier "${tierId}" has kind "${referencingKind}" but referenced tier "${refId}" has kind "${referencedKind}"`,
         );
       }
     }
