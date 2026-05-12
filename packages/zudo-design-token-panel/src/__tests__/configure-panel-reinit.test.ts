@@ -8,7 +8,6 @@ import {
   setPanelColorPresets,
   type PanelConfig,
 } from '../config/panel-config';
-import type { ColorClusterDataConfig } from '../config/cluster-config';
 
 /**
  * Regression tests covering:
@@ -24,19 +23,6 @@ import type { ColorClusterDataConfig } from '../config/cluster-config';
  *  - `assertValidPanelConfig()` trust-boundary validator messages.
  */
 
-const EMPTY_CLUSTER: ColorClusterDataConfig = {
-  id: 'empty',
-  paletteSize: 4,
-  baseRoles: {},
-  paletteCssVarTemplate: '--empty-{n}',
-  semanticDefaults: {},
-  semanticCssNames: {},
-  baseDefaults: {},
-  defaultShikiTheme: 'dracula',
-  colorSchemes: {},
-  panelSettings: { colorScheme: '', colorMode: false },
-};
-
 const BASE: PanelConfig = {
   storagePrefix: 'demo',
   consoleNamespace: 'demo',
@@ -44,7 +30,6 @@ const BASE: PanelConfig = {
   schemaId: 'demo/v1',
   exportFilenameBase: 'demo',
   tabs: [],
-  colorCluster: EMPTY_CLUSTER,
 };
 
 beforeEach(() => {
@@ -120,7 +105,7 @@ describe('assertValidPanelConfig — trust-boundary validator (P1-11)', () => {
     );
   });
 
-  it('rejects malformed tabs / colorCluster shapes', () => {
+  it('rejects malformed tabs shapes', () => {
     // tabs must be an array
     expect(() =>
       assertValidPanelConfig({
@@ -128,12 +113,6 @@ describe('assertValidPanelConfig — trust-boundary validator (P1-11)', () => {
         tabs: 'not-an-array',
       } as unknown),
     ).toThrow(/tabs must be an array/);
-    expect(() =>
-      assertValidPanelConfig({
-        ...BASE,
-        colorCluster: { ...EMPTY_CLUSTER, id: '' },
-      } as unknown),
-    ).toThrow(/colorCluster\.id/);
   });
 
   it('passes a valid PanelConfig silently', () => {

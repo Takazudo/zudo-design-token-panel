@@ -159,8 +159,6 @@ const ZFB_PANEL_CONFIG: PanelConfig = {
   schemaId: 'zudo-design-tokens/v1',
   exportFilenameBase: 'zfbtest-tokens',
   tabs: [SPACING_TAB, FONT_TAB],
-  colorCluster: FIXTURE_CLUSTER,
-  secondaryColorCluster: null,
   colorPresets: {},
 };
 
