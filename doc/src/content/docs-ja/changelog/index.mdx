@@ -5,6 +5,134 @@ sidebar_position: 99
 
 # 変更履歴
 
+## v0.2.0（リリース予定）
+
+抽象トークンティア — タブをまたいだ raw/semantic の統合トークンモデル。
+[epic issue #69](https://github.com/Takazudo/zudo-design-token-panel/issues/69)
+および
+[PR #91](https://github.com/Takazudo/zudo-design-token-panel/pull/91)
+で追跡。
+
+### 破壊的変更
+
+#### `PanelConfig.tabs` が必須になりました
+
+`tabs: TabConfig[]` がすべてのパネルタブの唯一の情報源になりました。
+旧来のトップレベルフィールド `tokens` および `colorCluster` は削除されました。
+以前 `tokens: TokenManifest` と `colorCluster: ColorClusterConfig` を渡していたホストは、以下の新しい形式へ移行する必要があります。
+
+### 新しい形式 — `TabConfig` → `TierConfig` → `TierItem`
+
+各タブは 1 つ以上の **ティア** を宣言します。ティアは型付き `TierItem` のフラットなリストです。
+ティアは `referencesTier` を宣言することで、そのアイテムが別のティアのアイテムへの参照を保持できます。
+apply 時に各参照は `var(--target-cssvar)` として出力されるため、ティア 1 の編集が CSS を通じて自動的に伝播します。
+
+**最小限の例 — raw ティアと semantic ティアを持つ easing タブ:**
+
+```ts
+import type { PanelConfig } from '@takazudo/zudo-design-token-panel';
+
+const easingTab: PanelConfig['tabs'][number] = {
+  id: 'easing',
+  label: 'Easing',
+  tiers: [
+    {
+      id: 'raw',
+      label: 'Raw Easings',
+      items: [
+        {
+          id: 'ease-in',
+          cssVar: '--my-easing-ease-in',
+          label: 'Ease In',
+          default: 'cubic-bezier(0.42, 0, 1, 1)',
+          type: { kind: 'text' },
+        },
+        {
+          id: 'ease-out',
+          cssVar: '--my-easing-ease-out',
+          label: 'Ease Out',
+          default: 'cubic-bezier(0, 0, 0.58, 1)',
+          type: { kind: 'text' },
+        },
+      ],
+    },
+    {
+      id: 'semantic',
+      label: 'Semantic',
+      referencesTier: 'raw',      // 値は raw ティアのアイテム id; var(--cssVar) として出力
+      items: [
+        {
+          id: 'tab-open',
+          cssVar: '--my-easing-tab-open',
+          label: 'Tab Open',
+          default: 'ease-in',
+          type: { kind: 'text' },
+        },
+      ],
+    },
+  ],
+};
+```
+
+### カラータブ — `colorExtras`
+
+カラータブのパレットとセマンティックデータは `TierItem[]`（kind `'color'`）に移動します。
+以前 `ColorClusterConfig` にあったメタデータ（スキーム、ベースロール、パネル設定）は
+`TabConfig.colorExtras` に移動します:
+
+```ts
+{
+  id: 'color',
+  label: 'Color',
+  colorExtras: {
+    id: 'my-cluster',
+    baseRoles: { ... },
+    baseDefaults: { ... },
+    defaultShikiTheme: 'github-dark',
+    colorSchemes: { ... },
+    panelSettings: { ... },
+  },
+  tiers: [
+    { id: 'palette', label: 'Palette', items: [/* kind: 'color' のアイテム */] },
+    { id: 'semantic', label: 'Semantic', referencesTier: 'palette', items: [...] },
+  ],
+}
+```
+
+### 値の種類（Value kinds）
+
+`TierItem.type` は判別共用体です:
+
+| `kind`     | 追加フィールド                        | レンダリングされるエディタ      |
+| ---------- | ------------------------------------- | ------------------------------- |
+| `length`   | `min`, `max`, `step`, `unit`          | レンジスライダー（rem/px）      |
+| `number`   | `min`, `max`, `step`                  | 数値レンジスライダー            |
+| `select`   | `options: readonly string[]`          | ドロップダウン                  |
+| `text`     | —                                     | フリーテキスト入力              |
+| `color`    | —                                     | カラースウォッチピッカー        |
+
+### easing デモ — 抽象化の恩恵
+
+`zfb` および `zfb-tailwind` サンプルアプリの easing タブは、このモデルの拡張性を示しています。
+まったく新しい `easing` トークンファミリーが、ホスト設定に `TabConfig` を記述するだけで追加されました —
+**パッケージのソースコードへの変更はゼロです**。
+raw easing 値は `raw` ティアに、セマンティックなアニメーションロール（tab-open、tab-close、modal-enter）は
+`raw` を参照する `semantic` ティアに配置されます。raw の値を変更すると、それを参照するすべてのセマンティックロールへ自動的に伝播します。
+
+### ストレージとエクスポート形式
+
+- **`localStorage` スキーマ** を v2 から v3 にバンプしました。アップグレード後の初回ロード時に、パネルが既存の v2 データを v3 エンベロープへ自動移行します。ユーザーの操作は不要です。
+- **JSON エクスポート** は v2 形式（`$schema` がエクスポートスキーマバージョンを識別）で出力されます。インポートモーダルは v1 および v2 のエクスポートファイルを受け入れます。
+
+### 追加
+
+- `TabConfig`、`TierConfig`、`TierItem`、`TierValueKind` 型をメインパッケージエントリからエクスポート。
+- `setLifecycleAdapter(adapter)` API — Astro 以外のホスト（zfb、Vite 等）向け。`astro:*` イベントに依存せず before-swap / page-load フックを設定できます。
+- `PanelConfig.legacyIdRenameMap` — 設定可能なタイポグラフィ id 移行マップ（`Record<string, string | null>`）。デフォルトは空（リネームなし）。内部的な旧マップは `ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP` としてエクスポートされます。
+- `TweakState` 型と `emptyOverrides` をメインエントリからエクスポート（外部 SerDe レイヤー向け）。
+
+---
+
 ## 未リリース
 
-- 初回リリース
+現在このセクションには新規の未リリース項目はありません。
