@@ -646,4 +646,39 @@ describe('panel-config — assertValidPanelConfig host-tabs validation', () => {
       assertValidPanelConfig(makeBaseConfig({ tabs: [VALID_TEXT_TAB, VALID_TWO_TIER_TAB] })),
     ).not.toThrow();
   });
+
+  // Rule: all items in a tier must share the same kind ----------------------
+
+  it('rejects a tier with mixed item kinds', () => {
+    const tabMixedKinds: TabConfig = {
+      id: 'mixed-kinds-tab',
+      label: 'Mixed Kinds Tab',
+      tiers: [
+        {
+          id: 'mixed',
+          label: 'Mixed',
+          items: [
+            {
+              id: 'item-color',
+              cssVar: '--mixed-kinds-item-color',
+              label: 'Color item',
+              default: '#ff0000',
+              type: { kind: 'color' },
+            },
+            {
+              id: 'item-length',
+              cssVar: '--mixed-kinds-item-length',
+              label: 'Length item',
+              default: '4px',
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              type: { kind: 'length', min: 0, max: 100, step: 1, unit: 'px' } as any,
+            },
+          ],
+        },
+      ],
+    };
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [tabMixedKinds] })),
+    ).toThrow(/mixed item kinds/);
+  });
 });

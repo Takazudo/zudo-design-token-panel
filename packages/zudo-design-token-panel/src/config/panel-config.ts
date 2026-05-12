@@ -513,20 +513,26 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
       );
     }
 
-    // Determine the kind of this tier from its first item (if any)
-    const firstItem = (ti.items as unknown[])[0];
-    if (firstItem !== null && typeof firstItem === 'object' && !Array.isArray(firstItem)) {
-      const firstItemObj = firstItem as Record<string, unknown>;
-      const typeObj = firstItemObj.type;
-      if (typeObj !== null && typeof typeObj === 'object' && !Array.isArray(typeObj)) {
-        const kind = (typeObj as Record<string, unknown>).kind;
-        tierKindMap.set(ti.id, typeof kind === 'string' ? kind : undefined);
-      } else {
-        tierKindMap.set(ti.id, undefined);
+    // Determine the representative kind for this tier and validate consistency.
+    // All items in a tier must share the same kind — mixed kinds in a tier are
+    // invalid because referencesTier compatibility is defined at the tier level.
+    let tierKind: string | undefined = undefined;
+    for (const rawItem of ti.items as unknown[]) {
+      if (rawItem === null || typeof rawItem !== 'object' || Array.isArray(rawItem)) continue;
+      const rawItemObj = rawItem as Record<string, unknown>;
+      const typeObj = rawItemObj.type;
+      if (typeObj === null || typeof typeObj !== 'object' || Array.isArray(typeObj)) continue;
+      const kind = (typeObj as Record<string, unknown>).kind;
+      if (typeof kind !== 'string') continue;
+      if (tierKind === undefined) {
+        tierKind = kind;
+      } else if (tierKind !== kind) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${ti.id}"]: mixed item kinds — found "${tierKind}" and "${kind}" in the same tier (all items must share the same kind)`,
+        );
       }
-    } else {
-      tierKindMap.set(ti.id, undefined);
     }
+    tierKindMap.set(ti.id, tierKind);
   }
 
   // Rule: every item.id is unique within a tab (across all tiers)
