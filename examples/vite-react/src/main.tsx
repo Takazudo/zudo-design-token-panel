@@ -13,11 +13,11 @@
  * Instead, `mount-panel.ts` is the single place that reaches into the
  * panel package. Its `loadPanelModule()` dynamically imports the package
  * and calls `configurePanel(panelConfig)` from the imported reference
- * BEFORE any panel API runs. The package's main entry reads
- * `getPanelConfig()` only from inside functions invoked at panel-show
- * time (never at module-init time), so deferring configurePanel into the
- * dynamic-import resolution is safe — every panel-API call sees the
- * host's intended config.
+ * BEFORE any panel API runs. The package's main entry installs event
+ * listeners and the astro fallback at module-init time; reapply runs via
+ * a post-configure hook fired by configurePanel (H2 fix, issue #111).
+ * Deferring configurePanel into the dynamic-import resolution is safe —
+ * every panel-API call sees the host's intended config.
  */
 
 import { StrictMode } from 'react';

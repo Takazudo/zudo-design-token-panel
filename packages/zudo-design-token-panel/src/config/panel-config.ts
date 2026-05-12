@@ -165,13 +165,22 @@ const SLOT_SYMBOL = Symbol.for('@takazudo/zudo-design-token-panel:singleton');
 interface SingletonSlot {
   configuredConfig: PanelConfig | null;
   pendingColorPresets: Record<string, ColorScheme> | null;
+  /**
+   * Post-configure hooks — callbacks registered by src/index.tsx that must run
+   * AFTER configurePanel supplies the host's storagePrefix. This exists to fix
+   * the H2 bug (#111): module-init in index.tsx would call reapplyPersistedOverrides
+   * and reapplyFromStorage with DEFAULT config before the host supplied its prefix,
+   * causing a default-prefix panel to mount and clobber host-prefix storage keys.
+   * Deferring reapply until configurePanel fires avoids the race entirely.
+   */
+  postConfigureHooks: (() => void)[];
 }
 
 function getSingletonSlot(): SingletonSlot {
   const g = globalThis as unknown as Record<symbol, SingletonSlot | undefined>;
   let slot = g[SLOT_SYMBOL];
   if (!slot) {
-    slot = { configuredConfig: null, pendingColorPresets: null };
+    slot = { configuredConfig: null, pendingColorPresets: null, postConfigureHooks: [] };
     g[SLOT_SYMBOL] = slot;
   }
   return slot;
@@ -203,6 +212,37 @@ export function configurePanel(config: PanelConfig): void {
     ? { ...config, colorPresets: slot.pendingColorPresets }
     : { ...config };
   slot.pendingColorPresets = null;
+  // Fire post-configure hooks. These run AFTER the host's config is installed,
+  // ensuring reapply paths (reapplyPersistedOverrides / reapplyFromStorage) use
+  // the correct storagePrefix — not the DEFAULT sentinel. See issue #111 H2 fix.
+  for (const hook of slot.postConfigureHooks) {
+    hook();
+  }
+}
+
+/**
+ * Register a callback to run once configurePanel has been called with the
+ * host's config. Used by src/index.tsx to defer reapplyPersistedOverrides and
+ * reapplyFromStorage until AFTER the host has supplied the correct storagePrefix.
+ *
+ * H2 fix for issue #111: module-init in index.tsx previously ran reapply
+ * synchronously — before configurePanel — using DEFAULT_PANEL_CONFIG's prefix,
+ * causing a default-prefix panel to mount and clobber host-prefix storage keys
+ * on the first toggle when contaminated localStorage was present.
+ *
+ * Idempotent: if the same hook reference is registered twice, the second call
+ * is a no-op. If configurePanel has already been called, the hook fires
+ * immediately so late registrants don't miss the trigger.
+ */
+export function registerPostConfigureHook(hook: () => void): void {
+  const slot = getSingletonSlot();
+  if (slot.postConfigureHooks.includes(hook)) return; // idempotent on reference
+  slot.postConfigureHooks.push(hook);
+  // If configurePanel was already called, run the hook immediately so ordering
+  // between index.tsx module-init and configurePanel is non-load-bearing.
+  if (slot.configuredConfig !== null) {
+    hook();
+  }
 }
 
 /**
@@ -221,6 +261,7 @@ export function __resetPanelConfigForTests(): void {
   const slot = getSingletonSlot();
   slot.configuredConfig = null;
   slot.pendingColorPresets = null;
+  slot.postConfigureHooks = [];
 }
 
 // Re-export cluster resolution helpers so callers can import from panel-config
