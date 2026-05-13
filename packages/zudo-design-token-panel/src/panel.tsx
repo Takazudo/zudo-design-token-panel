@@ -13,19 +13,24 @@ import { usePersist } from './state/persist';
 import {
   type TweakState,
   type PanelPosition,
+  type PanelSize,
   DEFAULT_POSITION,
   applyFullState,
   clampPosition,
+  clampSize,
   clearAppliedStyles,
   clearPersistedState,
+  defaultSize,
   emptyOverrides,
   getOpenKey,
   initColorFromScheme,
   initSecondaryFromConfig,
   loadPersistedState,
   loadPosition,
+  loadSize,
   savePersistedState,
   savePosition,
+  saveSize,
 } from './state/tweak-state';
 
 // --- Tab configuration ---
@@ -44,9 +49,10 @@ const NARROW_BREAKPOINT = 900;
 function computePanelSize(
   viewportW: number,
   _viewportH: number,
+  storedSize: PanelSize,
 ): {
-  width: string;
-  height: string;
+  width: number | string;
+  height: number | string;
   narrow: boolean;
 } {
   const narrow = viewportW < NARROW_BREAKPOINT;
@@ -57,9 +63,11 @@ function computePanelSize(
       narrow,
     };
   }
+  // Wide mode: fixed px sourced from user-resizable state. `loadSize` /
+  // `defaultSize` already clamp to viewport, so we can trust the values here.
   return {
-    width: `min(1200px, 80vw)`,
-    height: `min(800px, 80vh)`,
+    width: storedSize.width,
+    height: storedSize.height,
     narrow,
   };
 }
@@ -98,6 +106,7 @@ export default function DesignTokenTweakPanel() {
   // activeTab holds a string to support host-supplied non-reserved tab ids.
   const [activeTab, setActiveTab] = useState<string>(DEFAULT_TAB_ID);
   const [position, setPosition] = useState<PanelPosition>(DEFAULT_POSITION);
+  const [size, setSize] = useState<PanelSize>(defaultSize);
   const [isNarrow, setIsNarrow] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   // tabRefs is now keyed by string to support host-supplied tab ids.
@@ -110,13 +119,17 @@ export default function DesignTokenTweakPanel() {
   const positionRef = useRef<PanelPosition>(DEFAULT_POSITION);
   // Keep ref in sync with state for use in drag handlers (avoids stale closure)
   positionRef.current = position;
+  const sizeRef = useRef<PanelSize>(size);
+  sizeRef.current = size;
   // Track active drag listeners for cleanup on unmount
   const dragCleanupRef = useRef<(() => void) | null>(null);
+  // Track active resize listeners for cleanup on unmount
+  const resizeCleanupRef = useRef<(() => void) | null>(null);
 
   const { persistColor, persistSpacing, persistFont, persistSize, persistSecondary, persistTab } =
     usePersist(setState);
 
-  // Restore open state and position from localStorage after mount (avoids SSR hydration mismatch)
+  // Restore open state, position, and size from localStorage after mount (avoids SSR hydration mismatch)
   useEffect(() => {
     try {
       if (localStorage.getItem(getOpenKey()) === '1') setOpen(true);
@@ -126,6 +139,9 @@ export default function DesignTokenTweakPanel() {
     const loaded = loadPosition();
     setPosition(loaded);
     positionRef.current = loaded;
+    const loadedSize = loadSize();
+    setSize(loadedSize);
+    sizeRef.current = loadedSize;
     // Initial narrow-check
     setIsNarrow(window.innerWidth < NARROW_BREAKPOINT);
   }, []);
@@ -247,17 +263,85 @@ export default function DesignTokenTweakPanel() {
     };
   }, []);
 
-  // Clean up drag listeners on unmount
-  useEffect(() => {
-    return () => {
-      dragCleanupRef.current?.();
+  // Resize handler for the bottom-right grip — mirrors handleDragStart's
+  // structure: writes directly to the DOM during the drag (to avoid 60 fps
+  // re-renders of the whole panel) and commits the final value to React
+  // state + localStorage on mouseup.
+  const handleResizeStart = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    // Resize disabled on narrow viewports — the panel is centered and the
+    // grip is hidden anyway, but guard defensively.
+    if (window.innerWidth < NARROW_BREAKPOINT) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startWidth = sizeRef.current.width;
+    const startHeight = sizeRef.current.height;
+
+    function onMouseMove(ev: MouseEvent) {
+      const deltaX = ev.clientX - startX;
+      const deltaY = ev.clientY - startY;
+      // Bottom-right grip: drag right/down grows the panel. The panel is
+      // anchored top-right, so growing width pushes the left edge leftward,
+      // and growing height extends the bottom edge — both natural.
+      const next = clampSize(startWidth + deltaX, startHeight + deltaY);
+      if (panelRef.current) {
+        panelRef.current.style.width = `${next.width}px`;
+        panelRef.current.style.height = `${next.height}px`;
+      }
+      sizeRef.current = next;
+    }
+
+    function onMouseUp() {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      resizeCleanupRef.current = null;
+      const finalSize = sizeRef.current;
+      setSize(finalSize);
+      saveSize(finalSize);
+      // Re-clamp position against the new size — a wider panel may need its
+      // anchor pulled back into the viewport.
+      const finalPos = clampPosition(
+        positionRef.current.top,
+        positionRef.current.right,
+        finalSize.width,
+        finalSize.height,
+      );
+      if (finalPos.top !== positionRef.current.top || finalPos.right !== positionRef.current.right) {
+        setPosition(finalPos);
+        savePosition(finalPos);
+      }
+    }
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    resizeCleanupRef.current = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
     };
   }, []);
 
-  // Re-clamp position on window resize + update narrow-mode flag
+  // Clean up drag + resize listeners on unmount
+  useEffect(() => {
+    return () => {
+      dragCleanupRef.current?.();
+      resizeCleanupRef.current?.();
+    };
+  }, []);
+
+  // Re-clamp position + size on window resize, update narrow-mode flag
   useEffect(() => {
     function handleResize() {
       setIsNarrow(window.innerWidth < NARROW_BREAKPOINT);
+      // Re-clamp size first — a viewport shrink might force a smaller panel,
+      // and the new dimensions feed into the position clamp below.
+      setSize((prev) => {
+        const clamped = clampSize(prev.width, prev.height);
+        if (clamped.width !== prev.width || clamped.height !== prev.height) {
+          saveSize(clamped);
+        }
+        return clamped;
+      });
       const panelWidth = panelRef.current?.offsetWidth ?? 600;
       const panelHeight = panelRef.current?.offsetHeight ?? 600;
       setPosition((prev) => {
@@ -347,6 +431,7 @@ export default function DesignTokenTweakPanel() {
   } = computePanelSize(
     typeof window !== 'undefined' ? window.innerWidth : 1024,
     typeof window !== 'undefined' ? window.innerHeight : 768,
+    size,
   );
 
   // In narrow mode, ignore saved position — center safely near the top.
@@ -520,6 +605,23 @@ export default function DesignTokenTweakPanel() {
             );
           })}
         </div>
+
+        {/* Bottom-right resize grip. Hidden in narrow (centered) mode where
+            the panel is sized by CSS expressions and dragging would conflict
+            with the touch-first layout.
+
+            ARIA: `role="separator"` would imply a 1D resizer between two
+            regions; this grip resizes the panel on both axes, which has no
+            standard role. We keep just `aria-label` for SR users — keyboard
+            resize is intentionally out of scope. */}
+        {!(narrow || isNarrow) && (
+          <div
+            className="tokenpanel-resize-handle"
+            onMouseDown={handleResizeStart}
+            aria-label="Resize panel"
+            title="Drag to resize"
+          />
+        )}
       </div>
 
       {showExport && state && (

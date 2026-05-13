@@ -340,6 +340,11 @@ export function storageKey_position(cfg: PanelConfig): string {
   return `${cfg.storagePrefix}-position`;
 }
 
+/** User-resized panel size `{ width, height }` (pixels). Lives alongside position. */
+export function storageKey_size(cfg: PanelConfig): string {
+  return `${cfg.storagePrefix}-size`;
+}
+
 /**
  * Adapter-level visibility-intent flag.
  *
