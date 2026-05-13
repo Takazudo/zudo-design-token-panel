@@ -102,7 +102,7 @@ describe('apply-modal DOM hygiene', () => {
     expect(closeBtn!.tagName.toLowerCase()).toBe('div');
   });
 
-  it('fires requestClose when close role-button receives an Enter keydown', () => {
+  it('fires onClose when close role-button receives an Enter keydown', () => {
     const onClose = vi.fn();
 
     act(() => {
@@ -120,18 +120,16 @@ describe('apply-modal DOM hygiene', () => {
     const closeBtn = container.querySelector('[aria-label="Close apply modal"]') as HTMLElement;
     expect(closeBtn).not.toBeNull();
 
-    // Dispatch Enter keydown — should trigger the onKeyDown handler and call
-    // requestClose() → dialog.close() which fires the native close event.
+    // Dispatch Enter keydown — triggers onKeyDown → requestClose() → dialog.close()
+    // → native 'close' event → handleClose → onClose.
     act(() => {
       closeBtn.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     });
 
-    // The dialog is a native <dialog>; jsdom's close() fires the 'close' event
-    // which flows to handleClose → onClose. Verify the button itself is wired.
-    expect(closeBtn.getAttribute('role')).toBe('button');
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it('fires requestClose when close role-button receives a Space keydown', () => {
+  it('fires onClose when close role-button receives a Space keydown', () => {
     const onClose = vi.fn();
 
     act(() => {
@@ -153,7 +151,7 @@ describe('apply-modal DOM hygiene', () => {
       closeBtn.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
     });
 
-    expect(closeBtn.getAttribute('role')).toBe('button');
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it('renders no h2 elements (replaced by role=heading div)', () => {
