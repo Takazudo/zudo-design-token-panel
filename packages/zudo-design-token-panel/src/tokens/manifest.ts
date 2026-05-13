@@ -73,8 +73,6 @@ export interface TokenDef {
   control?: TokenControl;
   /** Select options — only used when `control === "select"`. */
   options?: readonly string[];
-  /** Hide behind the per-tab Advanced `<details>` disclosure (font tab). */
-  advanced?: true;
   /**
    * Opt-in "Pill" toggle. When present the control shows a checkbox that flips
    * between `value` (checked — e.g. `9999px` for full-radius pills) and a
