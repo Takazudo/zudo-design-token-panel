@@ -37,7 +37,7 @@ This starts two processes in parallel via `concurrently`:
 The panel is accessible from the browser console:
 
 ```js
-window.zfbExample.toggleDesignPanel()
+window.zfb.toggleDesignPanel()
 ```
 
 ## Build

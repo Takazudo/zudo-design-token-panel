@@ -9,7 +9,7 @@
  * client component, hence this small wrapper.
  *
  * The click handler calls the host's namespaced console API
- * (`window.nextExample.toggleDesignPanel()`). The namespace function is
+ * (`window.nx.toggleDesignPanel()`). The namespace function is
  * installed inside `PanelBootstrap`'s `useEffect`, which runs on first
  * client mount of the root layout. By the time the user can click this
  * button, the function exists; if not (rare race), the optional-chain
@@ -17,16 +17,16 @@
  */
 
 type NextExampleConsoleApi = {
-  nextExample?: { toggleDesignPanel?: () => void };
+  nx?: { toggleDesignPanel?: () => void };
 };
 
 export default function PanelOpenButton() {
   return (
     <button
       type="button"
-      className="nextexample-button"
+      className="nx-button"
       onClick={() => {
-        (window as unknown as NextExampleConsoleApi).nextExample?.toggleDesignPanel?.();
+        (window as unknown as NextExampleConsoleApi).nx?.toggleDesignPanel?.();
       }}
     >
       Open Design Token Panel

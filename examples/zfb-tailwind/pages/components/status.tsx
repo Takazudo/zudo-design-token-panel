@@ -10,7 +10,7 @@
  * above them for internal consistency. (§138.1 lists 5 incl. primary; flag to
  * manager for #138 parity decision.)
  *
- * Easing: tooltip opacity transition references `--zfbtailwindexample-easing-tab-open`
+ * Easing: tooltip opacity transition references `--zfbtw-easing-tab-open`
  * via inline style — the token is not raw px/hex so this is within G4 policy.
  */
 
@@ -170,7 +170,7 @@ function Tags() {
 // on the bubble sibling span. The trigger is `position: relative` so the
 // bubble is anchored to it. Opacity is toggled via CSS :hover + transition.
 //
-// Opacity transition: references `--zfbtailwindexample-easing-tab-open` (semantic
+// Opacity transition: references `--zfbtw-easing-tab-open` (semantic
 // easing token) via inline `style` on the bubble — the token makes this G4-safe.
 
 interface TooltipProps {
@@ -208,7 +208,7 @@ function Tooltip({ text, tip }: TooltipProps) {
         // reason: tooltip opacity transition references easing-tab-open semantic
         // token via var(); inline style used because Tailwind cannot compose an
         // arbitrary transition-timing-function with a CSS variable reference
-        style="transition: opacity 0.2s var(--zfbtailwindexample-easing-tab-open);"
+        style="transition: opacity 0.2s var(--zfbtw-easing-tab-open);"
       >
         {tip}
       </span>
@@ -225,7 +225,7 @@ function Tooltips() {
         <code>text-fg</code>, <code>border-muted</code>, <code>rounded-md</code>,{' '}
         <code>px-spacing-sm py-spacing-xs</code>, <code>text-small</code>.{' '}
         Opacity transition uses{' '}
-        <code>easing-tab-open</code> (<code>--zfbtailwindexample-easing-tab-open</code>).
+        <code>easing-tab-open</code> (<code>--zfbtw-easing-tab-open</code>).
         Implementation: <code>position: absolute</code> with{' '}
         <code>translateX(-50%)</code> on the sibling bubble span.
       </p>
@@ -233,7 +233,7 @@ function Tooltips() {
       <div class="flex flex-wrap gap-spacing-lg text-body text-fg bg-surface p-spacing-md rounded-md border border-muted">
         <span>
           Token panel adjusts{' '}
-          <Tooltip text="spacing-md" tip="--zfbtailwindexample-spacing-md (default 1rem)" />{' '}
+          <Tooltip text="spacing-md" tip="--zfbtw-spacing-md (default 1rem)" />{' '}
           live in the browser.
         </span>
         <span>

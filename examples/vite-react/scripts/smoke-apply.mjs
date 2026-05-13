@@ -5,7 +5,7 @@
  * Requires `pnpm dev` to already be running in this example sub-package
  * (so the bin is listening on http://127.0.0.1:24683). The harness:
  *
- *   1. Reads the current value of `--vitereact-radius` from
+ *   1. Reads the current value of `--vr-radius` from
  *      src/styles/tokens.css.
  *   2. POSTs a different value to /apply.
  *   3. Re-reads the file and asserts the value changed.
@@ -23,7 +23,7 @@ const __dirname = dirname(__filename);
 const TOKENS_PATH = resolve(__dirname, '..', 'src', 'styles', 'tokens.css');
 const APPLY_URL = 'http://127.0.0.1:24683/apply';
 const ORIGIN = 'http://localhost:44325';
-const TARGET_VAR = '--vitereact-radius';
+const TARGET_VAR = '--vr-radius';
 const TEST_VALUE = '1.25rem';
 
 async function readTokenValue(cssVar) {

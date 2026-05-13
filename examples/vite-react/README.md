@@ -23,7 +23,7 @@ so the panel POSTs to a same-origin URL — no CORS preflight, no hardcoded port
 in the runtime config.
 
 Open [http://localhost:44325](http://localhost:44325) and run
-`window.viteReactExample.toggleDesignPanel()` in the browser console to show
+`window.vr.toggleDesignPanel()` in the browser console to show
 the panel. Drag any slider — the page repaints before the next frame.
 
 ## Production build & deploy path
@@ -58,12 +58,12 @@ booting the e2e harness.
 2. In a second shell, capture the current value of one token:
 
    ```bash
-   grep -- '--vitereact-radius' examples/vite-react/src/styles/tokens.css
-   #   --vitereact-radius: 0.5rem;
+   grep -- '--vr-radius' examples/vite-react/src/styles/tokens.css
+   #   --vr-radius: 0.5rem;
    ```
 
 3. In the browser, open the panel via
-   `window.viteReactExample.toggleDesignPanel()`. Switch to the **Size** tab,
+   `window.vr.toggleDesignPanel()`. Switch to the **Size** tab,
    drag the **Border Radius** slider to a different value, then click
    **Apply** in the panel chrome and confirm the diff.
 
@@ -71,8 +71,8 @@ booting the e2e harness.
    value:
 
    ```bash
-   grep -- '--vitereact-radius' examples/vite-react/src/styles/tokens.css
-   #   --vitereact-radius: 1.25rem;
+   grep -- '--vr-radius' examples/vite-react/src/styles/tokens.css
+   #   --vr-radius: 1.25rem;
    ```
 
 5. The next page reload picks up the new value from the file (the in-memory
@@ -92,9 +92,9 @@ pnpm --filter vite-react-example test:apply-smoke
   bundle. Every identifier (`storagePrefix`, `consoleNamespace`,
   `paletteCssVarTemplate`, semantic CSS-var names, etc.) flows in from
   `src/config/panel-config.ts`.
-- The apply pipeline routes by CSS-var prefix family: the `vitereact` prefix
+- The apply pipeline routes by CSS-var prefix family: the `vr` prefix
   in `scaffold.routing.json` maps to `src/styles/tokens.css`, so any tweak to
-  a `--vitereact-*` token rewrites that file.
+  a `--vr-*` token rewrites that file.
 - The panel works inside a real React 18 app **without** a `react ->
   preact/compat` alias. The host React tree never owns the panel's render
   surface — `mountPanel()` lazy-imports the panel module and Preact mounts
@@ -120,15 +120,15 @@ examples/vite-react/
 ├── src/
 │   ├── App.tsx                 # demo content + useEffect mount
 │   ├── config/
-│   │   ├── default-cluster.ts  # `--vitereact-*` color cluster
-│   │   ├── default-manifest.ts # `--vitereact-*` token rows
+│   │   ├── default-cluster.ts  # `--vr-*` color cluster
+│   │   ├── default-manifest.ts # `--vr-*` token rows
 │   │   └── panel-config.ts     # PanelConfig assembly
 │   ├── lib/
 │   │   └── mount-panel.ts      # adapter (console API + lazy-load + StrictMode bind flag)
 │   ├── main.tsx                # configurePanel(...) THEN ReactDOM.createRoot(...).render
 │   └── styles/
 │       ├── reset.css
-│       └── tokens.css          # `--vitereact-*` source of truth (apply target)
+│       └── tokens.css          # `--vr-*` source of truth (apply target)
 ├── tests/
 │   └── e2e/
 │       └── apply-roundtrip.spec.ts

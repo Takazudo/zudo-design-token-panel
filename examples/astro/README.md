@@ -41,7 +41,7 @@ The Astro dev server proxies `/api/dev/apply` to the bin (see
 preflight, no hardcoded port in the runtime config.
 
 Open [http://localhost:44324](http://localhost:44324) and run
-`window.astroExample.toggleDesignPanel()` in the browser console to show the
+`window.astro.toggleDesignPanel()` in the browser console to show the
 panel. Drag any slider — the page repaints before the next frame.
 
 ## Apply-pipeline manual verification
@@ -59,12 +59,12 @@ booting the e2e harness.
 2. In a second shell, capture the current value of one token:
 
    ```bash
-   grep -- '--astroexample-radius' examples/astro/src/styles/tokens.css
-   #   --astroexample-radius: 0.5rem;
+   grep -- '--astro-radius' examples/astro/src/styles/tokens.css
+   #   --astro-radius: 0.5rem;
    ```
 
 3. In the browser, open the panel via
-   `window.astroExample.toggleDesignPanel()`. Switch to the **Size** tab, drag
+   `window.astro.toggleDesignPanel()`. Switch to the **Size** tab, drag
    the **Border Radius** slider to a different value, then click **Apply**
    in the panel chrome and confirm the diff.
 
@@ -72,8 +72,8 @@ booting the e2e harness.
    value:
 
    ```bash
-   grep -- '--astroexample-radius' examples/astro/src/styles/tokens.css
-   #   --astroexample-radius: 1.25rem;
+   grep -- '--astro-radius' examples/astro/src/styles/tokens.css
+   #   --astro-radius: 1.25rem;
    ```
 
 5. The next page reload picks up the new value from the file (the in-memory
@@ -94,8 +94,8 @@ pnpm --filter astro-example test:apply-smoke
   `paletteCssVarTemplate`, semantic CSS-var names, etc.) flows in from
   `src/config/panel-config.ts`.
 - The apply pipeline routes by CSS-var prefix family: the
-  `astroexample` prefix in `scaffold.routing.json` maps to
-  `src/styles/tokens.css`, so any tweak to an `--astroexample-*` token
+  `astro` prefix in `scaffold.routing.json` maps to
+  `src/styles/tokens.css`, so any tweak to an `--astro-*` token
   rewrites that file.
 - Astro view-transitions preserve panel state across soft navigations
   (`/` ↔ `/about`) — the host adapter listens for `astro:before-swap` /
@@ -114,8 +114,8 @@ examples/astro/
 │   └── smoke-apply.mjs         # non-UI smoke harness for the bin
 ├── src/
 │   ├── config/
-│   │   ├── default-cluster.ts  # `--astroexample-*` color cluster
-│   │   ├── default-manifest.ts # `--astroexample-*` token rows
+│   │   ├── default-cluster.ts  # `--astro-*` color cluster
+│   │   ├── default-manifest.ts # `--astro-*` token rows
 │   │   └── panel-config.ts     # PanelConfig assembly
 │   ├── layouts/
 │   │   └── Layout.astro        # mounts <DesignTokenPanelHost>
@@ -124,7 +124,7 @@ examples/astro/
 │   │   └── about.astro
 │   └── styles/
 │       ├── reset.css
-│       └── tokens.css          # `--astroexample-*` source of truth (apply target)
+│       └── tokens.css          # `--astro-*` source of truth (apply target)
 ├── tests/
 │   └── e2e/
 │       └── apply-roundtrip.spec.ts

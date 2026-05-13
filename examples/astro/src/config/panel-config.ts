@@ -22,7 +22,7 @@ import scaffoldRouting from '../../scaffold.routing.json';
 
 export const panelConfig: PanelConfig = {
   storagePrefix: 'astro-example-tokens',
-  consoleNamespace: 'astroExample',
+  consoleNamespace: 'astro',
   modalClassPrefix: 'astro-example-design-token-panel-modal',
   schemaId: 'astro-example-design-tokens/v1',
   exportFilenameBase: 'astro-example-design-tokens',

@@ -1,7 +1,7 @@
 /**
  * Demo color cluster for the Vite + React example.
  *
- * The cluster's CSS-var family is `--vitereact-*` (palette + base roles +
+ * The cluster's CSS-var family is `--vr-*` (palette + base roles +
  * semantic names), declared on `:root` by `src/styles/tokens.css`. Tweaks in
  * the panel write through these names; the apply pipeline (when wired through
  * the bin sidecar) rewrites the same names on disk.
@@ -14,14 +14,14 @@
 import type { ColorClusterConfig as ColorClusterDataConfig } from '@takazudo/zudo-design-token-panel';
 
 export const defaultCluster: ColorClusterDataConfig = {
-  id: 'vitereact-cluster',
+  id: 'vr-cluster',
   label: 'Vite + React Example',
   paletteSize: 16,
   baseRoles: {
-    background: '--vitereact-bg',
-    foreground: '--vitereact-fg',
+    background: '--vr-bg',
+    foreground: '--vr-fg',
   },
-  paletteCssVarTemplate: '--vitereact-palette-{n}',
+  paletteCssVarTemplate: '--vr-palette-{n}',
   semanticDefaults: {
     primary: 1,
     accent: 3,
@@ -30,11 +30,11 @@ export const defaultCluster: ColorClusterDataConfig = {
     danger: 5,
   },
   semanticCssNames: {
-    primary: '--vitereact-color-primary',
-    accent: '--vitereact-color-accent',
-    surface: '--vitereact-color-surface',
-    muted: '--vitereact-color-muted',
-    danger: '--vitereact-color-danger',
+    primary: '--vr-color-primary',
+    accent: '--vr-color-accent',
+    surface: '--vr-color-surface',
+    muted: '--vr-color-muted',
+    danger: '--vr-color-danger',
   },
   baseDefaults: {
     background: 0,

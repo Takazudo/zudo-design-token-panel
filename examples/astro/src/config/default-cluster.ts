@@ -1,7 +1,7 @@
 /**
  * Demo color cluster for the Astro example.
  *
- * The cluster's CSS-var family is `--astroexample-*` (palette + base roles +
+ * The cluster's CSS-var family is `--astro-*` (palette + base roles +
  * semantic names), declared on `:root` by `src/styles/tokens.css`. Tweaks in
  * the panel write through these names; the apply pipeline (when wired through
  * the bin sidecar) rewrites the same names on disk.
@@ -14,14 +14,14 @@
 import type { ColorClusterConfig as ColorClusterDataConfig } from '@takazudo/zudo-design-token-panel/astro';
 
 export const defaultCluster: ColorClusterDataConfig = {
-  id: 'astroexample-cluster',
+  id: 'astro-cluster',
   label: 'Astro Example',
   paletteSize: 16,
   baseRoles: {
-    background: '--astroexample-bg',
-    foreground: '--astroexample-fg',
+    background: '--astro-bg',
+    foreground: '--astro-fg',
   },
-  paletteCssVarTemplate: '--astroexample-palette-{n}',
+  paletteCssVarTemplate: '--astro-palette-{n}',
   semanticDefaults: {
     primary: 1,
     accent: 3,
@@ -30,11 +30,11 @@ export const defaultCluster: ColorClusterDataConfig = {
     danger: 5,
   },
   semanticCssNames: {
-    primary: '--astroexample-color-primary',
-    accent: '--astroexample-color-accent',
-    surface: '--astroexample-color-surface',
-    muted: '--astroexample-color-muted',
-    danger: '--astroexample-color-danger',
+    primary: '--astro-color-primary',
+    accent: '--astro-color-accent',
+    surface: '--astro-color-surface',
+    muted: '--astro-color-muted',
+    danger: '--astro-color-danger',
   },
   baseDefaults: {
     background: 0,

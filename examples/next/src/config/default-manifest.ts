@@ -1,7 +1,7 @@
 /**
  * Demo tab config for the Next.js example.
  *
- * Every `cssVar` is a `--nextexample-*` name. These line up byte-for-byte
+ * Every `cssVar` is a `--nx-*` name. These line up byte-for-byte
  * with the declarations in `src/styles/tokens.css` so the panel can rewrite
  * the same names live and the apply pipeline can rewrite them on disk.
  *
@@ -25,22 +25,26 @@ export const defaultTabs: readonly TabConfig[] = [
     label: 'Spacing',
     tiers: [
       {
-        id: 'raw',
-        label: 'Spacing',
+        id: 'hsp-scale',
+        label: 'Horizontal Spacing',
         items: [
           {
-            id: 'nextexample-spacing-md',
-            cssVar: '--nextexample-spacing-md',
+            id: 'nx-spacing-md',
+            cssVar: '--nx-spacing-md',
             label: 'Spacing M',
-            group: 'hsp',
             default: '1rem',
             type: { kind: 'length', min: 0, max: 4, step: 0.0625, unit: 'rem' },
           },
+        ],
+      },
+      {
+        id: 'vsp-scale',
+        label: 'Vertical Spacing',
+        items: [
           {
-            id: 'nextexample-spacing-lg',
-            cssVar: '--nextexample-spacing-lg',
+            id: 'nx-spacing-lg',
+            cssVar: '--nx-spacing-lg',
             label: 'Spacing L',
-            group: 'vsp',
             default: '2rem',
             type: { kind: 'length', min: 0, max: 6, step: 0.0625, unit: 'rem' },
           },
@@ -57,18 +61,16 @@ export const defaultTabs: readonly TabConfig[] = [
         label: 'Font Sizes',
         items: [
           {
-            id: 'nextexample-text-base',
-            cssVar: '--nextexample-text-base',
+            id: 'nx-text-base',
+            cssVar: '--nx-text-base',
             label: 'Body Text',
-            group: 'font-size',
             default: '1rem',
             type: { kind: 'length', min: 0.75, max: 1.5, step: 0.0625, unit: 'rem' },
           },
           {
-            id: 'nextexample-text-heading',
-            cssVar: '--nextexample-text-heading',
+            id: 'nx-text-heading',
+            cssVar: '--nx-text-heading',
             label: 'Heading Text',
-            group: 'font-size',
             default: '1.75rem',
             type: { kind: 'length', min: 1, max: 4, step: 0.0625, unit: 'rem' },
           },
@@ -81,14 +83,13 @@ export const defaultTabs: readonly TabConfig[] = [
     label: 'Size',
     tiers: [
       {
-        id: 'raw',
-        label: 'Border Radius',
+        id: 'radius-scale',
+        label: 'Radius',
         items: [
           {
-            id: 'nextexample-radius',
-            cssVar: '--nextexample-radius',
+            id: 'nx-radius',
+            cssVar: '--nx-radius',
             label: 'Border Radius',
-            group: 'radius',
             default: '0.5rem',
             type: { kind: 'length', min: 0, max: 2, step: 0.0625, unit: 'rem' },
           },
@@ -114,22 +115,22 @@ export const defaultTabs: readonly TabConfig[] = [
         id: 'palette',
         label: 'Palette',
         items: [
-          { id: 'nextexample-palette-0',  cssVar: '--nextexample-palette-0',  label: 'Palette 0',  default: '#1e1e1e', type: { kind: 'color' as const } },
-          { id: 'nextexample-palette-1',  cssVar: '--nextexample-palette-1',  label: 'Palette 1',  default: '#2d6cdf', type: { kind: 'color' as const } },
-          { id: 'nextexample-palette-2',  cssVar: '--nextexample-palette-2',  label: 'Palette 2',  default: '#3aa676', type: { kind: 'color' as const } },
-          { id: 'nextexample-palette-3',  cssVar: '--nextexample-palette-3',  label: 'Palette 3',  default: '#d97706', type: { kind: 'color' as const } },
-          { id: 'nextexample-palette-4',  cssVar: '--nextexample-palette-4',  label: 'Palette 4',  default: '#9b5de5', type: { kind: 'color' as const } },
-          { id: 'nextexample-palette-5',  cssVar: '--nextexample-palette-5',  label: 'Palette 5',  default: '#e63946', type: { kind: 'color' as const } },
-          { id: 'nextexample-palette-6',  cssVar: '--nextexample-palette-6',  label: 'Palette 6',  default: '#1d3557', type: { kind: 'color' as const } },
-          { id: 'nextexample-palette-7',  cssVar: '--nextexample-palette-7',  label: 'Palette 7',  default: '#06b6d4', type: { kind: 'color' as const } },
-          { id: 'nextexample-palette-8',  cssVar: '--nextexample-palette-8',  label: 'Palette 8',  default: '#475569', type: { kind: 'color' as const } },
-          { id: 'nextexample-palette-9',  cssVar: '--nextexample-palette-9',  label: 'Palette 9',  default: '#94a3b8', type: { kind: 'color' as const } },
-          { id: 'nextexample-palette-10', cssVar: '--nextexample-palette-10', label: 'Palette 10', default: '#cbd5e1', type: { kind: 'color' as const } },
-          { id: 'nextexample-palette-11', cssVar: '--nextexample-palette-11', label: 'Palette 11', default: '#e2e8f0', type: { kind: 'color' as const } },
-          { id: 'nextexample-palette-12', cssVar: '--nextexample-palette-12', label: 'Palette 12', default: '#f1f5f9', type: { kind: 'color' as const } },
-          { id: 'nextexample-palette-13', cssVar: '--nextexample-palette-13', label: 'Palette 13', default: '#fef3c7', type: { kind: 'color' as const } },
-          { id: 'nextexample-palette-14', cssVar: '--nextexample-palette-14', label: 'Palette 14', default: '#bbf7d0', type: { kind: 'color' as const } },
-          { id: 'nextexample-palette-15', cssVar: '--nextexample-palette-15', label: 'Palette 15', default: '#f8fafc', type: { kind: 'color' as const } },
+          { id: 'nx-palette-0',  cssVar: '--nx-palette-0',  label: 'Palette 0',  default: '#1e1e1e', type: { kind: 'color' as const } },
+          { id: 'nx-palette-1',  cssVar: '--nx-palette-1',  label: 'Palette 1',  default: '#2d6cdf', type: { kind: 'color' as const } },
+          { id: 'nx-palette-2',  cssVar: '--nx-palette-2',  label: 'Palette 2',  default: '#3aa676', type: { kind: 'color' as const } },
+          { id: 'nx-palette-3',  cssVar: '--nx-palette-3',  label: 'Palette 3',  default: '#d97706', type: { kind: 'color' as const } },
+          { id: 'nx-palette-4',  cssVar: '--nx-palette-4',  label: 'Palette 4',  default: '#9b5de5', type: { kind: 'color' as const } },
+          { id: 'nx-palette-5',  cssVar: '--nx-palette-5',  label: 'Palette 5',  default: '#e63946', type: { kind: 'color' as const } },
+          { id: 'nx-palette-6',  cssVar: '--nx-palette-6',  label: 'Palette 6',  default: '#1d3557', type: { kind: 'color' as const } },
+          { id: 'nx-palette-7',  cssVar: '--nx-palette-7',  label: 'Palette 7',  default: '#06b6d4', type: { kind: 'color' as const } },
+          { id: 'nx-palette-8',  cssVar: '--nx-palette-8',  label: 'Palette 8',  default: '#475569', type: { kind: 'color' as const } },
+          { id: 'nx-palette-9',  cssVar: '--nx-palette-9',  label: 'Palette 9',  default: '#94a3b8', type: { kind: 'color' as const } },
+          { id: 'nx-palette-10', cssVar: '--nx-palette-10', label: 'Palette 10', default: '#cbd5e1', type: { kind: 'color' as const } },
+          { id: 'nx-palette-11', cssVar: '--nx-palette-11', label: 'Palette 11', default: '#e2e8f0', type: { kind: 'color' as const } },
+          { id: 'nx-palette-12', cssVar: '--nx-palette-12', label: 'Palette 12', default: '#f1f5f9', type: { kind: 'color' as const } },
+          { id: 'nx-palette-13', cssVar: '--nx-palette-13', label: 'Palette 13', default: '#fef3c7', type: { kind: 'color' as const } },
+          { id: 'nx-palette-14', cssVar: '--nx-palette-14', label: 'Palette 14', default: '#bbf7d0', type: { kind: 'color' as const } },
+          { id: 'nx-palette-15', cssVar: '--nx-palette-15', label: 'Palette 15', default: '#f8fafc', type: { kind: 'color' as const } },
         ],
       },
       {
@@ -137,11 +138,11 @@ export const defaultTabs: readonly TabConfig[] = [
         label: 'Semantic',
         referencesTier: 'palette',
         items: [
-          { id: 'primary', cssVar: '--nextexample-color-primary', label: '--nextexample-color-primary', default: 'nextexample-palette-1', type: { kind: 'color' as const } },
-          { id: 'accent',  cssVar: '--nextexample-color-accent',  label: '--nextexample-color-accent',  default: 'nextexample-palette-3', type: { kind: 'color' as const } },
-          { id: 'surface', cssVar: '--nextexample-color-surface', label: '--nextexample-color-surface', default: 'nextexample-palette-0', type: { kind: 'color' as const } },
-          { id: 'muted',   cssVar: '--nextexample-color-muted',   label: '--nextexample-color-muted',   default: 'nextexample-palette-8', type: { kind: 'color' as const } },
-          { id: 'danger',  cssVar: '--nextexample-color-danger',  label: '--nextexample-color-danger',  default: 'nextexample-palette-5', type: { kind: 'color' as const } },
+          { id: 'primary', cssVar: '--nx-color-primary', label: '--nx-color-primary', default: 'nx-palette-1', type: { kind: 'color' as const } },
+          { id: 'accent',  cssVar: '--nx-color-accent',  label: '--nx-color-accent',  default: 'nx-palette-3', type: { kind: 'color' as const } },
+          { id: 'surface', cssVar: '--nx-color-surface', label: '--nx-color-surface', default: 'nx-palette-0', type: { kind: 'color' as const } },
+          { id: 'muted',   cssVar: '--nx-color-muted',   label: '--nx-color-muted',   default: 'nx-palette-8', type: { kind: 'color' as const } },
+          { id: 'danger',  cssVar: '--nx-color-danger',  label: '--nx-color-danger',  default: 'nx-palette-5', type: { kind: 'color' as const } },
         ],
       },
     ],

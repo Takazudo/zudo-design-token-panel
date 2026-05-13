@@ -4,10 +4,10 @@
  * Plain CSS mirror of zfb-tailwind/components/widgets/tabs.tsx.
  *
  * Token consumption:
- *   .zfbexample-tabs__list      → gap: spacing-md; border-b: color-muted
- *   .zfbexample-tabs__tab       → px: spacing-md, py: spacing-sm, text-body, color-muted (resting)
- *   .zfbexample-tabs__tab.is-active → color-accent
- *   .zfbexample-tabs__indicator → easing-tab-open (transition via inline style)
+ *   .zfb-tabs__list      → gap: spacing-md; border-b: color-muted
+ *   .zfb-tabs__tab       → px: spacing-md, py: spacing-sm, text-body, color-muted (resting)
+ *   .zfb-tabs__tab.is-active → color-accent
+ *   .zfb-tabs__indicator → easing-tab-open (transition via inline style)
  */
 
 import { useState } from 'preact/hooks';
@@ -20,15 +20,15 @@ export function TabsDemo() {
   const indicatorPct = 100 / tabCount;
 
   return (
-    <div class="zfbexample-tabs">
+    <div class="zfb-tabs">
       {/* Tab list */}
-      <div class="zfbexample-tabs__list">
+      <div class="zfb-tabs__list">
         {TABS.map((tab, i) => (
           <button
             key={tab}
             type="button"
             onClick={() => setActiveIndex(i)}
-            class={`zfbexample-tabs__tab${activeIndex === i ? ' is-active' : ''}`}
+            class={`zfb-tabs__tab${activeIndex === i ? ' is-active' : ''}`}
           >
             {tab}
           </button>
@@ -40,24 +40,24 @@ export function TabsDemo() {
           Transition timing uses semantic easing-tab-open token.
         */}
         <span
-          class="zfbexample-tabs__indicator"
+          class="zfb-tabs__indicator"
           // reason: width is 1/N of container from runtime tab count; transition
           // timing references semantic easing token not expressible without inline style
           style={{
             width: `${indicatorPct}%`,
             transform: `translateX(${activeIndex * 100}%)`,
-            transition: `transform 0.25s var(--zfbexample-easing-tab-open)`,
+            transition: `transform 0.25s var(--zfb-easing-tab-open)`,
           }}
         />
       </div>
 
       {/* Tab panels */}
-      <div class="zfbexample-tabs__panel">
+      <div class="zfb-tabs__panel">
         {activeIndex === 0 && (
           <p>
             <strong>Overview panel.</strong> Indicator slides on{' '}
             <code>easing-tab-open</code>{' '}
-            (→&nbsp;<code>--zfbexample-easing-tab-open</code>).
+            (→&nbsp;<code>--zfb-easing-tab-open</code>).
           </p>
         )}
         {activeIndex === 1 && (
@@ -70,7 +70,7 @@ export function TabsDemo() {
           <p>
             <strong>Settings panel.</strong> Active label uses{' '}
             <code>color-accent</code>{' '}
-            (→&nbsp;<code>--zfbexample-color-accent</code>).
+            (→&nbsp;<code>--zfb-color-accent</code>).
           </p>
         )}
       </div>

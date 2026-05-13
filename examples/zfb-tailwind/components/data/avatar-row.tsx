@@ -4,9 +4,9 @@
  * Token consumption (§134.5):
  *   container: flex gap-spacing-sm
  *   each item: w-size-avatar-sm h-size-avatar-sm rounded-md
- *              bg via inline-style: var(--zfbtailwindexample-palette-{i})
+ *              bg via inline-style: var(--zfbtw-palette-{i})
  *
- * Resizing: avatars read from --zfbtailwindexample-size-avatar-sm, so
+ * Resizing: avatars read from --zfbtw-size-avatar-sm, so
  * tweaking that token in the panel resizes every avatar in this row.
  */
 
@@ -22,7 +22,7 @@ export function AvatarRow() {
           role="listitem"
           class="w-size-avatar-sm h-size-avatar-sm rounded-md"
           // reason: dynamic var name from loop index — no static utility possible
-          style={`background: var(--zfbtailwindexample-palette-${i})`}
+          style={`background: var(--zfbtw-palette-${i})`}
           aria-hidden="true"
         />
       ))}

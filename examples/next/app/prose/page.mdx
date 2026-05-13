@@ -5,7 +5,7 @@ import PanelOpenButton from '../_components/PanelOpenButton';
 <PanelOpenButton />
 
 This page demonstrates the full range of markdown-generated HTML elements
-styled through the `--nextexample-*` token namespace.
+styled through the `--nx-*` token namespace.
 Each section exercises a distinct element type so you can verify spacing,
 typography, and colour tokens at a glance.
 
@@ -60,14 +60,14 @@ no syntax highlighting; raw colouring from `code-bg` and `code-fg` tokens
 is sufficient.
 
 ```typescript
-// Wiring the prose token namespace for the nextexample demo
+// Wiring the prose token namespace for the nx demo
 const proseTokens = {
-  vspMd:        `var(--nextexample-vsp-md)`,
-  textBody:     `var(--nextexample-text-body)`,
-  leadingRelaxed: `var(--nextexample-leading-relaxed)`,
-  codeBg:       `var(--nextexample-code-bg)`,
-  codeFg:       `var(--nextexample-code-fg)`,
-  fontMono:     `var(--nextexample-font-mono)`,
+  vspMd:        `var(--nx-vsp-md)`,
+  textBody:     `var(--nx-text-body)`,
+  leadingRelaxed: `var(--nx-leading-relaxed)`,
+  codeBg:       `var(--nx-code-bg)`,
+  codeFg:       `var(--nx-code-fg)`,
+  fontMono:     `var(--nx-font-mono)`,
 } as const;
 
 export default proseTokens;
@@ -101,7 +101,7 @@ content) tokens produce balanced rhythm.
 Ordered lists share spacing tokens with unordered lists; the marker style
 differs but the rhythm should be identical.
 
-1. Define the token set in `--nextexample-*` namespace.
+1. Define the token set in `--nx-*` namespace.
 2. Wire the flow utility into the prose container:
    1. Apply `margin-block-start: var(--flow-space, ...)` to all children.
    2. Set per-element `--flow-space` overrides using `:where()` selectors.
@@ -175,13 +175,13 @@ Each Wave-2 sub-task substitutes the correct value:
 ## Token reference
 
 The visual appearance of this page is driven entirely by the
-`--nextexample-*` token namespace.
+`--nx-*` token namespace.
 Vertical rhythm comes from `vsp-2xs` through `vsp-2xl`.
 Horizontal padding and indent come from `hsp-xs` through `hsp-xl`.
 Type sizes are set by `text-h2`, `text-h3`, `text-h4`, `text-body`,
 `text-small`, and `text-micro`.
 Line-heights use `leading-tight`, `leading-snug`, and `leading-relaxed`.
 Code blocks are styled with `code-bg`, `code-fg`, and `font-mono`.
-Heading borders and blockquote accents reuse the shared `--nextexample-color-primary`,
-`--nextexample-color-muted`, and `--nextexample-color-accent` tokens — no additional colour tokens
+Heading borders and blockquote accents reuse the shared `--nx-color-primary`,
+`--nx-color-muted`, and `--nx-color-accent` tokens — no additional colour tokens
 are required.

@@ -3,7 +3,7 @@ title: Prose Demo
 ---
 
 This page demonstrates the full range of markdown-generated HTML elements
-styled through the `--zfbtailwindexample-*` token namespace.
+styled through the `--zfbtw-*` token namespace.
 Each section exercises a distinct element type so you can verify spacing,
 typography, and colour tokens at a glance.
 
@@ -58,14 +58,14 @@ no syntax highlighting; raw colouring from `code-bg` and `code-fg` tokens
 is sufficient.
 
 ```typescript
-// Wiring the prose token namespace for the zfbtailwindexample demo
+// Wiring the prose token namespace for the zfbtw demo
 const proseTokens = {
-  vspMd:          `var(--zfbtailwindexample-vsp-md)`,
-  textBody:       `var(--zfbtailwindexample-text-body)`,
-  leadingRelaxed: `var(--zfbtailwindexample-leading-relaxed)`,
-  codeBg:         `var(--zfbtailwindexample-code-bg)`,
-  codeFg:         `var(--zfbtailwindexample-code-fg)`,
-  fontMono:       `var(--zfbtailwindexample-font-mono)`,
+  vspMd:          `var(--zfbtw-vsp-md)`,
+  textBody:       `var(--zfbtw-text-body)`,
+  leadingRelaxed: `var(--zfbtw-leading-relaxed)`,
+  codeBg:         `var(--zfbtw-code-bg)`,
+  codeFg:         `var(--zfbtw-code-fg)`,
+  fontMono:       `var(--zfbtw-font-mono)`,
 } as const;
 
 export default proseTokens;
@@ -99,7 +99,7 @@ content) tokens produce balanced rhythm.
 Ordered lists share spacing tokens with unordered lists; the marker style
 differs but the rhythm should be identical.
 
-1. Define the token set in `--zfbtailwindexample-*` namespace.
+1. Define the token set in `--zfbtw-*` namespace.
 2. Wire the flow utility into the prose container:
    1. Apply `margin-block-start: var(--flow-space, ...)` to all children.
    2. Set per-element `--flow-space` overrides using `:where()` selectors.
@@ -165,13 +165,13 @@ Return to [/pj/zudo-design-token-panel/examples/zfb-tailwind/](/pj/zudo-design-t
 ## Token reference
 
 The visual appearance of this page is driven entirely by the
-`--zfbtailwindexample-*` token namespace.
+`--zfbtw-*` token namespace.
 Vertical rhythm comes from `vsp-2xs` through `vsp-2xl`.
 Horizontal padding and indent come from `hsp-xs` through `hsp-xl`.
 Type sizes are set by `text-h2`, `text-h3`, `text-h4`, `text-body`,
 `text-small`, and `text-micro`.
 Line-heights use `leading-tight`, `leading-snug`, and `leading-relaxed`.
 Code blocks are styled with `code-bg`, `code-fg`, and `font-mono`.
-Heading borders and blockquote accents reuse the shared `--zfbtailwindexample-color-fg`,
+Heading borders and blockquote accents reuse the shared `--zfbtw-color-fg`,
 `--color-muted`, and `--color-accent` tokens — no additional colour tokens
 are required.
