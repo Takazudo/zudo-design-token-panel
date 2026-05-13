@@ -17,6 +17,15 @@ const proseHref = `${import.meta.env.BASE_URL}prose`;
     <header>
       <h1 class="astroexample-heading">Live token tweaking, in plain Astro</h1>
       <p>
+        <button
+          class="astroexample-button"
+          type="button"
+          onclick="window.astroExample?.toggleDesignPanel?.()"
+        >
+          Open Design Token Panel
+        </button>
+      </p>
+      <p>
         Every visible element on this page is driven by an
         <code>--astroexample-*</code> CSS custom property. Open the panel from the browser console and
         drag any slider — the change applies before the next paint.
