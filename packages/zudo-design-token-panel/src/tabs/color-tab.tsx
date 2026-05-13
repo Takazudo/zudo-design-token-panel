@@ -246,7 +246,7 @@ const ColorSwatch = memo(function ColorSwatch({
   label: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const buttonRef = useRef<HTMLButtonElement>(null);
+  const buttonRef = useRef<HTMLDivElement>(null);
   const handleClose = useCallback(() => setIsOpen(false), []);
   const handleHexChange = useCallback(
     (hex: string) => {
@@ -254,16 +254,25 @@ const ColorSwatch = memo(function ColorSwatch({
     },
     [onChange, index],
   );
+  const handleToggle = useCallback(() => setIsOpen((prev) => !prev), []);
   return (
     <div className="tokenpanel-color-swatch-wrap">
-      <button
+      <div
         ref={buttonRef}
-        type="button"
+        role="button"
+        tabIndex={0}
         className="tokenpanel-color-swatch-button"
         style={{ backgroundColor: color }}
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={handleToggle}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleToggle();
+          }
+        }}
         title={`${label}: ${color}`}
         aria-label={`${label}: ${color}`}
+        aria-expanded={isOpen}
       />
       {isOpen && (
         <HslPicker
@@ -321,8 +330,9 @@ const PaletteSelector = memo(function PaletteSelector({
   const resolvePaletteCssVar = paletteCssVar ?? ((i: number) => `--zd-p${i}`);
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
+  const buttonRef = useRef<HTMLDivElement>(null);
   const handleClose = useCallback(() => setIsOpen(false), []);
+  const handleToggle = useCallback(() => setIsOpen((prev) => !prev), []);
 
   const resolvedColor =
     value === 'bg'
@@ -342,10 +352,17 @@ const PaletteSelector = memo(function PaletteSelector({
 
   return (
     <div className="tokenpanel-palette-selector" ref={containerRef}>
-      <button
+      <div
         ref={buttonRef}
-        type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
+        role="button"
+        tabIndex={0}
+        onClick={handleToggle}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleToggle();
+          }
+        }}
         className="tokenpanel-palette-trigger"
         aria-label={`${label}: ${valueLabel}`}
         title={`${label}: ${valueLabel}`}
@@ -370,7 +387,7 @@ const PaletteSelector = memo(function PaletteSelector({
         >
           <path d="M6 9l6 6 6-6" />
         </svg>
-      </button>
+      </div>
 
       {isOpen && (
         <div
@@ -387,9 +404,8 @@ const PaletteSelector = memo(function PaletteSelector({
                   opt === 'bg' ? (background ?? '#000000') : (foreground ?? '#ffffff');
                 const isSelected = value === opt;
                 return (
-                  <button
+                  <div
                     key={opt}
-                    type="button"
                     role="option"
                     aria-selected={isSelected}
                     onClick={() => select(opt)}
@@ -404,7 +420,7 @@ const PaletteSelector = memo(function PaletteSelector({
                       style={{ backgroundColor: optColor }}
                     />
                     <span className="tokenpanel-palette-extra-label">{opt}</span>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -415,9 +431,8 @@ const PaletteSelector = memo(function PaletteSelector({
               const isSelected = value === i;
               const cssVar = resolvePaletteCssVar(i);
               return (
-                <button
+                <div
                   key={i}
-                  type="button"
                   role="option"
                   aria-selected={isSelected}
                   aria-label={`${cssVar}: ${color}`}
@@ -653,9 +668,9 @@ export default function ColorTab({
 
       {/* Section A: Raw Palette */}
       <div className="tokenpanel-tab-section">
-        <h3 className="tokenpanel-tab-section-heading tokenpanel-tab-section-heading--color">
+        <div role="heading" aria-level={3} className="tokenpanel-tab-section-heading tokenpanel-tab-section-heading--color">
           {primaryLabel} — Palette
-        </h3>
+        </div>
         <div className="tokenpanel-color-palette-grid">
           {state.palette.map((color, i) => (
             // ColorSwatch passes `i` back via its (index, hex) onChange so we
@@ -676,9 +691,9 @@ export default function ColorTab({
       <div className="tokenpanel-tab-content">
         {/* Section B: Base Theme */}
         <div className="tokenpanel-tab-section">
-          <h3 className="tokenpanel-tab-section-heading tokenpanel-tab-section-heading--color">
+          <div role="heading" aria-level={3} className="tokenpanel-tab-section-heading tokenpanel-tab-section-heading--color">
             {primaryLabel} — Base
-          </h3>
+          </div>
           {/*
            * `background (bg)` and `foreground (fg)` are panel-only knobs that
            * pick which palette index seeds the rest of the UI; they do NOT
@@ -710,9 +725,9 @@ export default function ColorTab({
 
         {/* Section C: Semantic Token Mappings */}
         <div className="tokenpanel-tab-section">
-          <h3 className="tokenpanel-tab-section-heading tokenpanel-tab-section-heading--color">
+          <div role="heading" aria-level={3} className="tokenpanel-tab-section-heading tokenpanel-tab-section-heading--color">
             {primaryLabel} — Semantic Tokens
-          </h3>
+          </div>
           <div className="tokenpanel-color-base-grid">
             {Object.entries(safeCluster.semanticDefaults).map(([key, defaultVal]) => {
               return (
@@ -745,9 +760,9 @@ export default function ColorTab({
               className="tokenpanel-tab-section"
               data-testid="tokenpanel-secondary-palette-section"
             >
-              <h3 className="tokenpanel-tab-section-heading tokenpanel-tab-section-heading--color">
+              <div role="heading" aria-level={3} className="tokenpanel-tab-section-heading tokenpanel-tab-section-heading--color">
                 {secondaryLabel} — Palette
-              </h3>
+              </div>
               <div className="tokenpanel-color-palette-grid--secondary">
                 {secondaryState.palette.map((color, i) => (
                   <ColorSwatch
@@ -766,9 +781,9 @@ export default function ColorTab({
               className="tokenpanel-tab-section"
               data-testid="tokenpanel-secondary-semantic-section"
             >
-              <h3 className="tokenpanel-tab-section-heading tokenpanel-tab-section-heading--color">
+              <div role="heading" aria-level={3} className="tokenpanel-tab-section-heading tokenpanel-tab-section-heading--color">
                 {secondaryLabel} — Semantic Tokens
-              </h3>
+              </div>
               <div className="tokenpanel-color-base-grid">
                 {Object.entries(secondaryCluster.semanticDefaults).map(([key, defaultVal]) => {
                   return (

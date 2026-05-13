@@ -235,8 +235,14 @@ function TierSection({ tab, tier, overrides, onItemChange }: TierSectionProps) {
   );
 
   return (
-    <section className="tokenpanel-tab-section" data-testid={`tier-section-${tier.id}`}>
-      <h3 className="tokenpanel-tab-section-heading">{tier.label}</h3>
+    <div className="tokenpanel-tab-section" data-testid={`tier-section-${tier.id}`}>
+      <div
+        role="heading"
+        aria-level={3}
+        className="tokenpanel-tab-section-heading"
+      >
+        {tier.label}
+      </div>
       <div className="tokenpanel-tab-grid">
         {tier.items.map((item) => {
           const value = overrides[item.id] ?? item.default;
@@ -252,7 +258,7 @@ function TierSection({ tab, tier, overrides, onItemChange }: TierSectionProps) {
           );
         })}
       </div>
-    </section>
+    </div>
   );
 }
 

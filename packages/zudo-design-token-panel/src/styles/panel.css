@@ -114,6 +114,11 @@
 .tokenpanel-action-link:hover {
   color: var(--tokentweak-color-accent-hover);
 }
+.tokenpanel-action-link:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
 
 .tokenpanel-spacer {
   flex: 1;
@@ -182,7 +187,7 @@
 
 /* Density slider — right side of the tabbar. Three-stop range slider that
    drives the `--tokenpanel-grid-min` custom property on `.tokenpanel-shell`,
-   which `.tokenpanel-tab-grid` / `.tokenpanel-tab-advanced-grid` read. */
+   which `.tokenpanel-tab-grid` reads. */
 .tokenpanel-density {
   display: flex;
   align-items: center;
@@ -303,9 +308,12 @@
   /* Surface-colored bg "cuts" the border behind the text. */
   background: var(--tokentweak-color-surface);
   padding: 0 8px;
-  /* Reset browser h3 defaults. */
+  /* Explicit typography reset — prevents host h3/h4 rules leaking in after
+     semantic-tag replacement. font-family intentionally inherited so the panel
+     matches the host's UI font rather than the browser's serif fallback. */
   margin: 0;
   color: var(--tokentweak-color-fg);
+  font-family: inherit;
   font-weight: 600;
   font-size: 0.8125rem;
   line-height: 1.25rem; /* fixed line-height so top offset is predictable */
@@ -327,27 +335,6 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(var(--tokenpanel-grid-min, 18rem), 1fr));
   gap: var(--tokentweak-gap-xs);
-}
-
-.tokenpanel-tab-advanced {
-  flex-shrink: 0;
-}
-
-.tokenpanel-tab-advanced-summary {
-  color: var(--tokentweak-color-muted);
-  font-weight: 600;
-  cursor: pointer;
-  user-select: none;
-  font-size: 0.8125rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.tokenpanel-tab-advanced-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(var(--tokenpanel-grid-min, 18rem), 1fr));
-  gap: var(--tokentweak-gap-xs);
-  margin-top: var(--tokentweak-gap-2xs);
 }
 
 /* ===========================================================================
@@ -420,6 +407,10 @@
 }
 .tokenpanel-color-swatch-button:hover {
   border-color: var(--tokentweak-color-fg);
+}
+.tokenpanel-color-swatch-button:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
 }
 
 .tokenpanel-color-swatch-label {
@@ -528,6 +519,10 @@
 }
 .tokenpanel-palette-trigger:hover {
   border-color: var(--tokentweak-color-fg);
+}
+.tokenpanel-palette-trigger:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
 }
 
 .tokenpanel-palette-trigger-label {
@@ -1183,4 +1178,22 @@
   color: var(--tokentweak-color-muted);
   font-family: var(--tokentweak-font-mono);
   line-height: 1.2;
+}
+
+/* ===========================================================================
+ * Tab role-button + tier headings (#148)
+ *
+ * These rules were added as part of the semantic-tag replacement in #148.
+ * They are placed here (end of file) per the coordination agreement with
+ * sibling PRs #149 (shell + controls) and #150 (modals) to minimise merge
+ * conflicts — each sibling appends its own clearly-marked section.
+ * ========================================================================= */
+
+/* Ensure div[role="heading"] tier section headings have no host-stylesheet
+   interference beyond what is already set by .tokenpanel-tab-section-heading.
+   This rule is a belt-and-suspenders guard: the class carries the visual
+   styling; this selector prevents the browser's UA stylesheet applying any
+   extra block-level spacing to the element now that it is no longer an h3. */
+.tokenpanel-tab-section [role="heading"] {
+  display: block;
 }

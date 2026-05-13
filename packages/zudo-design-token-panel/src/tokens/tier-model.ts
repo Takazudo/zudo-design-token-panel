@@ -53,7 +53,6 @@ export interface TierItem {
   id: string;
   cssVar: string;
   label: string;
-  group?: string;
   default: string;
   type: TierValueKind;
   pill?: PillSpec;
@@ -102,6 +101,5 @@ export interface TabConfig {
   id: string;
   label: string;
   tiers: readonly TierConfig[];
-  advancedTiers?: readonly string[];
   colorExtras?: ColorClusterExtras;
 }
