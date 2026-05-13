@@ -67,6 +67,7 @@ export default function HomePage() {
       title="zfb + Tailwind v4 Example — Design Token Panel"
       activePath={BASE_PATH}
     >
+      {/* reason: page-content max-width is a layout constant for this demo; no structural token covers prose-container widths */}
       <div class="flex flex-col gap-spacing-lg max-w-[56rem] mx-auto">
         <header>
           <h1 class="text-heading font-bold mb-spacing-md text-primary">
@@ -139,9 +140,10 @@ export default function HomePage() {
             {PALETTE_INDICES.map((i) => (
               <div
                 key={i}
-                class="w-16 h-16 rounded-md flex items-end justify-center text-micro text-fg"
-                // reason: dynamic var name from loop index — no static utility possible
-                style={`background: var(--zfbtailwindexample-palette-${i}); text-shadow: 0 1px 2px rgba(0,0,0,0.7); padding: 0.25rem;`}
+                class="w-16 h-16 rounded-md flex items-end justify-center text-micro text-fg p-spacing-xs"
+                // reason: dynamic var name from loop index — no static utility possible;
+                // text-shadow is swatch-label legibility over any palette color — no token covers overlay shadows
+                style={`background: var(--zfbtailwindexample-palette-${i}); text-shadow: 0 1px 2px rgba(0,0,0,0.7);`}
               >
                 {i}
               </div>
