@@ -608,14 +608,17 @@ export default function DesignTokenTweakPanel() {
 
         {/* Bottom-right resize grip. Hidden in narrow (centered) mode where
             the panel is sized by CSS expressions and dragging would conflict
-            with the touch-first layout. */}
+            with the touch-first layout.
+
+            ARIA: `role="separator"` would imply a 1D resizer between two
+            regions; this grip resizes the panel on both axes, which has no
+            standard role. We keep just `aria-label` for SR users — keyboard
+            resize is intentionally out of scope. */}
         {!(narrow || isNarrow) && (
           <div
             className="tokenpanel-resize-handle"
             onMouseDown={handleResizeStart}
-            role="separator"
             aria-label="Resize panel"
-            aria-orientation="horizontal"
             title="Drag to resize"
           />
         )}
