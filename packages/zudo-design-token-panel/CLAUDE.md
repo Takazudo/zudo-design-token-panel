@@ -166,3 +166,48 @@ Two `<pre>` elements remain in production markup and will bleed through hostile 
 - `src/apply-modal.tsx` line 766 — JSON snapshot in the apply-modal success view.
 
 Fix recipe: replace `<pre>` with `<div role="none">` styled with `white-space: pre; font-family: monospace` in the companion CSS. Track as a follow-up sub-issue against epic #145.
+
+## Cross-example cascade verification
+
+After merging changes that affect the tier model, manifest structure, or token namespace (e.g. #147/#148/#153 panel-hardening waves), run the following to confirm the changes cascade correctly across all five example apps.
+
+### Static analysis (automated)
+
+`pnpm -F @takazudo/zudo-design-token-panel test --run` exercises `src/__tests__/manifest-cascade-verification.test.ts`, which asserts:
+
+- **Invariant A** — no `group:` object-key in any example manifest (`TierItem.group` was removed in #148).
+- **Invariant B** — no `advancedTiers:` object-key in any example manifest (`TabConfig.advancedTiers` was removed in #148).
+- **Invariant C** — the zfb-tailwind Spacing tab has exactly 3 tiers (`spacing-scale` 4 items, `hsp-scale` 5 items, `vsp-scale` 7 items = 16 total), per the #153 Option A 3-tier structure.
+- **Invariant D** — the panel tabs source (`packages/zudo-design-token-panel/src/tabs/`) contains no `<h4`, `<details`, or `<summary` elements.
+- **Invariant E** — `examples/zfb-tailwind/styles/global.css` still declares all 16 spacing/hsp/vsp CSS variables and re-exports them as Tailwind theme tokens (`--spacing-*`).
+
+The test uses `fs.readFileSync` on each manifest source file rather than dynamic import, to avoid a circular self-reference through the package's own `exports` map → `./dist/...` artifact.
+
+### Build + typecheck (all 5 examples)
+
+```sh
+pnpm typecheck                          # 0 errors across all workspaces
+pnpm -F zfb-example build              # zfb Preact example
+pnpm -F zfb-tailwind-example build     # zfb-tailwind Preact + Tailwind example
+pnpm -F vite-react-example build       # Vite + React example
+pnpm -F astro-example build            # Astro example
+pnpm -F next-example build             # Next.js example
+```
+
+### Browser-cascade testing (deferred to manager)
+
+The static checks above cannot verify that CSS variable changes actually reach computed styles in the browser. After this PR lands, the manager should dispatch a one-shot agent with `/verify-ui` to:
+
+1. Open `examples/zfb-tailwind` in a browser and confirm the Spacing tab shows three sections (Spacing scale / Horizontal spacing / Vertical spacing).
+2. Tweak a spacing token in the panel and confirm the computed style of a consuming element updates (e.g. a `padding` using `var(--zfbtw-hsp-md)`).
+3. Check the Font, Color, Easing, and Size tabs for regressions in all five example apps.
+
+### CSS variable consumer map (zfb-tailwind, Option A)
+
+`examples/zfb-tailwind/styles/global.css` is the bridge between raw panel tokens and Tailwind theme tokens. The three-step cascade for spacing is:
+
+1. Panel writes `--zfbtw-spacing-*` / `--zfbtw-hsp-*` / `--zfbtw-vsp-*` on `:root`.
+2. `global.css` re-exports these as `--spacing-spacing-*` / `--spacing-hsp-*` / `--spacing-vsp-*` (used by Tailwind v4 `@theme`).
+3. Tailwind generates utility classes (`gap-hsp-md`, `px-hsp-sm`, etc.) from those theme tokens.
+
+#153 Option A only restructured the manifest tiers — it did not modify `global.css`, so step 2 and 3 remain intact.
