@@ -5,6 +5,13 @@
  * with the declarations in `styles/global.css` so the panel can rewrite
  * the same names live and the apply pipeline can rewrite them on disk.
  *
+ * The spacing tab uses a 3-tier setup:
+ *   - Tier `spacing-scale`: 4-step raw spacing scale (xs/sm/md/lg)
+ *   - Tier `hsp-scale`: 5-step horizontal spacing scale (xs..xl)
+ *   - Tier `vsp-scale`: 7-step vertical spacing scale (2xs..2xl)
+ * All three scales are declared in styles/global.css and re-exported as
+ * Tailwind theme tokens (--spacing-spacing-*, --spacing-hsp-*, --spacing-vsp-*).
+ *
  * The font tab uses a 2-tier setup (Wave 5):
  *   - Tier `raw`: 6 scale items
  *   - Tier `semantic` (referencesTier: 'raw'): text-base and text-heading
@@ -17,6 +24,7 @@
  *
  * Migrated in Wave 5 from TokenManifest to TabConfig[].
  * Color cluster migrated to TabConfig in Wave 7.
+ * Spacing hsp/vsp scales surfaced as separate tiers in Wave 8 (panel-hardening).
  */
 
 import type { PanelConfig } from '@takazudo/zudo-design-token-panel/astro';
@@ -30,8 +38,8 @@ export const defaultTabs: readonly TabConfig[] = [
     label: 'Spacing',
     tiers: [
       {
-        id: 'raw',
-        label: 'Spacing',
+        id: 'spacing-scale',
+        label: 'Spacing scale',
         items: [
           {
             id: 'zfbtw-spacing-xs',
@@ -63,6 +71,102 @@ export const defaultTabs: readonly TabConfig[] = [
           },
         ],
       },
+      {
+        id: 'hsp-scale',
+        label: 'Horizontal spacing',
+        items: [
+          {
+            id: 'zfbtw-hsp-xs',
+            cssVar: '--zfbtw-hsp-xs',
+            label: 'H-Spacing XS',
+            default: '0.25rem',
+            type: { kind: 'length', min: 0, max: 1, step: 0.0625, unit: 'rem' },
+          },
+          {
+            id: 'zfbtw-hsp-sm',
+            cssVar: '--zfbtw-hsp-sm',
+            label: 'H-Spacing S',
+            default: '0.5rem',
+            type: { kind: 'length', min: 0, max: 2, step: 0.0625, unit: 'rem' },
+          },
+          {
+            id: 'zfbtw-hsp-md',
+            cssVar: '--zfbtw-hsp-md',
+            label: 'H-Spacing M',
+            default: '1rem',
+            type: { kind: 'length', min: 0, max: 4, step: 0.0625, unit: 'rem' },
+          },
+          {
+            id: 'zfbtw-hsp-lg',
+            cssVar: '--zfbtw-hsp-lg',
+            label: 'H-Spacing L',
+            default: '1.5rem',
+            type: { kind: 'length', min: 0, max: 6, step: 0.0625, unit: 'rem' },
+          },
+          {
+            id: 'zfbtw-hsp-xl',
+            cssVar: '--zfbtw-hsp-xl',
+            label: 'H-Spacing XL',
+            default: '2rem',
+            type: { kind: 'length', min: 0, max: 8, step: 0.125, unit: 'rem' },
+          },
+        ],
+      },
+      {
+        id: 'vsp-scale',
+        label: 'Vertical spacing',
+        items: [
+          {
+            id: 'zfbtw-vsp-2xs',
+            cssVar: '--zfbtw-vsp-2xs',
+            label: 'V-Spacing 2XS',
+            default: '0.25rem',
+            type: { kind: 'length', min: 0, max: 1, step: 0.0625, unit: 'rem' },
+          },
+          {
+            id: 'zfbtw-vsp-xs',
+            cssVar: '--zfbtw-vsp-xs',
+            label: 'V-Spacing XS',
+            default: '0.5rem',
+            type: { kind: 'length', min: 0, max: 2, step: 0.0625, unit: 'rem' },
+          },
+          {
+            id: 'zfbtw-vsp-sm',
+            cssVar: '--zfbtw-vsp-sm',
+            label: 'V-Spacing S',
+            default: '0.75rem',
+            type: { kind: 'length', min: 0, max: 2, step: 0.0625, unit: 'rem' },
+          },
+          {
+            id: 'zfbtw-vsp-md',
+            cssVar: '--zfbtw-vsp-md',
+            label: 'V-Spacing M',
+            default: '1rem',
+            type: { kind: 'length', min: 0, max: 4, step: 0.0625, unit: 'rem' },
+          },
+          {
+            id: 'zfbtw-vsp-lg',
+            cssVar: '--zfbtw-vsp-lg',
+            label: 'V-Spacing L',
+            default: '1.75rem',
+            type: { kind: 'length', min: 0, max: 6, step: 0.0625, unit: 'rem' },
+          },
+          {
+            id: 'zfbtw-vsp-xl',
+            cssVar: '--zfbtw-vsp-xl',
+            label: 'V-Spacing XL',
+            default: '2.5rem',
+            type: { kind: 'length', min: 0, max: 8, step: 0.125, unit: 'rem' },
+          },
+          {
+            id: 'zfbtw-vsp-2xl',
+            cssVar: '--zfbtw-vsp-2xl',
+            label: 'V-Spacing 2XL',
+            default: '3.5rem',
+            type: { kind: 'length', min: 0, max: 10, step: 0.25, unit: 'rem' },
+          },
+        ],
+      },
     ],
   },
   {
@@ -71,7 +175,7 @@ export const defaultTabs: readonly TabConfig[] = [
     tiers: [
       {
         id: 'raw',
-        label: 'Type Scale',
+        label: 'Font scale',
         items: [
           {
             id: 'zfbtw-scale-xs',
@@ -119,7 +223,7 @@ export const defaultTabs: readonly TabConfig[] = [
       },
       {
         id: 'semantic',
-        label: 'Semantic Roles',
+        label: 'Font role',
         // Each item's value is the id of a raw-tier item; emitted as var(--cssVar).
         referencesTier: 'raw',
         items: [
