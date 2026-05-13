@@ -221,7 +221,7 @@ export default function DesignTokenTweakPanel() {
     e.preventDefault();
     const startX = e.clientX;
     const startY = e.clientY;
-    const startRight = positionRef.current.right;
+    const startLeft = positionRef.current.left;
     const startTop = positionRef.current.top;
     const panelWidth = panelRef.current?.offsetWidth ?? 600;
     const panelHeight = panelRef.current?.offsetHeight ?? 600;
@@ -231,7 +231,7 @@ export default function DesignTokenTweakPanel() {
       const deltaY = ev.clientY - startY;
       const clamped = clampPosition(
         startTop + deltaY,
-        startRight - deltaX,
+        startLeft + deltaX,
         panelWidth,
         panelHeight,
       );
@@ -240,7 +240,7 @@ export default function DesignTokenTweakPanel() {
       // the final value to React state in one shot.
       if (panelRef.current) {
         panelRef.current.style.top = `${clamped.top}px`;
-        panelRef.current.style.right = `${clamped.right}px`;
+        panelRef.current.style.left = `${clamped.left}px`;
       }
       positionRef.current = clamped;
     }
@@ -282,8 +282,9 @@ export default function DesignTokenTweakPanel() {
       const deltaX = ev.clientX - startX;
       const deltaY = ev.clientY - startY;
       // Bottom-right grip: drag right/down grows the panel. The panel is
-      // anchored top-right, so growing width pushes the left edge leftward,
-      // and growing height extends the bottom edge — both natural.
+      // anchored top-left, so growing width pushes the right edge rightward
+      // (toward the cursor), and growing height extends the bottom edge —
+      // both natural.
       const next = clampSize(startWidth + deltaX, startHeight + deltaY);
       if (panelRef.current) {
         panelRef.current.style.width = `${next.width}px`;
@@ -303,11 +304,11 @@ export default function DesignTokenTweakPanel() {
       // anchor pulled back into the viewport.
       const finalPos = clampPosition(
         positionRef.current.top,
-        positionRef.current.right,
+        positionRef.current.left,
         finalSize.width,
         finalSize.height,
       );
-      if (finalPos.top !== positionRef.current.top || finalPos.right !== positionRef.current.right) {
+      if (finalPos.top !== positionRef.current.top || finalPos.left !== positionRef.current.left) {
         setPosition(finalPos);
         savePosition(finalPos);
       }
@@ -345,7 +346,7 @@ export default function DesignTokenTweakPanel() {
       const panelWidth = panelRef.current?.offsetWidth ?? 600;
       const panelHeight = panelRef.current?.offsetHeight ?? 600;
       setPosition((prev) => {
-        const clamped = clampPosition(prev.top, prev.right, panelWidth, panelHeight);
+        const clamped = clampPosition(prev.top, prev.left, panelWidth, panelHeight);
         savePosition(clamped);
         return clamped;
       });
@@ -444,7 +445,7 @@ export default function DesignTokenTweakPanel() {
           transform: 'translateX(-50%)',
           right: 'auto' as const,
         }
-      : { position: 'fixed' as const, top: position.top, right: position.right };
+      : { position: 'fixed' as const, top: position.top, left: position.left };
 
   return (
     <>

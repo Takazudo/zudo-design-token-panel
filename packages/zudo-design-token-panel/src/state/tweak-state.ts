@@ -122,7 +122,7 @@ export function getSizeKey(): string {
 
 export interface PanelPosition {
   top: number;
-  right: number;
+  left: number;
 }
 
 /**
@@ -131,13 +131,13 @@ export interface PanelPosition {
  * Runtime callers should prefer `defaultPosition()`, which returns a
  * viewport-centered position when `window` is available.
  */
-export const DEFAULT_POSITION: PanelPosition = { top: 60, right: 20 };
+export const DEFAULT_POSITION: PanelPosition = { top: 60, left: 20 };
 
 /**
  * Compute a viewport-centered default panel position for first-open behaviour.
  *
  * The panel CSS-sizes itself up to 1200×800 but caps at 80% of the viewport,
- * so we mirror the same min/0.8x rule here. The resulting `top` / `right`
+ * so we mirror the same min/0.8x rule here. The resulting `top` / `left`
  * place the panel at the geometric center of the viewport.
  *
  * Falls back to the static `DEFAULT_POSITION` when `window` is undefined
@@ -149,8 +149,8 @@ export function defaultPosition(): PanelPosition {
   const panelW = Math.min(1200, 0.8 * window.innerWidth);
   const panelH = Math.min(800, 0.8 * window.innerHeight);
   const top = Math.max(0, Math.round((window.innerHeight - panelH) / 2));
-  const right = Math.max(0, Math.round((window.innerWidth - panelW) / 2));
-  return { top, right };
+  const left = Math.max(0, Math.round((window.innerWidth - panelW) / 2));
+  return { top, left };
 }
 
 export function loadPosition(): PanelPosition {
@@ -158,7 +158,7 @@ export function loadPosition(): PanelPosition {
     const saved = localStorage.getItem(getPositionKey());
     if (saved) {
       const parsed = JSON.parse(saved) as PanelPosition;
-      if (typeof parsed.top === 'number' && typeof parsed.right === 'number') {
+      if (typeof parsed.top === 'number' && typeof parsed.left === 'number') {
         return parsed;
       }
     }
@@ -271,7 +271,7 @@ export function saveSize(size: PanelSize) {
 // churn, and so a future "tall panel" carve-out has the data on hand.
 export function clampPosition(
   top: number,
-  right: number,
+  left: number,
   panelWidth: number,
   _panelHeight: number,
 ): PanelPosition {
@@ -279,8 +279,13 @@ export function clampPosition(
   // px of grip visible so the user can drag it back. The header spans the
   // full panel width, so any leftover horizontal slice contains a draggable
   // strip of the header.
-  const minRight = -(panelWidth - VISIBLE_MIN);
-  const maxRightRaw = window.innerWidth - VISIBLE_MIN;
+  //
+  // Top-left origin: `left` is the offset from the viewport's left edge to
+  // the panel's left edge. minLeft pushes the panel past the LEFT edge
+  // (only VISIBLE_MIN of the right-side header strip remains visible);
+  // maxLeft pushes the panel past the RIGHT edge.
+  const minLeftRaw = -(panelWidth - VISIBLE_MIN);
+  const maxLeftRaw = window.innerWidth - VISIBLE_MIN;
   // Vertical: ASYMMETRIC with the horizontal axis on purpose.
   //
   // The drag handle is the panel header (`panel.tsx` attaches `onMouseDown`
@@ -296,12 +301,6 @@ export function clampPosition(
   // "scroll content into view" carve-out that a taller-than-viewport panel
   // would otherwise need. `panelHeight` is therefore unused on the lower
   // bound today.
-  //
-  // The pre-fix code's tautology bug (`panelHeight > 0 ? 0 : 0` always
-  // yielding 0) is replaced with the simpler `window.innerHeight -
-  // VISIBLE_MIN`. The original `Math.max(..., 0)` only mattered on
-  // viewports shorter than VISIBLE_MIN, which we treat as a degenerate
-  // case and don't special-case any more.
   const minTopRaw = -(VISIBLE_MIN / 2);
   const maxTopRaw = window.innerHeight - VISIBLE_MIN;
   // guard against narrow / degenerate viewports
@@ -310,10 +309,10 @@ export function clampPosition(
   // resulting Math.max/Math.min chain still produces a deterministic value
   // instead of relying on argument order.
   const maxTop = Math.max(maxTopRaw, minTopRaw);
-  const maxRight = Math.max(maxRightRaw, minRight);
+  const maxLeft = Math.max(maxLeftRaw, minLeftRaw);
   return {
     top: Math.max(minTopRaw, Math.min(top, maxTop)),
-    right: Math.max(minRight, Math.min(right, maxRight)),
+    left: Math.max(minLeftRaw, Math.min(left, maxLeft)),
   };
 }
 
@@ -1114,11 +1113,11 @@ function hydratePanelPosition(raw: unknown): PanelPosition | undefined {
   const o = raw as Record<string, unknown>;
   if (
     typeof o.top === 'number' &&
-    typeof o.right === 'number' &&
+    typeof o.left === 'number' &&
     Number.isFinite(o.top) &&
-    Number.isFinite(o.right)
+    Number.isFinite(o.left)
   ) {
-    return { top: o.top, right: o.right };
+    return { top: o.top, left: o.left };
   }
   return undefined;
 }

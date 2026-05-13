@@ -335,7 +335,7 @@ export function storageKey_open(cfg: PanelConfig): string {
   return `${cfg.storagePrefix}-open`;
 }
 
-/** Drag position `{ top, right }` so the panel reappears where the user left it. */
+/** Drag position `{ top, left }` so the panel reappears where the user left it. */
 export function storageKey_position(cfg: PanelConfig): string {
   return `${cfg.storagePrefix}-position`;
 }

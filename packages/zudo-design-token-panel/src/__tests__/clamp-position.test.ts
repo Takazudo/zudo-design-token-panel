@@ -67,7 +67,7 @@ describe('clampPosition', () => {
 
   it('returns positions inside the legal range unchanged', () => {
     const result = clampPosition(100, 50, 600, 500);
-    expect(result).toEqual({ top: 100, right: 50 });
+    expect(result).toEqual({ top: 100, left: 50 });
   });
 
   it('clamps top to maxTop = innerHeight - VISIBLE_MIN', () => {
@@ -87,17 +87,17 @@ describe('clampPosition', () => {
     expect(result.top).toBe(-(VISIBLE_MIN / 2));
   });
 
-  it('clamps right symmetrically on the horizontal axis (panelWidth scales the lower bound)', () => {
-    // Maximum: panel can be pushed past the left edge but VISIBLE_MIN must
-    // remain visible.
-    const farLeft = clampPosition(0, 99999, 600, 500);
-    expect(farLeft.right).toBe(window.innerWidth - VISIBLE_MIN);
-    // Minimum: panel can be pushed past the right edge by panelWidth -
+  it('clamps left symmetrically on the horizontal axis (panelWidth scales the lower bound)', () => {
+    // Maximum: panel can be pushed past the right edge but VISIBLE_MIN must
+    // remain visible (a sliver of the header on the left).
+    const farRight = clampPosition(0, 99999, 600, 500);
+    expect(farRight.left).toBe(window.innerWidth - VISIBLE_MIN);
+    // Minimum: panel can be pushed past the left edge by panelWidth -
     // VISIBLE_MIN. The horizontal axis IS symmetric because the header
     // spans the full panel width — any leftover horizontal slice contains
     // a draggable strip of the header.
-    const farRight = clampPosition(0, -99999, 600, 500);
-    expect(farRight.right).toBe(-(600 - VISIBLE_MIN));
+    const farLeft = clampPosition(0, -99999, 600, 500);
+    expect(farLeft.left).toBe(-(600 - VISIBLE_MIN));
   });
 
   it('vertical lower bound does NOT depend on panelHeight (regression for B2 + codex review follow-up)', () => {
@@ -112,7 +112,7 @@ describe('clampPosition', () => {
 
   it('produces a deterministic result on degenerate (smaller-than-VISIBLE_MIN) viewports', () => {
     // when the viewport is narrower / shorter
-    // than VISIBLE_MIN, the raw maxTop / maxRight could fall below their
+    // than VISIBLE_MIN, the raw maxTop / maxLeft could fall below their
     // respective minimums and Math.min/Math.max would emit Math.max's
     // first argument. Pin the actual return so a future regression in
     // bound-collapse logic is caught.
@@ -121,19 +121,19 @@ describe('clampPosition', () => {
     // Vertical: minTopRaw = -30, maxTopRaw = -40 (innerHeight - VISIBLE_MIN).
     // Collapse maxTop to minTopRaw — both bounds become -30.
     expect(result.top).toBe(-(VISIBLE_MIN / 2));
-    // Horizontal: minRight = -540 (-(panelWidth - VISIBLE_MIN)),
-    // maxRightRaw = -40. minRight < maxRightRaw so no collapse needed.
-    expect(result.right).toBeGreaterThanOrEqual(-540);
-    expect(result.right).toBeLessThanOrEqual(-40);
+    // Horizontal: minLeft = -540 (-(panelWidth - VISIBLE_MIN)),
+    // maxLeftRaw = -40. minLeft < maxLeftRaw so no collapse needed.
+    expect(result.left).toBeGreaterThanOrEqual(-540);
+    expect(result.left).toBeLessThanOrEqual(-40);
   });
 
   it('handles a viewport narrower than panelWidth without inverting horizontal bounds', () => {
-    // When innerWidth < VISIBLE_MIN, maxRightRaw goes negative below
-    // minRight; the collapse keeps both at minRight so the result stays
+    // When innerWidth < VISIBLE_MIN, maxLeftRaw goes negative below
+    // minLeft; the collapse keeps both at minLeft so the result stays
     // deterministic.
     setViewport(20, 800);
     const result = clampPosition(100, 0, 600, 500);
-    expect(Number.isFinite(result.right)).toBe(true);
+    expect(Number.isFinite(result.left)).toBe(true);
     expect(Number.isFinite(result.top)).toBe(true);
   });
 });
