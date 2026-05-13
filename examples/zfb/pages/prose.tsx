@@ -87,6 +87,23 @@ export default function ProsePage() {
           </a>
         </nav>
 
+        <p style="padding: 1rem 2rem 0;">
+          <button
+            type="button"
+            id="zfbexample-panel-open"
+            class="zfbexample-button"
+          >
+            Open Design Token Panel
+          </button>
+        </p>
+        {/* SSR-only body — see pages/index.tsx for the rationale. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "document.getElementById('zfbexample-panel-open')?.addEventListener('click',function(){var a=window.zfbExample;if(a&&typeof a.toggleDesignPanel==='function')a.toggleDesignPanel();});",
+          }}
+        />
+
         <main class="zfbexample-prose">
           {ProseContent ? (
             <ProseContent components={{ ...defaultComponents }} />

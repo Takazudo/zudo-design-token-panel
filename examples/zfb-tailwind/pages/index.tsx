@@ -84,6 +84,28 @@ export default function HomePage() {
               Live token tweaking, in zfb + Tailwind v4
             </h1>
             <p>
+              <button
+                type="button"
+                id="zfbtailwindexample-panel-open"
+                class="inline-block p-spacing-md rounded-md bg-accent text-bg border-none cursor-pointer hover:bg-primary"
+              >
+                Open Design Token Panel
+              </button>
+            </p>
+            {/*
+              The page body is SSR-only — only <PanelMount> below sits inside
+              an <Island> and hydrates. A JSX onClick on the button above
+              would never fire. This sibling <script> attaches the listener
+              natively at parse time; once <PanelMount>'s useEffect installs
+              window.zfbTailwindExample.toggleDesignPanel, the click invokes it.
+            */}
+            <script
+              dangerouslySetInnerHTML={{
+                __html:
+                  "document.getElementById('zfbtailwindexample-panel-open')?.addEventListener('click',function(){var a=window.zfbTailwindExample;if(a&&typeof a.toggleDesignPanel==='function')a.toggleDesignPanel();});",
+              }}
+            />
+            <p>
               Every visible element on this page is driven by a{' '}
               <code>--zfbtailwindexample-*</code> CSS custom property, consumed via
               Tailwind v4 utility classes. Open the panel from the browser console

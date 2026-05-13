@@ -71,6 +71,28 @@ export default function HomePage() {
           <header>
             <h1 class="zfbexample-heading">Live token tweaking, in zfb (zudo-front-builder)</h1>
             <p>
+              <button
+                type="button"
+                id="zfbexample-panel-open"
+                class="zfbexample-button"
+              >
+                Open Design Token Panel
+              </button>
+            </p>
+            {/*
+              The page body is SSR-only — only <PanelMount> below sits inside
+              an <Island> and hydrates. A JSX onClick on the button above
+              would never fire. This sibling <script> attaches the listener
+              natively at parse time; once <PanelMount>'s useEffect installs
+              window.zfbExample.toggleDesignPanel, the click invokes it.
+            */}
+            <script
+              dangerouslySetInnerHTML={{
+                __html:
+                  "document.getElementById('zfbexample-panel-open')?.addEventListener('click',function(){var a=window.zfbExample;if(a&&typeof a.toggleDesignPanel==='function')a.toggleDesignPanel();});",
+              }}
+            />
+            <p>
               Every visible element on this page is driven by a{' '}
               <code>--zfbexample-*</code> CSS custom property. Open the panel
               from the browser console and drag any slider — the change applies
