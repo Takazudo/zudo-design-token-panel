@@ -27,11 +27,10 @@
  * fallback becomes a no-op and can be deleted — `getCollection` will
  * return the entry and the bridge path is never reached.
  *
- * Panel mount
- * -----------
- * Re-uses the same <Island> / <PanelMount> pattern as index.tsx so the panel
- * is available on this page too — token tweaks on the panel immediately reach
- * the prose subtree via the :root CSS-var overrides.
+ * Layout shell
+ * ------------
+ * The page is wrapped in `<AppShell>`, which renders the HTML document shell,
+ * topbar (panel-open button), sidenav, and main content area.
  */
 
 import {
@@ -41,9 +40,9 @@ import {
   type ContentElement,
   type ContentProps,
 } from '@takazudo/zfb/content';
-import { Island, type IslandProps } from '@takazudo/zfb';
-import PanelMount from '../components/panel-mount';
-import '../styles/global.css';
+import { AppShell } from '../components/app-shell';
+
+const BASE_PATH = '/pj/zudo-design-token-panel/examples/zfb/';
 
 type ProseFrontmatter = {
   title?: string;
@@ -71,51 +70,17 @@ export default function ProsePage() {
   const ProseContent = resolveProseContent();
 
   return (
-    <html lang="en">
-      <head>
-        <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Prose Demo — zfb Example</title>
-      </head>
-      <body>
-        <nav style="padding: 1rem 2rem; border-bottom: 1px solid var(--zfbexample-color-muted);">
-          <a
-            href="/pj/zudo-design-token-panel/examples/zfb/"
-            class="zfbexample-link"
-          >
-            ← Back to home
-          </a>
-        </nav>
-
-        <p style="padding: 1rem 2rem 0;">
-          <button
-            type="button"
-            id="zfbexample-panel-open"
-            class="zfbexample-button"
-          >
-            Open Design Token Panel
-          </button>
-        </p>
-        {/* SSR-only body — see pages/index.tsx for the rationale. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html:
-              "document.getElementById('zfbexample-panel-open')?.addEventListener('click',function(){var a=window.zfbExample;if(a&&typeof a.toggleDesignPanel==='function')a.toggleDesignPanel();});",
-          }}
-        />
-
-        <main class="zfbexample-prose">
-          {ProseContent ? (
-            <ProseContent components={{ ...defaultComponents }} />
-          ) : (
-            <p>No prose content found.</p>
-          )}
-        </main>
-
-        <Island when="visible" ssrFallback={null}>
-          {(<PanelMount />) as unknown as IslandProps['children']}
-        </Island>
-      </body>
-    </html>
+    <AppShell
+      title="Prose Demo — zfb Example"
+      activePath={`${BASE_PATH}prose/`}
+    >
+      <div class="zfbexample-prose">
+        {ProseContent ? (
+          <ProseContent components={{ ...defaultComponents }} />
+        ) : (
+          <p>No prose content found.</p>
+        )}
+      </div>
+    </AppShell>
   );
 }
