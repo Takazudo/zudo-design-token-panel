@@ -5,7 +5,7 @@ title: Prose Demo
 # Prose Demo
 
 This page demonstrates the full range of markdown-generated HTML elements
-styled through the `--zfbexample-*` token namespace.
+styled through the `--zfb-*` token namespace.
 Each section exercises a distinct element type so you can verify spacing,
 typography, and colour tokens at a glance.
 
@@ -62,12 +62,12 @@ is sufficient.
 ```typescript
 // Wiring the prose token namespace for the zfb demo
 const proseTokens = {
-  vspMd:        `var(--zfbexample-vsp-md)`,
-  textBody:     `var(--zfbexample-text-body)`,
-  leadingRelaxed: `var(--zfbexample-leading-relaxed)`,
-  codeBg:       `var(--zfbexample-code-bg)`,
-  codeFg:       `var(--zfbexample-code-fg)`,
-  fontMono:     `var(--zfbexample-font-mono)`,
+  vspMd:        `var(--zfb-vsp-md)`,
+  textBody:     `var(--zfb-text-body)`,
+  leadingRelaxed: `var(--zfb-leading-relaxed)`,
+  codeBg:       `var(--zfb-code-bg)`,
+  codeFg:       `var(--zfb-code-fg)`,
+  fontMono:     `var(--zfb-font-mono)`,
 } as const;
 
 export default proseTokens;
@@ -101,7 +101,7 @@ content) tokens produce balanced rhythm.
 Ordered lists share spacing tokens with unordered lists; the marker style
 differs but the rhythm should be identical.
 
-1. Define the token set in `--zfbexample-*` namespace.
+1. Define the token set in `--zfb-*` namespace.
 2. Wire the flow utility into the prose container:
    1. Apply `margin-block-start: var(--flow-space, ...)` to all children.
    2. Set per-element `--flow-space` overrides using `:where()` selectors.
@@ -169,13 +169,13 @@ The home link above uses the base-prefixed path for this zfb example.
 ## Token reference
 
 The visual appearance of this page is driven entirely by the
-`--zfbexample-*` token namespace.
+`--zfb-*` token namespace.
 Vertical rhythm comes from `vsp-2xs` through `vsp-2xl`.
 Horizontal padding and indent come from `hsp-xs` through `hsp-xl`.
 Type sizes are set by `text-h2`, `text-h3`, `text-h4`, `text-body`,
 `text-small`, and `text-micro`.
 Line-heights use `leading-tight`, `leading-snug`, and `leading-relaxed`.
 Code blocks are styled with `code-bg`, `code-fg`, and `font-mono`.
-Heading borders and blockquote accents reuse the shared `--zfbexample-color-fg`,
+Heading borders and blockquote accents reuse the shared `--zfb-color-fg`,
 `--color-muted`, and `--color-accent` tokens — no additional colour tokens
 are required.

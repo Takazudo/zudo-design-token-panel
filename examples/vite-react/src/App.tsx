@@ -12,10 +12,10 @@
  * The page renders three flavors of demo content:
  *
  *   - Cards, buttons, palette swatches — the same shape the Astro home
- *     page ships, mirrored under the `--vitereact-*` namespace.
+ *     page ships, mirrored under the `--vr-*` namespace.
  *   - A "verify across rerender" section with a counter button. Clicking
  *     it triggers a React `setState` re-render. Because every visible
- *     element reads `--vitereact-*` from `:root` (NOT from React props),
+ *     element reads `--vr-*` from `:root` (NOT from React props),
  *     panel-driven token tweaks survive the rerender unchanged. This is
  *     the Vite + React analog of the Astro example's `/about` page that
  *     proves view-transitions don't disturb panel state.
@@ -39,19 +39,19 @@ export function App() {
   }, []);
 
   return (
-    <main className="vitereact-stack">
+    <main className="vr-stack">
       <header>
-        <h1 className="vitereact-heading">Live token tweaking, in plain Vite + React</h1>
+        <h1 className="vr-heading">Live token tweaking, in plain Vite + React</h1>
         <p>
           <button
             type="button"
-            className="vitereact-button"
+            className="vr-button"
             onClick={() => {
               (
                 window as unknown as {
-                  viteReactExample?: { toggleDesignPanel?: () => void };
+                  vr?: { toggleDesignPanel?: () => void };
                 }
-              ).viteReactExample?.toggleDesignPanel?.();
+              ).vr?.toggleDesignPanel?.();
             }}
           >
             Open Design Token Panel
@@ -59,18 +59,18 @@ export function App() {
         </p>
         <p>
           Every visible element on this page is driven by a{' '}
-          <code>--vitereact-*</code> CSS custom property. Open the panel from
+          <code>--vr-*</code> CSS custom property. Open the panel from
           the browser console and drag any slider — the change applies before
           the next paint, and survives React rerenders because the CSS vars
           live on <code>:root</code>, not in React state.
         </p>
-        <p className="vitereact-meta">
-          Console API: <code>window.viteReactExample.toggleDesignPanel()</code>.
+        <p className="vr-meta">
+          Console API: <code>window.vr.toggleDesignPanel()</code>.
           Storage prefix: <code>vite-react-example-tokens</code>.
         </p>
         <p>
           <a
-            className="vitereact-link"
+            className="vr-link"
             href={`${import.meta.env.BASE_URL}prose.html`}
           >
             Prose Demo →
@@ -79,30 +79,30 @@ export function App() {
       </header>
 
       <section>
-        <h2 className="vitereact-heading">Cards (spacing + radius + surface)</h2>
-        <div className="vitereact-card">
+        <h2 className="vr-heading">Cards (spacing + radius + surface)</h2>
+        <div className="vr-card">
           <strong>Card A.</strong> Padding driven by{' '}
-          <code>--vitereact-spacing-md</code>, corners by{' '}
-          <code>--vitereact-radius</code>, background by{' '}
-          <code>--vitereact-color-surface</code>.
+          <code>--vr-spacing-md</code>, corners by{' '}
+          <code>--vr-radius</code>, background by{' '}
+          <code>--vr-color-surface</code>.
         </div>
-        <div className="vitereact-card">
+        <div className="vr-card">
           <strong>Card B.</strong> Stack gap driven by{' '}
-          <code>--vitereact-spacing-lg</code>; outline by{' '}
-          <code>--vitereact-color-muted</code>.
+          <code>--vr-spacing-lg</code>; outline by{' '}
+          <code>--vr-color-muted</code>.
         </div>
       </section>
 
       <section>
-        <h2 className="vitereact-heading">Buttons + links (accent / primary)</h2>
+        <h2 className="vr-heading">Buttons + links (accent / primary)</h2>
         <p>
-          <button className="vitereact-button" type="button">
+          <button className="vr-button" type="button">
             Action button
           </button>
         </p>
         <p>
           The styled{' '}
-          <a className="vitereact-link" href="#rerender-verify">
+          <a className="vr-link" href="#rerender-verify">
             rerender-verify section
           </a>{' '}
           below proves the panel's tokens persist across React state changes.
@@ -110,20 +110,20 @@ export function App() {
       </section>
 
       <section>
-        <h2 className="vitereact-heading">Palette swatches</h2>
-        <div className="vitereact-swatch-row">
+        <h2 className="vr-heading">Palette swatches</h2>
+        <div className="vr-swatch-row">
           {PALETTE_INDICES.map((i) => (
             <div
               key={i}
-              className="vitereact-swatch"
-              style={{ background: `var(--vitereact-palette-${i})` }}
+              className="vr-swatch"
+              style={{ background: `var(--vr-palette-${i})` }}
             >
               {i}
             </div>
           ))}
         </div>
-        <p className="vitereact-meta">
-          Each swatch reads <code>--vitereact-palette-{'{n}'}</code>. The
+        <p className="vr-meta">
+          Each swatch reads <code>--vr-palette-{'{n}'}</code>. The
           cluster's <code>paletteCssVarTemplate</code> is the only thing that
           decides this name — change it in <code>default-cluster.ts</code> and
           the apply pipeline writes a different variable on the next palette
@@ -164,8 +164,8 @@ function RerenderVerify() {
 
   return (
     <section id="rerender-verify">
-      <h2 className="vitereact-heading">Verify across rerender</h2>
-      <div className="vitereact-card">
+      <h2 className="vr-heading">Verify across rerender</h2>
+      <div className="vr-card">
         Click the button to trigger a React rerender. Tweak any panel slider,
         then click again — the tweaked value should still apply, because the
         page reads CSS custom properties from <code>:root</code> rather than
@@ -173,16 +173,16 @@ function RerenderVerify() {
         churn doesn't disturb the panel either.
       </div>
       <p>
-        <button type="button" className="vitereact-button" onClick={bump}>
+        <button type="button" className="vr-button" onClick={bump}>
           Rerender ({' '}
-          <span className="vitereact-rerender-counter">{count}</span> )
+          <span className="vr-rerender-counter">{count}</span> )
         </button>{' '}
-        <button type="button" className="vitereact-button" onClick={toggleChild}>
+        <button type="button" className="vr-button" onClick={toggleChild}>
           Toggle child subtree
         </button>
       </p>
       {showChild && (
-        <div className="vitereact-card">
+        <div className="vr-card">
           <strong>Child subtree present.</strong> This block mounts and
           unmounts on every toggle. The panel's own DOM root is appended by
           the adapter outside the React tree, so React reconciliation can

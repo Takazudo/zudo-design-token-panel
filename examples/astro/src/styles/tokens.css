@@ -1,5 +1,5 @@
 /*
- * `--astroexample-*` tokens consumed by the demo pages.
+ * `--astro-*` tokens consumed by the demo pages.
  *
  * Two roles wrapped into one file:
  *
@@ -7,9 +7,9 @@
  *      panel rewrites these names live (in-memory `:root` overrides) when
  *      the user tweaks a slider. The Apply pipeline rewrites THIS FILE on
  *      disk when the user clicks Apply (see `scaffold.routing.json` —
- *      prefix `astroexample` → this path).
+ *      prefix `astro` → this path).
  *
- *   2. The demo stylesheet — every `.astroexample-*` selector below reads
+ *   2. The demo stylesheet — every `.astro-*` selector below reads
  *      tokens from `:root`, so a tweak in any tab is immediately visible
  *      across both demo pages.
  *
@@ -20,155 +20,155 @@
  */
 :root {
   /* Spacing tokens (manifest: spacing tab) */
-  --astroexample-spacing-md: 1rem;
-  --astroexample-spacing-lg: 2rem;
+  --astro-spacing-md: 1rem;
+  --astro-spacing-lg: 2rem;
 
   /* Typography tokens (manifest: typography tab) */
-  --astroexample-text-base: 1rem;
-  --astroexample-text-heading: 1.75rem;
+  --astro-text-base: 1rem;
+  --astro-text-heading: 1.75rem;
 
   /* Size tokens (manifest: size tab) */
-  --astroexample-radius: 0.5rem;
+  --astro-radius: 0.5rem;
 
   /* Cluster base roles (default-cluster.ts → baseRoles) */
-  --astroexample-bg: #1e1e1e;
-  --astroexample-fg: #f8fafc;
+  --astro-bg: #1e1e1e;
+  --astro-fg: #f8fafc;
 
   /* Cluster palette slots (default-cluster.ts → paletteCssVarTemplate) */
-  --astroexample-palette-0: #1e1e1e;
-  --astroexample-palette-1: #2d6cdf;
-  --astroexample-palette-2: #3aa676;
-  --astroexample-palette-3: #d97706;
-  --astroexample-palette-4: #9b5de5;
-  --astroexample-palette-5: #e63946;
-  --astroexample-palette-6: #1d3557;
-  --astroexample-palette-7: #06b6d4;
-  --astroexample-palette-8: #475569;
-  --astroexample-palette-9: #94a3b8;
-  --astroexample-palette-10: #cbd5e1;
-  --astroexample-palette-11: #e2e8f0;
-  --astroexample-palette-12: #f1f5f9;
-  --astroexample-palette-13: #fef3c7;
-  --astroexample-palette-14: #bbf7d0;
-  --astroexample-palette-15: #f8fafc;
+  --astro-palette-0: #1e1e1e;
+  --astro-palette-1: #2d6cdf;
+  --astro-palette-2: #3aa676;
+  --astro-palette-3: #d97706;
+  --astro-palette-4: #9b5de5;
+  --astro-palette-5: #e63946;
+  --astro-palette-6: #1d3557;
+  --astro-palette-7: #06b6d4;
+  --astro-palette-8: #475569;
+  --astro-palette-9: #94a3b8;
+  --astro-palette-10: #cbd5e1;
+  --astro-palette-11: #e2e8f0;
+  --astro-palette-12: #f1f5f9;
+  --astro-palette-13: #fef3c7;
+  --astro-palette-14: #bbf7d0;
+  --astro-palette-15: #f8fafc;
 
   /* Cluster semantic names (default-cluster.ts → semanticCssNames) */
-  --astroexample-color-primary: var(--astroexample-palette-1);
-  --astroexample-color-accent: var(--astroexample-palette-3);
-  --astroexample-color-surface: var(--astroexample-palette-0);
-  --astroexample-color-muted: var(--astroexample-palette-8);
-  --astroexample-color-danger: var(--astroexample-palette-5);
+  --astro-color-primary: var(--astro-palette-1);
+  --astro-color-accent: var(--astro-palette-3);
+  --astro-color-surface: var(--astro-palette-0);
+  --astro-color-muted: var(--astro-palette-8);
+  --astro-color-danger: var(--astro-palette-5);
 
   /* Prose tokens — vertical spacing scale (flow-space rhythm) */
-  --astroexample-vsp-2xs: 0.25rem;   /* ~4 px  — consecutive headings, tight items */
-  --astroexample-vsp-xs:  0.5rem;    /* ~8 px  — tighter intra-section spacing */
-  --astroexample-vsp-sm:  0.75rem;   /* ~12 px — heading-to-first-content gap */
-  --astroexample-vsp-md:  1rem;      /* ~16 px — default body flow gap */
-  --astroexample-vsp-lg:  1.75rem;   /* ~28 px — pre-h3 section separation */
-  --astroexample-vsp-xl:  2.5rem;    /* ~40 px — pre-h2 section separation */
-  --astroexample-vsp-2xl: 3.5rem;    /* ~56 px — top-of-page clearance */
+  --astro-vsp-2xs: 0.25rem;   /* ~4 px  — consecutive headings, tight items */
+  --astro-vsp-xs:  0.5rem;    /* ~8 px  — tighter intra-section spacing */
+  --astro-vsp-sm:  0.75rem;   /* ~12 px — heading-to-first-content gap */
+  --astro-vsp-md:  1rem;      /* ~16 px — default body flow gap */
+  --astro-vsp-lg:  1.75rem;   /* ~28 px — pre-h3 section separation */
+  --astro-vsp-xl:  2.5rem;    /* ~40 px — pre-h2 section separation */
+  --astro-vsp-2xl: 3.5rem;    /* ~56 px — top-of-page clearance */
 
   /* Prose tokens — horizontal spacing scale */
-  --astroexample-hsp-xs:  0.25rem;   /* inline code padding, small insets */
-  --astroexample-hsp-sm:  0.5rem;    /* table cell padding, tag padding */
-  --astroexample-hsp-md:  1rem;      /* blockquote left indent */
-  --astroexample-hsp-lg:  1.5rem;    /* section-level horizontal gutter */
-  --astroexample-hsp-xl:  2rem;      /* outer prose container horizontal padding */
+  --astro-hsp-xs:  0.25rem;   /* inline code padding, small insets */
+  --astro-hsp-sm:  0.5rem;    /* table cell padding, tag padding */
+  --astro-hsp-md:  1rem;      /* blockquote left indent */
+  --astro-hsp-lg:  1.5rem;    /* section-level horizontal gutter */
+  --astro-hsp-xl:  2rem;      /* outer prose container horizontal padding */
 
   /* Prose tokens — type scale */
-  --astroexample-text-h2:    1.75rem;
-  --astroexample-text-h3:    1.35rem;
-  --astroexample-text-h4:    1.1rem;
-  --astroexample-text-body:  1rem;
-  --astroexample-text-small: 0.875rem;
-  --astroexample-text-micro: 0.75rem;
+  --astro-text-h2:    1.75rem;
+  --astro-text-h3:    1.35rem;
+  --astro-text-h4:    1.1rem;
+  --astro-text-body:  1rem;
+  --astro-text-small: 0.875rem;
+  --astro-text-micro: 0.75rem;
 
   /* Prose tokens — line-heights */
-  --astroexample-leading-tight:   1.2;
-  --astroexample-leading-snug:    1.45;
-  --astroexample-leading-relaxed: 1.75;
+  --astro-leading-tight:   1.2;
+  --astro-leading-snug:    1.45;
+  --astro-leading-relaxed: 1.75;
 
   /* Prose tokens — code surface */
-  --astroexample-code-bg:   hsl(220 13% 11%);
-  --astroexample-code-fg:   hsl(220 14% 86%);
-  --astroexample-font-mono: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+  --astro-code-bg:   hsl(220 13% 11%);
+  --astro-code-fg:   hsl(220 14% 86%);
+  --astro-font-mono: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
 }
 
 body {
-  background: var(--astroexample-bg);
-  color: var(--astroexample-fg);
-  font-size: var(--astroexample-text-base);
-  padding: var(--astroexample-spacing-lg);
+  background: var(--astro-bg);
+  color: var(--astro-fg);
+  font-size: var(--astro-text-base);
+  padding: var(--astro-spacing-lg);
 }
 
-.astroexample-stack {
+.astro-stack {
   display: flex;
   flex-direction: column;
-  gap: var(--astroexample-spacing-lg);
+  gap: var(--astro-spacing-lg);
   max-width: 56rem;
   margin: 0 auto;
 }
 
-.astroexample-heading {
-  font-size: var(--astroexample-text-heading);
+.astro-heading {
+  font-size: var(--astro-text-heading);
   font-weight: 700;
-  margin: 0 0 var(--astroexample-spacing-md);
-  color: var(--astroexample-color-primary);
+  margin: 0 0 var(--astro-spacing-md);
+  color: var(--astro-color-primary);
 }
 
-.astroexample-card {
-  background: var(--astroexample-color-surface);
-  color: var(--astroexample-fg);
-  padding: var(--astroexample-spacing-md);
-  border-radius: var(--astroexample-radius);
-  border: 1px solid var(--astroexample-color-muted);
+.astro-card {
+  background: var(--astro-color-surface);
+  color: var(--astro-fg);
+  padding: var(--astro-spacing-md);
+  border-radius: var(--astro-radius);
+  border: 1px solid var(--astro-color-muted);
 }
 
-.astroexample-card + .astroexample-card {
-  margin-top: var(--astroexample-spacing-md);
+.astro-card + .astro-card {
+  margin-top: var(--astro-spacing-md);
 }
 
-.astroexample-button {
+.astro-button {
   display: inline-block;
-  padding: var(--astroexample-spacing-md);
-  border-radius: var(--astroexample-radius);
-  background: var(--astroexample-color-accent);
-  color: var(--astroexample-bg);
+  padding: var(--astro-spacing-md);
+  border-radius: var(--astro-radius);
+  background: var(--astro-color-accent);
+  color: var(--astro-bg);
   border: none;
   cursor: pointer;
 }
 
-.astroexample-button:hover {
-  background: var(--astroexample-color-primary);
+.astro-button:hover {
+  background: var(--astro-color-primary);
 }
 
-.astroexample-link {
-  color: var(--astroexample-color-accent);
+.astro-link {
+  color: var(--astro-color-accent);
   text-decoration: underline;
 }
 
-.astroexample-swatch-row {
+.astro-swatch-row {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--astroexample-spacing-md);
+  gap: var(--astro-spacing-md);
 }
 
-.astroexample-swatch {
+.astro-swatch {
   width: 4rem;
   height: 4rem;
-  border-radius: var(--astroexample-radius);
+  border-radius: var(--astro-radius);
   display: flex;
   align-items: end;
   justify-content: center;
   font-size: 0.75rem;
-  color: var(--astroexample-fg);
+  color: var(--astro-fg);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
   padding: 0.25rem;
 }
 
-.astroexample-meta {
+.astro-meta {
   font-size: 0.875rem;
-  color: var(--astroexample-color-muted);
+  color: var(--astro-color-muted);
 }
 
 /* ==========================================================================
@@ -176,126 +176,126 @@ body {
    Uses :where() selectors (zero specificity) so consumer rules win by order.
    ========================================================================== */
 
-.astroexample-prose {
+.astro-prose {
   max-width: 48rem;
   margin: 0 auto;
-  padding: var(--astroexample-vsp-2xl) var(--astroexample-hsp-xl);
-  font-size: var(--astroexample-text-body);
-  line-height: var(--astroexample-leading-relaxed);
-  color: var(--astroexample-fg);
+  padding: var(--astro-vsp-2xl) var(--astro-hsp-xl);
+  font-size: var(--astro-text-body);
+  line-height: var(--astro-leading-relaxed);
+  color: var(--astro-fg);
 }
 
 /* Flow utility — all siblings get margin-block-start from --flow-space */
-.astroexample-prose > * + * {
-  margin-block-start: var(--flow-space, var(--astroexample-vsp-md));
+.astro-prose > * + * {
+  margin-block-start: var(--flow-space, var(--astro-vsp-md));
 }
 
 /* Section separation before headings */
-.astroexample-prose :where(h2) { --flow-space: var(--astroexample-vsp-xl); }
-.astroexample-prose :where(h3) { --flow-space: var(--astroexample-vsp-lg); }
-.astroexample-prose :where(h4) { --flow-space: var(--astroexample-vsp-md); }
+.astro-prose :where(h2) { --flow-space: var(--astro-vsp-xl); }
+.astro-prose :where(h3) { --flow-space: var(--astro-vsp-lg); }
+.astro-prose :where(h4) { --flow-space: var(--astro-vsp-md); }
 
 /* Heading-to-first-content: tight coupling */
-.astroexample-prose :where(h2, h3, h4) + :where(p, ul, ol, table, pre, blockquote) {
-  --flow-space: var(--astroexample-vsp-sm);
+.astro-prose :where(h2, h3, h4) + :where(p, ul, ol, table, pre, blockquote) {
+  --flow-space: var(--astro-vsp-sm);
 }
 
 /* Consecutive headings: tighten */
-.astroexample-prose :where(h2, h3, h4, h5, h6) + :where(h2, h3, h4, h5, h6) {
-  --flow-space: var(--astroexample-vsp-2xs);
+.astro-prose :where(h2, h3, h4, h5, h6) + :where(h2, h3, h4, h5, h6) {
+  --flow-space: var(--astro-vsp-2xs);
 }
 
 /* Trim edges */
-.astroexample-prose > :first-child { margin-block-start: 0; }
-.astroexample-prose > :last-child  { margin-block-end: 0; }
+.astro-prose > :first-child { margin-block-start: 0; }
+.astro-prose > :last-child  { margin-block-end: 0; }
 
 /* Headings — type scale + gradient top-border */
-.astroexample-prose :where(h2) {
-  font-size: var(--astroexample-text-h2);
+.astro-prose :where(h2) {
+  font-size: var(--astro-text-h2);
   font-weight: 700;
-  line-height: var(--astroexample-leading-tight);
-  padding-block-start: var(--astroexample-vsp-sm);
+  line-height: var(--astro-leading-tight);
+  padding-block-start: var(--astro-vsp-sm);
   border-top: 3px solid transparent;
   /* Gradient top-border: fg → muted, mirroring zudo-doc heading-h2.tsx pattern */
   border-image: linear-gradient(
     to right,
-    var(--astroexample-fg),
-    var(--astroexample-color-muted)
+    var(--astro-fg),
+    var(--astro-color-muted)
   ) 1;
 }
 
-.astroexample-prose :where(h3) {
-  font-size: var(--astroexample-text-h3);
+.astro-prose :where(h3) {
+  font-size: var(--astro-text-h3);
   font-weight: 600;
-  line-height: var(--astroexample-leading-tight);
-  padding-block-start: var(--astroexample-vsp-xs);
+  line-height: var(--astro-leading-tight);
+  padding-block-start: var(--astro-vsp-xs);
   border-top: 2px solid transparent;
   border-image: linear-gradient(
     to right,
-    var(--astroexample-fg),
-    var(--astroexample-color-muted)
+    var(--astro-fg),
+    var(--astro-color-muted)
   ) 1;
 }
 
-.astroexample-prose :where(h4) {
-  font-size: var(--astroexample-text-h4);
+.astro-prose :where(h4) {
+  font-size: var(--astro-text-h4);
   font-weight: 600;
-  line-height: var(--astroexample-leading-tight);
+  line-height: var(--astro-leading-tight);
 }
 
 /* Body text */
-.astroexample-prose :where(p) {
-  font-size: var(--astroexample-text-body);
-  line-height: var(--astroexample-leading-relaxed);
+.astro-prose :where(p) {
+  font-size: var(--astro-text-body);
+  line-height: var(--astro-leading-relaxed);
 }
 
 /* Lists */
-.astroexample-prose :where(ul, ol) {
-  padding-inline-start: var(--astroexample-hsp-lg);
-  line-height: var(--astroexample-leading-snug);
+.astro-prose :where(ul, ol) {
+  padding-inline-start: var(--astro-hsp-lg);
+  line-height: var(--astro-leading-snug);
 }
 
-.astroexample-prose :where(li + li) {
-  margin-block-start: var(--astroexample-vsp-xs);
+.astro-prose :where(li + li) {
+  margin-block-start: var(--astro-vsp-xs);
 }
 
 /* Blockquote */
-.astroexample-prose :where(blockquote) {
-  border-inline-start: 3px solid var(--astroexample-color-muted);
-  padding-inline-start: var(--astroexample-hsp-md);
-  color: var(--astroexample-color-muted);
+.astro-prose :where(blockquote) {
+  border-inline-start: 3px solid var(--astro-color-muted);
+  padding-inline-start: var(--astro-hsp-md);
+  color: var(--astro-color-muted);
   font-style: italic;
 }
 
 /* Horizontal rule */
-.astroexample-prose :where(hr) {
+.astro-prose :where(hr) {
   border: none;
-  border-top: 1px solid var(--astroexample-color-muted);
-  margin-block: var(--astroexample-vsp-lg);
+  border-top: 1px solid var(--astro-color-muted);
+  margin-block: var(--astro-vsp-lg);
 }
 
 /* Inline code */
-.astroexample-prose :where(:not(pre) > code) {
-  font-family: var(--astroexample-font-mono);
-  font-size: var(--astroexample-text-micro);
-  background: var(--astroexample-code-bg);
-  color: var(--astroexample-code-fg);
-  padding: var(--astroexample-hsp-xs) var(--astroexample-hsp-sm);
+.astro-prose :where(:not(pre) > code) {
+  font-family: var(--astro-font-mono);
+  font-size: var(--astro-text-micro);
+  background: var(--astro-code-bg);
+  color: var(--astro-code-fg);
+  padding: var(--astro-hsp-xs) var(--astro-hsp-sm);
   border-radius: 0.25rem;
 }
 
 /* Code blocks */
-.astroexample-prose :where(pre) {
-  font-family: var(--astroexample-font-mono);
-  font-size: var(--astroexample-text-small);
-  background: var(--astroexample-code-bg);
-  color: var(--astroexample-code-fg);
-  padding: var(--astroexample-vsp-md) var(--astroexample-hsp-sm);
-  border-radius: var(--astroexample-radius, 0.25rem);
+.astro-prose :where(pre) {
+  font-family: var(--astro-font-mono);
+  font-size: var(--astro-text-small);
+  background: var(--astro-code-bg);
+  color: var(--astro-code-fg);
+  padding: var(--astro-vsp-md) var(--astro-hsp-sm);
+  border-radius: var(--astro-radius, 0.25rem);
   overflow-x: auto;
 }
 
-.astroexample-prose :where(pre > code) {
+.astro-prose :where(pre > code) {
   font-family: inherit;
   font-size: inherit;
   background: transparent;
@@ -304,38 +304,38 @@ body {
 }
 
 /* Tables */
-.astroexample-prose :where(table) {
+.astro-prose :where(table) {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--astroexample-text-small);
+  font-size: var(--astro-text-small);
 }
 
-.astroexample-prose :where(th, td) {
-  padding: var(--astroexample-hsp-xs) var(--astroexample-hsp-sm);
-  border: 1px solid var(--astroexample-color-muted);
+.astro-prose :where(th, td) {
+  padding: var(--astro-hsp-xs) var(--astro-hsp-sm);
+  border: 1px solid var(--astro-color-muted);
   text-align: left;
 }
 
-.astroexample-prose :where(th) {
+.astro-prose :where(th) {
   font-weight: 600;
-  background: var(--astroexample-color-surface);
+  background: var(--astro-color-surface);
 }
 
 /* Links */
-.astroexample-prose :where(a) {
-  color: var(--astroexample-color-accent);
+.astro-prose :where(a) {
+  color: var(--astro-color-accent);
   text-decoration: underline;
 }
 
-.astroexample-prose :where(a:hover) {
-  color: var(--astroexample-color-primary);
+.astro-prose :where(a:hover) {
+  color: var(--astro-color-primary);
 }
 
 /* Strong / em */
-.astroexample-prose :where(strong) {
+.astro-prose :where(strong) {
   font-weight: 700;
 }
 
-.astroexample-prose :where(em) {
+.astro-prose :where(em) {
   font-style: italic;
 }

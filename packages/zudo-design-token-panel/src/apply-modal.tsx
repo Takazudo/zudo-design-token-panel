@@ -208,7 +208,7 @@ function buildClasses(cfg: ReturnType<typeof getPanelConfig>): ModalClasses {
 export function ApplyModal(props: ApplyModalProps) {
   const { state, open, onClose, colorDefaults, onApplied } = props;
   const dialogRef = useRef<HTMLDialogElement | null>(null);
-  const primaryButtonRef = useRef<HTMLButtonElement | null>(null);
+  const primaryButtonRef = useRef<HTMLDivElement | null>(null);
   const cfg = getPanelConfig();
   const cls = useMemo(() => buildClasses(cfg), [cfg]);
 
@@ -442,19 +442,26 @@ export function ApplyModal(props: ApplyModalProps) {
       onClose={handleClose}
       onClick={handleBackdropClick}
     >
-      <header className={cls.header}>
-        <h2 id={titleId} className={cls.title}>
+      <div className={cls.header}>
+        <div id={titleId} role="heading" aria-level={2} className={cls.title}>
           Apply design tokens to codebase
-        </h2>
-        <button
+        </div>
+        <div
+          role="button"
+          tabIndex={0}
           className={cls.closeButton}
-          type="button"
           aria-label="Close apply modal"
           onClick={requestClose}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              requestClose();
+            }
+          }}
         >
           ×
-        </button>
-      </header>
+        </div>
+      </div>
 
       <div>
         {phase.kind === 'preview' && (
@@ -489,46 +496,104 @@ export function ApplyModal(props: ApplyModalProps) {
       <div className={cls.actions}>
         {phase.kind === 'preview' && (
           <>
-            <button
-              ref={primaryButtonRef}
-              className={cls.primaryButton}
-              type="button"
-              disabled={isEmpty || !hasRoutableEntries || !applyConfigured}
-              onClick={runApply}
-              title={
-                !applyConfigured
-                  ? 'Host has not configured an apply endpoint or routing map. The Apply modal can preview the diff but cannot rewrite source files.'
-                  : undefined
-              }
+            {(() => {
+              const isDisabled = isEmpty || !hasRoutableEntries || !applyConfigured;
+              return (
+                <div
+                  ref={primaryButtonRef}
+                  role="button"
+                  tabIndex={0}
+                  className={cls.primaryButton}
+                  aria-disabled={isDisabled || undefined}
+                  title={
+                    !applyConfigured
+                      ? 'Host has not configured an apply endpoint or routing map. The Apply modal can preview the diff but cannot rewrite source files.'
+                      : undefined
+                  }
+                  onClick={() => {
+                    if (!isDisabled) runApply();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      if (!isDisabled) runApply();
+                    }
+                  }}
+                >
+                  {primaryLabel}
+                </div>
+              );
+            })()}
+            <div
+              role="button"
+              tabIndex={0}
+              className={cls.neutralButton}
+              onClick={requestClose}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  requestClose();
+                }
+              }}
             >
-              {primaryLabel}
-            </button>
-            <button className={cls.neutralButton} type="button" onClick={requestClose}>
               Close
-            </button>
+            </div>
           </>
         )}
 
         {phase.kind === 'applying' && (
-          <button className={cls.primaryButton} type="button" disabled>
+          <div role="button" tabIndex={-1} className={cls.primaryButton} aria-disabled={true}>
             {primaryLabel}
-          </button>
+          </div>
         )}
 
         {phase.kind === 'success' && (
-          <button className={cls.primaryButton} type="button" onClick={handleDone}>
+          <div
+            role="button"
+            tabIndex={0}
+            className={cls.primaryButton}
+            onClick={handleDone}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleDone();
+              }
+            }}
+          >
             Done
-          </button>
+          </div>
         )}
 
         {phase.kind === 'error' && (
           <>
-            <button className={cls.primaryButton} type="button" onClick={handleRetry}>
+            <div
+              role="button"
+              tabIndex={0}
+              className={cls.primaryButton}
+              onClick={handleRetry}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleRetry();
+                }
+              }}
+            >
               Retry
-            </button>
-            <button className={cls.neutralButton} type="button" onClick={requestClose}>
+            </div>
+            <div
+              role="button"
+              tabIndex={0}
+              className={cls.neutralButton}
+              onClick={requestClose}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  requestClose();
+                }
+              }}
+            >
               Close
-            </button>
+            </div>
           </>
         )}
       </div>
@@ -561,9 +626,9 @@ function PreviewBody({
 }: PreviewBodyProps) {
   if (isEmpty) {
     return (
-      <p className={cls.statusWarning}>
+      <div className={cls.statusWarning}>
         No overrides to apply — make a change first, then come back.
-      </p>
+      </div>
     );
   }
 
@@ -572,12 +637,12 @@ function PreviewBody({
   return (
     <>
       {!applyConfigured && (
-        <p className={cls.statusWarning}>
+        <div className={cls.statusWarning}>
           The host has not configured an apply endpoint or routing map. The diff below is read-only
           — the Apply button will stay disabled.
-        </p>
+        </div>
       )}
-      <p className={cls.hint}>
+      <div className={cls.hint}>
         {routableCount} override{routableCount === 1 ? '' : 's'} will be written to disk.
         {routableCount !== totalCount && (
           <>
@@ -586,37 +651,40 @@ function PreviewBody({
             {totalCount - routableCount === 1 ? 'y' : 'ies'} were skipped (no route configured).
           </>
         )}
-      </p>
+      </div>
       {groups.map((group) => (
         <div key={group.prefix}>
-          <h3 className={cls.sectionHeading}>
+          <div role="heading" aria-level={3} className={cls.sectionHeading}>
             {fileLabelForPath(group.relativePath)} ({Object.keys(group.tokens).length})
-          </h3>
-          <ul className={cls.list}>
+          </div>
+          <div className={cls.list}>
             {Object.entries(group.tokens).map(([cssVar, value]) => (
-              <li className={cls.listItem} key={cssVar}>
-                <code>{cssVar}</code>: <code>{value}</code>
-              </li>
+              <div className={cls.listItem} key={cssVar}>
+                <span className="tokenpanel-code">{cssVar}</span>:{' '}
+                <span className="tokenpanel-code">{value}</span>
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
       ))}
       {rejected.length > 0 && (
         <div>
-          <h3 className={cls.sectionHeading}>Skipped — no route configured ({rejected.length})</h3>
-          <ul className={cls.list}>
+          <div role="heading" aria-level={3} className={cls.sectionHeading}>
+            Skipped — no route configured ({rejected.length})
+          </div>
+          <div className={cls.list}>
             {rejected.map((cssVar, i) => (
-              <li className={cls.listItem} key={cssVar}>
-                <code>{cssVar}</code>
+              <div className={cls.listItem} key={cssVar}>
+                <span className="tokenpanel-code">{cssVar}</span>
                 {rejectedReasons[i] ? (
                   <>
                     {' '}
                     — <span>{rejectedReasons[i]}</span>
                   </>
                 ) : null}
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
         </div>
       )}
     </>
@@ -651,16 +719,18 @@ function SuccessBody({
 }: SuccessBodyProps) {
   return (
     <div>
-      <p className={cls.statusSuccess} role="status">
+      <div className={cls.statusSuccess} role="status">
         Applied successfully.
-      </p>
+      </div>
 
       {results.length === 0 ? (
-        <p className={cls.hint}>The server returned no per-file details.</p>
+        <div className={cls.hint}>The server returned no per-file details.</div>
       ) : (
         results.map((result) => (
           <div key={result.file ?? 'unknown-file'}>
-            <h3 className={cls.sectionHeading}>{result.file ?? '(unknown file)'}</h3>
+            <div role="heading" aria-level={3} className={cls.sectionHeading}>
+              {result.file ?? '(unknown file)'}
+            </div>
             <FileResultList cls={cls} label="changed" values={result.changed} />
             <FileResultList cls={cls} label="unknown" values={result.unknown} />
             <FileResultList cls={cls} label="unchanged" values={result.unchanged} />
@@ -669,19 +739,31 @@ function SuccessBody({
       )}
 
       {unknownCssVars.length > 0 && (
-        <p className={cls.statusWarning}>
+        <div className={cls.statusWarning}>
           {unknownCssVars.length} cssVar{unknownCssVars.length === 1 ? '' : 's'} did not match any
           entry in the target file(s). Check the list above.
-        </p>
+        </div>
       )}
 
-      <button className={cls.neutralButton} type="button" onClick={onCopy} aria-live="polite">
+      <div
+        role="button"
+        tabIndex={0}
+        className={cls.neutralButton}
+        onClick={onCopy}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onCopy();
+          }
+        }}
+        aria-live="polite"
+      >
         {copyLabel}
-      </button>
-      <p className={cls.revertHint}>
+      </div>
+      <div className={cls.revertHint}>
         To revert, paste this JSON into Load from JSON… and re-apply.
-      </p>
-      <pre className={cls.jsonBlock}>{previewJson}</pre>
+      </div>
+      <div role="none" className={cls.jsonBlock}>{previewJson}</div>
     </div>
   );
 }
@@ -696,16 +778,16 @@ function FileResultList({ cls, label, values }: FileResultListProps) {
   if (!values || values.length === 0) return null;
   return (
     <div>
-      <p className={cls.hint}>
+      <div className={cls.hint}>
         {label} ({values.length})
-      </p>
-      <ul className={cls.list}>
+      </div>
+      <div className={cls.list}>
         {values.map((cssVar) => (
-          <li className={cls.listItem} key={cssVar}>
-            <code>{cssVar}</code>
-          </li>
+          <div className={cls.listItem} key={cssVar}>
+            <span className="tokenpanel-code">{cssVar}</span>
+          </div>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }
@@ -718,13 +800,13 @@ interface ErrorBodyProps {
 function ErrorBody({ cls, message }: ErrorBodyProps) {
   return (
     <div>
-      <p className={cls.statusError} role="alert">
+      <div className={cls.statusError} role="alert">
         {message}
-      </p>
-      <p className={cls.hint}>
+      </div>
+      <div className={cls.hint}>
         Your edits are still intact — click Retry to send the same diff again, or Close to keep
         editing.
-      </p>
+      </div>
     </div>
   );
 }

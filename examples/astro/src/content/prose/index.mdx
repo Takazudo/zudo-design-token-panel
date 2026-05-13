@@ -3,7 +3,7 @@ title: Prose Demo
 ---
 
 This page demonstrates the full range of markdown-generated HTML elements
-styled through the `--astroexample-*` token namespace.
+styled through the `--astro-*` token namespace.
 Each section exercises a distinct element type so you can verify spacing,
 typography, and colour tokens at a glance.
 
@@ -58,14 +58,14 @@ no syntax highlighting; raw colouring from `code-bg` and `code-fg` tokens
 is sufficient.
 
 ```typescript
-// Wiring the prose token namespace for the astroexample demo
+// Wiring the prose token namespace for the astro demo
 const proseTokens = {
-  vspMd:          `var(--astroexample-vsp-md)`,
-  textBody:       `var(--astroexample-text-body)`,
-  leadingRelaxed: `var(--astroexample-leading-relaxed)`,
-  codeBg:         `var(--astroexample-code-bg)`,
-  codeFg:         `var(--astroexample-code-fg)`,
-  fontMono:       `var(--astroexample-font-mono)`,
+  vspMd:          `var(--astro-vsp-md)`,
+  textBody:       `var(--astro-text-body)`,
+  leadingRelaxed: `var(--astro-leading-relaxed)`,
+  codeBg:         `var(--astro-code-bg)`,
+  codeFg:         `var(--astro-code-fg)`,
+  fontMono:       `var(--astro-font-mono)`,
 } as const;
 
 export default proseTokens;
@@ -99,7 +99,7 @@ content) tokens produce balanced rhythm.
 Ordered lists share spacing tokens with unordered lists; the marker style
 differs but the rhythm should be identical.
 
-1. Define the token set in `--astroexample-*` namespace.
+1. Define the token set in `--astro-*` namespace.
 2. Wire the flow utility into the prose container:
    1. Apply `margin-block-start: var(--flow-space, ...)` to all children.
    2. Set per-element `--flow-space` overrides using `:where()` selectors.
@@ -111,7 +111,7 @@ differs but the rhythm should be identical.
 
 ## Blockquote
 
-A blockquote uses a left border coloured by `--astroexample-color-muted`,
+A blockquote uses a left border coloured by `--astro-color-muted`,
 with horizontal padding from `hsp-md`.
 
 > The flow utility assigns spacing to one margin direction only.
@@ -154,7 +154,7 @@ against the page background and carry top and bottom spacing derived from
 
 ## Links
 
-Links check `--astroexample-color-accent` and underline treatment.
+Links check `--astro-color-accent` and underline treatment.
 
 Visit the [project repository on GitHub](https://github.com/Takazudo/zudo-design-token-panel)
 to browse the source for all demo pages.
@@ -165,13 +165,13 @@ Return to <a href={import.meta.env.BASE_URL}>home</a> to see the component galle
 ## Token reference
 
 The visual appearance of this page is driven entirely by the
-`--astroexample-*` token namespace.
+`--astro-*` token namespace.
 Vertical rhythm comes from `vsp-2xs` through `vsp-2xl`.
 Horizontal padding and indent come from `hsp-xs` through `hsp-xl`.
 Type sizes are set by `text-h2`, `text-h3`, `text-h4`, `text-body`,
 `text-small`, and `text-micro`.
 Line-heights use `leading-tight`, `leading-snug`, and `leading-relaxed`.
 Code blocks are styled with `code-bg`, `code-fg`, and `font-mono`.
-Heading borders and blockquote accents reuse the shared `--astroexample-color-fg`,
-`--astroexample-color-muted`, and `--astroexample-color-accent` tokens — no
+Heading borders and blockquote accents reuse the shared `--astro-color-fg`,
+`--astro-color-muted`, and `--astro-color-accent` tokens — no
 additional colour tokens are required.

@@ -13,8 +13,8 @@
  *   semantic easing tokens via a scoped <style> block inside the component.
  *   Older browsers get instant open/close — acceptable for a demo.
  *
- *   Open  → easing-tab-open  (--zfbtailwindexample-easing-tab-open)
- *   Close → easing-tab-close (--zfbtailwindexample-easing-tab-close)
+ *   Open  → easing-tab-open  (--zfbtw-easing-tab-open)
+ *   Close → easing-tab-close (--zfbtw-easing-tab-close)
  */
 
 const ITEMS = [
@@ -26,7 +26,7 @@ const ITEMS = [
   {
     id: 'a2',
     summary: 'How does the panel update tokens live?',
-    body: 'The panel writes :root overrides directly into the page via a <style> tag, so every Tailwind utility that references a --zfbtailwindexample-* var picks up the new value before the next paint — no rebuild required.',
+    body: 'The panel writes :root overrides directly into the page via a <style> tag, so every Tailwind utility that references a --zfbtw-* var picks up the new value before the next paint — no rebuild required.',
   },
   {
     id: 'a3',
@@ -49,13 +49,13 @@ export function AccordionDemo() {
           interpolate-size: allow-keywords;
         }
         .widgets-accordion::details-content {
-          transition: height 0.3s var(--zfbtailwindexample-easing-tab-open),
-                      opacity 0.3s var(--zfbtailwindexample-easing-tab-open);
+          transition: height 0.3s var(--zfbtw-easing-tab-open),
+                      opacity 0.3s var(--zfbtw-easing-tab-open);
           overflow: hidden;
         }
         .widgets-accordion:not([open])::details-content {
-          transition: height 0.3s var(--zfbtailwindexample-easing-tab-close),
-                      opacity 0.3s var(--zfbtailwindexample-easing-tab-close);
+          transition: height 0.3s var(--zfbtw-easing-tab-close),
+                      opacity 0.3s var(--zfbtw-easing-tab-close);
         }
       `}</style>
 
@@ -69,9 +69,9 @@ export function AccordionDemo() {
             <p>{item.body}</p>
             <p class="text-small text-muted mt-spacing-sm">
               Open timing: <code>easing-tab-open</code> →{' '}
-              <code>--zfbtailwindexample-easing-tab-open</code>. Close timing:{' '}
+              <code>--zfbtw-easing-tab-open</code>. Close timing:{' '}
               <code>easing-tab-close</code> →{' '}
-              <code>--zfbtailwindexample-easing-tab-close</code>.
+              <code>--zfbtw-easing-tab-close</code>.
             </p>
           </div>
         </details>

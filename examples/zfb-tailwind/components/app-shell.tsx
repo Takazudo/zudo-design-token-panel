@@ -10,13 +10,13 @@
  * A token-only Tailwind utility cannot express this two-column mix.
  *
  * Token consumption:
- *   grid-cols-[var(--zfbtailwindexample-size-sidenav-w)_1fr]
- *       → sidenav column width (--zfbtailwindexample-size-sidenav-w; added by #128)
- *   p-spacing-lg → main content outer padding (--zfbtailwindexample-spacing-lg)
- *   bg-bg        → main content background (--zfbtailwindexample-bg)
- *   bg-surface   → sidenav background (--zfbtailwindexample-color-surface)
- *   p-spacing-md → sidenav inner padding (--zfbtailwindexample-spacing-md)
- *   h-size-header-h → topbar height (--zfbtailwindexample-size-header-h; added by #128)
+ *   grid-cols-[var(--zfbtw-size-sidenav-w)_1fr]
+ *       → sidenav column width (--zfbtw-size-sidenav-w; added by #128)
+ *   p-spacing-lg → main content outer padding (--zfbtw-spacing-lg)
+ *   bg-bg        → main content background (--zfbtw-bg)
+ *   bg-surface   → sidenav background (--zfbtw-color-surface)
+ *   p-spacing-md → sidenav inner padding (--zfbtw-spacing-md)
+ *   h-size-header-h → topbar height (--zfbtw-size-header-h; added by #128)
  *   bg-surface   → topbar background
  *   p-spacing-md → topbar inline padding
  *
@@ -55,7 +55,7 @@ export function AppShell({ title = 'zfb + Tailwind v4 — Design Token Panel', a
           </span>
           <button
             type="button"
-            id="zfbtailwindexample-panel-open"
+            id="zfbtw-panel-open"
             class="px-spacing-sm py-spacing-xs rounded-md bg-accent text-bg border-none cursor-pointer hover:bg-primary text-small"
           >
             Open Design Token Panel
@@ -64,13 +64,13 @@ export function AppShell({ title = 'zfb + Tailwind v4 — Design Token Panel', a
             Panel button click handler. Page body is SSR-only; the Island
             containing PanelMount runs client-side only. This inline script
             attaches a click listener at parse time, bridging the SSR/island gap.
-            Once PanelMount's useEffect installs window.zfbTailwindExample.toggleDesignPanel,
+            Once PanelMount's useEffect installs window.zfbTw.toggleDesignPanel,
             clicks invoke it.
           */}
           <script
             dangerouslySetInnerHTML={{
               __html:
-                "document.getElementById('zfbtailwindexample-panel-open')?.addEventListener('click',function(){var a=window.zfbTailwindExample;if(a&&typeof a.toggleDesignPanel==='function')a.toggleDesignPanel();});",
+                "document.getElementById('zfbtw-panel-open')?.addEventListener('click',function(){var a=window.zfbTw;if(a&&typeof a.toggleDesignPanel==='function')a.toggleDesignPanel();});",
             }}
           />
         </header>
@@ -80,7 +80,7 @@ export function AppShell({ title = 'zfb + Tailwind v4 — Design Token Panel', a
           reason: grid template needs structural mix of a sidebar token and 1fr;
           no token-only utility expresses this combination
         */}
-        <div class="grid grid-cols-[var(--zfbtailwindexample-size-sidenav-w)_1fr] min-h-screen">
+        <div class="grid grid-cols-[var(--zfbtw-size-sidenav-w)_1fr] min-h-screen">
           <aside class="bg-surface p-spacing-md">
             <Sidenav activePath={activePath} />
           </aside>

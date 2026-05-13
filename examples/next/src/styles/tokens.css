@@ -1,5 +1,5 @@
 /*
- * `--nextexample-*` tokens consumed by the demo pages.
+ * `--nx-*` tokens consumed by the demo pages.
  *
  * Two roles wrapped into one file:
  *
@@ -7,9 +7,9 @@
  *      panel rewrites these names live (in-memory `:root` overrides) when
  *      the user tweaks a slider. The Apply pipeline rewrites THIS FILE on
  *      disk when the user clicks Apply (see `scaffold.routing.json` —
- *      prefix `nextexample` → this path).
+ *      prefix `nx` → this path).
  *
- *   2. The demo stylesheet — every `.nextexample-*` selector below reads
+ *   2. The demo stylesheet — every `.nx-*` selector below reads
  *      tokens from `:root`, so a tweak in any tab is immediately visible
  *      across the page (and across React rerenders / Next soft navigations,
  *      since the React tree doesn't own these vars).
@@ -21,162 +21,162 @@
  */
 :root {
   /* Spacing tokens (manifest: spacing tab) */
-  --nextexample-spacing-md: 1rem;
-  --nextexample-spacing-lg: 2rem;
+  --nx-spacing-md: 1rem;
+  --nx-spacing-lg: 2rem;
 
   /* Typography tokens (manifest: typography tab) */
-  --nextexample-text-base: 1rem;
-  --nextexample-text-heading: 1.75rem;
+  --nx-text-base: 1rem;
+  --nx-text-heading: 1.75rem;
 
   /* Size tokens (manifest: size tab) */
-  --nextexample-radius: 0.5rem;
+  --nx-radius: 0.5rem;
 
   /* Cluster base roles (default-cluster.ts → baseRoles) */
-  --nextexample-bg: #1e1e1e;
-  --nextexample-fg: #f8fafc;
+  --nx-bg: #1e1e1e;
+  --nx-fg: #f8fafc;
 
   /* Cluster palette slots (default-cluster.ts → paletteCssVarTemplate) */
-  --nextexample-palette-0: #1e1e1e;
-  --nextexample-palette-1: #2d6cdf;
-  --nextexample-palette-2: #3aa676;
-  --nextexample-palette-3: #d97706;
-  --nextexample-palette-4: #9b5de5;
-  --nextexample-palette-5: #e63946;
-  --nextexample-palette-6: #1d3557;
-  --nextexample-palette-7: #06b6d4;
-  --nextexample-palette-8: #475569;
-  --nextexample-palette-9: #94a3b8;
-  --nextexample-palette-10: #cbd5e1;
-  --nextexample-palette-11: #e2e8f0;
-  --nextexample-palette-12: #f1f5f9;
-  --nextexample-palette-13: #fef3c7;
-  --nextexample-palette-14: #bbf7d0;
-  --nextexample-palette-15: #f8fafc;
+  --nx-palette-0: #1e1e1e;
+  --nx-palette-1: #2d6cdf;
+  --nx-palette-2: #3aa676;
+  --nx-palette-3: #d97706;
+  --nx-palette-4: #9b5de5;
+  --nx-palette-5: #e63946;
+  --nx-palette-6: #1d3557;
+  --nx-palette-7: #06b6d4;
+  --nx-palette-8: #475569;
+  --nx-palette-9: #94a3b8;
+  --nx-palette-10: #cbd5e1;
+  --nx-palette-11: #e2e8f0;
+  --nx-palette-12: #f1f5f9;
+  --nx-palette-13: #fef3c7;
+  --nx-palette-14: #bbf7d0;
+  --nx-palette-15: #f8fafc;
 
   /* Cluster semantic names (default-cluster.ts → semanticCssNames) */
-  --nextexample-color-primary: var(--nextexample-palette-1);
-  --nextexample-color-accent: var(--nextexample-palette-3);
-  --nextexample-color-surface: var(--nextexample-palette-0);
-  --nextexample-color-muted: var(--nextexample-palette-8);
-  --nextexample-color-danger: var(--nextexample-palette-5);
+  --nx-color-primary: var(--nx-palette-1);
+  --nx-color-accent: var(--nx-palette-3);
+  --nx-color-surface: var(--nx-palette-0);
+  --nx-color-muted: var(--nx-palette-8);
+  --nx-color-danger: var(--nx-palette-5);
 
   /* Prose tokens — vertical spacing scale (flow-space rhythm) */
   /* prose-token-contract.md: vsp-* — baseline rhythm unit ≈ 1.6rem */
-  --nextexample-vsp-2xs: 0.25rem;   /* ~4 px  — consecutive headings, tight list items */
-  --nextexample-vsp-xs:  0.5rem;    /* ~8 px  — tighter paragraph spacing */
-  --nextexample-vsp-sm:  0.75rem;   /* ~12 px — heading-to-first-content gap */
-  --nextexample-vsp-md:  1rem;      /* ~16 px — default body-level flow gap */
-  --nextexample-vsp-lg:  1.75rem;   /* ~28 px — pre-h3 section separation */
-  --nextexample-vsp-xl:  2.5rem;    /* ~40 px — pre-h2 section separation */
-  --nextexample-vsp-2xl: 3.5rem;    /* ~56 px — top-of-page or pre-first-heading clearance */
+  --nx-vsp-2xs: 0.25rem;   /* ~4 px  — consecutive headings, tight list items */
+  --nx-vsp-xs:  0.5rem;    /* ~8 px  — tighter paragraph spacing */
+  --nx-vsp-sm:  0.75rem;   /* ~12 px — heading-to-first-content gap */
+  --nx-vsp-md:  1rem;      /* ~16 px — default body-level flow gap */
+  --nx-vsp-lg:  1.75rem;   /* ~28 px — pre-h3 section separation */
+  --nx-vsp-xl:  2.5rem;    /* ~40 px — pre-h2 section separation */
+  --nx-vsp-2xl: 3.5rem;    /* ~56 px — top-of-page or pre-first-heading clearance */
 
   /* Prose tokens — horizontal spacing scale */
-  --nextexample-hsp-xs:  0.25rem;   /* inline code padding, small insets */
-  --nextexample-hsp-sm:  0.5rem;    /* table cell padding, tag padding */
-  --nextexample-hsp-md:  1rem;      /* blockquote left indent */
-  --nextexample-hsp-lg:  1.5rem;    /* section-level horizontal gutter */
-  --nextexample-hsp-xl:  2rem;      /* outer prose container horizontal padding */
+  --nx-hsp-xs:  0.25rem;   /* inline code padding, small insets */
+  --nx-hsp-sm:  0.5rem;    /* table cell padding, tag padding */
+  --nx-hsp-md:  1rem;      /* blockquote left indent */
+  --nx-hsp-lg:  1.5rem;    /* section-level horizontal gutter */
+  --nx-hsp-xl:  2rem;      /* outer prose container horizontal padding */
 
   /* Prose tokens — type scale */
-  --nextexample-text-h2:    1.75rem;
-  --nextexample-text-h3:    1.35rem;
-  --nextexample-text-h4:    1.1rem;
-  --nextexample-text-body:  1rem;
-  --nextexample-text-small: 0.875rem;
-  --nextexample-text-micro: 0.75rem;
+  --nx-text-h2:    1.75rem;
+  --nx-text-h3:    1.35rem;
+  --nx-text-h4:    1.1rem;
+  --nx-text-body:  1rem;
+  --nx-text-small: 0.875rem;
+  --nx-text-micro: 0.75rem;
 
   /* Prose tokens — line-height scale */
-  --nextexample-leading-tight:   1.2;
-  --nextexample-leading-snug:    1.45;
-  --nextexample-leading-relaxed: 1.75;
+  --nx-leading-tight:   1.2;
+  --nx-leading-snug:    1.45;
+  --nx-leading-relaxed: 1.75;
 
   /* Prose tokens — code surface */
-  --nextexample-code-bg:   hsl(220 13% 11%);
-  --nextexample-code-fg:   hsl(220 14% 86%);
+  --nx-code-bg:   hsl(220 13% 11%);
+  --nx-code-fg:   hsl(220 14% 86%);
   /* ui-monospace first per CSS Fonts spec; Cascadia Code / Source Code Pro as named fallbacks */
-  --nextexample-font-mono: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+  --nx-font-mono: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
 }
 
 body {
-  background: var(--nextexample-bg);
-  color: var(--nextexample-fg);
-  font-size: var(--nextexample-text-base);
-  padding: var(--nextexample-spacing-lg);
+  background: var(--nx-bg);
+  color: var(--nx-fg);
+  font-size: var(--nx-text-base);
+  padding: var(--nx-spacing-lg);
 }
 
-.nextexample-stack {
+.nx-stack {
   display: flex;
   flex-direction: column;
-  gap: var(--nextexample-spacing-lg);
+  gap: var(--nx-spacing-lg);
   max-width: 56rem;
   margin: 0 auto;
 }
 
-.nextexample-heading {
-  font-size: var(--nextexample-text-heading);
+.nx-heading {
+  font-size: var(--nx-text-heading);
   font-weight: 700;
-  margin: 0 0 var(--nextexample-spacing-md);
-  color: var(--nextexample-color-primary);
+  margin: 0 0 var(--nx-spacing-md);
+  color: var(--nx-color-primary);
 }
 
-.nextexample-card {
-  background: var(--nextexample-color-surface);
-  color: var(--nextexample-fg);
-  padding: var(--nextexample-spacing-md);
-  border-radius: var(--nextexample-radius);
-  border: 1px solid var(--nextexample-color-muted);
+.nx-card {
+  background: var(--nx-color-surface);
+  color: var(--nx-fg);
+  padding: var(--nx-spacing-md);
+  border-radius: var(--nx-radius);
+  border: 1px solid var(--nx-color-muted);
 }
 
-.nextexample-card + .nextexample-card {
-  margin-top: var(--nextexample-spacing-md);
+.nx-card + .nx-card {
+  margin-top: var(--nx-spacing-md);
 }
 
-.nextexample-button {
+.nx-button {
   display: inline-block;
-  padding: var(--nextexample-spacing-md);
-  border-radius: var(--nextexample-radius);
-  background: var(--nextexample-color-accent);
-  color: var(--nextexample-bg);
+  padding: var(--nx-spacing-md);
+  border-radius: var(--nx-radius);
+  background: var(--nx-color-accent);
+  color: var(--nx-bg);
   border: none;
   cursor: pointer;
 }
 
-.nextexample-button:hover {
-  background: var(--nextexample-color-primary);
+.nx-button:hover {
+  background: var(--nx-color-primary);
 }
 
-.nextexample-link {
-  color: var(--nextexample-color-accent);
+.nx-link {
+  color: var(--nx-color-accent);
   text-decoration: underline;
 }
 
-.nextexample-swatch-row {
+.nx-swatch-row {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--nextexample-spacing-md);
+  gap: var(--nx-spacing-md);
 }
 
-.nextexample-swatch {
+.nx-swatch {
   width: 4rem;
   height: 4rem;
-  border-radius: var(--nextexample-radius);
+  border-radius: var(--nx-radius);
   display: flex;
   align-items: flex-end;
   justify-content: center;
   font-size: 0.75rem;
-  color: var(--nextexample-fg);
+  color: var(--nx-fg);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
   padding: 0.25rem;
 }
 
-.nextexample-meta {
+.nx-meta {
   font-size: 0.875rem;
-  color: var(--nextexample-color-muted);
+  color: var(--nx-color-muted);
 }
 
-.nextexample-rerender-counter {
+.nx-rerender-counter {
   font-variant-numeric: tabular-nums;
-  color: var(--nextexample-color-accent);
+  color: var(--nx-color-accent);
   font-weight: 700;
 }
 
@@ -186,83 +186,83 @@ body {
  * :where() contributes zero specificity so later rules can override
  * --flow-space without specificity escalation.
  */
-.nextexample-prose {
+.nx-prose {
   max-width: 56rem;
   margin: 0 auto;
-  padding: var(--nextexample-vsp-2xl) var(--nextexample-hsp-xl);
-  font-size: var(--nextexample-text-body);
-  line-height: var(--nextexample-leading-relaxed);
-  color: var(--nextexample-fg);
+  padding: var(--nx-vsp-2xl) var(--nx-hsp-xl);
+  font-size: var(--nx-text-body);
+  line-height: var(--nx-leading-relaxed);
+  color: var(--nx-fg);
 }
 
 /* Flow-space: all direct children share the default gap */
-.nextexample-prose > * + * {
-  margin-block-start: var(--flow-space, var(--nextexample-vsp-md));
+.nx-prose > * + * {
+  margin-block-start: var(--flow-space, var(--nx-vsp-md));
 }
 
 /* Section separation before headings */
-.nextexample-prose :where(h2) { --flow-space: var(--nextexample-vsp-xl); }
-.nextexample-prose :where(h3) { --flow-space: var(--nextexample-vsp-lg); }
-.nextexample-prose :where(h4) { --flow-space: var(--nextexample-vsp-md); }
+.nx-prose :where(h2) { --flow-space: var(--nx-vsp-xl); }
+.nx-prose :where(h3) { --flow-space: var(--nx-vsp-lg); }
+.nx-prose :where(h4) { --flow-space: var(--nx-vsp-md); }
 
 /* Heading-to-first-content: tight coupling */
-.nextexample-prose :where(h2, h3, h4) + :where(p, ul, ol, table, pre, blockquote) {
-  --flow-space: var(--nextexample-vsp-sm);
+.nx-prose :where(h2, h3, h4) + :where(p, ul, ol, table, pre, blockquote) {
+  --flow-space: var(--nx-vsp-sm);
 }
 
 /* Consecutive headings: tighten */
-.nextexample-prose :where(h2, h3, h4, h5, h6) + :where(h2, h3, h4, h5, h6) {
-  --flow-space: var(--nextexample-vsp-2xs);
+.nx-prose :where(h2, h3, h4, h5, h6) + :where(h2, h3, h4, h5, h6) {
+  --flow-space: var(--nx-vsp-2xs);
 }
 
 /* Trim block edges */
-.nextexample-prose > :first-child { margin-block-start: 0; }
-.nextexample-prose > :last-child  { margin-block-end: 0; }
+.nx-prose > :first-child { margin-block-start: 0; }
+.nx-prose > :last-child  { margin-block-end: 0; }
 
 /* Heading type scale and line-height */
-.nextexample-prose :where(h2) {
-  font-size: var(--nextexample-text-h2);
-  line-height: var(--nextexample-leading-tight);
+.nx-prose :where(h2) {
+  font-size: var(--nx-text-h2);
+  line-height: var(--nx-leading-tight);
   font-weight: 700;
-  padding-block-start: var(--nextexample-vsp-xs);
-  border-block-start: 2px solid var(--nextexample-color-primary);
+  padding-block-start: var(--nx-vsp-xs);
+  border-block-start: 2px solid var(--nx-color-primary);
 }
 
-.nextexample-prose :where(h3) {
-  font-size: var(--nextexample-text-h3);
-  line-height: var(--nextexample-leading-tight);
+.nx-prose :where(h3) {
+  font-size: var(--nx-text-h3);
+  line-height: var(--nx-leading-tight);
   font-weight: 600;
 }
 
-.nextexample-prose :where(h4) {
-  font-size: var(--nextexample-text-h4);
-  line-height: var(--nextexample-leading-tight);
+.nx-prose :where(h4) {
+  font-size: var(--nx-text-h4);
+  line-height: var(--nx-leading-tight);
   font-weight: 600;
 }
 
 /* Inline code */
-.nextexample-prose :where(code:not(pre code)) {
-  font-family: var(--nextexample-font-mono);
-  font-size: var(--nextexample-text-small);
-  background: var(--nextexample-code-bg);
-  color: var(--nextexample-code-fg);
-  padding: 0.1em var(--nextexample-hsp-xs);
+.nx-prose :where(code:not(pre code)) {
+  font-family: var(--nx-font-mono);
+  font-size: var(--nx-text-small);
+  background: var(--nx-code-bg);
+  color: var(--nx-code-fg);
+  padding: 0.1em var(--nx-hsp-xs);
   border-radius: 3px;
-  border: 1px solid var(--nextexample-color-accent);
+  border: 1px solid var(--nx-color-accent);
 }
 
 /* Code blocks */
-.nextexample-prose :where(pre) {
-  font-family: var(--nextexample-font-mono);
-  font-size: var(--nextexample-text-small);
-  background: var(--nextexample-code-bg);
-  color: var(--nextexample-code-fg);
-  padding: var(--nextexample-vsp-sm) var(--nextexample-hsp-sm);
+.nx-prose :where(pre) {
+  font-family: var(--nx-font-mono);
+  font-size: var(--nx-text-small);
+  background: var(--nx-code-bg);
+  color: var(--nx-code-fg);
+  padding: var(--nx-vsp-sm) var(--nx-hsp-sm);
   border-radius: 4px;
   overflow-x: auto;
 }
 
-.nextexample-prose :where(pre code) {
+.nx-prose :where(pre code) {
   background: none;
   border: none;
   padding: 0;
@@ -271,63 +271,63 @@ body {
 }
 
 /* Blockquote */
-.nextexample-prose :where(blockquote) {
-  border-inline-start: 3px solid var(--nextexample-color-muted);
-  padding-inline-start: var(--nextexample-hsp-md);
-  color: var(--nextexample-color-muted);
+.nx-prose :where(blockquote) {
+  border-inline-start: 3px solid var(--nx-color-muted);
+  padding-inline-start: var(--nx-hsp-md);
+  color: var(--nx-color-muted);
 }
 
 /* Lists */
-.nextexample-prose :where(ul) {
-  padding-inline-start: var(--nextexample-hsp-lg);
+.nx-prose :where(ul) {
+  padding-inline-start: var(--nx-hsp-lg);
   list-style-type: disc;
 }
 
-.nextexample-prose :where(ol) {
-  padding-inline-start: var(--nextexample-hsp-lg);
+.nx-prose :where(ol) {
+  padding-inline-start: var(--nx-hsp-lg);
   list-style-type: decimal;
 }
 
-.nextexample-prose :where(li + li) {
-  margin-block-start: var(--nextexample-vsp-xs);
+.nx-prose :where(li + li) {
+  margin-block-start: var(--nx-vsp-xs);
 }
 
 /* Tables */
-.nextexample-prose :where(table) {
+.nx-prose :where(table) {
   border-collapse: collapse;
-  font-size: var(--nextexample-text-small);
+  font-size: var(--nx-text-small);
   width: 100%;
 }
 
-.nextexample-prose :where(th, td) {
-  padding: var(--nextexample-hsp-xs) var(--nextexample-hsp-sm);
-  border: 1px solid var(--nextexample-color-muted);
+.nx-prose :where(th, td) {
+  padding: var(--nx-hsp-xs) var(--nx-hsp-sm);
+  border: 1px solid var(--nx-color-muted);
   text-align: left;
 }
 
-.nextexample-prose :where(th) {
+.nx-prose :where(th) {
   font-weight: 600;
-  background: var(--nextexample-code-bg);
+  background: var(--nx-code-bg);
 }
 
 /* Horizontal rule */
-.nextexample-prose :where(hr) {
+.nx-prose :where(hr) {
   border: none;
-  border-block-start: 1px solid var(--nextexample-color-muted);
-  margin-block: var(--nextexample-vsp-lg);
+  border-block-start: 1px solid var(--nx-color-muted);
+  margin-block: var(--nx-vsp-lg);
 }
 
 /* Links */
-.nextexample-prose :where(a) {
-  color: var(--nextexample-color-accent);
+.nx-prose :where(a) {
+  color: var(--nx-color-accent);
   text-decoration: underline;
 }
 
 /* Strong / em */
-.nextexample-prose :where(strong) {
+.nx-prose :where(strong) {
   font-weight: 700;
 }
 
-.nextexample-prose :where(em) {
+.nx-prose :where(em) {
   font-style: italic;
 }

@@ -1,6 +1,6 @@
 /**
  * Home page of the zfb example. Renders cards / buttons / palette swatches
- * driven entirely by `--zfbexample-*` tokens, so opening the panel and
+ * driven entirely by `--zfb-*` tokens, so opening the panel and
  * tweaking any token rewrites the page in real time.
  *
  * Layout shell
@@ -26,7 +26,7 @@ const PALETTE_INDICES = Array.from({ length: 16 }, (_, i) => i);
  * Interactive easing demo card.
  *
  * Clicking the card toggles it between resting and active position.
- * The transition uses `var(--zfbexample-easing-tab-open)` so changing the
+ * The transition uses `var(--zfb-easing-tab-open)` so changing the
  * Easing tab's "Tab Open" semantic role updates the perceived motion live.
  */
 function EasingDemoCard() {
@@ -34,11 +34,11 @@ function EasingDemoCard() {
   return (
     <button
       type="button"
-      class={active ? 'zfbexample-easing-card is-active' : 'zfbexample-easing-card'}
+      class={active ? 'zfb-easing-card is-active' : 'zfb-easing-card'}
       onClick={() => setActive((v) => !v)}
       aria-pressed={active}
     >
-      <span class="zfbexample-easing-card-label">
+      <span class="zfb-easing-card-label">
         {active ? 'Click to rest ←' : '→ Click to animate'}
       </span>
     </button>
@@ -51,50 +51,50 @@ export default function HomePage() {
       title="zfb Example — Design Token Panel"
       activePath={BASE_PATH}
     >
-      <div class="zfbexample-stack">
+      <div class="zfb-stack">
         <header>
-          <h1 class="zfbexample-heading">Live token tweaking, in zfb (zudo-front-builder)</h1>
+          <h1 class="zfb-heading">Live token tweaking, in zfb (zudo-front-builder)</h1>
           <p>
             Every visible element on this page is driven by a{' '}
-            <code>--zfbexample-*</code> CSS custom property. Open the panel
+            <code>--zfb-*</code> CSS custom property. Open the panel
             from the button above and drag any slider — the change applies
             before the next paint.
           </p>
-          <p class="zfbexample-meta">
-            Console API: <code>window.zfbExample.toggleDesignPanel()</code>. Storage prefix:{' '}
+          <p class="zfb-meta">
+            Console API: <code>window.zfb.toggleDesignPanel()</code>. Storage prefix:{' '}
             <code>zfb-example-tokens</code>.
           </p>
         </header>
 
         <section>
-          <h2 class="zfbexample-heading">Cards (spacing + radius + surface)</h2>
-          <div class="zfbexample-card">
+          <h2 class="zfb-heading">Cards (spacing + radius + surface)</h2>
+          <div class="zfb-card">
             <strong>Card A.</strong> Padding driven by{' '}
-            <code>--zfbexample-spacing-md</code>, corners by{' '}
-            <code>--zfbexample-radius</code>, background by{' '}
-            <code>--zfbexample-color-surface</code>.
+            <code>--zfb-spacing-md</code>, corners by{' '}
+            <code>--zfb-radius</code>, background by{' '}
+            <code>--zfb-color-surface</code>.
           </div>
-          <div class="zfbexample-card">
+          <div class="zfb-card">
             <strong>Card B.</strong> Stack gap driven by{' '}
-            <code>--zfbexample-spacing-lg</code>; outline by{' '}
-            <code>--zfbexample-color-muted</code>.
+            <code>--zfb-spacing-lg</code>; outline by{' '}
+            <code>--zfb-color-muted</code>.
           </div>
         </section>
 
         <section>
-          <h2 class="zfbexample-heading">Buttons (accent / primary)</h2>
+          <h2 class="zfb-heading">Buttons (accent / primary)</h2>
           <p>
-            <button class="zfbexample-button" type="button">
+            <button class="zfb-button" type="button">
               Action button
             </button>
           </p>
         </section>
 
         <section>
-          <h2 class="zfbexample-heading">Easing demo</h2>
+          <h2 class="zfb-heading">Easing demo</h2>
           <p>
             Click the card below to animate it. The motion uses{' '}
-            <code>transition-timing-function: var(--zfbexample-easing-tab-open)</code>.
+            <code>transition-timing-function: var(--zfb-easing-tab-open)</code>.
             Open the panel, switch to the <strong>Easing</strong> tab, and change the
             semantic "Tab Open" role — the perceived animation speed changes live.
           </p>
@@ -102,22 +102,22 @@ export default function HomePage() {
         </section>
 
         <section>
-          <h2 class="zfbexample-heading">Palette swatches</h2>
-          <div class="zfbexample-swatch-row">
+          <h2 class="zfb-heading">Palette swatches</h2>
+          <div class="zfb-swatch-row">
             {PALETTE_INDICES.map((i) => (
               <div
                 key={i}
-                class="zfbexample-swatch"
+                class="zfb-swatch"
                 // reason: dynamic var name from loop index — no static utility possible;
                 // text-shadow is swatch-label legibility over any palette color — no token covers overlay shadows
-                style={`background: var(--zfbexample-palette-${i}); text-shadow: 0 1px 2px rgba(0,0,0,0.7);`}
+                style={`background: var(--zfb-palette-${i}); text-shadow: 0 1px 2px rgba(0,0,0,0.7);`}
               >
                 {i}
               </div>
             ))}
           </div>
-          <p class="zfbexample-meta">
-            Each swatch reads <code>--zfbexample-palette-{'{n}'}</code>. The cluster's{' '}
+          <p class="zfb-meta">
+            Each swatch reads <code>--zfb-palette-{'{n}'}</code>. The cluster's{' '}
             <code>paletteCssVarTemplate</code> is the only thing that decides this name — change
             it in <code>config/default-cluster.ts</code> and the apply pipeline writes a different
             variable on the next palette tweak.

@@ -126,14 +126,14 @@ function fireKey(el: Element, key: string) {
   });
 }
 
-function getTrigger(): HTMLButtonElement {
-  const btn = container.querySelector<HTMLButtonElement>('.tokenpanel-tier-ref-trigger');
+function getTrigger(): HTMLDivElement {
+  const btn = container.querySelector<HTMLDivElement>('.tokenpanel-tier-ref-trigger');
   if (!btn) throw new Error('trigger button not found');
   return btn;
 }
 
-function getListbox(): HTMLUListElement | null {
-  return container.querySelector<HTMLUListElement>('.tokenpanel-tier-ref-listbox');
+function getListbox(): HTMLDivElement | null {
+  return container.querySelector<HTMLDivElement>('.tokenpanel-tier-ref-listbox');
 }
 
 function getOptions(): NodeListOf<HTMLElement> {
@@ -432,6 +432,83 @@ describe('TierRefSelector — click-outside closes', () => {
     // Note: the listbox mousedown bubbles to the document handler which checks
     // `listboxRef.current.contains(target)` — this should be true, so the
     // listbox stays open.
+    expect(getListbox()).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #149 — div-based role=listbox, aria-activedescendant, and Enter-trigger
+// These tests assert that the ul→div and button→div swaps preserve accessible
+// semantics (ARIA roles, aria-activedescendant linkage, trigger keyboard API).
+// ---------------------------------------------------------------------------
+
+describe('TierRefSelector — div-based ARIA semantics after #149 swap', () => {
+  it('listbox container is a div with role=listbox', () => {
+    renderSelector('ease-out', vi.fn());
+    clickTrigger();
+    const listbox = getListbox();
+    expect(listbox).not.toBeNull();
+    expect(listbox!.tagName.toLowerCase()).toBe('div');
+    expect(listbox!.getAttribute('role')).toBe('listbox');
+  });
+
+  it('option elements are divs with role=option', () => {
+    renderSelector('ease-out', vi.fn());
+    clickTrigger();
+    const options = Array.from(getOptions());
+    expect(options.length).toBeGreaterThan(0);
+    for (const opt of options) {
+      expect(opt.tagName.toLowerCase()).toBe('div');
+      expect(opt.getAttribute('role')).toBe('option');
+    }
+  });
+
+  it('listbox has aria-activedescendant pointing to the focused option', () => {
+    renderSelector('ease-in', vi.fn()); // ease-in is index 0
+    clickTrigger();
+    const listbox = getListbox()!;
+    const activedesc = listbox.getAttribute('aria-activedescendant');
+    expect(activedesc).not.toBeNull();
+    // The focused option element must exist in the DOM with that id
+    const focusedEl = document.getElementById(activedesc!);
+    expect(focusedEl).not.toBeNull();
+    expect(focusedEl!.getAttribute('role')).toBe('option');
+    // ease-in is index 0 so the focused element should reference ease-in's option
+    expect(focusedEl!.textContent).toContain('--easing-ease-in');
+  });
+
+  it('aria-activedescendant updates when ArrowDown moves focus', () => {
+    renderSelector('ease-in', vi.fn());
+    clickTrigger();
+    const listbox = getListbox()!;
+    // Before navigation — points to ease-in (index 0)
+    const before = listbox.getAttribute('aria-activedescendant');
+    fireKey(listbox, 'ArrowDown');
+    // After navigation — should point to ease-out (index 1)
+    const after = listbox.getAttribute('aria-activedescendant');
+    expect(after).not.toBe(before);
+    const focusedEl = document.getElementById(after!);
+    expect(focusedEl?.textContent).toContain('--easing-ease-out');
+  });
+
+  it('trigger is a div with role=button', () => {
+    renderSelector('ease-out', vi.fn());
+    const trigger = getTrigger();
+    expect(trigger.tagName.toLowerCase()).toBe('div');
+    expect(trigger.getAttribute('role')).toBe('button');
+  });
+
+  it('Enter keypress on trigger opens the dropdown', () => {
+    renderSelector('ease-out', vi.fn());
+    expect(getListbox()).toBeNull();
+    fireKey(getTrigger(), 'Enter');
+    expect(getListbox()).not.toBeNull();
+  });
+
+  it('Space keypress on trigger opens the dropdown', () => {
+    renderSelector('ease-out', vi.fn());
+    expect(getListbox()).toBeNull();
+    fireKey(getTrigger(), ' ');
     expect(getListbox()).not.toBeNull();
   });
 });

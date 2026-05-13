@@ -6,14 +6,14 @@
  * Height transition (progressive enhancement):
  *   Uses `interpolate-size: allow-keywords` + CSS `::details-content`
  *   pseudo-element transition (Chrome 131+). Open/close timing references
- *   semantic easing tokens declared in global.css (.zfbexample-accordion rules).
+ *   semantic easing tokens declared in global.css (.zfb-accordion rules).
  *   Older browsers get instant open/close — acceptable for a demo.
  *
- *   Open  → easing-tab-open  (--zfbexample-easing-tab-open)
- *   Close → easing-tab-close (--zfbexample-easing-tab-close)
+ *   Open  → easing-tab-open  (--zfb-easing-tab-open)
+ *   Close → easing-tab-close (--zfb-easing-tab-close)
  *
  * Unlike the zfb-tailwind version, the accordion transition rules live in
- * global.css under .zfbexample-accordion — no scoped <style> block needed.
+ * global.css under .zfb-accordion — no scoped <style> block needed.
  */
 
 const ITEMS = [
@@ -25,7 +25,7 @@ const ITEMS = [
   {
     id: 'a2',
     summary: 'How does the panel update tokens live?',
-    body: 'The panel writes :root overrides directly into the page via a <style> tag, so every CSS selector that references a --zfbexample-* var picks up the new value before the next paint — no rebuild required.',
+    body: 'The panel writes :root overrides directly into the page via a <style> tag, so every CSS selector that references a --zfb-* var picks up the new value before the next paint — no rebuild required.',
   },
   {
     id: 'a3',
@@ -36,20 +36,20 @@ const ITEMS = [
 
 export function AccordionDemo() {
   return (
-    <div class="zfbexample-field-group">
+    <div class="zfb-field-group">
       {ITEMS.map((item) => (
-        <details key={item.id} class="zfbexample-accordion">
-          <summary class="zfbexample-accordion__summary">
+        <details key={item.id} class="zfb-accordion">
+          <summary class="zfb-accordion__summary">
             <span>{item.summary}</span>
-            <span class="zfbexample-muted-text" aria-hidden="true" style={{ userSelect: 'none' }}>▾</span>
+            <span class="zfb-muted-text" aria-hidden="true" style={{ userSelect: 'none' }}>▾</span>
           </summary>
-          <div class="zfbexample-accordion__content">
+          <div class="zfb-accordion__content">
             <p>{item.body}</p>
-            <p class="zfbexample-muted-text" style={{ marginTop: 'var(--zfbexample-spacing-sm)' }}>
+            <p class="zfb-muted-text" style={{ marginTop: 'var(--zfb-spacing-sm)' }}>
               Open timing: <code>easing-tab-open</code> →{' '}
-              <code>--zfbexample-easing-tab-open</code>. Close timing:{' '}
+              <code>--zfb-easing-tab-open</code>. Close timing:{' '}
               <code>easing-tab-close</code> →{' '}
-              <code>--zfbexample-easing-tab-close</code>.
+              <code>--zfb-easing-tab-close</code>.
             </p>
           </div>
         </details>

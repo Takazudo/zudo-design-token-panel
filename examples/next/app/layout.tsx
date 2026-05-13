@@ -11,7 +11,7 @@ import PanelBootstrap from './_components/PanelBootstrap';
  *
  * Stylesheets land first because layout.tsx is the canonical Next App Router
  * entry for global CSS — the order matters because `tokens.css` defines the
- * `--nextexample-*` custom properties the panel rewrites at runtime, and the
+ * `--nx-*` custom properties the panel rewrites at runtime, and the
  * panel package's own chrome CSS (`/styles`) lands afterwards so its rules
  * cascade above the host's reset.
  *

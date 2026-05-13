@@ -1,7 +1,7 @@
 /**
  * Demo tab config for the Astro example.
  *
- * Every `cssVar` is an `--astroexample-*` name. These line up byte-for-byte
+ * Every `cssVar` is an `--astro-*` name. These line up byte-for-byte
  * with the declarations in `src/styles/tokens.css` so the panel can rewrite
  * the same names live and the apply pipeline can rewrite them on disk.
  *
@@ -25,22 +25,26 @@ export const defaultTabs: readonly TabConfig[] = [
     label: 'Spacing',
     tiers: [
       {
-        id: 'raw',
-        label: 'Spacing',
+        id: 'hsp-scale',
+        label: 'Horizontal Spacing',
         items: [
           {
-            id: 'astroexample-spacing-md',
-            cssVar: '--astroexample-spacing-md',
+            id: 'astro-spacing-md',
+            cssVar: '--astro-spacing-md',
             label: 'Spacing M',
-            group: 'hsp',
             default: '1rem',
             type: { kind: 'length', min: 0, max: 4, step: 0.0625, unit: 'rem' },
           },
+        ],
+      },
+      {
+        id: 'vsp-scale',
+        label: 'Vertical Spacing',
+        items: [
           {
-            id: 'astroexample-spacing-lg',
-            cssVar: '--astroexample-spacing-lg',
+            id: 'astro-spacing-lg',
+            cssVar: '--astro-spacing-lg',
             label: 'Spacing L',
-            group: 'vsp',
             default: '2rem',
             type: { kind: 'length', min: 0, max: 6, step: 0.0625, unit: 'rem' },
           },
@@ -57,18 +61,16 @@ export const defaultTabs: readonly TabConfig[] = [
         label: 'Font Sizes',
         items: [
           {
-            id: 'astroexample-text-base',
-            cssVar: '--astroexample-text-base',
+            id: 'astro-text-base',
+            cssVar: '--astro-text-base',
             label: 'Body Text',
-            group: 'font-size',
             default: '1rem',
             type: { kind: 'length', min: 0.75, max: 1.5, step: 0.0625, unit: 'rem' },
           },
           {
-            id: 'astroexample-text-heading',
-            cssVar: '--astroexample-text-heading',
+            id: 'astro-text-heading',
+            cssVar: '--astro-text-heading',
             label: 'Heading Text',
-            group: 'font-size',
             default: '1.75rem',
             type: { kind: 'length', min: 1, max: 4, step: 0.0625, unit: 'rem' },
           },
@@ -81,14 +83,13 @@ export const defaultTabs: readonly TabConfig[] = [
     label: 'Size',
     tiers: [
       {
-        id: 'raw',
-        label: 'Border Radius',
+        id: 'radius-scale',
+        label: 'Radius',
         items: [
           {
-            id: 'astroexample-radius',
-            cssVar: '--astroexample-radius',
+            id: 'astro-radius',
+            cssVar: '--astro-radius',
             label: 'Border Radius',
-            group: 'radius',
             default: '0.5rem',
             type: { kind: 'length', min: 0, max: 2, step: 0.0625, unit: 'rem' },
           },
@@ -114,22 +115,22 @@ export const defaultTabs: readonly TabConfig[] = [
         id: 'palette',
         label: 'Palette',
         items: [
-          { id: 'astroexample-palette-0',  cssVar: '--astroexample-palette-0',  label: 'Palette 0',  default: '#1e1e1e', type: { kind: 'color' as const } },
-          { id: 'astroexample-palette-1',  cssVar: '--astroexample-palette-1',  label: 'Palette 1',  default: '#2d6cdf', type: { kind: 'color' as const } },
-          { id: 'astroexample-palette-2',  cssVar: '--astroexample-palette-2',  label: 'Palette 2',  default: '#3aa676', type: { kind: 'color' as const } },
-          { id: 'astroexample-palette-3',  cssVar: '--astroexample-palette-3',  label: 'Palette 3',  default: '#d97706', type: { kind: 'color' as const } },
-          { id: 'astroexample-palette-4',  cssVar: '--astroexample-palette-4',  label: 'Palette 4',  default: '#9b5de5', type: { kind: 'color' as const } },
-          { id: 'astroexample-palette-5',  cssVar: '--astroexample-palette-5',  label: 'Palette 5',  default: '#e63946', type: { kind: 'color' as const } },
-          { id: 'astroexample-palette-6',  cssVar: '--astroexample-palette-6',  label: 'Palette 6',  default: '#1d3557', type: { kind: 'color' as const } },
-          { id: 'astroexample-palette-7',  cssVar: '--astroexample-palette-7',  label: 'Palette 7',  default: '#06b6d4', type: { kind: 'color' as const } },
-          { id: 'astroexample-palette-8',  cssVar: '--astroexample-palette-8',  label: 'Palette 8',  default: '#475569', type: { kind: 'color' as const } },
-          { id: 'astroexample-palette-9',  cssVar: '--astroexample-palette-9',  label: 'Palette 9',  default: '#94a3b8', type: { kind: 'color' as const } },
-          { id: 'astroexample-palette-10', cssVar: '--astroexample-palette-10', label: 'Palette 10', default: '#cbd5e1', type: { kind: 'color' as const } },
-          { id: 'astroexample-palette-11', cssVar: '--astroexample-palette-11', label: 'Palette 11', default: '#e2e8f0', type: { kind: 'color' as const } },
-          { id: 'astroexample-palette-12', cssVar: '--astroexample-palette-12', label: 'Palette 12', default: '#f1f5f9', type: { kind: 'color' as const } },
-          { id: 'astroexample-palette-13', cssVar: '--astroexample-palette-13', label: 'Palette 13', default: '#fef3c7', type: { kind: 'color' as const } },
-          { id: 'astroexample-palette-14', cssVar: '--astroexample-palette-14', label: 'Palette 14', default: '#bbf7d0', type: { kind: 'color' as const } },
-          { id: 'astroexample-palette-15', cssVar: '--astroexample-palette-15', label: 'Palette 15', default: '#f8fafc', type: { kind: 'color' as const } },
+          { id: 'astro-palette-0',  cssVar: '--astro-palette-0',  label: 'Palette 0',  default: '#1e1e1e', type: { kind: 'color' as const } },
+          { id: 'astro-palette-1',  cssVar: '--astro-palette-1',  label: 'Palette 1',  default: '#2d6cdf', type: { kind: 'color' as const } },
+          { id: 'astro-palette-2',  cssVar: '--astro-palette-2',  label: 'Palette 2',  default: '#3aa676', type: { kind: 'color' as const } },
+          { id: 'astro-palette-3',  cssVar: '--astro-palette-3',  label: 'Palette 3',  default: '#d97706', type: { kind: 'color' as const } },
+          { id: 'astro-palette-4',  cssVar: '--astro-palette-4',  label: 'Palette 4',  default: '#9b5de5', type: { kind: 'color' as const } },
+          { id: 'astro-palette-5',  cssVar: '--astro-palette-5',  label: 'Palette 5',  default: '#e63946', type: { kind: 'color' as const } },
+          { id: 'astro-palette-6',  cssVar: '--astro-palette-6',  label: 'Palette 6',  default: '#1d3557', type: { kind: 'color' as const } },
+          { id: 'astro-palette-7',  cssVar: '--astro-palette-7',  label: 'Palette 7',  default: '#06b6d4', type: { kind: 'color' as const } },
+          { id: 'astro-palette-8',  cssVar: '--astro-palette-8',  label: 'Palette 8',  default: '#475569', type: { kind: 'color' as const } },
+          { id: 'astro-palette-9',  cssVar: '--astro-palette-9',  label: 'Palette 9',  default: '#94a3b8', type: { kind: 'color' as const } },
+          { id: 'astro-palette-10', cssVar: '--astro-palette-10', label: 'Palette 10', default: '#cbd5e1', type: { kind: 'color' as const } },
+          { id: 'astro-palette-11', cssVar: '--astro-palette-11', label: 'Palette 11', default: '#e2e8f0', type: { kind: 'color' as const } },
+          { id: 'astro-palette-12', cssVar: '--astro-palette-12', label: 'Palette 12', default: '#f1f5f9', type: { kind: 'color' as const } },
+          { id: 'astro-palette-13', cssVar: '--astro-palette-13', label: 'Palette 13', default: '#fef3c7', type: { kind: 'color' as const } },
+          { id: 'astro-palette-14', cssVar: '--astro-palette-14', label: 'Palette 14', default: '#bbf7d0', type: { kind: 'color' as const } },
+          { id: 'astro-palette-15', cssVar: '--astro-palette-15', label: 'Palette 15', default: '#f8fafc', type: { kind: 'color' as const } },
         ],
       },
       {
@@ -137,11 +138,11 @@ export const defaultTabs: readonly TabConfig[] = [
         label: 'Semantic',
         referencesTier: 'palette',
         items: [
-          { id: 'primary', cssVar: '--astroexample-color-primary', label: '--astroexample-color-primary', default: 'astroexample-palette-1', type: { kind: 'color' as const } },
-          { id: 'accent',  cssVar: '--astroexample-color-accent',  label: '--astroexample-color-accent',  default: 'astroexample-palette-3', type: { kind: 'color' as const } },
-          { id: 'surface', cssVar: '--astroexample-color-surface', label: '--astroexample-color-surface', default: 'astroexample-palette-0', type: { kind: 'color' as const } },
-          { id: 'muted',   cssVar: '--astroexample-color-muted',   label: '--astroexample-color-muted',   default: 'astroexample-palette-8', type: { kind: 'color' as const } },
-          { id: 'danger',  cssVar: '--astroexample-color-danger',  label: '--astroexample-color-danger',  default: 'astroexample-palette-5', type: { kind: 'color' as const } },
+          { id: 'primary', cssVar: '--astro-color-primary', label: '--astro-color-primary', default: 'astro-palette-1', type: { kind: 'color' as const } },
+          { id: 'accent',  cssVar: '--astro-color-accent',  label: '--astro-color-accent',  default: 'astro-palette-3', type: { kind: 'color' as const } },
+          { id: 'surface', cssVar: '--astro-color-surface', label: '--astro-color-surface', default: 'astro-palette-0', type: { kind: 'color' as const } },
+          { id: 'muted',   cssVar: '--astro-color-muted',   label: '--astro-color-muted',   default: 'astro-palette-8', type: { kind: 'color' as const } },
+          { id: 'danger',  cssVar: '--astro-color-danger',  label: '--astro-color-danger',  default: 'astro-palette-5', type: { kind: 'color' as const } },
         ],
       },
     ],

@@ -37,7 +37,7 @@ import scaffoldRouting from '../../scaffold.routing.json';
 
 export const panelConfig: PanelConfig = {
   storagePrefix: 'next-example-tokens',
-  consoleNamespace: 'nextExample',
+  consoleNamespace: 'nx',
   modalClassPrefix: 'next-example-design-token-panel-modal',
   schemaId: 'next-example-design-tokens/v1',
   exportFilenameBase: 'next-example-design-tokens',

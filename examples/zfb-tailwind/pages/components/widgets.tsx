@@ -2,7 +2,7 @@
  * Widgets page — Interactive widgets demo for the zfb-tailwind example.
  *
  * Three interactive widget types, each driven by semantic easing tokens
- * from --zfbtailwindexample-easing-* so the Panel's Easing tab updates
+ * from --zfbtw-easing-* so the Panel's Easing tab updates
  * motion live.
  *
  *   Tabs      — horizontal nav with sliding indicator, easing-tab-open
@@ -46,7 +46,7 @@ export default function WidgetsPage() {
           <p class="text-body text-muted mb-spacing-md">
             Active indicator slides using{' '}
             <code>easing-tab-open</code>{' '}
-            (→&nbsp;<code>--zfbtailwindexample-easing-tab-open</code>).
+            (→&nbsp;<code>--zfbtw-easing-tab-open</code>).
           </p>
           <div class="bg-surface p-spacing-md rounded-md border border-muted">
             <TabsDemo />
@@ -74,7 +74,7 @@ export default function WidgetsPage() {
           <p class="text-body text-muted mb-spacing-md">
             Fade-and-scale animation uses{' '}
             <code>easing-modal</code>{' '}
-            (→&nbsp;<code>--zfbtailwindexample-easing-modal</code>). Close via
+            (→&nbsp;<code>--zfbtw-easing-modal</code>). Close via
             button or <kbd>Escape</kbd>.
           </p>
           <ModalDemo />

@@ -186,13 +186,13 @@ The zfb + Tailwind v4 example extends the zfb integration with Tailwind CSS v4. 
 ```css
 /* styles/tokens.css */
 @theme {
-  --font-size-body: var(--zfbtailwindexample-text-body);
-  --spacing-hsp-md: var(--zfbtailwindexample-hsp-md);
-  --color-primary: var(--zfbtailwindexample-color-primary);
+  --font-size-body: var(--zfbtw-text-body);
+  --spacing-hsp-md: var(--zfbtw-hsp-md);
+  --color-primary: var(--zfbtw-color-primary);
 }
 ```
 
-With that `@theme` block in place, Tailwind utility classes and panel tokens stay in sync automatically: tweaking `--zfbtailwindexample-text-body` in the panel updates every element using `text-body`.
+With that `@theme` block in place, Tailwind utility classes and panel tokens stay in sync automatically: tweaking `--zfbtw-text-body` in the panel updates every element using `text-body`.
 
 The apply-endpoint URL follows the same base-prefixed pattern as the plain zfb example:
 

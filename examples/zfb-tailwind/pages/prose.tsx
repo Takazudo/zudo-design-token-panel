@@ -1,6 +1,6 @@
 /**
  * Prose page for the zfb-tailwind example. Renders the "prose" content
- * collection entry inside a `.zfbtailwindexample-prose` container that
+ * collection entry inside a `.zfbtw-prose` container that
  * applies the flow-space pattern and element styles defined in
  * `styles/global.css`.
  *
@@ -72,13 +72,13 @@ export default function ProsePage() {
         </h1>
         <p class="mb-vsp-xl text-small text-muted">
           All typography and spacing tokens are from the{' '}
-          <code>--zfbtailwindexample-*</code> namespace.
-          Open the panel (<code>window.zfbTailwindExample.toggleDesignPanel()</code>){' '}
+          <code>--zfbtw-*</code> namespace.
+          Open the panel (<code>window.zfbTw.toggleDesignPanel()</code>){' '}
           to tweak them live.
         </p>
 
         {ProseContent ? (
-          <article class="zfbtailwindexample-prose">
+          <article class="zfbtw-prose">
             <ProseContent />
           </article>
         ) : (

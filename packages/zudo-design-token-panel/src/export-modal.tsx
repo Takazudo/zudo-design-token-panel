@@ -58,7 +58,7 @@ export function ExportModal({ onClose, state, colorDefaults }: ExportModalProps)
   const [copyLabel, setCopyLabel] = useState('Copy');
   const [includeDefaults, setIncludeDefaults] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const copyButtonRef = useRef<HTMLButtonElement>(null);
+  const copyButtonRef = useRef<HTMLDivElement>(null);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cfg = getPanelConfig();
   const exportFilenameHint = exportFilename(cfg);
@@ -181,14 +181,14 @@ export function ExportModal({ onClose, state, colorDefaults }: ExportModalProps)
       data-design-token-panel-modal=""
       data-design-token-panel-modal-variant="export"
     >
-      <h2 id={titleId} className={modalClass(cfg, '__title')}>
+      <div id={titleId} role="heading" aria-level={2} className={modalClass(cfg, '__title')}>
         Export Design Tokens
-      </h2>
+      </div>
 
-      <p className={modalClass(cfg, '__hint')}>
-        Save as <code>{exportFilenameHint}</code> to feed this blob back into the panel (or hand to
-        an AI assistant).
-      </p>
+      <div className={modalClass(cfg, '__hint')}>
+        Save as <span className="tokenpanel-code">{exportFilenameHint}</span> to feed this blob
+        back into the panel (or hand to an AI assistant).
+      </div>
 
       <label className={modalClass(cfg, '__toggle')}>
         <input
@@ -199,26 +199,38 @@ export function ExportModal({ onClose, state, colorDefaults }: ExportModalProps)
         Show defaults too
       </label>
 
-      <pre className={modalClass(cfg, '__json')}>
-        <code>{code}</code>
-      </pre>
+      <div role="none" className={modalClass(cfg, '__json')}>{code}</div>
 
       <div className={modalClass(cfg, '__actions')}>
-        <button
+        <div
           ref={copyButtonRef}
-          type="button"
+          role="button"
+          tabIndex={0}
           onClick={handleCopy}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              void handleCopy();
+            }
+          }}
           className={`${modalClass(cfg, '__button')} ${modalClass(cfg, '__button--primary')}`}
         >
           {copyLabel}
-        </button>
-        <button
-          type="button"
+        </div>
+        <div
+          role="button"
+          tabIndex={0}
           onClick={() => dialogRef.current?.close()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              dialogRef.current?.close();
+            }
+          }}
           className={modalClass(cfg, '__button')}
         >
           Close
-        </button>
+        </div>
       </div>
     </dialog>
   );

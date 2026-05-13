@@ -28,9 +28,9 @@ const PALETTE_INDICES = Array.from({ length: 16 }, (_, i) => i);
 
 export default function AboutPage() {
   return (
-    <main className="nextexample-stack">
+    <main className="nx-stack">
       <header>
-        <h1 className="nextexample-heading">About this example</h1>
+        <h1 className="nx-heading">About this example</h1>
         <p>
           <PanelOpenButton />
         </p>
@@ -45,10 +45,10 @@ export default function AboutPage() {
           <li>No Tailwind, no preflight stylesheet, no design-system dependency.</li>
           <li>
             Storage prefix <code>next-example-tokens</code>, console namespace
-            <code> nextExample</code>.
+            <code> nx</code>.
           </li>
           <li>
-            Palette CSS-var template <code>--nextexample-palette-{`{n}`}</code>.
+            Palette CSS-var template <code>--nx-palette-{`{n}`}</code>.
           </li>
           <li>
             Apply endpoint <code>/api/dev/apply</code> handled by a Next API
@@ -59,12 +59,12 @@ export default function AboutPage() {
       </header>
 
       <section>
-        <h2 className="nextexample-heading">Verify across navigation</h2>
-        <div className="nextexample-card">
+        <h2 className="nx-heading">Verify across navigation</h2>
+        <div className="nx-card">
           Open the panel via{' '}
-          <code>window.nextExample.toggleDesignPanel()</code>, change a token,
+          <code>window.nx.toggleDesignPanel()</code>, change a token,
           then{' '}
-          <Link className="nextexample-link" href="/">
+          <Link className="nx-link" href="/">
             navigate back to home
           </Link>
           . The new value should still apply — proving the host adapter
@@ -72,7 +72,7 @@ export default function AboutPage() {
         </div>
         <p>
           See the{' '}
-          <Link className="nextexample-link" href="/prose">
+          <Link className="nx-link" href="/prose">
             prose demo page
           </Link>{' '}
           for typography tokens in action.
@@ -80,19 +80,19 @@ export default function AboutPage() {
       </section>
 
       <section>
-        <h2 className="nextexample-heading">Palette swatches (mirrored)</h2>
-        <div className="nextexample-swatch-row">
+        <h2 className="nx-heading">Palette swatches (mirrored)</h2>
+        <div className="nx-swatch-row">
           {PALETTE_INDICES.map((i) => (
             <div
               key={i}
-              className="nextexample-swatch"
-              style={{ background: `var(--nextexample-palette-${i})` }}
+              className="nx-swatch"
+              style={{ background: `var(--nx-palette-${i})` }}
             >
               {i}
             </div>
           ))}
         </div>
-        <p className="nextexample-meta">
+        <p className="nx-meta">
           These swatches are identical to the home page so a side-by-side
           comparison after a token tweak is trivial.
         </p>

@@ -3,12 +3,12 @@
  *
  * Plain CSS mirror of zfb-tailwind/components/data/avatar-row.tsx.
  *
- * Token consumption (via .zfbexample-avatar-row* classes in global.css):
- *   .zfbexample-avatar-row        → flex; gap: spacing-sm
- *   .zfbexample-avatar-row__item  → size-avatar-sm (w/h), radius
- *                                   bg via inline-style: var(--zfbexample-palette-{i}) (G4 row 3)
+ * Token consumption (via .zfb-avatar-row* classes in global.css):
+ *   .zfb-avatar-row        → flex; gap: spacing-sm
+ *   .zfb-avatar-row__item  → size-avatar-sm (w/h), radius
+ *                                   bg via inline-style: var(--zfb-palette-{i}) (G4 row 3)
  *
- * Resizing: avatars read from --zfbexample-size-avatar-sm, so tweaking that
+ * Resizing: avatars read from --zfb-size-avatar-sm, so tweaking that
  * token in the panel resizes every avatar in this row.
  */
 
@@ -17,14 +17,14 @@ const AVATAR_PALETTE_INDICES = [1, 2, 3, 4] as const;
 
 export function AvatarRow() {
   return (
-    <div class="zfbexample-avatar-row" role="list" aria-label="Avatar row">
+    <div class="zfb-avatar-row" role="list" aria-label="Avatar row">
       {AVATAR_PALETTE_INDICES.map((i) => (
         <div
           key={i}
           role="listitem"
-          class="zfbexample-avatar-row__item"
+          class="zfb-avatar-row__item"
           // reason: dynamic var name from loop index — no static class possible
-          style={`background: var(--zfbexample-palette-${i})`}
+          style={`background: var(--zfb-palette-${i})`}
           aria-hidden="true"
         />
       ))}

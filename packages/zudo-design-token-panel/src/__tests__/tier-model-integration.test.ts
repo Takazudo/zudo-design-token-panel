@@ -18,21 +18,21 @@ const easingTab: TabConfig = {
       items: [
         {
           id: 'ease-in',
-          cssVar: '--zfbexample-easing-ease-in',
+          cssVar: '--zfb-easing-ease-in',
           label: 'Ease in',
           default: 'cubic-bezier(0.42, 0, 1, 1)',
           type: { kind: 'text' },
         },
         {
           id: 'ease-out',
-          cssVar: '--zfbexample-easing-ease-out',
+          cssVar: '--zfb-easing-ease-out',
           label: 'Ease out',
           default: 'cubic-bezier(0, 0, 0.58, 1)',
           type: { kind: 'text' },
         },
         {
           id: 'linear',
-          cssVar: '--zfbexample-easing-linear',
+          cssVar: '--zfb-easing-linear',
           label: 'Linear',
           default: 'linear',
           type: { kind: 'text' },
@@ -46,14 +46,14 @@ const easingTab: TabConfig = {
       items: [
         {
           id: 'tab-open',
-          cssVar: '--zfbexample-easing-tab-open',
+          cssVar: '--zfb-easing-tab-open',
           label: 'Tab open',
           default: 'ease-out',
           type: { kind: 'text' },
         },
         {
           id: 'tab-close',
-          cssVar: '--zfbexample-easing-tab-close',
+          cssVar: '--zfb-easing-tab-close',
           label: 'Tab close',
           default: 'ease-in',
           type: { kind: 'text' },
@@ -85,7 +85,7 @@ describe('tier-model integration (easing tab, 2-tier mode)', () => {
       semantic: { 'tab-open': 'linear' },
     };
     expect(emit(easingTab, 'semantic', 'tab-open', overrides)).toBe(
-      'var(--zfbexample-easing-linear)',
+      'var(--zfb-easing-linear)',
     );
   });
 
@@ -94,12 +94,12 @@ describe('tier-model integration (easing tab, 2-tier mode)', () => {
       semantic: { 'tab-open': 'does-not-exist' },
     };
     expect(emit(easingTab, 'semantic', 'tab-open', overrides)).toBe(
-      'var(--zfbexample-easing-ease-in)',
+      'var(--zfb-easing-ease-in)',
     );
   });
 
   it('emits var(--first-raw) for a semantic item with no override (fallback path)', () => {
-    expect(emit(easingTab, 'semantic', 'tab-open', {})).toBe('var(--zfbexample-easing-ease-in)');
+    expect(emit(easingTab, 'semantic', 'tab-open', {})).toBe('var(--zfb-easing-ease-in)');
   });
 
   it('combines raw and semantic resolution in a single overrides bag', () => {
@@ -111,10 +111,10 @@ describe('tier-model integration (easing tab, 2-tier mode)', () => {
       'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
     );
     expect(emit(easingTab, 'semantic', 'tab-open', overrides)).toBe(
-      'var(--zfbexample-easing-ease-out)',
+      'var(--zfb-easing-ease-out)',
     );
     expect(emit(easingTab, 'semantic', 'tab-close', overrides)).toBe(
-      'var(--zfbexample-easing-linear)',
+      'var(--zfb-easing-linear)',
     );
   });
 

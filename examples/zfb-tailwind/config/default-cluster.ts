@@ -1,7 +1,7 @@
 /**
  * Demo color cluster for the zfb-tailwind example.
  *
- * The cluster's CSS-var family is `--zfbtailwindexample-*` (palette + base
+ * The cluster's CSS-var family is `--zfbtw-*` (palette + base
  * roles + semantic names), declared on `:root` by `styles/global.css`. Tweaks
  * in the panel write through these names; the apply pipeline (when wired
  * through the bin sidecar) rewrites the same names on disk.
@@ -14,14 +14,14 @@
 import type { ColorClusterConfig as ColorClusterDataConfig } from '@takazudo/zudo-design-token-panel/astro';
 
 export const defaultCluster: ColorClusterDataConfig = {
-  id: 'zfbtailwindexample-cluster',
+  id: 'zfbtw-cluster',
   label: 'zfb Tailwind Example',
   paletteSize: 16,
   baseRoles: {
-    background: '--zfbtailwindexample-bg',
-    foreground: '--zfbtailwindexample-fg',
+    background: '--zfbtw-bg',
+    foreground: '--zfbtw-fg',
   },
-  paletteCssVarTemplate: '--zfbtailwindexample-palette-{n}',
+  paletteCssVarTemplate: '--zfbtw-palette-{n}',
   semanticDefaults: {
     primary: 1,
     accent: 3,
@@ -32,13 +32,13 @@ export const defaultCluster: ColorClusterDataConfig = {
     danger: 5,
   },
   semanticCssNames: {
-    primary: '--zfbtailwindexample-color-primary',
-    accent:  '--zfbtailwindexample-color-accent',
-    surface: '--zfbtailwindexample-color-surface',
-    muted:   '--zfbtailwindexample-color-muted',
-    success: '--zfbtailwindexample-color-success',
-    warning: '--zfbtailwindexample-color-warning',
-    danger:  '--zfbtailwindexample-color-danger',
+    primary: '--zfbtw-color-primary',
+    accent:  '--zfbtw-color-accent',
+    surface: '--zfbtw-color-surface',
+    muted:   '--zfbtw-color-muted',
+    success: '--zfbtw-color-success',
+    warning: '--zfbtw-color-warning',
+    danger:  '--zfbtw-color-danger',
   },
   baseDefaults: {
     background: 0,

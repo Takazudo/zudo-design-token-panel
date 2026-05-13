@@ -14,11 +14,11 @@
  * background content while open. The native <dialog>.showModal() call
  * hoists the element to the top layer, so it is NOT affected by <main inert>.
  *
- * Token consumption (via global.css .zfbexample-modal* classes):
- *   .zfbexample-modal__trigger → color-primary (bg), bg (text), spacing-sm, radius
- *   .zfbexample-modal          → color-surface (bg), fg (text), spacing-lg (padding), radius
+ * Token consumption (via global.css .zfb-modal* classes):
+ *   .zfb-modal__trigger → color-primary (bg), bg (text), spacing-sm, radius
+ *   .zfb-modal          → color-surface (bg), fg (text), spacing-lg (padding), radius
  *                                easing-modal (open/close transition)
- *   .zfbexample-modal::backdrop → color-mix overlay (G4 row 6)
+ *   .zfb-modal::backdrop → color-mix overlay (G4 row 6)
  *
  * Open/close animation rules live in global.css — no scoped <style> needed.
  */
@@ -74,7 +74,7 @@ function ModalInner() {
     <>
       <button
         type="button"
-        class="zfbexample-modal__trigger"
+        class="zfb-modal__trigger"
         onClick={() => setIsOpen(true)}
       >
         Open Modal
@@ -82,34 +82,34 @@ function ModalInner() {
 
       {/* reason: dialog lives outside <main> in DOM order so inert on main
           does not block the dialog; showModal() moves it to the top layer */}
-      <dialog ref={dialogRef} class="zfbexample-modal">
-        <div class="zfbexample-modal__panel-inner">
-          <div class="zfbexample-modal__header">
-            <h2 class="zfbexample-section-h3">Modal Dialog</h2>
+      <dialog ref={dialogRef} class="zfb-modal">
+        <div class="zfb-modal__panel-inner">
+          <div class="zfb-modal__header">
+            <h2 class="zfb-section-h3">Modal Dialog</h2>
             <button
               type="button"
-              class="zfbexample-modal__close"
+              class="zfb-modal__close"
               onClick={() => setIsOpen(false)}
               aria-label="Close modal"
             >
               ✕
             </button>
           </div>
-          <p class="zfbexample-body-text">
+          <p class="zfb-body-text">
             This modal opens via button click and closes via the close button or{' '}
             <kbd>Escape</kbd>.
           </p>
-          <p class="zfbexample-muted-text">
+          <p class="zfb-muted-text">
             Open/close animation uses{' '}
             <code>easing-modal</code> →{' '}
-            <code>--zfbexample-easing-modal</code>. Backdrop uses{' '}
-            <code>color-mix(in oklch, var(--zfbexample-bg) 80%, transparent)</code>{' '}
+            <code>--zfb-easing-modal</code>. Backdrop uses{' '}
+            <code>color-mix(in oklch, var(--zfb-bg) 80%, transparent)</code>{' '}
             (reason: no overlay token in this wave).
           </p>
           <div>
             <button
               type="button"
-              class="zfbexample-modal__trigger"
+              class="zfb-modal__trigger"
               onClick={() => setIsOpen(false)}
             >
               Close

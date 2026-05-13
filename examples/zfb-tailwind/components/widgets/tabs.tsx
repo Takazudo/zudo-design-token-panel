@@ -7,7 +7,7 @@
  *   text-accent  → active tab label
  *
  * Indicator animation:
- *   transform: translateX(...)  driven by var(--zfbtailwindexample-easing-tab-open)
+ *   transform: translateX(...)  driven by var(--zfbtw-easing-tab-open)
  *   width = 100%/tabCount via inline style (reason: dynamic from runtime tab count —
  *   no static Tailwind utility can express a fraction of parent from a variable count)
  */
@@ -50,7 +50,7 @@ export function TabsDemo() {
           style={{
             width: `${indicatorPct}%`,
             transform: `translateX(${activeIndex * 100}%)`,
-            transition: `transform 0.25s var(--zfbtailwindexample-easing-tab-open)`,
+            transition: `transform 0.25s var(--zfbtw-easing-tab-open)`,
           }}
         />
       </div>
@@ -61,7 +61,7 @@ export function TabsDemo() {
           <p>
             <strong>Overview panel.</strong> Indicator slides on{' '}
             <code>easing-tab-open</code>{' '}
-            (→&nbsp;<code>--zfbtailwindexample-easing-tab-open</code>).
+            (→&nbsp;<code>--zfbtw-easing-tab-open</code>).
           </p>
         )}
         {activeIndex === 1 && (
@@ -74,7 +74,7 @@ export function TabsDemo() {
           <p>
             <strong>Settings panel.</strong> Active label uses{' '}
             <code>text-accent</code>{' '}
-            (→&nbsp;<code>--zfbtailwindexample-color-accent</code>).
+            (→&nbsp;<code>--zfbtw-color-accent</code>).
           </p>
         )}
       </div>

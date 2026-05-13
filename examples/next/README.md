@@ -28,7 +28,7 @@ below).
 
 The dev server itself is served under the configured `basePath`, so open
 [http://localhost:44326/pj/zudo-design-token-panel/examples/next/](http://localhost:44326/pj/zudo-design-token-panel/examples/next/)
-and run `window.nextExample.toggleDesignPanel()` in the browser console to
+and run `window.nx.toggleDesignPanel()` in the browser console to
 show the panel. Drag any slider — the page repaints before the next frame.
 
 ## Production build (static export)
@@ -137,12 +137,12 @@ booting the e2e harness.
 2. In a second shell, capture the current value of one token:
 
    ```bash
-   grep -- '--nextexample-radius' examples/next/src/styles/tokens.css
-   #   --nextexample-radius: 0.5rem;
+   grep -- '--nx-radius' examples/next/src/styles/tokens.css
+   #   --nx-radius: 0.5rem;
    ```
 
 3. In the browser, open the panel via
-   `window.nextExample.toggleDesignPanel()`. Switch to the **Size** tab,
+   `window.nx.toggleDesignPanel()`. Switch to the **Size** tab,
    drag the **Border Radius** slider to a different value, then click
    **Apply** in the panel chrome and confirm the diff.
 
@@ -150,8 +150,8 @@ booting the e2e harness.
    value:
 
    ```bash
-   grep -- '--nextexample-radius' examples/next/src/styles/tokens.css
-   #   --nextexample-radius: 1.25rem;
+   grep -- '--nx-radius' examples/next/src/styles/tokens.css
+   #   --nx-radius: 1.25rem;
    ```
 
 5. The next page reload picks up the new value from the file (the in-memory
@@ -171,9 +171,9 @@ pnpm --filter next-example test:apply-smoke
   bundle. Every identifier (`storagePrefix`, `consoleNamespace`,
   `paletteCssVarTemplate`, semantic CSS-var names, etc.) flows in from
   `src/config/panel-config.ts`.
-- The apply pipeline routes by CSS-var prefix family: the `nextexample`
+- The apply pipeline routes by CSS-var prefix family: the `nx`
   prefix in `scaffold.routing.json` maps to `src/styles/tokens.css`, so
-  any tweak to a `--nextexample-*` token rewrites that file.
+  any tweak to a `--nx-*` token rewrites that file.
 - The panel works inside a real React 19 + Next 15 App Router app
   **without** a `react -> preact/compat` alias. The host React tree never
   owns the panel's render surface — `mountPanel()` lazy-imports the
@@ -202,16 +202,16 @@ The host-agnosticism contract for this example pins these identifiers:
 | field                 | value                                       |
 | --------------------- | ------------------------------------------- |
 | `storagePrefix`       | `next-example-tokens`                       |
-| `consoleNamespace`    | `nextExample`                               |
+| `consoleNamespace`    | `nx`                               |
 | `modalClassPrefix`    | `next-example-design-token-panel-modal`     |
 | `schemaId`            | `next-example-design-tokens/v1`             |
 | `exportFilenameBase`  | `next-example-design-tokens`                |
-| CSS-var family        | `--nextexample-*`                           |
-| routing prefix        | `nextexample`                               |
+| CSS-var family        | `--nx-*`                           |
+| routing prefix        | `nx`                               |
 | Next dev port         | `44326`                                     |
 | bin sidecar port      | `24684`                                     |
 
-The console-API call is `window.nextExample.toggleDesignPanel()`.
+The console-API call is `window.nx.toggleDesignPanel()`.
 
 ## Apply pipeline — flow
 
@@ -263,14 +263,14 @@ examples/next/
 │   └── smoke-apply.mjs           # non-UI smoke harness for the bin
 ├── src/
 │   ├── config/
-│   │   ├── default-cluster.ts    # `--nextexample-*` color cluster
-│   │   ├── default-manifest.ts   # `--nextexample-*` token rows
+│   │   ├── default-cluster.ts    # `--nx-*` color cluster
+│   │   ├── default-manifest.ts   # `--nx-*` token rows
 │   │   └── panel-config.ts       # PanelConfig assembly
 │   ├── lib/
 │   │   └── mount-panel.ts        # adapter (console API + lazy-load + StrictMode bind flag)
 │   └── styles/
 │       ├── reset.css
-│       └── tokens.css            # `--nextexample-*` source of truth (apply target)
+│       └── tokens.css            # `--nx-*` source of truth (apply target)
 └── tests/
     └── e2e/
         └── apply-roundtrip.spec.ts

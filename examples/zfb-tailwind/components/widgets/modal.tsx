@@ -18,11 +18,11 @@
  *   max-w-[40rem] → arbitrary; reason: modal width is page-local
  *
  * Backdrop:
- *   color-mix(in oklch, var(--zfbtailwindexample-bg) 80%, transparent)
+ *   color-mix(in oklch, var(--zfbtw-bg) 80%, transparent)
  *   reason: no overlay token in this wave (spec §133.3 exception G4 row 6)
  *
  * Open/close animation:
- *   Uses --zfbtailwindexample-easing-modal via a scoped <style> block.
+ *   Uses --zfbtw-easing-modal via a scoped <style> block.
  *   reason: @starting-style + transition on <dialog> cannot be expressed
  *   as a Tailwind utility; inline style cannot target [open] state or
  *   ::backdrop pseudo-element
@@ -87,8 +87,8 @@ function ModalInner() {
           opacity: 0;
           transform: scale(0.95);
           transition:
-            opacity 0.2s var(--zfbtailwindexample-easing-modal),
-            transform 0.2s var(--zfbtailwindexample-easing-modal),
+            opacity 0.2s var(--zfbtw-easing-modal),
+            transform 0.2s var(--zfbtw-easing-modal),
             display 0.2s allow-discrete,
             overlay 0.2s allow-discrete;
         }
@@ -103,9 +103,9 @@ function ModalInner() {
           }
         }
         .widgets-modal::backdrop {
-          background: color-mix(in oklch, var(--zfbtailwindexample-bg) 80%, transparent);
+          background: color-mix(in oklch, var(--zfbtw-bg) 80%, transparent);
           transition:
-            background 0.2s var(--zfbtailwindexample-easing-modal),
+            background 0.2s var(--zfbtw-easing-modal),
             display 0.2s allow-discrete,
             overlay 0.2s allow-discrete;
         }
@@ -144,8 +144,8 @@ function ModalInner() {
           <p class="text-small text-muted">
             Open/close animation uses{' '}
             <code>easing-modal</code> →{' '}
-            <code>--zfbtailwindexample-easing-modal</code>. Backdrop uses{' '}
-            <code>color-mix(in oklch, var(--zfbtailwindexample-bg) 80%, transparent)</code>{' '}
+            <code>--zfbtw-easing-modal</code>. Backdrop uses{' '}
+            <code>color-mix(in oklch, var(--zfbtw-bg) 80%, transparent)</code>{' '}
             (reason: no overlay token in this wave).
           </p>
           <div>
