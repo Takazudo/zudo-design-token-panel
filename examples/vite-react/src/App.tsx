@@ -43,6 +43,21 @@ export function App() {
       <header>
         <h1 className="vitereact-heading">Live token tweaking, in plain Vite + React</h1>
         <p>
+          <button
+            type="button"
+            className="vitereact-button"
+            onClick={() => {
+              (
+                window as unknown as {
+                  viteReactExample?: { toggleDesignPanel?: () => void };
+                }
+              ).viteReactExample?.toggleDesignPanel?.();
+            }}
+          >
+            Open Design Token Panel
+          </button>
+        </p>
+        <p>
           Every visible element on this page is driven by a{' '}
           <code>--vitereact-*</code> CSS custom property. Open the panel from
           the browser console and drag any slider — the change applies before

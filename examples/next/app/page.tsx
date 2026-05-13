@@ -23,6 +23,7 @@
 
 import Link from 'next/link';
 import { useCallback, useState } from 'react';
+import PanelOpenButton from './_components/PanelOpenButton';
 
 const PALETTE_INDICES = Array.from({ length: 16 }, (_, i) => i);
 
@@ -31,6 +32,9 @@ export default function HomePage() {
     <main className="nextexample-stack">
       <header>
         <h1 className="nextexample-heading">Live token tweaking, in plain Next.js + React</h1>
+        <p>
+          <PanelOpenButton />
+        </p>
         <p>
           Every visible element on this page is driven by a{' '}
           <code>--nextexample-*</code> CSS custom property. Open the panel from

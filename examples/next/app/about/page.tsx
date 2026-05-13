@@ -22,6 +22,8 @@
 
 import Link from 'next/link';
 
+import PanelOpenButton from '../_components/PanelOpenButton';
+
 const PALETTE_INDICES = Array.from({ length: 16 }, (_, i) => i);
 
 export default function AboutPage() {
@@ -29,6 +31,9 @@ export default function AboutPage() {
     <main className="nextexample-stack">
       <header>
         <h1 className="nextexample-heading">About this example</h1>
+        <p>
+          <PanelOpenButton />
+        </p>
         <p>
           The <code>examples/next</code> sub-package consumes
           <code> @takazudo/zudo-design-token-panel</code> through its built

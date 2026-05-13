@@ -29,6 +29,16 @@ const aboutHref = `${import.meta.env.BASE_URL}about`;
       <a class="astroexample-link" href={aboutHref}>About</a>
     </nav>
 
+    <p>
+      <button
+        class="astroexample-button"
+        type="button"
+        onclick="window.astroExample?.toggleDesignPanel?.()"
+      >
+        Open Design Token Panel
+      </button>
+    </p>
+
     <main class="astroexample-prose">
       <Content />
     </main>

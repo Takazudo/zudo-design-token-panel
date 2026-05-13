@@ -18,6 +18,15 @@ const proseHref = `${import.meta.env.BASE_URL}prose`;
     <header>
       <h1 class="astroexample-heading">About this example</h1>
       <p>
+        <button
+          class="astroexample-button"
+          type="button"
+          onclick="window.astroExample?.toggleDesignPanel?.()"
+        >
+          Open Design Token Panel
+        </button>
+      </p>
+      <p>
         The <code>examples/astro</code> sub-package consumes
         <code>@takazudo/zudo-design-token-panel</code> through its built artifact only — there are no
         deep imports into <code>dist/</code>, no bundler aliases, and no framework integration beyond

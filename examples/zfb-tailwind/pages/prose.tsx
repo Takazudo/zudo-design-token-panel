@@ -94,6 +94,22 @@ export default function ProsePage() {
           <h1 class="text-heading font-bold mb-vsp-xl text-primary leading-tight">
             Prose Demo
           </h1>
+          <p class="mb-vsp-xl">
+            <button
+              type="button"
+              id="zfbtailwindexample-panel-open"
+              class="inline-block p-spacing-md rounded-md bg-accent text-bg border-none cursor-pointer hover:bg-primary"
+            >
+              Open Design Token Panel
+            </button>
+          </p>
+          {/* SSR-only body — see pages/index.tsx for the rationale. */}
+          <script
+            dangerouslySetInnerHTML={{
+              __html:
+                "document.getElementById('zfbtailwindexample-panel-open')?.addEventListener('click',function(){var a=window.zfbTailwindExample;if(a&&typeof a.toggleDesignPanel==='function')a.toggleDesignPanel();});",
+            }}
+          />
           <p class="text-small text-muted mb-vsp-xl">
             All typography and spacing tokens are from the{' '}
             <code>--zfbtailwindexample-*</code> namespace.
