@@ -6,8 +6,8 @@
  * would break `output: 'export'` because the exporter rejects dynamic /
  * runtime-mutable content in the MDX rendering path.
  *
- * The overrides below wire --nextexample-* prose tokens to MDX-generated
- * elements by assigning the .nextexample-prose container class on the
+ * The overrides below wire --nx-* prose tokens to MDX-generated
+ * elements by assigning the .nx-prose container class on the
  * wrapper and relying on the CSS :where() rules in tokens.css for all
  * child element styling. This follows the MDX component-architecture
  * pattern (prose-token-contract.md: "Why MDX component overrides instead
@@ -21,9 +21,9 @@ export function useMDXComponents(components: MDXComponents): MDXComponents {
   return {
     ...components,
     // Wrap MDX page output in the prose container so tokens.css
-    // .nextexample-prose :where(...) rules apply to all MDX elements.
+    // .nx-prose :where(...) rules apply to all MDX elements.
     wrapper: ({ children }) => (
-      <div className="nextexample-prose">{children}</div>
+      <div className="nx-prose">{children}</div>
     ),
   };
 }

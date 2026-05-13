@@ -123,7 +123,7 @@ import type { TabConfig } from '../tokens/tier-model';
  * - Palette items: the first tier whose items all have `kind: 'color'`.
  *   Each item's `cssVar` becomes a palette slot; `paletteCssVarTemplate` is
  *   synthesised as `"{item.cssVar}"` with `{n}` replaced by the slot index.
- *   Because item cssVars are explicit (e.g. `--zfbexample-palette-0`) rather
+ *   Because item cssVars are explicit (e.g. `--zfb-palette-0`) rather
  *   than template-based, we derive the template from the first item by
  *   replacing the terminal digit sequence with `{n}`.
  *
@@ -170,7 +170,7 @@ export function resolveColorClusterFromTab(
   const paletteSize = paletteItems.length;
 
   // Derive the palette CSS-var template from the first item's cssVar.
-  // e.g. "--zfbexample-palette-0" → "--zfbexample-palette-{n}"
+  // e.g. "--zfb-palette-0" → "--zfb-palette-{n}"
   // Strategy: replace the LAST run of digits in the cssVar with "{n}".
   const firstCssVar = paletteItems[0]?.cssVar ?? '--palette-{n}';
   const paletteCssVarTemplate = firstCssVar.replace(/\d+$/, '{n}');

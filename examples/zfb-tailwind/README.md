@@ -1,10 +1,10 @@
 # zfb + Tailwind v4 example — @takazudo/zudo-design-token-panel
 
-Demonstrates `@takazudo/zudo-design-token-panel` inside a [zfb (zudo-front-builder)](https://github.com/Takazudo/zudo-front-builder) project with **Tailwind v4 enabled** via `tailwind: { enabled: true }`. Design tokens are registered via Tailwind v4's `@theme` block so utility classes like `bg-primary`, `p-vsp-md`, and `text-h2` resolve back to the panel's `--zfbtailwindexample-*` CSS custom properties.
+Demonstrates `@takazudo/zudo-design-token-panel` inside a [zfb (zudo-front-builder)](https://github.com/Takazudo/zudo-front-builder) project with **Tailwind v4 enabled** via `tailwind: { enabled: true }`. Design tokens are registered via Tailwind v4's `@theme` block so utility classes like `bg-primary`, `p-vsp-md`, and `text-h2` resolve back to the panel's `--zfbtw-*` CSS custom properties.
 
 The workspace ships two pages:
 - **Showcase** (`/`) — Cards, buttons, palette swatches, and typography scale, all styled with Tailwind utilities.
-- **Prose** (`/prose`) — A full markdown document exercising all prose token categories (vertical/horizontal spacing, type scale, code surface) via the `.zfbtailwindexample-prose` container and the flow-space CSS pattern.
+- **Prose** (`/prose`) — A full markdown document exercising all prose token categories (vertical/horizontal spacing, type scale, code surface) via the `.zfbtw-prose` container and the flow-space CSS pattern.
 
 ## Prerequisites
 
@@ -41,7 +41,7 @@ This starts two processes in parallel via `concurrently`:
 The panel is accessible from the browser console:
 
 ```js
-window.zfbTailwindExample.toggleDesignPanel()
+window.zfbTw.toggleDesignPanel()
 ```
 
 ## Build

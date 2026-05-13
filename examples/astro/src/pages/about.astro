@@ -14,14 +14,14 @@ const proseHref = `${import.meta.env.BASE_URL}prose`;
 ---
 
 <Layout title="Astro Example — About">
-  <main class="astroexample-stack">
+  <main class="astro-stack">
     <header>
-      <h1 class="astroexample-heading">About this example</h1>
+      <h1 class="astro-heading">About this example</h1>
       <p>
         <button
-          class="astroexample-button"
+          class="astro-button"
           type="button"
-          onclick="window.astroExample?.toggleDesignPanel?.()"
+          onclick="window.astro?.toggleDesignPanel?.()"
         >
           Open Design Token Panel
         </button>
@@ -36,9 +36,9 @@ const proseHref = `${import.meta.env.BASE_URL}prose`;
         <li>No Tailwind, no preflight stylesheet, no design-system dependency.</li>
         <li>
           Storage prefix <code>astro-example-tokens</code>, console namespace
-          <code>astroExample</code>.
+          <code>astro</code>.
         </li>
-        <li>Palette CSS-var template <code>--astroexample-palette-{`{n}`}</code>.</li>
+        <li>Palette CSS-var template <code>--astro-palette-{`{n}`}</code>.</li>
         <li>
           Apply endpoint <code>/api/dev/apply</code> proxied by Vite to the bin sidecar on port
           24682.
@@ -47,31 +47,31 @@ const proseHref = `${import.meta.env.BASE_URL}prose`;
     </header>
 
     <section>
-      <h2 class="astroexample-heading">Verify across navigation</h2>
-      <div class="astroexample-card">
-        Open the panel via <code>window.astroExample.toggleDesignPanel()</code>, change a token,
-        then navigate <a class="astroexample-link" href={homeHref}>back to home</a>. The new value should
+      <h2 class="astro-heading">Verify across navigation</h2>
+      <div class="astro-card">
+        Open the panel via <code>window.astro.toggleDesignPanel()</code>, change a token,
+        then navigate <a class="astro-link" href={homeHref}>back to home</a>. The new value should
         still apply — proving the host adapter's <code>astro:page-load</code> reapply path works
         end-to-end.
-        Also try the <a class="astroexample-link" href={proseHref}>prose demo</a> to see typography tokens in action.
+        Also try the <a class="astro-link" href={proseHref}>prose demo</a> to see typography tokens in action.
       </div>
     </section>
 
     <section>
-      <h2 class="astroexample-heading">Palette swatches (mirrored)</h2>
-      <div class="astroexample-swatch-row">
+      <h2 class="astro-heading">Palette swatches (mirrored)</h2>
+      <div class="astro-swatch-row">
         {
           paletteIndices.map((i) => (
             <div
-              class="astroexample-swatch"
-              style={`background: var(--astroexample-palette-${i});`}
+              class="astro-swatch"
+              style={`background: var(--astro-palette-${i});`}
             >
               {i}
             </div>
           ))
         }
       </div>
-      <p class="astroexample-meta">
+      <p class="astro-meta">
         These swatches are identical to the home page so a side-by-side comparison after a token
         tweak is trivial.
       </p>

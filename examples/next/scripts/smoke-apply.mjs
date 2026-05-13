@@ -5,7 +5,7 @@
  * Requires `pnpm dev` to already be running in this example sub-package
  * (so the bin is listening on http://127.0.0.1:24684). The harness:
  *
- *   1. Reads the current value of `--nextexample-radius` from
+ *   1. Reads the current value of `--nx-radius` from
  *      src/styles/tokens.css.
  *   2. POSTs a different value to /apply on the bin DIRECTLY (port 24684,
  *      not the Next API route — the smoke harness exercises the bin
@@ -26,7 +26,7 @@ const __dirname = dirname(__filename);
 const TOKENS_PATH = resolve(__dirname, '..', 'src', 'styles', 'tokens.css');
 const APPLY_URL = 'http://127.0.0.1:24684/apply';
 const ORIGIN = 'http://localhost:44326';
-const TARGET_VAR = '--nextexample-radius';
+const TARGET_VAR = '--nx-radius';
 const TEST_VALUE = '1.25rem';
 
 async function readTokenValue(cssVar) {

@@ -2,13 +2,13 @@
  * Sidenav — side navigation component for the zfb-tailwind example.
  *
  * Token consumption:
- *   p-spacing-md  → padding container (--zfbtailwindexample-spacing-md)
- *   bg-surface    → background (--zfbtailwindexample-color-surface)
- *   text-body     → link font size (--zfbtailwindexample-text-body)
- *   gap-vsp-xs    → gap between links (--zfbtailwindexample-vsp-xs)
+ *   p-spacing-md  → padding container (--zfbtw-spacing-md)
+ *   bg-surface    → background (--zfbtw-color-surface)
+ *   text-body     → link font size (--zfbtw-text-body)
+ *   gap-vsp-xs    → gap between links (--zfbtw-vsp-xs)
  *   px-spacing-sm py-spacing-xs → per-link row padding
- *   text-accent   → active link color (--zfbtailwindexample-color-accent)
- *   rounded-md    → active link pill corner (--zfbtailwindexample-radius)
+ *   text-accent   → active link color (--zfbtw-color-accent)
+ *   rounded-md    → active link pill corner (--zfbtw-radius)
  */
 
 const BASE_PATH = '/pj/zudo-design-token-panel/examples/zfb-tailwind/';

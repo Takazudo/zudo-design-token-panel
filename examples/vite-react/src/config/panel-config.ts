@@ -29,7 +29,7 @@ import scaffoldRouting from '../../scaffold.routing.json';
 
 export const panelConfig: PanelConfig = {
   storagePrefix: 'vite-react-example-tokens',
-  consoleNamespace: 'viteReactExample',
+  consoleNamespace: 'vr',
   modalClassPrefix: 'vite-react-example-design-token-panel-modal',
   schemaId: 'vite-react-example-design-tokens/v1',
   exportFilenameBase: 'vite-react-example-design-tokens',

@@ -18,7 +18,7 @@ export function MediaCard() {
         {/* reason: image aspect is a media constant, not a token — CSS gradient placeholder; no network fetch */}
         <div
           class="w-full h-full rounded-md"
-          style="background: linear-gradient(135deg, var(--zfbtailwindexample-color-surface) 0%, var(--zfbtailwindexample-color-muted) 100%);"
+          style="background: linear-gradient(135deg, var(--zfbtw-color-surface) 0%, var(--zfbtw-color-muted) 100%);"
           aria-hidden="true"
         />
       </div>

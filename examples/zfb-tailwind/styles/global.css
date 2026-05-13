@@ -1,15 +1,15 @@
 /*
- * `--zfbtailwindexample-*` tokens + Tailwind v4 theme registration.
+ * `--zfbtw-*` tokens + Tailwind v4 theme registration.
  *
  * File roles
  * ----------
  * 1. Source of truth for the demo's CSS-var values. The panel rewrites these
  *    names live (in-memory :root overrides) when the user tweaks a slider.
  *    The Apply pipeline rewrites THIS FILE on disk (see scaffold.routing.json —
- *    prefix `zfbtailwindexample` → this path).
+ *    prefix `zfbtw` → this path).
  *
  * 2. Tailwind v4 @theme registration. The @theme block below maps each
- *    --zfbtailwindexample-* raw var onto Tailwind's built-in design-system
+ *    --zfbtw-* raw var onto Tailwind's built-in design-system
  *    namespaces so that utility classes like `bg-primary`, `p-vsp-md`, and
  *    `text-h2` work end-to-end.
  *
@@ -33,110 +33,110 @@
 :root {
   /* Spacing tokens (manifest: spacing tab) — xs/sm are component-padding tokens;
      md/lg are page-padding tokens used by AppShell / sidenav */
-  --zfbtailwindexample-spacing-xs: 0.25rem;
-  --zfbtailwindexample-spacing-sm: 0.5rem;
-  --zfbtailwindexample-spacing-md: 1rem;
-  --zfbtailwindexample-spacing-lg: 2rem;
+  --zfbtw-spacing-xs: 0.25rem;
+  --zfbtw-spacing-sm: 0.5rem;
+  --zfbtw-spacing-md: 1rem;
+  --zfbtw-spacing-lg: 2rem;
 
-  /* Font scale tokens (font tab — raw tier, hidden in advancedTiers disclosure) */
-  --zfbtailwindexample-scale-xs: 0.75rem;
-  --zfbtailwindexample-scale-sm: 0.875rem;
-  --zfbtailwindexample-scale-base: 1rem;
-  --zfbtailwindexample-scale-lg: 1.25rem;
-  --zfbtailwindexample-scale-xl: 1.75rem;
-  --zfbtailwindexample-scale-2xl: 2.5rem;
+  /* Font scale tokens (font tab — raw tier, in raw tier) */
+  --zfbtw-scale-xs: 0.75rem;
+  --zfbtw-scale-sm: 0.875rem;
+  --zfbtw-scale-base: 1rem;
+  --zfbtw-scale-lg: 1.25rem;
+  --zfbtw-scale-xl: 1.75rem;
+  --zfbtw-scale-2xl: 2.5rem;
 
   /* Semantic font role tokens (font tab — semantic tier, reference raw scale) */
-  --zfbtailwindexample-text-base: var(--zfbtailwindexample-scale-base);
-  --zfbtailwindexample-text-heading: var(--zfbtailwindexample-scale-xl);
+  --zfbtw-text-base: var(--zfbtw-scale-base);
+  --zfbtw-text-heading: var(--zfbtw-scale-xl);
 
   /* Size tokens (manifest: size tab) — layout/component dimensions */
-  --zfbtailwindexample-size-sidenav-w: 14rem;
-  --zfbtailwindexample-size-header-h: 3.5rem;
-  --zfbtailwindexample-size-avatar-sm: 2rem;
-  --zfbtailwindexample-size-avatar-md: 2.5rem;
-  --zfbtailwindexample-size-icon-sm: 1rem;
-  --zfbtailwindexample-size-icon-md: 1.25rem;
-  --zfbtailwindexample-radius: 0.5rem;
+  --zfbtw-size-sidenav-w: 14rem;
+  --zfbtw-size-header-h: 3.5rem;
+  --zfbtw-size-avatar-sm: 2rem;
+  --zfbtw-size-avatar-md: 2.5rem;
+  --zfbtw-size-icon-sm: 1rem;
+  --zfbtw-size-icon-md: 1.25rem;
+  --zfbtw-radius: 0.5rem;
 
   /* Cluster base roles */
-  --zfbtailwindexample-bg: #1e1e1e;
-  --zfbtailwindexample-fg: #f8fafc;
+  --zfbtw-bg: #1e1e1e;
+  --zfbtw-fg: #f8fafc;
 
   /* Cluster palette slots */
-  --zfbtailwindexample-palette-0: #1e1e1e;
-  --zfbtailwindexample-palette-1: #2d6cdf;
-  --zfbtailwindexample-palette-2: #3aa676;
-  --zfbtailwindexample-palette-3: #d97706;
-  --zfbtailwindexample-palette-4: #9b5de5;
-  --zfbtailwindexample-palette-5: #e63946;
-  --zfbtailwindexample-palette-6: #1d3557;
-  --zfbtailwindexample-palette-7: #06b6d4;
-  --zfbtailwindexample-palette-8: #475569;
-  --zfbtailwindexample-palette-9: #94a3b8;
-  --zfbtailwindexample-palette-10: #cbd5e1;
-  --zfbtailwindexample-palette-11: #e2e8f0;
-  --zfbtailwindexample-palette-12: #f1f5f9;
-  --zfbtailwindexample-palette-13: #fef3c7;
-  --zfbtailwindexample-palette-14: #bbf7d0;
-  --zfbtailwindexample-palette-15: #f8fafc;
+  --zfbtw-palette-0: #1e1e1e;
+  --zfbtw-palette-1: #2d6cdf;
+  --zfbtw-palette-2: #3aa676;
+  --zfbtw-palette-3: #d97706;
+  --zfbtw-palette-4: #9b5de5;
+  --zfbtw-palette-5: #e63946;
+  --zfbtw-palette-6: #1d3557;
+  --zfbtw-palette-7: #06b6d4;
+  --zfbtw-palette-8: #475569;
+  --zfbtw-palette-9: #94a3b8;
+  --zfbtw-palette-10: #cbd5e1;
+  --zfbtw-palette-11: #e2e8f0;
+  --zfbtw-palette-12: #f1f5f9;
+  --zfbtw-palette-13: #fef3c7;
+  --zfbtw-palette-14: #bbf7d0;
+  --zfbtw-palette-15: #f8fafc;
 
   /* Cluster semantic names */
-  --zfbtailwindexample-color-primary: var(--zfbtailwindexample-palette-1);
-  --zfbtailwindexample-color-accent: var(--zfbtailwindexample-palette-3);
-  --zfbtailwindexample-color-surface: var(--zfbtailwindexample-palette-0);
-  --zfbtailwindexample-color-muted: var(--zfbtailwindexample-palette-8);
-  --zfbtailwindexample-color-success: var(--zfbtailwindexample-palette-2);
-  --zfbtailwindexample-color-warning: var(--zfbtailwindexample-palette-3);
-  --zfbtailwindexample-color-danger: var(--zfbtailwindexample-palette-5);
+  --zfbtw-color-primary: var(--zfbtw-palette-1);
+  --zfbtw-color-accent: var(--zfbtw-palette-3);
+  --zfbtw-color-surface: var(--zfbtw-palette-0);
+  --zfbtw-color-muted: var(--zfbtw-palette-8);
+  --zfbtw-color-success: var(--zfbtw-palette-2);
+  --zfbtw-color-warning: var(--zfbtw-palette-3);
+  --zfbtw-color-danger: var(--zfbtw-palette-5);
 
   /* Easing tokens — raw curves (easing tab, raw tier) */
-  --zfbtailwindexample-easing-ease-in:    cubic-bezier(0.42, 0, 1, 1);
-  --zfbtailwindexample-easing-ease-out:   cubic-bezier(0, 0, 0.58, 1);
-  --zfbtailwindexample-easing-ease-inout: cubic-bezier(0.42, 0, 0.58, 1);
-  --zfbtailwindexample-easing-linear:     linear;
+  --zfbtw-easing-ease-in:    cubic-bezier(0.42, 0, 1, 1);
+  --zfbtw-easing-ease-out:   cubic-bezier(0, 0, 0.58, 1);
+  --zfbtw-easing-ease-inout: cubic-bezier(0.42, 0, 0.58, 1);
+  --zfbtw-easing-linear:     linear;
 
   /* Easing tokens — semantic roles (easing tab, semantic tier) */
-  --zfbtailwindexample-easing-tab-open:  var(--zfbtailwindexample-easing-ease-in);
-  --zfbtailwindexample-easing-tab-close: var(--zfbtailwindexample-easing-ease-out);
-  --zfbtailwindexample-easing-modal:     var(--zfbtailwindexample-easing-ease-inout);
+  --zfbtw-easing-tab-open:  var(--zfbtw-easing-ease-in);
+  --zfbtw-easing-tab-close: var(--zfbtw-easing-ease-out);
+  --zfbtw-easing-modal:     var(--zfbtw-easing-ease-inout);
 
   /* ── Prose tokens (contract: doc/.claude/prose-token-contract.md) ─── */
 
   /* Vertical spacing scale — 1.6rem (≈25.6px) baseline rhythm unit */
-  --zfbtailwindexample-vsp-2xs: 0.25rem;   /* ~4 px  — consecutive headings */
-  --zfbtailwindexample-vsp-xs:  0.5rem;    /* ~8 px  — tight paragraph spacing */
-  --zfbtailwindexample-vsp-sm:  0.75rem;   /* ~12 px — heading-to-first-content */
-  --zfbtailwindexample-vsp-md:  1rem;      /* ~16 px — default flow gap */
-  --zfbtailwindexample-vsp-lg:  1.75rem;   /* ~28 px — pre-h3 section separation */
-  --zfbtailwindexample-vsp-xl:  2.5rem;    /* ~40 px — pre-h2 section separation */
-  --zfbtailwindexample-vsp-2xl: 3.5rem;    /* ~56 px — top-of-page clearance */
+  --zfbtw-vsp-2xs: 0.25rem;   /* ~4 px  — consecutive headings */
+  --zfbtw-vsp-xs:  0.5rem;    /* ~8 px  — tight paragraph spacing */
+  --zfbtw-vsp-sm:  0.75rem;   /* ~12 px — heading-to-first-content */
+  --zfbtw-vsp-md:  1rem;      /* ~16 px — default flow gap */
+  --zfbtw-vsp-lg:  1.75rem;   /* ~28 px — pre-h3 section separation */
+  --zfbtw-vsp-xl:  2.5rem;    /* ~40 px — pre-h2 section separation */
+  --zfbtw-vsp-2xl: 3.5rem;    /* ~56 px — top-of-page clearance */
 
   /* Horizontal spacing scale */
-  --zfbtailwindexample-hsp-xs:  0.25rem;   /* inline code padding, small insets */
-  --zfbtailwindexample-hsp-sm:  0.5rem;    /* table cell padding */
-  --zfbtailwindexample-hsp-md:  1rem;      /* blockquote left indent */
-  --zfbtailwindexample-hsp-lg:  1.5rem;    /* section-level horizontal gutter */
-  --zfbtailwindexample-hsp-xl:  2rem;      /* outer prose container horizontal padding */
+  --zfbtw-hsp-xs:  0.25rem;   /* inline code padding, small insets */
+  --zfbtw-hsp-sm:  0.5rem;    /* table cell padding */
+  --zfbtw-hsp-md:  1rem;      /* blockquote left indent */
+  --zfbtw-hsp-lg:  1.5rem;    /* section-level horizontal gutter */
+  --zfbtw-hsp-xl:  2rem;      /* outer prose container horizontal padding */
 
   /* Type scale */
-  --zfbtailwindexample-text-h2:    1.75rem;
-  --zfbtailwindexample-text-h3:    1.35rem;
-  --zfbtailwindexample-text-h4:    1.1rem;
-  --zfbtailwindexample-text-body:  1rem;
-  --zfbtailwindexample-text-small: 0.875rem;
-  --zfbtailwindexample-text-micro: 0.75rem;
+  --zfbtw-text-h2:    1.75rem;
+  --zfbtw-text-h3:    1.35rem;
+  --zfbtw-text-h4:    1.1rem;
+  --zfbtw-text-body:  1rem;
+  --zfbtw-text-small: 0.875rem;
+  --zfbtw-text-micro: 0.75rem;
 
   /* Line-height tokens */
-  --zfbtailwindexample-leading-tight:   1.2;
-  --zfbtailwindexample-leading-snug:    1.45;
-  --zfbtailwindexample-leading-relaxed: 1.75;
+  --zfbtw-leading-tight:   1.2;
+  --zfbtw-leading-snug:    1.45;
+  --zfbtw-leading-relaxed: 1.75;
 
   /* Code surface tokens */
-  --zfbtailwindexample-code-bg:   hsl(220 13% 11%);
-  --zfbtailwindexample-code-fg:   hsl(220 14% 86%);
+  --zfbtw-code-bg:   hsl(220 13% 11%);
+  --zfbtw-code-fg:   hsl(220 14% 86%);
   /* font-family string — wire directly to font-family, not a size/colour */
-  --zfbtailwindexample-font-mono: ui-monospace, "Cascadia Code", "Source Code Pro",
+  --zfbtw-font-mono: ui-monospace, "Cascadia Code", "Source Code Pro",
                                   Menlo, Consolas, monospace;
 }
 
@@ -149,7 +149,7 @@
 @import "tailwindcss";
 
 /*
- * @theme block — maps --zfbtailwindexample-* raw vars onto Tailwind v4's
+ * @theme block — maps --zfbtw-* raw vars onto Tailwind v4's
  * design-system namespace prefixes so that utility classes generate correctly.
  *
  * Namespace rules applied here:
@@ -161,74 +161,74 @@
  *   --radius-*    → rounded-* utilities
  *
  * Example utility chain: p-vsp-md
- *   CSS var:   --spacing-vsp-md: var(--zfbtailwindexample-vsp-md)
- *   Token:     --zfbtailwindexample-vsp-md: 1rem
+ *   CSS var:   --spacing-vsp-md: var(--zfbtw-vsp-md)
+ *   Token:     --zfbtw-vsp-md: 1rem
  *   Resolves:  padding: 1rem
  */
 @theme {
   /* Colour utilities: bg-primary, bg-surface, text-primary, border-muted, … */
-  --color-primary: var(--zfbtailwindexample-color-primary);
-  --color-accent:  var(--zfbtailwindexample-color-accent);
-  --color-surface: var(--zfbtailwindexample-color-surface);
-  --color-muted:   var(--zfbtailwindexample-color-muted);
-  --color-success: var(--zfbtailwindexample-color-success);
-  --color-warning: var(--zfbtailwindexample-color-warning);
-  --color-danger:  var(--zfbtailwindexample-color-danger);
-  --color-bg:      var(--zfbtailwindexample-bg);
-  --color-fg:      var(--zfbtailwindexample-fg);
+  --color-primary: var(--zfbtw-color-primary);
+  --color-accent:  var(--zfbtw-color-accent);
+  --color-surface: var(--zfbtw-color-surface);
+  --color-muted:   var(--zfbtw-color-muted);
+  --color-success: var(--zfbtw-color-success);
+  --color-warning: var(--zfbtw-color-warning);
+  --color-danger:  var(--zfbtw-color-danger);
+  --color-bg:      var(--zfbtw-bg);
+  --color-fg:      var(--zfbtw-fg);
 
   /* Spacing utilities for manifest spacing tokens: p-spacing-xs, p-spacing-sm, … */
-  --spacing-spacing-xs: var(--zfbtailwindexample-spacing-xs);
-  --spacing-spacing-sm: var(--zfbtailwindexample-spacing-sm);
+  --spacing-spacing-xs: var(--zfbtw-spacing-xs);
+  --spacing-spacing-sm: var(--zfbtw-spacing-sm);
   /* spacing-md / spacing-lg are already mapped — do not re-add */
-  --spacing-spacing-md: var(--zfbtailwindexample-spacing-md);
-  --spacing-spacing-lg: var(--zfbtailwindexample-spacing-lg);
+  --spacing-spacing-md: var(--zfbtw-spacing-md);
+  --spacing-spacing-lg: var(--zfbtw-spacing-lg);
 
   /* Size utilities: w-size-sidenav-w, h-size-header-h, w-size-avatar-sm, etc.
      Per G3: size tokens live under --spacing-size-* to generate w- and h- utilities */
-  --spacing-size-sidenav-w: var(--zfbtailwindexample-size-sidenav-w);
-  --spacing-size-header-h:  var(--zfbtailwindexample-size-header-h);
-  --spacing-size-avatar-sm: var(--zfbtailwindexample-size-avatar-sm);
-  --spacing-size-avatar-md: var(--zfbtailwindexample-size-avatar-md);
-  --spacing-size-icon-sm:   var(--zfbtailwindexample-size-icon-sm);
-  --spacing-size-icon-md:   var(--zfbtailwindexample-size-icon-md);
+  --spacing-size-sidenav-w: var(--zfbtw-size-sidenav-w);
+  --spacing-size-header-h:  var(--zfbtw-size-header-h);
+  --spacing-size-avatar-sm: var(--zfbtw-size-avatar-sm);
+  --spacing-size-avatar-md: var(--zfbtw-size-avatar-md);
+  --spacing-size-icon-sm:   var(--zfbtw-size-icon-sm);
+  --spacing-size-icon-md:   var(--zfbtw-size-icon-md);
 
   /* Vertical spacing utilities: p-vsp-md, m-vsp-xl, gap-vsp-lg, … */
-  --spacing-vsp-2xs: var(--zfbtailwindexample-vsp-2xs);
-  --spacing-vsp-xs:  var(--zfbtailwindexample-vsp-xs);
-  --spacing-vsp-sm:  var(--zfbtailwindexample-vsp-sm);
-  --spacing-vsp-md:  var(--zfbtailwindexample-vsp-md);
-  --spacing-vsp-lg:  var(--zfbtailwindexample-vsp-lg);
-  --spacing-vsp-xl:  var(--zfbtailwindexample-vsp-xl);
-  --spacing-vsp-2xl: var(--zfbtailwindexample-vsp-2xl);
+  --spacing-vsp-2xs: var(--zfbtw-vsp-2xs);
+  --spacing-vsp-xs:  var(--zfbtw-vsp-xs);
+  --spacing-vsp-sm:  var(--zfbtw-vsp-sm);
+  --spacing-vsp-md:  var(--zfbtw-vsp-md);
+  --spacing-vsp-lg:  var(--zfbtw-vsp-lg);
+  --spacing-vsp-xl:  var(--zfbtw-vsp-xl);
+  --spacing-vsp-2xl: var(--zfbtw-vsp-2xl);
 
   /* Horizontal spacing utilities: px-hsp-md, pl-hsp-lg, … */
-  --spacing-hsp-xs:  var(--zfbtailwindexample-hsp-xs);
-  --spacing-hsp-sm:  var(--zfbtailwindexample-hsp-sm);
-  --spacing-hsp-md:  var(--zfbtailwindexample-hsp-md);
-  --spacing-hsp-lg:  var(--zfbtailwindexample-hsp-lg);
-  --spacing-hsp-xl:  var(--zfbtailwindexample-hsp-xl);
+  --spacing-hsp-xs:  var(--zfbtw-hsp-xs);
+  --spacing-hsp-sm:  var(--zfbtw-hsp-sm);
+  --spacing-hsp-md:  var(--zfbtw-hsp-md);
+  --spacing-hsp-lg:  var(--zfbtw-hsp-lg);
+  --spacing-hsp-xl:  var(--zfbtw-hsp-xl);
 
   /* Font-size utilities: text-h2, text-h3, text-body, text-small, … */
-  --text-heading: var(--zfbtailwindexample-text-heading);
-  --text-base:    var(--zfbtailwindexample-text-base);
-  --text-h2:      var(--zfbtailwindexample-text-h2);
-  --text-h3:      var(--zfbtailwindexample-text-h3);
-  --text-h4:      var(--zfbtailwindexample-text-h4);
-  --text-body:    var(--zfbtailwindexample-text-body);
-  --text-small:   var(--zfbtailwindexample-text-small);
-  --text-micro:   var(--zfbtailwindexample-text-micro);
+  --text-heading: var(--zfbtw-text-heading);
+  --text-base:    var(--zfbtw-text-base);
+  --text-h2:      var(--zfbtw-text-h2);
+  --text-h3:      var(--zfbtw-text-h3);
+  --text-h4:      var(--zfbtw-text-h4);
+  --text-body:    var(--zfbtw-text-body);
+  --text-small:   var(--zfbtw-text-small);
+  --text-micro:   var(--zfbtw-text-micro);
 
   /* Line-height utilities: leading-tight, leading-snug, leading-relaxed */
-  --leading-tight:   var(--zfbtailwindexample-leading-tight);
-  --leading-snug:    var(--zfbtailwindexample-leading-snug);
-  --leading-relaxed: var(--zfbtailwindexample-leading-relaxed);
+  --leading-tight:   var(--zfbtw-leading-tight);
+  --leading-snug:    var(--zfbtw-leading-snug);
+  --leading-relaxed: var(--zfbtw-leading-relaxed);
 
   /* Border-radius utilities: rounded-md (maps manifest radius token) */
-  --radius-md: var(--zfbtailwindexample-radius);
+  --radius-md: var(--zfbtw-radius);
 
   /* Font-family utilities: font-mono */
-  --font-mono: var(--zfbtailwindexample-font-mono);
+  --font-mono: var(--zfbtw-font-mono);
 }
 
 /* ── Base styles ─────────────────────────────────────────────────────────── */
@@ -254,9 +254,9 @@
       'Segoe UI',
       sans-serif;
     line-height: 1.5;
-    background: var(--zfbtailwindexample-bg);
-    color: var(--zfbtailwindexample-fg);
-    font-size: var(--zfbtailwindexample-text-base);
+    background: var(--zfbtw-bg);
+    color: var(--zfbtw-fg);
+    font-size: var(--zfbtw-text-base);
   }
 
   img,
@@ -291,82 +291,82 @@
  */
 @layer components {
   /* Default flow gap for all direct children */
-  .zfbtailwindexample-prose > * + * {
-    margin-block-start: var(--flow-space, var(--zfbtailwindexample-vsp-md));
+  .zfbtw-prose > * + * {
+    margin-block-start: var(--flow-space, var(--zfbtw-vsp-md));
   }
 
   /* Section separation before headings */
-  .zfbtailwindexample-prose :where(h2) { --flow-space: var(--zfbtailwindexample-vsp-xl); }
-  .zfbtailwindexample-prose :where(h3) { --flow-space: var(--zfbtailwindexample-vsp-lg); }
-  .zfbtailwindexample-prose :where(h4) { --flow-space: var(--zfbtailwindexample-vsp-md); }
+  .zfbtw-prose :where(h2) { --flow-space: var(--zfbtw-vsp-xl); }
+  .zfbtw-prose :where(h3) { --flow-space: var(--zfbtw-vsp-lg); }
+  .zfbtw-prose :where(h4) { --flow-space: var(--zfbtw-vsp-md); }
 
   /* Heading-to-first-content: tight coupling */
-  .zfbtailwindexample-prose :where(h2, h3, h4) + :where(p, ul, ol, table, pre, blockquote) {
-    --flow-space: var(--zfbtailwindexample-vsp-sm);
+  .zfbtw-prose :where(h2, h3, h4) + :where(p, ul, ol, table, pre, blockquote) {
+    --flow-space: var(--zfbtw-vsp-sm);
   }
 
   /* Consecutive headings: tighten */
-  .zfbtailwindexample-prose :where(h2, h3, h4, h5, h6) + :where(h2, h3, h4, h5, h6) {
-    --flow-space: var(--zfbtailwindexample-vsp-2xs);
+  .zfbtw-prose :where(h2, h3, h4, h5, h6) + :where(h2, h3, h4, h5, h6) {
+    --flow-space: var(--zfbtw-vsp-2xs);
   }
 
   /* Trim edges */
-  .zfbtailwindexample-prose > :first-child { margin-block-start: 0; }
-  .zfbtailwindexample-prose > :last-child  { margin-block-end: 0; }
+  .zfbtw-prose > :first-child { margin-block-start: 0; }
+  .zfbtw-prose > :last-child  { margin-block-end: 0; }
 
   /* Heading styles */
-  .zfbtailwindexample-prose :where(h2) {
-    font-size: var(--zfbtailwindexample-text-h2);
-    line-height: var(--zfbtailwindexample-leading-tight);
+  .zfbtw-prose :where(h2) {
+    font-size: var(--zfbtw-text-h2);
+    line-height: var(--zfbtw-leading-tight);
     font-weight: 700;
-    color: var(--zfbtailwindexample-color-primary);
+    color: var(--zfbtw-color-primary);
     padding-bottom: 0.5rem;
-    border-bottom: 1px solid var(--zfbtailwindexample-color-muted);
+    border-bottom: 1px solid var(--zfbtw-color-muted);
   }
 
-  .zfbtailwindexample-prose :where(h3) {
-    font-size: var(--zfbtailwindexample-text-h3);
-    line-height: var(--zfbtailwindexample-leading-tight);
+  .zfbtw-prose :where(h3) {
+    font-size: var(--zfbtw-text-h3);
+    line-height: var(--zfbtw-leading-tight);
     font-weight: 600;
-    color: var(--zfbtailwindexample-fg);
+    color: var(--zfbtw-fg);
   }
 
-  .zfbtailwindexample-prose :where(h4) {
-    font-size: var(--zfbtailwindexample-text-h4);
-    line-height: var(--zfbtailwindexample-leading-snug);
+  .zfbtw-prose :where(h4) {
+    font-size: var(--zfbtw-text-h4);
+    line-height: var(--zfbtw-leading-snug);
     font-weight: 600;
-    color: var(--zfbtailwindexample-fg);
+    color: var(--zfbtw-fg);
   }
 
   /* Body text */
-  .zfbtailwindexample-prose :where(p) {
-    font-size: var(--zfbtailwindexample-text-body);
-    line-height: var(--zfbtailwindexample-leading-relaxed);
+  .zfbtw-prose :where(p) {
+    font-size: var(--zfbtw-text-body);
+    line-height: var(--zfbtw-leading-relaxed);
   }
 
   /* Inline code */
-  .zfbtailwindexample-prose :where(code):not(pre code) {
-    font-family: var(--zfbtailwindexample-font-mono);
-    font-size: var(--zfbtailwindexample-text-small);
-    background: var(--zfbtailwindexample-code-bg);
-    color: var(--zfbtailwindexample-code-fg);
-    padding: var(--zfbtailwindexample-hsp-xs) calc(var(--zfbtailwindexample-hsp-xs) * 2);
+  .zfbtw-prose :where(code):not(pre code) {
+    font-family: var(--zfbtw-font-mono);
+    font-size: var(--zfbtw-text-small);
+    background: var(--zfbtw-code-bg);
+    color: var(--zfbtw-code-fg);
+    padding: var(--zfbtw-hsp-xs) calc(var(--zfbtw-hsp-xs) * 2);
     border-radius: 0.25rem;
-    border: 1px solid var(--zfbtailwindexample-color-accent);
+    border: 1px solid var(--zfbtw-color-accent);
   }
 
   /* Code blocks */
-  .zfbtailwindexample-prose :where(pre) {
-    font-family: var(--zfbtailwindexample-font-mono);
-    font-size: var(--zfbtailwindexample-text-small);
-    background: var(--zfbtailwindexample-code-bg);
-    color: var(--zfbtailwindexample-code-fg);
-    padding: var(--zfbtailwindexample-vsp-md) var(--zfbtailwindexample-hsp-sm);
-    border-radius: var(--zfbtailwindexample-radius);
+  .zfbtw-prose :where(pre) {
+    font-family: var(--zfbtw-font-mono);
+    font-size: var(--zfbtw-text-small);
+    background: var(--zfbtw-code-bg);
+    color: var(--zfbtw-code-fg);
+    padding: var(--zfbtw-vsp-md) var(--zfbtw-hsp-sm);
+    border-radius: var(--zfbtw-radius);
     overflow-x: auto;
   }
 
-  .zfbtailwindexample-prose :where(pre code) {
+  .zfbtw-prose :where(pre code) {
     font-family: inherit;
     font-size: inherit;
     background: none;
@@ -377,119 +377,119 @@
   }
 
   /* Blockquote */
-  .zfbtailwindexample-prose :where(blockquote) {
-    border-left: 4px solid var(--zfbtailwindexample-color-accent);
-    padding-left: var(--zfbtailwindexample-hsp-md);
-    color: var(--zfbtailwindexample-color-muted);
+  .zfbtw-prose :where(blockquote) {
+    border-left: 4px solid var(--zfbtw-color-accent);
+    padding-left: var(--zfbtw-hsp-md);
+    color: var(--zfbtw-color-muted);
     font-style: italic;
   }
 
   /* Lists */
-  .zfbtailwindexample-prose :where(ul) {
-    padding-left: var(--zfbtailwindexample-hsp-lg);
+  .zfbtw-prose :where(ul) {
+    padding-left: var(--zfbtw-hsp-lg);
     list-style-type: disc;
   }
 
-  .zfbtailwindexample-prose :where(ol) {
-    padding-left: var(--zfbtailwindexample-hsp-lg);
+  .zfbtw-prose :where(ol) {
+    padding-left: var(--zfbtw-hsp-lg);
     list-style-type: decimal;
   }
 
-  .zfbtailwindexample-prose :where(li) {
-    font-size: var(--zfbtailwindexample-text-body);
-    line-height: var(--zfbtailwindexample-leading-snug);
-    margin-block-start: var(--zfbtailwindexample-vsp-xs);
+  .zfbtw-prose :where(li) {
+    font-size: var(--zfbtw-text-body);
+    line-height: var(--zfbtw-leading-snug);
+    margin-block-start: var(--zfbtw-vsp-xs);
   }
 
-  .zfbtailwindexample-prose :where(li:first-child) {
+  .zfbtw-prose :where(li:first-child) {
     margin-block-start: 0;
   }
 
   /* Nested lists */
-  .zfbtailwindexample-prose :where(li > ul, li > ol) {
-    margin-block-start: var(--zfbtailwindexample-vsp-xs);
+  .zfbtw-prose :where(li > ul, li > ol) {
+    margin-block-start: var(--zfbtw-vsp-xs);
   }
 
   /* Tables */
-  .zfbtailwindexample-prose :where(table) {
+  .zfbtw-prose :where(table) {
     width: 100%;
     border-collapse: collapse;
-    font-size: var(--zfbtailwindexample-text-small);
+    font-size: var(--zfbtw-text-small);
   }
 
-  .zfbtailwindexample-prose :where(th) {
+  .zfbtw-prose :where(th) {
     text-align: left;
     font-weight: 600;
-    padding: var(--zfbtailwindexample-hsp-sm) var(--zfbtailwindexample-hsp-sm);
-    border-bottom: 2px solid var(--zfbtailwindexample-color-muted);
-    color: var(--zfbtailwindexample-fg);
+    padding: var(--zfbtw-hsp-sm) var(--zfbtw-hsp-sm);
+    border-bottom: 2px solid var(--zfbtw-color-muted);
+    color: var(--zfbtw-fg);
   }
 
-  .zfbtailwindexample-prose :where(td) {
-    padding: var(--zfbtailwindexample-hsp-sm) var(--zfbtailwindexample-hsp-sm);
-    border-bottom: 1px solid var(--zfbtailwindexample-color-muted);
-    color: var(--zfbtailwindexample-fg);
+  .zfbtw-prose :where(td) {
+    padding: var(--zfbtw-hsp-sm) var(--zfbtw-hsp-sm);
+    border-bottom: 1px solid var(--zfbtw-color-muted);
+    color: var(--zfbtw-fg);
   }
 
   /* Links */
-  .zfbtailwindexample-prose :where(a) {
-    color: var(--zfbtailwindexample-color-accent);
+  .zfbtw-prose :where(a) {
+    color: var(--zfbtw-color-accent);
     text-decoration: underline;
   }
 
-  .zfbtailwindexample-prose :where(a:hover) {
-    color: var(--zfbtailwindexample-color-primary);
+  .zfbtw-prose :where(a:hover) {
+    color: var(--zfbtw-color-primary);
   }
 
   /* Horizontal rule */
-  .zfbtailwindexample-prose :where(hr) {
+  .zfbtw-prose :where(hr) {
     border: none;
-    border-top: 1px solid var(--zfbtailwindexample-color-muted);
-    margin-block: var(--zfbtailwindexample-vsp-lg);
+    border-top: 1px solid var(--zfbtw-color-muted);
+    margin-block: var(--zfbtw-vsp-lg);
   }
 
   /* Strong / em */
-  .zfbtailwindexample-prose :where(strong) {
+  .zfbtw-prose :where(strong) {
     font-weight: 700;
-    color: var(--zfbtailwindexample-fg);
+    color: var(--zfbtw-fg);
   }
 
-  .zfbtailwindexample-prose :where(em) {
+  .zfbtw-prose :where(em) {
     font-style: italic;
   }
 
-  .zfbtailwindexample-prose :where(del) {
+  .zfbtw-prose :where(del) {
     text-decoration: line-through;
-    color: var(--zfbtailwindexample-color-muted);
+    color: var(--zfbtw-color-muted);
   }
 
   /* ── Easing demo card ─────────────────────────────────────────────────── */
   /* Interactive card used in the Easing tab demo. Clicking it toggles the
      .is-active class; the transition consumes the semantic easing token so
      changing the panel's "Tab Open" role updates the perceived motion live. */
-  .zfbtailwindexample-easing-card {
+  .zfbtw-easing-card {
     display: block;
     width: 100%;
-    padding: var(--zfbtailwindexample-spacing-md);
-    background: var(--zfbtailwindexample-color-surface);
-    border: 1px solid var(--zfbtailwindexample-color-muted);
-    border-radius: var(--zfbtailwindexample-radius);
-    color: var(--zfbtailwindexample-fg);
+    padding: var(--zfbtw-spacing-md);
+    background: var(--zfbtw-color-surface);
+    border: 1px solid var(--zfbtw-color-muted);
+    border-radius: var(--zfbtw-radius);
+    color: var(--zfbtw-fg);
     cursor: pointer;
     font: inherit;
     text-align: left;
     transform: translateX(0);
-    transition: transform 0.4s var(--zfbtailwindexample-easing-tab-open),
-                background-color 0.4s var(--zfbtailwindexample-easing-tab-open);
+    transition: transform 0.4s var(--zfbtw-easing-tab-open),
+                background-color 0.4s var(--zfbtw-easing-tab-open);
   }
 
-  .zfbtailwindexample-easing-card.is-active {
+  .zfbtw-easing-card.is-active {
     transform: translateX(4rem);
-    background: var(--zfbtailwindexample-color-primary);
+    background: var(--zfbtw-color-primary);
   }
 
-  .zfbtailwindexample-easing-card-label {
-    font-size: var(--zfbtailwindexample-text-base);
+  .zfbtw-easing-card-label {
+    font-size: var(--zfbtw-text-base);
     font-weight: 600;
   }
 }

@@ -69,7 +69,7 @@ describe('zfb first-toggle fix (#111) — registerPostConfigureHook structural c
 
     const cfg = {
       storagePrefix: 'zfb-example-tokens',
-      consoleNamespace: 'zfbExample',
+      consoleNamespace: 'zfb',
       modalClassPrefix: 'zfb-example-tokens-modal',
       schemaId: 'zfb-example-tokens/v1',
       exportFilenameBase: 'zfb-example-tokens',
@@ -85,7 +85,7 @@ describe('zfb first-toggle fix (#111) — registerPostConfigureHook structural c
     const panelConfig = await import('../config/panel-config');
     const cfg = {
       storagePrefix: 'zfb-example-tokens',
-      consoleNamespace: 'zfbExample',
+      consoleNamespace: 'zfb',
       modalClassPrefix: 'zfb-example-tokens-modal',
       schemaId: 'zfb-example-tokens/v1',
       exportFilenameBase: 'zfb-example-tokens',
@@ -107,7 +107,7 @@ describe('zfb first-toggle fix (#111) — registerPostConfigureHook structural c
 
     const cfg = {
       storagePrefix: 'zfb-example-tokens',
-      consoleNamespace: 'zfbExample',
+      consoleNamespace: 'zfb',
       modalClassPrefix: 'zfb-example-tokens-modal',
       schemaId: 'zfb-example-tokens/v1',
       exportFilenameBase: 'zfb-example-tokens',
@@ -129,7 +129,7 @@ describe('zfb first-toggle fix (#111) — registerPostConfigureHook structural c
 
     const cfg = {
       storagePrefix: 'zfb-example-tokens',
-      consoleNamespace: 'zfbExample',
+      consoleNamespace: 'zfb',
       modalClassPrefix: 'zfb-example-tokens-modal',
       schemaId: 'zfb-example-tokens/v1',
       exportFilenameBase: 'zfb-example-tokens',
@@ -185,7 +185,7 @@ describe('zfb first-toggle fix (#111) — module-init must not call reapply befo
       const panelConfig = await import('../config/panel-config');
       const cfg = {
         storagePrefix: 'zfb-example-tokens',
-        consoleNamespace: 'zfbExample',
+        consoleNamespace: 'zfb',
         modalClassPrefix: 'zfb-example-tokens-modal',
         schemaId: 'zfb-example-tokens/v1',
         exportFilenameBase: 'zfb-example-tokens',

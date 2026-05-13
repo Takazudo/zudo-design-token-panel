@@ -42,14 +42,14 @@ import { defaultTabs } from './default-manifest';
 // file's directory. Inlining avoids the resolution issue without losing
 // the semantic link to the routing contract.
 const scaffoldRouting: Record<string, string> = {
-  zfbtailwindexample: 'styles/global.css',
+  zfbtw: 'styles/global.css',
   // Easing tokens (Wave 7 demo) — same file as the other tokens.
-  'zfbtailwindexample-easing': 'styles/global.css',
+  'zfbtw-easing': 'styles/global.css',
 };
 
 export const panelConfig: PanelConfig = {
   storagePrefix: 'zfb-tailwind-example-tokens',
-  consoleNamespace: 'zfbTailwindExample',
+  consoleNamespace: 'zfbTw',
   modalClassPrefix: 'zfb-tailwind-example-design-token-panel-modal',
   schemaId: 'zfb-tailwind-example-design-tokens/v1',
   exportFilenameBase: 'zfb-tailwind-example-design-tokens',

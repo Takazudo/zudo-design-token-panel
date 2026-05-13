@@ -6,22 +6,22 @@
  * design tokens declared in global.css.
  *
  * Token-to-utility reference (§131.1):
- *   bg-surface          → --zfbtailwindexample-color-surface   (input bg)
- *   bg-primary          → --zfbtailwindexample-color-primary    (submit btn bg)
- *   bg-muted            → --zfbtailwindexample-color-muted      (disabled bg)
- *   text-fg             → --zfbtailwindexample-fg               (input text)
- *   text-bg             → --zfbtailwindexample-bg               (btn text)
- *   text-muted          → --zfbtailwindexample-color-muted      (helper/hint)
- *   text-body           → --zfbtailwindexample-text-body        (input font-size)
- *   text-small          → --zfbtailwindexample-text-small       (helper label)
- *   text-h4             → --zfbtailwindexample-text-h4          (section heading)
- *   border-muted        → --zfbtailwindexample-color-muted      (resting border)
- *   focus:border-accent → --zfbtailwindexample-color-accent     (focus border)
- *   disabled:bg-muted   → --zfbtailwindexample-color-muted      (disabled bg)
- *   p-spacing-sm        → --zfbtailwindexample-spacing-sm       (input/btn padding)
- *   rounded-md          → --zfbtailwindexample-radius           (corners)
- *   gap-spacing-xs      → --zfbtailwindexample-spacing-xs       (label-control gap)
- *   gap-spacing-md      → --zfbtailwindexample-spacing-md       (between field groups)
+ *   bg-surface          → --zfbtw-color-surface   (input bg)
+ *   bg-primary          → --zfbtw-color-primary    (submit btn bg)
+ *   bg-muted            → --zfbtw-color-muted      (disabled bg)
+ *   text-fg             → --zfbtw-fg               (input text)
+ *   text-bg             → --zfbtw-bg               (btn text)
+ *   text-muted          → --zfbtw-color-muted      (helper/hint)
+ *   text-body           → --zfbtw-text-body        (input font-size)
+ *   text-small          → --zfbtw-text-small       (helper label)
+ *   text-h4             → --zfbtw-text-h4          (section heading)
+ *   border-muted        → --zfbtw-color-muted      (resting border)
+ *   focus:border-accent → --zfbtw-color-accent     (focus border)
+ *   disabled:bg-muted   → --zfbtw-color-muted      (disabled bg)
+ *   p-spacing-sm        → --zfbtw-spacing-sm       (input/btn padding)
+ *   rounded-md          → --zfbtw-radius           (corners)
+ *   gap-spacing-xs      → --zfbtw-spacing-xs       (label-control gap)
+ *   gap-spacing-md      → --zfbtw-spacing-md       (between field groups)
  */
 
 import { AppShell } from '../../components/app-shell';
@@ -94,7 +94,7 @@ export default function FormsPage() {
             />
             <span class="text-small text-muted">
               Disabled state: <code class="font-mono">disabled:bg-muted</code> →
-              <code class="font-mono"> --zfbtailwindexample-color-muted</code>
+              <code class="font-mono"> --zfbtw-color-muted</code>
             </span>
           </div>
         </section>
@@ -166,7 +166,7 @@ export default function FormsPage() {
           <p class="text-small text-muted">
             Native checkbox with{' '}
             <code class="font-mono">accent-color</code> set to{' '}
-            <code class="font-mono">--zfbtailwindexample-color-accent</code>.
+            <code class="font-mono">--zfbtw-color-accent</code>.
             No Tailwind utility maps to <code class="font-mono">accent-color</code>{' '}
             in §131.1, so the value is applied via inline style.
           </p>
@@ -182,7 +182,7 @@ export default function FormsPage() {
                 <input
                   type="checkbox"
                   id={id}
-                  style={{ accentColor: 'var(--zfbtailwindexample-color-accent)' }}
+                  style={{ accentColor: 'var(--zfbtw-color-accent)' }}
                 />
                 {label}
               </label>
@@ -210,7 +210,7 @@ export default function FormsPage() {
                   type="radio"
                   id={id}
                   name="theme"
-                  style={{ accentColor: 'var(--zfbtailwindexample-color-accent)' }}
+                  style={{ accentColor: 'var(--zfbtw-color-accent)' }}
                 />
                 {label}
               </label>
@@ -238,7 +238,7 @@ export default function FormsPage() {
               max="100"
               defaultValue="60"
               class="w-full cursor-pointer"
-              style={{ accentColor: 'var(--zfbtailwindexample-color-accent)' }}
+              style={{ accentColor: 'var(--zfbtw-color-accent)' }}
             />
             <span class="text-small text-muted">0 – 100</span>
           </div>

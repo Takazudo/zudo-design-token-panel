@@ -29,33 +29,33 @@ const PALETTE_INDICES = Array.from({ length: 16 }, (_, i) => i);
 
 export default function HomePage() {
   return (
-    <main className="nextexample-stack">
+    <main className="nx-stack">
       <header>
-        <h1 className="nextexample-heading">Live token tweaking, in plain Next.js + React</h1>
+        <h1 className="nx-heading">Live token tweaking, in plain Next.js + React</h1>
         <p>
           <PanelOpenButton />
         </p>
         <p>
           Every visible element on this page is driven by a{' '}
-          <code>--nextexample-*</code> CSS custom property. Open the panel from
+          <code>--nx-*</code> CSS custom property. Open the panel from
           the browser console and drag any slider — the change applies before
           the next paint, and survives React rerenders because the CSS vars
           live on <code>:root</code>, not in React state.
         </p>
-        <p className="nextexample-meta">
-          Console API: <code>window.nextExample.toggleDesignPanel()</code>.
+        <p className="nx-meta">
+          Console API: <code>window.nx.toggleDesignPanel()</code>.
           Storage prefix: <code>next-example-tokens</code>.
         </p>
         <p>
           Soft-navigation analog of view-transitions:{' '}
-          <Link className="nextexample-link" href="/about">
+          <Link className="nx-link" href="/about">
             visit the /about page
           </Link>{' '}
           to verify panel state survives Next's client-routed navigation.
         </p>
         <p>
           See the{' '}
-          <Link className="nextexample-link" href="/prose">
+          <Link className="nx-link" href="/prose">
             prose demo page
           </Link>{' '}
           for typography tokens in action.
@@ -63,30 +63,30 @@ export default function HomePage() {
       </header>
 
       <section>
-        <h2 className="nextexample-heading">Cards (spacing + radius + surface)</h2>
-        <div className="nextexample-card">
+        <h2 className="nx-heading">Cards (spacing + radius + surface)</h2>
+        <div className="nx-card">
           <strong>Card A.</strong> Padding driven by{' '}
-          <code>--nextexample-spacing-md</code>, corners by{' '}
-          <code>--nextexample-radius</code>, background by{' '}
-          <code>--nextexample-color-surface</code>.
+          <code>--nx-spacing-md</code>, corners by{' '}
+          <code>--nx-radius</code>, background by{' '}
+          <code>--nx-color-surface</code>.
         </div>
-        <div className="nextexample-card">
+        <div className="nx-card">
           <strong>Card B.</strong> Stack gap driven by{' '}
-          <code>--nextexample-spacing-lg</code>; outline by{' '}
-          <code>--nextexample-color-muted</code>.
+          <code>--nx-spacing-lg</code>; outline by{' '}
+          <code>--nx-color-muted</code>.
         </div>
       </section>
 
       <section>
-        <h2 className="nextexample-heading">Buttons + links (accent / primary)</h2>
+        <h2 className="nx-heading">Buttons + links (accent / primary)</h2>
         <p>
-          <button className="nextexample-button" type="button">
+          <button className="nx-button" type="button">
             Action button
           </button>
         </p>
         <p>
           The styled{' '}
-          <a className="nextexample-link" href="#rerender-verify">
+          <a className="nx-link" href="#rerender-verify">
             rerender-verify section
           </a>{' '}
           below proves the panel's tokens persist across React state changes.
@@ -94,20 +94,20 @@ export default function HomePage() {
       </section>
 
       <section>
-        <h2 className="nextexample-heading">Palette swatches</h2>
-        <div className="nextexample-swatch-row">
+        <h2 className="nx-heading">Palette swatches</h2>
+        <div className="nx-swatch-row">
           {PALETTE_INDICES.map((i) => (
             <div
               key={i}
-              className="nextexample-swatch"
-              style={{ background: `var(--nextexample-palette-${i})` }}
+              className="nx-swatch"
+              style={{ background: `var(--nx-palette-${i})` }}
             >
               {i}
             </div>
           ))}
         </div>
-        <p className="nextexample-meta">
-          Each swatch reads <code>--nextexample-palette-{'{n}'}</code>. The
+        <p className="nx-meta">
+          Each swatch reads <code>--nx-palette-{'{n}'}</code>. The
           cluster's <code>paletteCssVarTemplate</code> is the only thing that
           decides this name — change it in <code>default-cluster.ts</code> and
           the apply pipeline writes a different variable on the next palette
@@ -146,8 +146,8 @@ function RerenderVerify() {
 
   return (
     <section id="rerender-verify">
-      <h2 className="nextexample-heading">Verify across rerender</h2>
-      <div className="nextexample-card">
+      <h2 className="nx-heading">Verify across rerender</h2>
+      <div className="nx-card">
         Click the button to trigger a React rerender. Tweak any panel slider,
         then click again — the tweaked value should still apply, because the
         page reads CSS custom properties from <code>:root</code> rather than
@@ -155,16 +155,16 @@ function RerenderVerify() {
         churn doesn't disturb the panel either.
       </div>
       <p>
-        <button type="button" className="nextexample-button" onClick={bump}>
+        <button type="button" className="nx-button" onClick={bump}>
           Rerender ({' '}
-          <span className="nextexample-rerender-counter">{count}</span> )
+          <span className="nx-rerender-counter">{count}</span> )
         </button>{' '}
-        <button type="button" className="nextexample-button" onClick={toggleChild}>
+        <button type="button" className="nx-button" onClick={toggleChild}>
           Toggle child subtree
         </button>
       </p>
       {showChild && (
-        <div className="nextexample-card">
+        <div className="nx-card">
           <strong>Child subtree present.</strong> This block mounts and
           unmounts on every toggle. The panel's own DOM root is appended by
           the adapter outside the React tree, so React reconciliation can

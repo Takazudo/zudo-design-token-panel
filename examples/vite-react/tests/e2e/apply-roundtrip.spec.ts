@@ -75,7 +75,7 @@ async function postApply(cssVar: string, value: string): Promise<void> {
 }
 
 test.describe('Vite + React example — apply pipeline round-trip', () => {
-  const TARGET_VAR = '--vitereact-radius';
+  const TARGET_VAR = '--vr-radius';
   const TEST_VALUE = '1.25rem';
   let originalValue = '';
 

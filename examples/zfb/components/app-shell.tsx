@@ -6,15 +6,15 @@
  *
  * Grid layout note (§137.1)
  * -------------------------
- * `.zfbexample-app-shell` uses CSS grid with columns driven by
- * `--zfbexample-size-sidenav-w` and `1fr`:
- *   grid-template-columns: var(--zfbexample-size-sidenav-w) 1fr
+ * `.zfb-app-shell` uses CSS grid with columns driven by
+ * `--zfb-size-sidenav-w` and `1fr`:
+ *   grid-template-columns: var(--zfb-size-sidenav-w) 1fr
  *
  * Token consumption:
- *   .zfbexample-app-shell         → grid-template-columns: var(--zfbexample-size-sidenav-w) 1fr; min-height: 100vh
- *   .zfbexample-app-shell__sidenav → background: var(--zfbexample-color-surface); padding: var(--zfbexample-spacing-md)
- *   .zfbexample-app-shell__main    → background: var(--zfbexample-bg); padding: var(--zfbexample-spacing-lg)
- *   .zfbexample-topbar             → height: var(--zfbexample-size-header-h); padding-inline: var(--zfbexample-spacing-md)
+ *   .zfb-app-shell         → grid-template-columns: var(--zfb-size-sidenav-w) 1fr; min-height: 100vh
+ *   .zfb-app-shell__sidenav → background: var(--zfb-color-surface); padding: var(--zfb-spacing-md)
+ *   .zfb-app-shell__main    → background: var(--zfb-bg); padding: var(--zfb-spacing-lg)
+ *   .zfb-topbar             → height: var(--zfb-size-header-h); padding-inline: var(--zfb-spacing-md)
  *
  * Panel Mount
  * -----------
@@ -45,14 +45,14 @@ export function AppShell({ title = 'zfb — Design Token Panel', activePath = BA
       </head>
       <body>
         {/* Topbar */}
-        <header class="zfbexample-topbar">
-          <span class="zfbexample-topbar__label">
+        <header class="zfb-topbar">
+          <span class="zfb-topbar__label">
             Storage prefix: <code>zfb-example-tokens</code>
           </span>
           <button
             type="button"
-            id="zfbexample-panel-open"
-            class="zfbexample-button"
+            id="zfb-panel-open"
+            class="zfb-button"
           >
             Open Design Token Panel
           </button>
@@ -60,23 +60,23 @@ export function AppShell({ title = 'zfb — Design Token Panel', activePath = BA
             Panel button click handler. Page body is SSR-only; the Island
             containing PanelMount runs client-side only. This inline script
             attaches a click listener at parse time, bridging the SSR/island gap.
-            Once PanelMount's useEffect installs window.zfbExample.toggleDesignPanel,
+            Once PanelMount's useEffect installs window.zfb.toggleDesignPanel,
             clicks invoke it.
           */}
           <script
             dangerouslySetInnerHTML={{
               __html:
-                "document.getElementById('zfbexample-panel-open')?.addEventListener('click',function(){var a=window.zfbExample;if(a&&typeof a.toggleDesignPanel==='function')a.toggleDesignPanel();});",
+                "document.getElementById('zfb-panel-open')?.addEventListener('click',function(){var a=window.zfb;if(a&&typeof a.toggleDesignPanel==='function')a.toggleDesignPanel();});",
             }}
           />
         </header>
 
         {/* Two-column grid: sidenav fixed-width from token, main fills remaining space. */}
-        <div class="zfbexample-app-shell">
-          <aside class="zfbexample-app-shell__sidenav">
+        <div class="zfb-app-shell">
+          <aside class="zfb-app-shell__sidenav">
             <Sidenav activePath={activePath} />
           </aside>
-          <main class="zfbexample-app-shell__main">
+          <main class="zfb-app-shell__main">
             {children}
           </main>
         </div>

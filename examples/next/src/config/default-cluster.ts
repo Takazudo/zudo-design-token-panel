@@ -1,7 +1,7 @@
 /**
  * Demo color cluster for the Next.js example.
  *
- * The cluster's CSS-var family is `--nextexample-*` (palette + base roles +
+ * The cluster's CSS-var family is `--nx-*` (palette + base roles +
  * semantic names), declared on `:root` by `src/styles/tokens.css`. Tweaks in
  * the panel write through these names; the apply pipeline (when wired through
  * the bin sidecar) rewrites the same names on disk.
@@ -14,14 +14,14 @@
 import type { ColorClusterConfig as ColorClusterDataConfig } from '@takazudo/zudo-design-token-panel';
 
 export const defaultCluster: ColorClusterDataConfig = {
-  id: 'nextexample-cluster',
+  id: 'nx-cluster',
   label: 'Next.js Example',
   paletteSize: 16,
   baseRoles: {
-    background: '--nextexample-bg',
-    foreground: '--nextexample-fg',
+    background: '--nx-bg',
+    foreground: '--nx-fg',
   },
-  paletteCssVarTemplate: '--nextexample-palette-{n}',
+  paletteCssVarTemplate: '--nx-palette-{n}',
   semanticDefaults: {
     primary: 1,
     accent: 3,
@@ -30,11 +30,11 @@ export const defaultCluster: ColorClusterDataConfig = {
     danger: 5,
   },
   semanticCssNames: {
-    primary: '--nextexample-color-primary',
-    accent: '--nextexample-color-accent',
-    surface: '--nextexample-color-surface',
-    muted: '--nextexample-color-muted',
-    danger: '--nextexample-color-danger',
+    primary: '--nx-color-primary',
+    accent: '--nx-color-accent',
+    surface: '--nx-color-surface',
+    muted: '--nx-color-muted',
+    danger: '--nx-color-danger',
   },
   baseDefaults: {
     background: 0,

@@ -290,10 +290,10 @@ const easingTab: TabConfig = {
       id: 'raw',
       label: 'Raw Easings',
       items: [
-        { id: 'ease-in',    cssVar: '--zfbexample-easing-ease-in',    label: 'Ease In',    default: 'cubic-bezier(0.42, 0, 1, 1)',    type: { kind: 'text' } },
-        { id: 'ease-out',   cssVar: '--zfbexample-easing-ease-out',   label: 'Ease Out',   default: 'cubic-bezier(0, 0, 0.58, 1)',    type: { kind: 'text' } },
-        { id: 'ease-inout', cssVar: '--zfbexample-easing-ease-inout', label: 'Ease InOut', default: 'cubic-bezier(0.42, 0, 0.58, 1)', type: { kind: 'text' } },
-        { id: 'linear',     cssVar: '--zfbexample-easing-linear',     label: 'Linear',     default: 'linear',                         type: { kind: 'text' } },
+        { id: 'ease-in',    cssVar: '--zfb-easing-ease-in',    label: 'Ease In',    default: 'cubic-bezier(0.42, 0, 1, 1)',    type: { kind: 'text' } },
+        { id: 'ease-out',   cssVar: '--zfb-easing-ease-out',   label: 'Ease Out',   default: 'cubic-bezier(0, 0, 0.58, 1)',    type: { kind: 'text' } },
+        { id: 'ease-inout', cssVar: '--zfb-easing-ease-inout', label: 'Ease InOut', default: 'cubic-bezier(0.42, 0, 0.58, 1)', type: { kind: 'text' } },
+        { id: 'linear',     cssVar: '--zfb-easing-linear',     label: 'Linear',     default: 'linear',                         type: { kind: 'text' } },
       ],
     },
     {
@@ -301,9 +301,9 @@ const easingTab: TabConfig = {
       label: 'Semantic',
       referencesTier: 'raw',
       items: [
-        { id: 'tab-open',    cssVar: '--zfbexample-easing-tab-open',  label: 'Tab Open',  default: 'ease-in',    type: { kind: 'text' } },
-        { id: 'tab-close',   cssVar: '--zfbexample-easing-tab-close', label: 'Tab Close', default: 'ease-out',   type: { kind: 'text' } },
-        { id: 'modal-enter', cssVar: '--zfbexample-easing-modal',     label: 'Modal',     default: 'ease-inout', type: { kind: 'text' } },
+        { id: 'tab-open',    cssVar: '--zfb-easing-tab-open',  label: 'Tab Open',  default: 'ease-in',    type: { kind: 'text' } },
+        { id: 'tab-close',   cssVar: '--zfb-easing-tab-close', label: 'Tab Close', default: 'ease-out',   type: { kind: 'text' } },
+        { id: 'modal-enter', cssVar: '--zfb-easing-modal',     label: 'Modal',     default: 'ease-inout', type: { kind: 'text' } },
       ],
     },
   ],
@@ -314,18 +314,18 @@ At apply time the resolver emits:
 
 ```css
 /* raw tier — literal values editable in the panel */
---zfbexample-easing-ease-in:    cubic-bezier(0.42, 0, 1, 1);
---zfbexample-easing-ease-out:   cubic-bezier(0, 0, 0.58, 1);
---zfbexample-easing-ease-inout: cubic-bezier(0.42, 0, 0.58, 1);
---zfbexample-easing-linear:     linear;
+--zfb-easing-ease-in:    cubic-bezier(0.42, 0, 1, 1);
+--zfb-easing-ease-out:   cubic-bezier(0, 0, 0.58, 1);
+--zfb-easing-ease-inout: cubic-bezier(0.42, 0, 0.58, 1);
+--zfb-easing-linear:     linear;
 
 /* semantic tier — cascade through raw vars */
---zfbexample-easing-tab-open:  var(--zfbexample-easing-ease-in);
---zfbexample-easing-tab-close: var(--zfbexample-easing-ease-out);
---zfbexample-easing-modal:     var(--zfbexample-easing-ease-inout);
+--zfb-easing-tab-open:  var(--zfb-easing-ease-in);
+--zfb-easing-tab-close: var(--zfb-easing-ease-out);
+--zfb-easing-modal:     var(--zfb-easing-ease-inout);
 ```
 
-If a user re-maps `tab-open` to point at `ease-inout` instead of `ease-in`, the resolver emits `var(--zfbexample-easing-ease-inout)` for that entry — no code change, just an override stored in the `TabOverrides` map.
+If a user re-maps `tab-open` to point at `ease-inout` instead of `ease-in`, the resolver emits `var(--zfb-easing-ease-inout)` for that entry — no code change, just an override stored in the `TabOverrides` map.
 
 ## Why this separation?
 

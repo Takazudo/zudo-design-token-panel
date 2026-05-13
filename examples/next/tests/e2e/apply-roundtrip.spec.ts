@@ -77,7 +77,7 @@ async function postApply(cssVar: string, value: string): Promise<void> {
 }
 
 test.describe('Next.js example — apply pipeline round-trip', () => {
-  const TARGET_VAR = '--nextexample-radius';
+  const TARGET_VAR = '--nx-radius';
   const TEST_VALUE = '1.25rem';
   let originalValue = '';
 

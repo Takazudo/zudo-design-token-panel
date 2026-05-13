@@ -2,7 +2,7 @@
  * Prose demo page — /prose
  *
  * Renders the single "prose" content-collection entry (content/prose/index.mdx)
- * inside a `.zfbexample-prose` container so that the --zfbexample-* prose tokens
+ * inside a `.zfb-prose` container so that the --zfb-* prose tokens
  * (vsp-*, hsp-*, text-*, leading-*, code-*) and the :where() flow-space rules
  * in styles/global.css apply to all markdown-generated HTML.
  *
@@ -74,7 +74,7 @@ export default function ProsePage() {
       title="Prose Demo — zfb Example"
       activePath={`${BASE_PATH}prose/`}
     >
-      <div class="zfbexample-prose">
+      <div class="zfb-prose">
         {ProseContent ? (
           <ProseContent components={{ ...defaultComponents }} />
         ) : (

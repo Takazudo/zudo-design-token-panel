@@ -2,14 +2,14 @@
  * Status surfaces demo — zfb plain CSS.
  *
  * Plain CSS mirror of zfb-tailwind/pages/components/status.tsx (#138).
- * Tailwind utilities replaced by .zfbexample-alert*, .zfbexample-badge*,
- * .zfbexample-tag*, .zfbexample-tooltip* classes from global.css.
+ * Tailwind utilities replaced by .zfb-alert*, .zfb-badge*,
+ * .zfb-tag*, .zfb-tooltip* classes from global.css.
  *
  * Badge colors: accent, success, warning, danger — 4 variants matching
  * zfb-tailwind (#132 shipped 4 variants; using 4 for consistency).
  *
- * Tooltip implementation: CSS :hover on .zfbexample-tooltip parent reveals
- * .zfbexample-tooltip__bubble sibling via opacity transition using
+ * Tooltip implementation: CSS :hover on .zfb-tooltip parent reveals
+ * .zfb-tooltip__bubble sibling via opacity transition using
  * easing-tab-open semantic token.
  */
 
@@ -21,28 +21,28 @@ const BASE_PATH = '/pj/zudo-design-token-panel/examples/zfb/';
 
 function Alerts() {
   return (
-    <section class="zfbexample-field-group" style={{ gap: 'var(--zfbexample-spacing-md)' }}>
-      <h2 class="zfbexample-section-h3">Alerts / callouts</h2>
-      <p class="zfbexample-body-text">
+    <section class="zfb-field-group" style={{ gap: 'var(--zfb-spacing-md)' }}>
+      <h2 class="zfb-section-h3">Alerts / callouts</h2>
+      <p class="zfb-body-text">
         Each variant uses a semantic color token for background, text, and border.
         Token contract: <code>color-accent</code> / <code>color-success</code> /{' '}
         <code>color-warning</code> / <code>color-danger</code>. Padding:{' '}
         <code>spacing-md</code>. Corners: <code>radius</code>.
       </p>
 
-      <div class="zfbexample-alert zfbexample-alert--info">
+      <div class="zfb-alert zfb-alert--info">
         <strong>Info:</strong> uses <code>color-accent</code>.
       </div>
 
-      <div class="zfbexample-alert zfbexample-alert--success">
+      <div class="zfb-alert zfb-alert--success">
         <strong>Success:</strong> uses <code>color-success</code>.
       </div>
 
-      <div class="zfbexample-alert zfbexample-alert--warning">
+      <div class="zfb-alert zfb-alert--warning">
         <strong>Warning:</strong> uses <code>color-warning</code>.
       </div>
 
-      <div class="zfbexample-alert zfbexample-alert--danger">
+      <div class="zfb-alert zfb-alert--danger">
         <strong>Danger:</strong> uses <code>color-danger</code>.
       </div>
     </section>
@@ -61,7 +61,7 @@ interface BadgeProps {
 
 function Badge({ color, variant, label }: BadgeProps) {
   return (
-    <span class={`zfbexample-badge zfbexample-badge--${variant} zfbexample-badge--${color}`}>
+    <span class={`zfb-badge zfb-badge--${variant} zfb-badge--${color}`}>
       {label}
     </span>
   );
@@ -71,9 +71,9 @@ function Badges() {
   const colors: BadgeColor[] = ['accent', 'success', 'warning', 'danger'];
 
   return (
-    <section class="zfbexample-field-group" style={{ gap: 'var(--zfbexample-spacing-md)' }}>
-      <h2 class="zfbexample-section-h3">Badges</h2>
-      <p class="zfbexample-body-text">
+    <section class="zfb-field-group" style={{ gap: 'var(--zfb-spacing-md)' }}>
+      <h2 class="zfb-section-h3">Badges</h2>
+      <p class="zfb-body-text">
         Filled badges: <code>bg: color-{'{color}'}</code> + <code>text: bg</code>.
         Outlined badges: <code>border + text: color-{'{color}'}</code>.
         Both use <code>px-spacing-xs</code>, <code>radius</code>, <code>text-small</code>.
@@ -82,10 +82,10 @@ function Badges() {
       </p>
 
       <div>
-        <p class="zfbexample-muted-text" style={{ marginBottom: 'var(--zfbexample-spacing-xs)' }}>
+        <p class="zfb-muted-text" style={{ marginBottom: 'var(--zfb-spacing-xs)' }}>
           Filled
         </p>
-        <div class="zfbexample-flex-wrap">
+        <div class="zfb-flex-wrap">
           {colors.map((c) => (
             <Badge key={`filled-${c}`} color={c} variant="filled" label={c} />
           ))}
@@ -93,10 +93,10 @@ function Badges() {
       </div>
 
       <div>
-        <p class="zfbexample-muted-text" style={{ marginBottom: 'var(--zfbexample-spacing-xs)' }}>
+        <p class="zfb-muted-text" style={{ marginBottom: 'var(--zfb-spacing-xs)' }}>
           Outlined
         </p>
-        <div class="zfbexample-flex-wrap">
+        <div class="zfb-flex-wrap">
           {colors.map((c) => (
             <Badge key={`outlined-${c}`} color={c} variant="outlined" label={c} />
           ))}
@@ -114,11 +114,11 @@ interface TagProps {
 
 function Tag({ label }: TagProps) {
   return (
-    <span class="zfbexample-tag">
+    <span class="zfb-tag">
       {label}
       <button
         type="button"
-        class="zfbexample-tag__close"
+        class="zfb-tag__close"
         aria-label={`Remove ${label}`}
       >
         ×
@@ -130,15 +130,15 @@ function Tag({ label }: TagProps) {
 function Tags() {
   const tags = ['Design', 'Tokens', 'CSS Vars', 'Preact'];
   return (
-    <section class="zfbexample-field-group" style={{ gap: 'var(--zfbexample-spacing-md)' }}>
-      <h2 class="zfbexample-section-h3">Tags / chips</h2>
-      <p class="zfbexample-body-text">
-        Container: <code>.zfbexample-tag</code> — <code>bg: color-surface</code>,{' '}
+    <section class="zfb-field-group" style={{ gap: 'var(--zfb-spacing-md)' }}>
+      <h2 class="zfb-section-h3">Tags / chips</h2>
+      <p class="zfb-body-text">
+        Container: <code>.zfb-tag</code> — <code>bg: color-surface</code>,{' '}
         <code>border: color-muted</code>, <code>px: spacing-sm</code>,{' '}
         <code>py: spacing-xs</code>, <code>radius</code>, <code>text-small</code>.
         Close button: <code>color-muted</code> resting, <code>color-danger</code> hover.
       </p>
-      <div class="zfbexample-flex-wrap">
+      <div class="zfb-flex-wrap">
         {tags.map((t) => (
           <Tag key={t} label={t} />
         ))}
@@ -149,7 +149,7 @@ function Tags() {
 
 // ── Tooltips ──────────────────────────────────────────────────────────────────
 //
-// CSS :hover on .zfbexample-tooltip reveals .zfbexample-tooltip__bubble.
+// CSS :hover on .zfb-tooltip reveals .zfb-tooltip__bubble.
 // No JavaScript required. Opacity transitions via easing-tab-open.
 
 interface TooltipProps {
@@ -159,18 +159,18 @@ interface TooltipProps {
 
 function Tooltip({ text, tip }: TooltipProps) {
   return (
-    <span class="zfbexample-tooltip">
-      <span class="zfbexample-tooltip__trigger">{text}</span>
-      <span class="zfbexample-tooltip__bubble" role="tooltip">{tip}</span>
+    <span class="zfb-tooltip">
+      <span class="zfb-tooltip__trigger">{text}</span>
+      <span class="zfb-tooltip__bubble" role="tooltip">{tip}</span>
     </span>
   );
 }
 
 function Tooltips() {
   return (
-    <section class="zfbexample-field-group" style={{ gap: 'var(--zfbexample-spacing-md)' }}>
-      <h2 class="zfbexample-section-h3">Tooltips</h2>
-      <p class="zfbexample-body-text">
+    <section class="zfb-field-group" style={{ gap: 'var(--zfb-spacing-md)' }}>
+      <h2 class="zfb-section-h3">Tooltips</h2>
+      <p class="zfb-body-text">
         Hover over the annotated terms. Bubble: <code>bg: color-surface</code>,{' '}
         <code>text: fg</code>, <code>border: color-muted</code>, <code>radius</code>,{' '}
         <code>px: spacing-sm, py: spacing-xs</code>, <code>text-small</code>.{' '}
@@ -179,12 +179,12 @@ function Tooltips() {
       </p>
 
       <div
-        class="zfbexample-surface-box"
-        style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--zfbexample-spacing-lg)', fontSize: 'var(--zfbexample-text-body)', color: 'var(--zfbexample-fg)' }}
+        class="zfb-surface-box"
+        style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--zfb-spacing-lg)', fontSize: 'var(--zfb-text-body)', color: 'var(--zfb-fg)' }}
       >
         <span>
           Token panel adjusts{' '}
-          <Tooltip text="spacing-md" tip="--zfbexample-spacing-md (default 1rem)" />{' '}
+          <Tooltip text="spacing-md" tip="--zfb-spacing-md (default 1rem)" />{' '}
           live in the browser.
         </span>
         <span>
@@ -211,10 +211,10 @@ export default function StatusPage() {
       activePath={`${BASE_PATH}components/status/`}
     >
       {/* reason: page-content max-width is a layout constant for this demo; no structural token covers prose-container widths */}
-      <div class="zfbexample-page-stack">
+      <div class="zfb-page-stack">
         <header>
-          <h1 class="zfbexample-section-h2">Status surfaces demo</h1>
-          <p class="zfbexample-body-text" style={{ marginTop: 'var(--zfbexample-spacing-sm)' }}>
+          <h1 class="zfb-section-h2">Status surfaces demo</h1>
+          <p class="zfb-body-text" style={{ marginTop: 'var(--zfb-spacing-sm)' }}>
             Covers alerts, badges, tags/chips, and tooltips — all driven by semantic
             color tokens <code>color-accent</code>, <code>color-success</code>,{' '}
             <code>color-warning</code>, <code>color-danger</code>.

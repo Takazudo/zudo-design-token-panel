@@ -26,15 +26,15 @@
  *   "exportedAt": "...",
  *   "tabs": {
  *     "spacing": {
- *       "raw": { "--zfbexample-spacing-md": "1.25rem" }
+ *       "raw": { "--zfb-spacing-md": "1.25rem" }
  *     },
  *     "font": {
- *       "raw":      { "--zfbexample-scale-base": "1rem" },
- *       "semantic": { "--zfbexample-text-base": "var(--zfbexample-scale-base)" }
+ *       "raw":      { "--zfb-scale-base": "1rem" },
+ *       "semantic": { "--zfb-text-base": "var(--zfb-scale-base)" }
  *     },
  *     "color": {
- *       "palette":  { "--zfbexample-palette-1": "#2d6cdf" },
- *       "semantic": { "--zfbexample-color-primary": 1 }   // palette-index integer
+ *       "palette":  { "--zfb-palette-1": "#2d6cdf" },
+ *       "semantic": { "--zfb-color-primary": 1 }   // palette-index integer
  *     }
  *   }
  * }

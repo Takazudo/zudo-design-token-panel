@@ -1,14 +1,14 @@
 /**
  * Demo tab config for the zfb-tailwind example.
  *
- * Every `cssVar` is a `--zfbtailwindexample-*` name. These line up byte-for-byte
+ * Every `cssVar` is a `--zfbtw-*` name. These line up byte-for-byte
  * with the declarations in `styles/global.css` so the panel can rewrite
  * the same names live and the apply pipeline can rewrite them on disk.
  *
  * The font tab uses a 2-tier setup (Wave 5):
- *   - Tier `raw` (in advancedTiers disclosure): 6 scale items
+ *   - Tier `raw`: 6 scale items
  *   - Tier `semantic` (referencesTier: 'raw'): text-base and text-heading
- *     each default to a scale item id and emit var(--zfbtailwindexample-scale-*)
+ *     each default to a scale item id and emit var(--zfbtw-scale-*)
  *
  * The color tab uses a 2-tier setup (Wave 7):
  *   - Tier `palette`: 16 hex swatches (kind: 'color')
@@ -34,34 +34,30 @@ export const defaultTabs: readonly TabConfig[] = [
         label: 'Spacing',
         items: [
           {
-            id: 'zfbtailwindexample-spacing-xs',
-            cssVar: '--zfbtailwindexample-spacing-xs',
+            id: 'zfbtw-spacing-xs',
+            cssVar: '--zfbtw-spacing-xs',
             label: 'Spacing XS',
-            group: 'spacing',
             default: '0.25rem',
             type: { kind: 'length', min: 0, max: 1, step: 0.0625, unit: 'rem' },
           },
           {
-            id: 'zfbtailwindexample-spacing-sm',
-            cssVar: '--zfbtailwindexample-spacing-sm',
+            id: 'zfbtw-spacing-sm',
+            cssVar: '--zfbtw-spacing-sm',
             label: 'Spacing S',
-            group: 'spacing',
             default: '0.5rem',
             type: { kind: 'length', min: 0, max: 1.5, step: 0.0625, unit: 'rem' },
           },
           {
-            id: 'zfbtailwindexample-spacing-md',
-            cssVar: '--zfbtailwindexample-spacing-md',
+            id: 'zfbtw-spacing-md',
+            cssVar: '--zfbtw-spacing-md',
             label: 'Spacing M',
-            group: 'hsp',
             default: '1rem',
             type: { kind: 'length', min: 0, max: 4, step: 0.0625, unit: 'rem' },
           },
           {
-            id: 'zfbtailwindexample-spacing-lg',
-            cssVar: '--zfbtailwindexample-spacing-lg',
+            id: 'zfbtw-spacing-lg',
+            cssVar: '--zfbtw-spacing-lg',
             label: 'Spacing L',
-            group: 'vsp',
             default: '2rem',
             type: { kind: 'length', min: 0, max: 6, step: 0.0625, unit: 'rem' },
           },
@@ -72,59 +68,50 @@ export const defaultTabs: readonly TabConfig[] = [
   {
     id: 'font',
     label: 'Font',
-    // Raw scale tier is an advanced (disclosed) section; semantic roles are
-    // shown at the top level. advancedTiers matches the tier id 'raw'.
-    advancedTiers: ['raw'],
     tiers: [
       {
         id: 'raw',
         label: 'Type Scale',
         items: [
           {
-            id: 'zfbtailwindexample-scale-xs',
-            cssVar: '--zfbtailwindexample-scale-xs',
+            id: 'zfbtw-scale-xs',
+            cssVar: '--zfbtw-scale-xs',
             label: 'Scale XS',
-            group: 'font-scale',
             default: '0.75rem',
             type: { kind: 'length', min: 0.5, max: 2, step: 0.0625, unit: 'rem' },
           },
           {
-            id: 'zfbtailwindexample-scale-sm',
-            cssVar: '--zfbtailwindexample-scale-sm',
+            id: 'zfbtw-scale-sm',
+            cssVar: '--zfbtw-scale-sm',
             label: 'Scale SM',
-            group: 'font-scale',
             default: '0.875rem',
             type: { kind: 'length', min: 0.5, max: 2, step: 0.0625, unit: 'rem' },
           },
           {
-            id: 'zfbtailwindexample-scale-base',
-            cssVar: '--zfbtailwindexample-scale-base',
+            id: 'zfbtw-scale-base',
+            cssVar: '--zfbtw-scale-base',
             label: 'Scale Base',
-            group: 'font-scale',
             default: '1rem',
             type: { kind: 'length', min: 0.5, max: 2, step: 0.0625, unit: 'rem' },
           },
           {
-            id: 'zfbtailwindexample-scale-lg',
-            cssVar: '--zfbtailwindexample-scale-lg',
+            id: 'zfbtw-scale-lg',
+            cssVar: '--zfbtw-scale-lg',
             label: 'Scale LG',
-            group: 'font-scale',
             default: '1.25rem',
             type: { kind: 'length', min: 0.75, max: 3, step: 0.0625, unit: 'rem' },
           },
           {
-            id: 'zfbtailwindexample-scale-xl',
-            cssVar: '--zfbtailwindexample-scale-xl',
+            id: 'zfbtw-scale-xl',
+            cssVar: '--zfbtw-scale-xl',
             label: 'Scale XL',
-            group: 'font-scale',
             default: '1.75rem',
             type: { kind: 'length', min: 1, max: 4, step: 0.0625, unit: 'rem' },
           },
           {
-            id: 'zfbtailwindexample-scale-2xl',
-            cssVar: '--zfbtailwindexample-scale-2xl',
+            id: 'zfbtw-scale-2xl',
+            cssVar: '--zfbtw-scale-2xl',
             label: 'Scale 2XL',
-            group: 'font-scale',
             default: '2.5rem',
             type: { kind: 'length', min: 1.5, max: 6, step: 0.0625, unit: 'rem' },
           },
@@ -137,21 +124,19 @@ export const defaultTabs: readonly TabConfig[] = [
         referencesTier: 'raw',
         items: [
           {
-            id: 'zfbtailwindexample-text-base',
-            cssVar: '--zfbtailwindexample-text-base',
+            id: 'zfbtw-text-base',
+            cssVar: '--zfbtw-text-base',
             label: 'Body Text',
-            group: 'font-role',
-            // References the raw item id 'zfbtailwindexample-scale-base'
-            default: 'zfbtailwindexample-scale-base',
+            // References the raw item id 'zfbtw-scale-base'
+            default: 'zfbtw-scale-base',
             type: { kind: 'text' },
           },
           {
-            id: 'zfbtailwindexample-text-heading',
-            cssVar: '--zfbtailwindexample-text-heading',
+            id: 'zfbtw-text-heading',
+            cssVar: '--zfbtw-text-heading',
             label: 'Heading Text',
-            group: 'font-role',
-            // References the raw item id 'zfbtailwindexample-scale-xl'
-            default: 'zfbtailwindexample-scale-xl',
+            // References the raw item id 'zfbtw-scale-xl'
+            default: 'zfbtw-scale-xl',
             type: { kind: 'text' },
           },
         ],
@@ -163,62 +148,61 @@ export const defaultTabs: readonly TabConfig[] = [
     label: 'Size',
     tiers: [
       {
-        id: 'raw',
+        id: 'size-scale',
         label: 'Size',
         items: [
           {
-            id: 'zfbtailwindexample-size-sidenav-w',
-            cssVar: '--zfbtailwindexample-size-sidenav-w',
+            id: 'zfbtw-size-sidenav-w',
+            cssVar: '--zfbtw-size-sidenav-w',
             label: 'Sidenav Width',
-            group: 'size',
             default: '14rem',
             type: { kind: 'length', min: 8, max: 24, step: 0.5, unit: 'rem' },
           },
           {
-            id: 'zfbtailwindexample-size-header-h',
-            cssVar: '--zfbtailwindexample-size-header-h',
+            id: 'zfbtw-size-header-h',
+            cssVar: '--zfbtw-size-header-h',
             label: 'Header Height',
-            group: 'size',
             default: '3.5rem',
             type: { kind: 'length', min: 2, max: 6, step: 0.25, unit: 'rem' },
           },
           {
-            id: 'zfbtailwindexample-size-avatar-sm',
-            cssVar: '--zfbtailwindexample-size-avatar-sm',
+            id: 'zfbtw-size-avatar-sm',
+            cssVar: '--zfbtw-size-avatar-sm',
             label: 'Avatar SM',
-            group: 'size',
             default: '2rem',
             type: { kind: 'length', min: 1, max: 4, step: 0.25, unit: 'rem' },
           },
           {
-            id: 'zfbtailwindexample-size-avatar-md',
-            cssVar: '--zfbtailwindexample-size-avatar-md',
+            id: 'zfbtw-size-avatar-md',
+            cssVar: '--zfbtw-size-avatar-md',
             label: 'Avatar MD',
-            group: 'size',
             default: '2.5rem',
             type: { kind: 'length', min: 1, max: 5, step: 0.25, unit: 'rem' },
           },
           {
-            id: 'zfbtailwindexample-size-icon-sm',
-            cssVar: '--zfbtailwindexample-size-icon-sm',
+            id: 'zfbtw-size-icon-sm',
+            cssVar: '--zfbtw-size-icon-sm',
             label: 'Icon SM',
-            group: 'size',
             default: '1rem',
             type: { kind: 'length', min: 0.5, max: 2, step: 0.0625, unit: 'rem' },
           },
           {
-            id: 'zfbtailwindexample-size-icon-md',
-            cssVar: '--zfbtailwindexample-size-icon-md',
+            id: 'zfbtw-size-icon-md',
+            cssVar: '--zfbtw-size-icon-md',
             label: 'Icon MD',
-            group: 'size',
             default: '1.25rem',
             type: { kind: 'length', min: 0.5, max: 2.5, step: 0.0625, unit: 'rem' },
           },
+        ],
+      },
+      {
+        id: 'radius-scale',
+        label: 'Radius',
+        items: [
           {
-            id: 'zfbtailwindexample-radius',
-            cssVar: '--zfbtailwindexample-radius',
+            id: 'zfbtw-radius',
+            cssVar: '--zfbtw-radius',
             label: 'Border Radius',
-            group: 'radius',
             default: '0.5rem',
             type: { kind: 'length', min: 0, max: 2, step: 0.0625, unit: 'rem' },
           },
@@ -244,22 +228,22 @@ export const defaultTabs: readonly TabConfig[] = [
         id: 'palette',
         label: 'Palette',
         items: [
-          { id: 'zfbtailwindexample-palette-0',  cssVar: '--zfbtailwindexample-palette-0',  label: 'Palette 0',  default: '#1e1e1e', type: { kind: 'color' as const } },
-          { id: 'zfbtailwindexample-palette-1',  cssVar: '--zfbtailwindexample-palette-1',  label: 'Palette 1',  default: '#2d6cdf', type: { kind: 'color' as const } },
-          { id: 'zfbtailwindexample-palette-2',  cssVar: '--zfbtailwindexample-palette-2',  label: 'Palette 2',  default: '#3aa676', type: { kind: 'color' as const } },
-          { id: 'zfbtailwindexample-palette-3',  cssVar: '--zfbtailwindexample-palette-3',  label: 'Palette 3',  default: '#d97706', type: { kind: 'color' as const } },
-          { id: 'zfbtailwindexample-palette-4',  cssVar: '--zfbtailwindexample-palette-4',  label: 'Palette 4',  default: '#9b5de5', type: { kind: 'color' as const } },
-          { id: 'zfbtailwindexample-palette-5',  cssVar: '--zfbtailwindexample-palette-5',  label: 'Palette 5',  default: '#e63946', type: { kind: 'color' as const } },
-          { id: 'zfbtailwindexample-palette-6',  cssVar: '--zfbtailwindexample-palette-6',  label: 'Palette 6',  default: '#1d3557', type: { kind: 'color' as const } },
-          { id: 'zfbtailwindexample-palette-7',  cssVar: '--zfbtailwindexample-palette-7',  label: 'Palette 7',  default: '#06b6d4', type: { kind: 'color' as const } },
-          { id: 'zfbtailwindexample-palette-8',  cssVar: '--zfbtailwindexample-palette-8',  label: 'Palette 8',  default: '#475569', type: { kind: 'color' as const } },
-          { id: 'zfbtailwindexample-palette-9',  cssVar: '--zfbtailwindexample-palette-9',  label: 'Palette 9',  default: '#94a3b8', type: { kind: 'color' as const } },
-          { id: 'zfbtailwindexample-palette-10', cssVar: '--zfbtailwindexample-palette-10', label: 'Palette 10', default: '#cbd5e1', type: { kind: 'color' as const } },
-          { id: 'zfbtailwindexample-palette-11', cssVar: '--zfbtailwindexample-palette-11', label: 'Palette 11', default: '#e2e8f0', type: { kind: 'color' as const } },
-          { id: 'zfbtailwindexample-palette-12', cssVar: '--zfbtailwindexample-palette-12', label: 'Palette 12', default: '#f1f5f9', type: { kind: 'color' as const } },
-          { id: 'zfbtailwindexample-palette-13', cssVar: '--zfbtailwindexample-palette-13', label: 'Palette 13', default: '#fef3c7', type: { kind: 'color' as const } },
-          { id: 'zfbtailwindexample-palette-14', cssVar: '--zfbtailwindexample-palette-14', label: 'Palette 14', default: '#bbf7d0', type: { kind: 'color' as const } },
-          { id: 'zfbtailwindexample-palette-15', cssVar: '--zfbtailwindexample-palette-15', label: 'Palette 15', default: '#f8fafc', type: { kind: 'color' as const } },
+          { id: 'zfbtw-palette-0',  cssVar: '--zfbtw-palette-0',  label: 'Palette 0',  default: '#1e1e1e', type: { kind: 'color' as const } },
+          { id: 'zfbtw-palette-1',  cssVar: '--zfbtw-palette-1',  label: 'Palette 1',  default: '#2d6cdf', type: { kind: 'color' as const } },
+          { id: 'zfbtw-palette-2',  cssVar: '--zfbtw-palette-2',  label: 'Palette 2',  default: '#3aa676', type: { kind: 'color' as const } },
+          { id: 'zfbtw-palette-3',  cssVar: '--zfbtw-palette-3',  label: 'Palette 3',  default: '#d97706', type: { kind: 'color' as const } },
+          { id: 'zfbtw-palette-4',  cssVar: '--zfbtw-palette-4',  label: 'Palette 4',  default: '#9b5de5', type: { kind: 'color' as const } },
+          { id: 'zfbtw-palette-5',  cssVar: '--zfbtw-palette-5',  label: 'Palette 5',  default: '#e63946', type: { kind: 'color' as const } },
+          { id: 'zfbtw-palette-6',  cssVar: '--zfbtw-palette-6',  label: 'Palette 6',  default: '#1d3557', type: { kind: 'color' as const } },
+          { id: 'zfbtw-palette-7',  cssVar: '--zfbtw-palette-7',  label: 'Palette 7',  default: '#06b6d4', type: { kind: 'color' as const } },
+          { id: 'zfbtw-palette-8',  cssVar: '--zfbtw-palette-8',  label: 'Palette 8',  default: '#475569', type: { kind: 'color' as const } },
+          { id: 'zfbtw-palette-9',  cssVar: '--zfbtw-palette-9',  label: 'Palette 9',  default: '#94a3b8', type: { kind: 'color' as const } },
+          { id: 'zfbtw-palette-10', cssVar: '--zfbtw-palette-10', label: 'Palette 10', default: '#cbd5e1', type: { kind: 'color' as const } },
+          { id: 'zfbtw-palette-11', cssVar: '--zfbtw-palette-11', label: 'Palette 11', default: '#e2e8f0', type: { kind: 'color' as const } },
+          { id: 'zfbtw-palette-12', cssVar: '--zfbtw-palette-12', label: 'Palette 12', default: '#f1f5f9', type: { kind: 'color' as const } },
+          { id: 'zfbtw-palette-13', cssVar: '--zfbtw-palette-13', label: 'Palette 13', default: '#fef3c7', type: { kind: 'color' as const } },
+          { id: 'zfbtw-palette-14', cssVar: '--zfbtw-palette-14', label: 'Palette 14', default: '#bbf7d0', type: { kind: 'color' as const } },
+          { id: 'zfbtw-palette-15', cssVar: '--zfbtw-palette-15', label: 'Palette 15', default: '#f8fafc', type: { kind: 'color' as const } },
         ],
       },
       {
@@ -267,13 +251,13 @@ export const defaultTabs: readonly TabConfig[] = [
         label: 'Semantic',
         referencesTier: 'palette',
         items: [
-          { id: 'primary', cssVar: '--zfbtailwindexample-color-primary', label: '--zfbtailwindexample-color-primary', default: 'zfbtailwindexample-palette-1', type: { kind: 'color' as const } },
-          { id: 'accent',  cssVar: '--zfbtailwindexample-color-accent',  label: '--zfbtailwindexample-color-accent',  default: 'zfbtailwindexample-palette-3', type: { kind: 'color' as const } },
-          { id: 'surface', cssVar: '--zfbtailwindexample-color-surface', label: '--zfbtailwindexample-color-surface', default: 'zfbtailwindexample-palette-0', type: { kind: 'color' as const } },
-          { id: 'muted',   cssVar: '--zfbtailwindexample-color-muted',   label: '--zfbtailwindexample-color-muted',   default: 'zfbtailwindexample-palette-8', type: { kind: 'color' as const } },
-          { id: 'success', cssVar: '--zfbtailwindexample-color-success', label: '--zfbtailwindexample-color-success', default: 'zfbtailwindexample-palette-2', type: { kind: 'color' as const } },
-          { id: 'warning', cssVar: '--zfbtailwindexample-color-warning', label: '--zfbtailwindexample-color-warning', default: 'zfbtailwindexample-palette-3', type: { kind: 'color' as const } },
-          { id: 'danger',  cssVar: '--zfbtailwindexample-color-danger',  label: '--zfbtailwindexample-color-danger',  default: 'zfbtailwindexample-palette-5', type: { kind: 'color' as const } },
+          { id: 'primary', cssVar: '--zfbtw-color-primary', label: '--zfbtw-color-primary', default: 'zfbtw-palette-1', type: { kind: 'color' as const } },
+          { id: 'accent',  cssVar: '--zfbtw-color-accent',  label: '--zfbtw-color-accent',  default: 'zfbtw-palette-3', type: { kind: 'color' as const } },
+          { id: 'surface', cssVar: '--zfbtw-color-surface', label: '--zfbtw-color-surface', default: 'zfbtw-palette-0', type: { kind: 'color' as const } },
+          { id: 'muted',   cssVar: '--zfbtw-color-muted',   label: '--zfbtw-color-muted',   default: 'zfbtw-palette-8', type: { kind: 'color' as const } },
+          { id: 'success', cssVar: '--zfbtw-color-success', label: '--zfbtw-color-success', default: 'zfbtw-palette-2', type: { kind: 'color' as const } },
+          { id: 'warning', cssVar: '--zfbtw-color-warning', label: '--zfbtw-color-warning', default: 'zfbtw-palette-3', type: { kind: 'color' as const } },
+          { id: 'danger',  cssVar: '--zfbtw-color-danger',  label: '--zfbtw-color-danger',  default: 'zfbtw-palette-5', type: { kind: 'color' as const } },
         ],
       },
     ],
@@ -286,10 +270,10 @@ export const defaultTabs: readonly TabConfig[] = [
         id: 'raw',
         label: 'RAW EASINGS',
         items: [
-          { id: 'ease-in',    cssVar: '--zfbtailwindexample-easing-ease-in',    label: 'Ease In',    default: 'cubic-bezier(0.42, 0, 1, 1)',    type: { kind: 'text' as const } },
-          { id: 'ease-out',   cssVar: '--zfbtailwindexample-easing-ease-out',   label: 'Ease Out',   default: 'cubic-bezier(0, 0, 0.58, 1)',    type: { kind: 'text' as const } },
-          { id: 'ease-inout', cssVar: '--zfbtailwindexample-easing-ease-inout', label: 'Ease InOut', default: 'cubic-bezier(0.42, 0, 0.58, 1)', type: { kind: 'text' as const } },
-          { id: 'linear',     cssVar: '--zfbtailwindexample-easing-linear',     label: 'Linear',     default: 'linear',                         type: { kind: 'text' as const } },
+          { id: 'ease-in',    cssVar: '--zfbtw-easing-ease-in',    label: 'Ease In',    default: 'cubic-bezier(0.42, 0, 1, 1)',    type: { kind: 'text' as const } },
+          { id: 'ease-out',   cssVar: '--zfbtw-easing-ease-out',   label: 'Ease Out',   default: 'cubic-bezier(0, 0, 0.58, 1)',    type: { kind: 'text' as const } },
+          { id: 'ease-inout', cssVar: '--zfbtw-easing-ease-inout', label: 'Ease InOut', default: 'cubic-bezier(0.42, 0, 0.58, 1)', type: { kind: 'text' as const } },
+          { id: 'linear',     cssVar: '--zfbtw-easing-linear',     label: 'Linear',     default: 'linear',                         type: { kind: 'text' as const } },
         ],
       },
       {
@@ -297,9 +281,9 @@ export const defaultTabs: readonly TabConfig[] = [
         label: 'SEMANTIC',
         referencesTier: 'raw',
         items: [
-          { id: 'tab-open',    cssVar: '--zfbtailwindexample-easing-tab-open',    label: 'Tab Open',   default: 'ease-in',    type: { kind: 'text' as const } },
-          { id: 'tab-close',   cssVar: '--zfbtailwindexample-easing-tab-close',   label: 'Tab Close',  default: 'ease-out',   type: { kind: 'text' as const } },
-          { id: 'modal-enter', cssVar: '--zfbtailwindexample-easing-modal',       label: 'Modal',      default: 'ease-inout', type: { kind: 'text' as const } },
+          { id: 'tab-open',    cssVar: '--zfbtw-easing-tab-open',    label: 'Tab Open',   default: 'ease-in',    type: { kind: 'text' as const } },
+          { id: 'tab-close',   cssVar: '--zfbtw-easing-tab-close',   label: 'Tab Close',  default: 'ease-out',   type: { kind: 'text' as const } },
+          { id: 'modal-enter', cssVar: '--zfbtw-easing-modal',       label: 'Modal',      default: 'ease-inout', type: { kind: 'text' as const } },
         ],
       },
     ],

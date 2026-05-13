@@ -3,12 +3,12 @@
  *
  * Plain CSS mirror of zfb-tailwind/components/data/data-table.tsx.
  *
- * Token consumption (via .zfbexample-table* classes in global.css):
- *   .zfbexample-table    → text-small, fg, color-muted (border), radius
- *   .zfbexample-table th → text-h4, fg, color-muted (bottom border), spacing-sm
- *   .zfbexample-table td → spacing-sm, color-muted (bottom border)
- *   .zfbexample-table tr:hover td → color-surface (bg)
- *   .zfbexample-table__action → size-icon-md (w/h), color-muted resting, color-accent hover
+ * Token consumption (via .zfb-table* classes in global.css):
+ *   .zfb-table    → text-small, fg, color-muted (border), radius
+ *   .zfb-table th → text-h4, fg, color-muted (bottom border), spacing-sm
+ *   .zfb-table td → spacing-sm, color-muted (bottom border)
+ *   .zfb-table tr:hover td → color-surface (bg)
+ *   .zfb-table__action → size-icon-md (w/h), color-muted resting, color-accent hover
  */
 
 const rows = [
@@ -21,8 +21,8 @@ const rows = [
 
 export function DataTable() {
   return (
-    <div class="zfbexample-table-wrap">
-      <table class="zfbexample-table">
+    <div class="zfb-table-wrap">
+      <table class="zfb-table">
         <thead>
           <tr>
             <th>Name</th>
@@ -38,11 +38,11 @@ export function DataTable() {
               <td>{row.email}</td>
               <td>{row.role}</td>
               <td>
-                <span class="zfbexample-table__actions">
+                <span class="zfb-table__actions">
                   <button
                     type="button"
                     aria-label={`Edit ${row.name}`}
-                    class="zfbexample-table__action"
+                    class="zfb-table__action"
                   >
                     {/* pencil icon */}
                     <svg width="1em" height="1em" viewBox="0 0 16 16" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
@@ -52,7 +52,7 @@ export function DataTable() {
                   <button
                     type="button"
                     aria-label={`Delete ${row.name}`}
-                    class="zfbexample-table__action"
+                    class="zfb-table__action"
                   >
                     {/* trash icon */}
                     <svg width="1em" height="1em" viewBox="0 0 16 16" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">

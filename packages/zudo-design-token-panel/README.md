@@ -354,7 +354,7 @@ The Astro recipe above shows the case where a host owns the config import and th
 
 **Worked example:** the example apps under [`examples/astro/`](../../examples/astro/), [`examples/vite-react/`](../../examples/vite-react/), and [`examples/next/`](../../examples/next/) prove the contract end-to-end. Each ships:
 
-- A host-side config file with deliberately different names (e.g. `--astroexample-palette-{n}`, `astroExample` namespace).
+- A host-side config file with deliberately different names (e.g. `--astro-palette-{n}`, `astro` namespace).
 - A routing JSON file at the example's root.
 - A bin invocation via `concurrently` in the dev script, pointing at that routing file.
 
@@ -1021,9 +1021,9 @@ For edge cases hit during the migration, see CONTRIBUTING and the doc-site refer
 
 The canonical worked examples live under [`examples/`](../../examples/) at the repo root. Three independent consumer apps demonstrate the panel across different host frameworks:
 
-- [`examples/astro/`](../../examples/astro/) — Astro + Preact island consumer. Uses `storagePrefix: 'astro-example-tokens'`, `consoleNamespace: 'astroExample'`, `paletteCssVarTemplate: '--astroexample-palette-{n}'`.
-- [`examples/vite-react/`](../../examples/vite-react/) — Vite + React consumer (panel mounted as a Preact island, React tree untouched). Uses the `viteReactExample` namespace.
-- [`examples/next/`](../../examples/next/) — Next.js (App Router) + React consumer, panel as a `'use client'` boundary. Uses the `nextExample` namespace.
+- [`examples/astro/`](../../examples/astro/) — Astro + Preact island consumer. Uses `storagePrefix: 'astro-example-tokens'`, `consoleNamespace: 'astro'`, `paletteCssVarTemplate: '--astro-palette-{n}'`.
+- [`examples/vite-react/`](../../examples/vite-react/) — Vite + React consumer (panel mounted as a Preact island, React tree untouched). Uses the `vr` namespace.
+- [`examples/next/`](../../examples/next/) — Next.js (App Router) + React consumer, panel as a `'use client'` boundary. Uses the `nx` namespace.
 
 Each example renders a tiny page with cards, buttons, and palette swatches whose styles reference its own demo CSS variables, so panel tweaks update the page in real time. Each ships a Playwright spec at `tests/e2e/apply-roundtrip.spec.ts` that asserts the live-apply pipeline.
 
@@ -1034,7 +1034,7 @@ pnpm install
 pnpm --filter @takazudo/zudo-design-token-panel build
 pnpm --filter astro-example dev
 # open http://localhost:44324
-# in devtools console: window.astroExample.toggleDesignPanel()
+# in devtools console: window.astro.toggleDesignPanel()
 ```
 
 Use the closest example as a copy-paste template when wiring the panel into your own project — they are the smallest end-to-end consumers that exercise every contract surface.

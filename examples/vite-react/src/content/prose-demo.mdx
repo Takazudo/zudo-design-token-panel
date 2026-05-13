@@ -1,7 +1,7 @@
 # Prose Demo
 
 This page demonstrates the full range of markdown-generated HTML elements
-styled through the `--vitereact*` token namespace.
+styled through the `--vr*` token namespace.
 Each section exercises a distinct element type so you can verify spacing,
 typography, and colour tokens at a glance.
 
@@ -56,14 +56,14 @@ no syntax highlighting; raw colouring from `code-bg` and `code-fg` tokens
 is sufficient.
 
 ```typescript
-// Wiring the prose token namespace for the vitereact demo
+// Wiring the prose token namespace for the vr demo
 const proseTokens = {
-  vspMd:          `var(--vitereact-vsp-md)`,
-  textBody:       `var(--vitereact-text-body)`,
-  leadingRelaxed: `var(--vitereact-leading-relaxed)`,
-  codeBg:         `var(--vitereact-code-bg)`,
-  codeFg:         `var(--vitereact-code-fg)`,
-  fontMono:       `var(--vitereact-font-mono)`,
+  vspMd:          `var(--vr-vsp-md)`,
+  textBody:       `var(--vr-text-body)`,
+  leadingRelaxed: `var(--vr-leading-relaxed)`,
+  codeBg:         `var(--vr-code-bg)`,
+  codeFg:         `var(--vr-code-fg)`,
+  fontMono:       `var(--vr-font-mono)`,
 } as const;
 
 export default proseTokens;
@@ -97,7 +97,7 @@ content) tokens produce balanced rhythm.
 Ordered lists share spacing tokens with unordered lists; the marker style
 differs but the rhythm should be identical.
 
-1. Define the token set in `--vitereact-*` namespace.
+1. Define the token set in `--vr-*` namespace.
 2. Wire the flow utility into the prose container:
    1. Apply `margin-block-start: var(--flow-space, ...)` to all children.
    2. Set per-element `--flow-space` overrides using `:where()` selectors.
@@ -163,13 +163,13 @@ Return to [home](/) to see the component gallery.
 ## Token reference
 
 The visual appearance of this page is driven entirely by the
-`--vitereact-*` token namespace.
+`--vr-*` token namespace.
 Vertical rhythm comes from `vsp-2xs` through `vsp-2xl`.
 Horizontal padding and indent come from `hsp-xs` through `hsp-xl`.
 Type sizes are set by `text-h2`, `text-h3`, `text-h4`, `text-body`,
 `text-small`, and `text-micro`.
 Line-heights use `leading-tight`, `leading-snug`, and `leading-relaxed`.
 Code blocks are styled with `code-bg`, `code-fg`, and `font-mono`.
-Heading borders and blockquote accents reuse the shared `--vitereact-color-fg`,
+Heading borders and blockquote accents reuse the shared `--vr-color-fg`,
 `--color-muted`, and `--color-accent` tokens — no additional colour tokens
 are required.

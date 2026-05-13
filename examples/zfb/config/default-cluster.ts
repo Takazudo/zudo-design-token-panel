@@ -1,7 +1,7 @@
 /**
  * Demo color cluster for the zfb example.
  *
- * The cluster's CSS-var family is `--zfbexample-*` (palette + base roles +
+ * The cluster's CSS-var family is `--zfb-*` (palette + base roles +
  * semantic names), declared on `:root` by `styles/tokens.css`. Tweaks in
  * the panel write through these names; the apply pipeline (when wired through
  * the bin sidecar) rewrites the same names on disk.
@@ -14,14 +14,14 @@
 import type { ColorClusterConfig as ColorClusterDataConfig } from '@takazudo/zudo-design-token-panel/astro';
 
 export const defaultCluster: ColorClusterDataConfig = {
-  id: 'zfbexample-cluster',
+  id: 'zfb-cluster',
   label: 'zfb Example',
   paletteSize: 16,
   baseRoles: {
-    background: '--zfbexample-bg',
-    foreground: '--zfbexample-fg',
+    background: '--zfb-bg',
+    foreground: '--zfb-fg',
   },
-  paletteCssVarTemplate: '--zfbexample-palette-{n}',
+  paletteCssVarTemplate: '--zfb-palette-{n}',
   semanticDefaults: {
     primary: 1,
     accent: 3,
@@ -32,13 +32,13 @@ export const defaultCluster: ColorClusterDataConfig = {
     danger: 5,
   },
   semanticCssNames: {
-    primary: '--zfbexample-color-primary',
-    accent:  '--zfbexample-color-accent',
-    surface: '--zfbexample-color-surface',
-    muted:   '--zfbexample-color-muted',
-    success: '--zfbexample-color-success',
-    warning: '--zfbexample-color-warning',
-    danger:  '--zfbexample-color-danger',
+    primary: '--zfb-color-primary',
+    accent:  '--zfb-color-accent',
+    surface: '--zfb-color-surface',
+    muted:   '--zfb-color-muted',
+    success: '--zfb-color-success',
+    warning: '--zfb-color-warning',
+    danger:  '--zfb-color-danger',
   },
   baseDefaults: {
     background: 0,
