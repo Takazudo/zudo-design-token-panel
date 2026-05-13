@@ -1184,3 +1184,51 @@
   font-family: var(--tokentweak-font-mono);
   line-height: 1.2;
 }
+
+/* ===========================================================================
+ * Shell role-button + listbox div (#149)
+ *
+ * Added here (end of file) to avoid conflicts with #148 / #150 which also
+ * add role=button styles. Each wave topic keeps its additions in a clearly
+ * marked section so merge conflicts are scoped and easy to resolve.
+ * ========================================================================= */
+
+/* Focus ring — visible :focus-visible on every role=button div inside the
+ * panel shell. Native <button> elements received the UA :focus-visible ring
+ * for free; divs do not, so we must supply it explicitly.
+ *
+ * The selector intentionally targets class names rather than [role=button]
+ * so only panel chrome elements are affected, not arbitrary host elements. */
+.tokenpanel-action-link:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.tokenpanel-close-btn:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.tokenpanel-tier-ref-trigger:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+}
+
+/* Listbox div — remove inherited list-style that would appear on div children
+ * if a host's global CSS sets list-style on ul children via [role=listbox] or
+ * similar selectors. The existing .tokenpanel-tier-ref-listbox / option rules
+ * handle layout; this is purely a defensive hygiene reset. */
+.tokenpanel-tier-ref-listbox[role='listbox'] {
+  list-style: none;
+}
+
+/* Tab button div (role=tab) focus ring — same pattern as role=button above.
+ * The .tokenpanel-tab-button :focus-visible rule from the Tab bar section
+ * already handles the tab button; this confirms div-based tabs keep it. */
+.tokenpanel-tab-button:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}

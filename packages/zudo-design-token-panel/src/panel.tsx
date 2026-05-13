@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useId, useMemo } from 'preact
 import { ExportModal } from './export-modal';
 import { ImportModal } from './import-modal';
 import { ApplyModal } from './apply-modal';
+import { RoleButton } from './controls/role-button';
 import ColorTab from './tabs/color-tab';
 import FontTab from './tabs/font-tab';
 import SizeTab from './tabs/size-tab';
@@ -116,7 +117,7 @@ export default function DesignTokenTweakPanel() {
   const [isNarrow, setIsNarrow] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   // tabRefs is now keyed by string to support host-supplied tab ids.
-  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({
+  const tabRefs = useRef<Record<string, HTMLDivElement | null>>({
     spacing: null,
     font: null,
     size: null,
@@ -228,9 +229,9 @@ export default function DesignTokenTweakPanel() {
   const handleDragStart = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     // Drag disabled on narrow viewports.
     if (window.innerWidth < NARROW_BREAKPOINT) return;
-    // Skip if target is a button, select, or inside one
+    // Skip if target is a button (or role=button/tab div), select, or inside one
     const target = e.target as HTMLElement;
-    if (target.closest("button, select, option, [role='tab']")) return;
+    if (target.closest("button, select, option, [role='tab'], [role='button']")) return;
     e.preventDefault();
     const startX = e.clientX;
     const startY = e.clientY;
@@ -416,7 +417,7 @@ export default function DesignTokenTweakPanel() {
 
   // --- Tab keyboard navigation (WAI-ARIA tablist pattern) ---
   const handleTabKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
       const idx = activeTabs.findIndex((t) => t.id === activeTab);
       if (idx === -1) return;
       let nextIdx: number | null = null;
@@ -483,33 +484,29 @@ export default function DesignTokenTweakPanel() {
           onMouseDown={handleDragStart}
         >
           <span className="tokenpanel-title">Design Tokens</span>
-          <button
-            type="button"
+          <RoleButton
             onClick={() => setShowExport(true)}
             className="tokenpanel-action-link"
           >
             Export
-          </button>
-          <button
-            type="button"
+          </RoleButton>
+          <RoleButton
             onClick={() => setShowImport(true)}
             className="tokenpanel-action-link"
           >
             Load from JSON…
-          </button>
-          <button
-            type="button"
+          </RoleButton>
+          <RoleButton
             onClick={() => setShowApply(true)}
             className="tokenpanel-action-link"
           >
             Apply
-          </button>
-          <button type="button" onClick={handleResetAll} className="tokenpanel-action-link">
+          </RoleButton>
+          <RoleButton onClick={handleResetAll} className="tokenpanel-action-link">
             Reset
-          </button>
+          </RoleButton>
           <div className="tokenpanel-spacer" />
-          <button
-            type="button"
+          <RoleButton
             onClick={() => setOpen(false)}
             className="tokenpanel-close-btn"
             aria-label="Close panel"
@@ -528,7 +525,7 @@ export default function DesignTokenTweakPanel() {
               <path d="M18 6 6 18" />
               <path d="m6 6 12 12" />
             </svg>
-          </button>
+          </RoleButton>
         </div>
 
         {/* Tab bar — data-driven when PanelConfig.tabs is supplied, otherwise
@@ -545,12 +542,11 @@ export default function DesignTokenTweakPanel() {
             {activeTabs.map((tab) => {
               const isSelected = activeTab === tab.id;
               return (
-                <button
+                <div
                   key={tab.id}
                   ref={(el) => {
                     tabRefs.current[tab.id] = el;
                   }}
-                  type="button"
                   role="tab"
                   id={`dtp-tab-${instanceId}-${tab.id}`}
                   aria-selected={isSelected}
@@ -563,7 +559,7 @@ export default function DesignTokenTweakPanel() {
                   }
                 >
                   {tab.label}
-                </button>
+                </div>
               );
             })}
           </div>

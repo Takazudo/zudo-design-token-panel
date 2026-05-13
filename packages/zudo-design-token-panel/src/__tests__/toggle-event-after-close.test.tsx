@@ -91,7 +91,8 @@ describe('design-token-panel — toggle event after close', () => {
     // (it would couple us to ARIA selectors), so we drive the same
     // observable outcome by reading the close button from the DOM
     // and clicking it.
-    const closeBtn = root!.querySelector<HTMLButtonElement>('button.tokenpanel-close-btn');
+    // Close button is now a div[role=button] per #149 chrome-button policy
+    const closeBtn = root!.querySelector<HTMLElement>('.tokenpanel-close-btn');
     expect(closeBtn, 'close button should render while panel is open').not.toBeNull();
     closeBtn!.click();
     await waitForEffectFlush();
