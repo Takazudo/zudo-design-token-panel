@@ -12,8 +12,10 @@ import type { TabConfig } from './tokens/tier-model';
 import { usePersist } from './state/persist';
 import {
   type TweakState,
+  type PanelDensity,
   type PanelPosition,
   type PanelSize,
+  DEFAULT_DENSITY,
   DEFAULT_POSITION,
   applyFullState,
   clampPosition,
@@ -21,14 +23,17 @@ import {
   clearAppliedStyles,
   clearPersistedState,
   defaultSize,
+  densityToGridMin,
   emptyOverrides,
   getOpenKey,
   initColorFromScheme,
   initSecondaryFromConfig,
+  loadDensity,
   loadPersistedState,
   loadPosition,
   loadSize,
   savePersistedState,
+  saveDensity,
   savePosition,
   saveSize,
 } from './state/tweak-state';
@@ -107,6 +112,7 @@ export default function DesignTokenTweakPanel() {
   const [activeTab, setActiveTab] = useState<string>(DEFAULT_TAB_ID);
   const [position, setPosition] = useState<PanelPosition>(DEFAULT_POSITION);
   const [size, setSize] = useState<PanelSize>(defaultSize);
+  const [density, setDensity] = useState<PanelDensity>(DEFAULT_DENSITY);
   const [isNarrow, setIsNarrow] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   // tabRefs is now keyed by string to support host-supplied tab ids.
@@ -142,8 +148,15 @@ export default function DesignTokenTweakPanel() {
     const loadedSize = loadSize();
     setSize(loadedSize);
     sizeRef.current = loadedSize;
+    setDensity(loadDensity());
     // Initial narrow-check
     setIsNarrow(window.innerWidth < NARROW_BREAKPOINT);
+  }, []);
+
+  // Persist density on change
+  const handleDensityChange = useCallback((next: PanelDensity) => {
+    setDensity(next);
+    saveDensity(next);
   }, []);
 
   // Persist open state
@@ -457,6 +470,10 @@ export default function DesignTokenTweakPanel() {
           width: panelW,
           height: panelH,
           maxHeight: 'calc(100vh - 32px)',
+          // `--tokenpanel-grid-min` is read by .tokenpanel-tab-grid /
+          // .tokenpanel-tab-advanced-grid; switching the variable rewires the
+          // min-card-width without re-rendering the grids.
+          ['--tokenpanel-grid-min' as string]: densityToGridMin(density),
         }}
       >
         {/* Header row (expert/reset) — draggable on desktop only */}
@@ -515,30 +532,64 @@ export default function DesignTokenTweakPanel() {
         </div>
 
         {/* Tab bar — data-driven when PanelConfig.tabs is supplied, otherwise
-            falls back to the legacy hard-coded LEGACY_TABS strip. */}
-        <div role="tablist" aria-label="Design token categories" className="tokenpanel-tabbar">
-          {activeTabs.map((tab) => {
-            const isSelected = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                ref={(el) => {
-                  tabRefs.current[tab.id] = el;
-                }}
-                type="button"
-                role="tab"
-                id={`dtp-tab-${instanceId}-${tab.id}`}
-                aria-selected={isSelected}
-                aria-controls={`dtp-panel-${instanceId}-${tab.id}`}
-                tabIndex={isSelected ? 0 : -1}
-                onClick={() => setActiveTab(tab.id)}
-                onKeyDown={handleTabKeyDown}
-                className={isSelected ? 'tokenpanel-tab-button is-active' : 'tokenpanel-tab-button'}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
+            falls back to the legacy hard-coded LEGACY_TABS strip. The tablist
+            (role="tablist") and the density slider live side-by-side inside
+            `.tokenpanel-tabbar`; the wrapper is a plain container so the
+            tablist only ever has `role=tab` children. */}
+        <div className="tokenpanel-tabbar">
+          <div
+            role="tablist"
+            aria-label="Design token categories"
+            className="tokenpanel-tabbar-tabs"
+          >
+            {activeTabs.map((tab) => {
+              const isSelected = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  ref={(el) => {
+                    tabRefs.current[tab.id] = el;
+                  }}
+                  type="button"
+                  role="tab"
+                  id={`dtp-tab-${instanceId}-${tab.id}`}
+                  aria-selected={isSelected}
+                  aria-controls={`dtp-panel-${instanceId}-${tab.id}`}
+                  tabIndex={isSelected ? 0 : -1}
+                  onClick={() => setActiveTab(tab.id)}
+                  onKeyDown={handleTabKeyDown}
+                  className={
+                    isSelected ? 'tokenpanel-tab-button is-active' : 'tokenpanel-tab-button'
+                  }
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="tokenpanel-density">
+            <label
+              htmlFor={`dtp-density-${instanceId}`}
+              className="tokenpanel-density-label"
+              title="Tab grid density: dense / cozy / wide (forces 1 column)"
+            >
+              Density
+            </label>
+            <input
+              id={`dtp-density-${instanceId}`}
+              type="range"
+              min={0}
+              max={2}
+              step={1}
+              value={density}
+              onInput={(e) => {
+                const raw = Number((e.currentTarget as HTMLInputElement).value);
+                if (raw === 0 || raw === 1 || raw === 2) handleDensityChange(raw);
+              }}
+              className="tokenpanel-density-slider"
+              aria-label="Tab grid density"
+            />
+          </div>
         </div>
 
         {/* Tab panels — reserved ids dispatch to their dedicated components;
