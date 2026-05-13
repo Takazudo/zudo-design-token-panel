@@ -1197,3 +1197,42 @@
 .tokenpanel-tab-section [role="heading"] {
   display: block;
 }
+
+/* ===========================================================================
+ * Modal role-button + heading divs + code reset (#150)
+ *
+ * Additions for the semantic-tag replacement in apply/export/import modals.
+ * Kept in a clearly-named section at the end per coordination note in #150.
+ * ========================================================================= */
+
+/* tokenpanel-code — replaces <code> inline spans. Carries monospace font and
+   a hard reset so host code-element resets cannot override it. */
+.tokenpanel-code {
+  font-family: var(--tokentweak-font-mono);
+  font-size: inherit;
+  /* Hard reset: undo any host code-element resets that target tag selectors.
+     These are intentional even if redundant; the goal is isolation. */
+  background: none;
+  color: inherit;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  white-space: pre-wrap;
+}
+
+/* aria-disabled style for role=button divs replacing <button disabled>.
+   The :disabled pseudo-class no longer fires on divs — replicate it via
+   aria-disabled attribute. */
+[data-design-token-panel-modal] [class*='__button'][aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* focus-visible outline for all role=button divs in the modal layer.
+   Ensures keyboard-visible focus styles that match the existing :focus-visible
+   rules already present on [class*='__button'] and [class*='__close-button']. */
+[data-design-token-panel-modal] [role='button']:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+}
