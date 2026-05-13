@@ -63,6 +63,8 @@ textarea {
 /* Token declarations */
 :root {
   /* Spacing tokens (manifest: spacing tab) */
+  --zfbexample-spacing-xs: 0.25rem;
+  --zfbexample-spacing-sm: 0.5rem;
   --zfbexample-spacing-md: 1rem;
   --zfbexample-spacing-lg: 2rem;
 
@@ -79,6 +81,12 @@ textarea {
   --zfbexample-text-heading: var(--zfbexample-scale-xl);
 
   /* Size tokens (manifest: size tab) */
+  --zfbexample-size-sidenav-w: 14rem;
+  --zfbexample-size-header-h: 3.5rem;
+  --zfbexample-size-avatar-sm: 2rem;
+  --zfbexample-size-avatar-md: 2.5rem;
+  --zfbexample-size-icon-sm: 1rem;
+  --zfbexample-size-icon-md: 1.25rem;
   --zfbexample-radius: 0.5rem;
 
   /* Cluster base roles (default-cluster.ts → baseRoles) */
@@ -108,6 +116,8 @@ textarea {
   --zfbexample-color-accent: var(--zfbexample-palette-3);
   --zfbexample-color-surface: var(--zfbexample-palette-0);
   --zfbexample-color-muted: var(--zfbexample-palette-8);
+  --zfbexample-color-success: var(--zfbexample-palette-2);
+  --zfbexample-color-warning: var(--zfbexample-palette-3);
   --zfbexample-color-danger: var(--zfbexample-palette-5);
 
   /* Easing tokens (easing tab — raw tier) */
