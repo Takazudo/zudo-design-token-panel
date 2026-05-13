@@ -23,6 +23,21 @@ export function ProseDemo() {
       <nav className="vitereact-prose-nav">
         <a href={`${import.meta.env.BASE_URL}index.html`}>← Back to component gallery</a>
       </nav>
+      <p>
+        <button
+          type="button"
+          className="vitereact-button"
+          onClick={() => {
+            (
+              window as unknown as {
+                viteReactExample?: { toggleDesignPanel?: () => void };
+              }
+            ).viteReactExample?.toggleDesignPanel?.();
+          }}
+        >
+          Open Design Token Panel
+        </button>
+      </p>
       <main className="vitereact-prose">
         <ProseDemoContent />
       </main>
