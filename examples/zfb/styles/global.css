@@ -142,7 +142,79 @@ body {
   background: var(--zfbexample-bg);
   color: var(--zfbexample-fg);
   font-size: var(--zfbexample-text-base);
+}
+
+/* ─── App shell layout ───────────────────────────────────────────────────── */
+
+.zfbexample-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--zfbexample-size-header-h);
+  padding-inline: var(--zfbexample-spacing-md);
+  background: var(--zfbexample-color-surface);
+  border-bottom: 1px solid var(--zfbexample-color-muted);
+}
+
+.zfbexample-topbar__label {
+  font-size: var(--zfbexample-text-small);
+  color: var(--zfbexample-color-muted);
+}
+
+/* Two-column shell grid: sidenav token-width + main fills remaining space */
+.zfbexample-app-shell {
+  display: grid;
+  /* reason: grid template needs structural mix of a sidebar token and 1fr;
+     no token-only class expresses this combination */
+  grid-template-columns: var(--zfbexample-size-sidenav-w) 1fr;
+  min-height: calc(100vh - var(--zfbexample-size-header-h));
+}
+
+.zfbexample-app-shell__sidenav {
+  background: var(--zfbexample-color-surface);
+  padding: var(--zfbexample-spacing-md);
+}
+
+.zfbexample-app-shell__main {
+  background: var(--zfbexample-bg);
   padding: var(--zfbexample-spacing-lg);
+}
+
+/* ─── Sidenav ────────────────────────────────────────────────────────────── */
+
+.zfbexample-sidenav {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.zfbexample-sidenav__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zfbexample-vsp-xs);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.zfbexample-sidenav__link {
+  display: block;
+  font-size: var(--zfbexample-text-body);
+  padding-inline: var(--zfbexample-spacing-sm);
+  padding-block: var(--zfbexample-spacing-xs);
+  border-radius: var(--zfbexample-radius);
+  color: var(--zfbexample-color-muted);
+  text-decoration: none;
+}
+
+.zfbexample-sidenav__link:hover {
+  color: var(--zfbexample-fg);
+  background: var(--zfbexample-bg);
+}
+
+.zfbexample-sidenav__link.is-active {
+  color: var(--zfbexample-color-accent);
+  font-weight: 600;
 }
 
 .zfbexample-stack {
