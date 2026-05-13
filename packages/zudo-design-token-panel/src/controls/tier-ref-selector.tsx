@@ -83,8 +83,8 @@ function TierRefSelector({ tab, tierId, itemId, value, onChange }: TierRefSelect
   const [open, setOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState<number>(0);
 
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const listboxRef = useRef<HTMLUListElement | null>(null);
+  const triggerRef = useRef<HTMLDivElement | null>(null);
+  const listboxRef = useRef<HTMLDivElement | null>(null);
 
   const triggerId = useId();
   const listboxId = useId();
@@ -203,12 +203,23 @@ function TierRefSelector({ tab, tierId, itemId, value, onChange }: TierRefSelect
   // Render
   // -------------------------------------------------------------------------
 
+  // Stable option id helper — scoped to this listbox instance via listboxId.
+  // Used for aria-activedescendant on the listbox container.
+  function optionId(idx: number): string {
+    return `${listboxId}-opt-${idx}`;
+  }
+
+  const activedescendant = open ? optionId(focusedIndex) : undefined;
+
   return (
     <div className="tokenpanel-tier-ref-selector">
-      {/* Trigger button */}
-      <button
+      {/* Trigger — chrome button policy: div role=button with Enter/Space keydown.
+          Uses a plain div (not RoleButton) to keep ref assignment and full
+          aria-haspopup / aria-expanded / aria-controls control in one place. */}
+      <div
         ref={triggerRef}
-        type="button"
+        role="button"
+        tabIndex={0}
         id={triggerId}
         className="tokenpanel-tier-ref-trigger"
         aria-haspopup="listbox"
@@ -221,22 +232,25 @@ function TierRefSelector({ tab, tierId, itemId, value, onChange }: TierRefSelect
         <span className="tokenpanel-tier-ref-trigger-arrow" aria-hidden>
           {open ? '▲' : '▼'}
         </span>
-      </button>
+      </div>
 
-      {/* Dropdown listbox */}
+      {/* Dropdown listbox — div role=listbox replaces ul; ARIA roles preserved.
+          aria-activedescendant tracks the keyboard-focused option by id. */}
       {open && (
-        <ul
+        <div
           ref={listboxRef}
           id={listboxId}
           role="listbox"
           aria-labelledby={triggerId}
+          aria-activedescendant={activedescendant}
           tabIndex={-1}
           className="tokenpanel-tier-ref-listbox"
           onKeyDown={handleListKeyDown}
         >
           {refItems.map((item, idx) => (
-            <li
+            <div
               key={item.id}
+              id={optionId(idx)}
               role="option"
               aria-selected={item.id === value}
               data-focused={idx === focusedIndex || undefined}
@@ -259,12 +273,13 @@ function TierRefSelector({ tab, tierId, itemId, value, onChange }: TierRefSelect
               <span className="tokenpanel-tier-ref-option-preview">
                 {truncatePreview(item.default)}
               </span>
-            </li>
+            </div>
           ))}
 
           {/* "Literal..." sentinel option */}
-          <li
+          <div
             key="__literal__"
+            id={optionId(LITERAL_INDEX)}
             role="option"
             aria-selected={false}
             data-focused={LITERAL_INDEX === focusedIndex || undefined}
@@ -279,8 +294,8 @@ function TierRefSelector({ tab, tierId, itemId, value, onChange }: TierRefSelect
             onMouseEnter={() => setFocusedIndex(LITERAL_INDEX)}
           >
             <span className="tokenpanel-tier-ref-option-label">Literal…</span>
-          </li>
-        </ul>
+          </div>
+        </div>
       )}
     </div>
   );
