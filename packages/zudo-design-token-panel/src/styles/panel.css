@@ -142,10 +142,18 @@
 .tokenpanel-tabbar {
   display: flex;
   align-items: center;
-  gap: 2px;
   border-bottom: 1px solid var(--tokentweak-color-muted);
   padding-inline: var(--tokentweak-pad-xl);
   flex-shrink: 0;
+  gap: var(--tokentweak-pad-md);
+}
+
+.tokenpanel-tabbar-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
 }
 
 .tokenpanel-tab-button {
@@ -170,6 +178,31 @@
   color: var(--tokentweak-color-fg);
   border-bottom-color: var(--tokentweak-color-accent);
   text-decoration: none;
+}
+
+/* Density slider — right side of the tabbar. Three-stop range slider that
+   drives the `--tokenpanel-grid-min` custom property on `.tokenpanel-shell`,
+   which `.tokenpanel-tab-grid` / `.tokenpanel-tab-advanced-grid` read. */
+.tokenpanel-density {
+  display: flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-sm);
+  flex-shrink: 0;
+}
+
+.tokenpanel-density-label {
+  color: var(--tokentweak-color-muted);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  user-select: none;
+  cursor: pointer;
+}
+
+.tokenpanel-density-slider {
+  width: 5rem;
+  accent-color: var(--tokentweak-color-accent);
+  cursor: pointer;
 }
 
 /* ===========================================================================
@@ -285,16 +318,15 @@
   font-size: 0.875rem;
 }
 
+/* Panel-width-aware columns: cards stay 1-col while the panel itself is narrow,
+   reflow to 2-col (or more) once each card can be at least `--tokenpanel-grid-min`
+   wide. The variable is set on `.tokenpanel-shell` from the density slider in
+   the tabbar (12rem / 18rem / 100% for dense / cozy / wide). Fallback 18rem
+   keeps the rule working if the variable is ever absent. */
 .tokenpanel-tab-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(var(--tokenpanel-grid-min, 18rem), 1fr));
   gap: var(--tokentweak-gap-xs);
-}
-
-@media (min-width: 640px) {
-  .tokenpanel-tab-grid {
-    grid-template-columns: 1fr 1fr;
-  }
 }
 
 .tokenpanel-tab-advanced {
@@ -313,15 +345,9 @@
 
 .tokenpanel-tab-advanced-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(var(--tokenpanel-grid-min, 18rem), 1fr));
   gap: var(--tokentweak-gap-xs);
   margin-top: var(--tokentweak-gap-2xs);
-}
-
-@media (min-width: 640px) {
-  .tokenpanel-tab-advanced-grid {
-    grid-template-columns: 1fr 1fr;
-  }
 }
 
 /* ===========================================================================

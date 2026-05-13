@@ -45,6 +45,7 @@ import {
 import {
   getPanelConfig,
   resolveSecondaryColorCluster,
+  storageKey_density,
   storageKey_open,
   storageKey_position,
   storageKey_size,
@@ -114,6 +115,10 @@ export function getPositionKey(): string {
 
 export function getSizeKey(): string {
   return storageKey_size(getPanelConfig());
+}
+
+export function getDensityKey(): string {
+  return storageKey_density(getPanelConfig());
 }
 
 // ---------------------------------------------------------------------------
@@ -259,6 +264,52 @@ export function loadSize(): PanelSize {
 export function saveSize(size: PanelSize) {
   try {
     localStorage.setItem(getSizeKey(), JSON.stringify(size));
+  } catch {
+    /* ignore */
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tab-grid density
+// ---------------------------------------------------------------------------
+
+/**
+ * User-chosen tab-grid density. Three discrete stops exposed as integers so a
+ * native `<input type="range">` slider can read/write directly:
+ *
+ *   0 = dense  — small min-card width, more columns fit on a wide panel
+ *   1 = cozy   — the auto-fit minmax default
+ *   2 = wide   — forces one column so long var names are fully readable
+ *
+ * Mapped to a CSS `min` length by `densityToGridMin()`; the resolved length is
+ * exposed on the panel shell via the `--tokenpanel-grid-min` custom property
+ * and consumed by `.tokenpanel-tab-grid` / `.tokenpanel-tab-advanced-grid`.
+ */
+export type PanelDensity = 0 | 1 | 2;
+
+export const DEFAULT_DENSITY: PanelDensity = 1;
+
+export function densityToGridMin(density: PanelDensity): string {
+  if (density === 0) return '12rem';
+  if (density === 2) return '100%';
+  return '18rem';
+}
+
+export function loadDensity(): PanelDensity {
+  try {
+    const saved = localStorage.getItem(getDensityKey());
+    if (saved === '0' || saved === '1' || saved === '2') {
+      return Number(saved) as PanelDensity;
+    }
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_DENSITY;
+}
+
+export function saveDensity(density: PanelDensity) {
+  try {
+    localStorage.setItem(getDensityKey(), String(density));
   } catch {
     /* ignore */
   }

@@ -345,6 +345,11 @@ export function storageKey_size(cfg: PanelConfig): string {
   return `${cfg.storagePrefix}-size`;
 }
 
+/** Tab-grid density preference (one of `0` / `1` / `2`). Lives alongside size/position. */
+export function storageKey_density(cfg: PanelConfig): string {
+  return `${cfg.storagePrefix}-density`;
+}
+
 /**
  * Adapter-level visibility-intent flag.
  *
