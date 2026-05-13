@@ -65,6 +65,7 @@ export default function ProsePage() {
       title="Prose Demo — zfb + Tailwind v4 — Design Token Panel"
       activePath={`${BASE_PATH}prose/`}
     >
+      {/* reason: prose-container max-width is a typography constant for readability; no structural token covers prose-container widths */}
       <div class="max-w-[48rem] mx-auto">
         <h1 class="text-heading font-bold mb-vsp-xl text-primary leading-tight">
           Prose Demo
