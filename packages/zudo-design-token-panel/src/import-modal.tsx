@@ -209,14 +209,14 @@ export function ImportModal({ onClose, onLoad, colorDefaults }: ImportModalProps
       data-design-token-panel-modal=""
       data-design-token-panel-modal-variant="import"
     >
-      <h2 id={titleId} className={modalClass(cfg, '__title')}>
+      <div id={titleId} role="heading" aria-level={2} className={modalClass(cfg, '__title')}>
         Load Design Tokens
-      </h2>
+      </div>
 
-      <p className={modalClass(cfg, '__hint')}>
-        Paste a <code>{expectedSchema}</code> JSON blob. Unknown tokens are ignored; schema mismatch
-        aborts the load.
-      </p>
+      <div className={modalClass(cfg, '__hint')}>
+        Paste a <span className="tokenpanel-code">{expectedSchema}</span> JSON blob. Unknown tokens
+        are ignored; schema mismatch aborts the load.
+      </div>
 
       <textarea
         ref={textareaRef}
@@ -228,29 +228,43 @@ export function ImportModal({ onClose, onLoad, colorDefaults }: ImportModalProps
       />
 
       {note && (
-        <p
+        <div
           role={note.kind === 'error' ? 'alert' : 'status'}
           className={`${modalClass(cfg, '__status')} ${modalClass(cfg, `__status--${note.kind}`)}`}
         >
           {note.text}
-        </p>
+        </div>
       )}
 
       <div className={modalClass(cfg, '__actions')}>
-        <button
-          type="button"
+        <div
+          role="button"
+          tabIndex={0}
           onClick={handleLoad}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              handleLoad();
+            }
+          }}
           className={`${modalClass(cfg, '__button')} ${modalClass(cfg, '__button--primary')}`}
         >
           Load
-        </button>
-        <button
-          type="button"
+        </div>
+        <div
+          role="button"
+          tabIndex={0}
           onClick={() => dialogRef.current?.close()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              dialogRef.current?.close();
+            }
+          }}
           className={modalClass(cfg, '__button')}
         >
           Close
-        </button>
+        </div>
       </div>
     </dialog>
   );
