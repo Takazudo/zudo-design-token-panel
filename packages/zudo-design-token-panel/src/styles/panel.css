@@ -48,6 +48,43 @@
   box-shadow: 0 4px 24px rgb(0 0 0 / 0.25);
 }
 
+/* ===========================================================================
+ * Resize grip (bottom-right corner)
+ *
+ * Windows-style diagonal-stripes hint, hidden in narrow (touch) mode by the
+ * panel component skipping the element altogether. The three stripes are
+ * drawn with `repeating-linear-gradient` so no SVG or extra DOM is needed.
+ * ========================================================================= */
+
+.tokenpanel-resize-handle {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  user-select: none;
+  /* Three short diagonal lines drawn in muted color, mirroring the Windows
+     bottom-right grip. The mask clips the gradient to a triangle so the
+     stripes only appear in the bottom-right wedge. */
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent 0,
+    transparent 2px,
+    var(--tokentweak-color-muted) 2px,
+    var(--tokentweak-color-muted) 3px
+  );
+  -webkit-mask-image: linear-gradient(135deg, transparent 50%, #000 50%);
+  mask-image: linear-gradient(135deg, transparent 50%, #000 50%);
+  border-bottom-right-radius: var(--radius-tokentweak);
+  transition: opacity 150ms ease;
+  opacity: 0.7;
+}
+.tokenpanel-resize-handle:hover,
+.tokenpanel-resize-handle:focus-visible {
+  opacity: 1;
+}
+
 .tokenpanel-header {
   display: flex;
   align-items: center;

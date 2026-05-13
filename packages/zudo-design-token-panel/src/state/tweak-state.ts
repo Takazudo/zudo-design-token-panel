@@ -47,6 +47,7 @@ import {
   resolveSecondaryColorCluster,
   storageKey_open,
   storageKey_position,
+  storageKey_size,
   storageKey_stateV1,
   storageKey_stateV2,
   storageKey_stateV3,
@@ -111,6 +112,10 @@ export function getPositionKey(): string {
   return storageKey_position(getPanelConfig());
 }
 
+export function getSizeKey(): string {
+  return storageKey_size(getPanelConfig());
+}
+
 // ---------------------------------------------------------------------------
 // Panel position
 // ---------------------------------------------------------------------------
@@ -173,6 +178,91 @@ export function savePosition(pos: PanelPosition) {
 
 /** Keep at least VISIBLE_MIN px of the panel on-screen so the user can grab it back. */
 export const VISIBLE_MIN = 60;
+
+// ---------------------------------------------------------------------------
+// Panel size (user-resizable)
+// ---------------------------------------------------------------------------
+
+export interface PanelSize {
+  width: number;
+  height: number;
+}
+
+/** Minimum panel size — small enough to feel snappy, large enough to keep the header + tabbar usable. */
+export const MIN_PANEL_WIDTH = 320;
+export const MIN_PANEL_HEIGHT = 240;
+
+/** Hard upper caps so the panel never grows past sensible bounds even before viewport clamping. */
+export const MAX_PANEL_WIDTH = 1600;
+export const MAX_PANEL_HEIGHT = 1200;
+
+/**
+ * SSR-safe static fallback. Matches the historical CSS expression
+ * `min(1200, 0.8 * vw)` × `min(800, 0.8 * vh)` evaluated for a 1024×768
+ * viewport so the package stays usable when imported during SSR (no
+ * window). Runtime callers should prefer `defaultSize()`.
+ */
+export const DEFAULT_SIZE: PanelSize = { width: 1024 * 0.8, height: 768 * 0.8 };
+
+/**
+ * Compute the first-open panel size in px. Mirrors the historical CSS
+ * `min(1200, 0.8 * vw)` × `min(800, 0.8 * vh)` rule so existing users
+ * experience the same default size after this PR ships.
+ */
+export function defaultSize(): PanelSize {
+  if (typeof window === 'undefined') return DEFAULT_SIZE;
+  return {
+    width: Math.min(1200, 0.8 * window.innerWidth),
+    height: Math.min(800, 0.8 * window.innerHeight),
+  };
+}
+
+/** Margin kept around the panel when clamping size against the viewport. */
+const SIZE_VIEWPORT_MARGIN = 32;
+
+/**
+ * Clamp a `{ width, height }` against the configured min caps and the current
+ * viewport. The viewport upper bound prevents a panel saved on a 4K monitor
+ * from rendering off-screen when reopened on a 1080p laptop.
+ */
+export function clampSize(width: number, height: number): PanelSize {
+  const vw = typeof window !== 'undefined' ? window.innerWidth : MAX_PANEL_WIDTH;
+  const vh = typeof window !== 'undefined' ? window.innerHeight : MAX_PANEL_HEIGHT;
+  const maxW = Math.max(MIN_PANEL_WIDTH, Math.min(MAX_PANEL_WIDTH, vw - SIZE_VIEWPORT_MARGIN));
+  const maxH = Math.max(MIN_PANEL_HEIGHT, Math.min(MAX_PANEL_HEIGHT, vh - SIZE_VIEWPORT_MARGIN));
+  return {
+    width: Math.max(MIN_PANEL_WIDTH, Math.min(width, maxW)),
+    height: Math.max(MIN_PANEL_HEIGHT, Math.min(height, maxH)),
+  };
+}
+
+export function loadSize(): PanelSize {
+  try {
+    const saved = localStorage.getItem(getSizeKey());
+    if (saved) {
+      const parsed = JSON.parse(saved) as PanelSize;
+      if (
+        typeof parsed.width === 'number' &&
+        typeof parsed.height === 'number' &&
+        Number.isFinite(parsed.width) &&
+        Number.isFinite(parsed.height)
+      ) {
+        return clampSize(parsed.width, parsed.height);
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return defaultSize();
+}
+
+export function saveSize(size: PanelSize) {
+  try {
+    localStorage.setItem(getSizeKey(), JSON.stringify(size));
+  } catch {
+    /* ignore */
+  }
+}
 
 // `_panelHeight` is currently unused — see B2 fix note below. Kept on the
 // signature (with the underscore prefix that TypeScript treats as
