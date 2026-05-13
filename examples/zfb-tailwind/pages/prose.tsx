@@ -19,41 +19,25 @@
  * the project has at least one dynamic route whose `paths()` is deferred
  * to runtime (see `crates/zfb/src/commands/build.rs` — the
  * `content_snapshot_json` branch gated on `!still_deferred.is_empty()`).
- * This demo has only static `/` and `/prose`, so the embedded snapshot
- * ships as `{ "collections": {} }` and `getCollection("prose")` returns
- * `[]` during render — triggering the "No prose content found" fallback.
+ * This demo has only static pages, so the embedded snapshot ships as
+ * `{ "collections": {} }` and `getCollection("prose")` returns `[]` during
+ * render — triggering the "No prose content found" fallback.
  *
- * The compiled MDX is still registered with the runtime bridge
- * (`globalThis.__zfb.content.get("mdx://prose/index")`) regardless of the
- * snapshot, so we ask the bridge directly when `getCollection` is empty.
- * Once zfb always emits the snapshot for declared collections, this
- * fallback becomes a no-op and can be deleted — `getCollection` will
- * return the entry and the bridge path is never reached.
+ * The compiled MDX is still registered with the runtime bridge regardless of
+ * the snapshot, so we ask the bridge directly when `getCollection` is empty.
  *
- * Prose container strategy
- * ------------------------
- * Per `doc/.claude/prose-token-contract.md`:
- * For zfb demos that do not use framework-level MDX component overrides,
- * container-scoped CSS with `:where()` is acceptable. The `styles/global.css`
- * file defines the `.zfbtailwindexample-prose` container rules inside
- * `@layer components`, which keeps them correctly positioned below Tailwind
- * utility classes in the cascade.
- *
- * Panel mount
- * -----------
- * Same `<Island when="visible" ssrFallback={null}>` pattern as index.tsx.
- * The panel adapter is shared via the `panelConfig` import from
- * `../config/panel-config`.
+ * Layout shell
+ * ------------
+ * The page is wrapped in `<AppShell>`, which renders the HTML document shell,
+ * topbar (panel-open button), sidenav, and main content area.
  */
 
-import { Island, type IslandProps } from '@takazudo/zfb';
 import {
   getCollection,
   type ContentElement,
   type ContentProps,
 } from '@takazudo/zfb/content';
-import PanelMount from '../components/panel-mount';
-import '../styles/global.css';
+import { AppShell } from '../components/app-shell';
 
 const BASE_PATH = '/pj/zudo-design-token-panel/examples/zfb-tailwind/';
 
@@ -77,62 +61,33 @@ export default function ProsePage() {
   const ProseContent = resolveProseContent();
 
   return (
-    <html lang="en">
-      <head>
-        <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Prose Demo — zfb + Tailwind v4 — Design Token Panel</title>
-      </head>
-      <body class="p-spacing-lg">
-        <nav class="mb-vsp-lg">
-          <a href={BASE_PATH} class="text-accent underline text-small">
-            Back to showcase
-          </a>
-        </nav>
+    <AppShell
+      title="Prose Demo — zfb + Tailwind v4 — Design Token Panel"
+      activePath={`${BASE_PATH}prose/`}
+    >
+      {/* reason: prose-container max-width is a typography constant for readability; no structural token covers prose-container widths */}
+      <div class="max-w-[48rem] mx-auto">
+        <h1 class="text-heading font-bold mb-vsp-xl text-primary leading-tight">
+          Prose Demo
+        </h1>
+        <p class="mb-vsp-xl text-small text-muted">
+          All typography and spacing tokens are from the{' '}
+          <code>--zfbtailwindexample-*</code> namespace.
+          Open the panel (<code>window.zfbTailwindExample.toggleDesignPanel()</code>){' '}
+          to tweak them live.
+        </p>
 
-        <main class="max-w-[48rem] mx-auto">
-          <h1 class="text-heading font-bold mb-vsp-xl text-primary leading-tight">
-            Prose Demo
-          </h1>
-          <p class="mb-vsp-xl">
-            <button
-              type="button"
-              id="zfbtailwindexample-panel-open"
-              class="inline-block p-spacing-md rounded-md bg-accent text-bg border-none cursor-pointer hover:bg-primary"
-            >
-              Open Design Token Panel
-            </button>
+        {ProseContent ? (
+          <article class="zfbtailwindexample-prose">
+            <ProseContent />
+          </article>
+        ) : (
+          <p class="text-danger">
+            No prose content found. Expected a file at{' '}
+            <code>content/prose/index.mdx</code>.
           </p>
-          {/* SSR-only body — see pages/index.tsx for the rationale. */}
-          <script
-            dangerouslySetInnerHTML={{
-              __html:
-                "document.getElementById('zfbtailwindexample-panel-open')?.addEventListener('click',function(){var a=window.zfbTailwindExample;if(a&&typeof a.toggleDesignPanel==='function')a.toggleDesignPanel();});",
-            }}
-          />
-          <p class="text-small text-muted mb-vsp-xl">
-            All typography and spacing tokens are from the{' '}
-            <code>--zfbtailwindexample-*</code> namespace.
-            Open the panel (<code>window.zfbTailwindExample.toggleDesignPanel()</code>){' '}
-            to tweak them live.
-          </p>
-
-          {ProseContent ? (
-            <article class="zfbtailwindexample-prose">
-              <ProseContent />
-            </article>
-          ) : (
-            <p class="text-danger">
-              No prose content found. Expected a file at{' '}
-              <code>content/prose/index.mdx</code>.
-            </p>
-          )}
-        </main>
-
-        <Island when="visible" ssrFallback={null}>
-          {(<PanelMount />) as unknown as IslandProps['children']}
-        </Island>
-      </body>
-    </html>
+        )}
+      </div>
+    </AppShell>
   );
 }
