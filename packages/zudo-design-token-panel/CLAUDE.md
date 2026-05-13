@@ -129,3 +129,40 @@ The companion CSS rule is unchanged — the selector targets the class, not the 
 ```
 
 This swap is purely structural: it removes the tag-level styling hook without touching the class-based visual styling.
+
+## Hostile-host test page
+
+A verification harness page lives at `doc/src/content/docs/internal/hostile-host.mdx`. It is marked `unlisted: true` (not indexed, not in sidebar) and documents the hostile-host test scenario for the Panel Hardening epic (#145).
+
+### URL (local dev)
+
+Start the doc site dev server:
+
+```sh
+pnpm --filter doc dev
+# URL: http://localhost:4321/pj/zudo-design-token-panel/docs/internal/hostile-host/
+```
+
+### What it covers
+
+- The complete hostile CSS block (h1–h6, button, p/ul/li, pre/code, svg/path, universal box-shadow) used to verify CSS isolation.
+- Step-by-step instructions for injecting the hostile CSS into any running example app via the DevTools console.
+- Static-grep findings table: every banned-tag occurrence in `src/**/*.tsx` (excluding tests) categorised as regression, false positive, or intentional exemption.
+- A11y follow-up note: keyboard accessibility under hostile host requires browser verification via /verify-ui.
+
+### Running the harness
+
+1. Start any example app (Astro example recommended): `pnpm --filter @takazudo/zudo-design-token-panel-astro-example dev`
+2. Paste the hostile `<style>` injection snippet from the harness page into DevTools console.
+3. Toggle the panel: `window.astro.toggleDesignPanel()`
+4. Exercise every tab and every modal.
+5. Confirm no panel element inherits the hostile colours/sizes.
+
+### Known regressions (as of Wave 2)
+
+Two `<pre>` elements remain in production markup and will bleed through hostile `pre { font-family: "Comic Sans MS"; background: yellow }` overrides:
+
+- `src/export-modal.tsx` line 202 — JSON display in the export modal.
+- `src/apply-modal.tsx` line 766 — JSON snapshot in the apply-modal success view.
+
+Fix recipe: replace `<pre>` with `<div role="none">` styled with `white-space: pre; font-family: monospace` in the companion CSS. Track as a follow-up sub-issue against epic #145.
