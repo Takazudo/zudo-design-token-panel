@@ -763,7 +763,7 @@ function SuccessBody({
       <div className={cls.revertHint}>
         To revert, paste this JSON into Load from JSON… and re-apply.
       </div>
-      <pre className={cls.jsonBlock}>{previewJson}</pre>
+      <div role="none" className={cls.jsonBlock}>{previewJson}</div>
     </div>
   );
 }

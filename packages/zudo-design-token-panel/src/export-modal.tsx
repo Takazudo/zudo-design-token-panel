@@ -199,7 +199,7 @@ export function ExportModal({ onClose, state, colorDefaults }: ExportModalProps)
         Show defaults too
       </label>
 
-      <pre className={modalClass(cfg, '__json')}>{code}</pre>
+      <div role="none" className={modalClass(cfg, '__json')}>{code}</div>
 
       <div className={modalClass(cfg, '__actions')}>
         <div

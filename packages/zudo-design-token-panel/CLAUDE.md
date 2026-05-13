@@ -158,14 +158,9 @@ pnpm --filter doc dev
 4. Exercise every tab and every modal.
 5. Confirm no panel element inherits the hostile colours/sizes.
 
-### Known regressions (as of Wave 2)
+### Known regressions
 
-Two `<pre>` elements remain in production markup and will bleed through hostile `pre { font-family: "Comic Sans MS"; background: yellow }` overrides:
-
-- `src/export-modal.tsx` line 202 — JSON display in the export modal.
-- `src/apply-modal.tsx` line 766 — JSON snapshot in the apply-modal success view.
-
-Fix recipe: replace `<pre>` with `<div role="none">` styled with `white-space: pre; font-family: monospace` in the companion CSS. Track as a follow-up sub-issue against epic #145.
+None as of the Panel Hardening epic merge. The two `<pre>` blocks originally found by #151 (export-modal `__json` and apply-modal `jsonBlock`) were swapped to `<div role="none">` with `white-space: pre; font-family: monospace` carried by the companion CSS.
 
 ## Cross-example cascade verification
 

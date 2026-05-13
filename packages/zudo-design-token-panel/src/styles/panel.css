@@ -898,6 +898,11 @@
   color: var(--tokentweak-color-code-fg);
   padding: var(--tokentweak-pad-sm);
   font-size: var(--tokentweak-text-small);
+  /* Now a div (formerly pre) — explicitly carry the white-space + monospace
+     behavior that pre's UA defaults previously provided. Avoiding the pre tag
+     keeps host stylesheets that target pre by name from bleeding in. */
+  white-space: pre;
+  font-family: var(--tokentweak-font-mono);
 }
 
 [data-design-token-panel-modal] [class*='__status'] {
