@@ -31,7 +31,10 @@
 
 /* ── Token declarations ──────────────────────────────────────────────────── */
 :root {
-  /* Spacing tokens (manifest: spacing tab) */
+  /* Spacing tokens (manifest: spacing tab) — xs/sm are component-padding tokens;
+     md/lg are page-padding tokens used by AppShell / sidenav */
+  --zfbtailwindexample-spacing-xs: 0.25rem;
+  --zfbtailwindexample-spacing-sm: 0.5rem;
   --zfbtailwindexample-spacing-md: 1rem;
   --zfbtailwindexample-spacing-lg: 2rem;
 
@@ -47,7 +50,13 @@
   --zfbtailwindexample-text-base: var(--zfbtailwindexample-scale-base);
   --zfbtailwindexample-text-heading: var(--zfbtailwindexample-scale-xl);
 
-  /* Size tokens (manifest: size tab) */
+  /* Size tokens (manifest: size tab) — layout/component dimensions */
+  --zfbtailwindexample-size-sidenav-w: 14rem;
+  --zfbtailwindexample-size-header-h: 3.5rem;
+  --zfbtailwindexample-size-avatar-sm: 2rem;
+  --zfbtailwindexample-size-avatar-md: 2.5rem;
+  --zfbtailwindexample-size-icon-sm: 1rem;
+  --zfbtailwindexample-size-icon-md: 1.25rem;
   --zfbtailwindexample-radius: 0.5rem;
 
   /* Cluster base roles */
@@ -77,6 +86,8 @@
   --zfbtailwindexample-color-accent: var(--zfbtailwindexample-palette-3);
   --zfbtailwindexample-color-surface: var(--zfbtailwindexample-palette-0);
   --zfbtailwindexample-color-muted: var(--zfbtailwindexample-palette-8);
+  --zfbtailwindexample-color-success: var(--zfbtailwindexample-palette-2);
+  --zfbtailwindexample-color-warning: var(--zfbtailwindexample-palette-3);
   --zfbtailwindexample-color-danger: var(--zfbtailwindexample-palette-5);
 
   /* Easing tokens — raw curves (easing tab, raw tier) */
@@ -160,13 +171,27 @@
   --color-accent:  var(--zfbtailwindexample-color-accent);
   --color-surface: var(--zfbtailwindexample-color-surface);
   --color-muted:   var(--zfbtailwindexample-color-muted);
+  --color-success: var(--zfbtailwindexample-color-success);
+  --color-warning: var(--zfbtailwindexample-color-warning);
   --color-danger:  var(--zfbtailwindexample-color-danger);
   --color-bg:      var(--zfbtailwindexample-bg);
   --color-fg:      var(--zfbtailwindexample-fg);
 
-  /* Spacing utilities for manifest spacing tokens: p-spacing-md, gap-spacing-lg */
+  /* Spacing utilities for manifest spacing tokens: p-spacing-xs, p-spacing-sm, … */
+  --spacing-spacing-xs: var(--zfbtailwindexample-spacing-xs);
+  --spacing-spacing-sm: var(--zfbtailwindexample-spacing-sm);
+  /* spacing-md / spacing-lg are already mapped — do not re-add */
   --spacing-spacing-md: var(--zfbtailwindexample-spacing-md);
   --spacing-spacing-lg: var(--zfbtailwindexample-spacing-lg);
+
+  /* Size utilities: w-size-sidenav-w, h-size-header-h, w-size-avatar-sm, etc.
+     Per G3: size tokens live under --spacing-size-* to generate w- and h- utilities */
+  --spacing-size-sidenav-w: var(--zfbtailwindexample-size-sidenav-w);
+  --spacing-size-header-h:  var(--zfbtailwindexample-size-header-h);
+  --spacing-size-avatar-sm: var(--zfbtailwindexample-size-avatar-sm);
+  --spacing-size-avatar-md: var(--zfbtailwindexample-size-avatar-md);
+  --spacing-size-icon-sm:   var(--zfbtailwindexample-size-icon-sm);
+  --spacing-size-icon-md:   var(--zfbtailwindexample-size-icon-md);
 
   /* Vertical spacing utilities: p-vsp-md, m-vsp-xl, gap-vsp-lg, … */
   --spacing-vsp-2xs: var(--zfbtailwindexample-vsp-2xs);
