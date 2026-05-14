@@ -31,13 +31,6 @@
 
 /* ── Token declarations ──────────────────────────────────────────────────── */
 :root {
-  /* Spacing tokens (manifest: spacing tab) — xs/sm are component-padding tokens;
-     md/lg are page-padding tokens used by AppShell / sidenav */
-  --zfbtw-spacing-xs: 0.25rem;
-  --zfbtw-spacing-sm: 0.5rem;
-  --zfbtw-spacing-md: 1rem;
-  --zfbtw-spacing-lg: 2rem;
-
   /* Font scale tokens (font tab — raw tier, in raw tier) */
   --zfbtw-scale-xs: 0.75rem;
   --zfbtw-scale-sm: 0.875rem;
@@ -176,13 +169,6 @@
   --color-danger:  var(--zfbtw-color-danger);
   --color-bg:      var(--zfbtw-bg);
   --color-fg:      var(--zfbtw-fg);
-
-  /* Spacing utilities for manifest spacing tokens: p-spacing-xs, p-spacing-sm, … */
-  --spacing-spacing-xs: var(--zfbtw-spacing-xs);
-  --spacing-spacing-sm: var(--zfbtw-spacing-sm);
-  /* spacing-md / spacing-lg are already mapped — do not re-add */
-  --spacing-spacing-md: var(--zfbtw-spacing-md);
-  --spacing-spacing-lg: var(--zfbtw-spacing-lg);
 
   /* Size utilities: w-size-sidenav-w, h-size-header-h, w-size-avatar-sm, etc.
      Per G3: size tokens live under --spacing-size-* to generate w- and h- utilities */
@@ -470,7 +456,7 @@
   .zfbtw-easing-card {
     display: block;
     width: 100%;
-    padding: var(--zfbtw-spacing-md);
+    padding: var(--zfbtw-hsp-md);
     background: var(--zfbtw-color-surface);
     border: 1px solid var(--zfbtw-color-muted);
     border-radius: var(--zfbtw-radius);
