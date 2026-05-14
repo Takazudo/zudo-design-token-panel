@@ -28,7 +28,7 @@ export default function WidgetsPage() {
       {/* reason: page-content max-width is a layout constant for this demo; no structural token covers prose-container widths */}
       <div class="flex flex-col gap-vsp-lg max-w-[56rem] mx-auto">
         <header>
-          <h1 class="text-h2 text-primary font-bold mb-vsp-md">
+          <h1 class="text-page-title text-primary font-bold mb-vsp-md">
             Interactive Widgets
           </h1>
           <p class="text-body text-fg">
@@ -40,7 +40,7 @@ export default function WidgetsPage() {
 
         {/* ── Tabs ──────────────────────────────────────────────────────────── */}
         <section>
-          <h2 class="text-h3 text-fg font-semibold mb-vsp-sm">
+          <h2 class="text-section-title text-fg font-semibold mb-vsp-sm">
             Tabs
           </h2>
           <p class="text-body text-muted mb-vsp-md">
@@ -55,7 +55,7 @@ export default function WidgetsPage() {
 
         {/* ── Accordion ─────────────────────────────────────────────────────── */}
         <section>
-          <h2 class="text-h3 text-fg font-semibold mb-vsp-sm">
+          <h2 class="text-section-title text-fg font-semibold mb-vsp-sm">
             Accordion
           </h2>
           <p class="text-body text-muted mb-vsp-md">
@@ -68,7 +68,7 @@ export default function WidgetsPage() {
 
         {/* ── Modal ─────────────────────────────────────────────────────────── */}
         <section>
-          <h2 class="text-h3 text-fg font-semibold mb-vsp-sm">
+          <h2 class="text-section-title text-fg font-semibold mb-vsp-sm">
             Modal
           </h2>
           <p class="text-body text-muted mb-vsp-md">

@@ -70,7 +70,7 @@ export default function HomePage() {
       {/* reason: page-content max-width is a layout constant for this demo; no structural token covers prose-container widths */}
       <div class="flex flex-col gap-vsp-lg max-w-[56rem] mx-auto">
         <header>
-          <h1 class="text-heading font-bold mb-vsp-md text-primary">
+          <h1 class="text-page-title font-bold mb-vsp-md text-primary">
             Live token tweaking, in zfb + Tailwind v4
           </h1>
           <p>
@@ -79,7 +79,7 @@ export default function HomePage() {
             Tailwind v4 utility classes. Open the panel from the button above
             and drag any slider — the change applies before the next paint.
           </p>
-          <p class="text-small text-muted mt-vsp-md">
+          <p class="text-helper text-muted mt-vsp-md">
             Console API:{' '}
             <code>window.zfbTw.toggleDesignPanel()</code>. Storage
             prefix: <code>zfb-tailwind-example-tokens</code>.
@@ -87,7 +87,7 @@ export default function HomePage() {
         </header>
 
         <section>
-          <h2 class="text-heading font-bold mb-vsp-md text-primary">
+          <h2 class="text-page-title font-bold mb-vsp-md text-primary">
             Cards (spacing + radius + surface)
           </h2>
           <div class="flex flex-col gap-vsp-md">
@@ -106,7 +106,7 @@ export default function HomePage() {
         </section>
 
         <section>
-          <h2 class="text-heading font-bold mb-vsp-md text-primary">
+          <h2 class="text-page-title font-bold mb-vsp-md text-primary">
             Buttons (accent / primary)
           </h2>
           <p>
@@ -120,7 +120,7 @@ export default function HomePage() {
         </section>
 
         <section>
-          <h2 class="text-heading font-bold mb-vsp-md text-primary">
+          <h2 class="text-page-title font-bold mb-vsp-md text-primary">
             Easing demo
           </h2>
           <p>
@@ -133,14 +133,14 @@ export default function HomePage() {
         </section>
 
         <section>
-          <h2 class="text-heading font-bold mb-vsp-md text-primary">
+          <h2 class="text-page-title font-bold mb-vsp-md text-primary">
             Palette swatches
           </h2>
           <div class="flex flex-wrap gap-x-hsp-md gap-y-vsp-md">
             {PALETTE_INDICES.map((i) => (
               <div
                 key={i}
-                class="w-16 h-16 rounded-md flex items-end justify-center text-micro text-fg px-hsp-xs py-vsp-xs"
+                class="w-16 h-16 rounded-md flex items-end justify-center text-annotation text-fg px-hsp-xs py-vsp-xs"
                 // reason: dynamic var name from loop index — no static utility possible;
                 // text-shadow is swatch-label legibility over any palette color — no token covers overlay shadows
                 style={`background: var(--zfbtw-palette-${i}); text-shadow: 0 1px 2px rgba(0,0,0,0.7);`}
@@ -149,7 +149,7 @@ export default function HomePage() {
               </div>
             ))}
           </div>
-          <p class="text-small text-muted mt-vsp-md">
+          <p class="text-helper text-muted mt-vsp-md">
             Each swatch reads{' '}
             <code>--zfbtw-palette-{'{n}'}</code>. The cluster's{' '}
             <code>paletteCssVarTemplate</code> is the only thing that decides
@@ -161,12 +161,12 @@ export default function HomePage() {
 
         {/* Raw-scale reference block — intentional Tier-1-direct usage.
             Per the three-tier font-size strategy, real components should use
-            semantic tokens (text-h2, text-body, etc.) backed by Tier 2 — see
+            semantic tokens (text-page-title, text-body, etc.) backed by Tier 2 — see
             the Prose page for that. This block is a per-scale demo so each
             of the seven raw scale tokens is visibly bound to a row, letting
             the Font tab's scale sliders be debugged in isolation. */}
         <section>
-          <h2 class="text-heading font-bold mb-vsp-md text-primary">
+          <h2 class="text-page-title font-bold mb-vsp-md text-primary">
             Font scale tokens (raw tier)
           </h2>
           <p class="mb-vsp-md">
@@ -175,7 +175,7 @@ export default function HomePage() {
             Open the Font tab and drag any scale slider — each row below
             tracks one scale token directly. Production code should NOT use
             <code>text-scale-*</code>; use semantic tokens
-            (<code>text-h2</code>, <code>text-body</code>, etc.) instead —
+            (<code>text-page-title</code>, <code>text-body</code>, etc.) instead —
             see the <a href={`${BASE_PATH}prose/`}>Prose page</a>, where the
             same scale sliders flow through Tier 2 into rendered prose.
           </p>

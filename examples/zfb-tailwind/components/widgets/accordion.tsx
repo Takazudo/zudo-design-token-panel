@@ -63,11 +63,11 @@ export function AccordionDemo() {
         <details key={item.id} class="widgets-accordion rounded-md overflow-hidden">
           <summary class="flex items-center justify-between px-hsp-md py-vsp-md bg-surface rounded-md text-body cursor-pointer list-none">
             <span>{item.summary}</span>
-            <span class="text-muted text-small select-none">▾</span>
+            <span class="text-muted text-helper select-none">▾</span>
           </summary>
           <div class="px-hsp-md py-vsp-md border border-muted rounded-md text-body text-fg mt-vsp-xs">
             <p>{item.body}</p>
-            <p class="text-small text-muted mt-vsp-sm">
+            <p class="text-helper text-muted mt-vsp-sm">
               Open timing: <code>easing-tab-open</code> →{' '}
               <code>--zfbtw-easing-tab-open</code>. Close timing:{' '}
               <code>easing-tab-close</code> →{' '}

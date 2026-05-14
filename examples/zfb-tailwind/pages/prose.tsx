@@ -67,10 +67,10 @@ export default function ProsePage() {
     >
       {/* reason: prose-container max-width is a typography constant for readability; no structural token covers prose-container widths */}
       <div class="max-w-[48rem] mx-auto">
-        <h1 class="text-heading font-bold mb-vsp-xl text-primary leading-tight">
+        <h1 class="text-page-title font-bold mb-vsp-xl text-primary leading-tight">
           Prose Demo
         </h1>
-        <p class="mb-vsp-xl text-small text-muted">
+        <p class="mb-vsp-xl text-helper text-muted">
           All typography and spacing tokens are from the{' '}
           <code>--zfbtw-*</code> namespace.
           Open the panel (<code>window.zfbTw.toggleDesignPanel()</code>){' '}
@@ -79,15 +79,15 @@ export default function ProsePage() {
 
         {/* Semantic heading / body scale showcase — utility classes map to prose
             type-scale tokens. Kept outside .zfbtw-prose so the Tailwind utilities
-            (text-h2, text-body, …) are visible rather than being overridden by the
+            (text-page-title, text-body, …) are visible rather than being overridden by the
             container's :where(h2) rules. */}
         <div class="flex flex-col gap-vsp-sm bg-surface px-hsp-md py-vsp-md rounded-md border border-muted mb-vsp-xl">
-          <p class="text-h2 leading-tight font-bold text-fg">Heading H2 — text-h2</p>
-          <p class="text-h3 leading-tight font-semibold text-fg">Heading H3 — text-h3</p>
-          <p class="text-h4 leading-snug font-semibold text-fg">Heading H4 — text-h4</p>
+          <p class="text-page-title leading-tight font-bold text-fg">Heading H2 — text-page-title</p>
+          <p class="text-section-title leading-tight font-semibold text-fg">Heading H3 — text-section-title</p>
+          <p class="text-subsection-title leading-snug font-semibold text-fg">Heading H4 — text-subsection-title</p>
           <p class="text-body leading-relaxed text-fg">Body text — text-body leading-relaxed</p>
-          <p class="text-small text-muted">Small text — text-small text-muted</p>
-          <p class="text-micro text-muted">Micro text — text-micro text-muted</p>
+          <p class="text-helper text-muted">Small text — text-helper text-muted</p>
+          <p class="text-annotation text-muted">Micro text — text-annotation text-muted</p>
         </div>
 
         {ProseContent ? (

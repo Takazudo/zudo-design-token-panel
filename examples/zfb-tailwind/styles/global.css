@@ -11,7 +11,7 @@
  * 2. Tailwind v4 @theme registration. The @theme block below maps each
  *    --zfbtw-* raw var onto Tailwind's built-in design-system
  *    namespaces so that utility classes like `bg-primary`, `p-vsp-md`, and
- *    `text-h2` work end-to-end.
+ *    `text-page-title` work end-to-end.
  *
  * Tailwind v4 namespace prefix rules (critical — easy to get wrong)
  * ------------------------------------------------------------------
@@ -39,10 +39,6 @@
   --zfbtw-scale-lg:   1.25rem;
   --zfbtw-scale-xl:   1.75rem;
   --zfbtw-scale-2xl:  2.5rem;
-
-  /* Semantic font role tokens (font tab — semantic tier, reference raw scale) */
-  --zfbtw-text-base: var(--zfbtw-scale-base);
-  --zfbtw-text-heading: var(--zfbtw-scale-xl);
 
   /* Size tokens (manifest: size tab) — layout/component dimensions */
   --zfbtw-size-sidenav-w: 14rem;
@@ -113,19 +109,18 @@
   --zfbtw-hsp-lg:  1.5rem;    /* section-level horizontal gutter */
   --zfbtw-hsp-xl:  2rem;      /* outer prose container horizontal padding */
 
-  /* Type scale — semantic tier; MUST reference --zfbtw-scale-* (Tier 1).
-     Hardcoded rem values here would break the Font-tab scale sliders — they'd
-     move the raw tier but not the prose / section-heading content that uses
-     these semantic tokens. See doc/three-tier-font-size-strategy. h3/h4 round
-     to nearby scale steps; the dedicated --zfbtw-scale-md step exists so h4
-     (used as section-heading and table-th across the demos) stays one tier
-     above body. */
-  --zfbtw-text-h2:    var(--zfbtw-scale-xl);    /* 1.75rem */
-  --zfbtw-text-h3:    var(--zfbtw-scale-lg);    /* 1.25rem (was 1.35rem) */
-  --zfbtw-text-h4:    var(--zfbtw-scale-md);    /* 1.125rem (was 1.1rem) */
-  --zfbtw-text-body:  var(--zfbtw-scale-base);  /* 1rem */
-  --zfbtw-text-small: var(--zfbtw-scale-sm);    /* 0.875rem */
-  --zfbtw-text-micro: var(--zfbtw-scale-xs);    /* 0.75rem */
+  /* Type scale — semantic tier (Tier 2); MUST reference --zfbtw-scale-* (Tier 1).
+     Names describe what each size is FOR (purpose / role), not which HTML
+     element it lands on — per doc/three-tier-font-size-strategy. Hardcoded rem
+     values here would break the Font-tab scale sliders. The dedicated
+     --zfbtw-scale-md step exists so subsection-title (used as form sub-section,
+     table th, profile-card name across the demos) stays one tier above body. */
+  --zfbtw-text-page-title:       var(--zfbtw-scale-xl);   /* 1.75rem */
+  --zfbtw-text-section-title:    var(--zfbtw-scale-lg);   /* 1.25rem */
+  --zfbtw-text-subsection-title: var(--zfbtw-scale-md);   /* 1.125rem */
+  --zfbtw-text-body:             var(--zfbtw-scale-base); /* 1rem */
+  --zfbtw-text-helper:           var(--zfbtw-scale-sm);   /* 0.875rem */
+  --zfbtw-text-annotation:       var(--zfbtw-scale-xs);   /* 0.75rem */
 
   /* Line-height tokens */
   --zfbtw-leading-tight:   1.2;
@@ -206,7 +201,7 @@
      ANTI-PATTERN — these expose Tier 1 (raw scale) as Tailwind utilities so
      the home page can render a per-scale demo row (issue #163 acceptance:
      every scale token must be visibly consumed). Production code should use
-     semantic tokens (text-h2, text-body, text-small, …) which themselves now
+     semantic tokens (text-page-title, text-body, text-helper, …) which themselves now
      reference these scales via Tier 2. Three-tier rule: components → Tier 2,
      never Tier 1 directly. */
   --text-scale-xs:   var(--zfbtw-scale-xs);
@@ -217,15 +212,13 @@
   --text-scale-xl:   var(--zfbtw-scale-xl);
   --text-scale-2xl:  var(--zfbtw-scale-2xl);
 
-  /* Font-size utilities: text-h2, text-h3, text-body, text-small, … */
-  --text-heading: var(--zfbtw-text-heading);
-  --text-base:    var(--zfbtw-text-base);
-  --text-h2:      var(--zfbtw-text-h2);
-  --text-h3:      var(--zfbtw-text-h3);
-  --text-h4:      var(--zfbtw-text-h4);
-  --text-body:    var(--zfbtw-text-body);
-  --text-small:   var(--zfbtw-text-small);
-  --text-micro:   var(--zfbtw-text-micro);
+  /* Font-size utilities: text-page-title, text-section-title, text-body, text-helper, … */
+  --text-page-title:       var(--zfbtw-text-page-title);
+  --text-section-title:    var(--zfbtw-text-section-title);
+  --text-subsection-title: var(--zfbtw-text-subsection-title);
+  --text-body:             var(--zfbtw-text-body);
+  --text-helper:           var(--zfbtw-text-helper);
+  --text-annotation:       var(--zfbtw-text-annotation);
 
   /* Line-height utilities: leading-tight, leading-snug, leading-relaxed */
   --leading-tight:   var(--zfbtw-leading-tight);
@@ -264,7 +257,7 @@
     line-height: 1.5;
     background: var(--zfbtw-bg);
     color: var(--zfbtw-fg);
-    font-size: var(--zfbtw-text-base);
+    font-size: var(--zfbtw-scale-base);
   }
 
   img,
@@ -324,7 +317,7 @@
 
   /* Heading styles */
   .zfbtw-prose :where(h2) {
-    font-size: var(--zfbtw-text-h2);
+    font-size: var(--zfbtw-text-page-title);
     line-height: var(--zfbtw-leading-tight);
     font-weight: 700;
     color: var(--zfbtw-color-primary);
@@ -333,14 +326,14 @@
   }
 
   .zfbtw-prose :where(h3) {
-    font-size: var(--zfbtw-text-h3);
+    font-size: var(--zfbtw-text-section-title);
     line-height: var(--zfbtw-leading-tight);
     font-weight: 600;
     color: var(--zfbtw-fg);
   }
 
   .zfbtw-prose :where(h4) {
-    font-size: var(--zfbtw-text-h4);
+    font-size: var(--zfbtw-text-subsection-title);
     line-height: var(--zfbtw-leading-snug);
     font-weight: 600;
     color: var(--zfbtw-fg);
@@ -355,7 +348,7 @@
   /* Inline code */
   .zfbtw-prose :where(code):not(pre code) {
     font-family: var(--zfbtw-font-mono);
-    font-size: var(--zfbtw-text-small);
+    font-size: var(--zfbtw-text-helper);
     background: var(--zfbtw-code-bg);
     color: var(--zfbtw-code-fg);
     padding: var(--zfbtw-hsp-xs) calc(var(--zfbtw-hsp-xs) * 2);
@@ -366,7 +359,7 @@
   /* Code blocks */
   .zfbtw-prose :where(pre) {
     font-family: var(--zfbtw-font-mono);
-    font-size: var(--zfbtw-text-small);
+    font-size: var(--zfbtw-text-helper);
     background: var(--zfbtw-code-bg);
     color: var(--zfbtw-code-fg);
     padding: var(--zfbtw-vsp-md) var(--zfbtw-hsp-sm);
@@ -422,7 +415,7 @@
   .zfbtw-prose :where(table) {
     width: 100%;
     border-collapse: collapse;
-    font-size: var(--zfbtw-text-small);
+    font-size: var(--zfbtw-text-helper);
   }
 
   .zfbtw-prose :where(th) {
@@ -497,7 +490,7 @@
   }
 
   .zfbtw-easing-card-label {
-    font-size: var(--zfbtw-text-base);
+    font-size: var(--zfbtw-text-body);
     font-weight: 600;
   }
 }

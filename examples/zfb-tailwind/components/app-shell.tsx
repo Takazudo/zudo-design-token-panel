@@ -64,13 +64,13 @@ export function AppShell({ title = 'zfb + Tailwind v4 — Design Token Panel', a
       <body>
         {/* Topbar — persisted across soft navigations; no animation (CSS names it zfb-topbar) */}
         <header data-zfb-transition-persist="topbar" class="h-size-header-h flex items-center justify-between bg-surface px-hsp-md border-b border-muted">
-          <span class="text-small text-muted">
+          <span class="text-helper text-muted">
             Storage prefix: <code>zfb-tailwind-example-tokens</code>
           </span>
           <button
             type="button"
             id="zfbtw-panel-open"
-            class="px-hsp-sm py-vsp-xs rounded-md bg-accent text-bg border-none cursor-pointer hover:bg-primary text-small"
+            class="px-hsp-sm py-vsp-xs rounded-md bg-accent text-bg border-none cursor-pointer hover:bg-primary text-helper"
           >
             Open Design Token Panel
           </button>

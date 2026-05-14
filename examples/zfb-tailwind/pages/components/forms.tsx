@@ -12,9 +12,9 @@
  *   text-fg             → --zfbtw-fg               (input text)
  *   text-bg             → --zfbtw-bg               (btn text)
  *   text-muted          → --zfbtw-color-muted      (helper/hint)
- *   text-body           → --zfbtw-text-body        (input font-size)
- *   text-small          → --zfbtw-text-small       (helper label)
- *   text-h4             → --zfbtw-text-h4          (section heading)
+ *   text-body              → --zfbtw-text-body              (input font-size)
+ *   text-helper            → --zfbtw-text-helper            (helper label)
+ *   text-subsection-title  → --zfbtw-text-subsection-title  (section heading)
  *   border-muted        → --zfbtw-color-muted      (resting border)
  *   focus:border-accent → --zfbtw-color-accent     (focus border)
  *   disabled:bg-muted   → --zfbtw-color-muted      (disabled bg)
@@ -40,16 +40,16 @@ export default function FormsPage() {
       activePath={`${BASE_PATH}components/forms/`}
     >
       {/* Page heading */}
-      <h1 class="text-h2 text-primary">Form controls demo</h1>
+      <h1 class="text-page-title text-primary">Form controls demo</h1>
 
       {/* §131.3 required intro paragraph */}
       <p class="text-body text-fg leading-relaxed mt-vsp-sm">
         Each widget below is styled entirely with Tailwind utilities that
-        resolve to design tokens. Inputs use <code class="font-mono text-small">px-hsp-sm py-vsp-sm</code> for
-        padding, <code class="font-mono text-small">radius</code> for corners,{' '}
-        <code class="font-mono text-small">color-muted</code> for borders,{' '}
-        <code class="font-mono text-small">color-accent</code> on focus,{' '}
-        <code class="font-mono text-small">color-danger</code> on error. Toggle
+        resolve to design tokens. Inputs use <code class="font-mono text-helper">px-hsp-sm py-vsp-sm</code> for
+        padding, <code class="font-mono text-helper">radius</code> for corners,{' '}
+        <code class="font-mono text-helper">color-muted</code> for borders,{' '}
+        <code class="font-mono text-helper">color-accent</code> on focus,{' '}
+        <code class="font-mono text-helper">color-danger</code> on error. Toggle
         any token in the Design Token Panel to see every widget update live.
       </p>
 
@@ -60,8 +60,8 @@ export default function FormsPage() {
       >
         {/* ── Text input ─────────────────────────────────────────────── */}
         <section class="flex flex-col gap-vsp-xs">
-          <h2 class="text-h4 text-fg font-semibold">Text input</h2>
-          <p class="text-small text-muted">
+          <h2 class="text-subsection-title text-fg font-semibold">Text input</h2>
+          <p class="text-helper text-muted">
             <code class="font-mono">bg-surface</code> background ·{' '}
             <code class="font-mono">border-muted</code> border ·{' '}
             <code class="font-mono">focus:border-accent</code> focus ring ·{' '}
@@ -93,7 +93,7 @@ export default function FormsPage() {
               disabled
               class={`${inputBase} disabled:bg-muted cursor-not-allowed`}
             />
-            <span class="text-small text-muted">
+            <span class="text-helper text-muted">
               Disabled state: <code class="font-mono">disabled:bg-muted</code> →
               <code class="font-mono"> --zfbtw-color-muted</code>
             </span>
@@ -102,8 +102,8 @@ export default function FormsPage() {
 
         {/* ── Email input ─────────────────────────────────────────────── */}
         <section class="flex flex-col gap-vsp-xs">
-          <h2 class="text-h4 text-fg font-semibold">Email input</h2>
-          <p class="text-small text-muted">
+          <h2 class="text-subsection-title text-fg font-semibold">Email input</h2>
+          <p class="text-helper text-muted">
             Same utility set as text input; browser provides email-specific
             keyboard on mobile.
           </p>
@@ -122,8 +122,8 @@ export default function FormsPage() {
 
         {/* ── Select ─────────────────────────────────────────────────── */}
         <section class="flex flex-col gap-vsp-xs">
-          <h2 class="text-h4 text-fg font-semibold">Select</h2>
-          <p class="text-small text-muted">
+          <h2 class="text-subsection-title text-fg font-semibold">Select</h2>
+          <p class="text-helper text-muted">
             Native chevron retained (no <code class="font-mono">appearance-none</code>);
             same token set as text input.
           </p>
@@ -142,8 +142,8 @@ export default function FormsPage() {
 
         {/* ── Textarea ────────────────────────────────────────────────── */}
         <section class="flex flex-col gap-vsp-xs">
-          <h2 class="text-h4 text-fg font-semibold">Textarea</h2>
-          <p class="text-small text-muted">
+          <h2 class="text-subsection-title text-fg font-semibold">Textarea</h2>
+          <p class="text-helper text-muted">
             <code class="font-mono">min-h-[6rem]</code> arbitrary value —{' '}
             {/* reason: visual minimum is component-local; below-token granularity */}
             visual floor ensures usable initial height.
@@ -163,8 +163,8 @@ export default function FormsPage() {
 
         {/* ── Checkbox group ──────────────────────────────────────────── */}
         <section class="flex flex-col gap-vsp-xs">
-          <h2 class="text-h4 text-fg font-semibold">Checkbox group</h2>
-          <p class="text-small text-muted">
+          <h2 class="text-subsection-title text-fg font-semibold">Checkbox group</h2>
+          <p class="text-helper text-muted">
             Native checkbox with{' '}
             <code class="font-mono">accent-color</code> set to{' '}
             <code class="font-mono">--zfbtw-color-accent</code>.
@@ -193,8 +193,8 @@ export default function FormsPage() {
 
         {/* ── Radio group ─────────────────────────────────────────────── */}
         <section class="flex flex-col gap-vsp-xs">
-          <h2 class="text-h4 text-fg font-semibold">Radio group</h2>
-          <p class="text-small text-muted">
+          <h2 class="text-subsection-title text-fg font-semibold">Radio group</h2>
+          <p class="text-helper text-muted">
             Same <code class="font-mono">accent-color</code> inline-style pattern as
             checkboxes.
           </p>
@@ -221,8 +221,8 @@ export default function FormsPage() {
 
         {/* ── Range slider ────────────────────────────────────────────── */}
         <section class="flex flex-col gap-vsp-xs">
-          <h2 class="text-h4 text-fg font-semibold">Range slider</h2>
-          <p class="text-small text-muted">
+          <h2 class="text-subsection-title text-fg font-semibold">Range slider</h2>
+          <p class="text-helper text-muted">
             <code class="font-mono">w-full</code> width ·{' '}
             <code class="font-mono">accent-color</code> fills the track and thumb
             with <code class="font-mono">color-accent</code>.
@@ -241,14 +241,14 @@ export default function FormsPage() {
               class="w-full cursor-pointer"
               style={{ accentColor: 'var(--zfbtw-color-accent)' }}
             />
-            <span class="text-small text-muted">0 – 100</span>
+            <span class="text-helper text-muted">0 – 100</span>
           </div>
         </section>
 
         {/* ── Submit button ───────────────────────────────────────────── */}
         <section class="flex flex-col gap-vsp-xs">
-          <h2 class="text-h4 text-fg font-semibold">Submit button</h2>
-          <p class="text-small text-muted">
+          <h2 class="text-subsection-title text-fg font-semibold">Submit button</h2>
+          <p class="text-helper text-muted">
             <code class="font-mono">bg-primary</code> fill ·{' '}
             <code class="font-mono">text-bg</code> label ·{' '}
             <code class="font-mono">hover:bg-accent</code> hover ·{' '}

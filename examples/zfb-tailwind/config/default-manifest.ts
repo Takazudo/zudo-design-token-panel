@@ -11,10 +11,13 @@
  * Both scales are declared in styles/global.css and re-exported as
  * Tailwind theme tokens (--spacing-hsp-*, --spacing-vsp-*).
  *
- * The font tab uses a 2-tier setup (Wave 5):
- *   - Tier `raw`: 6 scale items
- *   - Tier `semantic` (referencesTier: 'raw'): text-base and text-heading
- *     each default to a scale item id and emit var(--zfbtw-scale-*)
+ * The font tab uses a 2-tier setup:
+ *   - Tier `raw`: 7 scale items (Tier 1, abstract)
+ *   - Tier `semantic` (referencesTier: 'raw'): 6 concrete-purpose font roles
+ *     (page-title, section-title, subsection-title, body, helper, annotation)
+ *     each defaulting to a scale item id; emits var(--zfbtw-scale-*).
+ *     Names follow the three-tier-font-size-strategy contract: Tier 2 describes
+ *     WHAT the size is for, not which HTML element it lands on.
  *
  * The color tab uses a 2-tier setup (Wave 7):
  *   - Tier `palette`: 16 hex swatches (kind: 'color')
@@ -197,22 +200,49 @@ export const defaultTabs: readonly TabConfig[] = [
         id: 'semantic',
         label: 'Font role',
         // Each item's value is the id of a raw-tier item; emitted as var(--cssVar).
+        // Concrete-purpose role names — see header comment for the tier 2 contract.
         referencesTier: 'raw',
         items: [
           {
-            id: 'zfbtw-text-base',
-            cssVar: '--zfbtw-text-base',
-            label: 'Body Text',
-            // References the raw item id 'zfbtw-scale-base'
+            id: 'zfbtw-text-page-title',
+            cssVar: '--zfbtw-text-page-title',
+            label: 'Page Title',
+            default: 'zfbtw-scale-xl',
+            type: { kind: 'text' },
+          },
+          {
+            id: 'zfbtw-text-section-title',
+            cssVar: '--zfbtw-text-section-title',
+            label: 'Section Title',
+            default: 'zfbtw-scale-lg',
+            type: { kind: 'text' },
+          },
+          {
+            id: 'zfbtw-text-subsection-title',
+            cssVar: '--zfbtw-text-subsection-title',
+            label: 'Sub-section / Table Header',
+            default: 'zfbtw-scale-md',
+            type: { kind: 'text' },
+          },
+          {
+            id: 'zfbtw-text-body',
+            cssVar: '--zfbtw-text-body',
+            label: 'Body',
             default: 'zfbtw-scale-base',
             type: { kind: 'text' },
           },
           {
-            id: 'zfbtw-text-heading',
-            cssVar: '--zfbtw-text-heading',
-            label: 'Heading Text',
-            // References the raw item id 'zfbtw-scale-xl'
-            default: 'zfbtw-scale-xl',
+            id: 'zfbtw-text-helper',
+            cssVar: '--zfbtw-text-helper',
+            label: 'Helper / Caption',
+            default: 'zfbtw-scale-sm',
+            type: { kind: 'text' },
+          },
+          {
+            id: 'zfbtw-text-annotation',
+            cssVar: '--zfbtw-text-annotation',
+            label: 'Annotation',
+            default: 'zfbtw-scale-xs',
             type: { kind: 'text' },
           },
         ],

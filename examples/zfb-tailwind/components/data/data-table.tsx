@@ -2,8 +2,8 @@
  * DataTable — 4-column table with row action buttons (edit / delete).
  *
  * Token consumption (§134.1):
- *   table:  w-full text-small text-fg border border-muted rounded-md
- *   th:     text-h4 text-fg border-b border-muted text-left px-hsp-sm py-vsp-sm
+ *   table:  w-full text-helper text-fg border border-muted rounded-md
+ *   th:     text-subsection-title text-fg border-b border-muted text-left px-hsp-sm py-vsp-sm
  *   tr:     hover:bg-surface
  *   td:     px-hsp-sm py-vsp-sm border-b border-muted
  *   action: w-size-icon-md h-size-icon-md text-muted hover:text-accent
@@ -21,13 +21,13 @@ const rows = [
 export function DataTable() {
   return (
     <div class="overflow-x-auto">
-      <table class="w-full text-small text-fg border border-muted rounded-md border-collapse">
+      <table class="w-full text-helper text-fg border border-muted rounded-md border-collapse">
         <thead>
           <tr>
-            <th class="text-h4 text-fg border-b border-muted text-left px-hsp-sm py-vsp-sm">Name</th>
-            <th class="text-h4 text-fg border-b border-muted text-left px-hsp-sm py-vsp-sm">Email</th>
-            <th class="text-h4 text-fg border-b border-muted text-left px-hsp-sm py-vsp-sm">Role</th>
-            <th class="text-h4 text-fg border-b border-muted text-left px-hsp-sm py-vsp-sm">Actions</th>
+            <th class="text-subsection-title text-fg border-b border-muted text-left px-hsp-sm py-vsp-sm">Name</th>
+            <th class="text-subsection-title text-fg border-b border-muted text-left px-hsp-sm py-vsp-sm">Email</th>
+            <th class="text-subsection-title text-fg border-b border-muted text-left px-hsp-sm py-vsp-sm">Role</th>
+            <th class="text-subsection-title text-fg border-b border-muted text-left px-hsp-sm py-vsp-sm">Actions</th>
           </tr>
         </thead>
         <tbody>
