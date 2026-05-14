@@ -2,11 +2,11 @@
  * Sidenav — side navigation component for the zfb-tailwind example.
  *
  * Token consumption:
- *   p-spacing-md  → padding container (--zfbtw-spacing-md)
+ *   px-hsp-md py-vsp-md → padding container (--zfbtw-hsp-md / --zfbtw-vsp-md)
  *   bg-surface    → background (--zfbtw-color-surface)
  *   text-body     → link font size (--zfbtw-text-body)
  *   gap-vsp-xs    → gap between links (--zfbtw-vsp-xs)
- *   px-spacing-sm py-spacing-xs → per-link row padding
+ *   px-hsp-sm py-vsp-xs → per-link row padding
  *   text-accent   → active link color (--zfbtw-color-accent)
  *   rounded-md    → active link pill corner (--zfbtw-radius)
  */
@@ -28,7 +28,7 @@ interface SidenavProps {
 
 export function Sidenav({ activePath = '/' }: SidenavProps) {
   return (
-    <nav class="flex flex-col gap-vsp-xs p-spacing-md bg-surface h-full">
+    <nav class="flex flex-col gap-vsp-xs px-hsp-md py-vsp-md bg-surface h-full">
       {NAV_LINKS.map((link) => {
         const isActive = activePath === link.path;
         return (
@@ -37,8 +37,8 @@ export function Sidenav({ activePath = '/' }: SidenavProps) {
             href={link.path}
             class={
               isActive
-                ? 'text-body px-spacing-sm py-spacing-xs rounded-md text-accent font-semibold'
-                : 'text-body px-spacing-sm py-spacing-xs rounded-md text-fg hover:bg-bg'
+                ? 'text-body px-hsp-sm py-vsp-xs rounded-md text-accent font-semibold'
+                : 'text-body px-hsp-sm py-vsp-xs rounded-md text-fg hover:bg-bg'
             }
           >
             {link.label}

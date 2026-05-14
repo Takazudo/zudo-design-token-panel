@@ -122,6 +122,27 @@ async function loadPanelModule(state: DesignTokenPanelAdapterState) {
       // Configure FIRST — every other panel API reads getPanelConfig() and
       // must observe the host's intended values, not the package sentinel.
       mod.configurePanel(panelConfig);
+
+      // Wire the panel into zfb-runtime's SPA navigation lifecycle.
+      // onBeforeSwap: zfb:before-swap fires just before DOM swap — panel uses
+      //   this to tear down / re-mount as needed across soft navigations.
+      // onPageLoad: zfb:after-swap fires after DOM swap, mirrors astro:page-load
+      //   and astro:after-swap — panel re-reads tokens from the new page DOM.
+      // Each registration returns an unsubscribe function; panel calls it on
+      // teardown. addEventListener is idempotent for the same function ref,
+      // but the adapter pattern calls these with new closures each time, so
+      // the returned removeEventListener call is the correct cleanup path.
+      mod.setLifecycleAdapter({
+        onBeforeSwap: (cb) => {
+          document.addEventListener('zfb:before-swap', cb);
+          return () => document.removeEventListener('zfb:before-swap', cb);
+        },
+        onPageLoad: (cb) => {
+          document.addEventListener('zfb:after-swap', cb);
+          return () => document.removeEventListener('zfb:after-swap', cb);
+        },
+      });
+
       try {
         mod.reapplyPersistedOverrides();
       } catch (err) {

@@ -160,7 +160,7 @@ function ItemEditor({ tab, tier, item, value, onChange }: ItemEditorProps) {
       };
       return (
         <div className="tokenpanel-row" data-testid={`tier-item-${item.id}`}>
-          <span className="tokenpanel-row-label tokenpanel-row-label--narrow" title={item.cssVar}>
+          <span className="tokenpanel-row-label" title={item.cssVar}>
             {item.cssVar}
             {item.label !== item.cssVar && (
               <span className="tokenpanel-row-label-sub">{item.label}</span>

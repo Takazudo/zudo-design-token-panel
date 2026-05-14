@@ -2,11 +2,11 @@
  * ProfileCard — avatar + name + role + action button.
  *
  * Token consumption (§134.4):
- *   container: flex items-center gap-spacing-md p-spacing-md bg-surface rounded-md border border-muted
+ *   container: flex items-center gap-hsp-md px-hsp-md py-vsp-md bg-surface rounded-md border border-muted
  *   avatar:    w-size-avatar-md h-size-avatar-md rounded-md bg-accent
  *   name:      text-h4 text-fg
  *   role:      text-small text-muted
- *   action:    bg-accent text-bg p-spacing-sm rounded-md
+ *   action:    bg-accent text-bg px-hsp-sm py-vsp-sm rounded-md
  */
 
 interface ProfileCardProps {
@@ -16,16 +16,16 @@ interface ProfileCardProps {
 
 export function ProfileCard({ name, role }: ProfileCardProps) {
   return (
-    <div class="flex items-center gap-spacing-md p-spacing-md bg-surface rounded-md border border-muted">
+    <div class="flex items-center gap-hsp-md px-hsp-md py-vsp-md bg-surface rounded-md border border-muted">
       <div
         class="w-size-avatar-md h-size-avatar-md rounded-md bg-accent flex-shrink-0"
         aria-hidden="true"
       />
-      <div class="flex flex-col gap-spacing-xs flex-1">
+      <div class="flex flex-col gap-vsp-xs flex-1">
         <span class="text-h4 text-fg">{name}</span>
         <span class="text-small text-muted">{role}</span>
       </div>
-      <button type="button" class="bg-accent text-bg p-spacing-sm rounded-md cursor-pointer flex-shrink-0">
+      <button type="button" class="bg-accent text-bg px-hsp-sm py-vsp-sm rounded-md cursor-pointer flex-shrink-0">
         Follow
       </button>
     </div>

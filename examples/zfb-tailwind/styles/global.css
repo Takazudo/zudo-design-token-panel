@@ -31,13 +31,6 @@
 
 /* ── Token declarations ──────────────────────────────────────────────────── */
 :root {
-  /* Spacing tokens (manifest: spacing tab) — xs/sm are component-padding tokens;
-     md/lg are page-padding tokens used by AppShell / sidenav */
-  --zfbtw-spacing-xs: 0.25rem;
-  --zfbtw-spacing-sm: 0.5rem;
-  --zfbtw-spacing-md: 1rem;
-  --zfbtw-spacing-lg: 2rem;
-
   /* Font scale tokens (font tab — raw tier, in raw tier) */
   --zfbtw-scale-xs: 0.75rem;
   --zfbtw-scale-sm: 0.875rem;
@@ -177,13 +170,6 @@
   --color-bg:      var(--zfbtw-bg);
   --color-fg:      var(--zfbtw-fg);
 
-  /* Spacing utilities for manifest spacing tokens: p-spacing-xs, p-spacing-sm, … */
-  --spacing-spacing-xs: var(--zfbtw-spacing-xs);
-  --spacing-spacing-sm: var(--zfbtw-spacing-sm);
-  /* spacing-md / spacing-lg are already mapped — do not re-add */
-  --spacing-spacing-md: var(--zfbtw-spacing-md);
-  --spacing-spacing-lg: var(--zfbtw-spacing-lg);
-
   /* Size utilities: w-size-sidenav-w, h-size-header-h, w-size-avatar-sm, etc.
      Per G3: size tokens live under --spacing-size-* to generate w- and h- utilities */
   --spacing-size-sidenav-w: var(--zfbtw-size-sidenav-w);
@@ -208,6 +194,16 @@
   --spacing-hsp-md:  var(--zfbtw-hsp-md);
   --spacing-hsp-lg:  var(--zfbtw-hsp-lg);
   --spacing-hsp-xl:  var(--zfbtw-hsp-xl);
+
+  /* Raw font-scale utilities: text-scale-xs … text-scale-2xl
+     Each maps directly to a --zfbtw-scale-* token so demo content can render
+     every raw scale value (acceptance criterion: all six must be visibly consumed). */
+  --text-scale-xs:   var(--zfbtw-scale-xs);
+  --text-scale-sm:   var(--zfbtw-scale-sm);
+  --text-scale-base: var(--zfbtw-scale-base);
+  --text-scale-lg:   var(--zfbtw-scale-lg);
+  --text-scale-xl:   var(--zfbtw-scale-xl);
+  --text-scale-2xl:  var(--zfbtw-scale-2xl);
 
   /* Font-size utilities: text-h2, text-h3, text-body, text-small, … */
   --text-heading: var(--zfbtw-text-heading);
@@ -470,7 +466,7 @@
   .zfbtw-easing-card {
     display: block;
     width: 100%;
-    padding: var(--zfbtw-spacing-md);
+    padding: var(--zfbtw-hsp-md);
     background: var(--zfbtw-color-surface);
     border: 1px solid var(--zfbtw-color-muted);
     border-radius: var(--zfbtw-radius);
@@ -493,3 +489,41 @@
     font-weight: 600;
   }
 }
+
+/* ── View Transitions (Strategy B — same-document SPA soft-swap) ─────────── */
+/*
+ * These rules support the zfb-runtime <ClientRouter /> SPA router.
+ * Persisted chrome elements (topbar + sidenav) carry data-zfb-transition-persist
+ * in app-shell.tsx; zfb's DOM byte-move keeps their DOM nodes alive across pages.
+ * We assign each a view-transition-name and then suppress their animation so they
+ * appear static. Only the ::view-transition-old/new(root) pseudo-elements animate,
+ * producing a cross-fade on the main content area.
+ */
+
+@keyframes zfbtw-content-fade-in {
+  from { opacity: 0; transform: translateY(-0.5rem); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes zfbtw-content-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* Assign stable view-transition-name to persisted chrome elements. */
+[data-zfb-transition-persist="topbar"]  { view-transition-name: zfbtw-topbar; }
+[data-zfb-transition-persist="sidenav"] { view-transition-name: zfbtw-sidenav; }
+
+/* Suppress animation for persisted chrome — they don't move between pages. */
+::view-transition-old(zfbtw-topbar),
+::view-transition-new(zfbtw-topbar),
+::view-transition-group(zfbtw-topbar),
+::view-transition-old(zfbtw-sidenav),
+::view-transition-new(zfbtw-sidenav),
+::view-transition-group(zfbtw-sidenav) {
+  animation: none;
+}
+
+/* Root cross-fade: only the page content area animates. */
+::view-transition-old(root) { animation: 150ms ease-in  both zfbtw-content-fade-out; }
+::view-transition-new(root) { animation: 300ms ease-out both zfbtw-content-fade-in; }
