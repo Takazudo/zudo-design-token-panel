@@ -195,6 +195,16 @@
   --spacing-hsp-lg:  var(--zfbtw-hsp-lg);
   --spacing-hsp-xl:  var(--zfbtw-hsp-xl);
 
+  /* Raw font-scale utilities: text-scale-xs … text-scale-2xl
+     Each maps directly to a --zfbtw-scale-* token so demo content can render
+     every raw scale value (acceptance criterion: all six must be visibly consumed). */
+  --text-scale-xs:   var(--zfbtw-scale-xs);
+  --text-scale-sm:   var(--zfbtw-scale-sm);
+  --text-scale-base: var(--zfbtw-scale-base);
+  --text-scale-lg:   var(--zfbtw-scale-lg);
+  --text-scale-xl:   var(--zfbtw-scale-xl);
+  --text-scale-2xl:  var(--zfbtw-scale-2xl);
+
   /* Font-size utilities: text-h2, text-h3, text-body, text-small, … */
   --text-heading: var(--zfbtw-text-heading);
   --text-base:    var(--zfbtw-text-base);
