@@ -18,20 +18,20 @@ export default function DataPage() {
 
         {/* ── Page header ─────────────────────────────────────────────────── */}
         <div>
-          <h1 class="text-h2 text-primary">Data &amp; media demo</h1>
+          <h1 class="text-page-title text-primary">Data &amp; media demo</h1>
           <p class="text-body">
             Token map: table borders use <code>color-muted</code>,
             row hover uses <code>color-surface</code>,
-            stat number reads <code>text-h2</code>,
+            stat number reads <code>text-page-title</code>,
             avatars resize via <code>size-avatar-sm</code> / <code>size-avatar-md</code>.
           </p>
         </div>
 
         {/* ── 1. Data table ───────────────────────────────────────────────── */}
         <section class="flex flex-col gap-vsp-sm">
-          <h2 class="text-h3 text-fg">Data table with row actions</h2>
-          <p class="text-small text-muted">
-            Table header: <code>text-h4</code>. Body: <code>text-small</code>.
+          <h2 class="text-section-title text-fg">Data table with row actions</h2>
+          <p class="text-helper text-muted">
+            Table header: <code>text-subsection-title</code>. Body: <code>text-helper</code>.
             Borders: <code>color-muted</code>. Row hover: <code>color-surface</code>.
             Action icon size: <code>size-icon-md</code>.
           </p>
@@ -40,8 +40,8 @@ export default function DataPage() {
 
         {/* ── 2. Media card ───────────────────────────────────────────────── */}
         <section class="flex flex-col gap-vsp-sm">
-          <h2 class="text-h3 text-fg">Media card</h2>
-          <p class="text-small text-muted">
+          <h2 class="text-section-title text-fg">Media card</h2>
+          <p class="text-helper text-muted">
             Container: <code>color-surface</code> + <code>color-muted</code> border.
             Image placeholder: CSS gradient, no network fetch.
             CTA: <code>color-accent</code>.
@@ -51,10 +51,10 @@ export default function DataPage() {
 
         {/* ── 3. Stat cards ───────────────────────────────────────────────── */}
         <section class="flex flex-col gap-vsp-sm">
-          <h2 class="text-h3 text-fg">Stat cards</h2>
-          <p class="text-small text-muted">
-            Big number: semantic font token <code>text-h2</code> + <code>color-primary</code>.
-            Label: <code>text-small</code> + <code>color-muted</code>. No hardcoded <code>font-size</code>.
+          <h2 class="text-section-title text-fg">Stat cards</h2>
+          <p class="text-helper text-muted">
+            Big number: semantic font token <code>text-page-title</code> + <code>color-primary</code>.
+            Label: <code>text-helper</code> + <code>color-muted</code>. No hardcoded <code>font-size</code>.
           </p>
           <div class="flex gap-x-hsp-md gap-y-vsp-md flex-wrap">
             <StatCard value="24,891" label="Total users" />
@@ -65,10 +65,10 @@ export default function DataPage() {
 
         {/* ── 4. Profile card ─────────────────────────────────────────────── */}
         <section class="flex flex-col gap-vsp-sm">
-          <h2 class="text-h3 text-fg">Profile card</h2>
-          <p class="text-small text-muted">
+          <h2 class="text-section-title text-fg">Profile card</h2>
+          <p class="text-helper text-muted">
             Avatar: <code>size-avatar-md</code> (tweak in panel to resize).
-            Name: <code>text-h4</code>. Role: <code>text-small color-muted</code>.
+            Name: <code>text-subsection-title</code>. Role: <code>text-helper color-muted</code>.
           </p>
           <div class="flex flex-col gap-vsp-md max-w-[32rem]">
             {/* reason: card list width is page-local */}
@@ -79,8 +79,8 @@ export default function DataPage() {
 
         {/* ── 5. Avatar row ───────────────────────────────────────────────── */}
         <section class="flex flex-col gap-vsp-sm">
-          <h2 class="text-h3 text-fg">Avatar row</h2>
-          <p class="text-small text-muted">
+          <h2 class="text-section-title text-fg">Avatar row</h2>
+          <p class="text-helper text-muted">
             Each avatar reads <code>size-avatar-sm</code> (tweak in panel to resize all at once).
             Background: <code>palette-1</code>–<code>palette-4</code> via inline style.
           </p>

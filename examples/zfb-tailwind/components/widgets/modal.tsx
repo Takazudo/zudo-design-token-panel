@@ -127,7 +127,7 @@ function ModalInner() {
       >
         <div class="flex flex-col gap-vsp-md">
           <div class="flex items-center justify-between">
-            <h2 class="text-h3 text-fg font-semibold">Modal Dialog</h2>
+            <h2 class="text-section-title text-fg font-semibold">Modal Dialog</h2>
             <button
               type="button"
               class="text-muted text-body hover:text-fg cursor-pointer border-none bg-transparent px-hsp-xs py-vsp-xs"
@@ -141,7 +141,7 @@ function ModalInner() {
             This modal opens via button click and closes via the close button or{' '}
             <kbd>Escape</kbd>.
           </p>
-          <p class="text-small text-muted">
+          <p class="text-helper text-muted">
             Open/close animation uses{' '}
             <code>easing-modal</code> →{' '}
             <code>--zfbtw-easing-modal</code>. Backdrop uses{' '}

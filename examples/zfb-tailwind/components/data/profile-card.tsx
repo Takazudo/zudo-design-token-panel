@@ -4,8 +4,8 @@
  * Token consumption (§134.4):
  *   container: flex items-center gap-hsp-md px-hsp-md py-vsp-md bg-surface rounded-md border border-muted
  *   avatar:    w-size-avatar-md h-size-avatar-md rounded-md bg-accent
- *   name:      text-h4 text-fg
- *   role:      text-small text-muted
+ *   name:      text-subsection-title text-fg
+ *   role:      text-helper text-muted
  *   action:    bg-accent text-bg px-hsp-sm py-vsp-sm rounded-md
  */
 
@@ -22,8 +22,8 @@ export function ProfileCard({ name, role }: ProfileCardProps) {
         aria-hidden="true"
       />
       <div class="flex flex-col gap-vsp-xs flex-1">
-        <span class="text-h4 text-fg">{name}</span>
-        <span class="text-small text-muted">{role}</span>
+        <span class="text-subsection-title text-fg">{name}</span>
+        <span class="text-helper text-muted">{role}</span>
       </div>
       <button type="button" class="bg-accent text-bg px-hsp-sm py-vsp-sm rounded-md cursor-pointer flex-shrink-0">
         Follow
