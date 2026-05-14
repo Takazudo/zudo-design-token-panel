@@ -48,7 +48,7 @@ function TextRow({ token, value, onChange }: TextRowProps) {
 
   return (
     <div className="tokenpanel-row">
-      <span className="tokenpanel-row-label tokenpanel-row-label--narrow" title={token.cssVar}>
+      <span className="tokenpanel-row-label" title={token.cssVar}>
         {token.cssVar}
       </span>
       <input
