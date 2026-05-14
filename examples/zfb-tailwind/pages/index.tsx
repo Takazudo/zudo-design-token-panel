@@ -161,16 +161,39 @@ export default function HomePage() {
 
         <section>
           <h2 class="text-heading font-bold mb-vsp-md text-primary">
-            Typography scale
+            Font scale tokens
           </h2>
+          <p class="mb-vsp-md">
+            The manifest declares six raw scale tokens. Each row below is
+            rendered at exactly that size via a Tailwind utility backed by{' '}
+            <code>var(--zfbtw-scale-*)</code>. Open the Font tab in the panel
+            and move any scale slider — all rows update live.
+          </p>
           <div class="flex flex-col gap-vsp-sm bg-surface px-hsp-md py-vsp-md rounded-md border border-muted">
-            <p class="text-h2 leading-tight font-bold text-fg">Heading H2 — text-h2</p>
-            <p class="text-h3 leading-tight font-semibold text-fg">Heading H3 — text-h3</p>
-            <p class="text-h4 leading-snug font-semibold text-fg">Heading H4 — text-h4</p>
-            <p class="text-body leading-relaxed text-fg">Body text — text-body leading-relaxed</p>
-            <p class="text-small text-muted">Small text — text-small text-muted</p>
-            <p class="text-micro text-muted">Micro text — text-micro text-muted</p>
+            <p class="text-scale-2xl leading-tight text-fg">
+              2xl — <code class="text-scale-sm">text-scale-2xl → --zfbtw-scale-2xl</code>
+            </p>
+            <p class="text-scale-xl leading-tight text-fg">
+              xl — <code class="text-scale-sm">text-scale-xl → --zfbtw-scale-xl</code>
+            </p>
+            <p class="text-scale-lg leading-snug text-fg">
+              lg — <code class="text-scale-sm">text-scale-lg → --zfbtw-scale-lg</code>
+            </p>
+            <p class="text-scale-base leading-relaxed text-fg">
+              base — <code class="text-scale-sm">text-scale-base → --zfbtw-scale-base</code>
+            </p>
+            <p class="text-scale-sm text-fg">
+              sm — <code>text-scale-sm → --zfbtw-scale-sm</code>
+            </p>
+            <p class="text-scale-xs text-muted">
+              xs — <code>text-scale-xs → --zfbtw-scale-xs</code>
+            </p>
           </div>
+          <p class="text-small text-muted mt-vsp-sm">
+            Heading and body demos — including the semantic aliases{' '}
+            <code>text-h2</code>, <code>text-body</code>, etc. — are on the{' '}
+            <a href={`${BASE_PATH}prose/`}>Prose page</a>.
+          </p>
         </section>
       </div>
     </AppShell>

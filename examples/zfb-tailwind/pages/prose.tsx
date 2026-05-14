@@ -77,6 +77,19 @@ export default function ProsePage() {
           to tweak them live.
         </p>
 
+        {/* Semantic heading / body scale showcase — utility classes map to prose
+            type-scale tokens. Kept outside .zfbtw-prose so the Tailwind utilities
+            (text-h2, text-body, …) are visible rather than being overridden by the
+            container's :where(h2) rules. */}
+        <div class="flex flex-col gap-vsp-sm bg-surface px-hsp-md py-vsp-md rounded-md border border-muted mb-vsp-xl">
+          <p class="text-h2 leading-tight font-bold text-fg">Heading H2 — text-h2</p>
+          <p class="text-h3 leading-tight font-semibold text-fg">Heading H3 — text-h3</p>
+          <p class="text-h4 leading-snug font-semibold text-fg">Heading H4 — text-h4</p>
+          <p class="text-body leading-relaxed text-fg">Body text — text-body leading-relaxed</p>
+          <p class="text-small text-muted">Small text — text-small text-muted</p>
+          <p class="text-micro text-muted">Micro text — text-micro text-muted</p>
+        </div>
+
         {ProseContent ? (
           <article class="zfbtw-prose">
             <ProseContent />
