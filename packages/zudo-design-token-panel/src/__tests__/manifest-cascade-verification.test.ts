@@ -18,6 +18,9 @@
  *   B. No manifest contains an `advancedTiers:` object-key (TabConfig.advancedTiers was removed in #148).
  *   C. The zfb-tailwind Spacing tab declares exactly 2 tiers: hsp-scale, vsp-scale (#161 removed spacing-scale).
  *   D. The panel source (tabs/) contains no <h4 or <details elements.
+ *   F. The panel CSS sources do NOT read host --color-* / --font-mono — the panel
+ *      ships a self-contained dark palette in panel-tokens.css and host theme
+ *      changes must not bleed into the panel chrome.
  *
  * Cascade test note:
  *   The zfb-tailwind global.css re-exports --zfbtw-hsp-*, --zfbtw-vsp-* as Tailwind theme
@@ -209,5 +212,51 @@ describe('Invariant E — zfb-tailwind global.css cascade is intact', () => {
   it('re-exports --spacing-vsp-md: var(--zfbtw-vsp-md)', () => {
     expect(globalCss).toContain('--spacing-vsp-md');
     expect(globalCss).toContain('var(--zfbtw-vsp-md)');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F. Panel CSS sources do NOT read host --color-* / --font-mono
+//
+//    Rationale: the panel is a dev tool that ships inside a host page. If the
+//    panel inherited the host's --color-* tokens, any host theme tweak —
+//    including theme tweaks driven through this very panel in a demo — would
+//    recolor the panel chrome along with the host surface. The contract
+//    documented in PORTABLE-CONTRACT.md §7.4 and doc/reference/panel-css-tokens
+//    pins this: panel-tokens.css and panel.css must use only the
+//    --tokentweak-* private namespace.
+// ---------------------------------------------------------------------------
+
+describe('Invariant F — panel CSS does not read host theme vars', () => {
+  const STYLES_DIR = path.resolve(__dirname, '../styles');
+  const panelTokens = fs.readFileSync(path.join(STYLES_DIR, 'panel-tokens.css'), 'utf8');
+  const panelChrome = fs.readFileSync(path.join(STYLES_DIR, 'panel.css'), 'utf8');
+
+  function stripCssComments(source: string): string {
+    return source.replace(/\/\*[\s\S]*?\*\//g, '');
+  }
+
+  it('panel-tokens.css contains no var(--color-*) read', () => {
+    expect(stripCssComments(panelTokens)).not.toMatch(/var\(\s*--color-/);
+  });
+
+  it('panel-tokens.css contains no var(--font-mono) read', () => {
+    expect(stripCssComments(panelTokens)).not.toMatch(/var\(\s*--font-mono/);
+  });
+
+  it('panel.css contains no var(--color-*) read', () => {
+    expect(stripCssComments(panelChrome)).not.toMatch(/var\(\s*--color-/);
+  });
+
+  it('panel.css contains no var(--font-mono) read', () => {
+    expect(stripCssComments(panelChrome)).not.toMatch(/var\(\s*--font-mono/);
+  });
+
+  it('panel-tokens.css declares the baked-in dark --tokentweak-color-bg', () => {
+    expect(panelTokens).toMatch(/--tokentweak-color-bg\s*:\s*#181818/);
+  });
+
+  it('panel-tokens.css declares the baked-in dark --tokentweak-color-fg', () => {
+    expect(panelTokens).toMatch(/--tokentweak-color-fg\s*:\s*#b8b8b8/);
   });
 });
