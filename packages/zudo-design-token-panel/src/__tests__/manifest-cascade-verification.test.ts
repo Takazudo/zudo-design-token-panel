@@ -16,15 +16,14 @@
  * Invariants under test:
  *   A. No manifest contains a `group:` object-key (TierItem.group was removed in #148).
  *   B. No manifest contains an `advancedTiers:` object-key (TabConfig.advancedTiers was removed in #148).
- *   C. The zfb-tailwind Spacing tab declares exactly 3 tiers: spacing-scale, hsp-scale, vsp-scale.
+ *   C. The zfb-tailwind Spacing tab declares exactly 2 tiers: hsp-scale, vsp-scale (#161 removed spacing-scale).
  *   D. The panel source (tabs/) contains no <h4 or <details elements.
  *
- * Cascade test note (step 5 from task):
- *   The zfb-tailwind global.css re-exports --zfbtw-spacing-*, --zfbtw-hsp-*, --zfbtw-vsp-*
- *   as Tailwind theme tokens (--spacing-spacing-*, --spacing-hsp-*, --spacing-vsp-*).
- *   Since #153 chose Option A (token restructure only, global.css untouched), the consumer
- *   chain remains intact. This is asserted below by confirming that global.css still
- *   references each of the 16 spacing/hsp/vsp CSS variables.
+ * Cascade test note:
+ *   The zfb-tailwind global.css re-exports --zfbtw-hsp-*, --zfbtw-vsp-* as Tailwind theme
+ *   tokens (--spacing-hsp-*, --spacing-vsp-*). The --zfbtw-spacing-* raw tier and its
+ *   --spacing-spacing-* re-exports were removed in #161. This is asserted below by confirming
+ *   global.css references all 12 remaining hsp/vsp CSS variables.
  *
  * Browser-based cascade testing is deferred — see procedure in packages/zudo-design-token-panel/CLAUDE.md.
  */
@@ -96,15 +95,15 @@ describe('Invariant B — no advancedTiers: field in any manifest', () => {
 });
 
 // ---------------------------------------------------------------------------
-// C. zfb-tailwind Spacing tab has exactly 3 tiers: spacing-scale, hsp-scale, vsp-scale
-//    (per #153 Option A — 3-tier flat structure)
+// C. zfb-tailwind Spacing tab has exactly 2 tiers: hsp-scale, vsp-scale
+//    (per #161 — spacing-scale tier removed)
 // ---------------------------------------------------------------------------
 
-describe('Invariant C — zfb-tailwind Spacing tab has 3 tiers', () => {
+describe('Invariant C — zfb-tailwind Spacing tab has 2 tiers', () => {
   const source = readManifest('zfb-tailwind');
 
-  it('contains spacing-scale tier id', () => {
-    expect(source).toContain("id: 'spacing-scale'");
+  it('does NOT contain spacing-scale tier id (removed in #161)', () => {
+    expect(source).not.toContain("id: 'spacing-scale'");
   });
 
   it('contains hsp-scale tier id', () => {
@@ -113,12 +112,6 @@ describe('Invariant C — zfb-tailwind Spacing tab has 3 tiers', () => {
 
   it('contains vsp-scale tier id', () => {
     expect(source).toContain("id: 'vsp-scale'");
-  });
-
-  it('spacing-scale has 4 items (xs/sm/md/lg)', () => {
-    // Count occurrences of --zfbtw-spacing- cssVar declarations
-    const matches = source.match(/cssVar:\s*'--zfbtw-spacing-/g) ?? [];
-    expect(matches.length).toBe(4);
   });
 
   it('hsp-scale has 5 items (xs..xl)', () => {
@@ -131,11 +124,10 @@ describe('Invariant C — zfb-tailwind Spacing tab has 3 tiers', () => {
     expect(matches.length).toBe(7);
   });
 
-  it('total spacing tier items is 16', () => {
-    const spacing = source.match(/cssVar:\s*'--zfbtw-spacing-/g)?.length ?? 0;
+  it('total spacing tier items is 12', () => {
     const hsp = source.match(/cssVar:\s*'--zfbtw-hsp-/g)?.length ?? 0;
     const vsp = source.match(/cssVar:\s*'--zfbtw-vsp-/g)?.length ?? 0;
-    expect(spacing + hsp + vsp).toBe(16);
+    expect(hsp + vsp).toBe(12);
   });
 });
 
@@ -173,8 +165,8 @@ describe('Invariant D — panel tabs source has no blocked semantic elements', (
 });
 
 // ---------------------------------------------------------------------------
-// E. zfb-tailwind cascade — global.css still re-exports all spacing variables
-//    (confirms #153 Option A did not disrupt the consumer chain in global.css)
+// E. zfb-tailwind cascade — global.css still re-exports all hsp/vsp variables
+//    (confirms #161 spacing-scale removal did not disrupt the hsp/vsp consumer chain)
 // ---------------------------------------------------------------------------
 
 describe('Invariant E — zfb-tailwind global.css cascade is intact', () => {
@@ -183,13 +175,13 @@ describe('Invariant E — zfb-tailwind global.css cascade is intact', () => {
     'utf8',
   );
 
-  // Each raw variable must be declared in global.css.
-  const spacingVars = ['--zfbtw-spacing-xs', '--zfbtw-spacing-sm', '--zfbtw-spacing-md', '--zfbtw-spacing-lg'];
-  for (const v of spacingVars) {
-    it(`declares ${v}`, () => {
-      expect(globalCss).toContain(v);
-    });
-  }
+  // --zfbtw-spacing-* raw vars were removed in #161 — confirm they are gone.
+  it('does NOT declare --zfbtw-spacing-xs (removed in #161)', () => {
+    expect(globalCss).not.toContain('--zfbtw-spacing-xs');
+  });
+  it('does NOT re-export --spacing-spacing-xs (removed in #161)', () => {
+    expect(globalCss).not.toContain('--spacing-spacing-xs');
+  });
 
   const hspVars = ['--zfbtw-hsp-xs', '--zfbtw-hsp-sm', '--zfbtw-hsp-md', '--zfbtw-hsp-lg', '--zfbtw-hsp-xl'];
   for (const v of hspVars) {
@@ -209,11 +201,6 @@ describe('Invariant E — zfb-tailwind global.css cascade is intact', () => {
   }
 
   // Tailwind consumer bridge (--spacing-* re-exports) should be intact.
-  it('re-exports --spacing-spacing-xs: var(--zfbtw-spacing-xs)', () => {
-    expect(globalCss).toContain('--spacing-spacing-xs');
-    expect(globalCss).toContain('var(--zfbtw-spacing-xs)');
-  });
-
   it('re-exports --spacing-hsp-md: var(--zfbtw-hsp-md)', () => {
     expect(globalCss).toContain('--spacing-hsp-md');
     expect(globalCss).toContain('var(--zfbtw-hsp-md)');

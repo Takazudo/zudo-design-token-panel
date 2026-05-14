@@ -5,12 +5,11 @@
  * with the declarations in `styles/global.css` so the panel can rewrite
  * the same names live and the apply pipeline can rewrite them on disk.
  *
- * The spacing tab uses a 3-tier setup:
- *   - Tier `spacing-scale`: 4-step raw spacing scale (xs/sm/md/lg)
+ * The spacing tab uses a 2-tier setup:
  *   - Tier `hsp-scale`: 5-step horizontal spacing scale (xs..xl)
  *   - Tier `vsp-scale`: 7-step vertical spacing scale (2xs..2xl)
- * All three scales are declared in styles/global.css and re-exported as
- * Tailwind theme tokens (--spacing-spacing-*, --spacing-hsp-*, --spacing-vsp-*).
+ * Both scales are declared in styles/global.css and re-exported as
+ * Tailwind theme tokens (--spacing-hsp-*, --spacing-vsp-*).
  *
  * The font tab uses a 2-tier setup (Wave 5):
  *   - Tier `raw`: 6 scale items
@@ -37,40 +36,6 @@ export const defaultTabs: readonly TabConfig[] = [
     id: 'spacing',
     label: 'Spacing',
     tiers: [
-      {
-        id: 'spacing-scale',
-        label: 'Spacing scale',
-        items: [
-          {
-            id: 'zfbtw-spacing-xs',
-            cssVar: '--zfbtw-spacing-xs',
-            label: 'Spacing XS',
-            default: '0.25rem',
-            type: { kind: 'length', min: 0, max: 1, step: 0.0625, unit: 'rem' },
-          },
-          {
-            id: 'zfbtw-spacing-sm',
-            cssVar: '--zfbtw-spacing-sm',
-            label: 'Spacing S',
-            default: '0.5rem',
-            type: { kind: 'length', min: 0, max: 1.5, step: 0.0625, unit: 'rem' },
-          },
-          {
-            id: 'zfbtw-spacing-md',
-            cssVar: '--zfbtw-spacing-md',
-            label: 'Spacing M',
-            default: '1rem',
-            type: { kind: 'length', min: 0, max: 4, step: 0.0625, unit: 'rem' },
-          },
-          {
-            id: 'zfbtw-spacing-lg',
-            cssVar: '--zfbtw-spacing-lg',
-            label: 'Spacing L',
-            default: '2rem',
-            type: { kind: 'length', min: 0, max: 6, step: 0.0625, unit: 'rem' },
-          },
-        ],
-      },
       {
         id: 'hsp-scale',
         label: 'Horizontal spacing',

@@ -12,8 +12,8 @@
  *   bg-surface  → background-color: var(--color-surface)
  *               → var(--zfbtw-color-surface)
  *
- *   p-spacing-md → padding: var(--spacing-spacing-md)
- *                → var(--zfbtw-spacing-md)
+ *   px-hsp-md py-vsp-md → padding: var(--spacing-hsp-md) / var(--spacing-vsp-md)
+ *                       → var(--zfbtw-hsp-md) / var(--zfbtw-vsp-md)
  *
  *   rounded-md  → border-radius: var(--radius-md)
  *               → var(--zfbtw-radius)
@@ -68,9 +68,9 @@ export default function HomePage() {
       activePath={BASE_PATH}
     >
       {/* reason: page-content max-width is a layout constant for this demo; no structural token covers prose-container widths */}
-      <div class="flex flex-col gap-spacing-lg max-w-[56rem] mx-auto">
+      <div class="flex flex-col gap-vsp-lg max-w-[56rem] mx-auto">
         <header>
-          <h1 class="text-heading font-bold mb-spacing-md text-primary">
+          <h1 class="text-heading font-bold mb-vsp-md text-primary">
             Live token tweaking, in zfb + Tailwind v4
           </h1>
           <p>
@@ -79,7 +79,7 @@ export default function HomePage() {
             Tailwind v4 utility classes. Open the panel from the button above
             and drag any slider — the change applies before the next paint.
           </p>
-          <p class="text-small text-muted mt-spacing-md">
+          <p class="text-small text-muted mt-vsp-md">
             Console API:{' '}
             <code>window.zfbTw.toggleDesignPanel()</code>. Storage
             prefix: <code>zfb-tailwind-example-tokens</code>.
@@ -87,31 +87,31 @@ export default function HomePage() {
         </header>
 
         <section>
-          <h2 class="text-heading font-bold mb-spacing-md text-primary">
+          <h2 class="text-heading font-bold mb-vsp-md text-primary">
             Cards (spacing + radius + surface)
           </h2>
-          <div class="flex flex-col gap-spacing-md">
-            <div class="bg-surface text-fg p-spacing-md rounded-md border border-muted">
+          <div class="flex flex-col gap-vsp-md">
+            <div class="bg-surface text-fg px-hsp-md py-vsp-md rounded-md border border-muted">
               <strong>Card A.</strong> Padding driven by{' '}
-              <code>p-spacing-md</code> (→ <code>--zfbtw-spacing-md</code>),
+              <code>px-hsp-md py-vsp-md</code> (→ <code>--zfbtw-hsp-md</code> / <code>--zfbtw-vsp-md</code>),
               corners by <code>rounded-md</code> (→ <code>--zfbtw-radius</code>),
               background by <code>bg-surface</code>.
             </div>
-            <div class="bg-surface text-fg p-spacing-md rounded-md border border-muted">
+            <div class="bg-surface text-fg px-hsp-md py-vsp-md rounded-md border border-muted">
               <strong>Card B.</strong> Stack gap driven by{' '}
-              <code>gap-spacing-lg</code>; outline by{' '}
+              <code>gap-vsp-lg</code>; outline by{' '}
               <code>border-muted</code>.
             </div>
           </div>
         </section>
 
         <section>
-          <h2 class="text-heading font-bold mb-spacing-md text-primary">
+          <h2 class="text-heading font-bold mb-vsp-md text-primary">
             Buttons (accent / primary)
           </h2>
           <p>
             <button
-              class="inline-block p-spacing-md rounded-md bg-accent text-bg border-none cursor-pointer hover:bg-primary"
+              class="inline-block px-hsp-md py-vsp-md rounded-md bg-accent text-bg border-none cursor-pointer hover:bg-primary"
               type="button"
             >
               Action button
@@ -120,7 +120,7 @@ export default function HomePage() {
         </section>
 
         <section>
-          <h2 class="text-heading font-bold mb-spacing-md text-primary">
+          <h2 class="text-heading font-bold mb-vsp-md text-primary">
             Easing demo
           </h2>
           <p>
@@ -133,14 +133,14 @@ export default function HomePage() {
         </section>
 
         <section>
-          <h2 class="text-heading font-bold mb-spacing-md text-primary">
+          <h2 class="text-heading font-bold mb-vsp-md text-primary">
             Palette swatches
           </h2>
-          <div class="flex flex-wrap gap-spacing-md">
+          <div class="flex flex-wrap gap-x-hsp-md gap-y-vsp-md">
             {PALETTE_INDICES.map((i) => (
               <div
                 key={i}
-                class="w-16 h-16 rounded-md flex items-end justify-center text-micro text-fg p-spacing-xs"
+                class="w-16 h-16 rounded-md flex items-end justify-center text-micro text-fg px-hsp-xs py-vsp-xs"
                 // reason: dynamic var name from loop index — no static utility possible;
                 // text-shadow is swatch-label legibility over any palette color — no token covers overlay shadows
                 style={`background: var(--zfbtw-palette-${i}); text-shadow: 0 1px 2px rgba(0,0,0,0.7);`}
@@ -149,7 +149,7 @@ export default function HomePage() {
               </div>
             ))}
           </div>
-          <p class="text-small text-muted mt-spacing-md">
+          <p class="text-small text-muted mt-vsp-md">
             Each swatch reads{' '}
             <code>--zfbtw-palette-{'{n}'}</code>. The cluster's{' '}
             <code>paletteCssVarTemplate</code> is the only thing that decides
@@ -160,10 +160,10 @@ export default function HomePage() {
         </section>
 
         <section>
-          <h2 class="text-heading font-bold mb-spacing-md text-primary">
+          <h2 class="text-heading font-bold mb-vsp-md text-primary">
             Typography scale
           </h2>
-          <div class="flex flex-col gap-vsp-sm bg-surface p-spacing-md rounded-md border border-muted">
+          <div class="flex flex-col gap-vsp-sm bg-surface px-hsp-md py-vsp-md rounded-md border border-muted">
             <p class="text-h2 leading-tight font-bold text-fg">Heading H2 — text-h2</p>
             <p class="text-h3 leading-tight font-semibold text-fg">Heading H3 — text-h3</p>
             <p class="text-h4 leading-snug font-semibold text-fg">Heading H4 — text-h4</p>

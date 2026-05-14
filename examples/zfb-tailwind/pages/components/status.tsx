@@ -22,36 +22,36 @@ const BASE_PATH = '/pj/zudo-design-token-panel/examples/zfb-tailwind/';
 
 function Alerts() {
   return (
-    <section class="flex flex-col gap-spacing-md">
+    <section class="flex flex-col gap-vsp-md">
       <h2 class="text-h3 font-semibold text-fg">Alerts / callouts</h2>
       <p class="text-body text-fg">
         Each variant uses a semantic color token for background, text, and border.
         Token contract: <code>bg-accent</code> / <code>bg-success</code> /{' '}
         <code>bg-warning</code> / <code>bg-danger</code> with{' '}
         <code>text-bg</code> text and matching <code>border-*</code> outline.
-        Padding: <code>p-spacing-md</code>. Corners: <code>rounded-md</code>.
+        Padding: <code>px-hsp-md py-vsp-md</code>. Corners: <code>rounded-md</code>.
       </p>
 
       {/* info */}
-      <div class="bg-accent text-bg p-spacing-md rounded-md border border-accent">
+      <div class="bg-accent text-bg px-hsp-md py-vsp-md rounded-md border border-accent">
         <strong>Info:</strong> uses <code>bg-accent</code>, <code>text-bg</code>,{' '}
         <code>border-accent</code>. Token: <code>color-accent</code>.
       </div>
 
       {/* success */}
-      <div class="bg-success text-bg p-spacing-md rounded-md border border-success">
+      <div class="bg-success text-bg px-hsp-md py-vsp-md rounded-md border border-success">
         <strong>Success:</strong> uses <code>bg-success</code>, <code>text-bg</code>,{' '}
         <code>border-success</code>. Token: <code>color-success</code>.
       </div>
 
       {/* warning */}
-      <div class="bg-warning text-bg p-spacing-md rounded-md border border-warning">
+      <div class="bg-warning text-bg px-hsp-md py-vsp-md rounded-md border border-warning">
         <strong>Warning:</strong> uses <code>bg-warning</code>, <code>text-bg</code>,{' '}
         <code>border-warning</code>. Token: <code>color-warning</code>.
       </div>
 
       {/* danger */}
-      <div class="bg-danger text-bg p-spacing-md rounded-md border border-danger">
+      <div class="bg-danger text-bg px-hsp-md py-vsp-md rounded-md border border-danger">
         <strong>Danger:</strong> uses <code>bg-danger</code>, <code>text-bg</code>,{' '}
         <code>border-danger</code>. Token: <code>color-danger</code>.
       </div>
@@ -71,14 +71,14 @@ function Badge({ color, variant, label }: BadgeProps) {
   if (variant === 'filled') {
     return (
       // reason: badge vertical pad is below `spacing-xs`; below-token granularity is local
-      <span class={`bg-${color} text-bg px-spacing-xs py-[0.125rem] rounded-md text-small`}>
+      <span class={`bg-${color} text-bg px-hsp-xs py-[0.125rem] rounded-md text-small`}>
         {label}
       </span>
     );
   }
   return (
     // reason: badge vertical pad is below `spacing-xs`; below-token granularity is local
-    <span class={`border border-${color} text-${color} px-spacing-xs py-[0.125rem] rounded-md text-small`}>
+    <span class={`border border-${color} text-${color} px-hsp-xs py-[0.125rem] rounded-md text-small`}>
       {label}
     </span>
   );
@@ -93,19 +93,19 @@ function Badges() {
   ];
 
   return (
-    <section class="flex flex-col gap-spacing-md">
+    <section class="flex flex-col gap-vsp-md">
       <h2 class="text-h3 font-semibold text-fg">Badges</h2>
       <p class="text-body text-fg">
         Filled badges: <code>bg-{'{color}'}</code> + <code>text-bg</code>.
         Outlined badges: <code>border-{'{color}'}</code> + <code>text-{'{color}'}</code>.
-        Both use <code>px-spacing-xs</code>, <code>rounded-md</code>, <code>text-small</code>.
+        Both use <code>px-hsp-xs</code>, <code>rounded-md</code>, <code>text-small</code>.
         Vertical padding <code>py-[0.125rem]</code> is below{' '}
-        <code>spacing-xs</code> granularity — local exception per G4 row 5.
+        <code>vsp-xs</code> granularity — local exception per G4 row 5.
       </p>
 
       <div>
-        <p class="text-small text-muted mb-spacing-xs">Filled</p>
-        <div class="flex flex-wrap gap-spacing-sm">
+        <p class="text-small text-muted mb-vsp-xs">Filled</p>
+        <div class="flex flex-wrap gap-x-hsp-sm gap-y-vsp-sm">
           {colors.map((c) => (
             <Badge key={`filled-${c}`} color={c} variant="filled" label={c} />
           ))}
@@ -113,8 +113,8 @@ function Badges() {
       </div>
 
       <div>
-        <p class="text-small text-muted mb-spacing-xs">Outlined</p>
-        <div class="flex flex-wrap gap-spacing-sm">
+        <p class="text-small text-muted mb-vsp-xs">Outlined</p>
+        <div class="flex flex-wrap gap-x-hsp-sm gap-y-vsp-sm">
           {colors.map((c) => (
             <Badge key={`outlined-${c}`} color={c} variant="outlined" label={c} />
           ))}
@@ -132,7 +132,7 @@ interface TagProps {
 
 function Tag({ label }: TagProps) {
   return (
-    <span class="inline-flex items-center gap-spacing-xs bg-surface text-fg px-spacing-sm py-spacing-xs rounded-md text-small border border-muted">
+    <span class="inline-flex items-center gap-hsp-xs bg-surface text-fg px-hsp-sm py-vsp-xs rounded-md text-small border border-muted">
       {label}
       <button
         type="button"
@@ -148,14 +148,14 @@ function Tag({ label }: TagProps) {
 function Tags() {
   const tags = ['Design', 'Tokens', 'Tailwind', 'CSS Vars'];
   return (
-    <section class="flex flex-col gap-spacing-md">
+    <section class="flex flex-col gap-vsp-md">
       <h2 class="text-h3 font-semibold text-fg">Tags / chips</h2>
       <p class="text-body text-fg">
-        Container: <code>inline-flex items-center gap-spacing-xs bg-surface text-fg</code> +{' '}
-        <code>px-spacing-sm py-spacing-xs rounded-md text-small border border-muted</code>.
+        Container: <code>inline-flex items-center gap-hsp-xs bg-surface text-fg</code> +{' '}
+        <code>px-hsp-sm py-vsp-xs rounded-md text-small border border-muted</code>.
         Close button: <code>text-muted hover:text-danger</code>.
       </p>
-      <div class="flex flex-wrap gap-spacing-sm">
+      <div class="flex flex-wrap gap-x-hsp-sm gap-y-vsp-sm">
         {tags.map((t) => (
           <Tag key={t} label={t} />
         ))}
@@ -195,9 +195,9 @@ function Tooltip({ text, tip }: TooltipProps) {
       <span
         class="
           absolute bottom-full left-1/2
-          -translate-x-1/2 mb-spacing-xs
+          -translate-x-1/2 mb-vsp-xs
           bg-surface text-fg border border-muted rounded-md
-          px-spacing-sm py-spacing-xs
+          px-hsp-sm py-vsp-xs
           text-small
           whitespace-nowrap
           opacity-0
@@ -218,22 +218,22 @@ function Tooltip({ text, tip }: TooltipProps) {
 
 function Tooltips() {
   return (
-    <section class="flex flex-col gap-spacing-md">
+    <section class="flex flex-col gap-vsp-md">
       <h2 class="text-h3 font-semibold text-fg">Tooltips</h2>
       <p class="text-body text-fg">
         Hover over the annotated terms. Bubble: <code>bg-surface</code>,{' '}
         <code>text-fg</code>, <code>border-muted</code>, <code>rounded-md</code>,{' '}
-        <code>px-spacing-sm py-spacing-xs</code>, <code>text-small</code>.{' '}
+        <code>px-hsp-sm py-vsp-xs</code>, <code>text-small</code>.{' '}
         Opacity transition uses{' '}
         <code>easing-tab-open</code> (<code>--zfbtw-easing-tab-open</code>).
         Implementation: <code>position: absolute</code> with{' '}
         <code>translateX(-50%)</code> on the sibling bubble span.
       </p>
 
-      <div class="flex flex-wrap gap-spacing-lg text-body text-fg bg-surface p-spacing-md rounded-md border border-muted">
+      <div class="flex flex-wrap gap-x-hsp-lg gap-y-vsp-lg text-body text-fg bg-surface px-hsp-md py-vsp-md rounded-md border border-muted">
         <span>
           Token panel adjusts{' '}
-          <Tooltip text="spacing-md" tip="--zfbtw-spacing-md (default 1rem)" />{' '}
+          <Tooltip text="hsp-md / vsp-md" tip="--zfbtw-hsp-md / --zfbtw-vsp-md (default 1rem)" />{' '}
           live in the browser.
         </span>
         <span>
@@ -260,10 +260,10 @@ export default function StatusPage() {
       activePath={`${BASE_PATH}components/status/`}
     >
       {/* reason: page-content max-width is a layout constant for this demo; no structural token covers prose-container widths */}
-      <div class="flex flex-col gap-spacing-lg max-w-[56rem] mx-auto">
+      <div class="flex flex-col gap-vsp-lg max-w-[56rem] mx-auto">
         <header>
           <h1 class="text-h2 font-bold text-primary">Status surfaces demo</h1>
-          <p class="text-body text-fg mt-spacing-sm">
+          <p class="text-body text-fg mt-vsp-sm">
             Status surfaces demo for sub-issue #132. Covers alerts, badges, tags/chips,
             and tooltips — all driven by semantic color tokens{' '}
             <code>color-accent</code>, <code>color-success</code>,{' '}

@@ -1,11 +1,12 @@
 /**
  * Validation test for the zfb-tailwind default manifest's Spacing tab.
  *
- * Exercises the tier-model pipeline with a TabConfig that mirrors the three
+ * Exercises the tier-model pipeline with a TabConfig that mirrors the two
  * spacing tiers declared in examples/zfb-tailwind/config/default-manifest.ts:
- *   - spacing-scale: 4 items (xs/sm/md/lg)
- *   - hsp-scale:     5 items (xs..xl)
- *   - vsp-scale:     7 items (2xs..2xl)
+ *   - hsp-scale: 5 items (xs..xl)
+ *   - vsp-scale: 7 items (2xs..2xl)
+ *
+ * The spacing-scale tier (4 items: xs/sm/md/lg) was removed in #161.
  *
  * Does NOT import from examples/zfb-tailwind to avoid inverting the
  * dependency graph. The TabConfig literal is kept in sync with the manifest
@@ -28,40 +29,6 @@ const ZFBTW_SPACING_TAB: TabConfig = {
   id: 'spacing',
   label: 'Spacing',
   tiers: [
-    {
-      id: 'spacing-scale',
-      label: 'Spacing scale',
-      items: [
-        {
-          id: 'zfbtw-spacing-xs',
-          cssVar: '--zfbtw-spacing-xs',
-          label: 'Spacing XS',
-          default: '0.25rem',
-          type: { kind: 'length', min: 0, max: 1, step: 0.0625, unit: 'rem' },
-        },
-        {
-          id: 'zfbtw-spacing-sm',
-          cssVar: '--zfbtw-spacing-sm',
-          label: 'Spacing S',
-          default: '0.5rem',
-          type: { kind: 'length', min: 0, max: 1.5, step: 0.0625, unit: 'rem' },
-        },
-        {
-          id: 'zfbtw-spacing-md',
-          cssVar: '--zfbtw-spacing-md',
-          label: 'Spacing M',
-          default: '1rem',
-          type: { kind: 'length', min: 0, max: 4, step: 0.0625, unit: 'rem' },
-        },
-        {
-          id: 'zfbtw-spacing-lg',
-          cssVar: '--zfbtw-spacing-lg',
-          label: 'Spacing L',
-          default: '2rem',
-          type: { kind: 'length', min: 0, max: 6, step: 0.0625, unit: 'rem' },
-        },
-      ],
-    },
     {
       id: 'hsp-scale',
       label: 'Horizontal spacing',
@@ -173,15 +140,14 @@ function emit(tab: TabConfig, tierId: string, itemId: string): string {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('zfb-tailwind manifest — Spacing tab: 3-tier structure', () => {
-  it('has exactly 3 tiers', () => {
-    expect(ZFBTW_SPACING_TAB.tiers.length).toBe(3);
+describe('zfb-tailwind manifest — Spacing tab: 2-tier structure', () => {
+  it('has exactly 2 tiers', () => {
+    expect(ZFBTW_SPACING_TAB.tiers.length).toBe(2);
   });
 
-  it('spacing-scale tier has 4 items', () => {
+  it('does NOT have spacing-scale tier (removed in #161)', () => {
     const tier = ZFBTW_SPACING_TAB.tiers.find((t) => t.id === 'spacing-scale');
-    expect(tier).toBeDefined();
-    expect(tier!.items.length).toBe(4);
+    expect(tier).toBeUndefined();
   });
 
   it('hsp-scale tier has 5 items', () => {
@@ -196,21 +162,15 @@ describe('zfb-tailwind manifest — Spacing tab: 3-tier structure', () => {
     expect(tier!.items.length).toBe(7);
   });
 
-  it('total items across all tiers is 16', () => {
+  it('total items across all tiers is 12', () => {
     const total = ZFBTW_SPACING_TAB.tiers.reduce((sum, t) => sum + t.items.length, 0);
-    expect(total).toBe(16);
+    expect(total).toBe(12);
   });
 
-  it('no tier uses referencesTier (all three are primitive tiers)', () => {
+  it('no tier uses referencesTier (both are primitive tiers)', () => {
     for (const tier of ZFBTW_SPACING_TAB.tiers) {
       expect(tier.referencesTier).toBeUndefined();
     }
-  });
-
-  it('emits literal default for spacing-scale items', () => {
-    expect(emit(ZFBTW_SPACING_TAB, 'spacing-scale', 'zfbtw-spacing-xs')).toBe('0.25rem');
-    expect(emit(ZFBTW_SPACING_TAB, 'spacing-scale', 'zfbtw-spacing-md')).toBe('1rem');
-    expect(emit(ZFBTW_SPACING_TAB, 'spacing-scale', 'zfbtw-spacing-lg')).toBe('2rem');
   });
 
   it('emits literal default for hsp-scale items', () => {

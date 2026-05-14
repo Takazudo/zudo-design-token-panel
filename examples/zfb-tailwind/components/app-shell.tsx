@@ -12,13 +12,13 @@
  * Token consumption:
  *   grid-cols-[var(--zfbtw-size-sidenav-w)_1fr]
  *       → sidenav column width (--zfbtw-size-sidenav-w; added by #128)
- *   p-spacing-lg → main content outer padding (--zfbtw-spacing-lg)
+ *   px-hsp-lg py-vsp-lg → main content outer padding (--zfbtw-hsp-lg / --zfbtw-vsp-lg)
  *   bg-bg        → main content background (--zfbtw-bg)
  *   bg-surface   → sidenav background (--zfbtw-color-surface)
- *   p-spacing-md → sidenav inner padding (--zfbtw-spacing-md)
+ *   px-hsp-md py-vsp-md → sidenav inner padding (--zfbtw-hsp-md / --zfbtw-vsp-md)
  *   h-size-header-h → topbar height (--zfbtw-size-header-h; added by #128)
  *   bg-surface   → topbar background
- *   p-spacing-md → topbar inline padding
+ *   px-hsp-md → topbar inline padding
  *
  * Panel Mount
  * -----------
@@ -49,14 +49,14 @@ export function AppShell({ title = 'zfb + Tailwind v4 — Design Token Panel', a
       </head>
       <body>
         {/* Topbar */}
-        <header class="h-size-header-h flex items-center justify-between bg-surface px-spacing-md border-b border-muted">
+        <header class="h-size-header-h flex items-center justify-between bg-surface px-hsp-md border-b border-muted">
           <span class="text-small text-muted">
             Storage prefix: <code>zfb-tailwind-example-tokens</code>
           </span>
           <button
             type="button"
             id="zfbtw-panel-open"
-            class="px-spacing-sm py-spacing-xs rounded-md bg-accent text-bg border-none cursor-pointer hover:bg-primary text-small"
+            class="px-hsp-sm py-vsp-xs rounded-md bg-accent text-bg border-none cursor-pointer hover:bg-primary text-small"
           >
             Open Design Token Panel
           </button>
@@ -81,10 +81,10 @@ export function AppShell({ title = 'zfb + Tailwind v4 — Design Token Panel', a
           no token-only utility expresses this combination
         */}
         <div class="grid grid-cols-[var(--zfbtw-size-sidenav-w)_1fr] min-h-screen">
-          <aside class="bg-surface p-spacing-md">
+          <aside class="bg-surface px-hsp-md py-vsp-md">
             <Sidenav activePath={activePath} />
           </aside>
-          <main class="p-spacing-lg bg-bg">
+          <main class="px-hsp-lg py-vsp-lg bg-bg">
             {children}
           </main>
         </div>
