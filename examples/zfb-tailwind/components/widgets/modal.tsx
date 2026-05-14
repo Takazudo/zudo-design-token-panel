@@ -13,8 +13,8 @@
  * hoists the element to the top layer, so it is NOT affected by <main inert>.
  *
  * Token consumption:
- *   bg-primary text-bg p-spacing-sm rounded-md  → trigger button
- *   bg-surface text-fg p-spacing-lg rounded-md max-w-[40rem] w-full  → modal panel
+ *   bg-primary text-bg px-hsp-sm py-vsp-sm rounded-md  → trigger button
+ *   bg-surface text-fg px-hsp-lg py-vsp-lg rounded-md max-w-[40rem] w-full  → modal panel
  *   max-w-[40rem] → arbitrary; reason: modal width is page-local
  *
  * Backdrop:
@@ -113,7 +113,7 @@ function ModalInner() {
 
       <button
         type="button"
-        class="bg-primary text-bg p-spacing-sm rounded-md border-none cursor-pointer"
+        class="bg-primary text-bg px-hsp-sm py-vsp-sm rounded-md border-none cursor-pointer"
         onClick={() => setIsOpen(true)}
       >
         Open Modal
@@ -123,14 +123,14 @@ function ModalInner() {
           does not block the dialog; showModal() moves it to the top layer */}
       <dialog
         ref={dialogRef}
-        class="widgets-modal bg-surface text-fg p-spacing-lg rounded-md max-w-[40rem] w-full border border-muted"
+        class="widgets-modal bg-surface text-fg px-hsp-lg py-vsp-lg rounded-md max-w-[40rem] w-full border border-muted"
       >
-        <div class="flex flex-col gap-spacing-md">
+        <div class="flex flex-col gap-vsp-md">
           <div class="flex items-center justify-between">
             <h2 class="text-h3 text-fg font-semibold">Modal Dialog</h2>
             <button
               type="button"
-              class="text-muted text-body hover:text-fg cursor-pointer border-none bg-transparent p-spacing-xs"
+              class="text-muted text-body hover:text-fg cursor-pointer border-none bg-transparent px-hsp-xs py-vsp-xs"
               onClick={() => setIsOpen(false)}
               aria-label="Close modal"
             >
@@ -151,7 +151,7 @@ function ModalInner() {
           <div>
             <button
               type="button"
-              class="bg-primary text-bg p-spacing-sm rounded-md border-none cursor-pointer"
+              class="bg-primary text-bg px-hsp-sm py-vsp-sm rounded-md border-none cursor-pointer"
               onClick={() => setIsOpen(false)}
             >
               Close

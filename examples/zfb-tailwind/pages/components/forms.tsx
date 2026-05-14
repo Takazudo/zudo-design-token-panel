@@ -18,10 +18,11 @@
  *   border-muted        → --zfbtw-color-muted      (resting border)
  *   focus:border-accent → --zfbtw-color-accent     (focus border)
  *   disabled:bg-muted   → --zfbtw-color-muted      (disabled bg)
- *   p-spacing-sm        → --zfbtw-spacing-sm       (input/btn padding)
+ *   px-hsp-sm py-vsp-sm → --zfbtw-hsp-sm / --zfbtw-vsp-sm  (input/btn padding)
  *   rounded-md          → --zfbtw-radius           (corners)
- *   gap-spacing-xs      → --zfbtw-spacing-xs       (label-control gap)
- *   gap-spacing-md      → --zfbtw-spacing-md       (between field groups)
+ *   gap-vsp-xs          → --zfbtw-vsp-xs           (label-control gap, flex-col)
+ *   gap-hsp-xs          → --zfbtw-hsp-xs           (label-control gap, inline-flex row)
+ *   gap-vsp-md          → --zfbtw-vsp-md           (between field groups)
  */
 
 import { AppShell } from '../../components/app-shell';
@@ -30,7 +31,7 @@ const BASE_PATH = '/pj/zudo-design-token-panel/examples/zfb-tailwind/';
 
 /** Shared classes for all text inputs, email inputs, selects, textareas. */
 const inputBase =
-  'bg-surface border border-muted focus:border-accent focus:outline-none rounded-md p-spacing-sm text-body text-fg w-full';
+  'bg-surface border border-muted focus:border-accent focus:outline-none rounded-md px-hsp-sm py-vsp-sm text-body text-fg w-full';
 
 export default function FormsPage() {
   return (
@@ -44,7 +45,7 @@ export default function FormsPage() {
       {/* §131.3 required intro paragraph */}
       <p class="text-body text-fg leading-relaxed mt-vsp-sm">
         Each widget below is styled entirely with Tailwind utilities that
-        resolve to design tokens. Inputs use <code class="font-mono text-small">spacing-sm</code> for
+        resolve to design tokens. Inputs use <code class="font-mono text-small">px-hsp-sm py-vsp-sm</code> for
         padding, <code class="font-mono text-small">radius</code> for corners,{' '}
         <code class="font-mono text-small">color-muted</code> for borders,{' '}
         <code class="font-mono text-small">color-accent</code> on focus,{' '}
@@ -54,11 +55,11 @@ export default function FormsPage() {
 
       {/* Form — SSR-only; inputs accept user input natively; no submit handler needed */}
       <form
-        class="flex flex-col gap-spacing-md mt-vsp-md"
+        class="flex flex-col gap-vsp-md mt-vsp-md"
         onSubmit={(e) => e.preventDefault()}
       >
         {/* ── Text input ─────────────────────────────────────────────── */}
-        <section class="flex flex-col gap-spacing-xs">
+        <section class="flex flex-col gap-vsp-xs">
           <h2 class="text-h4 text-fg font-semibold">Text input</h2>
           <p class="text-small text-muted">
             <code class="font-mono">bg-surface</code> background ·{' '}
@@ -68,7 +69,7 @@ export default function FormsPage() {
           </p>
 
           {/* Active (normal) */}
-          <div class="flex flex-col gap-spacing-xs">
+          <div class="flex flex-col gap-vsp-xs">
             <label class="text-body text-fg" for="input-text">
               Full name
             </label>
@@ -81,7 +82,7 @@ export default function FormsPage() {
           </div>
 
           {/* Disabled — demonstrates disabled:bg-muted (§131.1, criterion #4) */}
-          <div class="flex flex-col gap-spacing-xs">
+          <div class="flex flex-col gap-vsp-xs">
             <label class="text-body text-muted" for="input-text-disabled">
               Full name (disabled)
             </label>
@@ -100,13 +101,13 @@ export default function FormsPage() {
         </section>
 
         {/* ── Email input ─────────────────────────────────────────────── */}
-        <section class="flex flex-col gap-spacing-xs">
+        <section class="flex flex-col gap-vsp-xs">
           <h2 class="text-h4 text-fg font-semibold">Email input</h2>
           <p class="text-small text-muted">
             Same utility set as text input; browser provides email-specific
             keyboard on mobile.
           </p>
-          <div class="flex flex-col gap-spacing-xs">
+          <div class="flex flex-col gap-vsp-xs">
             <label class="text-body text-fg" for="input-email">
               Email address
             </label>
@@ -120,13 +121,13 @@ export default function FormsPage() {
         </section>
 
         {/* ── Select ─────────────────────────────────────────────────── */}
-        <section class="flex flex-col gap-spacing-xs">
+        <section class="flex flex-col gap-vsp-xs">
           <h2 class="text-h4 text-fg font-semibold">Select</h2>
           <p class="text-small text-muted">
             Native chevron retained (no <code class="font-mono">appearance-none</code>);
             same token set as text input.
           </p>
-          <div class="flex flex-col gap-spacing-xs">
+          <div class="flex flex-col gap-vsp-xs">
             <label class="text-body text-fg" for="select-role">
               Role
             </label>
@@ -140,14 +141,14 @@ export default function FormsPage() {
         </section>
 
         {/* ── Textarea ────────────────────────────────────────────────── */}
-        <section class="flex flex-col gap-spacing-xs">
+        <section class="flex flex-col gap-vsp-xs">
           <h2 class="text-h4 text-fg font-semibold">Textarea</h2>
           <p class="text-small text-muted">
             <code class="font-mono">min-h-[6rem]</code> arbitrary value —{' '}
             {/* reason: visual minimum is component-local; below-token granularity */}
             visual floor ensures usable initial height.
           </p>
-          <div class="flex flex-col gap-spacing-xs">
+          <div class="flex flex-col gap-vsp-xs">
             <label class="text-body text-fg" for="textarea-bio">
               Bio
             </label>
@@ -161,7 +162,7 @@ export default function FormsPage() {
         </section>
 
         {/* ── Checkbox group ──────────────────────────────────────────── */}
-        <section class="flex flex-col gap-spacing-xs">
+        <section class="flex flex-col gap-vsp-xs">
           <h2 class="text-h4 text-fg font-semibold">Checkbox group</h2>
           <p class="text-small text-muted">
             Native checkbox with{' '}
@@ -170,14 +171,14 @@ export default function FormsPage() {
             No Tailwind utility maps to <code class="font-mono">accent-color</code>{' '}
             in §131.1, so the value is applied via inline style.
           </p>
-          <fieldset class="flex flex-col gap-spacing-xs border-none p-0 m-0">
-            <legend class="text-body text-fg mb-spacing-xs">Interests</legend>
+          <fieldset class="flex flex-col gap-vsp-xs border-none p-0 m-0">
+            <legend class="text-body text-fg mb-vsp-xs">Interests</legend>
             {[
               { id: 'cb-design', label: 'Design systems' },
               { id: 'cb-tokens', label: 'Design tokens' },
               { id: 'cb-tailwind', label: 'Tailwind CSS' },
             ].map(({ id, label }) => (
-              <label key={id} class="inline-flex items-center gap-spacing-xs cursor-pointer text-body text-fg">
+              <label key={id} class="inline-flex items-center gap-hsp-xs cursor-pointer text-body text-fg">
                 {/* reason: no Tailwind utility for accent-color in §131.1 allowlist */}
                 <input
                   type="checkbox"
@@ -191,20 +192,20 @@ export default function FormsPage() {
         </section>
 
         {/* ── Radio group ─────────────────────────────────────────────── */}
-        <section class="flex flex-col gap-spacing-xs">
+        <section class="flex flex-col gap-vsp-xs">
           <h2 class="text-h4 text-fg font-semibold">Radio group</h2>
           <p class="text-small text-muted">
             Same <code class="font-mono">accent-color</code> inline-style pattern as
             checkboxes.
           </p>
-          <fieldset class="flex flex-col gap-spacing-xs border-none p-0 m-0">
-            <legend class="text-body text-fg mb-spacing-xs">Preferred theme</legend>
+          <fieldset class="flex flex-col gap-vsp-xs border-none p-0 m-0">
+            <legend class="text-body text-fg mb-vsp-xs">Preferred theme</legend>
             {[
               { id: 'radio-dark', label: 'Dark' },
               { id: 'radio-light', label: 'Light' },
               { id: 'radio-system', label: 'System default' },
             ].map(({ id, label }) => (
-              <label key={id} class="inline-flex items-center gap-spacing-xs cursor-pointer text-body text-fg">
+              <label key={id} class="inline-flex items-center gap-hsp-xs cursor-pointer text-body text-fg">
                 {/* reason: no Tailwind utility for accent-color in §131.1 allowlist */}
                 <input
                   type="radio"
@@ -219,14 +220,14 @@ export default function FormsPage() {
         </section>
 
         {/* ── Range slider ────────────────────────────────────────────── */}
-        <section class="flex flex-col gap-spacing-xs">
+        <section class="flex flex-col gap-vsp-xs">
           <h2 class="text-h4 text-fg font-semibold">Range slider</h2>
           <p class="text-small text-muted">
             <code class="font-mono">w-full</code> width ·{' '}
             <code class="font-mono">accent-color</code> fills the track and thumb
             with <code class="font-mono">color-accent</code>.
           </p>
-          <div class="flex flex-col gap-spacing-xs">
+          <div class="flex flex-col gap-vsp-xs">
             <label class="text-body text-fg" for="range-opacity">
               Opacity
             </label>
@@ -245,19 +246,19 @@ export default function FormsPage() {
         </section>
 
         {/* ── Submit button ───────────────────────────────────────────── */}
-        <section class="flex flex-col gap-spacing-xs">
+        <section class="flex flex-col gap-vsp-xs">
           <h2 class="text-h4 text-fg font-semibold">Submit button</h2>
           <p class="text-small text-muted">
             <code class="font-mono">bg-primary</code> fill ·{' '}
             <code class="font-mono">text-bg</code> label ·{' '}
             <code class="font-mono">hover:bg-accent</code> hover ·{' '}
-            <code class="font-mono">p-spacing-sm</code> padding ·{' '}
+            <code class="font-mono">px-hsp-sm py-vsp-sm</code> padding ·{' '}
             <code class="font-mono">rounded-md</code> corners.
           </p>
           <div>
             <button
               type="submit"
-              class="bg-primary text-bg px-spacing-sm py-spacing-sm rounded-md hover:bg-accent cursor-pointer text-body border-none"
+              class="bg-primary text-bg px-hsp-sm py-vsp-sm rounded-md hover:bg-accent cursor-pointer text-body border-none"
             >
               Submit form
             </button>

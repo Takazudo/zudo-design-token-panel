@@ -26,9 +26,9 @@ export default function WidgetsPage() {
       activePath={`${BASE_PATH}components/widgets/`}
     >
       {/* reason: page-content max-width is a layout constant for this demo; no structural token covers prose-container widths */}
-      <div class="flex flex-col gap-spacing-lg max-w-[56rem] mx-auto">
+      <div class="flex flex-col gap-vsp-lg max-w-[56rem] mx-auto">
         <header>
-          <h1 class="text-h2 text-primary font-bold mb-spacing-md">
+          <h1 class="text-h2 text-primary font-bold mb-vsp-md">
             Interactive Widgets
           </h1>
           <p class="text-body text-fg">
@@ -40,25 +40,25 @@ export default function WidgetsPage() {
 
         {/* ── Tabs ──────────────────────────────────────────────────────────── */}
         <section>
-          <h2 class="text-h3 text-fg font-semibold mb-spacing-sm">
+          <h2 class="text-h3 text-fg font-semibold mb-vsp-sm">
             Tabs
           </h2>
-          <p class="text-body text-muted mb-spacing-md">
+          <p class="text-body text-muted mb-vsp-md">
             Active indicator slides using{' '}
             <code>easing-tab-open</code>{' '}
             (→&nbsp;<code>--zfbtw-easing-tab-open</code>).
           </p>
-          <div class="bg-surface p-spacing-md rounded-md border border-muted">
+          <div class="bg-surface px-hsp-md py-vsp-md rounded-md border border-muted">
             <TabsDemo />
           </div>
         </section>
 
         {/* ── Accordion ─────────────────────────────────────────────────────── */}
         <section>
-          <h2 class="text-h3 text-fg font-semibold mb-spacing-sm">
+          <h2 class="text-h3 text-fg font-semibold mb-vsp-sm">
             Accordion
           </h2>
-          <p class="text-body text-muted mb-spacing-md">
+          <p class="text-body text-muted mb-vsp-md">
             Height transitions use{' '}
             <code>easing-tab-open</code> / <code>easing-tab-close</code>{' '}
             for open/close respectively (progressive enhancement, Chrome 131+).
@@ -68,10 +68,10 @@ export default function WidgetsPage() {
 
         {/* ── Modal ─────────────────────────────────────────────────────────── */}
         <section>
-          <h2 class="text-h3 text-fg font-semibold mb-spacing-sm">
+          <h2 class="text-h3 text-fg font-semibold mb-vsp-sm">
             Modal
           </h2>
-          <p class="text-body text-muted mb-spacing-md">
+          <p class="text-body text-muted mb-vsp-md">
             Fade-and-scale animation uses{' '}
             <code>easing-modal</code>{' '}
             (→&nbsp;<code>--zfbtw-easing-modal</code>). Close via

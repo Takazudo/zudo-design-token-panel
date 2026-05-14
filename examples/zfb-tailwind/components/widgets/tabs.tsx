@@ -2,8 +2,8 @@
  * TabsDemo — 3-tab horizontal nav with animated active indicator.
  *
  * Token consumption:
- *   flex gap-spacing-md border-b border-muted  → tab container
- *   px-spacing-md py-spacing-sm text-body text-muted  → resting tab label
+ *   flex gap-hsp-md border-b border-muted  → tab container
+ *   px-hsp-md py-vsp-sm text-body text-muted  → resting tab label
  *   text-accent  → active tab label
  *
  * Indicator animation:
@@ -24,13 +24,13 @@ export function TabsDemo() {
   return (
     <div>
       {/* Tab list */}
-      <div class="relative flex gap-spacing-md border-b border-muted">
+      <div class="relative flex gap-hsp-md border-b border-muted">
         {TABS.map((tab, i) => (
           <button
             key={tab}
             type="button"
             onClick={() => setActiveIndex(i)}
-            class={`px-spacing-md py-spacing-sm text-body cursor-pointer border-none bg-transparent ${
+            class={`px-hsp-md py-vsp-sm text-body cursor-pointer border-none bg-transparent ${
               activeIndex === i ? 'text-accent font-semibold' : 'text-muted'
             }`}
           >
@@ -56,7 +56,7 @@ export function TabsDemo() {
       </div>
 
       {/* Tab panels */}
-      <div class="p-spacing-md text-body text-fg">
+      <div class="px-hsp-md py-vsp-md text-body text-fg">
         {activeIndex === 0 && (
           <p>
             <strong>Overview panel.</strong> Indicator slides on{' '}

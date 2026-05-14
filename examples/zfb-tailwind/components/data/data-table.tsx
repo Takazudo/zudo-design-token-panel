@@ -3,9 +3,9 @@
  *
  * Token consumption (§134.1):
  *   table:  w-full text-small text-fg border border-muted rounded-md
- *   th:     text-h4 text-fg border-b border-muted text-left p-spacing-sm
+ *   th:     text-h4 text-fg border-b border-muted text-left px-hsp-sm py-vsp-sm
  *   tr:     hover:bg-surface
- *   td:     p-spacing-sm border-b border-muted
+ *   td:     px-hsp-sm py-vsp-sm border-b border-muted
  *   action: w-size-icon-md h-size-icon-md text-muted hover:text-accent
  *           inline-flex items-center justify-center rounded-md
  */
@@ -24,20 +24,20 @@ export function DataTable() {
       <table class="w-full text-small text-fg border border-muted rounded-md border-collapse">
         <thead>
           <tr>
-            <th class="text-h4 text-fg border-b border-muted text-left p-spacing-sm">Name</th>
-            <th class="text-h4 text-fg border-b border-muted text-left p-spacing-sm">Email</th>
-            <th class="text-h4 text-fg border-b border-muted text-left p-spacing-sm">Role</th>
-            <th class="text-h4 text-fg border-b border-muted text-left p-spacing-sm">Actions</th>
+            <th class="text-h4 text-fg border-b border-muted text-left px-hsp-sm py-vsp-sm">Name</th>
+            <th class="text-h4 text-fg border-b border-muted text-left px-hsp-sm py-vsp-sm">Email</th>
+            <th class="text-h4 text-fg border-b border-muted text-left px-hsp-sm py-vsp-sm">Role</th>
+            <th class="text-h4 text-fg border-b border-muted text-left px-hsp-sm py-vsp-sm">Actions</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((row) => (
             <tr key={row.email} class="hover:bg-surface">
-              <td class="p-spacing-sm border-b border-muted">{row.name}</td>
-              <td class="p-spacing-sm border-b border-muted">{row.email}</td>
-              <td class="p-spacing-sm border-b border-muted">{row.role}</td>
-              <td class="p-spacing-sm border-b border-muted">
-                <span class="inline-flex gap-spacing-xs">
+              <td class="px-hsp-sm py-vsp-sm border-b border-muted">{row.name}</td>
+              <td class="px-hsp-sm py-vsp-sm border-b border-muted">{row.email}</td>
+              <td class="px-hsp-sm py-vsp-sm border-b border-muted">{row.role}</td>
+              <td class="px-hsp-sm py-vsp-sm border-b border-muted">
+                <span class="inline-flex gap-hsp-xs">
                   <button
                     type="button"
                     aria-label={`Edit ${row.name}`}

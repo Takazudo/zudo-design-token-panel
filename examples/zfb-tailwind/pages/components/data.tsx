@@ -56,7 +56,7 @@ export default function DataPage() {
             Big number: semantic font token <code>text-h2</code> + <code>color-primary</code>.
             Label: <code>text-small</code> + <code>color-muted</code>. No hardcoded <code>font-size</code>.
           </p>
-          <div class="flex gap-spacing-md flex-wrap">
+          <div class="flex gap-x-hsp-md gap-y-vsp-md flex-wrap">
             <StatCard value="24,891" label="Total users" />
             <StatCard value="98.6%" label="Uptime this month" />
             <StatCard value="1,204" label="Active sessions" />
@@ -70,7 +70,7 @@ export default function DataPage() {
             Avatar: <code>size-avatar-md</code> (tweak in panel to resize).
             Name: <code>text-h4</code>. Role: <code>text-small color-muted</code>.
           </p>
-          <div class="flex flex-col gap-spacing-md max-w-[32rem]">
+          <div class="flex flex-col gap-vsp-md max-w-[32rem]">
             {/* reason: card list width is page-local */}
             <ProfileCard name="Alice Martin" role="Product Designer" />
             <ProfileCard name="Bob Chen" role="Frontend Engineer" />

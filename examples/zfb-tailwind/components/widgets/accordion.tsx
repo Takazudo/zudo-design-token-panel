@@ -2,9 +2,9 @@
  * AccordionDemo — 3 expandable sections using native <details>/<summary>.
  *
  * Token consumption:
- *   flex items-center justify-between p-spacing-md bg-surface rounded-md text-body cursor-pointer
+ *   flex items-center justify-between px-hsp-md py-vsp-md bg-surface rounded-md text-body cursor-pointer
  *     → summary row
- *   p-spacing-md border border-muted rounded-md text-body
+ *   px-hsp-md py-vsp-md border border-muted rounded-md text-body
  *     → content area
  *
  * Height transition (progressive enhancement):
@@ -37,7 +37,7 @@ const ITEMS = [
 
 export function AccordionDemo() {
   return (
-    <div class="flex flex-col gap-spacing-sm">
+    <div class="flex flex-col gap-vsp-sm">
       {/*
         Scoped transition rules for accordion open/close.
         Cannot be placed in global.css per task scope constraints.
@@ -61,13 +61,13 @@ export function AccordionDemo() {
 
       {ITEMS.map((item) => (
         <details key={item.id} class="widgets-accordion rounded-md overflow-hidden">
-          <summary class="flex items-center justify-between p-spacing-md bg-surface rounded-md text-body cursor-pointer list-none">
+          <summary class="flex items-center justify-between px-hsp-md py-vsp-md bg-surface rounded-md text-body cursor-pointer list-none">
             <span>{item.summary}</span>
             <span class="text-muted text-small select-none">▾</span>
           </summary>
-          <div class="p-spacing-md border border-muted rounded-md text-body text-fg mt-spacing-xs">
+          <div class="px-hsp-md py-vsp-md border border-muted rounded-md text-body text-fg mt-vsp-xs">
             <p>{item.body}</p>
-            <p class="text-small text-muted mt-spacing-sm">
+            <p class="text-small text-muted mt-vsp-sm">
               Open timing: <code>easing-tab-open</code> →{' '}
               <code>--zfbtw-easing-tab-open</code>. Close timing:{' '}
               <code>easing-tab-close</code> →{' '}
