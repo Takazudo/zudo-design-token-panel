@@ -164,6 +164,13 @@ export const defaultTabs: readonly TabConfig[] = [
             type: { kind: 'length', min: 0.5, max: 2, step: 0.0625, unit: 'rem' },
           },
           {
+            id: 'zfbtw-scale-md',
+            cssVar: '--zfbtw-scale-md',
+            label: 'Scale MD',
+            default: '1.125rem',
+            type: { kind: 'length', min: 0.5, max: 2.5, step: 0.0625, unit: 'rem' },
+          },
+          {
             id: 'zfbtw-scale-lg',
             cssVar: '--zfbtw-scale-lg',
             label: 'Scale LG',

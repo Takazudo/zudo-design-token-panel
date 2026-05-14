@@ -32,12 +32,13 @@
 /* ── Token declarations ──────────────────────────────────────────────────── */
 :root {
   /* Font scale tokens (font tab — raw tier, in raw tier) */
-  --zfbtw-scale-xs: 0.75rem;
-  --zfbtw-scale-sm: 0.875rem;
+  --zfbtw-scale-xs:   0.75rem;
+  --zfbtw-scale-sm:   0.875rem;
   --zfbtw-scale-base: 1rem;
-  --zfbtw-scale-lg: 1.25rem;
-  --zfbtw-scale-xl: 1.75rem;
-  --zfbtw-scale-2xl: 2.5rem;
+  --zfbtw-scale-md:   1.125rem;   /* sub-heading step — keeps h4 visually above body */
+  --zfbtw-scale-lg:   1.25rem;
+  --zfbtw-scale-xl:   1.75rem;
+  --zfbtw-scale-2xl:  2.5rem;
 
   /* Semantic font role tokens (font tab — semantic tier, reference raw scale) */
   --zfbtw-text-base: var(--zfbtw-scale-base);
@@ -113,14 +114,15 @@
   --zfbtw-hsp-xl:  2rem;      /* outer prose container horizontal padding */
 
   /* Type scale — semantic tier; MUST reference --zfbtw-scale-* (Tier 1).
-     Hardcoded rem values here break the Font-tab scale sliders — they'd move
-     the raw scale tier but not the prose content that uses these semantic
-     tokens. See doc/three-tier-font-size-strategy. h3/h4 round to the nearest
-     scale step (that's the point of a constrained scale — add a scale step
-     rather than breaking this Tier 2 → Tier 1 link). */
+     Hardcoded rem values here would break the Font-tab scale sliders — they'd
+     move the raw tier but not the prose / section-heading content that uses
+     these semantic tokens. See doc/three-tier-font-size-strategy. h3/h4 round
+     to nearby scale steps; the dedicated --zfbtw-scale-md step exists so h4
+     (used as section-heading and table-th across the demos) stays one tier
+     above body. */
   --zfbtw-text-h2:    var(--zfbtw-scale-xl);    /* 1.75rem */
   --zfbtw-text-h3:    var(--zfbtw-scale-lg);    /* 1.25rem (was 1.35rem) */
-  --zfbtw-text-h4:    var(--zfbtw-scale-base);  /* 1rem    (was 1.1rem)  */
+  --zfbtw-text-h4:    var(--zfbtw-scale-md);    /* 1.125rem (was 1.1rem) */
   --zfbtw-text-body:  var(--zfbtw-scale-base);  /* 1rem */
   --zfbtw-text-small: var(--zfbtw-scale-sm);    /* 0.875rem */
   --zfbtw-text-micro: var(--zfbtw-scale-xs);    /* 0.75rem */
@@ -210,6 +212,7 @@
   --text-scale-xs:   var(--zfbtw-scale-xs);
   --text-scale-sm:   var(--zfbtw-scale-sm);
   --text-scale-base: var(--zfbtw-scale-base);
+  --text-scale-md:   var(--zfbtw-scale-md);
   --text-scale-lg:   var(--zfbtw-scale-lg);
   --text-scale-xl:   var(--zfbtw-scale-xl);
   --text-scale-2xl:  var(--zfbtw-scale-2xl);

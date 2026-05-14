@@ -163,8 +163,8 @@ export default function HomePage() {
             Per the three-tier font-size strategy, real components should use
             semantic tokens (text-h2, text-body, etc.) backed by Tier 2 — see
             the Prose page for that. This block is a per-scale demo so each
-            of the six raw scale tokens is visibly bound to a row, letting the
-            Font tab's scale sliders be debugged in isolation. */}
+            of the seven raw scale tokens is visibly bound to a row, letting
+            the Font tab's scale sliders be debugged in isolation. */}
         <section>
           <h2 class="text-heading font-bold mb-vsp-md text-primary">
             Font scale tokens (raw tier)
@@ -188,6 +188,9 @@ export default function HomePage() {
             </p>
             <p class="text-scale-lg leading-snug text-fg">
               lg — <code class="text-scale-sm">text-scale-lg → --zfbtw-scale-lg</code>
+            </p>
+            <p class="text-scale-md leading-snug text-fg">
+              md — <code class="text-scale-sm">text-scale-md → --zfbtw-scale-md</code>
             </p>
             <p class="text-scale-base leading-relaxed text-fg">
               base — <code class="text-scale-sm">text-scale-base → --zfbtw-scale-base</code>
