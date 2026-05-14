@@ -865,10 +865,10 @@ The panel ships its own bundled CSS scoped under a panel-private namespace:
 
 ```css
 :where(.tokenpanel-shell, [data-design-token-panel-modal]) {
-  --tokentweak-color-fg: var(--color-fg, oklch(87% 0.01 60));
-  --tokentweak-color-bg: var(--color-bg, oklch(18% 0.01 50));
-  --tokentweak-color-surface: var(--color-surface, oklch(22% 0.01 50));
-  --tokentweak-color-accent: var(--color-accent, oklch(65% 0.2 45));
+  --tokentweak-color-fg: var(--color-fg, #b8b8b8);
+  --tokentweak-color-bg: var(--color-bg, #181818);
+  --tokentweak-color-surface: var(--color-surface, #1c1c1c);
+  --tokentweak-color-accent: var(--color-accent, #d69a66);
   --tokentweak-font-mono: var(--font-mono, Menlo, Monaco, Consolas, …);
   --tokentweak-pad-md: …;
   --tokentweak-gap-sm: …;

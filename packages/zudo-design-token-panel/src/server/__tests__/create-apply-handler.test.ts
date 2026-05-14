@@ -12,20 +12,20 @@ const TOKENS_CSS_FIXTURE = `/**
  */
 
 :root {
-  --zd-p5: oklch(65% 0.2 45); /* accent */
-  --zd-p6: oklch(52% 0.01 50);
+  --zd-p5: #33ff33; /* accent */
+  --zd-p6: #888888;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --zd-p5: oklch(10% 0 0);
+    --zd-p5: #1a1a1a;
   }
 }
 `;
 
 const SECONDARY_TOKENS_CSS_FIXTURE = `:root {
-  --secondary-pa7: oklch(65% 0.2 35);
-  --secondary-pa8: oklch(50% 0.2 35);
+  --secondary-pa7: #dd6644;
+  --secondary-pa8: #aa3333;
 }
 `;
 
@@ -157,7 +157,7 @@ describe('createApplyHandler', () => {
     const rootless = `/* no root block here */\nhtml { color: red; }\n`;
     await fs.writeFile(absPath, rootless, 'utf-8');
 
-    const res = await handler(makeRequest({ tokens: { '--zd-p5': 'oklch(70% 0.3 50)' } }));
+    const res = await handler(makeRequest({ tokens: { '--zd-p5': '#66ff66' } }));
     expect(res.status).toBe(409);
     const json = await readResponseJson(res);
     expect(json.ok).toBe(false);
@@ -174,8 +174,8 @@ describe('createApplyHandler', () => {
     const res = await handler(
       makeRequest({
         tokens: {
-          '--zd-p5': 'oklch(70% 0.3 50)',
-          '--secondary-pa7': 'oklch(70% 0.3 40)',
+          '--zd-p5': '#66ff66',
+          '--secondary-pa7': '#33dd33',
         },
       }),
     );
@@ -199,18 +199,18 @@ describe('createApplyHandler', () => {
       join(tmpRepo, 'tokens/tokens.css'),
       'utf-8',
     );
-    expect(tokensCss).toContain('--zd-p5: oklch(70% 0.3 50);');
+    expect(tokensCss).toContain('--zd-p5: #66ff66;');
     // --zd-p6 was NOT supplied and must remain untouched.
-    expect(tokensCss).toContain('--zd-p6: oklch(52% 0.01 50);');
+    expect(tokensCss).toContain('--zd-p6: #888888;');
     // The nested @media :root block must be untouched.
-    expect(tokensCss).toContain('--zd-p5: oklch(10% 0 0);');
+    expect(tokensCss).toContain('--zd-p5: #1a1a1a;');
 
     const secondaryCss = await fs.readFile(
       join(tmpRepo, 'tokens/secondary-tokens.css'),
       'utf-8',
     );
-    expect(secondaryCss).toContain('--secondary-pa7: oklch(70% 0.3 40);');
-    expect(secondaryCss).toContain('--secondary-pa8: oklch(50% 0.2 35);');
+    expect(secondaryCss).toContain('--secondary-pa7: #33dd33;');
+    expect(secondaryCss).toContain('--secondary-pa8: #aa3333;');
   });
 
   // ----- idempotent re-apply -------------------------------------------------
@@ -219,7 +219,7 @@ describe('createApplyHandler', () => {
     const absPath = join(tmpRepo, 'tokens/tokens.css');
     const before = await fs.stat(absPath);
 
-    const res = await handler(makeRequest({ tokens: { '--zd-p5': 'oklch(65% 0.2 45)' } }));
+    const res = await handler(makeRequest({ tokens: { '--zd-p5': '#33ff33' } }));
     expect(res.status).toBe(200);
     const json = await readResponseJson(res);
     expect(json.ok).toBe(true);
@@ -292,8 +292,8 @@ describe('createApplyHandler', () => {
     const res = await handler(
       makeRequest({
         tokens: {
-          '--zd-p5': 'oklch(99% 0.0 0)',
-          '--secondary-pa7': 'oklch(99% 0.0 0)',
+          '--zd-p5': '#fafafa',
+          '--secondary-pa7': '#fafafa',
         },
       }),
     );

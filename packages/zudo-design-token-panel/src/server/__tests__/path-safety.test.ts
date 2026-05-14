@@ -70,13 +70,13 @@ describe('CSS_VAR_NAME_RE / isValidCssVarName', () => {
 describe('validateAndSanitizeTokens', () => {
   it('accepts a well-formed map and returns the sanitized copy', () => {
     const result = validateAndSanitizeTokens({
-      '--zd-p5': 'oklch(65% 0.2 45)',
-      '--zd-p6': 'oklch(52% 0.01 50)',
+      '--zd-p5': '#33ff33',
+      '--zd-p6': '#888888',
     });
     expect(result.error).toBeUndefined();
     expect(result.sanitized).toEqual({
-      '--zd-p5': 'oklch(65% 0.2 45)',
-      '--zd-p6': 'oklch(52% 0.01 50)',
+      '--zd-p5': '#33ff33',
+      '--zd-p6': '#888888',
     });
   });
 

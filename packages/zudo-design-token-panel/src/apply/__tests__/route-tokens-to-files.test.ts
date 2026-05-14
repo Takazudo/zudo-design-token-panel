@@ -16,7 +16,7 @@ describe('routeTokensToFiles — single-prefix grouping', () => {
   it('groups all matching cssVars under their configured prefix', () => {
     const result: RouteResult = routeTokensToFiles(
       {
-        '--brand-p5': 'oklch(99% 0 0)',
+        '--brand-p5': '#fafafa',
         '--brand-spacing-hgap-sm': '24px',
       },
       DEMO_ROUTING,
@@ -27,7 +27,7 @@ describe('routeTokensToFiles — single-prefix grouping', () => {
     expect(group.prefix).toBe('brand');
     expect(group.relativePath).toBe(DEMO_ROUTING.brand);
     expect(group.tokens).toEqual({
-      '--brand-p5': 'oklch(99% 0 0)',
+      '--brand-p5': '#fafafa',
       '--brand-spacing-hgap-sm': '24px',
     });
   });

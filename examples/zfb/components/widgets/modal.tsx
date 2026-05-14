@@ -103,7 +103,7 @@ function ModalInner() {
             Open/close animation uses{' '}
             <code>easing-modal</code> →{' '}
             <code>--zfb-easing-modal</code>. Backdrop uses{' '}
-            <code>color-mix(in oklch, var(--zfb-bg) 80%, transparent)</code>{' '}
+            <code>color-mix(in srgb, var(--zfb-bg) 80%, transparent)</code>{' '}
             (reason: no overlay token in this wave).
           </p>
           <div>
