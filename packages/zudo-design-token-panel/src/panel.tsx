@@ -8,7 +8,7 @@ import FontTab from './tabs/font-tab';
 import SizeTab from './tabs/size-tab';
 import SpacingTab from './tabs/spacing-tab';
 import GenericTab from './tabs/generic-tab';
-import { getPanelConfig } from './config/panel-config';
+import { getPanelConfig, storageKey_visible } from './config/panel-config';
 import type { TabConfig } from './tokens/tier-model';
 import { usePersist } from './state/persist';
 import {
@@ -160,7 +160,12 @@ export default function DesignTokenTweakPanel() {
     saveDensity(next);
   }, []);
 
-  // Persist open state
+  // Persist open state, and keep the adapter-level :visible key in sync.
+  // The adapter (index.tsx) only writes :visible from its public API paths
+  // (show/hide/toggle), so an internal close (X button, ESC) would leave
+  // :visible='1' while -open is absent — causing the panel to reopen on the
+  // next page load via reapplyFromStorage → wasVisible(). Writing :visible
+  // here ensures every close path (public API or internal UI) stays in lockstep.
   useEffect(() => {
     try {
       const openKey = getOpenKey();
@@ -169,7 +174,32 @@ export default function DesignTokenTweakPanel() {
     } catch {
       /* ignore */
     }
+    try {
+      const visibleKey = storageKey_visible(getPanelConfig());
+      localStorage.setItem(visibleKey, open ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
   }, [open]);
+
+  // ESC key closes the panel when no modal is open. When a modal is open the
+  // native <dialog> handles ESC first (fires cancel → onClose), and we must
+  // not also close the panel. Effect is installed only while open===true so
+  // the listener is automatically removed when the panel is closed.
+  useEffect(() => {
+    if (!open) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      // If any modal is open, let the native <dialog> handle Escape.
+      if (showExport || showImport || showApply) return;
+      e.preventDefault();
+      setOpen(false);
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open, showExport, showImport, showApply]);
 
   // Sync `open` from the authoritative `localStorage[OPEN_KEY]` whenever the
   // adapter (`index.tsx`) signals a change. The adapter writes OPEN_KEY itself
