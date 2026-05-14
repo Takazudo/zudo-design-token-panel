@@ -668,12 +668,6 @@
   white-space: nowrap;
 }
 
-/* Text-row narrows the label so the wide free-form input gets room. */
-.tokenpanel-row-label--narrow {
-  flex: 0 0 auto;
-  max-width: 12rem;
-}
-
 .tokenpanel-row-input-group {
   display: flex;
   align-items: center;
