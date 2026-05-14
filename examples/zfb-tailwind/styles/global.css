@@ -112,13 +112,18 @@
   --zfbtw-hsp-lg:  1.5rem;    /* section-level horizontal gutter */
   --zfbtw-hsp-xl:  2rem;      /* outer prose container horizontal padding */
 
-  /* Type scale */
-  --zfbtw-text-h2:    1.75rem;
-  --zfbtw-text-h3:    1.35rem;
-  --zfbtw-text-h4:    1.1rem;
-  --zfbtw-text-body:  1rem;
-  --zfbtw-text-small: 0.875rem;
-  --zfbtw-text-micro: 0.75rem;
+  /* Type scale — semantic tier; MUST reference --zfbtw-scale-* (Tier 1).
+     Hardcoded rem values here break the Font-tab scale sliders — they'd move
+     the raw scale tier but not the prose content that uses these semantic
+     tokens. See doc/three-tier-font-size-strategy. h3/h4 round to the nearest
+     scale step (that's the point of a constrained scale — add a scale step
+     rather than breaking this Tier 2 → Tier 1 link). */
+  --zfbtw-text-h2:    var(--zfbtw-scale-xl);    /* 1.75rem */
+  --zfbtw-text-h3:    var(--zfbtw-scale-lg);    /* 1.25rem (was 1.35rem) */
+  --zfbtw-text-h4:    var(--zfbtw-scale-base);  /* 1rem    (was 1.1rem)  */
+  --zfbtw-text-body:  var(--zfbtw-scale-base);  /* 1rem */
+  --zfbtw-text-small: var(--zfbtw-scale-sm);    /* 0.875rem */
+  --zfbtw-text-micro: var(--zfbtw-scale-xs);    /* 0.75rem */
 
   /* Line-height tokens */
   --zfbtw-leading-tight:   1.2;
@@ -196,8 +201,12 @@
   --spacing-hsp-xl:  var(--zfbtw-hsp-xl);
 
   /* Raw font-scale utilities: text-scale-xs … text-scale-2xl
-     Each maps directly to a --zfbtw-scale-* token so demo content can render
-     every raw scale value (acceptance criterion: all six must be visibly consumed). */
+     ANTI-PATTERN — these expose Tier 1 (raw scale) as Tailwind utilities so
+     the home page can render a per-scale demo row (issue #163 acceptance:
+     every scale token must be visibly consumed). Production code should use
+     semantic tokens (text-h2, text-body, text-small, …) which themselves now
+     reference these scales via Tier 2. Three-tier rule: components → Tier 2,
+     never Tier 1 directly. */
   --text-scale-xs:   var(--zfbtw-scale-xs);
   --text-scale-sm:   var(--zfbtw-scale-sm);
   --text-scale-base: var(--zfbtw-scale-base);
