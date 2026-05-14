@@ -949,7 +949,7 @@ body {
 
 .zfb-modal::backdrop {
   /* reason: derived overlay; no dedicated overlay token in this wave (spec G4 row 6) */
-  background: color-mix(in oklch, var(--zfb-bg) 80%, transparent);
+  background: color-mix(in srgb, var(--zfb-bg) 80%, transparent);
   transition:
     background 0.2s var(--zfb-easing-modal),
     display 0.2s allow-discrete,

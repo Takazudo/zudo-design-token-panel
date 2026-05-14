@@ -13,7 +13,7 @@
  * a `PaletteSelector` — the only way to edit those values is to pick a
  * palette index (p0–p15) or one of the `bg`/`fg` extras. The 16 Palette
  * swatches themselves are the only inputs that edit a hex via the HSL
- * popover. No raw-color inputs (rgb / hex text field / lab / oklch) are
+ * popover. No raw-color inputs (rgb / hex text field / lab) are
  * exposed for Base or Semantic rows.
  *
  * Shiki integration is out of scope — the `shikiTheme` field stays on

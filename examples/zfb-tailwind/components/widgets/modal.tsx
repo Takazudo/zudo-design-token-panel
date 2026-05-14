@@ -18,7 +18,7 @@
  *   max-w-[40rem] → arbitrary; reason: modal width is page-local
  *
  * Backdrop:
- *   color-mix(in oklch, var(--zfbtw-bg) 80%, transparent)
+ *   color-mix(in srgb, var(--zfbtw-bg) 80%, transparent)
  *   reason: no overlay token in this wave (spec §133.3 exception G4 row 6)
  *
  * Open/close animation:
@@ -103,7 +103,7 @@ function ModalInner() {
           }
         }
         .widgets-modal::backdrop {
-          background: color-mix(in oklch, var(--zfbtw-bg) 80%, transparent);
+          background: color-mix(in srgb, var(--zfbtw-bg) 80%, transparent);
           transition:
             background 0.2s var(--zfbtw-easing-modal),
             display 0.2s allow-discrete,
@@ -145,7 +145,7 @@ function ModalInner() {
             Open/close animation uses{' '}
             <code>easing-modal</code> →{' '}
             <code>--zfbtw-easing-modal</code>. Backdrop uses{' '}
-            <code>color-mix(in oklch, var(--zfbtw-bg) 80%, transparent)</code>{' '}
+            <code>color-mix(in srgb, var(--zfbtw-bg) 80%, transparent)</code>{' '}
             (reason: no overlay token in this wave).
           </p>
           <div>

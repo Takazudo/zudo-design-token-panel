@@ -248,7 +248,7 @@ export default function DesignTokenTweakPanel() {
       return;
     }
     // No saved state — page already has correct colors from ColorSchemeProvider.
-    // Just read scheme data for panel display; don't apply (avoids oklch->hex lossy conversion).
+    // Just read scheme data for panel display; don't apply (avoids overwriting host CSS with redundant defaults).
     // The `secondary` slice is always seeded — every fresh-state path
     // includes it so the persisted envelope shape stays stable regardless
     // of the user's path.

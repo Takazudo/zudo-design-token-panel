@@ -253,7 +253,7 @@
 }
 
 .tokenpanel-empty-state-text {
-  color: var(--tokentweak-color-muted, oklch(70% 0.01 60));
+  color: var(--tokentweak-color-muted, #a8a8a8);
   font-size: 0.8125rem;
   line-height: 1.5;
   max-width: 32rem;
