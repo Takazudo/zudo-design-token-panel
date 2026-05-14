@@ -479,3 +479,41 @@
     font-weight: 600;
   }
 }
+
+/* ── View Transitions (Strategy B — same-document SPA soft-swap) ─────────── */
+/*
+ * These rules support the zfb-runtime <ClientRouter /> SPA router.
+ * Persisted chrome elements (topbar + sidenav) carry data-zfb-transition-persist
+ * in app-shell.tsx; zfb's DOM byte-move keeps their DOM nodes alive across pages.
+ * We assign each a view-transition-name and then suppress their animation so they
+ * appear static. Only the ::view-transition-old/new(root) pseudo-elements animate,
+ * producing a cross-fade on the main content area.
+ */
+
+@keyframes zfbtw-content-fade-in {
+  from { opacity: 0; transform: translateY(-0.5rem); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes zfbtw-content-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* Assign stable view-transition-name to persisted chrome elements. */
+[data-zfb-transition-persist="topbar"]  { view-transition-name: zfbtw-topbar; }
+[data-zfb-transition-persist="sidenav"] { view-transition-name: zfbtw-sidenav; }
+
+/* Suppress animation for persisted chrome — they don't move between pages. */
+::view-transition-old(zfbtw-topbar),
+::view-transition-new(zfbtw-topbar),
+::view-transition-group(zfbtw-topbar),
+::view-transition-old(zfbtw-sidenav),
+::view-transition-new(zfbtw-sidenav),
+::view-transition-group(zfbtw-sidenav) {
+  animation: none;
+}
+
+/* Root cross-fade: only the page content area animates. */
+::view-transition-old(root) { animation: 150ms ease-in  both zfbtw-content-fade-out; }
+::view-transition-new(root) { animation: 300ms ease-out both zfbtw-content-fade-in; }

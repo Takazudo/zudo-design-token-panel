@@ -20,6 +20,17 @@
  *   bg-surface   → topbar background
  *   px-hsp-md → topbar inline padding
  *
+ * View Transitions
+ * ----------------
+ * <ClientRouter /> (in <head>) emits the opt-in meta tags and global CSS for the
+ * zfb-runtime SPA router. The `<ClientRouterBootstrap>` island (when="load")
+ * registers the browser-side click intercept by executing the side-effect import.
+ *
+ * The topbar (<header>) and sidenav (<aside>) carry `data-zfb-transition-persist`
+ * so zfb's DOM byte-move keeps the same DOM nodes across soft navigations, and the
+ * paired `view-transition-name` CSS rules suppress animation for those chrome elements
+ * while the root cross-fade animates only the page content area.
+ *
  * Panel Mount
  * -----------
  * AppShell includes <PanelMount> wrapped in <Island> so every page gets the
@@ -27,6 +38,8 @@
  */
 
 import { Island, type IslandProps } from '@takazudo/zfb';
+import { ClientRouter } from '@takazudo/zfb-runtime';
+import ClientRouterBootstrap from './client-router-bootstrap';
 import PanelMount from './panel-mount';
 import { Sidenav } from './sidenav';
 import '../styles/global.css';
@@ -46,10 +59,11 @@ export function AppShell({ title = 'zfb + Tailwind v4 — Design Token Panel', a
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>{title}</title>
+        {ClientRouter({ fallback: 'animate' }) as unknown as preact.JSX.Element}
       </head>
       <body>
-        {/* Topbar */}
-        <header class="h-size-header-h flex items-center justify-between bg-surface px-hsp-md border-b border-muted">
+        {/* Topbar — persisted across soft navigations; no animation (CSS names it zfb-topbar) */}
+        <header data-zfb-transition-persist="topbar" class="h-size-header-h flex items-center justify-between bg-surface px-hsp-md border-b border-muted">
           <span class="text-small text-muted">
             Storage prefix: <code>zfb-tailwind-example-tokens</code>
           </span>
@@ -81,13 +95,24 @@ export function AppShell({ title = 'zfb + Tailwind v4 — Design Token Panel', a
           no token-only utility expresses this combination
         */}
         <div class="grid grid-cols-[var(--zfbtw-size-sidenav-w)_1fr] min-h-screen">
-          <aside class="bg-surface px-hsp-md py-vsp-md">
+          {/* Sidenav — persisted across soft navigations; no animation (CSS names it zfb-sidenav) */}
+          <aside data-zfb-transition-persist="sidenav" class="bg-surface px-hsp-md py-vsp-md">
             <Sidenav activePath={activePath} />
           </aside>
           <main class="px-hsp-lg py-vsp-lg bg-bg">
             {children}
           </main>
         </div>
+
+        {/*
+          ClientRouterBootstrap registers the zfb-runtime SPA router click intercept.
+          Must use when="load" (not "visible") so the intercept is registered before
+          the user can click any link — "visible" risks a race where the island is
+          still deferred at first navigation.
+        */}
+        <Island when="load" ssrFallback={null}>
+          {(<ClientRouterBootstrap />) as unknown as IslandProps['children']}
+        </Island>
 
         {/*
           PanelMount is the `"use client"` island that bootstraps the panel adapter.
