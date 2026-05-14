@@ -1,10 +1,10 @@
 ---
 title: Panel CSS tokens
 sidebar_position: 6
-description: "--tokentweak-* private variables, the var(--host, fallback) indirection ladder, the modal data-attribute selector, and the paired stylesheet/host-adapter import obligations."
+description: "--tokentweak-* private variables, the self-contained dark palette baked into panel-tokens.css, the modal data-attribute selector, and the paired stylesheet/host-adapter import obligations."
 ---
 
-The panel ships its own bundled CSS — no Tailwind dependency in the consumer. This page pins the panel-private `--tokentweak-*` namespace, the `var(--host, fallback)` indirection ladder that lets a host retheme without touching panel internals, and the bundled stylesheet's modal-selector contract.
+The panel ships its own bundled CSS — no Tailwind dependency in the consumer, and no reads against the host's `--color-*` theme. This page pins the panel-private `--tokentweak-*` namespace, the self-contained dark palette the panel paints with, the bundled stylesheet's modal-selector contract, and the panel-private override surface for hosts that want a different chrome theme.
 
 ## Panel-private namespace
 
@@ -24,7 +24,7 @@ The bundled stylesheets declare every panel-chrome variable under a panel-privat
 
 - `--tokentweak-*` is the only allowed prefix for panel-private vars. No consumer-namespaced identifiers may appear in the panel chrome.
 - The chrome stylesheet (`panel.css`) MUST read only `--tokentweak-*` — it MUST NOT read host vars like `--color-*` or `--font-mono` directly.
-- The token sheet (`panel-tokens.css`) is the single indirection point where host vars are consumed (see [the indirection ladder below](#host-css-var-indirection-ladder)).
+- The token sheet (`panel-tokens.css`) declares the `--tokentweak-*` values as concrete colors (no `var(--color-*)` reads) so host theme changes cannot bleed into the panel chrome. See [the self-contained palette below](#self-contained-panel-chrome-palette).
 
 ### Files
 
@@ -53,68 +53,76 @@ This means a host that customises `modalClassPrefix` still inherits the bundled 
 
 The class prefix remains useful as a higher-specificity hook for hosts that want to layer custom rules on top of the bundled chrome.
 
-## Host CSS-var indirection ladder
+## Self-contained panel chrome palette
 
-The panel-chrome color tokens are declared in `panel-tokens.css` as a `var(--host, fallback)` ladder so a host that does not define `--color-*` / `--font-mono` still gets a sane paint:
+The panel-chrome color tokens are declared in `panel-tokens.css` as concrete dark-palette values. The panel reads NOTHING from the host's `--color-*` / `--font-mono` theme — host theme changes (including theme tweaks driven through this very panel in a demo) cannot bleed into the panel chrome:
 
 ```css
 :where(.tokenpanel-shell, [data-design-token-panel-modal]) {
-  --tokentweak-color-fg: var(--color-fg, oklch(87% 0.01 60));
-  --tokentweak-color-bg: var(--color-bg, oklch(18% 0.01 50));
-  --tokentweak-color-muted: var(--color-muted, oklch(70% 0.01 60));
-  --tokentweak-color-surface: var(--color-surface, oklch(22% 0.01 50));
-  --tokentweak-color-accent: var(--color-accent, oklch(65% 0.2 45));
-  --tokentweak-color-accent-hover: var(--color-accent-hover, oklch(55% 0.18 45));
-  --tokentweak-color-code-bg: var(--color-code-bg, oklch(17% 0.005 50));
-  --tokentweak-color-code-fg: var(--color-code-fg, oklch(87% 0.01 60));
-  --tokentweak-color-success: var(--color-success, oklch(65% 0.19 145));
-  --tokentweak-color-danger: var(--color-danger, oklch(60% 0.2 10));
-  --tokentweak-color-warning: var(--color-warning, oklch(75% 0.17 75));
-  --tokentweak-font-mono: var(--font-mono, Menlo, Monaco, Consolas, …);
+  --tokentweak-color-fg: #b8b8b8;
+  --tokentweak-color-bg: #181818;
+  --tokentweak-color-muted: #888888;
+  --tokentweak-color-surface: #1c1c1c;
+  --tokentweak-color-accent: #d69a66;
+  --tokentweak-color-accent-hover: #a7c0e3;
+  --tokentweak-color-code-bg: #383838;
+  --tokentweak-color-code-fg: #e0e0e0;
+  --tokentweak-color-success: #93bb77;
+  --tokentweak-color-danger: #da6871;
+  --tokentweak-color-warning: #dfbb77;
+  --tokentweak-font-mono: Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
 }
 ```
 
+The palette mirrors a terminal-style "Default Dark" scheme — low-saturation neutrals with a warm accent and a cool accent-hover — so the panel reads as a separate dark surface on top of any host backdrop.
+
 ### Public surface
 
-These are the panel-private variables a host MAY override on the same scope to retheme the panel chrome without touching their own `--color-*` theme:
+These are the panel-private variables a host MAY override on the same scope to retheme the panel chrome:
 
-| Variable | Default fallback | Role |
+| Variable | Default | Role |
 | --- | --- | --- |
-| `--tokentweak-color-fg` | neutral light grey | Foreground text. |
-| `--tokentweak-color-bg` | dark surface | Panel background. |
-| `--tokentweak-color-muted` | mid grey | Muted text and dividers. |
-| `--tokentweak-color-surface` | dark surface variant | Raised surfaces (cards, modals). |
-| `--tokentweak-color-accent` | warm accent | Primary actions and highlights. |
-| `--tokentweak-color-accent-hover` | darker accent | Hover state for accent surfaces. |
-| `--tokentweak-color-code-bg` | very dark surface | Inline / block code background. |
-| `--tokentweak-color-code-fg` | light text | Inline / block code foreground. |
-| `--tokentweak-color-success` | green | Success state colour. |
-| `--tokentweak-color-danger` | red | Danger / error state colour. |
-| `--tokentweak-color-warning` | amber | Warning state colour. |
+| `--tokentweak-color-fg` | `#b8b8b8` | Foreground text. |
+| `--tokentweak-color-bg` | `#181818` | Panel background. |
+| `--tokentweak-color-muted` | `#888888` | Muted text and dividers. |
+| `--tokentweak-color-surface` | `#1c1c1c` | Raised surfaces (cards, modals). |
+| `--tokentweak-color-accent` | `#d69a66` | Primary actions and highlights. |
+| `--tokentweak-color-accent-hover` | `#a7c0e3` | Hover state for accent surfaces. |
+| `--tokentweak-color-code-bg` | `#383838` | Inline / block code background. |
+| `--tokentweak-color-code-fg` | `#e0e0e0` | Inline / block code foreground. |
+| `--tokentweak-color-success` | `#93bb77` | Success state colour. |
+| `--tokentweak-color-danger` | `#da6871` | Danger / error state colour. |
+| `--tokentweak-color-warning` | `#dfbb77` | Warning state colour. |
 | `--tokentweak-font-mono` | system monospace stack | Monospace font for code / values. |
 
-### Override layers
+### Override surface for hosts
 
-A host can override at either level:
+A host that wants a different chrome theme assigns directly to the `--tokentweak-*` names on `.tokenpanel-shell`, `[data-design-token-panel-modal]`, or any ancestor (the panel scope uses `:where()` so specificity is 0):
 
-- **At the `--color-*` level** — cascades into the panel via the fallback ladder. Useful when the host wants its own design system to drive the panel's chrome alongside its app surfaces.
-- **At the `--tokentweak-color-*` level** — panel-only override, bypasses the host theme. Useful when the host wants the panel to look distinct from app surfaces (e.g. a dark panel inside a light app).
-
-### Fallback values
-
-The fallback values are picked to be a sensible neutral dark theme so the panel paints readably without any host theme declared. A host can therefore drop the panel into a brand-new project and see a usable panel before shipping a single `--color-*` token.
-
-### Invariant — panel.css MUST NOT read host vars directly
-
-`panel.css` MUST NOT read `--color-*` or `--font-mono` directly. The only legal site for those reads is the indirection ladder in `panel-tokens.css`. The package's CI pins this with a grep check:
-
-```bash
-grep -n 'var(--color-' src/styles/panel.css   # → 0
-grep -n 'var(--font-mono' src/styles/panel.css # → 0
+```css
+:root {
+  --tokentweak-color-bg: #102030;
+  --tokentweak-color-fg: #eef;
+  --tokentweak-color-accent: #ffb74d;
+}
 ```
 
-<Info title="Why the indirection?">
-Reading host vars directly inside `panel.css` would leak the host's design-system identifiers into the panel chrome. Every chrome rule would silently break for hosts whose theme uses a different name. Routing every host read through the `panel-tokens.css` ladder gives one stable seam to evolve without touching the chrome rules.
+This is the entire host-override contract for panel chrome. `--color-*` and `--font-mono` are NOT part of the override surface — assigning to them on the host page has no effect on the panel.
+
+### Invariant — the panel package MUST NOT read host theme vars
+
+Neither `panel.css` nor `panel-tokens.css` may reference `--color-*` or `--font-mono`. The package's CI pins this with grep checks:
+
+```bash
+grep -n 'var(--color-' src/styles/panel.css        # → 0
+grep -n 'var(--font-mono' src/styles/panel.css     # → 0
+grep -n 'var(--color-' src/styles/panel-tokens.css # → 0
+grep -n 'var(--font-mono' src/styles/panel-tokens.css # → 0
+```
+
+<Info title="Why no host theme reads?">
+The panel is a developer tool that ships inside a host page. If the panel inherited the host's `--color-*` tokens, any host theme change — including theme tweaks driven by the panel itself in a demo — would recolor the panel chrome along with the host. The dev tool would visually merge with the surface it is debugging, which is the opposite of what a dev tool should do. Keeping the palette self-contained makes the panel a stable visual anchor regardless of host theme state.
 </Info>
 
 ## Host-adapter side-effect import (paired-unit obligation)
