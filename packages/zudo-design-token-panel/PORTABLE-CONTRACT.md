@@ -631,7 +631,7 @@ The panel ships its own bundled CSS. All panel-chrome variables use the
 :where(.tokenpanel-shell, [data-design-token-panel-modal]) {
   --tokentweak-pad-md: …;
   --tokentweak-gap-sm: …;
-  --tokentweak-color-fg: var(--color-fg, oklch(87% 0.01 60));
+  --tokentweak-color-fg: #b8b8b8;
   /* …every panel-chrome value lives here */
 }
 ```
@@ -663,36 +663,51 @@ prefix.** Every modal `<dialog>` element emits
 `data-design-token-panel-modal=""`. `panel.css` anchors all modal chrome
 rules on `[data-design-token-panel-modal]`.
 
-### 7.4 Host-CSS-var indirection ladder for chrome colors
+### 7.4 Self-contained panel chrome palette (no host theme reads)
 
-The panel-chrome color tokens are declared in `panel-tokens.css` as a
-`var(--host, fallback)` ladder so a host that does not define `--color-*`
-tokens still gets a sane paint:
+The panel-chrome color tokens are declared in `panel-tokens.css` as
+concrete dark-palette values so the panel paints as a neutral dark surface
+regardless of what the host's `--color-*` tokens resolve to:
 
 ```css
 :where(.tokenpanel-shell, [data-design-token-panel-modal]) {
-  --tokentweak-color-fg: var(--color-fg, oklch(87% 0.01 60));
-  --tokentweak-color-bg: var(--color-bg, oklch(18% 0.01 50));
-  --tokentweak-color-muted: var(--color-muted, oklch(70% 0.01 60));
-  --tokentweak-color-surface: var(--color-surface, oklch(22% 0.01 50));
-  --tokentweak-color-accent: var(--color-accent, oklch(65% 0.2 45));
-  --tokentweak-color-accent-hover: var(--color-accent-hover, oklch(55% 0.18 45));
-  --tokentweak-color-code-bg: var(--color-code-bg, oklch(17% 0.005 50));
-  --tokentweak-color-code-fg: var(--color-code-fg, oklch(87% 0.01 60));
-  --tokentweak-color-success: var(--color-success, oklch(65% 0.19 145));
-  --tokentweak-color-danger: var(--color-danger, oklch(60% 0.2 10));
-  --tokentweak-color-warning: var(--color-warning, oklch(75% 0.17 75));
-  --tokentweak-font-mono: var(--font-mono, Menlo, Monaco, Consolas, …);
+  --tokentweak-color-fg: #b8b8b8;
+  --tokentweak-color-bg: #181818;
+  --tokentweak-color-muted: #888888;
+  --tokentweak-color-surface: #1c1c1c;
+  --tokentweak-color-accent: #d69a66;
+  --tokentweak-color-accent-hover: #a7c0e3;
+  --tokentweak-color-code-bg: #383838;
+  --tokentweak-color-code-fg: #e0e0e0;
+  --tokentweak-color-success: #93bb77;
+  --tokentweak-color-danger: #da6871;
+  --tokentweak-color-warning: #dfbb77;
+  --tokentweak-font-mono: Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
 }
 ```
 
-**Invariant:** `panel.css` MUST NOT read `--color-*` or `--font-mono`
-directly. The only legal site for those reads is the indirection ladder in
-`panel-tokens.css`. Acceptance check:
+The panel deliberately does NOT read host `--color-*` / `--font-mono`
+tokens. The panel is a developer tool that ships inside a host page; a
+host theme change — including theme tweaks driven through this very panel
+in a demo — MUST NOT bleed into the panel chrome.
+
+**Override surface for hosts:** a host that wants to retheme the panel
+chrome assigns directly to the `--tokentweak-color-*` /
+`--tokentweak-font-mono` names on `.tokenpanel-shell`,
+`[data-design-token-panel-modal]`, or any ancestor (`:where()` keeps
+specificity at 0). This single name layer is the entire host-override
+contract for panel chrome — `--color-*` reads are not part of it.
+
+**Invariant:** the panel package MUST NOT read `--color-*` or
+`--font-mono` anywhere. Both `panel.css` and `panel-tokens.css` are pinned
+by acceptance grep:
 
 ```bash
-grep -n 'var(--color-' src/styles/panel.css   # → 0
-grep -n 'var(--font-mono' src/styles/panel.css # → 0
+grep -n 'var(--color-' src/styles/panel.css        # → 0
+grep -n 'var(--font-mono' src/styles/panel.css     # → 0
+grep -n 'var(--color-' src/styles/panel-tokens.css # → 0
+grep -n 'var(--font-mono' src/styles/panel-tokens.css # → 0
 ```
 
 ### 7.5 Host-adapter side-effect import (paired-unit obligation)
@@ -847,7 +862,7 @@ Cross-reference table — what each section pins down.
 | Astro `<DesignTokenPanelHost>` prop, lazy-load gate, console API                           | §6            |
 | `--tokentweak-*` namespace and Tailwind-free CSS contract                                   | §7.1          |
 | Modal class prefix and `data-design-token-panel-modal` selector contract                    | §7.3          |
-| Host-CSS-var indirection ladder for chrome colors                                           | §7.4          |
+| Self-contained panel chrome palette (no host theme reads)                                  | §7.4          |
 | Host-adapter side-effect import (paired-unit obligation)                                    | §7.5          |
 | v1/v2 → v3 storage migration and typography-id rename map                                   | §8.3, §8.4    |
 | JSON export/import schema v2 (serde v2)                                                     | §9            |

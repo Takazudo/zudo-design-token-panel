@@ -15,11 +15,12 @@
  * Token strategy
  * --------------
  * Visual tokens are declared in `panel-tokens.css` (sibling file) under
- * `.tokenpanel-shell`. The host's `--color-*` semantic tokens (bg / fg /
- * accent / muted / surface / etc.) are still referenced via `var()`; the
- * portable-panel contract is what makes those names host-supplied.
- * This file deliberately does NOT redeclare semantic colors — that's a
- * different layer of the stack.
+ * `.tokenpanel-shell`. The panel ships its own self-contained dark
+ * palette there — it deliberately does NOT read the host's `--color-*`
+ * tokens so host theme changes (including ones driven through this very
+ * panel in a demo) cannot bleed into the panel chrome. A host that
+ * wants to retheme the panel assigns directly to the `--tokentweak-*`
+ * names; see panel-tokens.css for the full override surface.
  *
  * BEM-ish naming
  * --------------
