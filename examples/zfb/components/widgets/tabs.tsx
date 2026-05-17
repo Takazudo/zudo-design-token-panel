@@ -11,10 +11,11 @@
  */
 
 import { useState } from 'preact/hooks';
+import { Island, type IslandProps } from '@takazudo/zfb';
 
 const TABS = ['Overview', 'Details', 'Settings'] as const;
 
-export function TabsDemo() {
+function TabsInner() {
   const [activeIndex, setActiveIndex] = useState(0);
   const tabCount = TABS.length;
   const indicatorPct = 100 / tabCount;
@@ -75,5 +76,13 @@ export function TabsDemo() {
         )}
       </div>
     </div>
+  );
+}
+
+export function TabsDemo() {
+  return (
+    <Island when="visible" ssrFallback={null}>
+      {(<TabsInner />) as unknown as IslandProps['children']}
+    </Island>
   );
 }
