@@ -37,6 +37,7 @@ import { useRef } from 'preact/compat';
 import type { JSX } from 'preact';
 import { ColorPicker, LOCAL_STORAGE_KEY } from '../color-picker';
 import type { ColorPickerProps } from '../color-picker';
+import { oklchaToHex } from '../../../utils/color-oklch';
 
 // ---------------------------------------------------------------------------
 // Test harness helpers
@@ -413,8 +414,13 @@ describe('ColorPicker — hex input', () => {
       '.tokenpanel-color-picker-hex-input',
     )!;
     act(() => {
-      input.value = '#ff';
-      input.dispatchEvent(new Event('change', { bubbles: true }));
+      Object.defineProperty(input, 'value', {
+        value: '#ff',
+        writable: true,
+        configurable: true,
+      });
+      // Preact wires controlled text inputs to the native "input" event.
+      input.dispatchEvent(new Event('input', { bubbles: true }));
     });
     expect(onChange).not.toHaveBeenCalled();
   });
@@ -641,5 +647,213 @@ describe('ColorPicker — slider rendering', () => {
     renderPicker();
     const sliders = container.querySelectorAll('[role="slider"]');
     expect(sliders.length).toBe(4);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10. H1 — Hue circular-distance regression guard
+// ---------------------------------------------------------------------------
+
+describe('ColorPicker — hue circular-distance (H1 regression)', () => {
+  // Generate deterministic test colors in OKLCH space so the test does not
+  // depend on the specific sRGB→OKLCH conversion of an opaque hex guess.
+  // L=44 matches PRESET_L_ROWS row 3 (tolerance < 2). C=0.18 = PRESET_C_FIXED.
+  const nearZeroHex = oklchaToHex({ l: 44, c: 0.18, h: 2, a: 100 });
+  const near359Hex = oklchaToHex({ l: 44, c: 0.18, h: 358, a: 100 });
+
+  it('selects H=0° col at row 3 for a color with hue near 0° (h=2°)', () => {
+    renderPicker({ color: nearZeroHex });
+    // Row 3 = PRESET_L_ROWS[3] = 44. Col 0 = H=0°.
+    const cell = container.querySelector<HTMLElement>(
+      '[data-grid-row="3"][data-grid-col="0"]',
+    );
+    expect(cell).not.toBeNull();
+    expect(cell!.getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('selects H=0° col at row 3 for a color with hue near 359° (h=358°) — shortest-arc check', () => {
+    renderPicker({ color: near359Hex });
+    // 358° is only 2° away from 0° via the short arc. The old (h1-h2+360)%360
+    // formula would compute 358, not 2, and the cell would NOT be selected.
+    const cell = container.querySelector<HTMLElement>(
+      '[data-grid-row="3"][data-grid-col="0"]',
+    );
+    expect(cell).not.toBeNull();
+    expect(cell!.getAttribute('aria-selected')).toBe('true');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 11. H2 — Hex input not clobbered by external prop while user is mid-typing
+// ---------------------------------------------------------------------------
+
+describe('ColorPicker — hex input not clobbered mid-typing (H2 regression)', () => {
+  it('does NOT overwrite a partial hex input when the color prop changes externally', () => {
+    renderPicker({ color: '#3366cc' });
+
+    const input = container.querySelector<HTMLInputElement>(
+      '.tokenpanel-color-picker-hex-input',
+    )!;
+
+    // Simulate user clearing the field and typing a partial value.
+    act(() => {
+      Object.defineProperty(input, 'value', {
+        value: '#33',
+        writable: true,
+        configurable: true,
+      });
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    // Sanity: partial input should not have called onChange.
+    // Now re-render with a different external color.
+    act(() => {
+      render(<PickerWrapper color="#999999" onChange={vi.fn()} />, container);
+    });
+
+    // The input field must still show the in-progress value.
+    const inputAfter = container.querySelector<HTMLInputElement>(
+      '.tokenpanel-color-picker-hex-input',
+    )!;
+    expect(inputAfter.value).toBe('#33');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 12. M2 — role=row wrappers in preset grid
+// ---------------------------------------------------------------------------
+
+describe('ColorPicker — role=row wrappers in preset grid (M2)', () => {
+  it('renders 6 role=row containers in mini mode', () => {
+    renderPicker();
+    const rows = container.querySelectorAll('[role="grid"] [role="row"]');
+    expect(rows.length).toBe(6);
+  });
+
+  it('each role=row contains 6 gridcells in mini mode', () => {
+    renderPicker();
+    const rows = container.querySelectorAll('[role="grid"] [role="row"]');
+    rows.forEach((row) => {
+      const cells = row.querySelectorAll('[role="gridcell"]');
+      expect(cells.length).toBe(6);
+    });
+  });
+
+  it('renders 6 role=row containers in expanded mode, each with 12 cells', () => {
+    renderPicker();
+    const expandBtn = container.querySelector<HTMLElement>(
+      '.tokenpanel-color-picker-expand-btn',
+    )!;
+    fireClick(expandBtn);
+    const rows = container.querySelectorAll('[role="grid"] [role="row"]');
+    expect(rows.length).toBe(6);
+    rows.forEach((row) => {
+      const cells = row.querySelectorAll('[role="gridcell"]');
+      expect(cells.length).toBe(12);
+    });
+  });
+
+  it('arrow key navigation still works after role=row wrapper is added', () => {
+    const onChange = vi.fn();
+    renderPicker({ onChange });
+    // Move focus from [0,0] right to [0,1] with ArrowRight.
+    const firstCell = container.querySelector<HTMLElement>(
+      '[data-grid-row="0"][data-grid-col="0"]',
+    )!;
+    act(() => {
+      firstCell.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }),
+      );
+    });
+    // After ArrowRight the second cell [0,1] gets focus. Press Enter.
+    const secondCell = container.querySelector<HTMLElement>(
+      '[data-grid-row="0"][data-grid-col="1"]',
+    )!;
+    act(() => {
+      secondCell.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }),
+      );
+    });
+    expect(onChange).toHaveBeenCalledOnce();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 13. M3 — commit normalizes hex to lowercase
+// ---------------------------------------------------------------------------
+
+describe('ColorPicker — commit normalizes hex to lowercase (M3)', () => {
+  it('calls onChange with lowercase hex when user types uppercase', () => {
+    const onChange = vi.fn();
+    renderPicker({ onChange });
+    const input = container.querySelector<HTMLInputElement>(
+      '.tokenpanel-color-picker-hex-input',
+    )!;
+    act(() => {
+      Object.defineProperty(input, 'value', {
+        value: '#ABCDEF',
+        writable: true,
+        configurable: true,
+      });
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(onChange).toHaveBeenCalledWith('#abcdef');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 14. M5 — partial-hex test fires input event (not change)
+// ---------------------------------------------------------------------------
+
+describe('ColorPicker — partial hex does NOT call onChange (M5 regression)', () => {
+  it('does NOT call onChange for a partial hex string dispatched via input event', () => {
+    const onChange = vi.fn();
+    renderPicker({ onChange });
+    const input = container.querySelector<HTMLInputElement>(
+      '.tokenpanel-color-picker-hex-input',
+    )!;
+    act(() => {
+      Object.defineProperty(input, 'value', {
+        value: '#33',
+        writable: true,
+        configurable: true,
+      });
+      // Preact wires controlled text inputs to the native "input" event.
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 15. Bonus — defaultMode is initial-only
+// ---------------------------------------------------------------------------
+
+describe('ColorPicker — defaultMode is initial-only', () => {
+  it('later changes to defaultMode prop do NOT update the active mode', () => {
+    renderPicker({ defaultMode: 'oklch' });
+
+    // Re-render with a different defaultMode.
+    act(() => {
+      render(
+        <PickerWrapper
+          color="#ff0000"
+          onChange={vi.fn()}
+          defaultMode="hsl"
+        />,
+        container,
+      );
+    });
+
+    // Mode should still be OKLCH — defaultMode is initial-only.
+    const dialog = getDialog();
+    const oklchBtn = dialog.querySelectorAll(
+      '[role="group"] [role="button"]',
+    )[0] as HTMLElement;
+    const hslBtn = dialog.querySelectorAll(
+      '[role="group"] [role="button"]',
+    )[1] as HTMLElement;
+    expect(oklchBtn.getAttribute('aria-pressed')).toBe('true');
+    expect(hslBtn.getAttribute('aria-pressed')).toBe('false');
   });
 });
