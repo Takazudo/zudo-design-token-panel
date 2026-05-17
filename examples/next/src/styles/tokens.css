@@ -20,15 +20,22 @@
  * literally the new contents of the file the next page-load will use.
  */
 :root {
-  /* Spacing tokens (manifest: spacing tab) */
-  --nx-spacing-md: 1rem;
-  --nx-spacing-lg: 2rem;
+  /* Font scale tokens (font tab — raw tier) */
+  --nx-scale-xs:   0.75rem;
+  --nx-scale-sm:   0.875rem;
+  --nx-scale-base: 1rem;
+  --nx-scale-md:   1.125rem;   /* sub-heading step — keeps subsection-title visually above body */
+  --nx-scale-lg:   1.25rem;
+  --nx-scale-xl:   1.75rem;
+  --nx-scale-2xl:  2.5rem;
 
-  /* Typography tokens (manifest: typography tab) */
-  --nx-text-base: 1rem;
-  --nx-text-heading: 1.75rem;
-
-  /* Size tokens (manifest: size tab) */
+  /* Size tokens (manifest: size tab) — layout/component dimensions */
+  --nx-size-sidenav-w: 14rem;
+  --nx-size-header-h: 3.5rem;
+  --nx-size-avatar-sm: 2rem;
+  --nx-size-avatar-md: 2.5rem;
+  --nx-size-icon-sm: 1rem;
+  --nx-size-icon-md: 1.25rem;
   --nx-radius: 0.5rem;
 
   /* Cluster base roles (default-cluster.ts → baseRoles) */
@@ -58,10 +65,22 @@
   --nx-color-accent: var(--nx-palette-3);
   --nx-color-surface: var(--nx-palette-0);
   --nx-color-muted: var(--nx-palette-8);
+  --nx-color-success: var(--nx-palette-2);
+  --nx-color-warning: var(--nx-palette-3);
   --nx-color-danger: var(--nx-palette-5);
 
-  /* Prose tokens — vertical spacing scale (flow-space rhythm) */
-  /* prose-token-contract.md: vsp-* — baseline rhythm unit ≈ 1.6rem */
+  /* Easing tokens — raw curves (easing tab, raw tier) */
+  --nx-easing-ease-in:    cubic-bezier(0.42, 0, 1, 1);
+  --nx-easing-ease-out:   cubic-bezier(0, 0, 0.58, 1);
+  --nx-easing-ease-inout: cubic-bezier(0.42, 0, 0.58, 1);
+  --nx-easing-linear:     linear;
+
+  /* Easing tokens — semantic roles (easing tab, semantic tier) */
+  --nx-easing-tab-open:  var(--nx-easing-ease-in);
+  --nx-easing-tab-close: var(--nx-easing-ease-out);
+  --nx-easing-modal:     var(--nx-easing-ease-inout);
+
+  /* Vertical spacing scale — baseline rhythm unit */
   --nx-vsp-2xs: 0.25rem;   /* ~4 px  — consecutive headings, tight list items */
   --nx-vsp-xs:  0.5rem;    /* ~8 px  — tighter paragraph spacing */
   --nx-vsp-sm:  0.75rem;   /* ~12 px — heading-to-first-content gap */
@@ -70,27 +89,39 @@
   --nx-vsp-xl:  2.5rem;    /* ~40 px — pre-h2 section separation */
   --nx-vsp-2xl: 3.5rem;    /* ~56 px — top-of-page or pre-first-heading clearance */
 
-  /* Prose tokens — horizontal spacing scale */
+  /* Horizontal spacing scale */
   --nx-hsp-xs:  0.25rem;   /* inline code padding, small insets */
   --nx-hsp-sm:  0.5rem;    /* table cell padding, tag padding */
   --nx-hsp-md:  1rem;      /* blockquote left indent */
   --nx-hsp-lg:  1.5rem;    /* section-level horizontal gutter */
   --nx-hsp-xl:  2rem;      /* outer prose container horizontal padding */
 
-  /* Prose tokens — type scale */
-  --nx-text-h2:    1.75rem;
+  /* Type scale — semantic tier; MUST reference --nx-scale-* (Tier 1).
+     Names describe what each size is FOR (purpose / role), not which HTML element. */
+  --nx-text-page-title:       var(--nx-scale-xl);   /* 1.75rem */
+  --nx-text-section-title:    var(--nx-scale-lg);   /* 1.25rem */
+  --nx-text-subsection-title: var(--nx-scale-md);   /* 1.125rem */
+  --nx-text-body:             var(--nx-scale-base); /* 1rem */
+  --nx-text-helper:           var(--nx-scale-sm);   /* 0.875rem */
+  --nx-text-annotation:       var(--nx-scale-xs);   /* 0.75rem */
+
+  /* Legacy demo vars — consumed by the demo stylesheet below; not in the manifest */
+  --nx-spacing-md: 1rem;
+  --nx-spacing-lg: 2rem;
+  --nx-text-base: var(--nx-scale-base);
+  --nx-text-heading: var(--nx-scale-xl);
+  --nx-text-h2:    var(--nx-scale-xl);
   --nx-text-h3:    1.35rem;
   --nx-text-h4:    1.1rem;
-  --nx-text-body:  1rem;
-  --nx-text-small: 0.875rem;
-  --nx-text-micro: 0.75rem;
+  --nx-text-small: var(--nx-scale-sm);
+  --nx-text-micro: var(--nx-scale-xs);
 
-  /* Prose tokens — line-height scale */
+  /* Line-height tokens */
   --nx-leading-tight:   1.2;
   --nx-leading-snug:    1.45;
   --nx-leading-relaxed: 1.75;
 
-  /* Prose tokens — code surface */
+  /* Code surface tokens */
   --nx-code-bg:   hsl(220 13% 11%);
   --nx-code-fg:   hsl(220 14% 86%);
   /* ui-monospace first per CSS Fonts spec; Cascadia Code / Source Code Pro as named fallbacks */
@@ -330,4 +361,34 @@ body {
 
 .nx-prose :where(em) {
   font-style: italic;
+}
+
+/* ── Easing demo card ─────────────────────────────────────────────────────── */
+/* Interactive card used in the Easing tab demo. Clicking it toggles the
+   .is-active class; the transition consumes the semantic easing token so
+   changing the panel's "Tab Open" role updates the perceived motion live. */
+.nx-easing-card {
+  display: block;
+  width: 100%;
+  padding: var(--nx-hsp-md);
+  background: var(--nx-color-surface);
+  border: 1px solid var(--nx-color-muted);
+  border-radius: var(--nx-radius);
+  color: var(--nx-fg);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transform: translateX(0);
+  transition: transform 0.4s var(--nx-easing-tab-open),
+              background-color 0.4s var(--nx-easing-tab-open);
+}
+
+.nx-easing-card.is-active {
+  transform: translateX(4rem);
+  background: var(--nx-color-primary);
+}
+
+.nx-easing-card-label {
+  font-size: var(--nx-text-body);
+  font-weight: 600;
 }
