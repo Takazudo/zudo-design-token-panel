@@ -137,7 +137,7 @@ body {
   background: var(--astro-bg);
   color: var(--astro-fg);
   font-size: var(--astro-text-base);
-  padding: var(--astro-spacing-lg);
+  /* padding removed: AppLayout provides per-surface padding via .astro-page */
 }
 
 .astro-stack {
@@ -155,31 +155,7 @@ body {
   color: var(--astro-color-primary);
 }
 
-.astro-card {
-  background: var(--astro-color-surface);
-  color: var(--astro-fg);
-  padding: var(--astro-spacing-md);
-  border-radius: var(--astro-radius);
-  border: 1px solid var(--astro-color-muted);
-}
-
-.astro-card + .astro-card {
-  margin-top: var(--astro-spacing-md);
-}
-
-.astro-button {
-  display: inline-block;
-  padding: var(--astro-spacing-md);
-  border-radius: var(--astro-radius);
-  background: var(--astro-color-accent);
-  color: var(--astro-bg);
-  border: none;
-  cursor: pointer;
-}
-
-.astro-button:hover {
-  background: var(--astro-color-primary);
-}
+/* .astro-card and .astro-button moved to components.css (frozen vocabulary) */
 
 .astro-link {
   color: var(--astro-color-accent);

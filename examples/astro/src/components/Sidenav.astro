@@ -1,0 +1,43 @@
+---
+/**
+ * Sidenav — side navigation for the Astro example.
+ *
+ * Accepts an `activePath` prop so the caller can mark the current page.
+ * Links use import.meta.env.BASE_URL so they remain correct under the
+ * /pj/zudo-design-token-panel/examples/astro/ deploy prefix.
+ *
+ * Token consumption via frozen vocabulary (components.css):
+ *   .astro-sidenav         → background, padding, flex layout
+ *   .astro-sidenav-link    → font-size, padding, border-radius, color
+ *   .astro-sidenav-link.is-active → accent color + font-weight
+ */
+
+interface Props {
+  activePath?: string;
+}
+
+const { activePath = '/' } = Astro.props;
+
+const BASE = import.meta.env.BASE_URL;
+
+const NAV_LINKS = [
+  { label: 'Home',    path: BASE },
+  { label: 'Prose',   path: `${BASE}prose` },
+  { label: 'About',   path: `${BASE}about` },
+  { label: 'Forms',   path: `${BASE}components/forms` },
+  { label: 'Status',  path: `${BASE}components/status` },
+  { label: 'Widgets', path: `${BASE}components/widgets` },
+  { label: 'Data',    path: `${BASE}components/data` },
+];
+---
+
+<nav class="astro-sidenav">
+  {NAV_LINKS.map(({ label, path }) => (
+    <a
+      href={path}
+      class={`astro-sidenav-link${activePath === path ? ' is-active' : ''}`}
+    >
+      {label}
+    </a>
+  ))}
+</nav>

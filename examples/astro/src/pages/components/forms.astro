@@ -1,0 +1,32 @@
+---
+/**
+ * Forms demo page — shell only (Wave 3a).
+ *
+ * Widget implementations land in Wave 3b. This page provides the page-title,
+ * intro paragraph, and AppLayout wiring so the route is navigable from the
+ * Sidenav before component demos are added.
+ */
+
+import AppLayout from '../../layouts/AppLayout.astro';
+
+const BASE = import.meta.env.BASE_URL;
+---
+
+<AppLayout title="Forms — Astro Example" activePath={`${BASE}components/forms`}>
+  <div class="astro-page">
+    <div class="astro-page-title">Form controls demo</div>
+
+    <div class="astro-body">
+      Demonstrates common form widget types with every colour, spacing, and shape
+      styled through the frozen <code>astro-*</code> vocabulary, which resolves
+      exclusively to <code>--astro-*</code> design tokens. Toggle any token in the
+      Design Token Panel (topbar button) to see every widget update live.
+      Full widget implementation arrives in Wave 3b.
+    </div>
+
+    <div class="astro-card">
+      <div class="astro-subsection-title" style="margin-bottom: var(--astro-vsp-xs);">Planned widgets</div>
+      <div class="astro-helper">Text input, email input, select, textarea, checkbox group, radio group, range slider, submit button.</div>
+    </div>
+  </div>
+</AppLayout>

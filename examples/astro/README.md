@@ -102,6 +102,47 @@ pnpm --filter astro-example test:apply-smoke
   `astro:page-load` and re-materialises the shell when persisted overrides
   or visibility intent demand it.
 
+## Routes
+
+| Route | File | Description |
+|---|---|---|
+| `/` | `pages/index.astro` | Home — cards, buttons, palette swatches |
+| `/prose` | `pages/prose.astro` | Prose demo — MDX content inside `.astro-prose` |
+| `/about` | `pages/about.astro` | About this example |
+| `/components/forms` | `pages/components/forms.astro` | Form controls shell (widgets in Wave 3b) |
+| `/components/status` | `pages/components/status.astro` | Status surfaces shell (widgets in Wave 3b) |
+| `/components/widgets` | `pages/components/widgets.astro` | Widgets shell (tabs, accordion, modal, avatar — Wave 3b) |
+| `/components/data` | `pages/components/data.astro` | Data table shell (Wave 3b) |
+
+All routes are wrapped in `AppLayout.astro`, which provides a topbar and a sidenav with links to all pages above.
+
+## Host-class vocabulary
+
+`src/styles/components.css` freezes the CSS class names that Wave 3b components must use. Every class targets only `--astro-*` CSS variables. The table below is the canonical reference:
+
+| Surface | Frozen class |
+|---|---|
+| Page layout container | `astro-page` |
+| Page heading | `astro-page-title` |
+| Section heading | `astro-section-title` |
+| Subsection heading | `astro-subsection-title` |
+| Body paragraph | `astro-body` |
+| Muted helper text | `astro-helper` |
+| Card / surface panel | `astro-card` |
+| Primary button | `astro-button` (+ `.is-primary`, `.is-accent`) |
+| Sidenav container | `astro-sidenav` |
+| Sidenav link | `astro-sidenav-link` (+ `.is-active`) |
+| Topbar | `astro-topbar` |
+| Tab list / tab / indicator | `astro-tabs`, `astro-tabs__list`, `astro-tabs__tab`, `astro-tabs__indicator` |
+| Accordion item | `astro-accordion` |
+| Modal dialog | `astro-modal` |
+| Form input | `astro-input` |
+| Alert / callout | `astro-alert` (+ `.is-info`, `.is-success`, `.is-warning`, `.is-danger`) |
+| Badge | `astro-badge` (+ `.is-accent`, `.is-success`, `.is-warning`, `.is-danger`) |
+| Tooltip | `astro-tooltip` |
+| Avatar | `astro-avatar` (+ `.is-sm`, `.is-md`) |
+| Data table | `astro-table` |
+
 ## Layout
 
 ```
@@ -113,18 +154,28 @@ examples/astro/
 ├── scripts/
 │   └── smoke-apply.mjs         # non-UI smoke harness for the bin
 ├── src/
+│   ├── components/
+│   │   └── Sidenav.astro       # sidenav with links to all 7 routes
 │   ├── config/
 │   │   ├── default-cluster.ts  # `--astro-*` color cluster
 │   │   ├── default-manifest.ts # `--astro-*` token rows
 │   │   └── panel-config.ts     # PanelConfig assembly
 │   ├── layouts/
-│   │   └── Layout.astro        # mounts <DesignTokenPanelHost>
+│   │   ├── Layout.astro        # document shell: ClientRouter + DesignTokenPanelHost
+│   │   └── AppLayout.astro     # app shell: topbar + sidenav + main slot
 │   ├── pages/
 │   │   ├── index.astro
-│   │   └── about.astro
+│   │   ├── about.astro
+│   │   ├── prose.astro
+│   │   └── components/
+│   │       ├── forms.astro     # shell only (Wave 3b adds widgets)
+│   │       ├── status.astro    # shell only (Wave 3b adds widgets)
+│   │       ├── widgets.astro   # shell only (Wave 3b adds widgets)
+│   │       └── data.astro      # shell only (Wave 3b adds widgets)
 │   └── styles/
 │       ├── reset.css
-│       └── tokens.css          # `--astro-*` source of truth (apply target)
+│       ├── tokens.css          # `--astro-*` source of truth (apply target)
+│       └── components.css      # frozen host-class vocabulary (Wave 3b consumes this)
 ├── tests/
 │   └── e2e/
 │       └── apply-roundtrip.spec.ts

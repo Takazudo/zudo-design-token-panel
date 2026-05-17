@@ -1,0 +1,31 @@
+---
+/**
+ * Data table demo page — shell only (Wave 3a).
+ *
+ * Widget implementations land in Wave 3b. This page provides the page-title,
+ * intro paragraph, and AppLayout wiring so the route is navigable from the
+ * Sidenav before component demos are added.
+ */
+
+import AppLayout from '../../layouts/AppLayout.astro';
+
+const BASE = import.meta.env.BASE_URL;
+---
+
+<AppLayout title="Data — Astro Example" activePath={`${BASE}components/data`}>
+  <div class="astro-page">
+    <div class="astro-page-title">Data table demo</div>
+
+    <div class="astro-body">
+      Demonstrates structured data display via the <code>.astro-table</code> wrapper
+      class, which provides scoped <code>table</code>, <code>th</code>, and
+      <code>td</code> styles that read <code>--astro-*</code> tokens for color,
+      spacing, and typography. Full table implementation arrives in Wave 3b.
+    </div>
+
+    <div class="astro-card">
+      <div class="astro-subsection-title" style="margin-bottom: var(--astro-vsp-xs);">Planned widgets</div>
+      <div class="astro-helper">Data table (.astro-table with scoped th/td styles from --astro-* tokens).</div>
+    </div>
+  </div>
+</AppLayout>
