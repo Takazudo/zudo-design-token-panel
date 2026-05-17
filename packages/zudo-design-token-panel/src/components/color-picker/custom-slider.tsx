@@ -41,6 +41,16 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+// Snap a continuous value to the nearest step boundary relative to min.
+// Without this, pointer interaction emits off-grid floats (e.g. 0.317 on a
+// step:1 slider) while keyboard input stays snapped — the same control
+// would round-trip differently depending on input method.
+function snapToStep(value: number, min: number, step: number): number {
+  if (step <= 0) return value;
+  const steps = Math.round((value - min) / step);
+  return min + steps * step;
+}
+
 // ---------------------------------------------------------------------------
 // CustomSlider
 //
@@ -66,6 +76,8 @@ export function CustomSlider({
   onDragEnd,
 }: CustomSliderProps): JSX.Element {
   const { label, ariaLabel, min, max, step, format } = config;
+  const stepRef = useRef(step);
+  stepRef.current = step;
 
   const isDragging = useRef(false);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -95,7 +107,10 @@ export function CustomSlider({
     const rect = el.getBoundingClientRect();
     if (rect.width === 0) return null;
     const f = clamp((clientX - rect.left) / rect.width, 0, 1);
-    return clamp(minRef.current + f * (maxRef.current - minRef.current), minRef.current, maxRef.current);
+    const raw = minRef.current + f * (maxRef.current - minRef.current);
+    // Snap to step so pointer and keyboard interaction emit the same grid.
+    const snapped = snapToStep(raw, minRef.current, stepRef.current);
+    return clamp(snapped, minRef.current, maxRef.current);
   }
 
   // ---- Pointer handlers via addEventListener --------------------------------
@@ -229,6 +244,9 @@ export function CustomSlider({
         aria-valuemin={min}
         aria-valuemax={max}
         aria-valuenow={value}
+        // Screen readers announce aria-valuetext (with units, e.g. "180°")
+        // in preference to the raw aria-valuenow when both are present.
+        aria-valuetext={format(value)}
         onKeyDown={handleKeyDown}
       >
         {/* Gradient track — background set to the OKLCH-interpolated gradient string */}

@@ -418,3 +418,65 @@ describe('CustomSlider — DOM hygiene', () => {
     expect(row?.tagName.toLowerCase()).toBe('div');
   });
 });
+
+// ---------------------------------------------------------------------------
+// 6. Pointer step-snap (review fix: pointer must honor config.step)
+// ---------------------------------------------------------------------------
+
+describe('CustomSlider — pointer step snapping', () => {
+  // Mount with a known geometry so valueFromPointerX can compute a real value.
+  function mountWithGeom(config: SliderConfig, value: number) {
+    const result = renderSlider(config, value);
+    const host = getSliderHost();
+    host.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        width: 100,
+        top: 0,
+        height: 10,
+        right: 100,
+        bottom: 10,
+        x: 0,
+        y: 0,
+        toJSON() {
+          return this;
+        },
+      }) as DOMRect;
+    return { ...result, host };
+  }
+
+  it('snaps pointer x to integer step on a step:1 slider', () => {
+    // x=37.4 of width=100 → raw fraction=0.374 → raw value=134.64
+    // step=1 → snapped to 135
+    const { onChange, host } = mountWithGeom(INTEGER_CONFIG, 0);
+    firePointerDown(host, 37.4);
+    expect(onChange).toHaveBeenCalledWith(135);
+  });
+
+  it('snaps pointer x to fractional step on a step:0.01 slider', () => {
+    // x=33 of width=100 → raw fraction=0.33 → raw value=0.33
+    // step=0.01 → snapped to 0.33 (exact)
+    const { onChange, host } = mountWithGeom(FRACTIONAL_CONFIG, 0);
+    firePointerDown(host, 33.4);
+    // 33.4/100 = 0.334; snapped to 0.33
+    expect(onChange).toHaveBeenCalledWith(expect.closeTo(0.33, 10));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. ARIA valuetext (review fix: screen readers get formatted display)
+// ---------------------------------------------------------------------------
+
+describe('CustomSlider — aria-valuetext', () => {
+  it('sets aria-valuetext to the formatted value', () => {
+    renderSlider(INTEGER_CONFIG, 180);
+    const host = getSliderHost();
+    expect(host.getAttribute('aria-valuetext')).toBe('180°');
+  });
+
+  it('updates aria-valuetext when value changes', () => {
+    renderSlider(FRACTIONAL_CONFIG, 0.42);
+    const host = getSliderHost();
+    expect(host.getAttribute('aria-valuetext')).toBe('0.42');
+  });
+});

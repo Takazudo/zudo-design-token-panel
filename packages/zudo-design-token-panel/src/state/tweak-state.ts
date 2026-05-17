@@ -665,17 +665,29 @@ export function colorRefToIndex(
 ): number {
   if (ref === undefined) return fallback;
   if (typeof ref === 'number') return ref;
-  // String: try exact match in palette.
-  const idx = palette.indexOf(ref);
-  if (idx >= 0) return idx;
-  // No exact match — find nearest palette color by RGB distance.
+  // Normalize the ref and every palette entry to a canonical hex form before
+  // exact-match lookup. Without this, equivalent notations miss each other
+  // (e.g. ref `rgba(255,0,0,0.5)` vs palette `#ff000080`) and fall through to
+  // the distance fallback below, which intentionally ignores alpha — that
+  // would silently bind to the wrong slot when the palette holds multiple
+  // entries with the same RGB but different alpha.
   const refHex = cssColorToHex(ref);
+  const normalized: string[] = palette.map((p) => cssColorToHex(p));
+  // First try the raw string for backwards compatibility (palette refs are
+  // usually already canonical), then the normalized form.
+  const rawIdx = palette.indexOf(ref);
+  if (rawIdx >= 0) return rawIdx;
+  const normIdx = normalized.indexOf(refHex);
+  if (normIdx >= 0) return normIdx;
+  // No exact match — find nearest palette color by RGB distance.
+  // Alpha is intentionally dropped here (distance is base-RGB only) so it is
+  // the caller's responsibility to ensure exact-match succeeds first when
+  // alpha-precision matters.
   const refRgb = hexToRgb(refHex);
   let bestIdx = fallback;
   let bestDist = Infinity;
-  for (let i = 0; i < palette.length; i++) {
-    const pHex = cssColorToHex(palette[i]);
-    const pRgb = hexToRgb(pHex);
+  for (let i = 0; i < normalized.length; i++) {
+    const pRgb = hexToRgb(normalized[i]);
     const dist = (refRgb.r - pRgb.r) ** 2 + (refRgb.g - pRgb.g) ** 2 + (refRgb.b - pRgb.b) ** 2;
     if (dist < bestDist) {
       bestDist = dist;

@@ -25,17 +25,16 @@ import {
   modeHsl,
 } from 'culori/fn';
 
+import type { Hsla } from './color-hsla';
+
 useMode(modeOklch);
 useMode(modeRgb);
 useMode(modeHsl);
 
-/** All four components use the panel's 0–100 scale for alpha. */
-export interface Hsla {
-  h: number; // hue ∈ [0, 360)
-  s: number; // saturation ∈ [0, 100]
-  l: number; // lightness ∈ [0, 100]
-  a: number; // alpha ∈ [0, 100]
-}
+// Re-export the canonical Hsla shape from color-hsla.ts so the two modules
+// share a single type definition (no drift between consumers that import
+// either module).
+export type { Hsla } from './color-hsla';
 
 /** All four components use the panel's 0–100 scale for alpha. */
 export interface Oklcha {
@@ -186,7 +185,10 @@ export function clampToSrgbGamut(o: Oklcha): Oklcha {
   const culoriColor = toCuloriOklch(o);
   // clampChroma reduces C until the color is in-gamut for the target space
   const clamped = clampChroma(culoriColor, 'oklch', 'rgb');
-  if (!clamped) return o;
+  // When clampChroma cannot resolve, fall back to a fully-achromatic value
+  // at the requested L and H. Returning the original out-of-gamut input
+  // would violate the documented contract (caller expects an in-gamut color).
+  if (!clamped) return { l: o.l, c: 0, h: o.h, a: o.a };
   return {
     l: (clamped.l ?? o.l / 100) * 100,
     c: clamped.c ?? 0,

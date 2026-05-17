@@ -50,6 +50,33 @@ describe('colorRefToIndex — alpha ignored for similarity', () => {
   });
 });
 
+describe('colorRefToIndex — ref normalization', () => {
+  // The fix for the codex-adversarial finding: equivalent color notations must
+  // resolve to the same palette slot via exact-match (not fall through to the
+  // alpha-dropping RGB distance match).
+
+  it('rgba() ref matches an equivalent 8-digit hex palette entry exactly', () => {
+    // rgba(255,0,0,0.5) normalizes to #ff000080
+    // Palette has both an opaque red and the translucent red — we want the
+    // translucent slot, not the opaque one. Without normalization the
+    // rawIdx miss would fall through to RGB distance and pick the first
+    // RGB-equivalent (the opaque slot), silently losing alpha.
+    const result = colorRefToIndex('rgba(255,0,0,0.5)', ['#ff0000', '#ff000080'], 0);
+    expect(result).toBe(1);
+  });
+
+  it('4-char shorthand ref matches an 8-digit hex palette entry', () => {
+    // #f008 → #ff000088
+    const result = colorRefToIndex('#f008', ['#ffffff', '#ff000088'], 0);
+    expect(result).toBe(1);
+  });
+
+  it('rgb() ref still matches an opaque 6-digit hex palette entry', () => {
+    const result = colorRefToIndex('rgb(255,0,0)', ['#ff0000', '#000000'], 0);
+    expect(result).toBe(0);
+  });
+});
+
 describe('setCssVar — 8-digit hex round-trip in jsdom', () => {
   it('sets and retrieves an 8-digit hex CSS custom property', () => {
     setCssVar('--test-alpha-color', '#ff000080');

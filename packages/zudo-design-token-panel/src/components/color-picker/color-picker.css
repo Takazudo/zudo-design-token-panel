@@ -271,6 +271,9 @@
   align-items: center;
   cursor: pointer;
   user-select: none;
+  /* Disable native touch gestures so horizontal drags don't get hijacked by
+     the browser's pan/scroll and emit pointercancel mid-drag on touch devices. */
+  touch-action: none;
 }
 
 .tokenpanel-color-picker-slider:focus-visible {
