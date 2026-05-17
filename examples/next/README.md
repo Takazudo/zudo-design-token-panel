@@ -237,6 +237,22 @@ The console-API call is `window.nx.toggleDesignPanel()`.
                                   └────────────────────────────────────────┘
 ```
 
+## Routes
+
+| Route | File | Notes |
+|---|---|---|
+| `/` | `app/page.tsx` | Home — cards, buttons, palette, rerender-verify |
+| `/about` | `app/about/page.tsx` | Soft-navigation demo, mirrored swatches |
+| `/prose` | `app/prose/page.mdx` | Typography tokens; wrapped by `app/prose/layout.tsx` |
+| `/components/forms` | `app/components/forms/page.tsx` | Form controls shell |
+| `/components/status` | `app/components/status/page.tsx` | Alerts, badges, tooltips shell |
+| `/components/widgets` | `app/components/widgets/page.tsx` | Tabs, accordion, modal, avatar shell |
+| `/components/data` | `app/components/data/page.tsx` | Data table shell |
+
+## Host-class vocabulary
+
+The frozen `nx-*` CSS class vocabulary is defined in `src/styles/tokens.css`. Every class targets only `--nx-*` CSS variables. See the "Host-class vocabulary" section in that file for the full list of classes.
+
 ## Layout
 
 ```
@@ -250,15 +266,31 @@ examples/next/
 ├── tsconfig.json                 # Next 15 strict TS, resolveJsonModule on
 ├── app/
 │   ├── about/
-│   │   └── page.tsx              # second route — soft-navigation analog
+│   │   └── page.tsx              # /about route — soft-navigation analog, wired into AppShell
 │   ├── api/
 │   │   └── dev/
 │   │       └── apply/
 │   │           └── route.dev.ts  # POST /api/dev/apply → bin proxy (dev-only; .dev.ts excludes from static export)
+│   ├── components/
+│   │   ├── data/
+│   │   │   └── page.tsx          # /components/data shell — data table demo
+│   │   ├── forms/
+│   │   │   └── page.tsx          # /components/forms shell — form controls demo
+│   │   ├── status/
+│   │   │   └── page.tsx          # /components/status shell — alerts/badges/tooltips demo
+│   │   └── widgets/
+│   │       └── page.tsx          # /components/widgets shell — tabs/accordion/modal/avatar demo
+│   ├── prose/
+│   │   ├── layout.tsx            # wraps page.mdx content in AppShell + nx-prose container
+│   │   └── page.mdx              # typography tokens in action
 │   ├── _components/
-│   │   └── PanelBootstrap.tsx    # 'use client' island — useEffect → mountPanel
+│   │   ├── AppShell.tsx          # server component — topbar + sidenav + main content grid
+│   │   ├── PanelBootstrap.tsx    # 'use client' island — useEffect → mountPanel
+│   │   ├── PanelOpenButton.tsx   # 'use client' button — calls window.nx.toggleDesignPanel()
+│   │   ├── RerenderVerify.tsx    # 'use client' island — useState rerender + subtree toggle
+│   │   └── Sidenav.tsx           # server component — nav links with active-path prop
 │   ├── layout.tsx                # global CSS + <PanelBootstrap />
-│   └── page.tsx                  # demo content + rerender-verify section
+│   └── page.tsx                  # home page — server component, wraps content in AppShell
 ├── scripts/
 │   └── smoke-apply.mjs           # non-UI smoke harness for the bin
 ├── src/
@@ -270,7 +302,7 @@ examples/next/
 │   │   └── mount-panel.ts        # adapter (console API + lazy-load + StrictMode bind flag)
 │   └── styles/
 │       ├── reset.css
-│       └── tokens.css            # `--nx-*` source of truth (apply target)
+│       └── tokens.css            # `--nx-*` source of truth (apply target) + frozen nx-* vocabulary
 └── tests/
     └── e2e/
         └── apply-roundtrip.spec.ts
