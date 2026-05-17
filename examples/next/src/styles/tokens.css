@@ -395,11 +395,33 @@ body {
   font-weight: 600;
 }
 
-/* ── Host-class vocabulary (frozen — wave 3a #189) ───────────────────────── */
+/* ── Host-class vocabulary (frozen — wave 3a #189; extended wave 3b #192) ─── */
 /*
  * Every class below targets ONLY --nx-* CSS variables. Class names are the
  * canonical surface vocabulary consumed by AppShell, Sidenav, and sub-page
  * shells. Do not rename without bumping the wave-3 parity milestone.
+ *
+ * Wave 3b additions (#192):
+ *   .nx-tabs__tab.is-active      — active state for tab labels
+ *   .nx-tabs__panel              — tab content area
+ *   .nx-accordion__summary       — accordion header row (summary element)
+ *   .nx-accordion__summary-icon  — chevron icon in accordion summary
+ *   .nx-accordion__content       — accordion body content area
+ *   .nx-modal[open]              — open-state fade/scale animation
+ *   .nx-modal::backdrop          — backdrop overlay for modal
+ *   .nx-modal__header/title/close/body — modal interior structure
+ *   .nx-input:disabled           — disabled state for form inputs
+ *   .nx-label                    — form field label
+ *   .nx-field                    — form field container (label + input)
+ *   .nx-form                     — form container
+ *   .nx-form-section             — grouped form section
+ *   .nx-badge.is-outlined.is-*   — outlined badge per-color variants
+ *   .nx-stat-card / __value / __label   — stat metric card
+ *   .nx-profile-card / __avatar / __info / __name / __role — profile card
+ *   .nx-media-card / __thumb / __thumb-fill / __title / __body — media card
+ *   .nx-avatar-row               — flex row of avatar chips
+ *   .nx-avatar-sm                — small avatar chip (palette-bg variant)
+ *   .nx-table tr:hover td        — row hover highlight for data table
  */
 
 /* Layout */
@@ -551,12 +573,23 @@ body {
   color: var(--nx-fg);
 }
 
+.nx-tabs__tab.is-active {
+  color: var(--nx-color-accent);
+  font-weight: 600;
+}
+
 .nx-tabs__indicator {
   position: absolute;
   bottom: -1px;
   height: 2px;
   background: var(--nx-color-primary);
   transition: transform 0.2s var(--nx-easing-tab-open), width 0.2s var(--nx-easing-tab-open);
+}
+
+.nx-tabs__panel {
+  padding: var(--nx-vsp-md) var(--nx-hsp-md);
+  font-size: var(--nx-text-body);
+  color: var(--nx-fg);
 }
 
 /* Accordion */
@@ -570,6 +603,35 @@ body {
   margin-top: var(--nx-vsp-xs);
 }
 
+.nx-accordion__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--nx-vsp-md) var(--nx-hsp-md);
+  background: var(--nx-color-surface);
+  font-size: var(--nx-text-body);
+  color: var(--nx-fg);
+  cursor: pointer;
+  list-style: none;
+}
+
+.nx-accordion__summary::-webkit-details-marker {
+  display: none;
+}
+
+.nx-accordion__summary-icon {
+  color: var(--nx-color-muted);
+  font-size: var(--nx-text-helper);
+  user-select: none;
+}
+
+.nx-accordion__content {
+  padding: var(--nx-vsp-md) var(--nx-hsp-md);
+  font-size: var(--nx-text-body);
+  color: var(--nx-fg);
+  border-top: 1px solid var(--nx-color-muted);
+}
+
 /* Modal dialog */
 .nx-modal {
   background: var(--nx-color-surface);
@@ -579,6 +641,66 @@ body {
   padding: var(--nx-vsp-md) var(--nx-hsp-md);
   max-width: 32rem;
   width: 100%;
+  opacity: 0;
+  transform: scale(0.95);
+  transition:
+    opacity 0.2s var(--nx-easing-modal),
+    transform 0.2s var(--nx-easing-modal),
+    display 0.2s allow-discrete,
+    overlay 0.2s allow-discrete;
+}
+
+.nx-modal[open] {
+  opacity: 1;
+  transform: scale(1);
+}
+
+@starting-style {
+  .nx-modal[open] {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+.nx-modal::backdrop {
+  background: color-mix(in srgb, var(--nx-bg) 80%, transparent);
+  transition:
+    background 0.2s var(--nx-easing-modal),
+    display 0.2s allow-discrete,
+    overlay 0.2s allow-discrete;
+}
+
+.nx-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--nx-vsp-md);
+}
+
+.nx-modal__title {
+  font-size: var(--nx-text-section-title);
+  font-weight: 600;
+  color: var(--nx-fg);
+}
+
+.nx-modal__close {
+  color: var(--nx-color-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: var(--nx-text-body);
+  padding: var(--nx-vsp-xs) var(--nx-hsp-xs);
+  border-radius: var(--nx-radius);
+}
+
+.nx-modal__close:hover {
+  color: var(--nx-fg);
+}
+
+.nx-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-vsp-md);
 }
 
 /* Form input */
@@ -596,6 +718,35 @@ body {
 .nx-input:focus {
   outline: none;
   border-color: var(--nx-color-accent);
+}
+
+.nx-input:disabled {
+  background: var(--nx-color-muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.nx-label {
+  font-size: var(--nx-text-body);
+  color: var(--nx-fg);
+}
+
+.nx-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-vsp-xs);
+}
+
+.nx-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-vsp-md);
+}
+
+.nx-form-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-vsp-xs);
 }
 
 /* Alerts */
@@ -630,6 +781,10 @@ body {
   border: 1px solid currentColor;
   color: var(--nx-color-accent);
 }
+
+.nx-badge.is-outlined.is-success { color: var(--nx-color-success); }
+.nx-badge.is-outlined.is-warning { color: var(--nx-color-warning); }
+.nx-badge.is-outlined.is-danger  { color: var(--nx-color-danger); }
 
 /* Tooltip */
 .nx-tooltip {
@@ -698,4 +853,117 @@ body {
   font-weight: 600;
   background: var(--nx-code-bg);
   color: var(--nx-fg);
+}
+
+.nx-table tr:hover td {
+  background: var(--nx-color-surface);
+}
+
+/* Data component cards */
+.nx-stat-card {
+  background: var(--nx-color-surface);
+  padding: var(--nx-vsp-md) var(--nx-hsp-md);
+  border-radius: var(--nx-radius);
+  border: 1px solid var(--nx-color-muted);
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-vsp-xs);
+}
+
+.nx-stat-card__value {
+  font-size: var(--nx-text-page-title);
+  font-weight: 700;
+  color: var(--nx-color-primary);
+  line-height: var(--nx-leading-tight);
+}
+
+.nx-stat-card__label {
+  font-size: var(--nx-text-helper);
+  color: var(--nx-color-muted);
+}
+
+.nx-profile-card {
+  display: flex;
+  align-items: center;
+  gap: var(--nx-hsp-md);
+  padding: var(--nx-vsp-md) var(--nx-hsp-md);
+  background: var(--nx-color-surface);
+  border-radius: var(--nx-radius);
+  border: 1px solid var(--nx-color-muted);
+}
+
+.nx-profile-card__avatar {
+  width: var(--nx-size-avatar-md);
+  height: var(--nx-size-avatar-md);
+  border-radius: var(--nx-radius);
+  background: var(--nx-color-accent);
+  flex-shrink: 0;
+}
+
+.nx-profile-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-vsp-2xs);
+  flex: 1;
+}
+
+.nx-profile-card__name {
+  font-size: var(--nx-text-subsection-title);
+  font-weight: 600;
+  color: var(--nx-fg);
+}
+
+.nx-profile-card__role {
+  font-size: var(--nx-text-helper);
+  color: var(--nx-color-muted);
+}
+
+.nx-media-card {
+  background: var(--nx-color-surface);
+  padding: var(--nx-vsp-md) var(--nx-hsp-md);
+  border-radius: var(--nx-radius);
+  border: 1px solid var(--nx-color-muted);
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-vsp-sm);
+  max-width: 24rem;
+}
+
+/* reason: image aspect ratio is a media constant, not a design token */
+.nx-media-card__thumb {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--nx-radius);
+  overflow: hidden;
+}
+
+.nx-media-card__thumb-fill {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, var(--nx-color-surface) 0%, var(--nx-color-muted) 100%);
+}
+
+.nx-media-card__title {
+  font-size: var(--nx-text-section-title);
+  font-weight: 600;
+  color: var(--nx-fg);
+}
+
+.nx-media-card__body {
+  font-size: var(--nx-text-body);
+  color: var(--nx-fg);
+  line-height: var(--nx-leading-relaxed);
+}
+
+/* Avatar row (data demo) */
+.nx-avatar-row {
+  display: flex;
+  gap: var(--nx-hsp-sm);
+}
+
+.nx-avatar-sm {
+  width: var(--nx-size-avatar-sm);
+  height: var(--nx-size-avatar-sm);
+  border-radius: var(--nx-radius);
+  display: inline-block;
 }

@@ -1,30 +1,74 @@
 /*
- * Widgets demo page shell — Next.js example (wave 3a #189).
+ * Widgets demo page — Next.js example (#192).
  *
- * Shell only: page heading + intro paragraph. Full widget content
- * will be filled in a later wave when the widgets demo is ported from
- * examples/zfb-tailwind/pages/components/widgets.tsx.
+ * Renders Tabs (client), Accordion (server native <details>), and Modal (client).
+ * Each widget uses semantic easing tokens from --nx-easing-* so the Panel's
+ * Easing tab updates motion live.
  */
 
 import AppShell from '../../_components/AppShell';
+import TabsDemo from '../../_components/widgets/Tabs';
+import AccordionDemo from '../../_components/widgets/Accordion';
+import ModalDemo from '../../_components/widgets/Modal';
 
 export default function WidgetsPage() {
   return (
     <AppShell activePath="/components/widgets">
       <div className="nx-page">
         <div role="heading" aria-level={1} className="nx-page-title">
-          Widgets demo
+          Interactive Widgets
         </div>
-        <p className="nx-body" style={{ marginTop: 'var(--nx-vsp-sm)' }}>
-          Interactive widgets demo covering tabs, accordions, modals, and
-          avatars — all styled through the frozen <code>nx-*</code> vocabulary.
-          Tabs use <code>.nx-tabs</code>, <code>.nx-tabs__list</code>,{' '}
-          <code>.nx-tabs__tab</code>, and <code>.nx-tabs__indicator</code>.
-          Accordions use <code>.nx-accordion</code>. Modals use{' '}
-          <code>.nx-modal</code>. Avatars use <code>.nx-avatar</code> with{' '}
-          <code>.sm</code> and <code>.md</code> modifiers. Toggle any token
-          in the Design Token Panel to see every widget update live.
-        </p>
+        <div className="nx-body" style={{ marginTop: 'var(--nx-vsp-sm)' }}>
+          Each widget uses a semantic easing token from the Easing tab. Open
+          the panel and change an easing value to see motion update live.
+        </div>
+
+        {/* ── Tabs ─────────────────────────────────────────────────────── */}
+        <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nx-vsp-sm)', marginTop: 'var(--nx-vsp-lg)' }}>
+          <div role="heading" aria-level={2} className="nx-section-title">
+            Tabs
+          </div>
+          <div className="nx-helper">
+            Active indicator slides using <code>easing-tab-open</code>{' '}
+            (&#8594;&nbsp;<code>--nx-easing-tab-open</code>).
+          </div>
+          <div style={{
+            background: 'var(--nx-color-surface)',
+            padding: 'var(--nx-vsp-md) var(--nx-hsp-md)',
+            borderRadius: 'var(--nx-radius)',
+            border: '1px solid var(--nx-color-muted)',
+          }}>
+            <TabsDemo />
+          </div>
+        </section>
+
+        {/* ── Accordion ────────────────────────────────────────────────── */}
+        <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nx-vsp-sm)', marginTop: 'var(--nx-vsp-lg)' }}>
+          <div role="heading" aria-level={2} className="nx-section-title">
+            Accordion
+          </div>
+          <div className="nx-helper">
+            Height transitions use <code>easing-tab-open</code> /{' '}
+            <code>easing-tab-close</code> for open/close respectively
+            (progressive enhancement, Chrome 131+).
+          </div>
+          <AccordionDemo />
+        </section>
+
+        {/* ── Modal ────────────────────────────────────────────────────── */}
+        <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--nx-vsp-sm)', marginTop: 'var(--nx-vsp-lg)' }}>
+          <div role="heading" aria-level={2} className="nx-section-title">
+            Modal
+          </div>
+          <div className="nx-helper">
+            Fade-and-scale animation uses <code>easing-modal</code>{' '}
+            (&#8594;&nbsp;<code>--nx-easing-modal</code>). Close via button or{' '}
+            <kbd>Escape</kbd>.
+          </div>
+          <div>
+            <ModalDemo />
+          </div>
+        </section>
       </div>
     </AppShell>
   );
