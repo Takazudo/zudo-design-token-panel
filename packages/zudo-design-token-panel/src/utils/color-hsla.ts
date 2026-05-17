@@ -52,6 +52,11 @@ export function hexToHsla(hex: string): Hsla {
 }
 
 export function hslaToHex(h: number, s: number, l: number, a: number): string {
+  // Clamp inputs to valid ranges to prevent malformed hex output from out-of-range
+  // values that can arrive via slider math or user input.
+  s = Math.max(0, Math.min(100, s));
+  l = Math.max(0, Math.min(100, l));
+  a = Math.max(0, Math.min(100, a));
   h = ((h % 360) + 360) % 360;
   const sn = s / 100;
   const ln = l / 100;

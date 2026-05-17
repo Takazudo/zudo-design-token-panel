@@ -150,4 +150,15 @@ describe('hslaToHex', () => {
       expect(parsed.a).toBe(a);
     }
   });
+
+  it('clamps out-of-range s, l, a to nearest valid value', () => {
+    // s > 100 is treated as 100
+    expect(hslaToHex(0, 200, 50, 100)).toBe(hslaToHex(0, 100, 50, 100));
+    // l > 100 is treated as 100 (white)
+    expect(hslaToHex(0, 100, 200, 100)).toBe('#ffffff');
+    // a > 100 is treated as 100 (opaque, no alpha byte)
+    expect(hslaToHex(0, 100, 50, 120)).toBe('#ff0000');
+    // a < 0 is treated as 0 (transparent)
+    expect(hslaToHex(0, 100, 50, -10)).toBe('#ff000000');
+  });
 });
