@@ -597,14 +597,24 @@ function _canvasCtxSupported(): boolean {
 }
 const _canvasAvailable = _canvasCtxSupported();
 
-/** Parse an rgb()/rgba() string to a hex colour, or return null on failure. */
+/** Parse an rgb()/rgba() string to a hex colour, or return null on failure.
+ * Returns 8-digit hex when an explicit alpha < 1 is present; 6-digit otherwise.
+ */
 function _rgbStringToHex(color: string): string | null {
-  const match = color.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+  const match = color.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?/);
   if (!match) return null;
   const r = parseInt(match[1], 10);
   const g = parseInt(match[2], 10);
   const b = parseInt(match[3], 10);
-  return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
+  const base6 = `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
+  if (match[4] !== undefined) {
+    const a = parseFloat(match[4]);
+    if (a < 1) {
+      const aa = Math.round(a * 255).toString(16).padStart(2, '0');
+      return `${base6}${aa}`;
+    }
+  }
+  return base6;
 }
 
 /** Convert any CSS color to hex using a canvas (cached context). */
@@ -613,8 +623,12 @@ export function cssColorToHex(color: string): string {
   if (!color || color === 'initial' || color === 'inherit') return '#000000';
   const trimmed = color.trim();
   if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) return trimmed;
+  if (/^#[0-9a-fA-F]{8}$/.test(trimmed)) return trimmed;
   if (/^#[0-9a-fA-F]{3}$/.test(trimmed)) {
     return `#${trimmed[1]}${trimmed[1]}${trimmed[2]}${trimmed[2]}${trimmed[3]}${trimmed[3]}`;
+  }
+  if (/^#[0-9a-fA-F]{4}$/.test(trimmed)) {
+    return `#${trimmed[1]}${trimmed[1]}${trimmed[2]}${trimmed[2]}${trimmed[3]}${trimmed[3]}${trimmed[4]}${trimmed[4]}`;
   }
   // Manual rgb()/rgba() fallback — handles the most common non-hex CSS form
   // and is always available (including JSDOM where the canvas path is broken).
@@ -651,17 +665,29 @@ export function colorRefToIndex(
 ): number {
   if (ref === undefined) return fallback;
   if (typeof ref === 'number') return ref;
-  // String: try exact match in palette.
-  const idx = palette.indexOf(ref);
-  if (idx >= 0) return idx;
-  // No exact match — find nearest palette color by RGB distance.
+  // Normalize the ref and every palette entry to a canonical hex form before
+  // exact-match lookup. Without this, equivalent notations miss each other
+  // (e.g. ref `rgba(255,0,0,0.5)` vs palette `#ff000080`) and fall through to
+  // the distance fallback below, which intentionally ignores alpha — that
+  // would silently bind to the wrong slot when the palette holds multiple
+  // entries with the same RGB but different alpha.
   const refHex = cssColorToHex(ref);
+  const normalized: string[] = palette.map((p) => cssColorToHex(p));
+  // First try the raw string for backwards compatibility (palette refs are
+  // usually already canonical), then the normalized form.
+  const rawIdx = palette.indexOf(ref);
+  if (rawIdx >= 0) return rawIdx;
+  const normIdx = normalized.indexOf(refHex);
+  if (normIdx >= 0) return normIdx;
+  // No exact match — find nearest palette color by RGB distance.
+  // Alpha is intentionally dropped here (distance is base-RGB only) so it is
+  // the caller's responsibility to ensure exact-match succeeds first when
+  // alpha-precision matters.
   const refRgb = hexToRgb(refHex);
   let bestIdx = fallback;
   let bestDist = Infinity;
-  for (let i = 0; i < palette.length; i++) {
-    const pHex = cssColorToHex(palette[i]);
-    const pRgb = hexToRgb(pHex);
+  for (let i = 0; i < normalized.length; i++) {
+    const pRgb = hexToRgb(normalized[i]);
     const dist = (refRgb.r - pRgb.r) ** 2 + (refRgb.g - pRgb.g) ** 2 + (refRgb.b - pRgb.b) ** 2;
     if (dist < bestDist) {
       bestDist = dist;
@@ -671,13 +697,16 @@ export function colorRefToIndex(
   return bestIdx;
 }
 
-/** Parse a hex color string to RGB components. */
-function hexToRgb(hex: string): { r: number; g: number; b: number } {
+/** Parse a hex color string to RGB(A) components. When the hex is 8 digits,
+ * `aa` is the parsed alpha byte (0–255); otherwise `aa` defaults to 255.
+ */
+function hexToRgb(hex: string): { r: number; g: number; b: number; aa: number } {
   const h = hex.replace('#', '');
   return {
     r: parseInt(h.substring(0, 2), 16) || 0,
     g: parseInt(h.substring(2, 4), 16) || 0,
     b: parseInt(h.substring(4, 6), 16) || 0,
+    aa: h.length >= 8 ? (parseInt(h.substring(6, 8), 16) || 0) : 255,
   };
 }
 

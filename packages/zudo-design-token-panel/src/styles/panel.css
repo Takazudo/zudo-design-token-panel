@@ -34,6 +34,7 @@
  */
 
 @import './panel-tokens.css';
+@import '../components/color-picker/color-picker.css';
 
 /* ===========================================================================
  * Shell
@@ -427,7 +428,7 @@
 }
 
 /* ===========================================================================
- * Popover (HslPicker host, PaletteSelector listbox)
+ * Popover (ColorPicker host, PaletteSelector listbox)
  * ========================================================================= */
 
 .tokenpanel-popover {
@@ -436,63 +437,6 @@
   padding: 12px;
   border-radius: var(--radius-tokentweak);
   box-shadow: 0 4px 12px rgb(0 0 0 / 0.3);
-}
-
-/* HslPicker layout */
-
-.tokenpanel-hsl-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.tokenpanel-hsl-preview {
-  flex-shrink: 0;
-  border: 1px solid var(--tokentweak-color-muted);
-  width: 3.5rem;
-  height: 3.5rem;
-  border-radius: var(--radius-tokentweak);
-}
-
-.tokenpanel-hsl-hex-input {
-  background-color: var(--tokentweak-color-surface);
-  color: var(--tokentweak-color-fg);
-  border: 1px solid var(--tokentweak-color-muted);
-  padding-inline: 6px;
-  padding-block: 4px;
-  font-family: var(--tokentweak-font-mono);
-  font-size: 1rem;
-  width: 8rem;
-  border-radius: var(--radius-tokentweak);
-}
-
-.tokenpanel-hsl-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-
-.tokenpanel-hsl-row-label {
-  color: var(--tokentweak-color-muted);
-  flex-shrink: 0;
-  font-size: 0.875rem;
-  width: 1rem;
-}
-
-.tokenpanel-hsl-row-slider {
-  flex: 1;
-  height: 1.5rem;
-  accent-color: var(--tokentweak-color-accent);
-}
-
-.tokenpanel-hsl-row-value {
-  color: var(--tokentweak-color-fg);
-  flex-shrink: 0;
-  text-align: right;
-  font-size: 0.875rem;
-  width: 2.5rem;
 }
 
 /* ===========================================================================

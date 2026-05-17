@@ -31,9 +31,9 @@ describe('cssColorToHex', () => {
       expect(cssColorToHex('rgb(255, 0, 128)')).toBe('#ff0080');
     });
 
-    it('converts rgba() string via manual parser (ignores alpha)', async () => {
+    it('converts rgba() string via manual parser — preserves alpha < 1 as 8-digit hex', async () => {
       const { cssColorToHex } = await import('../state/tweak-state');
-      expect(cssColorToHex('rgba(0, 255, 64, 0.5)')).toBe('#00ff40');
+      expect(cssColorToHex('rgba(0, 255, 64, 0.5)')).toBe('#00ff4080');
     });
 
     it('returns #000000 for initial/inherit/empty', async () => {

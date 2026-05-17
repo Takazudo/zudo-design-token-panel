@@ -63,7 +63,11 @@
   "peerDependencies": {
     "preact": "^10.29.1"
   },
+  "dependencies": {
+    "culori": "^4.0.2"
+  },
   "devDependencies": {
+    "@types/culori": "^4.0.1",
     "@types/node": "^22.0.0",
     "jsdom": "^25.0.0",
     "preact": "^10.29.1",
