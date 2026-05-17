@@ -31,13 +31,17 @@ const NAV_LINKS = [
 ];
 ---
 
-<nav class="astro-sidenav">
-  {NAV_LINKS.map(({ label, path }) => (
-    <a
-      href={path}
-      class={`astro-sidenav-link${activePath === path ? ' is-active' : ''}`}
-    >
-      {label}
-    </a>
-  ))}
+<nav class="astro-sidenav" role="navigation" aria-label="Main navigation">
+  {NAV_LINKS.map(({ label, path }) => {
+    const isActive = activePath === path;
+    return (
+      <a
+        href={path}
+        class={`astro-sidenav-link${isActive ? ' is-active' : ''}`}
+        aria-current={isActive ? 'page' : undefined}
+      >
+        {label}
+      </a>
+    );
+  })}
 </nav>
