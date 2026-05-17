@@ -34,6 +34,7 @@
  */
 
 @import './panel-tokens.css';
+@import '../components/color-picker/color-picker.css';
 
 /* ===========================================================================
  * Shell
