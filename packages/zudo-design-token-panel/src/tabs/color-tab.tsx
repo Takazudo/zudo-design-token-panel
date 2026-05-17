@@ -34,7 +34,7 @@
 
 import { memo, useState, useEffect, useCallback, useMemo, useRef } from 'preact/compat';
 import type { ColorScheme } from '../config/color-schemes';
-import { hexToHsl, hslToHex } from '../utils/color-convert';
+import ColorPicker from '../components/color-picker';
 import {
   type ColorTweakState,
   applyShikiTheme,
@@ -135,96 +135,6 @@ function getFixedPopoverStyle(
 
 // --- UI Components ---
 
-function HslPicker({
-  color,
-  onChange,
-  onClose,
-  anchorRef,
-}: {
-  color: string;
-  onChange: (hex: string) => void;
-  onClose: () => void;
-  anchorRef: React.RefObject<HTMLElement | null>;
-}) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [hsl, setHsl] = useState(() => hexToHsl(color));
-  const [hexInput, setHexInput] = useState(color);
-
-  useEffect(() => {
-    setHsl(hexToHsl(color));
-    setHexInput(color);
-  }, [color]);
-
-  usePopoverClose(containerRef, onClose, true);
-
-  function updateFromHsl(newHsl: { h: number; s: number; l: number }) {
-    setHsl(newHsl);
-    const hex = hslToHex(newHsl.h, newHsl.s, newHsl.l);
-    setHexInput(hex);
-    onChange(hex);
-  }
-
-  function handleHexChange(value: string) {
-    setHexInput(value);
-    if (/^#[0-9a-fA-F]{6}$/.test(value)) {
-      setHsl(hexToHsl(value));
-      onChange(value);
-    }
-  }
-
-  const sliders = [
-    { label: 'H', value: hsl.h, max: 360, key: 'h' as const },
-    { label: 'S', value: hsl.s, max: 100, key: 's' as const },
-    { label: 'L', value: hsl.l, max: 100, key: 'l' as const },
-  ];
-
-  return (
-    <div
-      ref={containerRef}
-      className="tokenpanel-popover"
-      style={getFixedPopoverStyle(anchorRef.current, 380, 280, { width: 380 })}
-    >
-      <div className="tokenpanel-hsl-header">
-        <div
-          className="tokenpanel-hsl-preview"
-          style={{ backgroundColor: hslToHex(hsl.h, hsl.s, hsl.l) }}
-        />
-        <input
-          type="text"
-          value={hexInput}
-          onChange={(e) => handleHexChange((e.target as HTMLInputElement).value)}
-          className="tokenpanel-hsl-hex-input"
-          spellcheck={false}
-          aria-label="Hex color value"
-        />
-      </div>
-      {sliders.map(({ label, value, max, key }) => (
-        <div key={key} className="tokenpanel-hsl-row">
-          <span className="tokenpanel-hsl-row-label">{label}</span>
-          <input
-            type="range"
-            min={0}
-            max={max}
-            value={value}
-            onChange={(e) =>
-              updateFromHsl({
-                ...hsl,
-                [key]: parseInt((e.target as HTMLInputElement).value, 10),
-              })
-            }
-            className="tokenpanel-hsl-row-slider"
-            aria-label={`${label === 'H' ? 'Hue' : label === 'S' ? 'Saturation' : 'Lightness'}`}
-          />
-          <span className="tokenpanel-hsl-row-value">
-            {value}
-            {key === 'h' ? '' : '%'}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 /**
  * Single palette swatch with HSL popover.
  *
@@ -275,7 +185,7 @@ const ColorSwatch = memo(function ColorSwatch({
         aria-expanded={isOpen}
       />
       {isOpen && (
-        <HslPicker
+        <ColorPicker
           color={color}
           onChange={handleHexChange}
           onClose={handleClose}
