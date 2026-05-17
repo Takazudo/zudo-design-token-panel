@@ -222,6 +222,16 @@
   gap: 2px;
 }
 
+/* role="row" wrappers carry ARIA grid semantics but must not break the
+   CSS grid track layout — promote their cells to direct grid items so
+   hue runs across the X axis and brightness down the Y axis (matching
+   the pgen reference). Without this, the row wrappers become the grid
+   items themselves and the inner cells stack vertically, transposing
+   the axes. */
+.tokenpanel-color-picker-grid > [role='row'] {
+  display: contents;
+}
+
 .tokenpanel-color-picker[data-mode-shell='expanded'] .tokenpanel-color-picker-grid {
   grid-template-columns: repeat(12, 1fr);
 }
