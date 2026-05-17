@@ -25,6 +25,7 @@ import ReactDOM from 'react-dom/client';
 
 import './styles/reset.css';
 import './styles/tokens.css';
+import './styles/components.css';
 import '@takazudo/zudo-design-token-panel/styles';
 
 import { App } from './App';
