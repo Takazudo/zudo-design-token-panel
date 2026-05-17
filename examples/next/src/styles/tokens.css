@@ -105,16 +105,18 @@
   --nx-text-helper:           var(--nx-scale-sm);   /* 0.875rem */
   --nx-text-annotation:       var(--nx-scale-xs);   /* 0.75rem */
 
-  /* Legacy demo vars — consumed by the demo stylesheet below; not in the manifest */
-  --nx-spacing-md: 1rem;
-  --nx-spacing-lg: 2rem;
-  --nx-text-base: var(--nx-scale-base);
-  --nx-text-heading: var(--nx-scale-xl);
-  --nx-text-h2:    var(--nx-scale-xl);
-  --nx-text-h3:    1.35rem;
-  --nx-text-h4:    1.1rem;
-  --nx-text-small: var(--nx-scale-sm);
-  --nx-text-micro: var(--nx-scale-xs);
+  /* Legacy demo vars — consumed by the demo stylesheet below; not in the manifest.
+     Bridge each alias to a new semantic / scale token so changing a manifest cluster
+     actually updates the demo page. Matches the astro bridging pattern. */
+  --nx-spacing-md:   var(--nx-vsp-md);
+  --nx-spacing-lg:   var(--nx-vsp-xl);
+  --nx-text-base:    var(--nx-text-body);
+  --nx-text-heading: var(--nx-text-page-title);
+  --nx-text-h2:      var(--nx-text-page-title);
+  --nx-text-h3:      var(--nx-text-section-title);
+  --nx-text-h4:      var(--nx-text-subsection-title);
+  --nx-text-small:   var(--nx-text-helper);
+  --nx-text-micro:   var(--nx-text-annotation);
 
   /* Line-height tokens */
   --nx-leading-tight:   1.2;
