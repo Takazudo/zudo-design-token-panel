@@ -316,16 +316,32 @@ describe('CustomSlider — pointer event sequencing', () => {
     expect(onDragStart).toHaveBeenCalledOnce();
   });
 
-  it('pointermove after pointerdown fires onChange', () => {
-    // jsdom returns zero-width rects, so valueFromPointerX returns null and
-    // onChange is NOT called on moves (geometry is unavailable). The test
-    // verifies the handler is wired without throwing.
+  it('pointermove after pointerdown fires onChange with geometry-based value', () => {
+    // jsdom returns zero-width rects by default, so mock getBoundingClientRect
+    // to give the slider host a known non-zero width. This lets valueFromPointerX
+    // compute a real value so we can assert onChange is called correctly.
     const { onChange } = renderSlider(INTEGER_CONFIG, 180);
-    firePointerDown(getSliderHost());
-    firePointerMove(getSliderHost(), 50);
-    // onChange may or may not be called (jsdom rect is zero-width); the test
-    // asserts it does not throw, and onDragStart was still invoked.
-    expect(onChange).toBeDefined(); // guard: no error thrown
+    const host = getSliderHost();
+    host.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        width: 100,
+        top: 0,
+        height: 10,
+        right: 100,
+        bottom: 10,
+        x: 0,
+        y: 0,
+        toJSON() {
+          return this;
+        },
+      }) as DOMRect;
+
+    // pointerdown at x=0 → value = min (0)
+    firePointerDown(host, 0);
+    // pointermove at x=75 → fraction=0.75 → value = 0 + 0.75*360 = 270
+    firePointerMove(host, 75);
+    expect(onChange).toHaveBeenCalledWith(270);
   });
 
   it('pointerup after pointerdown fires onDragEnd', () => {
