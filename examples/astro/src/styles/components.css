@@ -15,25 +15,29 @@
  * │ Page heading                    │ astro-page-title                     │
  * │ Section heading                 │ astro-section-title                  │
  * │ Subsection heading              │ astro-subsection-title               │
- * │ Body paragraph                  │ astro-body                           │
+ * │ Body paragraph / form label     │ astro-body                           │
  * │ Muted helper text               │ astro-helper                         │
  * │ Card / surface panel            │ astro-card                           │
  * │ Primary button                  │ astro-button (+.is-primary,.is-accent│
  * │ Sidenav container               │ astro-sidenav                        │
  * │ Sidenav link                    │ astro-sidenav-link (+.is-active)     │
  * │ Topbar                          │ astro-topbar                         │
- * │ Tab list / tab / indicator      │ astro-tabs, astro-tabs__list,        │
- * │                                 │ astro-tabs__tab, astro-tabs__indicator│
- * │ Accordion item                  │ astro-accordion                      │
+ * │ Tab list / tab / panel          │ astro-tabs, astro-tabs__list,        │
+ * │   / indicator                   │ astro-tabs__tab, astro-tabs__panel,  │
+ * │                                 │ astro-tabs__indicator                │
+ * │ Accordion container/summary/body│ astro-accordion, astro-accordion__   │
+ * │                                 │ summary, astro-accordion__body       │
  * │ Modal dialog                    │ astro-modal                          │
- * │ Form input                      │ astro-input                          │
+ * │ Form input (text/email/select/  │ astro-input                          │
+ * │   textarea)                     │                                      │
  * │ Alert / callout                 │ astro-alert (+.is-info,.is-success,  │
  * │                                 │              .is-warning,.is-danger) │
- * │ Badge                           │ astro-badge (+.is-accent,.is-success,│
- * │                                 │              .is-warning,.is-danger) │
+ * │ Badge (filled + outlined)       │ astro-badge (+.is-accent,.is-success,│
+ * │                                 │  .is-warning,.is-danger,.is-outlined)│
  * │ Tooltip                         │ astro-tooltip                        │
  * │ Avatar                          │ astro-avatar (+.is-sm,.is-md)        │
- * │ Data table                      │ astro-table                          │
+ * │ Data table + icon button        │ astro-table, astro-icon-button       │
+ * │ Stat value (large metric)       │ astro-stat-value                     │
  * └─────────────────────────────────┴──────────────────────────────────────┘
  */
 
@@ -231,6 +235,12 @@
               width 0.2s var(--astro-easing-tab-open);
 }
 
+.astro-tabs__panel {
+  padding: var(--astro-vsp-md) var(--astro-hsp-md);
+  font-size: var(--astro-text-body);
+  color: var(--astro-fg);
+}
+
 /* ── Accordion ───────────────────────────────────────────────────────────── */
 
 .astro-accordion {
@@ -238,6 +248,28 @@
   border: 1px solid var(--astro-color-muted);
   border-radius: var(--astro-radius);
   overflow: hidden;
+}
+
+.astro-accordion__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--astro-vsp-md) var(--astro-hsp-md);
+  background: var(--astro-color-surface);
+  font-size: var(--astro-text-body);
+  cursor: pointer;
+  list-style: none;
+}
+
+.astro-accordion__summary::-webkit-details-marker {
+  display: none;
+}
+
+.astro-accordion__body {
+  padding: var(--astro-vsp-md) var(--astro-hsp-md);
+  border-top: 1px solid var(--astro-color-muted);
+  font-size: var(--astro-text-body);
+  color: var(--astro-fg);
 }
 
 /* ── Modal ───────────────────────────────────────────────────────────────── */
@@ -443,4 +475,60 @@
   border-bottom: 1px solid var(--astro-color-muted);
   font-size: var(--astro-text-body);
   color: var(--astro-fg);
+}
+
+/* ── Icon button (data table action) ────────────────────────────────────── */
+
+.astro-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--astro-size-icon-md);
+  height: var(--astro-size-icon-md);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--astro-radius);
+  color: var(--astro-color-muted);
+}
+
+.astro-icon-button:hover {
+  color: var(--astro-color-accent);
+}
+
+/* ── Stat value (large metric number) ───────────────────────────────────── */
+/*
+ * Used in StatCard as a prominent metric display. References the page-title
+ * font-size token but applies as a span (inline) rather than a block heading.
+ */
+
+.astro-stat-value {
+  font-size: var(--astro-text-page-title);
+  font-weight: 700;
+  line-height: var(--astro-leading-tight);
+  color: var(--astro-color-primary);
+}
+
+/* ── Badge outlined variant ─────────────────────────────────────────────── */
+
+.astro-badge.is-outlined {
+  background: transparent;
+  color: inherit;
+  border: 1px solid currentColor;
+}
+
+.astro-badge.is-outlined.is-accent {
+  color: var(--astro-color-accent);
+}
+
+.astro-badge.is-outlined.is-success {
+  color: var(--astro-color-success);
+}
+
+.astro-badge.is-outlined.is-warning {
+  color: var(--astro-color-warning);
+}
+
+.astro-badge.is-outlined.is-danger {
+  color: var(--astro-color-danger);
 }
