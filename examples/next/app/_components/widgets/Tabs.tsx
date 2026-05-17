@@ -25,14 +25,21 @@ export default function TabsDemo() {
   const tabCount = TABS.length;
   const indicatorPct = 100 / tabCount;
 
+  const panelId = (i: number) => `tabs-panel-${i}`;
+  const tabId = (i: number) => `tabs-tab-${i}`;
+
   return (
     <div className="nx-tabs">
       {/* Tab list */}
-      <div className="nx-tabs__list">
+      <div className="nx-tabs__list" role="tablist" aria-label="Demo tabs">
         {TABS.map((tab, i) => (
           <button
             key={tab}
+            id={tabId(i)}
             type="button"
+            role="tab"
+            aria-selected={activeIndex === i}
+            aria-controls={panelId(i)}
             onClick={() => setActiveIndex(i)}
             className={`nx-tabs__tab${activeIndex === i ? ' is-active' : ''}`}
           >
@@ -47,6 +54,7 @@ export default function TabsDemo() {
         */}
         <span
           className="nx-tabs__indicator"
+          aria-hidden="true"
           style={{
             width: `${indicatorPct}%`,
             transform: `translateX(${activeIndex * 100}%)`,
@@ -55,28 +63,37 @@ export default function TabsDemo() {
       </div>
 
       {/* Tab panels */}
-      <div className="nx-tabs__panel">
-        {activeIndex === 0 && (
-          <div>
-            <strong>Overview panel.</strong> Indicator slides on{' '}
-            <code>easing-tab-open</code>{' '}
-            (&#8594;&nbsp;<code>--nx-easing-tab-open</code>).
-          </div>
-        )}
-        {activeIndex === 1 && (
-          <div>
-            <strong>Details panel.</strong> Change the Tab Open easing in the
-            panel to see the indicator motion update.
-          </div>
-        )}
-        {activeIndex === 2 && (
-          <div>
-            <strong>Settings panel.</strong> Active label uses{' '}
-            <code>nx-tabs__tab.is-active</code>{' '}
-            (&#8594;&nbsp;<code>--nx-color-accent</code>).
-          </div>
-        )}
-      </div>
+      {TABS.map((tab, i) => (
+        <div
+          key={tab}
+          id={panelId(i)}
+          role="tabpanel"
+          aria-labelledby={tabId(i)}
+          hidden={activeIndex !== i}
+          className="nx-tabs__panel"
+        >
+          {i === 0 && (
+            <div>
+              <strong>Overview panel.</strong> Indicator slides on{' '}
+              <code>easing-tab-open</code>{' '}
+              (&#8594;&nbsp;<code>--nx-easing-tab-open</code>).
+            </div>
+          )}
+          {i === 1 && (
+            <div>
+              <strong>Details panel.</strong> Change the Tab Open easing in the
+              panel to see the indicator motion update.
+            </div>
+          )}
+          {i === 2 && (
+            <div>
+              <strong>Settings panel.</strong> Active label uses{' '}
+              <code>nx-tabs__tab.is-active</code>{' '}
+              (&#8594;&nbsp;<code>--nx-color-accent</code>).
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
