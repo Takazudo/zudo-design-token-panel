@@ -1,0 +1,67 @@
+---
+/**
+ * AppLayout — full app shell for the Astro example.
+ *
+ * Renders: topbar (panel-open button) + sidenav + main content slot.
+ * Builds on top of the existing Layout.astro for the document shell
+ * (ClientRouter, DesignTokenPanelHost, CSS imports).
+ *
+ * Layout grid
+ * -----------
+ * Two-column grid: sidenav column width from --astro-size-sidenav-w token,
+ * main fills remaining space. The grid is applied to the body-below-topbar
+ * area; topbar spans full width above it.
+ *
+ * Token consumption via frozen vocabulary (components.css):
+ *   .astro-topbar        → topbar background, height, padding, border
+ *   .astro-sidenav       → sidenav background, padding, flex layout
+ *   .astro-sidenav-link  → nav link styles
+ *
+ * View Transitions
+ * ----------------
+ * ClientRouter is wired in the inner Layout.astro. The topbar and sidenav
+ * use transition:persist so they are not animated between page navigations.
+ */
+
+import Layout from './Layout.astro';
+import Sidenav from '../components/Sidenav.astro';
+
+interface Props {
+  title: string;
+  activePath?: string;
+}
+
+const { title, activePath } = Astro.props;
+---
+
+<Layout title={title}>
+  <div
+    class="astro-topbar"
+    role="banner"
+    transition:persist="topbar"
+  >
+    <span class="astro-helper">
+      Storage prefix: <code>astro-example-tokens</code>
+    </span>
+    <button
+      class="astro-button is-accent"
+      type="button"
+      onclick="window.astro?.toggleDesignPanel?.()"
+    >
+      Open Design Token Panel
+    </button>
+  </div>
+
+  <!-- Two-column app shell: sidenav + main content -->
+  <div
+    style={`display:grid;grid-template-columns:var(--astro-size-sidenav-w) 1fr;min-height:calc(100vh - var(--astro-size-header-h))`}
+  >
+    <div transition:persist="sidenav">
+      <Sidenav activePath={activePath} />
+    </div>
+
+    <main style="padding: var(--astro-vsp-lg) var(--astro-hsp-lg); background: var(--astro-bg);">
+      <slot />
+    </main>
+  </div>
+</Layout>

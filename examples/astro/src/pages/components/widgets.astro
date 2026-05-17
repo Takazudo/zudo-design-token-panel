@@ -1,0 +1,31 @@
+---
+/**
+ * Widgets demo page — shell only (Wave 3a).
+ *
+ * Widget implementations land in Wave 3b. This page provides the page-title,
+ * intro paragraph, and AppLayout wiring so the route is navigable from the
+ * Sidenav before component demos are added.
+ */
+
+import AppLayout from '../../layouts/AppLayout.astro';
+
+const BASE = import.meta.env.BASE_URL;
+---
+
+<AppLayout title="Widgets — Astro Example" activePath={`${BASE}components/widgets`}>
+  <div class="astro-page">
+    <div class="astro-page-title">Widgets demo</div>
+
+    <div class="astro-body">
+      Interactive widget components — tabs, accordion, modal dialog, and avatar —
+      styled through the frozen <code>astro-*</code> vocabulary. All visual styles
+      resolve to <code>--astro-*</code> design tokens, so panel tweaks update them
+      live. Full widget implementation arrives in Wave 3b.
+    </div>
+
+    <div class="astro-card">
+      <div class="astro-subsection-title" style="margin-bottom: var(--astro-vsp-xs);">Planned widgets</div>
+      <div class="astro-helper">Tabs (.astro-tabs / .astro-tabs__list / .astro-tabs__tab), accordion (.astro-accordion), modal (.astro-modal), avatar (.astro-avatar with .is-sm / .is-md).</div>
+    </div>
+  </div>
+</AppLayout>

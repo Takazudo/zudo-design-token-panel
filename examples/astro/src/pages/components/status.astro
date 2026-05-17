@@ -1,0 +1,31 @@
+---
+/**
+ * Status surfaces demo page — shell only (Wave 3a).
+ *
+ * Widget implementations land in Wave 3b. This page provides the page-title,
+ * intro paragraph, and AppLayout wiring so the route is navigable from the
+ * Sidenav before component demos are added.
+ */
+
+import AppLayout from '../../layouts/AppLayout.astro';
+
+const BASE = import.meta.env.BASE_URL;
+---
+
+<AppLayout title="Status — Astro Example" activePath={`${BASE}components/status`}>
+  <div class="astro-page">
+    <div class="astro-page-title">Status surfaces demo</div>
+
+    <div class="astro-body">
+      Covers alerts, badges, tags/chips, and tooltips — all driven by semantic
+      color tokens <code>--astro-color-accent</code>, <code>--astro-color-success</code>,
+      <code>--astro-color-warning</code>, <code>--astro-color-danger</code>.
+      Full widget implementation arrives in Wave 3b.
+    </div>
+
+    <div class="astro-card">
+      <div class="astro-subsection-title" style="margin-bottom: var(--astro-vsp-xs);">Planned widgets</div>
+      <div class="astro-helper">Alerts (.is-info / .is-success / .is-warning / .is-danger), badges, tags/chips, tooltips.</div>
+    </div>
+  </div>
+</AppLayout>
