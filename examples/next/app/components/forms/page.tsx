@@ -15,6 +15,7 @@
  */
 
 import AppShell from '../../_components/AppShell';
+import { FormShell } from '../../_components/FormShell';
 
 export default function FormsPage() {
   return (
@@ -31,8 +32,11 @@ export default function FormsPage() {
           live.
         </div>
 
-        {/* Form — SSR-only; inputs accept user input natively */}
-        <form className="nx-form" style={{ marginTop: 'var(--nx-vsp-md)' }}>
+        {/* Form — demo-only; FormShell is a small client wrapper that calls
+            event.preventDefault() so Enter in a field or clicking Submit
+            does not navigate the route away from the showcase. Children stay
+            server-rendered. */}
+        <FormShell className="nx-form" style={{ marginTop: 'var(--nx-vsp-md)' }}>
 
           {/* ── Text input ─────────────────────────────────────────────── */}
           <div className="nx-form-section">
@@ -162,7 +166,7 @@ export default function FormsPage() {
             </div>
           </div>
 
-        </form>
+        </FormShell>
       </div>
     </AppShell>
   );

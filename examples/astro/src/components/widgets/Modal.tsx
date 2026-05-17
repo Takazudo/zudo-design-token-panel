@@ -41,6 +41,13 @@ export function ModalDemo() {
       dialog.close();
       if (mainEl) (mainEl as HTMLElement & { inert: boolean }).inert = false;
     }
+
+    // Cleanup: if this component unmounts while still open (view transition,
+    // hot reload, parent remount), always release inert on <main>. Without
+    // this the next screen renders but stays non-interactive.
+    return () => {
+      if (mainEl) (mainEl as HTMLElement & { inert: boolean }).inert = false;
+    };
   }, [isOpen]);
 
   useEffect(() => {

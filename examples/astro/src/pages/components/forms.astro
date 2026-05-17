@@ -30,8 +30,13 @@ const BASE = import.meta.env.BASE_URL;
       Design Token Panel (topbar button) to see every widget update live.
     </div>
 
-    <!-- Form — SSR; inputs accept user input natively; no submit handler needed -->
-    <form style="display:flex;flex-direction:column;gap:var(--astro-vsp-md)">
+    <!-- Form — demo-only; the inline submit handler stops the browser's
+         default submit/reload so pressing Enter in a field or clicking the
+         Submit button does not navigate the route away from the showcase. -->
+    <form
+      style="display:flex;flex-direction:column;gap:var(--astro-vsp-md)"
+      onsubmit="return false;"
+    >
 
       <!-- Text input -->
       <div style="display:flex;flex-direction:column;gap:var(--astro-vsp-xs)">

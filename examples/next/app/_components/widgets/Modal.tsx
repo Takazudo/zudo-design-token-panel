@@ -44,6 +44,13 @@ export default function ModalDemo() {
       dialog.close();
       if (mainEl) mainEl.inert = false;
     }
+
+    // Cleanup: if the component unmounts while still open (route change,
+    // hot reload, parent remount), always release inert on <main>. Without
+    // this, the next screen renders but stays non-interactive.
+    return () => {
+      if (mainEl) mainEl.inert = false;
+    };
   }, [isOpen]);
 
   useEffect(() => {
