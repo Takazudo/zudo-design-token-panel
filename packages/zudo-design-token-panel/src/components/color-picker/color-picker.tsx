@@ -10,7 +10,8 @@
  *
  * Design rules (see packages/zudo-design-token-panel/CLAUDE.md):
  *   - All interactive elements use <div role="button" tabIndex={0}> with
- *     explicit Enter/Space onKeyDown handlers. No <button> or <h*> allowed.
+ *     explicit Enter/Space onKeyDown handlers. Native button and heading tags
+ *     are not used (hostile-host policy).
  *   - BEM class names: tokenpanel-color-picker-* (locked external contract).
  *   - usePopoverClose: pointerdown + Escape only — NO scroll listener.
  *   - Mode persisted to localStorage under key tokenpanel.colorPicker.mode.

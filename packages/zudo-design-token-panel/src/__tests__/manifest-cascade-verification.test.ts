@@ -17,7 +17,8 @@
  *   A. No manifest contains a `group:` object-key (TierItem.group was removed in #148).
  *   B. No manifest contains an `advancedTiers:` object-key (TabConfig.advancedTiers was removed in #148).
  *   C. The zfb-tailwind Spacing tab declares exactly 2 tiers: hsp-scale, vsp-scale (#161 removed spacing-scale).
- *   D. The panel source (tabs/) contains no <h4 or <details elements.
+ *   D. The panel source (tabs/ + components/color-picker/) contains no <h4, <details,
+ *      or <summary elements.
  *   F. The panel CSS sources do NOT read host --color-* / --font-mono — the panel
  *      ships a self-contained dark palette in panel-tokens.css and host theme
  *      changes must not bleed into the panel chrome.
@@ -135,34 +136,63 @@ describe('Invariant C — zfb-tailwind Spacing tab has 2 tiers', () => {
 });
 
 // ---------------------------------------------------------------------------
-// D. Panel source — no <h4 or <details elements in tabs/
+// D. Panel source — no <h4, <details, or <summary elements in tabs/ or
+//    components/color-picker/. The hostile-host policy in the package CLAUDE.md
+//    forbids these tags anywhere the panel renders into the host DOM.
 // ---------------------------------------------------------------------------
 
-describe('Invariant D — panel tabs source has no blocked semantic elements', () => {
+describe('Invariant D — panel source has no blocked semantic elements', () => {
   const TABS_DIR = path.resolve(__dirname, '../tabs');
+  const COLOR_PICKER_DIR = path.resolve(__dirname, '../components/color-picker');
 
-  function findTabSources(): string[] {
+  /**
+   * Collect source files from a directory, excluding test files and __tests__ subdirs.
+   * Filters .tsx / .ts files at the top level only — recursion is not needed since
+   * the directories under test are flat (apart from __tests__).
+   */
+  function readPanelSources(dir: string): string[] {
     return fs
-      .readdirSync(TABS_DIR)
-      .filter((f) => (f.endsWith('.tsx') || f.endsWith('.ts')) && !f.startsWith('__'))
-      .map((f) => fs.readFileSync(path.join(TABS_DIR, f), 'utf8'));
+      .readdirSync(dir, { withFileTypes: true })
+      .filter(
+        (e) =>
+          e.isFile() &&
+          (e.name.endsWith('.tsx') || e.name.endsWith('.ts')) &&
+          !e.name.startsWith('__'),
+      )
+      .map((e) => fs.readFileSync(path.join(dir, e.name), 'utf8'));
   }
 
-  it('no <h4 element in any tab source', () => {
-    for (const source of findTabSources()) {
+  function findPanelSources(): string[] {
+    return [...readPanelSources(TABS_DIR), ...readPanelSources(COLOR_PICKER_DIR)];
+  }
+
+  it('no <h4 element in any panel source', () => {
+    for (const source of findPanelSources()) {
       expect(source).not.toMatch(/<h4[\s/>]/);
     }
   });
 
-  it('no <details element in any tab source', () => {
-    for (const source of findTabSources()) {
+  it('no <details element in any panel source', () => {
+    for (const source of findPanelSources()) {
       expect(source).not.toMatch(/<details[\s/>]/);
     }
   });
 
-  it('no <summary element in any tab source', () => {
-    for (const source of findTabSources()) {
+  it('no <summary element in any panel source', () => {
+    for (const source of findPanelSources()) {
       expect(source).not.toMatch(/<summary[\s/>]/);
+    }
+  });
+
+  it('no <button element in any panel source (hostile-host policy)', () => {
+    for (const source of findPanelSources()) {
+      expect(source).not.toMatch(/<button[\s/>]/);
+    }
+  });
+
+  it('no <table element in any panel source (hostile-host policy)', () => {
+    for (const source of findPanelSources()) {
+      expect(source).not.toMatch(/<table[\s/>]/);
     }
   });
 });
