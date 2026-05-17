@@ -134,7 +134,7 @@ body {
   background: var(--nx-bg);
   color: var(--nx-fg);
   font-size: var(--nx-text-base);
-  padding: var(--nx-spacing-lg);
+  /* padding removed — AppShell handles layout; inner padding is set on the main area */
 }
 
 .nx-stack {
@@ -393,4 +393,309 @@ body {
 .nx-easing-card-label {
   font-size: var(--nx-text-body);
   font-weight: 600;
+}
+
+/* ── Host-class vocabulary (frozen — wave 3a #189) ───────────────────────── */
+/*
+ * Every class below targets ONLY --nx-* CSS variables. Class names are the
+ * canonical surface vocabulary consumed by AppShell, Sidenav, and sub-page
+ * shells. Do not rename without bumping the wave-3 parity milestone.
+ */
+
+/* Layout */
+.nx-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-vsp-lg);
+  max-width: 56rem;
+  margin: 0 auto;
+}
+
+/* Typography */
+.nx-page-title {
+  font-size: var(--nx-text-page-title);
+  font-weight: 700;
+  line-height: var(--nx-leading-tight);
+  color: var(--nx-color-primary);
+  margin: 0;
+}
+
+.nx-section-title {
+  font-size: var(--nx-text-section-title);
+  font-weight: 600;
+  line-height: var(--nx-leading-tight);
+  color: var(--nx-fg);
+  margin: 0;
+}
+
+.nx-subsection-title {
+  font-size: var(--nx-text-subsection-title);
+  font-weight: 600;
+  line-height: var(--nx-leading-snug);
+  color: var(--nx-fg);
+  margin: 0;
+}
+
+.nx-body {
+  font-size: var(--nx-text-body);
+  line-height: var(--nx-leading-relaxed);
+  color: var(--nx-fg);
+}
+
+.nx-helper {
+  font-size: var(--nx-text-helper);
+  line-height: var(--nx-leading-snug);
+  color: var(--nx-color-muted);
+}
+
+/* Shell chrome */
+.nx-topbar {
+  height: var(--nx-size-header-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--nx-color-surface);
+  padding-inline: var(--nx-hsp-md);
+  border-bottom: 1px solid var(--nx-color-muted);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.nx-sidenav {
+  width: var(--nx-size-sidenav-w);
+  background: var(--nx-color-surface);
+  padding: var(--nx-vsp-md) var(--nx-hsp-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-vsp-xs);
+  min-height: 100%;
+}
+
+.nx-sidenav-link {
+  display: block;
+  font-size: var(--nx-text-body);
+  color: var(--nx-fg);
+  text-decoration: none;
+  padding: var(--nx-vsp-xs) var(--nx-hsp-sm);
+  border-radius: var(--nx-radius);
+}
+
+.nx-sidenav-link:hover {
+  background: var(--nx-bg);
+}
+
+.nx-sidenav-link.is-active {
+  color: var(--nx-color-accent);
+  font-weight: 600;
+}
+
+/* Buttons */
+.nx-button {
+  display: inline-block;
+  padding: var(--nx-vsp-xs) var(--nx-hsp-md);
+  border-radius: var(--nx-radius);
+  background: var(--nx-color-accent);
+  color: var(--nx-bg);
+  border: none;
+  cursor: pointer;
+  font-size: var(--nx-text-body);
+  font: inherit;
+  text-decoration: none;
+}
+
+.nx-button:hover {
+  background: var(--nx-color-primary);
+}
+
+.nx-button.is-primary {
+  background: var(--nx-color-primary);
+}
+
+.nx-button.is-primary:hover {
+  background: var(--nx-color-accent);
+}
+
+.nx-button.is-accent {
+  background: var(--nx-color-accent);
+}
+
+/* Card / surface panel */
+/* Note: .nx-card was already defined above — this extends it with padding tokens */
+
+/* Tabs */
+.nx-tabs {
+  display: flex;
+  flex-direction: column;
+}
+
+.nx-tabs__list {
+  display: flex;
+  gap: var(--nx-hsp-xs);
+  border-bottom: 1px solid var(--nx-color-muted);
+  position: relative;
+}
+
+.nx-tabs__tab {
+  padding: var(--nx-vsp-xs) var(--nx-hsp-md);
+  font-size: var(--nx-text-body);
+  color: var(--nx-color-muted);
+  cursor: pointer;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.nx-tabs__tab:hover {
+  color: var(--nx-fg);
+}
+
+.nx-tabs__indicator {
+  position: absolute;
+  bottom: -1px;
+  height: 2px;
+  background: var(--nx-color-primary);
+  transition: transform 0.2s var(--nx-easing-tab-open), width 0.2s var(--nx-easing-tab-open);
+}
+
+/* Accordion */
+.nx-accordion {
+  border: 1px solid var(--nx-color-muted);
+  border-radius: var(--nx-radius);
+  overflow: hidden;
+}
+
+.nx-accordion + .nx-accordion {
+  margin-top: var(--nx-vsp-xs);
+}
+
+/* Modal dialog */
+.nx-modal {
+  background: var(--nx-color-surface);
+  color: var(--nx-fg);
+  border-radius: var(--nx-radius);
+  border: 1px solid var(--nx-color-muted);
+  padding: var(--nx-vsp-md) var(--nx-hsp-md);
+  max-width: 32rem;
+  width: 100%;
+}
+
+/* Form input */
+.nx-input {
+  background: var(--nx-color-surface);
+  color: var(--nx-fg);
+  border: 1px solid var(--nx-color-muted);
+  border-radius: var(--nx-radius);
+  padding: var(--nx-vsp-sm) var(--nx-hsp-sm);
+  font-size: var(--nx-text-body);
+  font: inherit;
+  width: 100%;
+}
+
+.nx-input:focus {
+  outline: none;
+  border-color: var(--nx-color-accent);
+}
+
+/* Alerts */
+.nx-alert {
+  padding: var(--nx-vsp-md) var(--nx-hsp-md);
+  border-radius: var(--nx-radius);
+  border: 1px solid var(--nx-color-muted);
+  font-size: var(--nx-text-body);
+  color: var(--nx-bg);
+}
+
+.nx-alert.is-info    { background: var(--nx-color-accent);  border-color: var(--nx-color-accent); }
+.nx-alert.is-success { background: var(--nx-color-success); border-color: var(--nx-color-success); }
+.nx-alert.is-warning { background: var(--nx-color-warning); border-color: var(--nx-color-warning); }
+.nx-alert.is-danger  { background: var(--nx-color-danger);  border-color: var(--nx-color-danger); }
+
+/* Badge */
+.nx-badge {
+  display: inline-block;
+  padding: 0.125rem var(--nx-hsp-xs);
+  border-radius: var(--nx-radius);
+  font-size: var(--nx-text-helper);
+  background: var(--nx-color-accent);
+  color: var(--nx-bg);
+}
+
+.nx-badge.is-success { background: var(--nx-color-success); }
+.nx-badge.is-warning { background: var(--nx-color-warning); }
+.nx-badge.is-danger  { background: var(--nx-color-danger); }
+.nx-badge.is-outlined {
+  background: transparent;
+  border: 1px solid currentColor;
+  color: var(--nx-color-accent);
+}
+
+/* Tooltip */
+.nx-tooltip {
+  position: relative;
+  display: inline-block;
+}
+
+.nx-tooltip__bubble {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: var(--nx-vsp-xs);
+  background: var(--nx-color-surface);
+  color: var(--nx-fg);
+  border: 1px solid var(--nx-color-muted);
+  border-radius: var(--nx-radius);
+  padding: var(--nx-vsp-xs) var(--nx-hsp-sm);
+  font-size: var(--nx-text-helper);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s var(--nx-easing-tab-open);
+}
+
+.nx-tooltip:hover .nx-tooltip__bubble {
+  opacity: 1;
+}
+
+/* Avatar */
+.nx-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--nx-color-primary);
+  color: var(--nx-bg);
+  font-size: var(--nx-text-helper);
+  font-weight: 600;
+  width: var(--nx-size-avatar-md);
+  height: var(--nx-size-avatar-md);
+  overflow: hidden;
+}
+
+.nx-avatar.sm {
+  width: var(--nx-size-avatar-sm);
+  height: var(--nx-size-avatar-sm);
+  font-size: var(--nx-text-annotation);
+}
+
+/* Data table */
+.nx-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--nx-text-helper);
+}
+
+.nx-table th,
+.nx-table td {
+  padding: var(--nx-hsp-xs) var(--nx-hsp-sm);
+  border: 1px solid var(--nx-color-muted);
+  text-align: left;
+}
+
+.nx-table th {
+  font-weight: 600;
+  background: var(--nx-code-bg);
+  color: var(--nx-fg);
 }
