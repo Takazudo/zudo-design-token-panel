@@ -76,6 +76,12 @@ const PRESET_H_COLS_MINI = [0, 60, 120, 180, 240, 300];
 const PRESET_H_COLS_EXPANDED = [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330];
 const PRESET_C_FIXED = 0.18;
 
+// Popover size constants (spec-mandated dimensions).
+const MINI_POPOVER_W = 320;
+const MINI_POPOVER_H = 400;
+const EXPANDED_POPOVER_W = 520;
+const EXPANDED_POPOVER_H = 440;
+
 /* ── Local helpers ──────────────────────────────────────────────────────── */
 
 function oklchSliderConfigs(): SliderConfig[] {
@@ -329,7 +335,21 @@ export function ColorPicker({
   const [shell, setShell] = useState<'mini' | 'expanded'>('mini');
 
   const [hexInput, setHexInput] = useState(hex);
-  useEffect(() => setHexInput(hex), [hex]);
+  useEffect(() => {
+    // Only clobber hexInput when it holds a fully-committed valid hex. If the
+    // user has started typing a partial string (e.g. "#33"), leave it alone so
+    // an external prop change does not erase the in-progress edit.
+    if (
+      /^#[0-9a-fA-F]{6}$/.test(hexInput) ||
+      /^#[0-9a-fA-F]{8}$/.test(hexInput)
+    ) {
+      setHexInput(hex);
+    }
+  // hexInput intentionally excluded from deps: we only want to re-run when hex
+  // changes. Reading hexInput inside the effect is safe — we only write when the
+  // current value is a valid committed hex.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hex]);
 
   usePopoverClose(containerRef, onClose);
 
@@ -340,9 +360,10 @@ export function ColorPicker({
 
   const commit = useCallback(
     (next: string) => {
-      setHex(next);
-      setHexInput(next);
-      onChange(next);
+      const normalized = next.toLowerCase();
+      setHex(normalized);
+      setHexInput(normalized);
+      onChange(normalized);
     },
     [setHex, onChange],
   );
@@ -463,10 +484,14 @@ export function ColorPicker({
       setAutoStyle({ position: 'fixed', visibility: 'hidden' });
       return;
     }
-    setAutoStyle(getFixedPopoverStyle(anchor, shell === 'mini' ? 320 : 520, 400));
+    setAutoStyle(
+      getFixedPopoverStyle(
+        anchor,
+        shell === 'mini' ? MINI_POPOVER_W : EXPANDED_POPOVER_W,
+        shell === 'mini' ? MINI_POPOVER_H : EXPANDED_POPOVER_H,
+      ),
+    );
   }, [anchorRef, shell]);
-
-  const selectedOklch = useMemo(() => hexToOklcha(hex), [hex]);
 
   // Checkerboard is only needed when the color has a non-opaque alpha byte.
   const hasAlpha = /^#[0-9a-fA-F]{8}$/.test(hex);
@@ -577,35 +602,39 @@ export function ColorPicker({
         role="grid"
         aria-label="Color presets"
       >
-        {PRESET_L_ROWS.map((_, rowIdx) =>
-          presetHCols.map((_h, colIdx) => {
-            const cell = presetOklchForCell(rowIdx, colIdx, oklch.a, presetHCols);
-            const inGamut = isInSrgbGamut(cell);
-            const safeCss = oklchaToCss(clampToSrgbGamut(cell));
-            const isSelected =
-              Math.abs(selectedOklch.l - cell.l) < 2 &&
-              Math.abs(((selectedOklch.h - cell.h + 360) % 360)) < 5 &&
-              Math.abs(selectedOklch.c - cell.c) < 0.05;
-            return (
-              <div
-                key={`${rowIdx}-${colIdx}`}
-                role="gridcell"
-                data-grid-row={rowIdx}
-                data-grid-col={colIdx}
-                data-oog={inGamut ? 'false' : 'true'}
-                aria-selected={isSelected}
-                aria-label={`Preset L ${cell.l}% H ${cell.h}°`}
-                className="tokenpanel-color-picker-grid-cell"
-                style={{ background: safeCss }}
-                tabIndex={rowIdx === 0 && colIdx === 0 ? 0 : -1}
-                onClick={() => handlePresetClick(rowIdx, colIdx)}
-                onKeyDown={(e: KeyboardEvent) =>
-                  handleGridKeyDown(e, rowIdx, colIdx)
-                }
-              />
-            );
-          }),
-        )}
+        {PRESET_L_ROWS.map((_, rowIdx) => (
+          <div role="row" key={`row-${rowIdx}`}>
+            {presetHCols.map((_h, colIdx) => {
+              const cell = presetOklchForCell(rowIdx, colIdx, oklch.a, presetHCols);
+              const inGamut = isInSrgbGamut(cell);
+              const safeCss = oklchaToCss(clampToSrgbGamut(cell));
+              const hueDelta = Math.abs(oklch.h - cell.h) % 360;
+              const hueDistance = Math.min(hueDelta, 360 - hueDelta);
+              const isSelected =
+                Math.abs(oklch.l - cell.l) < 2 &&
+                hueDistance < 5 &&
+                Math.abs(oklch.c - cell.c) < 0.05;
+              return (
+                <div
+                  key={`${rowIdx}-${colIdx}`}
+                  role="gridcell"
+                  data-grid-row={rowIdx}
+                  data-grid-col={colIdx}
+                  data-oog={inGamut ? 'false' : 'true'}
+                  aria-selected={isSelected}
+                  aria-label={`Preset L ${cell.l}% H ${cell.h}°`}
+                  className="tokenpanel-color-picker-grid-cell"
+                  style={{ background: safeCss }}
+                  tabIndex={rowIdx === 0 && colIdx === 0 ? 0 : -1}
+                  onClick={() => handlePresetClick(rowIdx, colIdx)}
+                  onKeyDown={(e: KeyboardEvent) =>
+                    handleGridKeyDown(e, rowIdx, colIdx)
+                  }
+                />
+              );
+            })}
+          </div>
+        ))}
       </div>
 
       {/* Sliders ────────────────────────────────────────────────────────── */}
