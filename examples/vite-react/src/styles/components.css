@@ -12,15 +12,20 @@
  *   Surface:    vr-card
  *   Interactive: vr-button (.is-primary, .is-accent)
  *   Nav:        vr-sidenav, vr-sidenav-link (.is-active), vr-topbar
- *   Tabs:       vr-tabs, vr-tabs__list, vr-tabs__tab, vr-tabs__indicator
- *   Accordion:  vr-accordion
- *   Modal:      vr-modal
+ *   Tabs:       vr-tabs, vr-tabs__list, vr-tabs__tab, vr-tabs__indicator,
+ *               vr-tabs__panel
+ *   Accordion:  vr-accordion, vr-accordion__summary, vr-accordion__body
+ *   Modal:      vr-modal, vr-modal__header, vr-modal__close
  *   Input:      vr-input
+ *   Form:       vr-field, vr-label
  *   Alert:      vr-alert (.is-info, .is-success, .is-warning, .is-danger)
  *   Badge:      vr-badge (.is-accent, .is-success, .is-warning, .is-danger)
- *   Tooltip:    vr-tooltip
- *   Avatar:     vr-avatar (.is-sm, .is-md)
- *   Table:      vr-table
+ *   Tooltip:    vr-tooltip, vr-tooltip__bubble
+ *   Avatar:     vr-avatar (.is-sm, .is-md), vr-avatar-row
+ *   Table:      vr-table, vr-table-actions, vr-table-action
+ *   MediaCard:  vr-media-card, vr-media-card__image
+ *   StatCard:   vr-stat-card
+ *   ProfileCard: vr-profile-card, vr-profile-card__avatar
  */
 
 /* ── Layout ──────────────────────────────────────────────────────────────── */
@@ -177,16 +182,65 @@
               width 0.3s var(--vr-easing-tab-open);
 }
 
+.vr-tabs__panel {
+  padding: var(--vr-vsp-md) var(--vr-hsp-md);
+  font-size: var(--vr-text-body);
+  color: var(--vr-fg);
+}
+
 /* ── Accordion ───────────────────────────────────────────────────────────── */
 
 .vr-accordion {
   border: 1px solid var(--vr-color-muted);
   border-radius: var(--vr-radius);
   overflow: hidden;
+  /* Progressive enhancement: animated height for browsers that support
+     ::details-content (Chrome 131+); older browsers get instant open/close */
+  interpolate-size: allow-keywords;
 }
 
 .vr-accordion + .vr-accordion {
   margin-top: var(--vr-vsp-xs);
+}
+
+/* reason: ::details-content pseudo-element transition for open state;
+   cannot be expressed as inline style */
+.vr-accordion::details-content {
+  transition: height 0.3s var(--vr-easing-tab-open),
+              opacity 0.3s var(--vr-easing-tab-open);
+  overflow: hidden;
+}
+
+.vr-accordion:not([open])::details-content {
+  transition: height 0.3s var(--vr-easing-tab-close),
+              opacity 0.3s var(--vr-easing-tab-close);
+}
+
+.vr-accordion__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--vr-vsp-md) var(--vr-hsp-md);
+  background: var(--vr-color-surface);
+  font-size: var(--vr-text-body);
+  color: var(--vr-fg);
+  cursor: pointer;
+  list-style: none;
+}
+
+/* Remove browser-default disclosure marker */
+.vr-accordion__summary::-webkit-details-marker {
+  display: none;
+}
+
+.vr-accordion__body {
+  padding: var(--vr-vsp-md) var(--vr-hsp-md);
+  border-top: 1px solid var(--vr-color-muted);
+  font-size: var(--vr-text-body);
+  color: var(--vr-fg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--vr-vsp-sm);
 }
 
 /* ── Modal ───────────────────────────────────────────────────────────────── */
@@ -199,10 +253,56 @@
   padding: var(--vr-vsp-md) var(--vr-hsp-md);
   max-width: 32rem;
   width: 90%;
+  /* reason: @starting-style + open/close transition on <dialog> cannot be
+     expressed as inline styles or React props */
+  opacity: 0;
+  transform: scale(0.95);
+  transition:
+    opacity 0.2s var(--vr-easing-modal),
+    transform 0.2s var(--vr-easing-modal),
+    display 0.2s allow-discrete,
+    overlay 0.2s allow-discrete;
+}
+
+.vr-modal[open] {
+  opacity: 1;
+  transform: scale(1);
+}
+
+@starting-style {
+  .vr-modal[open] {
+    opacity: 0;
+    transform: scale(0.95);
+  }
 }
 
 .vr-modal::backdrop {
-  background: rgba(0, 0, 0, 0.6);
+  /* reason: no overlay token; color-mix approach matches the zfb-tailwind reference */
+  background: color-mix(in srgb, var(--vr-bg) 80%, transparent);
+  transition:
+    background 0.2s var(--vr-easing-modal),
+    display 0.2s allow-discrete,
+    overlay 0.2s allow-discrete;
+}
+
+.vr-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--vr-vsp-md);
+}
+
+.vr-modal__close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--vr-color-muted);
+  font-size: var(--vr-text-body);
+  padding: var(--vr-vsp-xs) var(--vr-hsp-xs);
+}
+
+.vr-modal__close:hover {
+  color: var(--vr-fg);
 }
 
 /* ── Input ───────────────────────────────────────────────────────────────── */
@@ -226,6 +326,23 @@
 .vr-input:disabled {
   background: var(--vr-color-muted);
   cursor: not-allowed;
+}
+
+/* ── Form field wrapper ──────────────────────────────────────────────────── */
+
+.vr-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vr-vsp-xs);
+}
+
+.vr-label {
+  font-size: var(--vr-text-body);
+  color: var(--vr-fg);
+}
+
+.vr-label.is-muted {
+  color: var(--vr-color-muted);
 }
 
 /* ── Alert ───────────────────────────────────────────────────────────────── */
@@ -364,4 +481,120 @@
 
 .vr-table tr:hover td {
   background: var(--vr-color-surface);
+}
+
+/* ── Table action buttons ─────────────────────────────────────────────────── */
+
+.vr-table-actions {
+  display: inline-flex;
+  gap: var(--vr-hsp-xs);
+}
+
+.vr-table-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--vr-size-icon-md);
+  height: var(--vr-size-icon-md);
+  border: none;
+  background: none;
+  color: var(--vr-color-muted);
+  border-radius: var(--vr-radius);
+  cursor: pointer;
+  padding: 0;
+}
+
+.vr-table-action:hover {
+  color: var(--vr-color-accent);
+}
+
+/* ── Avatar row ──────────────────────────────────────────────────────────── */
+
+.vr-avatar-row {
+  display: flex;
+  gap: var(--vr-hsp-sm);
+}
+
+/* ── Media card ──────────────────────────────────────────────────────────── */
+
+.vr-media-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vr-vsp-sm);
+  background: var(--vr-color-surface);
+  border: 1px solid var(--vr-color-muted);
+  border-radius: var(--vr-radius);
+  padding: var(--vr-vsp-md) var(--vr-hsp-md);
+  max-width: 24rem; /* reason: card width is page-local */
+}
+
+.vr-media-card__image {
+  width: 100%;
+  /* reason: image aspect ratio is a media constant, not a design token */
+  aspect-ratio: 16 / 9;
+  border-radius: var(--vr-radius);
+  overflow: hidden;
+  background: var(--vr-color-muted);
+}
+
+/* ── Stat card ───────────────────────────────────────────────────────────── */
+
+.vr-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vr-vsp-xs);
+  background: var(--vr-color-surface);
+  border: 1px solid var(--vr-color-muted);
+  border-radius: var(--vr-radius);
+  padding: var(--vr-vsp-md) var(--vr-hsp-md);
+}
+
+.vr-stat-card__value {
+  font-size: var(--vr-text-page-title);
+  font-weight: 700;
+  color: var(--vr-color-primary);
+  line-height: var(--vr-leading-tight);
+}
+
+.vr-stat-card__label {
+  font-size: var(--vr-text-helper);
+  color: var(--vr-color-muted);
+}
+
+/* ── Profile card ────────────────────────────────────────────────────────── */
+
+.vr-profile-card {
+  display: flex;
+  align-items: center;
+  gap: var(--vr-hsp-md);
+  background: var(--vr-color-surface);
+  border: 1px solid var(--vr-color-muted);
+  border-radius: var(--vr-radius);
+  padding: var(--vr-vsp-md) var(--vr-hsp-md);
+}
+
+.vr-profile-card__avatar {
+  width: var(--vr-size-avatar-md);
+  height: var(--vr-size-avatar-md);
+  border-radius: var(--vr-radius);
+  background: var(--vr-color-accent);
+  flex-shrink: 0;
+}
+
+.vr-profile-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vr-vsp-xs);
+  flex: 1;
+}
+
+.vr-profile-card__name {
+  font-size: var(--vr-text-subsection-title);
+  font-weight: 600;
+  color: var(--vr-fg);
+}
+
+.vr-profile-card__role {
+  font-size: var(--vr-text-helper);
+  color: var(--vr-color-muted);
 }
