@@ -1,14 +1,18 @@
 /**
  * Root component for the Vite + React example.
  *
- * Mounts BrowserRouter with the full route tree.
+ * Mounts HashRouter with the full route tree.
  *
- * Router basename
- * ---------------
- * `import.meta.env.BASE_URL` is injected by Vite from the `base` field in
- * vite.config.ts (`/pj/zudo-design-token-panel/examples/vite-react/` in
- * production, `/` in dev). Passing it as BrowserRouter `basename` makes all
- * react-router-dom `<Link to="/">` paths relative to that prefix automatically.
+ * Why HashRouter (not BrowserRouter)
+ * ----------------------------------
+ * The production build is a vanilla static deploy under
+ * `/pj/zudo-design-token-panel/examples/vite-react/` with no server-side
+ * rewrite layer. Only `index.html` and `prose.html` exist on disk. If we
+ * used BrowserRouter, opening or refreshing `/about`, `/forms`, etc. would
+ * 404 because there is no matching HTML file. HashRouter encodes the route
+ * in the URL fragment (`#/about`), which never reaches the server — the
+ * existing index.html is always served. No basename is needed because the
+ * hash is relative to whatever HTML page is loaded.
  *
  * AppShell + panel adapter
  * ------------------------
@@ -25,7 +29,7 @@
  * links to it via a plain anchor to `${import.meta.env.BASE_URL}prose.html`.
  */
 
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { HashRouter, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { Home } from './pages/Home';
 import { About } from './pages/About';
@@ -36,7 +40,7 @@ import { Data } from './pages/Data';
 
 export function App() {
   return (
-    <BrowserRouter basename={import.meta.env.BASE_URL}>
+    <HashRouter>
       <Routes>
         <Route element={<AppShell />}>
           <Route index element={<Home />} />
@@ -47,6 +51,6 @@ export function App() {
           <Route path="data" element={<Data />} />
         </Route>
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 }

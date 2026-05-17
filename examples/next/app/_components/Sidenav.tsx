@@ -3,15 +3,18 @@
  *
  * Links: Home / Prose / About / Forms / Status / Widgets / Data.
  * Active-link state is determined by the `activePath` prop passed from each
- * page's AppShell usage. `href` values are unprefixed — Next.js auto-prepends
- * the configured `basePath` so links work under the deployed subpath without
- * hardcoding it here.
+ * page's AppShell usage. We use next/link (NOT raw anchors) so Next handles
+ * basePath/assetPrefix automatically and uses soft client-side navigation —
+ * raw anchors would 404 in the exported site under the deployed subpath and
+ * would force full-page reloads (dropping any unsaved panel token tweaks).
  *
  * Token consumption (via frozen vocabulary from tokens.css):
  *   .nx-sidenav            → container: width, bg, padding, flex column
  *   .nx-sidenav-link       → link: size, color, padding, radius
  *   .nx-sidenav-link.is-active → active state: accent color, semibold weight
  */
+
+import Link from 'next/link';
 
 interface SidenavProps {
   activePath?: string;
@@ -33,13 +36,13 @@ export default function Sidenav({ activePath = '/' }: SidenavProps) {
       {NAV_LINKS.map((link) => {
         const isActive = activePath === link.path;
         return (
-          <a
+          <Link
             key={link.path}
             href={link.path}
             className={isActive ? 'nx-sidenav-link is-active' : 'nx-sidenav-link'}
           >
             {link.label}
-          </a>
+          </Link>
         );
       })}
     </nav>

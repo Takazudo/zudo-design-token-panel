@@ -19,8 +19,11 @@
  *
  * View Transitions
  * ----------------
- * ClientRouter is wired in the inner Layout.astro. The topbar and sidenav
- * use transition:persist so they are not animated between page navigations.
+ * ClientRouter is wired in the inner Layout.astro. The topbar — purely
+ * static chrome — uses transition:persist to avoid being animated. The
+ * sidenav, however, must rebuild on every navigation because its .is-active
+ * state depends on the destination page's activePath; persisting it would
+ * keep the previous route's highlight stale after navigating.
  */
 
 import Layout from './Layout.astro';
@@ -56,7 +59,7 @@ const { title, activePath } = Astro.props;
   <div
     style={`display:grid;grid-template-columns:var(--astro-size-sidenav-w) 1fr;min-height:calc(100vh - var(--astro-size-header-h))`}
   >
-    <div transition:persist="sidenav">
+    <div>
       <Sidenav activePath={activePath} />
     </div>
 
