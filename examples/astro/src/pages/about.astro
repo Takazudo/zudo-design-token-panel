@@ -1,64 +1,58 @@
 ---
 /**
- * Second page of the Astro example. Mirrors the home page's shape so token
+ * About page of the Astro example. Mirrors the home page's shape so token
  * tweaks can be verified across an Astro view-transition. The panel's host
  * adapter listens for `astro:before-swap` / `astro:page-load` and re-mounts
  * the panel shell when visibility intent or persisted overrides demand it.
  */
 
-import Layout from '../layouts/Layout.astro';
+import AppLayout from '../layouts/AppLayout.astro';
 
 const paletteIndices = Array.from({ length: 16 }, (_, i) => i);
-const homeHref = import.meta.env.BASE_URL;
-const proseHref = `${import.meta.env.BASE_URL}prose`;
+const BASE = import.meta.env.BASE_URL;
 ---
 
-<Layout title="Astro Example — About">
-  <main class="astro-stack">
-    <header>
-      <h1 class="astro-heading">About this example</h1>
-      <p>
-        <button
-          class="astro-button"
-          type="button"
-          onclick="window.astro?.toggleDesignPanel?.()"
-        >
-          Open Design Token Panel
-        </button>
-      </p>
-      <p>
+<AppLayout title="Astro Example — About" activePath={`${BASE}about`}>
+  <div class="astro-page">
+    <div>
+      <div class="astro-page-title">About this example</div>
+      <div class="astro-body" style="margin-top: var(--astro-vsp-sm);">
         The <code>examples/astro</code> sub-package consumes
         <code>@takazudo/zudo-design-token-panel</code> through its built artifact only — there are no
         deep imports into <code>dist/</code>, no bundler aliases, and no framework integration beyond
         <code>@astrojs/preact</code>.
-      </p>
-      <ul>
-        <li>No Tailwind, no preflight stylesheet, no design-system dependency.</li>
-        <li>
-          Storage prefix <code>astro-example-tokens</code>, console namespace
-          <code>astro</code>.
-        </li>
-        <li>Palette CSS-var template <code>--astro-palette-{`{n}`}</code>.</li>
-        <li>
-          Apply endpoint <code>/api/dev/apply</code> proxied by Vite to the bin sidecar on port
-          24682.
-        </li>
-      </ul>
-    </header>
-
-    <section>
-      <h2 class="astro-heading">Verify across navigation</h2>
-      <div class="astro-card">
-        Open the panel via <code>window.astro.toggleDesignPanel()</code>, change a token,
-        then navigate <a class="astro-link" href={homeHref}>back to home</a>. The new value should
-        still apply — proving the host adapter's <code>astro:page-load</code> reapply path works
-        end-to-end.
-        Also try the <a class="astro-link" href={proseHref}>prose demo</a> to see typography tokens in action.
       </div>
-    </section>
+    </div>
 
-    <section>
-      <h2 class="astro-heading">Palette swatches (mirrored)</h2>
+    <div class="astro-card">
+      <div class="astro-subsection-title" style="margin-bottom: var(--astro-vsp-xs);">Key facts</div>
+      <div class="astro-body" style="margin-top: var(--astro-vsp-xs);">No Tailwind, no preflight stylesheet, no design-system dependency.</div>
+      <div class="astro-body" style="margin-top: var(--astro-vsp-xs);">
+        Storage prefix <code>astro-example-tokens</code>, console namespace
+        <code>astro</code>.
+      </div>
+      <div class="astro-body" style="margin-top: var(--astro-vsp-xs);">Palette CSS-var template <code>--astro-palette-{`{n}`}</code>.</div>
+      <div class="astro-body" style="margin-top: var(--astro-vsp-xs);">
+        Apply endpoint <code>/api/dev/apply</code> proxied by Vite to the bin sidecar on port
+        24682.
+      </div>
+    </div>
+
+    <div>
+      <div class="astro-section-title" style="margin-bottom: var(--astro-vsp-sm);">Verify across navigation</div>
+      <div class="astro-card">
+        <div class="astro-body">
+          Open the panel via <code>window.astro.toggleDesignPanel()</code>, change a token,
+          then navigate <a class="astro-link" href={BASE}>back to home</a>. The new value should
+          still apply — proving the host adapter's <code>astro:page-load</code> reapply path works
+          end-to-end.
+          Also try the <a class="astro-link" href={`${BASE}prose`}>prose demo</a> to see typography tokens in action.
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="astro-section-title" style="margin-bottom: var(--astro-vsp-sm);">Palette swatches (mirrored)</div>
       <div class="astro-swatch-row">
         {
           paletteIndices.map((i) => (
@@ -71,10 +65,10 @@ const proseHref = `${import.meta.env.BASE_URL}prose`;
           ))
         }
       </div>
-      <p class="astro-meta">
+      <div class="astro-helper" style="margin-top: var(--astro-vsp-xs);">
         These swatches are identical to the home page so a side-by-side comparison after a token
         tweak is trivial.
-      </p>
-    </section>
-  </main>
-</Layout>
+      </div>
+    </div>
+  </div>
+</AppLayout>

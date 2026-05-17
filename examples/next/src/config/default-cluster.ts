@@ -27,6 +27,8 @@ export const defaultCluster: ColorClusterDataConfig = {
     accent: 3,
     surface: 0,
     muted: 8,
+    success: 2,
+    warning: 3,
     danger: 5,
   },
   semanticCssNames: {
@@ -34,6 +36,8 @@ export const defaultCluster: ColorClusterDataConfig = {
     accent: '--nx-color-accent',
     surface: '--nx-color-surface',
     muted: '--nx-color-muted',
+    success: '--nx-color-success',
+    warning: '--nx-color-warning',
     danger: '--nx-color-danger',
   },
   baseDefaults: {

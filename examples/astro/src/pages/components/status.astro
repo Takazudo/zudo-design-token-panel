@@ -1,0 +1,168 @@
+---
+/**
+ * Status surfaces demo page — Wave 3b.
+ *
+ * Ports the inline alerts/callouts/badges/tooltips demo from zfb-tailwind.
+ * Uses only frozen astro-* vocabulary classes:
+ *   astro-alert  (+.is-info / .is-success / .is-warning / .is-danger)
+ *   astro-badge  (+.is-accent / .is-success / .is-warning / .is-danger / .is-outlined)
+ *   astro-tooltip / astro-tooltip__trigger / astro-tooltip__bubble
+ *   astro-body, astro-helper, astro-section-title
+ */
+
+import AppLayout from '../../layouts/AppLayout.astro';
+
+const BASE = import.meta.env.BASE_URL;
+
+const BADGE_COLORS = ['accent', 'success', 'warning', 'danger'] as const;
+---
+
+<AppLayout title="Status — Astro Example" activePath={`${BASE}components/status`}>
+  <div class="astro-page">
+    <div class="astro-page-title">Status surfaces demo</div>
+
+    <div class="astro-body">
+      Covers alerts, badges, tags/chips, and tooltips — all driven by semantic
+      color tokens <code>--astro-color-accent</code>, <code>--astro-color-success</code>,
+      <code>--astro-color-warning</code>, <code>--astro-color-danger</code>.
+    </div>
+
+    <!-- Alerts / callouts -->
+    <div style="display:flex;flex-direction:column;gap:var(--astro-vsp-md)">
+      <div class="astro-section-title">Alerts / callouts</div>
+      <div class="astro-body">
+        Each variant uses a semantic color token for background, text, and border.
+        Token contract: <code>bg-accent</code> / <code>bg-success</code> /
+        <code>bg-warning</code> / <code>bg-danger</code> with <code>text-bg</code>
+        text and matching border outline. Padding: <code>--astro-hsp-md / --astro-vsp-md</code>.
+        Corners: <code>--astro-radius</code>.
+      </div>
+
+      <div class="astro-alert is-info">
+        <strong>Info:</strong> uses <code>bg-accent</code>, <code>text-bg</code>,
+        <code>border-accent</code>. Token: <code>color-accent</code>.
+      </div>
+
+      <div class="astro-alert is-success">
+        <strong>Success:</strong> uses <code>bg-success</code>, <code>text-bg</code>,
+        <code>border-success</code>. Token: <code>color-success</code>.
+      </div>
+
+      <div class="astro-alert is-warning">
+        <strong>Warning:</strong> uses <code>bg-warning</code>, <code>text-bg</code>,
+        <code>border-warning</code>. Token: <code>color-warning</code>.
+      </div>
+
+      <div class="astro-alert is-danger">
+        <strong>Danger:</strong> uses <code>bg-danger</code>, <code>text-bg</code>,
+        <code>border-danger</code>. Token: <code>color-danger</code>.
+      </div>
+    </div>
+
+    <!-- Badges -->
+    <div style="display:flex;flex-direction:column;gap:var(--astro-vsp-md)">
+      <div class="astro-section-title">Badges</div>
+      <div class="astro-body">
+        Filled badges: <code>astro-badge.is-{'{color}'}</code> + <code>bg-{'{color}'}</code>.
+        Outlined badges: <code>astro-badge.is-outlined.is-{'{color}'}</code>.
+        Both use <code>--astro-hsp-xs</code>, <code>--astro-radius</code>,
+        <code>astro-text-helper</code>.
+      </div>
+
+      <div>
+        <div class="astro-helper" style="margin-bottom:var(--astro-vsp-xs)">Filled</div>
+        <div style="display:flex;flex-wrap:wrap;gap:var(--astro-hsp-sm) var(--astro-vsp-sm)">
+          {BADGE_COLORS.map((c) => (
+            <span class={`astro-badge is-${c}`}>{c}</span>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div class="astro-helper" style="margin-bottom:var(--astro-vsp-xs)">Outlined</div>
+        <div style="display:flex;flex-wrap:wrap;gap:var(--astro-hsp-sm) var(--astro-vsp-sm)">
+          {BADGE_COLORS.map((c) => (
+            <span class={`astro-badge is-outlined is-${c}`}>{c}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+
+    <!-- Tags / chips -->
+    <div style="display:flex;flex-direction:column;gap:var(--astro-vsp-md)">
+      <div class="astro-section-title">Tags / chips</div>
+      <div class="astro-body">
+        Chip container: <code>astro-card</code> background + inline-flex layout.
+        Close button uses <code>astro-helper</code> with hover color.
+      </div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:var(--astro-hsp-sm) var(--astro-vsp-sm)">
+        {['Design', 'Tokens', 'Tailwind', 'CSS Vars'].map((tag) => (
+          <span
+            class="astro-card"
+            style="display:inline-flex;align-items:center;gap:var(--astro-hsp-xs);padding:var(--astro-vsp-xs) var(--astro-hsp-sm)"
+          >
+            <span class="astro-helper" style="color:var(--astro-fg)">{tag}</span>
+            <span
+              role="button"
+              tabindex="0"
+              class="astro-helper"
+              style="cursor:pointer;border:none;background:transparent;padding:0;line-height:1"
+              aria-label={`Remove ${tag}`}
+            >
+              &times;
+            </span>
+          </span>
+        ))}
+      </div>
+    </div>
+
+    <!-- Tooltips -->
+    <div style="display:flex;flex-direction:column;gap:var(--astro-vsp-md)">
+      <div class="astro-section-title">Tooltips</div>
+      <div class="astro-body">
+        Hover over the annotated terms. Bubble: <code>astro-tooltip__bubble</code>
+        with <code>bg-surface</code>, <code>text-fg</code>, <code>border-muted</code>,
+        <code>--astro-radius</code>, <code>--astro-hsp-sm / --astro-vsp-xs</code>,
+        <code>--astro-text-helper</code>. Opacity transition uses
+        <code>--astro-easing-tab-open</code>.
+      </div>
+
+      <div
+        class="astro-card"
+        style="display:flex;flex-wrap:wrap;gap:var(--astro-hsp-lg) var(--astro-vsp-lg)"
+      >
+        <span class="astro-body">
+          Token panel adjusts{' '}
+          <span class="astro-tooltip">
+            <span class="astro-tooltip__trigger">hsp-md / vsp-md</span>
+            <span class="astro-tooltip__bubble" role="tooltip">
+              --astro-hsp-md / --astro-vsp-md (default 1rem)
+            </span>
+          </span>{' '}
+          live in the browser.
+        </span>
+        <span class="astro-body">
+          Colors follow the{' '}
+          <span class="astro-tooltip">
+            <span class="astro-tooltip__trigger">three-tier strategy</span>
+            <span class="astro-tooltip__bubble" role="tooltip">
+              palette &rarr; semantic &rarr; component
+            </span>
+          </span>{' '}
+          design-token model.
+        </span>
+        <span class="astro-body">
+          Easing uses the{' '}
+          <span class="astro-tooltip">
+            <span class="astro-tooltip__trigger">easing-tab-open</span>
+            <span class="astro-tooltip__bubble" role="tooltip">
+              cubic-bezier(0.42, 0, 1, 1)
+            </span>
+          </span>{' '}
+          semantic role.
+        </span>
+      </div>
+    </div>
+  </div>
+</AppLayout>

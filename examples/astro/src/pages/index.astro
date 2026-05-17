@@ -5,63 +5,54 @@
  * tweaking any token rewrites the page in real time.
  */
 
-import Layout from '../layouts/Layout.astro';
+import AppLayout from '../layouts/AppLayout.astro';
 
 const paletteIndices = Array.from({ length: 16 }, (_, i) => i);
-const aboutHref = `${import.meta.env.BASE_URL}about`;
-const proseHref = `${import.meta.env.BASE_URL}prose`;
+const BASE = import.meta.env.BASE_URL;
 ---
 
-<Layout title="Astro Example — Design Token Panel">
-  <main class="astro-stack">
-    <header>
-      <h1 class="astro-heading">Live token tweaking, in plain Astro</h1>
-      <p>
-        <button
-          class="astro-button"
-          type="button"
-          onclick="window.astro?.toggleDesignPanel?.()"
-        >
-          Open Design Token Panel
-        </button>
-      </p>
-      <p>
+<AppLayout title="Astro Example — Design Token Panel" activePath={BASE}>
+  <div class="astro-page">
+    <div>
+      <div class="astro-page-title">Live token tweaking, in plain Astro</div>
+      <div class="astro-body" style="margin-top: var(--astro-vsp-sm);">
         Every visible element on this page is driven by an
-        <code>--astro-*</code> CSS custom property. Open the panel from the browser console and
-        drag any slider — the change applies before the next paint.
-      </p>
-      <p class="astro-meta">
+        <code>--astro-*</code> CSS custom property. Open the panel from the button
+        in the topbar and drag any slider — the change applies before the next paint.
+      </div>
+      <div class="astro-helper" style="margin-top: var(--astro-vsp-xs);">
         Console API: <code>window.astro.toggleDesignPanel()</code>. Storage prefix:
         <code>astro-example-tokens</code>.
-      </p>
-    </header>
+      </div>
+    </div>
 
-    <section>
-      <h2 class="astro-heading">Cards (spacing + radius + surface)</h2>
+    <div>
+      <div class="astro-section-title" style="margin-bottom: var(--astro-vsp-sm);">Cards (spacing + radius + surface)</div>
       <div class="astro-card">
-        <strong>Card A.</strong> Padding driven by <code>--astro-spacing-md</code>, corners by
+        <strong>Card A.</strong> Padding driven by <code>--astro-vsp-md / --astro-hsp-md</code>, corners by
         <code>--astro-radius</code>, background by <code>--astro-color-surface</code>.
       </div>
-      <div class="astro-card">
-        <strong>Card B.</strong> Stack gap driven by <code>--astro-spacing-lg</code>; outline
-        by <code>--astro-color-muted</code>.
+      <div class="astro-card" style="margin-top: var(--astro-vsp-md);">
+        <strong>Card B.</strong> Border by <code>--astro-color-muted</code>.
       </div>
-    </section>
+    </div>
 
-    <section>
-      <h2 class="astro-heading">Buttons + links (accent / primary)</h2>
-      <p>
-        <button class="astro-button" type="button">Action button</button>
-      </p>
-      <p>
-        Try the <a class="astro-link" href={aboutHref}>about page</a> to confirm token tweaks
+    <div>
+      <div class="astro-section-title" style="margin-bottom: var(--astro-vsp-sm);">Buttons (accent / primary)</div>
+      <div style="display:flex;gap:var(--astro-hsp-sm);flex-wrap:wrap;">
+        <button class="astro-button" type="button">Default (accent)</button>
+        <button class="astro-button is-primary" type="button">Primary</button>
+        <button class="astro-button is-accent" type="button">Accent</button>
+      </div>
+      <div class="astro-helper" style="margin-top: var(--astro-vsp-xs);">
+        Visit the <a class="astro-link" href={`${BASE}about`}>about page</a> to confirm token tweaks
         persist across an Astro view-transition.
-        Visit the <a class="astro-link" href={proseHref}>prose demo</a> to see typography and spacing tokens in action.
-      </p>
-    </section>
+        Visit the <a class="astro-link" href={`${BASE}prose`}>prose demo</a> to see typography tokens.
+      </div>
+    </div>
 
-    <section>
-      <h2 class="astro-heading">Palette swatches</h2>
+    <div>
+      <div class="astro-section-title" style="margin-bottom: var(--astro-vsp-sm);">Palette swatches</div>
       <div class="astro-swatch-row">
         {
           paletteIndices.map((i) => (
@@ -74,12 +65,11 @@ const proseHref = `${import.meta.env.BASE_URL}prose`;
           ))
         }
       </div>
-      <p class="astro-meta">
+      <div class="astro-helper" style="margin-top: var(--astro-vsp-xs);">
         Each swatch reads <code>--astro-palette-{`{n}`}</code>. The cluster's
-        <code>paletteCssVarTemplate</code> is the only thing that decides this name — change it in
-        <code>default-cluster.ts</code> and the apply pipeline writes a different variable on the next
-        palette tweak.
-      </p>
-    </section>
-  </main>
-</Layout>
+        <code>paletteCssVarTemplate</code> decides the name — change it in
+        <code>default-cluster.ts</code> and the apply pipeline writes a different variable.
+      </div>
+    </div>
+  </div>
+</AppLayout>

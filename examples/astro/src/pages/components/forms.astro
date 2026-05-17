@@ -1,0 +1,234 @@
+---
+/**
+ * Forms demo page — Wave 3b.
+ *
+ * Ports the inline form-inputs demo from the zfb-tailwind example.
+ * Uses only frozen astro-* vocabulary classes:
+ *   astro-input  → text/email/select/textarea inputs
+ *   astro-button → submit button
+ *   astro-body   → labels and body text
+ *   astro-helper → hint/helper text
+ *   astro-subsection-title → section headings
+ *   astro-section-title    → page section headers
+ */
+
+import AppLayout from '../../layouts/AppLayout.astro';
+
+const BASE = import.meta.env.BASE_URL;
+---
+
+<AppLayout title="Forms — Astro Example" activePath={`${BASE}components/forms`}>
+  <div class="astro-page">
+    <div class="astro-page-title">Form controls demo</div>
+
+    <div class="astro-body">
+      Each widget below is styled entirely with frozen <code>astro-*</code> vocabulary
+      classes that resolve to <code>--astro-*</code> design tokens. Inputs use
+      <code>--astro-hsp-sm</code> / <code>--astro-vsp-sm</code> for padding,
+      <code>--astro-radius</code> for corners, <code>--astro-color-muted</code> for
+      borders, <code>--astro-color-accent</code> on focus. Toggle any token in the
+      Design Token Panel (topbar button) to see every widget update live.
+    </div>
+
+    <!-- Form — demo-only; the inline submit handler stops the browser's
+         default submit/reload so pressing Enter in a field or clicking the
+         Submit button does not navigate the route away from the showcase. -->
+    <form
+      style="display:flex;flex-direction:column;gap:var(--astro-vsp-md)"
+      onsubmit="return false;"
+    >
+
+      <!-- Text input -->
+      <div style="display:flex;flex-direction:column;gap:var(--astro-vsp-xs)">
+        <div class="astro-subsection-title">Text input</div>
+        <div class="astro-helper">
+          <code>astro-input</code>: <code>bg-surface</code> background &middot;
+          <code>border-muted</code> border &middot;
+          <code>focus:border-accent</code> focus ring &middot;
+          <code>radius</code> corners
+        </div>
+
+        <!-- Active (normal) -->
+        <div style="display:flex;flex-direction:column;gap:var(--astro-vsp-2xs)">
+          <label class="astro-body" for="input-text">Full name</label>
+          <input
+            id="input-text"
+            type="text"
+            placeholder="Jane Doe"
+            class="astro-input"
+          />
+        </div>
+
+        <!-- Disabled -->
+        <div style="display:flex;flex-direction:column;gap:var(--astro-vsp-2xs)">
+          <label class="astro-helper" for="input-text-disabled">Full name (disabled)</label>
+          <input
+            id="input-text-disabled"
+            type="text"
+            placeholder="Jane Doe"
+            disabled
+            class="astro-input"
+          />
+          <span class="astro-helper">
+            Disabled state: <code>astro-input:disabled</code> &rarr;
+            <code>--astro-color-muted</code> background
+          </span>
+        </div>
+      </div>
+
+      <!-- Email input -->
+      <div style="display:flex;flex-direction:column;gap:var(--astro-vsp-xs)">
+        <div class="astro-subsection-title">Email input</div>
+        <div class="astro-helper">
+          Same utility set as text input; browser provides email-specific
+          keyboard on mobile.
+        </div>
+        <div style="display:flex;flex-direction:column;gap:var(--astro-vsp-2xs)">
+          <label class="astro-body" for="input-email">Email address</label>
+          <input
+            id="input-email"
+            type="email"
+            placeholder="jane@example.com"
+            class="astro-input"
+          />
+        </div>
+      </div>
+
+      <!-- Select -->
+      <div style="display:flex;flex-direction:column;gap:var(--astro-vsp-xs)">
+        <div class="astro-subsection-title">Select</div>
+        <div class="astro-helper">
+          Native chevron retained; same token set as text input.
+        </div>
+        <div style="display:flex;flex-direction:column;gap:var(--astro-vsp-2xs)">
+          <label class="astro-body" for="select-role">Role</label>
+          <select id="select-role" class="astro-input">
+            <option value="">Select a role&hellip;</option>
+            <option value="designer">Designer</option>
+            <option value="engineer">Engineer</option>
+            <option value="pm">Product manager</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Textarea -->
+      <div style="display:flex;flex-direction:column;gap:var(--astro-vsp-xs)">
+        <div class="astro-subsection-title">Textarea</div>
+        <div class="astro-helper">
+          <code>min-height: 6rem</code> is below-token granularity — component-local exception.
+        </div>
+        <div style="display:flex;flex-direction:column;gap:var(--astro-vsp-2xs)">
+          <label class="astro-body" for="textarea-bio">Bio</label>
+          {/* min-height 6rem: reason: visual default; component-local minimum below token granularity */}
+          <textarea
+            id="textarea-bio"
+            placeholder="Tell us about yourself&hellip;"
+            class="astro-input"
+            style="min-height:6rem;resize:vertical"
+          />
+        </div>
+      </div>
+
+      <!-- Checkbox group -->
+      <div style="display:flex;flex-direction:column;gap:var(--astro-vsp-xs)">
+        <div class="astro-subsection-title">Checkbox group</div>
+        <div class="astro-helper">
+          Native checkbox with <code>accent-color</code> set to
+          <code>--astro-color-accent</code> via inline style.
+          No vocabulary class maps to <code>accent-color</code>.
+        </div>
+        <fieldset style="border:none;padding:0;margin:0;display:flex;flex-direction:column;gap:var(--astro-vsp-xs)">
+          <legend class="astro-body" style="margin-bottom:var(--astro-vsp-xs)">Interests</legend>
+          {[
+            { id: 'cb-design',   label: 'Design systems' },
+            { id: 'cb-tokens',   label: 'Design tokens'  },
+            { id: 'cb-tailwind', label: 'Tailwind CSS'   },
+          ].map(({ id, label }) => (
+            <label
+              for={id}
+              class="astro-body"
+              style="display:inline-flex;align-items:center;gap:var(--astro-hsp-xs);cursor:pointer"
+            >
+              {/* reason: no vocabulary class for accent-color */}
+              <input
+                type="checkbox"
+                id={id}
+                style="accent-color:var(--astro-color-accent)"
+              />
+              {label}
+            </label>
+          ))}
+        </fieldset>
+      </div>
+
+      <!-- Radio group -->
+      <div style="display:flex;flex-direction:column;gap:var(--astro-vsp-xs)">
+        <div class="astro-subsection-title">Radio group</div>
+        <div class="astro-helper">
+          Same <code>accent-color</code> inline-style pattern as checkboxes.
+        </div>
+        <fieldset style="border:none;padding:0;margin:0;display:flex;flex-direction:column;gap:var(--astro-vsp-xs)">
+          <legend class="astro-body" style="margin-bottom:var(--astro-vsp-xs)">Preferred theme</legend>
+          {[
+            { id: 'radio-dark',   label: 'Dark'           },
+            { id: 'radio-light',  label: 'Light'          },
+            { id: 'radio-system', label: 'System default' },
+          ].map(({ id, label }) => (
+            <label
+              for={id}
+              class="astro-body"
+              style="display:inline-flex;align-items:center;gap:var(--astro-hsp-xs);cursor:pointer"
+            >
+              {/* reason: no vocabulary class for accent-color */}
+              <input
+                type="radio"
+                id={id}
+                name="theme"
+                style="accent-color:var(--astro-color-accent)"
+              />
+              {label}
+            </label>
+          ))}
+        </fieldset>
+      </div>
+
+      <!-- Range slider -->
+      <div style="display:flex;flex-direction:column;gap:var(--astro-vsp-xs)">
+        <div class="astro-subsection-title">Range slider</div>
+        <div class="astro-helper">
+          Full-width range; <code>accent-color</code> fills track and thumb with
+          <code>--astro-color-accent</code>.
+        </div>
+        <div style="display:flex;flex-direction:column;gap:var(--astro-vsp-2xs)">
+          <label class="astro-body" for="range-opacity">Opacity</label>
+          {/* reason: no vocabulary class for accent-color */}
+          <input
+            id="range-opacity"
+            type="range"
+            min="0"
+            max="100"
+            value="60"
+            style="width:100%;cursor:pointer;accent-color:var(--astro-color-accent)"
+          />
+          <span class="astro-helper">0 &ndash; 100</span>
+        </div>
+      </div>
+
+      <!-- Submit button -->
+      <div style="display:flex;flex-direction:column;gap:var(--astro-vsp-xs)">
+        <div class="astro-subsection-title">Submit button</div>
+        <div class="astro-helper">
+          <code>astro-button.is-primary</code>: primary fill &middot;
+          <code>--astro-bg</code> label &middot;
+          hover switches to accent fill &middot;
+          <code>--astro-hsp-sm / --astro-vsp-sm</code> padding &middot;
+          <code>--astro-radius</code> corners.
+        </div>
+        <div>
+          <button type="submit" class="astro-button is-primary">Submit form</button>
+        </div>
+      </div>
+
+    </form>
+  </div>
+</AppLayout>

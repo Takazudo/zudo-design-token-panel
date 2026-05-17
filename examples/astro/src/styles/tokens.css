@@ -17,20 +17,30 @@
  * pipeline rewrites a file the demo doesn't read (or vice versa). Keeping
  * them paired makes the round-trip obvious: the bin sidecar's response is
  * literally the new contents of the file the next page-load will use.
+ *
+ * Token vocabulary mirrors examples/zfb-tailwind/styles/global.css with
+ * --zfbtw-* → --astro-* prefix substitution (no Tailwind @theme block needed).
  */
 :root {
-  /* Spacing tokens (manifest: spacing tab) */
-  --astro-spacing-md: 1rem;
-  --astro-spacing-lg: 2rem;
+  /* Font scale tokens (font tab — raw tier) */
+  --astro-scale-xs:   0.75rem;
+  --astro-scale-sm:   0.875rem;
+  --astro-scale-base: 1rem;
+  --astro-scale-md:   1.125rem;   /* sub-heading step — keeps h4 visually above body */
+  --astro-scale-lg:   1.25rem;
+  --astro-scale-xl:   1.75rem;
+  --astro-scale-2xl:  2.5rem;
 
-  /* Typography tokens (manifest: typography tab) */
-  --astro-text-base: 1rem;
-  --astro-text-heading: 1.75rem;
-
-  /* Size tokens (manifest: size tab) */
+  /* Size tokens (manifest: size tab) — layout/component dimensions */
+  --astro-size-sidenav-w: 14rem;
+  --astro-size-header-h: 3.5rem;
+  --astro-size-avatar-sm: 2rem;
+  --astro-size-avatar-md: 2.5rem;
+  --astro-size-icon-sm: 1rem;
+  --astro-size-icon-md: 1.25rem;
   --astro-radius: 0.5rem;
 
-  /* Cluster base roles (default-cluster.ts → baseRoles) */
+  /* Cluster base roles */
   --astro-bg: #1e1e1e;
   --astro-fg: #f8fafc;
 
@@ -57,48 +67,77 @@
   --astro-color-accent: var(--astro-palette-3);
   --astro-color-surface: var(--astro-palette-0);
   --astro-color-muted: var(--astro-palette-8);
+  --astro-color-success: var(--astro-palette-2);
+  --astro-color-warning: var(--astro-palette-3);
   --astro-color-danger: var(--astro-palette-5);
 
-  /* Prose tokens — vertical spacing scale (flow-space rhythm) */
-  --astro-vsp-2xs: 0.25rem;   /* ~4 px  — consecutive headings, tight items */
-  --astro-vsp-xs:  0.5rem;    /* ~8 px  — tighter intra-section spacing */
-  --astro-vsp-sm:  0.75rem;   /* ~12 px — heading-to-first-content gap */
-  --astro-vsp-md:  1rem;      /* ~16 px — default body flow gap */
+  /* Easing tokens — raw curves (easing tab, raw tier) */
+  --astro-easing-ease-in:    cubic-bezier(0.42, 0, 1, 1);
+  --astro-easing-ease-out:   cubic-bezier(0, 0, 0.58, 1);
+  --astro-easing-ease-inout: cubic-bezier(0.42, 0, 0.58, 1);
+  --astro-easing-linear:     linear;
+
+  /* Easing tokens — semantic roles (easing tab, semantic tier) */
+  --astro-easing-tab-open:  var(--astro-easing-ease-in);
+  --astro-easing-tab-close: var(--astro-easing-ease-out);
+  --astro-easing-modal:     var(--astro-easing-ease-inout);
+
+  /* Vertical spacing scale — 1.6rem (≈25.6px) baseline rhythm unit */
+  --astro-vsp-2xs: 0.25rem;   /* ~4 px  — consecutive headings */
+  --astro-vsp-xs:  0.5rem;    /* ~8 px  — tight paragraph spacing */
+  --astro-vsp-sm:  0.75rem;   /* ~12 px — heading-to-first-content */
+  --astro-vsp-md:  1rem;      /* ~16 px — default flow gap */
   --astro-vsp-lg:  1.75rem;   /* ~28 px — pre-h3 section separation */
   --astro-vsp-xl:  2.5rem;    /* ~40 px — pre-h2 section separation */
   --astro-vsp-2xl: 3.5rem;    /* ~56 px — top-of-page clearance */
 
-  /* Prose tokens — horizontal spacing scale */
+  /* Horizontal spacing scale */
   --astro-hsp-xs:  0.25rem;   /* inline code padding, small insets */
-  --astro-hsp-sm:  0.5rem;    /* table cell padding, tag padding */
+  --astro-hsp-sm:  0.5rem;    /* table cell padding */
   --astro-hsp-md:  1rem;      /* blockquote left indent */
   --astro-hsp-lg:  1.5rem;    /* section-level horizontal gutter */
   --astro-hsp-xl:  2rem;      /* outer prose container horizontal padding */
 
-  /* Prose tokens — type scale */
-  --astro-text-h2:    1.75rem;
-  --astro-text-h3:    1.35rem;
-  --astro-text-h4:    1.1rem;
-  --astro-text-body:  1rem;
-  --astro-text-small: 0.875rem;
-  --astro-text-micro: 0.75rem;
+  /* Type scale — semantic tier (Tier 2); MUST reference --astro-scale-* (Tier 1).
+     Names describe what each size is FOR (purpose / role), not which HTML
+     element it lands on — per three-tier-font-size-strategy. Hardcoded rem
+     values here would break the Font-tab scale sliders. */
+  --astro-text-page-title:       var(--astro-scale-xl);   /* 1.75rem */
+  --astro-text-section-title:    var(--astro-scale-lg);   /* 1.25rem */
+  --astro-text-subsection-title: var(--astro-scale-md);   /* 1.125rem */
+  --astro-text-body:             var(--astro-scale-base); /* 1rem */
+  --astro-text-helper:           var(--astro-scale-sm);   /* 0.875rem */
+  --astro-text-annotation:       var(--astro-scale-xs);   /* 0.75rem */
 
-  /* Prose tokens — line-heights */
+  /* Line-height tokens */
   --astro-leading-tight:   1.2;
   --astro-leading-snug:    1.45;
   --astro-leading-relaxed: 1.75;
 
-  /* Prose tokens — code surface */
+  /* Code surface tokens */
   --astro-code-bg:   hsl(220 13% 11%);
   --astro-code-fg:   hsl(220 14% 86%);
-  --astro-font-mono: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+  --astro-font-mono: ui-monospace, "Cascadia Code", "Source Code Pro",
+                                  Menlo, Consolas, monospace;
+
+  /* Legacy aliases — used by demo component selectors below. Not in manifest.
+     These kept existing demo markup working after the token vocabulary upgrade. */
+  --astro-spacing-md: var(--astro-vsp-md);
+  --astro-spacing-lg: var(--astro-vsp-xl);
+  --astro-text-base:    var(--astro-scale-base);
+  --astro-text-heading: var(--astro-text-page-title);
+  --astro-text-h2:    var(--astro-text-page-title);
+  --astro-text-h3:    var(--astro-text-section-title);
+  --astro-text-h4:    var(--astro-text-subsection-title);
+  --astro-text-small: var(--astro-text-helper);
+  --astro-text-micro: var(--astro-text-annotation);
 }
 
 body {
   background: var(--astro-bg);
   color: var(--astro-fg);
   font-size: var(--astro-text-base);
-  padding: var(--astro-spacing-lg);
+  /* padding removed: AppLayout provides per-surface padding via .astro-page */
 }
 
 .astro-stack {
@@ -116,31 +155,7 @@ body {
   color: var(--astro-color-primary);
 }
 
-.astro-card {
-  background: var(--astro-color-surface);
-  color: var(--astro-fg);
-  padding: var(--astro-spacing-md);
-  border-radius: var(--astro-radius);
-  border: 1px solid var(--astro-color-muted);
-}
-
-.astro-card + .astro-card {
-  margin-top: var(--astro-spacing-md);
-}
-
-.astro-button {
-  display: inline-block;
-  padding: var(--astro-spacing-md);
-  border-radius: var(--astro-radius);
-  background: var(--astro-color-accent);
-  color: var(--astro-bg);
-  border: none;
-  cursor: pointer;
-}
-
-.astro-button:hover {
-  background: var(--astro-color-primary);
-}
+/* .astro-card and .astro-button moved to components.css (frozen vocabulary) */
 
 .astro-link {
   color: var(--astro-color-accent);

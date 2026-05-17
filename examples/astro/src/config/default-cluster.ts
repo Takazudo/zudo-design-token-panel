@@ -9,6 +9,9 @@
  * `paletteCssVarTemplate` is the only knob that decides the per-slot var name.
  * The cluster is JSON-serializable end-to-end so it round-trips through the
  * Astro frontmatter → island JSON boundary.
+ *
+ * Mirrors examples/zfb-tailwind/config/default-cluster.ts with --zfbtw-* → --astro-*
+ * and includes success/warning semantic roles added in framework-demo-parity (#185).
  */
 
 import type { ColorClusterConfig as ColorClusterDataConfig } from '@takazudo/zudo-design-token-panel/astro';
@@ -27,14 +30,18 @@ export const defaultCluster: ColorClusterDataConfig = {
     accent: 3,
     surface: 0,
     muted: 8,
+    success: 2,
+    warning: 3,
     danger: 5,
   },
   semanticCssNames: {
     primary: '--astro-color-primary',
-    accent: '--astro-color-accent',
+    accent:  '--astro-color-accent',
     surface: '--astro-color-surface',
-    muted: '--astro-color-muted',
-    danger: '--astro-color-danger',
+    muted:   '--astro-color-muted',
+    success: '--astro-color-success',
+    warning: '--astro-color-warning',
+    danger:  '--astro-color-danger',
   },
   baseDefaults: {
     background: 0,

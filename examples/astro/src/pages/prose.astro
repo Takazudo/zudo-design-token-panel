@@ -9,7 +9,7 @@
  */
 
 import { getEntry, render } from 'astro:content';
-import Layout from '../layouts/Layout.astro';
+import AppLayout from '../layouts/AppLayout.astro';
 
 const entry = await getEntry('prose', 'index');
 if (!entry) {
@@ -17,30 +17,11 @@ if (!entry) {
 }
 const { Content } = await render(entry);
 
-const homeHref = import.meta.env.BASE_URL;
-const aboutHref = `${import.meta.env.BASE_URL}about`;
+const BASE = import.meta.env.BASE_URL;
 ---
 
-<Layout title="Astro Example — Prose Demo">
-  <div class="astro-stack">
-    <nav>
-      <a class="astro-link" href={homeHref}>← Home</a>
-      {' · '}
-      <a class="astro-link" href={aboutHref}>About</a>
-    </nav>
-
-    <p>
-      <button
-        class="astro-button"
-        type="button"
-        onclick="window.astro?.toggleDesignPanel?.()"
-      >
-        Open Design Token Panel
-      </button>
-    </p>
-
-    <main class="astro-prose">
-      <Content />
-    </main>
+<AppLayout title="Astro Example — Prose Demo" activePath={`${BASE}prose`}>
+  <div class="astro-prose">
+    <Content />
   </div>
-</Layout>
+</AppLayout>

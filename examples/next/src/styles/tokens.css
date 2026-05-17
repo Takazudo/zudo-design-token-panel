@@ -20,15 +20,22 @@
  * literally the new contents of the file the next page-load will use.
  */
 :root {
-  /* Spacing tokens (manifest: spacing tab) */
-  --nx-spacing-md: 1rem;
-  --nx-spacing-lg: 2rem;
+  /* Font scale tokens (font tab — raw tier) */
+  --nx-scale-xs:   0.75rem;
+  --nx-scale-sm:   0.875rem;
+  --nx-scale-base: 1rem;
+  --nx-scale-md:   1.125rem;   /* sub-heading step — keeps subsection-title visually above body */
+  --nx-scale-lg:   1.25rem;
+  --nx-scale-xl:   1.75rem;
+  --nx-scale-2xl:  2.5rem;
 
-  /* Typography tokens (manifest: typography tab) */
-  --nx-text-base: 1rem;
-  --nx-text-heading: 1.75rem;
-
-  /* Size tokens (manifest: size tab) */
+  /* Size tokens (manifest: size tab) — layout/component dimensions */
+  --nx-size-sidenav-w: 14rem;
+  --nx-size-header-h: 3.5rem;
+  --nx-size-avatar-sm: 2rem;
+  --nx-size-avatar-md: 2.5rem;
+  --nx-size-icon-sm: 1rem;
+  --nx-size-icon-md: 1.25rem;
   --nx-radius: 0.5rem;
 
   /* Cluster base roles (default-cluster.ts → baseRoles) */
@@ -58,10 +65,22 @@
   --nx-color-accent: var(--nx-palette-3);
   --nx-color-surface: var(--nx-palette-0);
   --nx-color-muted: var(--nx-palette-8);
+  --nx-color-success: var(--nx-palette-2);
+  --nx-color-warning: var(--nx-palette-3);
   --nx-color-danger: var(--nx-palette-5);
 
-  /* Prose tokens — vertical spacing scale (flow-space rhythm) */
-  /* prose-token-contract.md: vsp-* — baseline rhythm unit ≈ 1.6rem */
+  /* Easing tokens — raw curves (easing tab, raw tier) */
+  --nx-easing-ease-in:    cubic-bezier(0.42, 0, 1, 1);
+  --nx-easing-ease-out:   cubic-bezier(0, 0, 0.58, 1);
+  --nx-easing-ease-inout: cubic-bezier(0.42, 0, 0.58, 1);
+  --nx-easing-linear:     linear;
+
+  /* Easing tokens — semantic roles (easing tab, semantic tier) */
+  --nx-easing-tab-open:  var(--nx-easing-ease-in);
+  --nx-easing-tab-close: var(--nx-easing-ease-out);
+  --nx-easing-modal:     var(--nx-easing-ease-inout);
+
+  /* Vertical spacing scale — baseline rhythm unit */
   --nx-vsp-2xs: 0.25rem;   /* ~4 px  — consecutive headings, tight list items */
   --nx-vsp-xs:  0.5rem;    /* ~8 px  — tighter paragraph spacing */
   --nx-vsp-sm:  0.75rem;   /* ~12 px — heading-to-first-content gap */
@@ -70,27 +89,41 @@
   --nx-vsp-xl:  2.5rem;    /* ~40 px — pre-h2 section separation */
   --nx-vsp-2xl: 3.5rem;    /* ~56 px — top-of-page or pre-first-heading clearance */
 
-  /* Prose tokens — horizontal spacing scale */
+  /* Horizontal spacing scale */
   --nx-hsp-xs:  0.25rem;   /* inline code padding, small insets */
   --nx-hsp-sm:  0.5rem;    /* table cell padding, tag padding */
   --nx-hsp-md:  1rem;      /* blockquote left indent */
   --nx-hsp-lg:  1.5rem;    /* section-level horizontal gutter */
   --nx-hsp-xl:  2rem;      /* outer prose container horizontal padding */
 
-  /* Prose tokens — type scale */
-  --nx-text-h2:    1.75rem;
-  --nx-text-h3:    1.35rem;
-  --nx-text-h4:    1.1rem;
-  --nx-text-body:  1rem;
-  --nx-text-small: 0.875rem;
-  --nx-text-micro: 0.75rem;
+  /* Type scale — semantic tier; MUST reference --nx-scale-* (Tier 1).
+     Names describe what each size is FOR (purpose / role), not which HTML element. */
+  --nx-text-page-title:       var(--nx-scale-xl);   /* 1.75rem */
+  --nx-text-section-title:    var(--nx-scale-lg);   /* 1.25rem */
+  --nx-text-subsection-title: var(--nx-scale-md);   /* 1.125rem */
+  --nx-text-body:             var(--nx-scale-base); /* 1rem */
+  --nx-text-helper:           var(--nx-scale-sm);   /* 0.875rem */
+  --nx-text-annotation:       var(--nx-scale-xs);   /* 0.75rem */
 
-  /* Prose tokens — line-height scale */
+  /* Legacy demo vars — consumed by the demo stylesheet below; not in the manifest.
+     Bridge each alias to a new semantic / scale token so changing a manifest cluster
+     actually updates the demo page. Matches the astro bridging pattern. */
+  --nx-spacing-md:   var(--nx-vsp-md);
+  --nx-spacing-lg:   var(--nx-vsp-xl);
+  --nx-text-base:    var(--nx-text-body);
+  --nx-text-heading: var(--nx-text-page-title);
+  --nx-text-h2:      var(--nx-text-page-title);
+  --nx-text-h3:      var(--nx-text-section-title);
+  --nx-text-h4:      var(--nx-text-subsection-title);
+  --nx-text-small:   var(--nx-text-helper);
+  --nx-text-micro:   var(--nx-text-annotation);
+
+  /* Line-height tokens */
   --nx-leading-tight:   1.2;
   --nx-leading-snug:    1.45;
   --nx-leading-relaxed: 1.75;
 
-  /* Prose tokens — code surface */
+  /* Code surface tokens */
   --nx-code-bg:   hsl(220 13% 11%);
   --nx-code-fg:   hsl(220 14% 86%);
   /* ui-monospace first per CSS Fonts spec; Cascadia Code / Source Code Pro as named fallbacks */
@@ -101,7 +134,7 @@ body {
   background: var(--nx-bg);
   color: var(--nx-fg);
   font-size: var(--nx-text-base);
-  padding: var(--nx-spacing-lg);
+  /* padding removed — AppShell handles layout; inner padding is set on the main area */
 }
 
 .nx-stack {
@@ -330,4 +363,607 @@ body {
 
 .nx-prose :where(em) {
   font-style: italic;
+}
+
+/* ── Easing demo card ─────────────────────────────────────────────────────── */
+/* Interactive card used in the Easing tab demo. Clicking it toggles the
+   .is-active class; the transition consumes the semantic easing token so
+   changing the panel's "Tab Open" role updates the perceived motion live. */
+.nx-easing-card {
+  display: block;
+  width: 100%;
+  padding: var(--nx-hsp-md);
+  background: var(--nx-color-surface);
+  border: 1px solid var(--nx-color-muted);
+  border-radius: var(--nx-radius);
+  color: var(--nx-fg);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transform: translateX(0);
+  transition: transform 0.4s var(--nx-easing-tab-open),
+              background-color 0.4s var(--nx-easing-tab-open);
+}
+
+.nx-easing-card.is-active {
+  transform: translateX(4rem);
+  background: var(--nx-color-primary);
+}
+
+.nx-easing-card-label {
+  font-size: var(--nx-text-body);
+  font-weight: 600;
+}
+
+/* ── Host-class vocabulary (frozen — wave 3a #189; extended wave 3b #192) ─── */
+/*
+ * Every class below targets ONLY --nx-* CSS variables. Class names are the
+ * canonical surface vocabulary consumed by AppShell, Sidenav, and sub-page
+ * shells. Do not rename without bumping the wave-3 parity milestone.
+ *
+ * Wave 3b additions (#192):
+ *   .nx-tabs__tab.is-active      — active state for tab labels
+ *   .nx-tabs__panel              — tab content area
+ *   .nx-accordion__summary       — accordion header row (summary element)
+ *   .nx-accordion__summary-icon  — chevron icon in accordion summary
+ *   .nx-accordion__content       — accordion body content area
+ *   .nx-modal[open]              — open-state fade/scale animation
+ *   .nx-modal::backdrop          — backdrop overlay for modal
+ *   .nx-modal__header/title/close/body — modal interior structure
+ *   .nx-input:disabled           — disabled state for form inputs
+ *   .nx-label                    — form field label
+ *   .nx-field                    — form field container (label + input)
+ *   .nx-form                     — form container
+ *   .nx-form-section             — grouped form section
+ *   .nx-badge.is-outlined.is-*   — outlined badge per-color variants
+ *   .nx-stat-card / __value / __label   — stat metric card
+ *   .nx-profile-card / __avatar / __info / __name / __role — profile card
+ *   .nx-media-card / __thumb / __thumb-fill / __title / __body — media card
+ *   .nx-avatar-row               — flex row of avatar chips
+ *   .nx-avatar-sm                — small avatar chip (palette-bg variant)
+ *   .nx-table tr:hover td        — row hover highlight for data table
+ */
+
+/* Layout */
+.nx-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-vsp-lg);
+  max-width: 56rem;
+  margin: 0 auto;
+}
+
+/* Typography */
+.nx-page-title {
+  font-size: var(--nx-text-page-title);
+  font-weight: 700;
+  line-height: var(--nx-leading-tight);
+  color: var(--nx-color-primary);
+  margin: 0;
+}
+
+.nx-section-title {
+  font-size: var(--nx-text-section-title);
+  font-weight: 600;
+  line-height: var(--nx-leading-tight);
+  color: var(--nx-fg);
+  margin: 0;
+}
+
+.nx-subsection-title {
+  font-size: var(--nx-text-subsection-title);
+  font-weight: 600;
+  line-height: var(--nx-leading-snug);
+  color: var(--nx-fg);
+  margin: 0;
+}
+
+.nx-body {
+  font-size: var(--nx-text-body);
+  line-height: var(--nx-leading-relaxed);
+  color: var(--nx-fg);
+}
+
+.nx-helper {
+  font-size: var(--nx-text-helper);
+  line-height: var(--nx-leading-snug);
+  color: var(--nx-color-muted);
+}
+
+/* Shell chrome */
+.nx-topbar {
+  height: var(--nx-size-header-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--nx-color-surface);
+  padding-inline: var(--nx-hsp-md);
+  border-bottom: 1px solid var(--nx-color-muted);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.nx-sidenav {
+  width: var(--nx-size-sidenav-w);
+  background: var(--nx-color-surface);
+  padding: var(--nx-vsp-md) var(--nx-hsp-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-vsp-xs);
+  min-height: 100%;
+}
+
+.nx-sidenav-link {
+  display: block;
+  font-size: var(--nx-text-body);
+  color: var(--nx-fg);
+  text-decoration: none;
+  padding: var(--nx-vsp-xs) var(--nx-hsp-sm);
+  border-radius: var(--nx-radius);
+}
+
+.nx-sidenav-link:hover {
+  background: var(--nx-bg);
+}
+
+.nx-sidenav-link.is-active {
+  color: var(--nx-color-accent);
+  font-weight: 600;
+}
+
+/* Buttons */
+.nx-button {
+  display: inline-block;
+  padding: var(--nx-vsp-xs) var(--nx-hsp-md);
+  border-radius: var(--nx-radius);
+  background: var(--nx-color-accent);
+  color: var(--nx-bg);
+  border: none;
+  cursor: pointer;
+  font-size: var(--nx-text-body);
+  font: inherit;
+  text-decoration: none;
+}
+
+.nx-button:hover {
+  background: var(--nx-color-primary);
+}
+
+.nx-button.is-primary {
+  background: var(--nx-color-primary);
+}
+
+.nx-button.is-primary:hover {
+  background: var(--nx-color-accent);
+}
+
+.nx-button.is-accent {
+  background: var(--nx-color-accent);
+}
+
+/* Card / surface panel */
+/* Note: .nx-card was already defined above — this extends it with padding tokens */
+
+/* Tabs */
+.nx-tabs {
+  display: flex;
+  flex-direction: column;
+}
+
+.nx-tabs__list {
+  display: flex;
+  gap: var(--nx-hsp-xs);
+  border-bottom: 1px solid var(--nx-color-muted);
+  position: relative;
+}
+
+.nx-tabs__tab {
+  padding: var(--nx-vsp-xs) var(--nx-hsp-md);
+  font-size: var(--nx-text-body);
+  color: var(--nx-color-muted);
+  cursor: pointer;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.nx-tabs__tab:hover {
+  color: var(--nx-fg);
+}
+
+.nx-tabs__tab.is-active {
+  color: var(--nx-color-accent);
+  font-weight: 600;
+}
+
+.nx-tabs__indicator {
+  position: absolute;
+  bottom: -1px;
+  height: 2px;
+  background: var(--nx-color-primary);
+  transition: transform 0.2s var(--nx-easing-tab-open), width 0.2s var(--nx-easing-tab-open);
+}
+
+.nx-tabs__panel {
+  padding: var(--nx-vsp-md) var(--nx-hsp-md);
+  font-size: var(--nx-text-body);
+  color: var(--nx-fg);
+}
+
+/* Accordion */
+.nx-accordion {
+  border: 1px solid var(--nx-color-muted);
+  border-radius: var(--nx-radius);
+  overflow: hidden;
+}
+
+.nx-accordion + .nx-accordion {
+  margin-top: var(--nx-vsp-xs);
+}
+
+.nx-accordion__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--nx-vsp-md) var(--nx-hsp-md);
+  background: var(--nx-color-surface);
+  font-size: var(--nx-text-body);
+  color: var(--nx-fg);
+  cursor: pointer;
+  list-style: none;
+}
+
+.nx-accordion__summary::-webkit-details-marker {
+  display: none;
+}
+
+.nx-accordion__summary-icon {
+  color: var(--nx-color-muted);
+  font-size: var(--nx-text-helper);
+  user-select: none;
+}
+
+.nx-accordion__content {
+  padding: var(--nx-vsp-md) var(--nx-hsp-md);
+  font-size: var(--nx-text-body);
+  color: var(--nx-fg);
+  border-top: 1px solid var(--nx-color-muted);
+}
+
+/* Modal dialog */
+.nx-modal {
+  background: var(--nx-color-surface);
+  color: var(--nx-fg);
+  border-radius: var(--nx-radius);
+  border: 1px solid var(--nx-color-muted);
+  padding: var(--nx-vsp-md) var(--nx-hsp-md);
+  max-width: 32rem;
+  width: 100%;
+  opacity: 0;
+  transform: scale(0.95);
+  transition:
+    opacity 0.2s var(--nx-easing-modal),
+    transform 0.2s var(--nx-easing-modal),
+    display 0.2s allow-discrete,
+    overlay 0.2s allow-discrete;
+}
+
+.nx-modal[open] {
+  opacity: 1;
+  transform: scale(1);
+}
+
+@starting-style {
+  .nx-modal[open] {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+.nx-modal::backdrop {
+  background: color-mix(in srgb, var(--nx-bg) 80%, transparent);
+  transition:
+    background 0.2s var(--nx-easing-modal),
+    display 0.2s allow-discrete,
+    overlay 0.2s allow-discrete;
+}
+
+.nx-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--nx-vsp-md);
+}
+
+.nx-modal__title {
+  font-size: var(--nx-text-section-title);
+  font-weight: 600;
+  color: var(--nx-fg);
+}
+
+.nx-modal__close {
+  color: var(--nx-color-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: var(--nx-text-body);
+  padding: var(--nx-vsp-xs) var(--nx-hsp-xs);
+  border-radius: var(--nx-radius);
+}
+
+.nx-modal__close:hover {
+  color: var(--nx-fg);
+}
+
+.nx-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-vsp-md);
+}
+
+/* Form input */
+.nx-input {
+  background: var(--nx-color-surface);
+  color: var(--nx-fg);
+  border: 1px solid var(--nx-color-muted);
+  border-radius: var(--nx-radius);
+  padding: var(--nx-vsp-sm) var(--nx-hsp-sm);
+  font-size: var(--nx-text-body);
+  font: inherit;
+  width: 100%;
+}
+
+.nx-input:focus {
+  outline: none;
+  border-color: var(--nx-color-accent);
+}
+
+.nx-input:disabled {
+  background: var(--nx-color-muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.nx-label {
+  font-size: var(--nx-text-body);
+  color: var(--nx-fg);
+}
+
+.nx-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-vsp-xs);
+}
+
+.nx-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-vsp-md);
+}
+
+.nx-form-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-vsp-xs);
+}
+
+/* Alerts */
+.nx-alert {
+  padding: var(--nx-vsp-md) var(--nx-hsp-md);
+  border-radius: var(--nx-radius);
+  border: 1px solid var(--nx-color-muted);
+  font-size: var(--nx-text-body);
+  color: var(--nx-bg);
+}
+
+.nx-alert.is-info    { background: var(--nx-color-accent);  border-color: var(--nx-color-accent); }
+.nx-alert.is-success { background: var(--nx-color-success); border-color: var(--nx-color-success); }
+.nx-alert.is-warning { background: var(--nx-color-warning); border-color: var(--nx-color-warning); }
+.nx-alert.is-danger  { background: var(--nx-color-danger);  border-color: var(--nx-color-danger); }
+
+/* Badge */
+.nx-badge {
+  display: inline-block;
+  padding: 0.125rem var(--nx-hsp-xs);
+  border-radius: var(--nx-radius);
+  font-size: var(--nx-text-helper);
+  background: var(--nx-color-accent);
+  color: var(--nx-bg);
+}
+
+.nx-badge.is-success { background: var(--nx-color-success); }
+.nx-badge.is-warning { background: var(--nx-color-warning); }
+.nx-badge.is-danger  { background: var(--nx-color-danger); }
+.nx-badge.is-outlined {
+  background: transparent;
+  border: 1px solid currentColor;
+  color: var(--nx-color-accent);
+}
+
+.nx-badge.is-outlined.is-success { color: var(--nx-color-success); }
+.nx-badge.is-outlined.is-warning { color: var(--nx-color-warning); }
+.nx-badge.is-outlined.is-danger  { color: var(--nx-color-danger); }
+
+/* Tooltip */
+.nx-tooltip {
+  position: relative;
+  display: inline-block;
+}
+
+.nx-tooltip__bubble {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: var(--nx-vsp-xs);
+  background: var(--nx-color-surface);
+  color: var(--nx-fg);
+  border: 1px solid var(--nx-color-muted);
+  border-radius: var(--nx-radius);
+  padding: var(--nx-vsp-xs) var(--nx-hsp-sm);
+  font-size: var(--nx-text-helper);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s var(--nx-easing-tab-open);
+}
+
+.nx-tooltip:hover .nx-tooltip__bubble {
+  opacity: 1;
+}
+
+/* Avatar */
+.nx-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--nx-color-primary);
+  color: var(--nx-bg);
+  font-size: var(--nx-text-helper);
+  font-weight: 600;
+  width: var(--nx-size-avatar-md);
+  height: var(--nx-size-avatar-md);
+  overflow: hidden;
+}
+
+.nx-avatar.sm {
+  width: var(--nx-size-avatar-sm);
+  height: var(--nx-size-avatar-sm);
+  font-size: var(--nx-text-annotation);
+}
+
+/* Data table */
+.nx-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--nx-text-helper);
+}
+
+.nx-table th,
+.nx-table td {
+  padding: var(--nx-hsp-xs) var(--nx-hsp-sm);
+  border: 1px solid var(--nx-color-muted);
+  text-align: left;
+}
+
+.nx-table th {
+  font-weight: 600;
+  background: var(--nx-code-bg);
+  color: var(--nx-fg);
+}
+
+.nx-table tr:hover td {
+  background: var(--nx-color-surface);
+}
+
+/* Data component cards */
+.nx-stat-card {
+  background: var(--nx-color-surface);
+  padding: var(--nx-vsp-md) var(--nx-hsp-md);
+  border-radius: var(--nx-radius);
+  border: 1px solid var(--nx-color-muted);
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-vsp-xs);
+}
+
+.nx-stat-card__value {
+  font-size: var(--nx-text-page-title);
+  font-weight: 700;
+  color: var(--nx-color-primary);
+  line-height: var(--nx-leading-tight);
+}
+
+.nx-stat-card__label {
+  font-size: var(--nx-text-helper);
+  color: var(--nx-color-muted);
+}
+
+.nx-profile-card {
+  display: flex;
+  align-items: center;
+  gap: var(--nx-hsp-md);
+  padding: var(--nx-vsp-md) var(--nx-hsp-md);
+  background: var(--nx-color-surface);
+  border-radius: var(--nx-radius);
+  border: 1px solid var(--nx-color-muted);
+}
+
+.nx-profile-card__avatar {
+  width: var(--nx-size-avatar-md);
+  height: var(--nx-size-avatar-md);
+  border-radius: var(--nx-radius);
+  background: var(--nx-color-accent);
+  flex-shrink: 0;
+}
+
+.nx-profile-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-vsp-2xs);
+  flex: 1;
+}
+
+.nx-profile-card__name {
+  font-size: var(--nx-text-subsection-title);
+  font-weight: 600;
+  color: var(--nx-fg);
+}
+
+.nx-profile-card__role {
+  font-size: var(--nx-text-helper);
+  color: var(--nx-color-muted);
+}
+
+.nx-media-card {
+  background: var(--nx-color-surface);
+  padding: var(--nx-vsp-md) var(--nx-hsp-md);
+  border-radius: var(--nx-radius);
+  border: 1px solid var(--nx-color-muted);
+  display: flex;
+  flex-direction: column;
+  gap: var(--nx-vsp-sm);
+  max-width: 24rem;
+}
+
+/* reason: image aspect ratio is a media constant, not a design token */
+.nx-media-card__thumb {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--nx-radius);
+  overflow: hidden;
+}
+
+.nx-media-card__thumb-fill {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, var(--nx-color-surface) 0%, var(--nx-color-muted) 100%);
+}
+
+.nx-media-card__title {
+  font-size: var(--nx-text-section-title);
+  font-weight: 600;
+  color: var(--nx-fg);
+}
+
+.nx-media-card__body {
+  font-size: var(--nx-text-body);
+  color: var(--nx-fg);
+  line-height: var(--nx-leading-relaxed);
+}
+
+/* Avatar row (data demo) */
+.nx-avatar-row {
+  display: flex;
+  gap: var(--nx-hsp-sm);
+}
+
+.nx-avatar-sm {
+  width: var(--nx-size-avatar-sm);
+  height: var(--nx-size-avatar-sm);
+  border-radius: var(--nx-radius);
+  display: inline-block;
 }
