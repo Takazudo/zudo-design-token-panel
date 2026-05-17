@@ -38,9 +38,12 @@ export function Sidenav() {
   return (
     <nav className="vr-sidenav" aria-label="Main navigation">
       {REACT_ROUTES.map(({ label, to, exact }) => {
+        // Use exact segment matching: a pathname must be `to` exactly
+        // or start with `to/` — prevents `/about` from matching `/aboutness`.
         const isActive = exact
           ? location.pathname === to || location.pathname === to + '/'
-          : location.pathname.startsWith(to);
+          : location.pathname === to ||
+            location.pathname.startsWith(to + '/');
         return (
           <Link
             key={to}
