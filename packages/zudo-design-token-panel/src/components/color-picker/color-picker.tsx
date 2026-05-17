@@ -327,8 +327,28 @@ export function ColorPicker({
   onClose,
 }: ColorPickerProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
+  const dragHandleRef = useRef<HTMLSpanElement>(null);
   const isDraggingRef = useRef(false);
   const [hex, setHex] = useSyncedHex(color, isDraggingRef);
+
+  // ── Drag-handle state ─────────────────────────────────────────────────────
+  // dragPos holds the current dragged-to position (left, top in viewport px).
+  // null means auto-positioned (normal anchor-relative behavior).
+  // Session-only: the popover unmounts when the parent closes it, so dragPos
+  // resets to null on every open.
+  const [dragPos, setDragPos] = useState<{ left: number; top: number } | null>(
+    null,
+  );
+  // Ref tracking the pointer start position and the popover's base rect for
+  // the current drag gesture. Never causes a re-render.
+  const dragSession = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    baseLeft: number;
+    baseTop: number;
+  } | null>(null);
+  const isDraggingHandle = useRef(false);
 
   const [mode, setMode] = useState<ColorPickerMode>(() =>
     readPersistedMode(defaultMode),
@@ -494,6 +514,96 @@ export function ColorPicker({
     );
   }, [anchorRef, shell]);
 
+  // ── Drag-handle pointer handlers ─────────────────────────────────────────
+  // Mirrors pgen's color-picker-oklch drag implementation. Wired via
+  // addEventListener (not Preact JSX onPointer* props) for the same reason as
+  // custom-slider.tsx — Preact's jsdom feature-detection registers PointerEvent
+  // listeners with wrong casing, so tests dispatching 'pointerdown' miss them.
+  // Pointer capture keeps move/up flowing even if the pointer leaves the handle.
+  useEffect(() => {
+    const el = dragHandleRef.current;
+    if (!el) return;
+
+    function handlePointerDown(e: PointerEvent) {
+      e.preventDefault();
+      // Stop propagation so the document-level outside-click handler can't
+      // possibly receive this pointerdown. Defensive — even though the handle
+      // sits inside containerRef, mirroring pgen's pattern keeps the contract
+      // explicit.
+      e.stopPropagation();
+      const container = containerRef.current;
+      if (!container) return;
+      // Freeze the current rendered position (absolute left/top in viewport).
+      // Use getBoundingClientRect so we always operate in `top` space regardless
+      // of whether the auto-position used `top` or `bottom` CSS.
+      const rect = container.getBoundingClientRect();
+      dragSession.current = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        baseLeft: rect.left,
+        baseTop: rect.top,
+      };
+      isDraggingHandle.current = true;
+      try {
+        el!.setPointerCapture(e.pointerId);
+      } catch {
+        // jsdom does not implement setPointerCapture; ignore.
+      }
+    }
+
+    function handlePointerMove(e: PointerEvent) {
+      if (!isDraggingHandle.current || !dragSession.current) return;
+      if (e.pointerId !== dragSession.current.pointerId) return;
+      const { startX, startY, baseLeft, baseTop } = dragSession.current;
+      const newLeft = baseLeft + (e.clientX - startX);
+      const newTop = baseTop + (e.clientY - startY);
+      setDragPos({ left: newLeft, top: newTop });
+    }
+
+    function handlePointerUp(e: PointerEvent) {
+      if (!isDraggingHandle.current || !dragSession.current) return;
+      if (e.pointerId !== dragSession.current.pointerId) return;
+      isDraggingHandle.current = false;
+      dragSession.current = null;
+      try {
+        el!.releasePointerCapture(e.pointerId);
+      } catch {
+        // jsdom does not implement releasePointerCapture; ignore.
+      }
+      // Re-clamp to keep the popover fully on-screen after release.
+      const container = containerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const pad = 8;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const clampedLeft = Math.max(
+        pad,
+        Math.min(vw - pad - rect.width, rect.left),
+      );
+      const clampedTop = Math.max(
+        pad,
+        Math.min(vh - pad - rect.height, rect.top),
+      );
+      setDragPos({ left: clampedLeft, top: clampedTop });
+    }
+
+    el.addEventListener('pointerdown', handlePointerDown);
+    el.addEventListener('pointermove', handlePointerMove);
+    el.addEventListener('pointerup', handlePointerUp);
+    el.addEventListener('pointercancel', handlePointerUp);
+
+    return () => {
+      el.removeEventListener('pointerdown', handlePointerDown);
+      el.removeEventListener('pointermove', handlePointerMove);
+      el.removeEventListener('pointerup', handlePointerUp);
+      el.removeEventListener('pointercancel', handlePointerUp);
+    };
+    // Empty dep array — handlers close over stable refs only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Checkerboard is only needed when the color has a non-opaque alpha byte.
   const hasAlpha = /^#[0-9a-fA-F]{8}$/.test(hex);
 
@@ -504,17 +614,35 @@ export function ColorPicker({
     isDraggingRef.current = false;
   }, []);
 
+  // Final container style — dragPos takes precedence over auto-positioning
+  // once the user has grabbed the handle and moved the popover.
+  const containerStyle: JSX.CSSProperties = dragPos
+    ? { position: 'fixed', left: dragPos.left, top: dragPos.top }
+    : autoStyle;
+
   return (
     <div
       ref={containerRef}
       className="tokenpanel-color-picker"
       data-mode-shell={shell}
-      style={autoStyle}
+      style={containerStyle}
       role="dialog"
       aria-label={label ? `${label} color picker` : 'Color picker'}
     >
       {/* Header ─────────────────────────────────────────────────────────── */}
       <div className="tokenpanel-color-picker-header">
+        {/* Drag handle — braille-dots glyph (⠿, U+283F) per pgen mockup.
+            role="presentation"+aria-hidden so assistive tech skips the glyph.
+            <span> chosen over <div> per zdtp panel-DOM-hygiene policy: span is
+            not in the host-resettable tag list and matches pgen's pattern. */}
+        <span
+          ref={dragHandleRef}
+          className="tokenpanel-color-picker-drag-handle"
+          role="presentation"
+          aria-hidden="true"
+        >
+          ⠿
+        </span>
         <span className="tokenpanel-color-picker-label">{label ?? 'Color'}</span>
 
         {/* Mode toggle: OKLCH | HSL */}
