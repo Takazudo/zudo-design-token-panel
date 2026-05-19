@@ -13,8 +13,8 @@ those tweaks back into the source CSS files on disk.
 The panel is a Preact island that mounts inside a host web app. The bin is a
 small local server that watches edits from the panel and persists them. It is
 designed to plug into modern host frameworks: Astro, Vite + React, Next.js,
-zfb, and zfb + Tailwind v4 — each integration ships as an example app under
-`examples/`.
+zfb, and zfb + Tailwind v4 — see the [Examples](https://takazudomodular.com/pj/zudo-design-token-panel/getting-started/examples/)
+doc page for live demos and source links.
 
 ## Status
 
@@ -42,12 +42,6 @@ zdtp/
 │   └── zudo-design-token-panel/    # panel + bin
 │                                   #   npm: @takazudo/zudo-design-token-panel
 ├── doc/                            # public doc site (zudo-doc framework)
-├── examples/                       # integration examples
-│   ├── astro/
-│   ├── vite-react/
-│   ├── next/
-│   ├── zfb/
-│   └── zfb-tailwind/
 └── LICENSE                         # MIT
 ```
 
@@ -55,7 +49,6 @@ zdtp/
   ported).
 - [`doc/`](./doc) — public-facing documentation site, built with the
   [zudo-doc](https://github.com/Takazudo/zudo-doc) framework.
-- [`examples/`](./examples) — host-framework integration examples.
 
 ## Doc site
 
@@ -92,45 +85,43 @@ Run the doc dev server:
 pnpm dev
 ```
 
-Once the panel package and example apps land, `pnpm build`, `pnpm test`,
-`pnpm typecheck`, and `pnpm lint` will fan out across the workspace via
+The panel package lives in this repo under `packages/zudo-design-token-panel/`.
+The five example apps (Astro, Vite + React, Next.js, zfb, zfb + Tailwind v4)
+have moved out of this monorepo into dedicated sibling repos — see the
+[Examples](https://takazudomodular.com/pj/zudo-design-token-panel/getting-started/examples/)
+doc page for live demos and source links to each external repo. The root
+`pnpm build`, `pnpm test`, `pnpm typecheck`, and `pnpm lint` scripts fan out
+across the remaining workspaces (the panel package and the doc site) via
 `pnpm -r`.
 
 ## Verifying deploy sub-paths
 
-Each deployable workspace is hosted under its own sub-path of
-`https://takazudomodular.com/pj/zudo-design-token-panel/`:
+The doc workspace is hosted at:
 
-| Workspace                | Deploy sub-path                                              | Build output                  |
-| ------------------------ | ------------------------------------------------------------ | ----------------------------- |
-| `doc`                    | `/pj/zudo-design-token-panel/`                               | `doc/dist`                    |
-| `examples/astro`         | `/pj/zudo-design-token-panel/examples/astro/`                | `examples/astro/dist`         |
-| `examples/vite-react`    | `/pj/zudo-design-token-panel/examples/vite-react/`           | `examples/vite-react/dist`    |
-| `examples/next`          | `/pj/zudo-design-token-panel/examples/next/`                 | `examples/next/out`           |
-| `examples/zfb`           | `/pj/zudo-design-token-panel/examples/zfb/`                  | `examples/zfb/dist`           |
-| `examples/zfb-tailwind`  | `/pj/zudo-design-token-panel/examples/zfb-tailwind/`         | `examples/zfb-tailwind/dist`  |
+| Workspace | Deploy sub-path                    | Build output |
+| --------- | ---------------------------------- | ------------ |
+| `doc`     | `/pj/zudo-design-token-panel/`     | `doc/dist`   |
 
 To verify that no emitted asset, link, script, or inlined string reference
-escapes its workspace's sub-path, run:
+escapes the doc workspace's sub-path, run:
 
 ```sh
 pnpm check:deploy-paths
 ```
 
-The script (`scripts/check-deploy-paths.sh`) builds all five workspaces (plus
+The script (`scripts/check-deploy-paths.sh`) builds the doc workspace (plus
 the `@takazudo/zudo-design-token-panel` package as a precondition) and then
-greps each bundle for:
+greps the bundle for:
 
 - HTML attributes (`href`, `src`, `srcset`, `poster`, `<link rel="manifest">`,
   Open Graph and Twitter Card `<meta content>`, …) pointing to a root-relative
   path outside the workspace prefix.
 - CSS `url(/...)` references outside the prefix.
-- Embedded JS / JSON / XML literals — including the inlined Next.js flight
-  chunks that get injected directly into HTML — that name an asset root such
-  as `/_next/`, `/_astro/`, `/assets/`, or `/pagefind/` without the workspace
-  prefix in front. This catches both bare leaks and wrong-subpath leaks (e.g.
-  `/pj/zudo-design-token-panel/_next/foo` appearing inside the next bundle, where the correct
-  form is `/pj/zudo-design-token-panel/next/_next/foo`).
+- Embedded JS / JSON / XML literals that name an asset root such as
+  `/_astro/`, `/assets/`, or `/pagefind/` without the workspace prefix in
+  front. This catches bare leaks like `/_astro/foo.js` appearing inside the
+  doc bundle, where the correct form is
+  `/pj/zudo-design-token-panel/_astro/foo.js`.
 - Manifest, sitemap, feed, and pagefind shard outputs (`*.webmanifest`,
   `manifest.json`, `sitemap*.xml`, `feed*.xml`, `pagefind-*.json`, …).
 - Source-map information disclosure: a `*.map` file embedding an absolute

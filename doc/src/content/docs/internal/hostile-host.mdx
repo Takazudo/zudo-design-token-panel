@@ -32,21 +32,32 @@ svg, path { fill: hotpink !important; stroke: lime !important; transform: scale(
 
 ### Step 1 — Start an example app
 
-Any of the following example apps mounts the full panel:
+The example apps now live in dedicated sibling repos under `$HOME/repos/zdtp-ex/`. Clone the one you want to use before running its dev command:
+
+- [`zudo-design-token-panel-example-astro`](https://github.com/Takazudo/zudo-design-token-panel-example-astro)
+- [`zudo-design-token-panel-example-vite-react`](https://github.com/Takazudo/zudo-design-token-panel-example-vite-react)
+- [`zudo-design-token-panel-example-nextjs`](https://github.com/Takazudo/zudo-design-token-panel-example-nextjs)
+- [`zudo-design-token-panel-example-zfb`](https://github.com/Takazudo/zudo-design-token-panel-example-zfb)
+- [`zudo-design-token-panel-example-zfb-tailwind`](https://github.com/Takazudo/zudo-design-token-panel-example-zfb-tailwind)
+
+Any of the following mounts the full panel:
 
 ```sh
 # Astro example (recommended — closest to the harness scenario)
-pnpm --filter @takazudo/zudo-design-token-panel-astro-example dev
+cd $HOME/repos/zdtp-ex/zudo-design-token-panel-example-astro && pnpm dev
 # URL: http://localhost:44324
 
 # Vite + React
-pnpm --filter @takazudo/zudo-design-token-panel-vite-react-example dev
+cd $HOME/repos/zdtp-ex/zudo-design-token-panel-example-vite-react && pnpm dev
 
 # Next.js
-pnpm --filter @takazudo/zudo-design-token-panel-next-example dev
+cd $HOME/repos/zdtp-ex/zudo-design-token-panel-example-nextjs && pnpm dev
 
 # zfb (Preact)
-pnpm --filter @takazudo/zudo-design-token-panel-zfb-example dev
+cd $HOME/repos/zdtp-ex/zudo-design-token-panel-example-zfb && pnpm dev
+
+# zfb + Tailwind v4
+cd $HOME/repos/zdtp-ex/zudo-design-token-panel-example-zfb-tailwind && pnpm dev
 ```
 
 ### Step 2 — Inject the hostile stylesheet

@@ -2,32 +2,26 @@
 #
 # Cross-workspace asset-escape audit.
 #
-# Builds all four deploy-targeted workspaces and asserts that every emitted
-# asset / link / script / inline string reference stays inside the workspace's
-# own deploy sub-path. Catches the classes of failure that are easy to miss
-# in eyeball review:
+# Builds the doc workspace and asserts that every emitted asset / link /
+# script / inline string reference stays inside the workspace's own deploy
+# sub-path. Catches the classes of failure that are easy to miss in eyeball
+# review:
 #
 #   1. HTML attribute leaks (<link>, <script>, <img>, <a>, <source>, <iframe>,
 #      <video>, <audio>, srcset, manifest, …) pointing to a root-relative path
 #      that does not start with the workspace prefix.
 #   2. CSS url(/...) references outside the prefix.
-#   3. Embedded JS / JSON / XML string literals — including the inlined Next.js
-#      flight chunks injected directly into HTML — that name an asset root
-#      ("/_next/", "/_astro/", "/assets/", "/pagefind/", …) without the
-#      workspace prefix in front. This catches both bare leaks and
-#      wrong-subpath leaks like "/pj/zudo-design-token-panel/_next/…" appearing in the next
-#      bundle (where the correct form is "/pj/zudo-design-token-panel/next/_next/…").
+#   3. Embedded JS / JSON / XML string literals that name an asset root
+#      ("/_astro/", "/assets/", "/pagefind/", …) without the workspace prefix
+#      in front.
 #   4. Source-map information disclosure: a *.map file containing an absolute
 #      build-host path or this repo's worktree root.
 #   5. Trailing-slash inconsistency on internal <a> links (mix of
-#      "/pj/zudo-design-token-panel/foo" and "/pj/zudo-design-token-panel/foo/" pointing at the same resource).
+#      "/pj/zudo-design-token-panel/foo" and "/pj/zudo-design-token-panel/foo/"
+#      pointing at the same resource).
 #
-# Per-workspace sub-paths (Sub #34 / epic #29 — examples moved under /examples/):
-#   doc/dist                      → /pj/zudo-design-token-panel/
-#   examples/astro/dist           → /pj/zudo-design-token-panel/examples/astro/
-#   examples/vite-react/dist      → /pj/zudo-design-token-panel/examples/vite-react/
-#   examples/next/out             → /pj/zudo-design-token-panel/examples/next/
-#   examples/zfb-tailwind/dist    → /pj/zudo-design-token-panel/examples/zfb-tailwind/
+# Per-workspace sub-paths:
+#   doc/dist → /pj/zudo-design-token-panel/
 #
 # Exits non-zero on any escape so it can gate CI / pre-push.
 
@@ -78,7 +72,7 @@ cd "$ROOT_DIR"
 START=$(date +%s)
 
 # Workspaces in print order.
-WORKSPACES=("doc" "astro" "vite-react" "next" "zfb-tailwind")
+WORKSPACES=("doc")
 
 # Per-workspace pass/fail tracker.
 declare -A WS_FAILS=()
@@ -134,8 +128,8 @@ audit_workspace() {
   local dist_rel="$2"
   local prefix="$3"
   local dist="$ROOT_DIR/$dist_rel"
-  local prefix_no_trail="${prefix%/}"          # /pj/zudo-design-token-panel        | /pj/zudo-design-token-panel/astro
-  local prefix_inner="${prefix#/}"              # pj/zudo-design-token-panel/        | pj/zudo-design-token-panel/astro/
+  local prefix_no_trail="${prefix%/}"          # /pj/zudo-design-token-panel
+  local prefix_inner="${prefix#/}"              # pj/zudo-design-token-panel/
   local ws_fail=""
 
   section "Audit $label  (dist=$dist_rel  prefix=$prefix)"
@@ -195,29 +189,27 @@ audit_workspace() {
   report_check "CSS url() references stay under $prefix" "$m" ws_fail
 
   # ── #4 Embedded asset-root literals ────────────────────────────
-  # Catches inlined chunk paths (Next flight payloads, Astro/Vite asset
-  # tables, pagefind shards, …) that name a well-known asset root without
-  # the workspace prefix in front.
+  # Catches inlined chunk paths (Astro/Vite asset tables, pagefind shards, …)
+  # that name a well-known asset root without the workspace prefix in front.
   #
   # Two constraints make this precise:
   #
   #   (a) The match must START at a URL boundary — the asset root must be
   #       preceded by a delimiter (quote, backtick, paren, equals, comma,
   #       whitespace, '>' for HTML attrs, or a backslash for
-  #       JSON-escaped-string contexts like Next flight chunks). This
-  #       prevents matching against inner path segments like the "/static/"
-  #       inside a perfectly correct "/pj/zudo-design-token-panel/next/_next/static/foo.js".
+  #       JSON-escaped-string contexts). This prevents matching against inner
+  #       path segments like the "/static/" inside a perfectly correct
+  #       "/pj/zudo-design-token-panel/_astro/static/foo.js".
   #
   #   (b) The match must end in a real file extension. Bare framework
-  #       sentinels like "/_next/", "/_next/data/", "/_next/image", and
-  #       "/static/" are inlined into Next.js's runtime for feature
-  #       detection; they are NOT deployment URLs that ever get navigated
-  #       to. Requiring a "*.ext" tail filters them out.
+  #       sentinels like "/_astro/" are inlined into runtimes for feature
+  #       detection; they are NOT deployment URLs. Requiring a "*.ext" tail
+  #       filters them out.
   #
   # We then extract just the matched URLs (-oh), uniq them, and drop any
   # whose value (after the boundary char) starts with the workspace prefix
   # — that would be a correct, prefix-respecting reference.
-  local asset_roots='_next|_astro|assets|pagefind'
+  local asset_roots='_astro|assets|pagefind'
   local asset_exts='js|mjs|cjs|css|map|json|wasm|woff2?|ttf|otf|eot|png|jpe?g|gif|svg|webp|avif|ico|mp4|webm|mp3|ogg|wav|pdf|xml|html?'
   local boundary="[\"'\\\`(,= >\\\\]"
   local asset_pat="${boundary}/(?:${asset_roots})/[^\"'\\\`<>\\\\\\s)\\}]*?\\.(?:${asset_exts})\\b"
@@ -237,7 +229,7 @@ audit_workspace() {
       | grep -Pv "^${prefix_no_trail}/" \
       | sort -u || true)
   fi
-  report_check "Embedded asset-root literals (/_next/, /assets/, …) under $prefix" "$escapes" ws_fail
+  report_check "Embedded asset-root literals (/_astro/, /assets/, …) under $prefix" "$escapes" ws_fail
 
   # ── #5 Manifest / sitemap / feed / pagefind ────────────────────
   # Any "/..." string (or url-style value) inside these structured files
@@ -320,27 +312,20 @@ audit_workspace() {
 }
 
 # ── Build phase ──────────────────────────────────
-section "Step 1/2: Build (panel package + 5 workspaces)"
+section "Step 1/2: Build (panel package + doc workspace)"
 
-# The next-example imports @takazudo/zudo-design-token-panel through the
-# package's `exports` map → ./dist/*. That dist is gitignored, so the panel
-# package must be built first or `next build` will fail to resolve it.
+# The doc workspace imports @takazudo/zudo-design-token-panel via tsconfig
+# paths pointing to src/, so a pre-build of the panel is not strictly
+# required for the doc build. However, building the panel first ensures
+# any type-only imports resolve correctly during the doc build.
 build_one "@takazudo/zudo-design-token-panel" "@takazudo/zudo-design-token-panel"
 
-build_one "doc"               "doc"
-build_one "astro-example"     "astro-example"
-build_one "vite-react-example" "vite-react-example"
-build_one "next-example"      "next-example"
-build_one "zfb-tailwind-example" "zfb-tailwind-example"
+build_one "doc" "doc"
 
 # ── Audit phase ──────────────────────────────────
 section "Step 2/2: Audit each emitted bundle"
 
-audit_workspace "doc"          "doc/dist"                      "/pj/zudo-design-token-panel/"
-audit_workspace "astro"        "examples/astro/dist"           "/pj/zudo-design-token-panel/examples/astro/"
-audit_workspace "vite-react"   "examples/vite-react/dist"      "/pj/zudo-design-token-panel/examples/vite-react/"
-audit_workspace "next"         "examples/next/out"             "/pj/zudo-design-token-panel/examples/next/"
-audit_workspace "zfb-tailwind" "examples/zfb-tailwind/dist"   "/pj/zudo-design-token-panel/examples/zfb-tailwind/"
+audit_workspace "doc" "doc/dist" "/pj/zudo-design-token-panel/"
 
 # ── Summary ──────────────────────────────────────
 END=$(date +%s)
