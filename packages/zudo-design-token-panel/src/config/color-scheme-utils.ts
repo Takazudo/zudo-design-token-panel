@@ -44,9 +44,10 @@ export const panelSettings = {
 /**
  * Default mapping: semantic token name → palette index.
  *
- * Mirrors the `--zd-semantic-*: var(--zd-pN)` declarations in the host
- * design-system tokens (example: examples/astro/.../tokens.css). Keep in
- * sync.
+ * Mirrors the `--zd-semantic-*: var(--zd-pN)` declarations a host
+ * design-system tokens file is expected to ship. See the external Astro
+ * example repo for a working integration:
+ * https://github.com/Takazudo/zudo-design-token-panel-example-astro
  */
 export const SEMANTIC_DEFAULTS_ZD: Record<string, number> = {
   bg: 9,
@@ -118,8 +119,9 @@ export const SEMANTIC_CSS_NAMES_SECONDARY: Record<string, string> = {
  * Semantic token name → CSS custom property in this package's example
  * design system.
  *
- * Source of truth: the example `tokens.css` shipped under
- * `examples/astro/...`.
+ * Source of truth: the `tokens.css` shipped by a host consumer. See the
+ * external Astro example repo for the canonical shape:
+ * https://github.com/Takazudo/zudo-design-token-panel-example-astro
  */
 export const SEMANTIC_CSS_NAMES: Record<string, string> = {
   bg: '--zd-semantic-bg',

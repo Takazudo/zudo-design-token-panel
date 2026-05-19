@@ -152,7 +152,7 @@ pnpm --filter doc dev
 
 ### Running the harness
 
-1. Start any example app (Astro example recommended): `pnpm --filter @takazudo/zudo-design-token-panel-astro-example dev`
+1. Start any example app from its sibling repo under `$HOME/repos/zdtp-ex/` (Astro example recommended): `cd $HOME/repos/zdtp-ex/zudo-design-token-panel-example-astro && pnpm dev`. The full list of external example repos is in [`doc/src/content/docs/internal/hostile-host.mdx`](../../doc/src/content/docs/internal/hostile-host.mdx).
 2. Paste the hostile `<style>` injection snippet from the harness page into DevTools console.
 3. Toggle the panel: `window.astro.toggleDesignPanel()`
 4. Exercise every tab and every modal.
@@ -164,45 +164,38 @@ None as of the Panel Hardening epic merge. The two `<pre>` blocks originally fou
 
 ## Cross-example cascade verification
 
-After merging changes that affect the tier model, manifest structure, or token namespace (e.g. #147/#148/#153 panel-hardening waves), run the following to confirm the changes cascade correctly across all five example apps.
+After merging changes that affect the tier model, manifest structure, or token namespace (e.g. #147/#148/#153 panel-hardening waves), confirm the changes cascade correctly across all five example consumer apps. The example apps now live in dedicated sibling repos — see §15 of `README.md` for the five repo URLs.
 
-### Static analysis (automated)
+### Static analysis (in this repo)
 
-`pnpm -F @takazudo/zudo-design-token-panel test --run` exercises `src/__tests__/manifest-cascade-verification.test.ts`, which asserts:
+`pnpm -F @takazudo/zudo-design-token-panel test --run` exercises `src/__tests__/manifest-cascade-verification.test.ts`, which asserts the panel-internal invariants:
 
-- **Invariant A** — no `group:` object-key in any example manifest (`TierItem.group` was removed in #148).
-- **Invariant B** — no `advancedTiers:` object-key in any example manifest (`TabConfig.advancedTiers` was removed in #148).
-- **Invariant C** — the zfb-tailwind Spacing tab has exactly 3 tiers (`spacing-scale` 4 items, `hsp-scale` 5 items, `vsp-scale` 7 items = 16 total), per the #153 Option A 3-tier structure.
-- **Invariant D** — the panel tabs source (`packages/zudo-design-token-panel/src/tabs/`) contains no `<h4`, `<details`, or `<summary` elements.
-- **Invariant E** — `examples/zfb-tailwind/styles/global.css` still declares all 16 spacing/hsp/vsp CSS variables and re-exports them as Tailwind theme tokens (`--spacing-*`).
+- **Invariant D** — the panel tabs and `components/color-picker/` source contain no `<h4`, `<details`, `<summary`, `<button`, or `<table` elements (the hostile-host policy above).
+- **Invariant F** — the panel CSS sources (`panel-tokens.css` and `panel.css`) do not read host `--color-*` or `--font-mono` vars, and declare their baked-in dark `--tokentweak-*` chrome tokens.
 
-The test uses `fs.readFileSync` on each manifest source file rather than dynamic import, to avoid a circular self-reference through the package's own `exports` map → `./dist/...` artifact.
+> **Historical note — Invariants A, B, C, E.** Earlier waves asserted Invariant A (`TierItem.group` removed in #148) and Invariant B (`TabConfig.advancedTiers` removed in #148) by grepping every example manifest source for those object-keys. After the panel types removed those fields, TypeScript at panel-compile time covers both. Invariant C (zfb-tailwind Spacing tab tier count) and Invariant E (`examples/zfb-tailwind/styles/global.css` re-exports spacing variables as Tailwind theme tokens) were exercised by reading example source files directly. After the Wave-2 example-move (epic #202) those files left this monorepo, so Invariants C and E are now exercised in the external [`zudo-design-token-panel-example-zfb-tailwind`](https://github.com/Takazudo/zudo-design-token-panel-example-zfb-tailwind) repo's own CI on each panel SHA bump.
 
-### Build + typecheck (all 5 examples)
+### Build + typecheck (panel + doc, in this repo)
 
 ```sh
-pnpm typecheck                          # 0 errors across all workspaces
-pnpm -F zfb-example build              # zfb Preact example
-pnpm -F zfb-tailwind-example build     # zfb-tailwind Preact + Tailwind example
-pnpm -F vite-react-example build       # Vite + React example
-pnpm -F astro-example build            # Astro example
-pnpm -F next-example build             # Next.js example
+pnpm typecheck    # 0 errors across the remaining workspaces (panel + doc)
+pnpm build        # builds the panel and the doc workspace
 ```
+
+For cross-example build verification, clone each external example repo under `$HOME/repos/zdtp-ex/` and run its own `pnpm build` (see `README.md` §15 for the five repos).
 
 ### Browser-cascade testing (deferred to manager)
 
-The static checks above cannot verify that CSS variable changes actually reach computed styles in the browser. After this PR lands, the manager should dispatch a one-shot agent with `/verify-ui` to:
+The static checks above cannot verify that CSS variable changes actually reach computed styles in the browser. After this PR lands, the manager should dispatch a one-shot agent with `/verify-ui` against each example repo's deployed live demo to:
 
-1. Open `examples/zfb-tailwind` in a browser and confirm the Spacing tab shows three sections (Spacing scale / Horizontal spacing / Vertical spacing).
+1. Open the `zfb-tailwind` example live demo and confirm the Spacing tab shows its expected sections (Horizontal spacing / Vertical spacing, post-#161).
 2. Tweak a spacing token in the panel and confirm the computed style of a consuming element updates (e.g. a `padding` using `var(--zfbtw-hsp-md)`).
 3. Check the Font, Color, Easing, and Size tabs for regressions in all five example apps.
 
-### CSS variable consumer map (zfb-tailwind, Option A)
+### CSS variable consumer map (zfb-tailwind, post-#161)
 
-`examples/zfb-tailwind/styles/global.css` is the bridge between raw panel tokens and Tailwind theme tokens. The three-step cascade for spacing is:
+The `zfb-tailwind` example's `styles/global.css` (now in the external example repo) is the bridge between raw panel tokens and Tailwind theme tokens. The three-step cascade for spacing is:
 
-1. Panel writes `--zfbtw-spacing-*` / `--zfbtw-hsp-*` / `--zfbtw-vsp-*` on `:root`.
-2. `global.css` re-exports these as `--spacing-spacing-*` / `--spacing-hsp-*` / `--spacing-vsp-*` (used by Tailwind v4 `@theme`).
+1. Panel writes `--zfbtw-hsp-*` and `--zfbtw-vsp-*` on `:root`.
+2. `global.css` re-exports these as `--spacing-hsp-*` and `--spacing-vsp-*` (used by Tailwind v4 `@theme`).
 3. Tailwind generates utility classes (`gap-hsp-md`, `px-hsp-sm`, etc.) from those theme tokens.
-
-#153 Option A only restructured the manifest tiers — it did not modify `global.css`, so step 2 and 3 remain intact.

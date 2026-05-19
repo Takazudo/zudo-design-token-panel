@@ -13,7 +13,7 @@ those tweaks back into the source CSS files on disk.
 The panel is a Preact island that mounts inside a host web app. The bin is a
 small local server that watches edits from the panel and persists them. It is
 designed to plug into modern host frameworks: Astro, Vite + React, Next.js,
-zfb, and zfb + Tailwind v4 — see the [Examples](/docs/getting-started/examples)
+zfb, and zfb + Tailwind v4 — see the [Examples](https://takazudomodular.com/pj/zudo-design-token-panel/getting-started/examples/)
 doc page for live demos and source links.
 
 ## Status
@@ -85,8 +85,13 @@ Run the doc dev server:
 pnpm dev
 ```
 
-Once the panel package and example apps land, `pnpm build`, `pnpm test`,
-`pnpm typecheck`, and `pnpm lint` will fan out across the workspace via
+The panel package lives in this repo under `packages/zudo-design-token-panel/`.
+The five example apps (Astro, Vite + React, Next.js, zfb, zfb + Tailwind v4)
+have moved out of this monorepo into dedicated sibling repos — see the
+[Examples](https://takazudomodular.com/pj/zudo-design-token-panel/getting-started/examples/)
+doc page for live demos and source links to each external repo. The root
+`pnpm build`, `pnpm test`, `pnpm typecheck`, and `pnpm lint` scripts fan out
+across the remaining workspaces (the panel package and the doc site) via
 `pnpm -r`.
 
 ## Verifying deploy sub-paths
@@ -112,12 +117,11 @@ greps the bundle for:
   Open Graph and Twitter Card `<meta content>`, …) pointing to a root-relative
   path outside the workspace prefix.
 - CSS `url(/...)` references outside the prefix.
-- Embedded JS / JSON / XML literals — including the inlined Next.js flight
-  chunks that get injected directly into HTML — that name an asset root such
-  as `/_next/`, `/_astro/`, `/assets/`, or `/pagefind/` without the workspace
-  prefix in front. This catches both bare leaks and wrong-subpath leaks (e.g.
-  `/pj/zudo-design-token-panel/_next/foo` appearing inside the next bundle, where the correct
-  form is `/pj/zudo-design-token-panel/next/_next/foo`).
+- Embedded JS / JSON / XML literals that name an asset root such as
+  `/_astro/`, `/assets/`, or `/pagefind/` without the workspace prefix in
+  front. This catches bare leaks like `/_astro/foo.js` appearing inside the
+  doc bundle, where the correct form is
+  `/pj/zudo-design-token-panel/_astro/foo.js`.
 - Manifest, sitemap, feed, and pagefind shard outputs (`*.webmanifest`,
   `manifest.json`, `sitemap*.xml`, `feed*.xml`, `pagefind-*.json`, …).
 - Source-map information disclosure: a `*.map` file embedding an absolute

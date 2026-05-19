@@ -51,7 +51,7 @@ A Preact-rendered side panel that:
 
 The package builds against Preact (declared as a `peerDependency`) and ships its own bundled CSS scoped under the `--tokentweak-*` namespace. **It does not require Tailwind** in the consumer; see §11.
 
-> Visual: a screenshot or short capture would go here. Skipped in the v1 README — a placeholder is worse than nothing. Run any of the example apps ((§15)15) to see the panel live.
+> Visual: a screenshot or short capture would go here. Skipped in the v1 README — a placeholder is worse than nothing. See the external example repos linked in §15 for live demos.
 
 ---
 
@@ -280,7 +280,7 @@ export const myPanelConfig: PanelConfig = {
 ```
 
 For a full worked color tab example (palette tier + semantic tier +
-`colorExtras`), see the example apps under [`examples/`](../../examples/).
+`colorExtras`), see the external example repos linked in §15.
 
 ### 4.1.2 Drop the host into your layout
 
@@ -352,13 +352,13 @@ For the regression-guard tests that pin this contract, see `package-exports.test
 
 The Astro recipe above shows the case where a host owns the config import and the host-adapter side-effect import. For non-Astro hosts (Vite SPA, Rust SSG, custom framework) the pattern is the same, just without Astro-specific syntax.
 
-**Worked example:** the example apps under [`examples/astro/`](../../examples/astro/), [`examples/vite-react/`](../../examples/vite-react/), and [`examples/next/`](../../examples/next/) prove the contract end-to-end. Each ships:
+**Worked example:** the [Astro](https://github.com/Takazudo/zudo-design-token-panel-example-astro), [Vite + React](https://github.com/Takazudo/zudo-design-token-panel-example-vite-react), and [Next.js](https://github.com/Takazudo/zudo-design-token-panel-example-nextjs) example repos prove the contract end-to-end. Each ships:
 
 - A host-side config file with deliberately different names (e.g. `--astro-palette-{n}`, `astro` namespace).
 - A routing JSON file at the example's root.
 - A bin invocation via `concurrently` in the dev script, pointing at that routing file.
 
-Copy the example's structure when porting the panel into a new host.
+Copy an example's structure when porting the panel into a new host.
 
 If you are building a **Rust SSG** or other non-Node host, the bin still runs as a sidecar Node.js subprocess (started by your host's build orchestration). The same routing JSON and host-adapter setup applies — the only difference is your host ships its own config format (not TypeScript) and you invoke the bin via your build system's subprocess spawner rather than npm scripts.
 
@@ -956,7 +956,7 @@ For the regression-guard tests that pin this contract, see `package-exports.test
 
 **Symptom:** after a panel-package change, you want to confirm the live-apply pipeline (storage → adapter → `:root`) is unbroken end-to-end.
 
-**Resolution:** the canonical regression test is each example app's `apply-roundtrip.spec.ts` Playwright spec under `examples/<framework>/tests/e2e/`. It boots the example's preview build, seeds a v2 state under the example's storage prefix, hard-reloads, and asserts the adapter rehydrated and applied the override against the example's palette and semantic CSS variable names. The contract: storage prefix, palette template, semantic CSS names — change one of those and this spec fails first.
+**Resolution:** the canonical regression test is each external example repo's `apply-roundtrip.spec.ts` Playwright spec under `tests/e2e/`. It boots the example's preview build, seeds a v2 state under the example's storage prefix, hard-reloads, and asserts the adapter rehydrated and applied the override against the example's palette and semantic CSS variable names. The contract: storage prefix, palette template, semantic CSS names — change one of those and this spec fails first. See §15 for links to the five external example repos.
 
 ---
 
@@ -1011,7 +1011,7 @@ This recipe walks through wiring the panel into a project that does not currentl
 
 7. **Run the live-apply e2e spec.**
 
-   Use any of the example apps' Playwright spec under `examples/<framework>/tests/e2e/apply-roundtrip.spec.ts` as a template: seed a `${storagePrefix}-state-v2` payload, hard-reload, assert your palette and semantic CSS variables on `:root` reflect the seeded values.
+   Use any of the external example repos' Playwright spec at `tests/e2e/apply-roundtrip.spec.ts` (see §15 for the five repo links) as a template: seed a `${storagePrefix}-state-v2` payload, hard-reload, assert your palette and semantic CSS variables on `:root` reflect the seeded values.
 
 For edge cases hit during the migration, see CONTRIBUTING and the doc-site reference pages for each `PanelConfig` field.
 
@@ -1019,22 +1019,23 @@ For edge cases hit during the migration, see CONTRIBUTING and the doc-site refer
 
 ## 15. Worked examples
 
-The canonical worked examples live under [`examples/`](../../examples/) at the repo root. Three independent consumer apps demonstrate the panel across different host frameworks:
+The canonical worked examples live in five dedicated sibling repos. Each is an independent consumer app that demonstrates the panel against a different host framework. Each renders a tiny page with cards, buttons, and palette swatches whose styles reference its own demo CSS variables, and each ships a Playwright spec at `tests/e2e/apply-roundtrip.spec.ts` that asserts the live-apply pipeline.
 
-- [`examples/astro/`](../../examples/astro/) — Astro + Preact island consumer. Uses `storagePrefix: 'astro-example-tokens'`, `consoleNamespace: 'astro'`, `paletteCssVarTemplate: '--astro-palette-{n}'`.
-- [`examples/vite-react/`](../../examples/vite-react/) — Vite + React consumer (panel mounted as a Preact island, React tree untouched). Uses the `vr` namespace.
-- [`examples/next/`](../../examples/next/) — Next.js (App Router) + React consumer, panel as a `'use client'` boundary. Uses the `nx` namespace.
+- [`zudo-design-token-panel-example-astro`](https://github.com/Takazudo/zudo-design-token-panel-example-astro) — Astro + Preact island. Uses `storagePrefix: 'astro-example-tokens'`, `consoleNamespace: 'astro'`, `paletteCssVarTemplate: '--astro-palette-{n}'`.
+- [`zudo-design-token-panel-example-vite-react`](https://github.com/Takazudo/zudo-design-token-panel-example-vite-react) — Vite + React (panel mounted as a Preact island, React tree untouched). Uses the `vr` namespace.
+- [`zudo-design-token-panel-example-nextjs`](https://github.com/Takazudo/zudo-design-token-panel-example-nextjs) — Next.js (App Router) + React, panel as a `'use client'` boundary. Uses the `nx` namespace.
+- [`zudo-design-token-panel-example-zfb`](https://github.com/Takazudo/zudo-design-token-panel-example-zfb) — [zfb](https://github.com/Takazudo/zudo-front-builder) (Preact host). Uses the `devMiddleware` plugin hook for the apply proxy.
+- [`zudo-design-token-panel-example-zfb-tailwind`](https://github.com/Takazudo/zudo-design-token-panel-example-zfb-tailwind) — zfb + Tailwind v4. Extends the zfb example by registering panel tokens into Tailwind's design-system namespaces via an `@theme` block.
 
-Each example renders a tiny page with cards, buttons, and palette swatches whose styles reference its own demo CSS variables, so panel tweaks update the page in real time. Each ships a Playwright spec at `tests/e2e/apply-roundtrip.spec.ts` that asserts the live-apply pipeline.
-
-To run any example locally:
+To run any example locally, clone the repo and follow its README — typically:
 
 ```sh
+git clone https://github.com/Takazudo/zudo-design-token-panel-example-astro.git
+cd zudo-design-token-panel-example-astro
 pnpm install
-pnpm --filter @takazudo/zudo-design-token-panel build
-pnpm --filter astro-example dev
-# open http://localhost:44324
-# in devtools console: window.astro.toggleDesignPanel()
+pnpm dev
+# open the printed dev URL
+# in devtools console: window.<consoleNamespace>.toggleDesignPanel()
 ```
 
 Use the closest example as a copy-paste template when wiring the panel into your own project — they are the smallest end-to-end consumers that exercise every contract surface.
