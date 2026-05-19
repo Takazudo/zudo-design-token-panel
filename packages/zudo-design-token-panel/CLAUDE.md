@@ -168,13 +168,12 @@ After merging changes that affect the tier model, manifest structure, or token n
 
 ### Static analysis (in this repo)
 
-`pnpm -F @takazudo/zudo-design-token-panel test --run` exercises `src/__tests__/manifest-cascade-verification.test.ts`, which currently asserts panel-internal invariants — see the test file for the up-to-date list. The in-repo invariants still in force:
+`pnpm -F @takazudo/zudo-design-token-panel test --run` exercises `src/__tests__/manifest-cascade-verification.test.ts`, which asserts the panel-internal invariants:
 
-- **Invariant A** — no `group:` object-key in panel-internal source (`TierItem.group` was removed in #148).
-- **Invariant B** — no `advancedTiers:` object-key in panel-internal source (`TabConfig.advancedTiers` was removed in #148).
-- **Invariant D** — the panel tabs source (`packages/zudo-design-token-panel/src/tabs/`) contains no `<h4`, `<details`, or `<summary` elements.
+- **Invariant D** — the panel tabs and `components/color-picker/` source contain no `<h4`, `<details`, `<summary`, `<button`, or `<table` elements (the hostile-host policy above).
+- **Invariant F** — the panel CSS sources (`panel-tokens.css` and `panel.css`) do not read host `--color-*` or `--font-mono` vars, and declare their baked-in dark `--tokentweak-*` chrome tokens.
 
-> **Historical note — Invariants C and E.** Earlier waves asserted Invariant C (zfb-tailwind Spacing tab tier count) and Invariant E (`examples/zfb-tailwind/styles/global.css` re-exports all spacing CSS variables as Tailwind theme tokens) by reading the example manifest and CSS source files directly from `examples/zfb-tailwind/...`. After the Wave-2 example-move (epic #202) those files left this monorepo, so Invariants C and E are now exercised in the external [`zudo-design-token-panel-example-zfb-tailwind`](https://github.com/Takazudo/zudo-design-token-panel-example-zfb-tailwind) repo's own CI on each panel SHA bump. The original static-analysis test in `manifest-cascade-verification.test.ts` may need a follow-up cleanup to drop the now-orphaned example-manifest assertions; tracked separately from the example-move PR.
+> **Historical note — Invariants A, B, C, E.** Earlier waves asserted Invariant A (`TierItem.group` removed in #148) and Invariant B (`TabConfig.advancedTiers` removed in #148) by grepping every example manifest source for those object-keys. After the panel types removed those fields, TypeScript at panel-compile time covers both. Invariant C (zfb-tailwind Spacing tab tier count) and Invariant E (`examples/zfb-tailwind/styles/global.css` re-exports spacing variables as Tailwind theme tokens) were exercised by reading example source files directly. After the Wave-2 example-move (epic #202) those files left this monorepo, so Invariants C and E are now exercised in the external [`zudo-design-token-panel-example-zfb-tailwind`](https://github.com/Takazudo/zudo-design-token-panel-example-zfb-tailwind) repo's own CI on each panel SHA bump.
 
 ### Build + typecheck (panel + doc, in this repo)
 
