@@ -1,7 +1,0 @@
-# Astro
-.astro/
-dist/
-
-# Playwright
-playwright-report/
-test-results/

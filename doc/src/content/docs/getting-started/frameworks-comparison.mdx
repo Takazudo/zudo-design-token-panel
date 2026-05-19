@@ -67,7 +67,7 @@ import { myPanelConfig } from '../lib/my-panel-config';
 </script>
 ```
 
-Worked example: [`examples/astro`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples/astro).
+Worked example: [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-astro).
 
 ## Vite + React
 
@@ -89,7 +89,7 @@ createRoot(document.getElementById('root')!).render(<App />);
 
 Open devtools, run `window.myapp.toggleDesignPanel()`, and the panel mounts.
 
-Worked example: [`examples/vite-react`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples/vite-react).
+Worked example: [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-vite-react).
 
 ## Next.js (App Router)
 
@@ -132,7 +132,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   `configurePanel(...)` is synchronous and idempotent at the same value. Calling it from `useEffect` avoids running it during a server render and lets you keep the install module otherwise inert. If you'd rather call it inline at module init, you can — just make sure the file is reachable only from the client bundle.
 </Note>
 
-Worked example: [`examples/next`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples/next).
+Worked example: [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-nextjs).
 
 ## zfb
 
@@ -148,7 +148,7 @@ import { defineConfig } from '@takazudo/zfb/config';
 
 export default defineConfig({
   framework: 'preact',
-  base: '/pj/zudo-design-token-panel/examples/zfb/',
+  base: '/',
   plugins: [
     { name: './plugins/dev-apply-proxy.mjs' },
   ],
@@ -162,7 +162,7 @@ export default {
   devMiddleware(app) {
     // Forward POST requests at the FULL base-prefixed path to the bin server.
     app.post(
-      '/pj/zudo-design-token-panel/examples/zfb/api/dev/apply',
+      '/api/dev/apply',
       proxyHandler,
     );
   },
@@ -172,12 +172,12 @@ export default {
 **Apply-endpoint URL is base-prefixed.** Unlike the other examples — which use the bare relative path `api/dev/apply` — the zfb demo must use the full base-prefixed URL:
 
 ```
-/pj/zudo-design-token-panel/examples/zfb/api/dev/apply
+/api/dev/apply
 ```
 
-After zfb fix [#229](https://github.com/Takazudo/zudo-front-builder/issues/229), `devMiddleware`-registered paths are scoped under `base`, so the bare path resolves to 405. This is a configuration requirement for this deployment, not a zfb bug. See [`examples/zfb/PROBE-REPORT.md`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples/zfb/PROBE-REPORT.md) for the full rationale.
+After zfb fix [#229](https://github.com/Takazudo/zudo-front-builder/issues/229), `devMiddleware`-registered paths are scoped under `base`, so the bare path resolves to 405. This is a configuration requirement for this deployment, not a zfb bug. See [`PROBE-REPORT.md`](https://github.com/Takazudo/zudo-design-token-panel-example-zfb/blob/main/PROBE-REPORT.md) for the full rationale.
 
-Worked example: [`examples/zfb`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples/zfb).
+Worked example: [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-zfb).
 
 ## zfb + Tailwind v4
 
@@ -197,10 +197,10 @@ With that `@theme` block in place, Tailwind utility classes and panel tokens sta
 The apply-endpoint URL follows the same base-prefixed pattern as the plain zfb example:
 
 ```
-/pj/zudo-design-token-panel/examples/zfb-tailwind/api/dev/apply
+/api/dev/apply
 ```
 
-Worked example: [`examples/zfb-tailwind`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples/zfb-tailwind).
+Worked example: [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-zfb-tailwind).
 
 ## Where to go next
 

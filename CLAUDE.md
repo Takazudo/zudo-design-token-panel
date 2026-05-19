@@ -30,15 +30,6 @@ The panel is embedded inside a host app. Any semantic HTML element whose default
 
 See `packages/zudo-design-token-panel/CLAUDE.md` for the full rule, exceptions, and SVG reset recipe.
 
-## Stale-dist workaround for workspace typecheck
-
-The package `@takazudo/zudo-design-token-panel` exposes types via the `exports` map pointing to `./dist/...`. Two pieces keep workspace typecheck honest without manual dist rebuilds:
-
-- **TypeScript `paths` in `examples/zfb`, `examples/zfb-tailwind`, `examples/astro`, `doc`** — these four are Preact-based, so they can resolve the package directly to its `src/` files via tsconfig `paths`. No dist round-trip needed.
-- **`pretypecheck` hook in root `package.json`** — runs `pnpm -F @takazudo/zudo-design-token-panel build` before `pnpm typecheck`. Catches the two React-based example apps (`examples/vite-react`, `examples/next`) that deliberately keep their own React runtime and must typecheck against the compiled `.d.ts` in dist.
-
-If you add a new example app, follow the same split: Preact-based → add to tsconfig `paths` and the `astro-shim.d.ts` include (for `/astro` subpath consumers); React-based → leave tsconfig alone and let the `pretypecheck` hook handle it.
-
 ## Worktree push policy (enforced)
 
 This repo uses `/x-wt-teams` for multi-topic development. Child agents work in git worktrees under `worktrees/`. **Pushing from a worktree is forbidden.** Only the manager session — running from the main repo at the repo root — pushes, after merging topic branches into the base branch locally.

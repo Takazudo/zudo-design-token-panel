@@ -1,6 +1,0 @@
-# zfb build output
-dist/
-.zfb/
-.zfb-build/
-# Generated tailwind entry file (build artifact from zfb binary)
-zfb-tailwind-entry-*.css
