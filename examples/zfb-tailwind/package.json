@@ -5,8 +5,9 @@
   "type": "module",
   "description": "zfb (zudo-front-builder) + Tailwind v4 example demonstrating @takazudo/zudo-design-token-panel — tokens registered via @theme block into Tailwind v4's design-system namespaces, showcase and prose pages styled with utility classes.",
   "scripts": {
+    "predev": "rm -rf dist .zfb .zfb-build",
     "dev": "lsof -ti:44328 | xargs kill -9 2>/dev/null || true; lsof -ti:24686 | xargs kill -9 2>/dev/null || true; concurrently -k -n zfb,tokens-bin -c blue,green \"pnpm run _dev:zfb\" \"pnpm run _dev:tokens-bin\"",
-    "_dev:zfb": "zfb dev",
+    "_dev:zfb": "zfb dev --port 44328",
     "_dev:tokens-bin": "design-token-panel-server --write-root . --routing scaffold.routing.json --port 24686 --allow-origin http://localhost:44328",
     "build": "zfb build",
     "preview": "zfb preview",

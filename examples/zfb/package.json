@@ -5,8 +5,9 @@
   "type": "module",
   "description": "zfb (zudo-front-builder) example app demonstrating @takazudo/zudo-design-token-panel — host-config-driven panel mounted as a Preact island via zfb's Island component, plus apply-pipeline round-trip via a devMiddleware plugin that proxies to the bin sidecar.",
   "scripts": {
+    "predev": "rm -rf dist .zfb .zfb-build zfb-tailwind-entry-*.css",
     "dev": "lsof -ti:44327 | xargs kill -9 2>/dev/null || true; lsof -ti:24685 | xargs kill -9 2>/dev/null || true; concurrently -k -n zfb,tokens-bin -c blue,green \"pnpm run _dev:zfb\" \"pnpm run _dev:tokens-bin\"",
-    "_dev:zfb": "zfb dev",
+    "_dev:zfb": "zfb dev --port 44327",
     "_dev:tokens-bin": "design-token-panel-server --write-root . --routing scaffold.routing.json --port 24685 --allow-origin http://localhost:44327",
     "build": "zfb build",
     "preview": "zfb preview",
