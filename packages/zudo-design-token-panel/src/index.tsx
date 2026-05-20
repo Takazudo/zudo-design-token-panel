@@ -348,15 +348,14 @@ export function showDesignTokenPanel(): void {
   // Fresh mount: panel.tsx's mount-effect picks up OPEN_KEY="1" and renders
   // open — no listener race because the listener doesn't run yet anyway.
   if (isFreshMount) return;
-  // Steady state: notify the mounted panel to re-read OPEN_KEY.
-  if (isPanelCurrentlyOpen() === false) {
-    // OPEN_KEY just changed; sync the panel.
-    notifyPanelOpenChanged();
-  }
-  // (If OPEN_KEY was already "1", panel is already open; nothing to do.)
-  // Note: we read `isPanelCurrentlyOpen` *after* the seed, so this only skips
-  // the notify when the panel state is already in sync — which is harmless
-  // either way because the sync event is idempotent.
+  // Steady state: always notify the mounted panel to re-read OPEN_KEY.
+  // `seedOpenStateBeforeMount(true)` already wrote OPEN_KEY='1' above, so a
+  // post-seed `isPanelCurrentlyOpen()` probe would *always* read "open" — it
+  // cannot distinguish "already open" from "just re-shown after a hide". The
+  // notify must therefore be unconditional (mirrors `hideDesignTokenPanel`).
+  // The sync event is idempotent: if the panel is genuinely already open the
+  // panel's `setOpen(true)` is a no-op via Preact's setState identity check.
+  notifyPanelOpenChanged();
 }
 
 export function hideDesignTokenPanel(): void {
