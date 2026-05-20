@@ -617,6 +617,13 @@ function _rgbStringToHex(color: string): string | null {
   return base6;
 }
 
+/** Serialize sRGB byte channels to hex — 8 digits when alpha < 255, else 6. */
+function _rgbaBytesToHex(r: number, g: number, b: number, a: number): string {
+  const hex2 = (n: number) => n.toString(16).padStart(2, '0');
+  const base6 = `#${hex2(r)}${hex2(g)}${hex2(b)}`;
+  return a < 255 ? `${base6}${hex2(a)}` : base6;
+}
+
 /** Convert any CSS color to hex using a canvas (cached context). */
 let _canvasCtx: CanvasRenderingContext2D | null = null;
 export function cssColorToHex(color: string): string {
@@ -640,10 +647,22 @@ export function cssColorToHex(color: string): string {
   try {
     if (!_canvasCtx) _canvasCtx = document.createElement('canvas').getContext('2d');
     if (!_canvasCtx) return '#000000';
+    // Read the resolved color from pixel data, NOT from the fillStyle string.
+    // Modern browsers round-trip CSS Color 4 inputs (oklch, oklab, lab, lch,
+    // color()) back through the fillStyle *getter* in their own syntax — e.g.
+    // `oklch(0.65 0.2 45)` — which matches neither the `#` branch nor the
+    // rgb() parser, so the old string-readback path collapsed every such
+    // color to '#000000'. Painting one pixel and sampling it via getImageData
+    // yields resolved sRGB bytes regardless of the getter's serialization.
+    // Seed fillStyle with a known value first: an invalid `trimmed` is
+    // silently ignored by the setter, so this makes invalid input resolve
+    // deterministically to black instead of leaking a prior cached color.
+    _canvasCtx.fillStyle = '#000000';
     _canvasCtx.fillStyle = trimmed;
-    const resolved = _canvasCtx.fillStyle;
-    if (resolved.startsWith('#')) return resolved;
-    return _rgbStringToHex(resolved) ?? '#000000';
+    _canvasCtx.clearRect(0, 0, 1, 1);
+    _canvasCtx.fillRect(0, 0, 1, 1);
+    const [r, g, b, a] = _canvasCtx.getImageData(0, 0, 1, 1).data;
+    return _rgbaBytesToHex(r, g, b, a);
   } catch {
     return '#000000';
   }

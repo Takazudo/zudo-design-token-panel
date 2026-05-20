@@ -1,12 +1,17 @@
 // @vitest-environment jsdom
 /**
- * Regression tests for cssColorToHex — specifically the JSDOM no-op fillStyle
- * case where the canvas 2D context silently ignores fillStyle assignments and
- * always returns '#000000'.
+ * Regression tests for cssColorToHex covering two distinct browser quirks:
  *
- * Finding 6: module-level cached canvas 2D context was broken in JSDOM because
- * the fillStyle setter is a no-op. We now feature-detect this at module load
- * and fall back to a manual rgb()/rgba() parser when the canvas is unreliable.
+ * 1. JSDOM no-op fillStyle — the canvas 2D context silently ignores fillStyle
+ *    assignments and always returns '#000000'. We feature-detect this at
+ *    module load and fall back to a manual rgb()/rgba() parser.
+ *
+ * 2. Modern-browser oklch round-trip — Chrome serializes a CSS Color 4 input
+ *    (oklch/oklab/lab/lch/color()) back through the fillStyle *getter* in its
+ *    own syntax (e.g. `oklch(0.65 0.2 45)`), not as hex. The old code read the
+ *    getter string and collapsed every such color to '#000000'. cssColorToHex
+ *    now samples the painted pixel via getImageData, so the getter format is
+ *    irrelevant — see issue #221.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
@@ -41,6 +46,89 @@ describe('cssColorToHex', () => {
       expect(cssColorToHex('initial')).toBe('#000000');
       expect(cssColorToHex('inherit')).toBe('#000000');
       expect(cssColorToHex('')).toBe('#000000');
+    });
+  });
+
+  describe('working canvas with oklch round-trip (modern-browser simulation)', () => {
+    // This mock reproduces modern Chrome: the fillStyle getter echoes the set
+    // value verbatim (so for oklch it is deliberately NOT hex), while
+    // getImageData returns the resolved sRGB bytes the browser would paint.
+    // An unknown string models an invalid CSS color — the real setter ignores
+    // it, leaving the previously-set value in place.
+
+    // Resolved sRGB bytes per color, verified against Chromium 148.
+    const RESOLVED: Record<string, [number, number, number, number]> = {
+      '#000000': [0, 0, 0, 255],
+      '#ffffff': [255, 255, 255, 255],
+      'oklch(17% 0.005 50)': [17, 15, 13, 255],
+      'oklch(65% 0.2 45)': [236, 90, 0, 255],
+      'oklch(100% 0 0)': [255, 255, 255, 255],
+      'oklch(65% 0.2 45 / 0.5)': [236, 90, 0, 128],
+    };
+
+    let originalGetContext: typeof HTMLCanvasElement.prototype.getContext;
+
+    beforeEach(() => {
+      originalGetContext = HTMLCanvasElement.prototype.getContext;
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        function (this: HTMLCanvasElement, type: string, ...args: unknown[]): any {
+          if (type !== '2d') {
+            return (originalGetContext as (...a: unknown[]) => unknown).call(this, type, ...args);
+          }
+          let fillStyle = '#000000';
+          const fakeCtx = {
+            get fillStyle() {
+              return fillStyle;
+            },
+            set fillStyle(v: string) {
+              // Only known colors are "valid"; an unknown string is ignored,
+              // mirroring the browser's silent rejection of invalid colors.
+              if (v in RESOLVED) fillStyle = v;
+            },
+            clearRect() {},
+            fillRect() {},
+            getImageData() {
+              const [r, g, b, a] = RESOLVED[fillStyle] ?? [0, 0, 0, 255];
+              return { data: new Uint8ClampedArray([r, g, b, a]) };
+            },
+          };
+          return fakeCtx as unknown as CanvasRenderingContext2D;
+        } as typeof HTMLCanvasElement.prototype.getContext,
+      );
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('resolves an oklch() color to hex via pixel sampling', async () => {
+      vi.resetModules();
+      const { cssColorToHex } = await import('../state/tweak-state');
+      expect(cssColorToHex('oklch(17% 0.005 50)')).toBe('#110f0d');
+      expect(cssColorToHex('oklch(65% 0.2 45)')).toBe('#ec5a00');
+      expect(cssColorToHex('oklch(100% 0 0)')).toBe('#ffffff');
+    });
+
+    it('preserves alpha < 1 from an oklch() color as 8-digit hex', async () => {
+      vi.resetModules();
+      const { cssColorToHex } = await import('../state/tweak-state');
+      expect(cssColorToHex('oklch(65% 0.2 45 / 0.5)')).toBe('#ec5a0080');
+    });
+
+    it('returns #000000 for an unparseable color the setter ignores', async () => {
+      vi.resetModules();
+      const { cssColorToHex } = await import('../state/tweak-state');
+      expect(cssColorToHex('definitely-not-a-color')).toBe('#000000');
+    });
+
+    it('does not depend on the fillStyle getter returning hex', async () => {
+      // Proves the mock echoes a non-hex string back — the new code path
+      // ignores the getter entirely and reads pixel data instead.
+      const ctx = document.createElement('canvas').getContext('2d')!;
+      ctx.fillStyle = 'oklch(65% 0.2 45)';
+      expect(ctx.fillStyle).toBe('oklch(65% 0.2 45)');
+      expect(ctx.fillStyle.startsWith('#')).toBe(false);
     });
   });
 
