@@ -36,9 +36,18 @@
 
 import { render } from 'preact';
 import DesignTokenTweakPanel from './panel';
-// Side-effect import: bundles panel chrome CSS + panel-private CSS variables
-// so the package is visually self-contained for any consumer.
+// Side-effect import: kept so `vite build` keeps co-emitting
+// `dist/zudo-design-token-panel.css` and the `./styles` / `./styles.css`
+// package exports stay valid for backward compatibility. Vite library mode
+// strips this import from the emitted `dist/index.js`, so it does NOT load
+// the CSS at runtime — runtime styling comes from the `?inline` import below.
 import './styles/panel.css';
+// `?inline` import: the same stylesheet as a JS string. Unlike the side-effect
+// import above, an `?inline` import is NOT stripped by Vite library mode — it
+// survives as a string constant in `dist/index.js`. `ensurePanelStyles()`
+// injects it as a <style> element when the panel first mounts, so the package
+// is visually self-contained and consumers need no separate CSS import.
+import panelCss from './styles/panel.css?inline';
 import {
   applyFullState,
   getOpenKey,
@@ -208,6 +217,29 @@ function findRoot(): HTMLElement | null {
   return document.getElementById(getPanelId());
 }
 
+// Stable id for the injected <style> element so injection is idempotent
+// across re-mounts (astro:page-load re-materialises the shell) and across
+// multiple panel instances on one page (they share one storagePrefix-keyed
+// stylesheet — the chrome CSS is identical regardless of config).
+const PANEL_STYLE_ELEMENT_ID = 'zudo-design-token-panel-styles';
+
+/**
+ * Inject the panel's bundled stylesheet into `document.head` once.
+ *
+ * Called from `ensureMounted()` so the CSS loads exactly when the panel first
+ * opens — never on pages where the panel is never opened. The package is thus
+ * visually self-contained: consumers do not need to import `./styles`
+ * themselves (that export remains valid but is now optional).
+ */
+function ensurePanelStyles(): void {
+  if (typeof document === 'undefined') return;
+  if (document.getElementById(PANEL_STYLE_ELEMENT_ID)) return;
+  const style = document.createElement('style');
+  style.id = PANEL_STYLE_ELEMENT_ID;
+  style.textContent = panelCss;
+  document.head.appendChild(style);
+}
+
 /**
  * Idempotently mount the Preact shell. Returns `true` only on a fresh mount.
  *
@@ -220,6 +252,7 @@ function ensureMounted(): boolean {
   if (typeof document === 'undefined') return false;
   const panelId = getPanelId();
   if (document.getElementById(panelId)) return false;
+  ensurePanelStyles();
   const root = document.createElement('div');
   root.id = panelId;
   document.body.appendChild(root);

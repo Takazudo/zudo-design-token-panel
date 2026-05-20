@@ -87,9 +87,9 @@ The package's `package.json` declares the following peer:
   The panel's CSS is self-contained. It ships its own bundled stylesheet under the panel-private `--tokentweak-*` namespace. **Tailwind is not required in your project** to consume the panel.
 </Info>
 
-<Warning title="Don't skip the styles import">
-  After installing, you must add `import '@takazudo/zudo-design-token-panel/styles';` to your static module graph (typically next to where you mount the host component). Vite's library mode strips the package-internal CSS imports from the emitted JS, so the consumer side has to pull the bundled stylesheet in explicitly. If you forget, the panel JS still runs but every chrome rule is missing — the panel paints invisibly against the host page background.
-</Warning>
+<Info title="No styles import needed">
+  The panel injects its own stylesheet at runtime — when the panel first opens it appends a `<style>` element carrying the bundled CSS. You do **not** need to import the CSS yourself. The `@takazudo/zudo-design-token-panel/styles` (and `/styles.css`) export still resolves to the bundled stylesheet and remains available if you prefer to pull the CSS into your own stylesheet pipeline, but it is now optional.
+</Info>
 
 ## Next step
 
