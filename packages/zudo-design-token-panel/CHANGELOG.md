@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Fixed (panel renders unstyled without a consumer CSS import — [#219](https://github.com/Takazudo/zudo-design-token-panel/issues/219))
+
+- **Self-injected stylesheet** — the panel now injects its own bundled CSS as a
+  `<style>` element on first mount (`ensurePanelStyles()` in `src/index.tsx`).
+  Previously the panel painted unstyled unless the consumer manually added
+  `import '@takazudo/zudo-design-token-panel/styles'` to its static module
+  graph — Vite library mode strips the package-internal CSS side-effect import
+  from `dist/index.js`, so the emitted JS never loaded its own CSS. The CSS is
+  now also imported via `?inline` (a string constant that survives library-mode
+  bundling) and injected at runtime. Because injection happens in
+  `ensureMounted()`, the CSS loads exactly when the panel first opens — no eager
+  cost on pages where the panel is never used. The `./styles` / `./styles.css`
+  exports still resolve (the standalone `dist/zudo-design-token-panel.css` is
+  still emitted) and remain valid but optional; the install doc's "Don't skip
+  the styles import" warning is downgraded accordingly. Public API unchanged.
+
 ### Fixed (panel-singleton & first-toggle bugfixes — [#108](https://github.com/Takazudo/zudo-design-token-panel/issues/108), root PR [#113](https://github.com/Takazudo/zudo-design-token-panel/pull/113))
 
 - **Cross-instance singleton sharing** — configuration singletons (`configuredConfig`,
