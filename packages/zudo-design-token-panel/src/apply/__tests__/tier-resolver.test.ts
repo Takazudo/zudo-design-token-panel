@@ -176,9 +176,9 @@ describe('resolveTierItemValue — unknown ref id fallback', () => {
     expect(result).toEqual({ kind: 'ref', targetCssVar: '--zfb-easing-ease-in' });
   });
 
-  it('falls back to matching itemId in target tier when it exists', () => {
-    // 'ease-in' exists in raw tier, and tab has an item 'ease-in' in semantic
-    // Let's test with a tab where the fallback-by-id succeeds
+  it('falls back to matching itemId in target tier when it exists (item.default not in ref tier)', () => {
+    // item.default is 'totally-unknown-default' (not in raw tier) so item.default path skips.
+    // itemId is 'ease-in' which IS in the raw tier → itemId path picks it up.
     const tabWithMatchingFallback: TabConfig = {
       id: 'test',
       label: 'Test',
@@ -196,16 +196,103 @@ describe('resolveTierItemValue — unknown ref id fallback', () => {
           label: 'Semantic',
           referencesTier: 'raw',
           items: [
-            // id matches an existing raw item — so fallback-by-id picks it up
-            rawItem('ease-in', '--semantic-ease-in', 'ease-in'),
+            // id matches an existing raw item, but default does NOT → itemId fallback fires
+            rawItem('ease-in', '--semantic-ease-in', 'totally-unknown-default'),
           ],
         },
       ],
     };
     const overrides: TabOverrides = { semantic: { 'ease-in': 'totally-unknown' } };
     const result = resolveTierItemValue(tabWithMatchingFallback, 'semantic', 'ease-in', overrides);
-    // 'totally-unknown' not in raw; fallback to matching id 'ease-in' in raw → --raw-ease-in
+    // item.default 'totally-unknown-default' not in raw; itemId 'ease-in' IS in raw → --raw-ease-in
     expect(result).toEqual({ kind: 'ref', targetCssVar: '--raw-ease-in' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4b. item.default honored before itemId and items[0] in fallback chain
+// ---------------------------------------------------------------------------
+
+describe('resolveTierItemValue — item.default fallback precedence', () => {
+  it('resolves to item.default ref-tier match before itemId match and items[0] (all three candidates differ)', () => {
+    // Fixture layout:
+    //   ref-tier items (scale): nx-scale-xs (A), nx-scale-sm (B), nx-scale-md (C)  ← 3 distinct entries
+    //   semantic item id: nx-scale-sm (B would match via itemId fallback)
+    //   semantic item.default: nx-scale-md (C — the declared scale)
+    //   override: an unknown id → triggers the fallback chain
+    //
+    // Expected: fallback resolves to C (nx-scale-md) via item.default,
+    //           NOT B (itemId match) and NOT A (items[0]).
+    const tab: TabConfig = {
+      id: 'spacing',
+      label: 'Spacing',
+      tiers: [
+        {
+          id: 'scale',
+          label: 'Scale',
+          items: [
+            rawItem('nx-scale-xs', '--nx-scale-xs', '0.25rem'),  // items[0] — should NOT win
+            rawItem('nx-scale-sm', '--nx-scale-sm', '0.5rem'),   // itemId match — should NOT win
+            rawItem('nx-scale-md', '--nx-scale-md', '1rem'),     // item.default — SHOULD win
+          ],
+        },
+        {
+          id: 'semantic',
+          label: 'Semantic',
+          referencesTier: 'scale',
+          items: [
+            // id='nx-scale-sm' → itemId match would find nx-scale-sm (B)
+            // default='nx-scale-md' → item.default match should find nx-scale-md (C) first
+            rawItem('nx-scale-sm', '--nx-semantic-gap', 'nx-scale-md'),
+          ],
+        },
+      ],
+    };
+
+    // Override points at a non-existent id to trigger the fallback chain
+    const overrides: TabOverrides = { semantic: { 'nx-scale-sm': 'nonexistent-override' } };
+    const result = resolveTierItemValue(tab, 'semantic', 'nx-scale-sm', overrides);
+
+    // item.default='nx-scale-md' exists in scale tier → resolves to --nx-scale-md (C)
+    // Must NOT resolve to --nx-scale-xs (A / items[0]) or --nx-scale-sm (B / itemId match)
+    expect(result).toEqual({ kind: 'ref', targetCssVar: '--nx-scale-md' });
+  });
+
+  it('item.default is honored even when no override is provided (no-override path also triggers fallback)', () => {
+    // When there is no override, refItemId = itemId ('nx-scale-sm' is not in scale tier? No it is).
+    // This test verifies the no-override path: refItemId = itemId directly, refItem found → no fallback needed.
+    // So use an item whose id does NOT exist in the ref tier, making the fallback always fire.
+    const tab: TabConfig = {
+      id: 'spacing',
+      label: 'Spacing',
+      tiers: [
+        {
+          id: 'scale',
+          label: 'Scale',
+          items: [
+            rawItem('nx-scale-xs', '--nx-scale-xs', '0.25rem'),  // items[0]
+            rawItem('nx-scale-md', '--nx-scale-md', '1rem'),     // item.default target
+          ],
+        },
+        {
+          id: 'semantic',
+          label: 'Semantic',
+          referencesTier: 'scale',
+          items: [
+            // id='gap-base' — does NOT exist in scale tier (no itemId match possible)
+            // default='nx-scale-md' → item.default must pick up nx-scale-md
+            rawItem('gap-base', '--nx-semantic-gap-base', 'nx-scale-md'),
+          ],
+        },
+      ],
+    };
+
+    const result = resolveTierItemValue(tab, 'semantic', 'gap-base', {});
+
+    // refItemId = 'gap-base' (no override), not in scale tier → fallback fires
+    // item.default='nx-scale-md' IS in scale tier → resolves to --nx-scale-md
+    // NOT --nx-scale-xs (items[0])
+    expect(result).toEqual({ kind: 'ref', targetCssVar: '--nx-scale-md' });
   });
 });
 
