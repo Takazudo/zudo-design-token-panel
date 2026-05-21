@@ -232,3 +232,60 @@ describe('routeTokensToFiles — host-supplied routing', () => {
     expect(result.rejectedReasons[0]).toMatch(/no applyRouting configured/);
   });
 });
+
+describe('routeTokensToFiles — hasRoutableEntries for non-color-only payloads (#263)', () => {
+  // Verify the Apply-button gate contract: `hasRoutableEntries > 0` iff
+  // at least one group is non-empty. This covers the case where only
+  // non-color tokens (spacing, typography, size/radius) are tweaked.
+
+  it('hasRoutableEntries > 0 for a spacing-only payload when routing covers its prefix', () => {
+    // Simulates a host whose spacing tokens use the `zd-spacing` prefix family
+    // mapped to a single CSS file.
+    const routing = { 'zd-spacing': 'src/styles/spacing.css' };
+    const result = routeTokensToFiles(
+      { '--zd-spacing-hgap-md': '24px', '--zd-spacing-vgap-sm': '8px' },
+      routing,
+    );
+    expect(result.groups.length).toBeGreaterThan(0);
+    expect(result.rejected).toEqual([]);
+    expect(result.groups[0].tokens).toEqual({
+      '--zd-spacing-hgap-md': '24px',
+      '--zd-spacing-vgap-sm': '8px',
+    });
+  });
+
+  it('hasRoutableEntries > 0 for a typography-only payload when routing covers its prefix', () => {
+    const routing = { 'zd-font': 'src/styles/typography.css' };
+    const result = routeTokensToFiles(
+      { '--zd-font-base-size': '1.6rem' },
+      routing,
+    );
+    expect(result.groups.length).toBeGreaterThan(0);
+    expect(result.rejected).toEqual([]);
+  });
+
+  it('hasRoutableEntries > 0 for a size/radius-only payload when routing covers its prefix', () => {
+    const routing = { radius: 'src/styles/radius.css' };
+    const result = routeTokensToFiles(
+      { '--radius-lg': '12px', '--radius-sm': '2px' },
+      routing,
+    );
+    expect(result.groups.length).toBeGreaterThan(0);
+    expect(result.rejected).toEqual([]);
+    expect(result.groups[0].tokens).toEqual({
+      '--radius-lg': '12px',
+      '--radius-sm': '2px',
+    });
+  });
+
+  it('non-color tokens land in rejected when host routing does not cover their prefix', () => {
+    // Host only configured routing for colors; non-color prefixes are unknown.
+    const routing = { zd: 'src/styles/colors.css' };
+    const result = routeTokensToFiles(
+      { '--radius-lg': '12px' },
+      routing,
+    );
+    expect(result.groups).toEqual([]);
+    expect(result.rejected).toEqual(['--radius-lg']);
+  });
+});
