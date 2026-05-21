@@ -1228,3 +1228,25 @@
   outline-offset: 2px;
   border-radius: 2px;
 }
+
+/* ===========================================================================
+ * Highlight overlay (#228)
+ *
+ * One <div class="tokenpanel-highlight-overlay"> per highlighted host element.
+ * Positioned via position:fixed inline styles computed from
+ * getBoundingClientRect() — kept up-to-date by a RAF loop in the component.
+ * All load-bearing visual properties (top/left/width/height, outline,
+ * box-shadow, z-index) are applied as inline styles by the component.
+ * This class only supplies defensive hostile-host resets so host global
+ * CSS (e.g. * { margin: … }) cannot corrupt the overlay geometry.
+ * ========================================================================= */
+
+.tokenpanel-highlight-overlay {
+  /* Defensive resets — prevent host global * {} rules from adding
+     margin/padding/border that would shift the overlay off the target. */
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  display: block;
+}
