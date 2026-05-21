@@ -20,6 +20,7 @@
  *   - shuts down gracefully on SIGINT/SIGTERM
  */
 
+import { realpathSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { resolve } from 'node:path';
 import { createApplyHandler, loadRoutingFromFile } from '../server';
@@ -330,7 +331,11 @@ const invokedDirectly = (() => {
   if (typeof process.argv[1] !== 'string') return false;
   try {
     // Node ESM doesn't expose `require.main === module`; compare resolved URLs.
-    const argvUrl = new URL(`file://${resolve(process.argv[1])}`).href;
+    // realpathSync de-references the pnpm `.bin/...` symlink so the comparison
+    // against `import.meta.url` (which is the real path) matches when the bin
+    // is invoked through `node_modules/.bin/design-token-panel-server`.
+    const real = realpathSync(process.argv[1]);
+    const argvUrl = new URL(`file://${resolve(real)}`).href;
     const metaUrl = import.meta.url;
     return argvUrl === metaUrl;
   } catch {

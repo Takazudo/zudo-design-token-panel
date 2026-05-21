@@ -13,7 +13,14 @@
  * fixed port to provoke the collision.
  */
 import { spawn, type ChildProcessByStdio } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import type { Readable } from 'node:stream';
@@ -312,6 +319,72 @@ describe('design-token-panel-server bin (integration)', () => {
     expect(typeof body.writeRoot).toBe('string');
     expect(typeof body.routing).toBe('string');
     expect(typeof body.port).toBe('number');
+  }, 10_000);
+
+  /**
+   * Regression test for #257: pnpm symlinks the panel package into
+   * `node_modules/@takazudo/zudo-design-token-panel/` (pointing to a
+   * `.pnpm/...` real path), so `process.argv[1]` is the symlink path while
+   * `import.meta.url` is the resolved real path. Without realpathSync on the
+   * argv side, the `invokedDirectly` URL comparison was always false and
+   * `main()` never ran — the bin exited cleanly with code 0 and no output.
+   */
+  it('invoked via a symlink (pnpm .bin shape) still binds and serves', async () => {
+    const fix = makeTmpFixture();
+    cleanupTasks.push(() => rmSync(fix.dir, { recursive: true, force: true }));
+
+    const linkPath = join(fix.dir, 'server-link.js');
+    symlinkSync(BIN_PATH, linkPath);
+
+    const child = spawn(
+      'node',
+      [
+        linkPath,
+        '--root',
+        fix.dir,
+        '--write-root',
+        fix.dir,
+        '--routing',
+        fix.routingPath,
+        '--port',
+        '0',
+        '--allow-origin',
+        'http://localhost:9999',
+      ],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    cleanupTasks.push(() => killBin(child));
+
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    let exited = false;
+    child.stdout!.setEncoding('utf-8');
+    child.stderr!.setEncoding('utf-8');
+    child.stdout!.on('data', (chunk: string) => stdout.push(chunk));
+    child.stderr!.on('data', (chunk: string) => stderr.push(chunk));
+    child.on('exit', () => {
+      exited = true;
+    });
+
+    let port = -1;
+    await waitFor(
+      () => {
+        if (exited) return true;
+        const match = stdout.join('').match(STARTUP_LINE_RE);
+        if (match) {
+          port = Number(match[1]);
+          return true;
+        }
+        return false;
+      },
+      { timeout: 5000, label: 'symlink-invoked bin startup' },
+    );
+
+    expect(child.exitCode, `bin exited prematurely. stdout: ${stdout.join('')} stderr: ${stderr.join('')}`).toBeNull();
+    expect(port).toBeGreaterThan(0);
+
+    const response = await fetch(`http://127.0.0.1:${port}/healthz`);
+    expect(response.status).toBe(200);
   }, 10_000);
 
   it('a second bin on the same fixed port exits 1 with EADDRINUSE on stderr', async () => {
