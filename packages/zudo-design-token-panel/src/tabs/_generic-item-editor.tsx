@@ -11,6 +11,7 @@
 
 import { memo, useCallback, useEffect, useRef, useState } from 'preact/compat';
 import type { TierItem, TierValueKind } from '../tokens/tier-model';
+import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
 
 export interface GenericItemEditorProps {
   item: TierItem;
@@ -93,6 +94,7 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
               />
               {unit && <span className="tokenpanel-row-unit">{unit}</span>}
             </div>
+            <HighlightToggleButton cssVar={item.cssVar} />
           </div>
           <input
             type="range"
@@ -157,6 +159,7 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
               </option>
             ))}
           </select>
+          <HighlightToggleButton cssVar={item.cssVar} />
         </div>
       );
     }
@@ -185,6 +188,7 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
             autoCorrect="off"
             autoComplete="off"
           />
+          <HighlightToggleButton cssVar={item.cssVar} />
         </div>
       );
     }
@@ -209,6 +213,7 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
             className="tokenpanel-row-color-input"
             aria-label={`${item.cssVar} value`}
           />
+          <HighlightToggleButton cssVar={item.cssVar} />
         </div>
       );
     }
