@@ -55,7 +55,7 @@ export function HighlightSettingsPopover({
   // Graceful null guard: no context = no popover.
   if (!ctx) return null;
 
-  const { state, setSlot, reset } = ctx;
+  const { state, setSlot, reset, disableAll } = ctx;
 
   // Build reverse map: slotIndex → cssVar (first match wins).
   const slotToCssVar: Record<number, string> = {};
@@ -161,6 +161,12 @@ export function HighlightSettingsPopover({
 
       {/* Footer */}
       <div className="tokenpanel-highlight-settings-footer">
+        <RoleButton
+          onClick={() => disableAll && disableAll()}
+          className="tokenpanel-highlight-settings-reset-btn"
+        >
+          Disable all highlights
+        </RoleButton>
         <RoleButton
           onClick={() => reset && reset()}
           className="tokenpanel-highlight-settings-reset-btn"
