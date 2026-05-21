@@ -587,7 +587,23 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
     }
   }
 
-  // Rule: referencesTier integrity — named tier exists and kinds are compatible
+  // Rule: referencesTier integrity — the named tier must exist in the same tab.
+  //
+  // Note: we deliberately do NOT enforce inter-tier kind compatibility between a
+  // referencing tier and its referenced tier (issue #245). At runtime the
+  // referencing tier's items are id-string references; the tier resolver
+  // (`apply/tier-resolver.ts`) does not inspect `TierItem.type.kind` for them,
+  // and the panel UI (`tabs/generic-tab.tsx`, `tabs/font-tab.tsx`, etc.) routes
+  // every ref-tier item to `TierRefSelector` regardless of `kind`. Demos
+  // therefore legitimately encode ref-tier items as `kind: 'text'` even when
+  // the referenced tier holds (say) `kind: 'length'` values — the stored value
+  // is an identifier string, which is textual. Enforcing a strict kind match
+  // here used to crash host-adapter bootstrap on every demo's Font tab even
+  // though the runtime would have rendered the page correctly.
+  //
+  // The intra-tier rule above ("all items in one tier share a kind") still
+  // catches real encoding bugs and is backed by editor-dispatch behaviour.
+  void tierKindMap; // kept for future use; intra-tier check populates it
   for (const tier of tab.tiers) {
     const ti = tier as Record<string, unknown>;
     const tierId = ti.id as string;
@@ -602,18 +618,6 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
       if (!tierIds.has(refId)) {
         throw new Error(
           `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].referencesTier: tier "${refId}" does not exist in this tab`,
-        );
-      }
-      // Rule: kind compatibility — the referencing tier's items' kind must match the referenced tier's items' kind
-      const referencingKind = tierKindMap.get(tierId);
-      const referencedKind = tierKindMap.get(refId);
-      if (
-        referencingKind !== undefined &&
-        referencedKind !== undefined &&
-        referencingKind !== referencedKind
-      ) {
-        throw new Error(
-          `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].referencesTier: kind mismatch — tier "${tierId}" has kind "${referencingKind}" but referenced tier "${refId}" has kind "${referencedKind}"`,
         );
       }
     }
