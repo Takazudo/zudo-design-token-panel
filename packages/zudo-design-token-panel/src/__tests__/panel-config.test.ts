@@ -545,9 +545,19 @@ describe('panel-config — assertValidPanelConfig host-tabs validation', () => {
   });
 
   // Rule: referencesTier kind compatibility ----------------------------------
+  //
+  // The inter-tier kind-compat check was removed in issue #245. Ref-tier
+  // items are id-string references; the resolver does not inspect kind and
+  // the UI routes them to TierRefSelector regardless. See
+  // panel-config-ref-tier-kind.test.ts for the rationale and the
+  // accepts-this-pattern coverage.
 
-  it('rejects referencesTier when kinds are incompatible (color vs length)', () => {
-    const tabKindMismatch: TabConfig = {
+  it('accepts referencesTier when kinds DIFFER (semantic kind:color references raw kind:length)', () => {
+    // Previously threw "kind mismatch". The rule was over-strict — runtime
+    // ignores ref-tier item kinds. Demos legitimately encode font.semantic
+    // items as `kind: 'text'` while referencing font.raw items of
+    // `kind: 'length'` (the stored value is an id string, which is textual).
+    const tabKindDiffer: TabConfig = {
       id: 'mismatch-tab',
       label: 'Mismatch Tab',
       tiers: [
@@ -567,7 +577,7 @@ describe('panel-config — assertValidPanelConfig host-tabs validation', () => {
         {
           id: 'semantic-colors',
           label: 'Semantic colors',
-          referencesTier: 'raw-lengths', // kind mismatch: color vs length
+          referencesTier: 'raw-lengths',
           items: [
             {
               id: 'primary',
@@ -581,8 +591,8 @@ describe('panel-config — assertValidPanelConfig host-tabs validation', () => {
       ],
     };
     expect(() =>
-      assertValidPanelConfig(makeBaseConfig({ tabs: [tabKindMismatch] })),
-    ).toThrow(/kind mismatch/);
+      assertValidPanelConfig(makeBaseConfig({ tabs: [tabKindDiffer] })),
+    ).not.toThrow();
   });
 
   it('accepts referencesTier when kinds are compatible (text-to-text)', () => {
