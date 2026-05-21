@@ -45,6 +45,7 @@ import { getPanelConfig } from '../config/panel-config';
 import { resolveColorClusterFromTab } from '../config/cluster-config';
 import type { TabConfig } from '../tokens/tier-model';
 import type { PersistColor, PersistSecondary } from '../state/persist';
+import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
 
 // The bundled scheme registry now lives on
 // `panelConfig.colorCluster.colorSchemes`, not on a global import. Read it
@@ -149,11 +150,15 @@ const ColorSwatch = memo(function ColorSwatch({
   onChange,
   index,
   label,
+  cssVar,
 }: {
   color: string;
   onChange: (index: number, hex: string) => void;
   index: number;
   label: string;
+  /** CSS custom property name (e.g. `--zd-p3`) used to wire the eye toggle.
+   *  When present, a HighlightToggleButton appears in the swatch label row. */
+  cssVar?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const buttonRef = useRef<HTMLDivElement>(null);
@@ -192,9 +197,12 @@ const ColorSwatch = memo(function ColorSwatch({
           anchorRef={buttonRef}
         />
       )}
-      <span className="tokenpanel-color-swatch-label" title={label}>
-        {label}
-      </span>
+      <div className="tokenpanel-color-swatch-label-row">
+        <span className="tokenpanel-color-swatch-label" title={label}>
+          {label}
+        </span>
+        {cssVar && <HighlightToggleButton cssVar={cssVar} />}
+      </div>
     </div>
   );
 });
@@ -217,6 +225,7 @@ const PaletteSelector = memo(function PaletteSelector({
   extraOptions,
   background,
   foreground,
+  cssVar,
 }: {
   label: string;
   /** Stable identifier for this row, passed back to `onChange` so the
@@ -236,6 +245,10 @@ const PaletteSelector = memo(function PaletteSelector({
   extraOptions?: ('bg' | 'fg')[];
   background?: string;
   foreground?: string;
+  /** CSS custom property this row maps to (e.g. `--fixture-semantic-accent`).
+   *  Omit for rows that have no real cssVar in the document (e.g. `background`,
+   *  `foreground` Base knobs which are panel-internal palette indices). */
+  cssVar?: string;
 }) {
   const resolvePaletteCssVar = paletteCssVar ?? ((i: number) => `--zd-p${i}`);
   const [isOpen, setIsOpen] = useState(false);
@@ -298,6 +311,8 @@ const PaletteSelector = memo(function PaletteSelector({
           <path d="M6 9l6 6 6-6" />
         </svg>
       </div>
+
+      {cssVar && <HighlightToggleButton cssVar={cssVar} />}
 
       {isOpen && (
         <div
@@ -591,6 +606,7 @@ export default function ColorTab({
               color={color}
               index={i}
               label={resolvePaletteCssVar(safeCluster, i)}
+              cssVar={resolvePaletteCssVar(safeCluster, i)}
               onChange={handlePaletteChange}
             />
           ))}
@@ -640,10 +656,11 @@ export default function ColorTab({
           </div>
           <div className="tokenpanel-color-base-grid">
             {Object.entries(safeCluster.semanticDefaults).map(([key, defaultVal]) => {
+              const semanticCssVar = safeCluster.semanticCssNames[key];
               return (
                 <PaletteSelector
                   key={key}
-                  label={safeCluster.semanticCssNames[key] ?? key}
+                  label={semanticCssVar ?? key}
                   idKey={key}
                   value={state.semanticMappings[key] ?? defaultVal}
                   palette={state.palette}
@@ -651,6 +668,7 @@ export default function ColorTab({
                   onChange={handleSemanticChange}
                   background={state.palette[state.background]}
                   foreground={state.palette[state.foreground]}
+                  cssVar={semanticCssVar}
                 />
               );
             })}
@@ -680,6 +698,7 @@ export default function ColorTab({
                     color={color}
                     index={i}
                     label={resolvePaletteCssVar(secondaryCluster, i)}
+                    cssVar={resolvePaletteCssVar(secondaryCluster, i)}
                     onChange={handleSecondaryPaletteChange}
                   />
                 ))}
@@ -696,15 +715,17 @@ export default function ColorTab({
               </div>
               <div className="tokenpanel-color-base-grid">
                 {Object.entries(secondaryCluster.semanticDefaults).map(([key, defaultVal]) => {
+                  const secondarySemanticCssVar = secondaryCluster.semanticCssNames[key];
                   return (
                     <PaletteSelector
                       key={key}
-                      label={secondaryCluster.semanticCssNames[key] ?? key}
+                      label={secondarySemanticCssVar ?? key}
                       idKey={key}
                       value={secondaryState.semanticMappings[key] ?? defaultVal}
                       palette={secondaryState.palette}
                       paletteCssVar={secondaryPaletteCssVar}
                       onChange={handleSecondarySemanticChange}
+                      cssVar={secondarySemanticCssVar}
                     />
                   );
                 })}
