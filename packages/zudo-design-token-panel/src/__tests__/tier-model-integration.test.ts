@@ -89,17 +89,19 @@ describe('tier-model integration (easing tab, 2-tier mode)', () => {
     );
   });
 
-  it('emits var(--first-raw) for a semantic item whose override names an unknown raw item', () => {
+  it('emits var(--item-default) for a semantic item whose override names an unknown raw item', () => {
+    // tab-open.default = 'ease-out' → fallback resolves via item.default, not items[0]
     const overrides: TabOverrides = {
       semantic: { 'tab-open': 'does-not-exist' },
     };
     expect(emit(easingTab, 'semantic', 'tab-open', overrides)).toBe(
-      'var(--zfb-easing-ease-in)',
+      'var(--zfb-easing-ease-out)',
     );
   });
 
-  it('emits var(--first-raw) for a semantic item with no override (fallback path)', () => {
-    expect(emit(easingTab, 'semantic', 'tab-open', {})).toBe('var(--zfb-easing-ease-in)');
+  it('emits var(--item-default) for a semantic item with no override (fallback path)', () => {
+    // tab-open.default = 'ease-out' → fallback resolves via item.default, not items[0]
+    expect(emit(easingTab, 'semantic', 'tab-open', {})).toBe('var(--zfb-easing-ease-out)');
   });
 
   it('combines raw and semantic resolution in a single overrides bag', () => {

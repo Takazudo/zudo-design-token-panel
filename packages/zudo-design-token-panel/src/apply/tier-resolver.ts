@@ -131,9 +131,14 @@ export function resolveTierItemValue(
     const refItem = findItem(refTier, refItemId);
 
     if (!refItem) {
-      // Unknown ref id — fall back to the matching item by id in the ref tier,
-      // or the first item if nothing matches.
-      const fallbackItem = findItem(refTier, itemId) ?? refTier.items[0];
+      // Unknown ref id — fall back chain:
+      // 1. item.default (manifest-declared scale, e.g. "nx-scale-md")
+      // 2. matching item by id in the ref tier
+      // 3. first item in the ref tier
+      const fallbackItem =
+        findItem(refTier, item.default) ??
+        findItem(refTier, itemId) ??
+        refTier.items[0];
       if (!fallbackItem) {
         throw new TierResolverError(
           `Referenced tier "${refTierId}" has no items; cannot resolve fallback ` +
