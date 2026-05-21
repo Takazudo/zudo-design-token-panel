@@ -63,6 +63,7 @@ function makeCtx(overrides: Partial<HighlightContextValue> = {}): HighlightConte
     toggle: vi.fn(),
     setSlot: vi.fn(),
     reset: vi.fn(),
+    disableAll: vi.fn(),
     matchCounts: {},
     ...overrides,
   };
@@ -385,14 +386,15 @@ describe('HighlightSettingsPopover', () => {
   describe('reset button', () => {
     it('renders a "Reset to defaults" button', () => {
       renderPopover(makeCtx(), container);
-      const resetBtn = container.querySelector('.tokenpanel-highlight-settings-reset-btn');
+      const resetBtns = Array.from(container.querySelectorAll('.tokenpanel-highlight-settings-reset-btn'));
+      const resetBtn = resetBtns.find((el) => el.textContent?.trim() === 'Reset to defaults');
       expect(resetBtn).not.toBeNull();
-      expect(resetBtn?.textContent?.trim()).toBe('Reset to defaults');
     });
 
     it('reset button has role="button"', () => {
       renderPopover(makeCtx(), container);
-      const resetBtn = container.querySelector('.tokenpanel-highlight-settings-reset-btn');
+      const resetBtns = Array.from(container.querySelectorAll('.tokenpanel-highlight-settings-reset-btn'));
+      const resetBtn = resetBtns.find((el) => el.textContent?.trim() === 'Reset to defaults');
       expect(resetBtn?.getAttribute('role')).toBe('button');
     });
 
@@ -401,24 +403,90 @@ describe('HighlightSettingsPopover', () => {
       const ctx = makeCtx({ reset });
       renderPopover(ctx, container);
 
-      const resetBtn = container.querySelector('.tokenpanel-highlight-settings-reset-btn') as HTMLElement;
+      const resetBtns = Array.from(container.querySelectorAll('.tokenpanel-highlight-settings-reset-btn')) as HTMLElement[];
+      const resetBtn = resetBtns.find((el) => el.textContent?.trim() === 'Reset to defaults')!;
       act(() => { resetBtn.click(); });
 
       expect(reset).toHaveBeenCalledTimes(1);
     });
 
-    it('reset button does NOT call toggle or setSlot', () => {
+    it('reset button does NOT call toggle, setSlot, or disableAll', () => {
       const toggle = vi.fn();
       const setSlot = vi.fn();
       const reset = vi.fn();
-      const ctx = makeCtx({ toggle, setSlot, reset });
+      const disableAll = vi.fn();
+      const ctx = makeCtx({ toggle, setSlot, reset, disableAll });
       renderPopover(ctx, container);
 
-      const resetBtn = container.querySelector('.tokenpanel-highlight-settings-reset-btn') as HTMLElement;
+      const resetBtns = Array.from(container.querySelectorAll('.tokenpanel-highlight-settings-reset-btn')) as HTMLElement[];
+      const resetBtn = resetBtns.find((el) => el.textContent?.trim() === 'Reset to defaults')!;
       act(() => { resetBtn.click(); });
 
       expect(toggle).not.toHaveBeenCalled();
       expect(setSlot).not.toHaveBeenCalled();
+      expect(disableAll).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('disable all highlights button', () => {
+    it('renders a "Disable all highlights" button', () => {
+      renderPopover(makeCtx(), container);
+      const btns = Array.from(container.querySelectorAll('.tokenpanel-highlight-settings-reset-btn'));
+      const disableBtn = btns.find((el) => el.textContent?.trim() === 'Disable all highlights');
+      expect(disableBtn).not.toBeNull();
+    });
+
+    it('disable button has role="button"', () => {
+      renderPopover(makeCtx(), container);
+      const btns = Array.from(container.querySelectorAll('.tokenpanel-highlight-settings-reset-btn'));
+      const disableBtn = btns.find((el) => el.textContent?.trim() === 'Disable all highlights');
+      expect(disableBtn?.getAttribute('role')).toBe('button');
+    });
+
+    it('clicking "Disable all highlights" calls context.disableAll()', () => {
+      const disableAll = vi.fn();
+      const ctx = makeCtx({ disableAll });
+      renderPopover(ctx, container);
+
+      const btns = Array.from(container.querySelectorAll('.tokenpanel-highlight-settings-reset-btn')) as HTMLElement[];
+      const disableBtn = btns.find((el) => el.textContent?.trim() === 'Disable all highlights')!;
+      act(() => { disableBtn.click(); });
+
+      expect(disableAll).toHaveBeenCalledTimes(1);
+    });
+
+    it('clicking "Disable all highlights" with 3 active entries invokes disableAll', () => {
+      const disableAll = vi.fn();
+      const ctx = makeCtx({
+        disableAll,
+        state: makeState({
+          active: { '--color-brand': 0, '--text-sm': 2, '--spacing-md': 5 },
+        }),
+      });
+      renderPopover(ctx, container);
+
+      const btns = Array.from(container.querySelectorAll('.tokenpanel-highlight-settings-reset-btn')) as HTMLElement[];
+      const disableBtn = btns.find((el) => el.textContent?.trim() === 'Disable all highlights')!;
+      act(() => { disableBtn.click(); });
+
+      expect(disableAll).toHaveBeenCalledTimes(1);
+    });
+
+    it('disable button does NOT call toggle, setSlot, or reset', () => {
+      const toggle = vi.fn();
+      const setSlot = vi.fn();
+      const reset = vi.fn();
+      const disableAll = vi.fn();
+      const ctx = makeCtx({ toggle, setSlot, reset, disableAll });
+      renderPopover(ctx, container);
+
+      const btns = Array.from(container.querySelectorAll('.tokenpanel-highlight-settings-reset-btn')) as HTMLElement[];
+      const disableBtn = btns.find((el) => el.textContent?.trim() === 'Disable all highlights')!;
+      act(() => { disableBtn.click(); });
+
+      expect(toggle).not.toHaveBeenCalled();
+      expect(setSlot).not.toHaveBeenCalled();
+      expect(reset).not.toHaveBeenCalled();
     });
   });
 

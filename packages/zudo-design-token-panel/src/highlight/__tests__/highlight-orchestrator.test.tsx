@@ -421,11 +421,63 @@ describe('matchCounts', () => {
 });
 
 // ---------------------------------------------------------------------------
+// disableAll — clear active map + persist
+// ---------------------------------------------------------------------------
+
+describe('disableAll', () => {
+  it('clears the active map and preserves slots', () => {
+    let ctx: HighlightContextValue | null = null;
+    renderOrchestrator((c) => { ctx = c; });
+
+    // Activate 3 tokens
+    act(() => { ctx!.toggle('--brand'); });
+    act(() => { ctx!.toggle('--secondary'); });
+    act(() => { ctx!.toggle('--accent'); });
+    expect(Object.keys(ctx!.state.active)).toHaveLength(3);
+
+    const slotsBefore = ctx!.state.slots.map((s) => ({ ...s }));
+
+    act(() => { ctx!.disableAll!(); });
+
+    expect(ctx!.state.active).toEqual({});
+    expect(ctx!.state.slots).toEqual(slotsBefore);
+  });
+
+  it('persists empty active to sessionStorage after disableAll so reload does not resurrect highlights', () => {
+    let ctx: HighlightContextValue | null = null;
+    renderOrchestrator((c) => { ctx = c; });
+
+    act(() => { ctx!.toggle('--brand'); });
+    act(() => { ctx!.toggle('--secondary'); });
+
+    // Confirm active map has entries before disable
+    expect(Object.keys(ctx!.state.active)).toHaveLength(2);
+
+    act(() => { ctx!.disableAll!(); });
+
+    // After disableAll, sessionStorage must contain empty active map so a reload
+    // does not resurrect previously-active highlights.
+    // The key is derived from the default storagePrefix: 'zudo-design-token-panel'.
+    const activeKey = 'zudo-design-token-panel-highlight-active';
+    const stored = sessionStorage.getItem(activeKey);
+    expect(stored).not.toBeNull();
+    expect(JSON.parse(stored!)).toEqual({});
+  });
+
+  it('provides disableAll in context', () => {
+    let ctx: HighlightContextValue | null = null;
+    renderOrchestrator((c) => { ctx = c; });
+
+    expect(typeof ctx!.disableAll).toBe('function');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Context shape tests
 // ---------------------------------------------------------------------------
 
 describe('context value shape', () => {
-  it('provides state, toggle, setSlot, reset, matchCounts in context', () => {
+  it('provides state, toggle, setSlot, reset, disableAll, matchCounts in context', () => {
     let ctx: HighlightContextValue | null = null;
     renderOrchestrator((c) => { ctx = c; });
 
@@ -434,6 +486,7 @@ describe('context value shape', () => {
     expect(typeof ctx!.toggle).toBe('function');
     expect(typeof ctx!.setSlot).toBe('function');
     expect(typeof ctx!.reset).toBe('function');
+    expect(typeof ctx!.disableAll).toBe('function');
     expect(typeof ctx!.matchCounts).toBe('object');
   });
 

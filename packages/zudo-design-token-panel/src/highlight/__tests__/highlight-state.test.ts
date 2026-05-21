@@ -5,6 +5,7 @@ import {
   allocateSlot,
   toggleHighlight,
   resetSlots,
+  clearAllActive,
   setSlot,
   loadHighlightState,
   saveHighlightState,
@@ -187,6 +188,52 @@ describe('resetSlots', () => {
     const next = resetSlots(state);
     expect(next).not.toBe(state);
     expect(next.slots).not.toBe(state.slots);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// clearAllActive
+// ---------------------------------------------------------------------------
+
+describe('clearAllActive', () => {
+  it('returns state with empty active map', () => {
+    const state: HighlightState = {
+      slots: DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ ...s })),
+      active: { '--color-brand': 0, '--text-sm': 2, '--spacing-md': 5 },
+    };
+    const next = clearAllActive(state);
+    expect(next.active).toEqual({});
+  });
+
+  it('preserves slots unchanged', () => {
+    const customSlots = DEFAULT_HIGHLIGHT_SLOTS.map((s, i) =>
+      i === 0 ? { color: '#aabbcc', outlineWidth: 4 } : { ...s },
+    );
+    const state: HighlightState = {
+      slots: customSlots,
+      active: { '--token-x': 0, '--token-y': 3 },
+    };
+    const next = clearAllActive(state);
+    expect(next.slots).toEqual(customSlots);
+  });
+
+  it('returns a new state object (immutable)', () => {
+    const state: HighlightState = {
+      slots: DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ ...s })),
+      active: { '--a': 0 },
+    };
+    const next = clearAllActive(state);
+    expect(next).not.toBe(state);
+    expect(next.active).not.toBe(state.active);
+  });
+
+  it('returns state with empty active when already empty', () => {
+    const state: HighlightState = {
+      slots: DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ ...s })),
+      active: {},
+    };
+    const next = clearAllActive(state);
+    expect(next.active).toEqual({});
   });
 });
 
