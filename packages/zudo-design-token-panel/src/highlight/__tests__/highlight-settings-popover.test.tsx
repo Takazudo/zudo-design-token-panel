@@ -139,6 +139,16 @@ describe('HighlightSettingsPopover', () => {
       expect(nativeDialogs).toHaveLength(0);
     });
 
+    it('popover root carries data-design-token-panel-modal so --tokentweak-* vars resolve', () => {
+      // The popover renders outside .tokenpanel-shell; without this attribute
+      // the :where(.tokenpanel-shell, [data-design-token-panel-modal]) token
+      // scope never matches and background/color vars fall back to nothing.
+      renderPopover(makeCtx(), container);
+      const dialog = container.querySelector('[role="dialog"]') as HTMLElement;
+      expect(dialog).not.toBeNull();
+      expect(dialog.hasAttribute('data-design-token-panel-modal')).toBe(true);
+    });
+
     it('does not render any <button> elements (hostile-host policy)', () => {
       renderPopover(makeCtx(), container);
       const buttons = container.querySelectorAll('button');
