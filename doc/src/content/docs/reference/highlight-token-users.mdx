@@ -94,6 +94,8 @@ The following limitations are expected in v1 of this feature.
 
 **Selector-scoped custom-property aliases** — rules like `.scoped { --brand: blue }` that define a custom-property alias on a scoped selector are treated as global (the alias is over-approximated as if it were on `:root`). In unusual cascade scenarios this can produce false positives — overlays appearing on elements that do not actually consume the token at runtime.
 
+**Inherited-property consumers** — when a token is set on an ancestor through an inheritable property (e.g. `body { color: var(--brand) }`), only the directly-matching element is outlined. Descendants whose computed style inherits the value are NOT outlined, even though they effectively "use" the token via inheritance. The walker matches rule selectors, not computed styles.
+
 **Very-high host z-index** — overlays sit at `z-index: 49`. Modals or other elements at extremely high `z-index` values (e.g. `z-index: 99999`) will visually cover the outlines. The panel itself sits at `z-index: 50`, so overlays appear below the panel but above typical page content.
 
 **No auto-update for newly inserted DOM elements** — if a DOM element matching an existing stylesheet rule is inserted dynamically after the highlight is activated, it will not automatically receive an overlay (there is no body-level `MutationObserver` in v1). However, new `<style>` or `<link>` elements added to `<head>` after activation ARE picked up by the stylesheet observer.

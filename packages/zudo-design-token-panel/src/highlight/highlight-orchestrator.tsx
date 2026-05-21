@@ -43,8 +43,10 @@ const PORTAL_MOUNT_ID = 'tokenpanel-highlight-mount';
 /**
  * Get or create the singleton portal mount <div> at document.body.
  * Idempotent: if an element with the id already exists it is returned as-is.
+ * SSR-safe: returns null when document is unavailable (server-render / prerender).
  */
-function getOrCreateMountNode(): HTMLDivElement {
+function getOrCreateMountNode(): HTMLDivElement | null {
+  if (typeof document === 'undefined') return null;
   const existing = document.getElementById(PORTAL_MOUNT_ID) as HTMLDivElement | null;
   if (existing) return existing;
 
@@ -63,36 +65,33 @@ interface OverlayPortalProps {
 }
 
 function OverlayPortal({ items }: OverlayPortalProps) {
-  // mountNodeRef persists the DOM node so we can check isConnected.
   const mountNodeRef = useRef<HTMLDivElement | null>(null);
-  // Bump to force re-render when mountNode needs to be recreated.
   const [mountVersion, setMountVersion] = useState(0);
 
-  // Create or retrieve the portal mount on first render.
-  if (mountNodeRef.current === null || !mountNodeRef.current.isConnected) {
-    mountNodeRef.current = getOrCreateMountNode();
-  }
-
-  // astro:after-swap — Astro replaces document.body on view transitions.
-  // After swap the mount node may be detached; recreate if needed.
   useEffect(() => {
+    if (!mountNodeRef.current || !mountNodeRef.current.isConnected) {
+      mountNodeRef.current = getOrCreateMountNode();
+      setMountVersion((v) => v + 1);
+    }
     function handleAfterSwap() {
       if (!mountNodeRef.current || !mountNodeRef.current.isConnected) {
         mountNodeRef.current = getOrCreateMountNode();
         setMountVersion((v) => v + 1);
       }
     }
-    window.addEventListener('astro:after-swap', handleAfterSwap);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('astro:after-swap', handleAfterSwap);
+    }
     return () => {
-      window.removeEventListener('astro:after-swap', handleAfterSwap);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('astro:after-swap', handleAfterSwap);
+      }
     };
   }, []);
 
-  // Suppress the linting rule that complains about mountVersion not being used —
-  // it IS used: it's a dependency that forces this component to re-evaluate the
-  // portal target when the mountNode is recreated.
   void mountVersion;
 
+  if (!mountNodeRef.current) return null;
   return createPortal(<HighlightOverlay items={items} />, mountNodeRef.current);
 }
 
@@ -169,12 +168,20 @@ export function HighlightOrchestrator({ children }: { children: ComponentChildre
     function handleAfterSwap() {
       // Re-attach observer to the new head after Astro swaps the page.
       attachObserver();
+      // Bump version to invalidate the per-cssVar element cache — Astro view
+      // transitions replace document.body, so every previously matched Element
+      // reference is now detached.
+      setStylesheetVersion((v) => v + 1);
     }
-    window.addEventListener('astro:after-swap', handleAfterSwap);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('astro:after-swap', handleAfterSwap);
+    }
 
     return () => {
       observer?.disconnect();
-      window.removeEventListener('astro:after-swap', handleAfterSwap);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('astro:after-swap', handleAfterSwap);
+      }
     };
   }, []);
 
