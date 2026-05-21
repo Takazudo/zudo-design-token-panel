@@ -1423,7 +1423,7 @@
   border-top: 1px solid var(--tokentweak-color-muted);
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--tokentweak-pad-sm);
 }
 
 .tokenpanel-highlight-settings-reset-btn {

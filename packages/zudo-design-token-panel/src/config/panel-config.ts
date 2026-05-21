@@ -486,7 +486,11 @@ function assertValidTabs(tabs: unknown): void {
 /**
  * Validate a single tab entry within `PanelConfig.tabs`.
  * Checks tier-id uniqueness, item-id uniqueness across all tiers, cssVar
- * format, and referencesTier integrity (existence + kind compatibility).
+ * format, and referencesTier existence (the referenced tier id must exist).
+ * Cross-tier kind compatibility is deliberately NOT checked — the runtime
+ * resolver does pure id lookup and the UI routes ref-tier items via
+ * TierRefSelector regardless of kind. See #245 / #255 for the design notes
+ * and the follow-up issue about a narrower compatibility guard.
  */
 function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
   if (!Array.isArray(tab.tiers)) {

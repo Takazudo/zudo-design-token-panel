@@ -81,7 +81,6 @@ export function HighlightSettingsPopover({
       aria-label="Highlight outline settings"
       className="tokenpanel-highlight-settings-popover"
       style={{ ...popoverStyle, zIndex: 65 }}
-      data-design-token-panel-modal=""
     >
       {/* Header */}
       <div className="tokenpanel-highlight-settings-header">

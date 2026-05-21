@@ -140,14 +140,19 @@ describe('HighlightSettingsPopover', () => {
       expect(nativeDialogs).toHaveLength(0);
     });
 
-    it('popover root carries data-design-token-panel-modal so --tokentweak-* vars resolve', () => {
-      // The popover renders outside .tokenpanel-shell; without this attribute
-      // the :where(.tokenpanel-shell, [data-design-token-panel-modal]) token
-      // scope never matches and background/color vars fall back to nothing.
+    it('popover root carries .tokenpanel-highlight-settings-popover so --tokentweak-* vars resolve', () => {
+      // The popover renders outside .tokenpanel-shell; the :where() selector
+      // in panel-tokens.css lists .tokenpanel-highlight-settings-popover
+      // directly so the --tokentweak-* tokens resolve without pulling in
+      // the modal-chrome rules (which would apply translate(-50%, -50%) and
+      // break the gear-anchored fixed-position layout).
       renderPopover(makeCtx(), container);
       const dialog = container.querySelector('[role="dialog"]') as HTMLElement;
       expect(dialog).not.toBeNull();
-      expect(dialog.hasAttribute('data-design-token-panel-modal')).toBe(true);
+      expect(dialog.classList.contains('tokenpanel-highlight-settings-popover')).toBe(true);
+      // Negative assertion: do NOT carry the modal attribute (would force
+      // modal chrome and shift the popover off-anchor).
+      expect(dialog.hasAttribute('data-design-token-panel-modal')).toBe(false);
     });
 
     it('does not render any <button> elements (hostile-host policy)', () => {
