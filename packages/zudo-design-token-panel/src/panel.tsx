@@ -3,6 +3,8 @@ import { ExportModal } from './export-modal';
 import { ImportModal } from './import-modal';
 import { ApplyModal } from './apply-modal';
 import { RoleButton } from './controls/role-button';
+import { HighlightSettingsPopover } from './highlight/highlight-settings-popover';
+import { HighlightOrchestrator } from './highlight/highlight-orchestrator';
 import ColorTab from './tabs/color-tab';
 import FontTab from './tabs/font-tab';
 import SizeTab from './tabs/size-tab';
@@ -108,6 +110,8 @@ export default function DesignTokenTweakPanel() {
   const [showExport, setShowExport] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showApply, setShowApply] = useState(false);
+  const [showHighlightSettings, setShowHighlightSettings] = useState(false);
+  const gearBtnRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<TweakState | null>(null);
   // activeTab holds a string to support host-supplied non-reserved tab ids.
   const [activeTab, setActiveTab] = useState<string>(DEFAULT_TAB_ID);
@@ -467,33 +471,34 @@ export default function DesignTokenTweakPanel() {
     [activeTab, activeTabs],
   );
 
-  if (!open) return null;
-
-  const {
-    width: panelW,
-    height: panelH,
-    narrow,
-  } = computePanelSize(
-    typeof window !== 'undefined' ? window.innerWidth : 1024,
-    typeof window !== 'undefined' ? window.innerHeight : 768,
-    size,
-  );
-
-  // In narrow mode, ignore saved position — center safely near the top.
-  const panelPos =
-    narrow || isNarrow
-      ? {
-          position: 'fixed' as const,
-          top: 16,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          right: 'auto' as const,
-        }
-      : { position: 'fixed' as const, top: position.top, left: position.left };
-
   return (
-    <>
-      <div
+    <HighlightOrchestrator>
+      {open && (() => {
+        const {
+          width: panelW,
+          height: panelH,
+          narrow,
+        } = computePanelSize(
+          typeof window !== 'undefined' ? window.innerWidth : 1024,
+          typeof window !== 'undefined' ? window.innerHeight : 768,
+          size,
+        );
+
+        // In narrow mode, ignore saved position — center safely near the top.
+        const panelPos =
+          narrow || isNarrow
+            ? {
+                position: 'fixed' as const,
+                top: 16,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                right: 'auto' as const,
+              }
+            : { position: 'fixed' as const, top: position.top, left: position.left };
+
+        return (
+          <>
+            <div
         ref={panelRef}
         className="tokenpanel-shell"
         style={{
@@ -536,6 +541,38 @@ export default function DesignTokenTweakPanel() {
             Reset
           </RoleButton>
           <div className="tokenpanel-spacer" />
+          {/* Gear button — inline div so we can attach a ref for popover anchoring */}
+          <div
+            ref={gearBtnRef}
+            role="button"
+            tabIndex={0}
+            className="tokenpanel-gear-btn"
+            aria-label="Highlight outline settings"
+            aria-expanded={showHighlightSettings}
+            aria-haspopup="dialog"
+            onClick={() => setShowHighlightSettings((v) => !v)}
+            onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setShowHighlightSettings((v) => !v);
+              }
+            }}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </div>
           <RoleButton
             onClick={() => setOpen(false)}
             className="tokenpanel-close-btn"
@@ -727,7 +764,17 @@ export default function DesignTokenTweakPanel() {
           onApplied={handleApplied}
         />
       )}
-    </>
+
+      {showHighlightSettings && (
+        <HighlightSettingsPopover
+          anchorRef={gearBtnRef}
+          onClose={() => setShowHighlightSettings(false)}
+        />
+      )}
+          </>
+        );
+      })()}
+    </HighlightOrchestrator>
   );
 }
 

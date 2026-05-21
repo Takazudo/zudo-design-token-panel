@@ -20,6 +20,7 @@ import { useCallback } from 'preact/compat';
 import type { TabConfig, TierConfig, TierItem, TierValueKind } from '../tokens/tier-model';
 import type { TabOverrides } from '../apply/tier-resolver';
 import TierRefSelector from '../controls/tier-ref-selector';
+import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
 
 // ---------------------------------------------------------------------------
 // Item editor dispatch
@@ -56,6 +57,7 @@ function ItemEditor({ tab, tier, item, value, onChange }: ItemEditorProps) {
           value={value}
           onChange={onChange}
         />
+        <HighlightToggleButton cssVar={item.cssVar} />
       </div>
     );
   }
@@ -108,6 +110,7 @@ function ItemEditor({ tab, tier, item, value, onChange }: ItemEditorProps) {
               />
               {unit && <span className="tokenpanel-row-unit">{unit}</span>}
             </div>
+            <HighlightToggleButton cssVar={item.cssVar} />
           </div>
           <input
             type="range"
@@ -150,6 +153,7 @@ function ItemEditor({ tab, tier, item, value, onChange }: ItemEditorProps) {
               </option>
             ))}
           </select>
+          <HighlightToggleButton cssVar={item.cssVar} />
         </div>
       );
     }
@@ -178,6 +182,7 @@ function ItemEditor({ tab, tier, item, value, onChange }: ItemEditorProps) {
             autoCorrect="off"
             autoComplete="off"
           />
+          <HighlightToggleButton cssVar={item.cssVar} />
         </div>
       );
     }
@@ -202,6 +207,7 @@ function ItemEditor({ tab, tier, item, value, onChange }: ItemEditorProps) {
             className="tokenpanel-row-color-input"
             aria-label={`${item.cssVar} value`}
           />
+          <HighlightToggleButton cssVar={item.cssVar} />
         </div>
       );
     }

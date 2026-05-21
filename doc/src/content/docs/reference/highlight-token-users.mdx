@@ -1,0 +1,101 @@
+---
+title: Highlight Token Users
+sidebar_position: 7
+description: Inspect which DOM elements consume a token by toggling its eye icon
+---
+
+The Highlight Token Users feature lets you visually inspect which DOM elements in the host page are consuming any given design token. Toggle the eye icon next to a token row and every matching element gets an outline; open the gear settings to customise each highlight slot's color and outline width.
+
+## Overview
+
+**Eye icon** — toggle button next to each token row. Clicking it activates an inspection highlight for that token: every element whose computed style is influenced by that CSS custom property receives a colored outline overlay in the host page. Clicking the icon a second time removes the highlight.
+
+**Gear icon** — opens the settings popover in the panel header. From there you can change the color and outline width of each of the 10 available highlight slots, and reset all slot colors to the vivid default palette.
+
+**Visual outcome** — active highlights appear as colored outlines overlaid on top of the host page's content. The overlays sit at `z-index: 49` (below the panel at `z-index: 50`, but above typical host content). Up to 10 tokens can be highlighted at the same time.
+
+<Note>
+Up to 10 simultaneous highlights are supported. Click the eye icon again to disable a highlight.
+</Note>
+
+## Quick start
+
+1. Open the panel.
+2. Navigate to the tab containing the token you want to inspect.
+3. Click the eye icon next to a token row.
+4. Observe the colored outlines that appear on elements in the host page.
+5. Click the eye icon again to remove the highlight.
+
+## Reservation-sheet semantics
+
+Highlights are allocated from a fixed 10-slot "reservation sheet". Each slot has an index (0–9), a color, and an outline width. The lowest available index is always claimed first; releasing a slot in the middle leaves higher-index slots at their current positions.
+
+**Slot allocation rules:**
+
+1. When you activate a token, the highlight system finds the lowest free slot index and claims it.
+2. That slot's color and outline width are applied to the token's outlines.
+3. When you deactivate a token, its slot is freed; all other slots stay put.
+4. The next activation claims the lowest free slot again (which may be a previously-freed lower index).
+
+**Worked example:**
+
+- Toggle token A → claims slot 0.
+- Toggle token B → claims slot 1.
+- Toggle token C → claims slot 2.
+- Disable A → slot 0 is freed. B stays at slot 1, C stays at slot 2.
+- Toggle token D → claims slot 0 (the lowest free index).
+
+Result: D is at slot 0, B is at slot 1, C is at slot 2.
+
+## Settings popover
+
+Click the **gear icon** in the panel header to open the highlight settings popover. It lists all 10 slots in a 4-column grid:
+
+| Column | What it shows |
+| --- | --- |
+| Index | Slot number (0–9) |
+| Ring swatch | A ring whose border is a live preview of the slot's current outline color |
+| Token label | The CSS variable name of the token currently using this slot, or "available" if the slot is free |
+| Slider + readout | Outline width control from 1–10 px; the readout shows the current value (e.g. `4px`) |
+
+**Changing the color:** click the ring swatch to open a color picker for that slot. The outline on any currently-highlighted element updates live.
+
+**Changing the width:** drag the slider to change the outline width. The ring swatch's border and the outline on any highlighted element update live.
+
+## Reset to defaults
+
+The **Reset to defaults** button in the settings popover footer restores all 10 slot colors to the vivid built-in default palette (red, pink, skyblue, and so on).
+
+<Tip>
+Reset to defaults only restores slot colors and widths. It does NOT clear the active inspection set — any tokens you currently have highlighted stay highlighted, with their slots now showing the default colors.
+</Tip>
+
+## Persistence model
+
+The feature uses two distinct storage layers:
+
+<Info>
+**Slot configuration (colors + widths)** — stored in `localStorage`. Persists across browser sessions. These are your personalised settings and should survive a page reload or a new browser tab.
+
+**Active inspection set (which tokens are highlighted)** — stored in `sessionStorage`. Cleared on a full page reload (`Ctrl+Shift+R` / `Cmd+Shift+R`). Each debug session starts fresh with no outlines active.
+</Info>
+
+This split means you can set up your preferred slot colors once and keep them permanently, while the list of things you are currently inspecting resets automatically when you reload — preventing leftover debug state from a previous session from polluting a fresh page load.
+
+## Documented limitations
+
+The following limitations are expected in v1 of this feature.
+
+**Cross-origin stylesheets** — stylesheets loaded from a different origin are skipped. The browser raises a `SecurityError` when the panel tries to read their rules; those stylesheets are silently ignored.
+
+**Shadow DOM** — `querySelectorAll` does not pierce shadow roots. Elements inside open or closed Shadow Roots will not receive overlays.
+
+**Constructable / adopted stylesheets** — stylesheets attached to Shadow Roots via the `adoptedStyleSheets` API are not visible to the stylesheet walker.
+
+**Selector-scoped custom-property aliases** — rules like `.scoped { --brand: blue }` that define a custom-property alias on a scoped selector are treated as global (the alias is over-approximated as if it were on `:root`). In unusual cascade scenarios this can produce false positives — overlays appearing on elements that do not actually consume the token at runtime.
+
+**Inherited-property consumers** — when a token is set on an ancestor through an inheritable property (e.g. `body { color: var(--brand) }`), only the directly-matching element is outlined. Descendants whose computed style inherits the value are NOT outlined, even though they effectively "use" the token via inheritance. The walker matches rule selectors, not computed styles.
+
+**Very-high host z-index** — overlays sit at `z-index: 49`. Modals or other elements at extremely high `z-index` values (e.g. `z-index: 99999`) will visually cover the outlines. The panel itself sits at `z-index: 50`, so overlays appear below the panel but above typical page content.
+
+**No auto-update for newly inserted DOM elements** — if a DOM element matching an existing stylesheet rule is inserted dynamically after the highlight is activated, it will not automatically receive an overlay (there is no body-level `MutationObserver` in v1). However, new `<style>` or `<link>` elements added to `<head>` after activation ARE picked up by the stylesheet observer.
