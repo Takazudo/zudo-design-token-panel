@@ -1281,15 +1281,10 @@
   outline-offset: 2px;
   border-radius: 2px;
 }
-/* Active state: inline color style (set by the component) carries the slot
-   colour; this rule just ensures the icon's opacity/color inheritance works. */
 .tokenpanel-highlight-toggle.is-active {
-  /* color is set via inline style by the component — nothing to override here */
   opacity: 1;
 }
 
-/* Defensive SVG reset scoped to the panel shell.
-   Ensures host icon rules (svg { fill: red; }) cannot repaint panel SVGs. */
 :where(.tokenpanel-shell) svg {
   fill: currentColor;
   pointer-events: none;
@@ -1297,10 +1292,179 @@
   overflow: visible;
 }
 
-/* Override: eye icon uses stroke-based drawing, so fill must be none.
-   The svg element on HighlightToggleButton has fill="none" inline — this
-   ensures the inline attr wins over the defensive reset above. */
 :where(.tokenpanel-shell) .tokenpanel-highlight-toggle svg {
   fill: none;
   stroke: currentColor;
+}
+
+/* ===========================================================================
+ * Highlight settings popover (#231)
+ *
+ * Variation-14 design: 4-column row grid for 10 highlight slots.
+ * Popover container is anchored via position:fixed inline styles computed by
+ * getFixedPopoverStyle(). z-index 65 sits above shell (50) and resize grip.
+ * ========================================================================= */
+
+.tokenpanel-highlight-settings-popover {
+  width: 440px;
+  background: var(--tokentweak-color-surface);
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: 6px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.tokenpanel-highlight-settings-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--tokentweak-color-muted);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  color: var(--tokentweak-color-fg);
+}
+
+.tokenpanel-highlight-settings-list {
+  padding: 4px 0;
+}
+
+.tokenpanel-highlight-settings-row {
+  display: grid;
+  grid-template-columns: 22px 32px 1fr 80px;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 16px;
+}
+
+.tokenpanel-highlight-settings-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.tokenpanel-highlight-settings-num {
+  color: var(--tokentweak-color-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  font-size: 11px;
+}
+
+.tokenpanel-highlight-settings-ring {
+  width: 28px;
+  height: 28px;
+  border-radius: 3px;
+  background: transparent;
+  box-sizing: border-box;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.tokenpanel-highlight-settings-ring:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+}
+
+.tokenpanel-highlight-settings-name {
+  font-family: var(--tokentweak-font-mono);
+  font-size: 12px;
+  color: var(--tokentweak-color-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tokenpanel-highlight-settings-name.is-active {
+  color: var(--tokentweak-color-fg);
+}
+
+.tokenpanel-highlight-settings-width {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tokenpanel-highlight-settings-slider {
+  flex: 1;
+  appearance: none;
+  -webkit-appearance: none;
+  height: 3px;
+  background: #444;
+  border-radius: 2px;
+  cursor: pointer;
+  accent-color: var(--tokentweak-color-accent);
+}
+
+.tokenpanel-highlight-settings-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--tokentweak-color-accent);
+  border: 0;
+  cursor: pointer;
+}
+
+.tokenpanel-highlight-settings-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--tokentweak-color-accent);
+  border: 0;
+  cursor: pointer;
+}
+
+.tokenpanel-highlight-settings-px {
+  color: var(--tokentweak-color-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  min-width: 24px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.tokenpanel-highlight-settings-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--tokentweak-color-muted);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.tokenpanel-highlight-settings-reset-btn {
+  padding: 6px 12px;
+  background: #333;
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--tokentweak-color-fg);
+  transition: background 150ms ease;
+}
+
+.tokenpanel-highlight-settings-reset-btn:hover {
+  background: #404040;
+}
+
+.tokenpanel-highlight-settings-reset-btn:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.tokenpanel-gear-btn {
+  color: var(--tokentweak-color-muted);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 150ms ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tokenpanel-gear-btn:hover {
+  color: var(--tokentweak-color-fg);
+}
+
+.tokenpanel-gear-btn:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
