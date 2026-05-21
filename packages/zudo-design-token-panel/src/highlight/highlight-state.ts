@@ -113,6 +113,14 @@ export function resetSlots(state: HighlightState): HighlightState {
 }
 
 /**
+ * Clear all active highlights. Returns a new state with an empty `active` map;
+ * `slots` (colors + outline widths) are left untouched.
+ */
+export function clearAllActive(state: HighlightState): HighlightState {
+  return { ...state, active: {} };
+}
+
+/**
  * Merge `partial` into the slot at `index`. Out-of-range index returns
  * `state` unchanged.
  */

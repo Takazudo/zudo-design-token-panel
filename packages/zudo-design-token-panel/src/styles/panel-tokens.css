@@ -33,13 +33,22 @@
  * ---------------------
  * A host that wants to retheme the panel chrome assigns directly to the
  * `--tokentweak-color-*` / `--tokentweak-font-mono` names on either
- * `.tokenpanel-shell` or `[data-design-token-panel-modal]` (or any
- * ancestor — `:where()` keeps specificity at 0). The panel deliberately
+ * `.tokenpanel-shell`, `[data-design-token-panel-modal]`,
+ * `.tokenpanel-highlight-settings-popover`, or `.tokenpanel-color-picker`
+ * (or any ancestor — `:where()` keeps specificity at 0). The two popover
+ * classes are listed directly so anchored popovers rendered outside the
+ * shell (siblings, NOT modals) resolve the tokens without inheriting modal
+ * chrome rules. The panel deliberately
  * does NOT read `--color-*` / `--font-mono` from the host so that
  * host-side theme changes — including theme tweaks the panel itself
  * drives in a demo — cannot bleed into the panel chrome.
  */
-:where(.tokenpanel-shell, [data-design-token-panel-modal]) {
+:where(
+  .tokenpanel-shell,
+  [data-design-token-panel-modal],
+  .tokenpanel-highlight-settings-popover,
+  .tokenpanel-color-picker
+) {
   /* ----------------------------------------------------------------------
    * Color palette (self-contained, dark)
    *

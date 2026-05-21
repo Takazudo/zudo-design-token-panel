@@ -27,6 +27,7 @@ import {
   toggleHighlight,
   setSlot as setSlotHelper,
   resetSlots,
+  clearAllActive,
   type HighlightState,
   type HighlightSlotSpec,
 } from './highlight-state';
@@ -133,6 +134,14 @@ export function HighlightOrchestrator({ children }: { children: ComponentChildre
     });
   }, []);
 
+  const disableAll = useCallback(() => {
+    setState((s) => {
+      const next = clearAllActive(s);
+      saveHighlightState(next);
+      return next;
+    });
+  }, []);
+
   // -------------------------------------------------------------------------
   // Stylesheet MutationObserver — bumps stylesheetVersion when <style> or
   // <link rel="stylesheet"> nodes are added/removed from document.head.
@@ -226,8 +235,8 @@ export function HighlightOrchestrator({ children }: { children: ComponentChildre
   // -------------------------------------------------------------------------
 
   const ctxValue = useMemo<HighlightContextValue>(
-    () => ({ state, toggle, setSlot, reset, matchCounts }),
-    [state, toggle, setSlot, reset, matchCounts],
+    () => ({ state, toggle, setSlot, reset, disableAll, matchCounts }),
+    [state, toggle, setSlot, reset, disableAll, matchCounts],
   );
 
   return (

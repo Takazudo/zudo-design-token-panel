@@ -29,6 +29,8 @@ export interface HighlightContextValue {
   setSlot?: (index: number, partial: Partial<HighlightSlotSpec>) => void;
   /** Optional — orchestrator may expose reset to clear all active highlights. */
   reset?: () => void;
+  /** Optional — orchestrator may expose disableAll to clear the active map while preserving slot colours. */
+  disableAll?: () => void;
 }
 
 export const HighlightContext = createContext<HighlightContextValue | null>(null);

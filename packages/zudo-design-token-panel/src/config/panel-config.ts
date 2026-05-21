@@ -486,7 +486,11 @@ function assertValidTabs(tabs: unknown): void {
 /**
  * Validate a single tab entry within `PanelConfig.tabs`.
  * Checks tier-id uniqueness, item-id uniqueness across all tiers, cssVar
- * format, and referencesTier integrity (existence + kind compatibility).
+ * format, and referencesTier existence (the referenced tier id must exist).
+ * Cross-tier kind compatibility is deliberately NOT checked — the runtime
+ * resolver does pure id lookup and the UI routes ref-tier items via
+ * TierRefSelector regardless of kind. See #245 / #255 for the design notes
+ * and the follow-up issue about a narrower compatibility guard.
  */
 function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
   if (!Array.isArray(tab.tiers)) {
@@ -497,9 +501,6 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
 
   // Rule: every tier.id is unique within a tab
   const tierIds = new Set<string>();
-  // Collect tier kind for referencesTier compatibility check
-  // Maps tier id → the kind string of its first item (or undefined if empty)
-  const tierKindMap = new Map<string, string | undefined>();
 
   for (const tier of tab.tiers) {
     if (tier === null || typeof tier !== 'object' || Array.isArray(tier)) {
@@ -526,9 +527,12 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
       );
     }
 
-    // Determine the representative kind for this tier and validate consistency.
-    // All items in a tier must share the same kind — mixed kinds in a tier are
-    // invalid because referencesTier compatibility is defined at the tier level.
+    // Validate intra-tier kind consistency. All items in a tier must share the
+    // same kind — mixed kinds in one tier are invalid because the editor
+    // dispatch in `tabs/generic-tab.tsx` and friends keys off a single kind
+    // per tier section. Only the consistency check matters here; the
+    // representative kind itself is not stored (inter-tier kind compatibility
+    // was dropped in issue #245 — see the `referencesTier` block below).
     let tierKind: string | undefined = undefined;
     for (const rawItem of ti.items as unknown[]) {
       if (rawItem === null || typeof rawItem !== 'object' || Array.isArray(rawItem)) continue;
@@ -545,7 +549,6 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
         );
       }
     }
-    tierKindMap.set(ti.id, tierKind);
   }
 
   // Rule: every item.id is unique within a tab (across all tiers)
@@ -587,7 +590,22 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
     }
   }
 
-  // Rule: referencesTier integrity — named tier exists and kinds are compatible
+  // Rule: referencesTier integrity — the named tier must exist in the same tab.
+  //
+  // Note: we deliberately do NOT enforce inter-tier kind compatibility between a
+  // referencing tier and its referenced tier (issue #245). At runtime the
+  // referencing tier's items are id-string references; the tier resolver
+  // (`apply/tier-resolver.ts`) does not inspect `TierItem.type.kind` for them,
+  // and the panel UI (`tabs/generic-tab.tsx`, `tabs/font-tab.tsx`, etc.) routes
+  // every ref-tier item to `TierRefSelector` regardless of `kind`. Demos
+  // therefore legitimately encode ref-tier items as `kind: 'text'` even when
+  // the referenced tier holds (say) `kind: 'length'` values — the stored value
+  // is an identifier string, which is textual. Enforcing a strict kind match
+  // here used to crash host-adapter bootstrap on every demo's Font tab even
+  // though the runtime would have rendered the page correctly.
+  //
+  // The intra-tier rule above ("all items in one tier share a kind") still
+  // catches real encoding bugs and is backed by editor-dispatch behaviour.
   for (const tier of tab.tiers) {
     const ti = tier as Record<string, unknown>;
     const tierId = ti.id as string;
@@ -602,18 +620,6 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
       if (!tierIds.has(refId)) {
         throw new Error(
           `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].referencesTier: tier "${refId}" does not exist in this tab`,
-        );
-      }
-      // Rule: kind compatibility — the referencing tier's items' kind must match the referenced tier's items' kind
-      const referencingKind = tierKindMap.get(tierId);
-      const referencedKind = tierKindMap.get(refId);
-      if (
-        referencingKind !== undefined &&
-        referencedKind !== undefined &&
-        referencingKind !== referencedKind
-      ) {
-        throw new Error(
-          `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].referencesTier: kind mismatch — tier "${tierId}" has kind "${referencingKind}" but referenced tier "${refId}" has kind "${referencedKind}"`,
         );
       }
     }
