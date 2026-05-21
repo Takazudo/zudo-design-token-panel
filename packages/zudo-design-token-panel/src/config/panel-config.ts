@@ -497,9 +497,6 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
 
   // Rule: every tier.id is unique within a tab
   const tierIds = new Set<string>();
-  // Collect tier kind for referencesTier compatibility check
-  // Maps tier id → the kind string of its first item (or undefined if empty)
-  const tierKindMap = new Map<string, string | undefined>();
 
   for (const tier of tab.tiers) {
     if (tier === null || typeof tier !== 'object' || Array.isArray(tier)) {
@@ -526,9 +523,12 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
       );
     }
 
-    // Determine the representative kind for this tier and validate consistency.
-    // All items in a tier must share the same kind — mixed kinds in a tier are
-    // invalid because referencesTier compatibility is defined at the tier level.
+    // Validate intra-tier kind consistency. All items in a tier must share the
+    // same kind — mixed kinds in one tier are invalid because the editor
+    // dispatch in `tabs/generic-tab.tsx` and friends keys off a single kind
+    // per tier section. Only the consistency check matters here; the
+    // representative kind itself is not stored (inter-tier kind compatibility
+    // was dropped in issue #245 — see the `referencesTier` block below).
     let tierKind: string | undefined = undefined;
     for (const rawItem of ti.items as unknown[]) {
       if (rawItem === null || typeof rawItem !== 'object' || Array.isArray(rawItem)) continue;
@@ -545,7 +545,6 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
         );
       }
     }
-    tierKindMap.set(ti.id, tierKind);
   }
 
   // Rule: every item.id is unique within a tab (across all tiers)
@@ -603,7 +602,6 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
   //
   // The intra-tier rule above ("all items in one tier share a kind") still
   // catches real encoding bugs and is backed by editor-dispatch behaviour.
-  void tierKindMap; // kept for future use; intra-tier check populates it
   for (const tier of tab.tiers) {
     const ti = tier as Record<string, unknown>;
     const tierId = ti.id as string;
