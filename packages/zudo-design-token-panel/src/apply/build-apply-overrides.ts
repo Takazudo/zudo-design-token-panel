@@ -5,11 +5,17 @@
  *
  * Consumes the `TweakState` shape directly:
  *
+ * Color tokens:
  *   - `state.color.palette: string[]` — palette hex values
  *   - `state.color.semanticMappings: Record<string, number | 'bg' | 'fg'>` —
  *     semantic-token → palette-index map
  *   - `state.color.background` / `foreground` — palette indices used when a
  *     semantic mapping is `"bg"` / `"fg"` respectively
+ *
+ * Non-color tokens (spacing / typography / size including radius):
+ *   - `state.spacing: TokenOverrides` — keyed by token id (e.g. `hsp-md`)
+ *   - `state.typography: TokenOverrides` — keyed by token id (e.g. `text-base`)
+ *   - `state.size: TokenOverrides` — keyed by token id (e.g. `radius-lg`)
  *
  * The routing layer (`route-tokens-to-files.ts`) then splits the map into
  * per-file groups. The host (or the deferred bin) applies each group to
@@ -17,7 +23,7 @@
  *
  * Scope
  * -----
- * Only cssVars that the cluster's CSS files actually declare are emitted.
+ * Only cssVars that the cluster's or tabs' CSS files actually declare are emitted.
  * Specifically:
  *
  *   - Palette slots (resolved via `resolvePaletteCssVar(cluster, i)`) —
@@ -27,22 +33,29 @@
  *     that the hand-authored CSS relies on.
  *   - Base roles (`cluster.baseRoles` entries) — NOT emitted. They do not
  *     belong to the apply pipeline's rewrite scope.
- *   - Spacing / typography / size — NOT emitted here. They live in a
- *     separate token file the Apply endpoint may or may not rewrite;
- *     routing them would surface as rejected prefixes.
+ *   - Spacing / typography / size — EMITTED when the corresponding
+ *     `TokenOverrides` map is non-empty. Values are resolved through the
+ *     tier resolver so reference tiers emit `var(--targetCssVar)` rather
+ *     than the raw item id string. Readonly items are skipped.
  *
  * Diff-only output
  * ----------------
- * A cssVar is emitted ONLY when the current state differs from the provided
- * baseline. Callers without a baseline (tests, degraded-init paths) can pass
- * `colorDefaults: undefined`; in that case the whole color block is treated
- * as changed so the payload still goes out rather than silently noop'ing.
+ * For color tokens, a cssVar is emitted ONLY when the current state differs
+ * from the provided baseline. Callers without a baseline (tests,
+ * degraded-init paths) can pass `colorDefaults: undefined`; in that case the
+ * whole color block is treated as changed.
+ *
+ * For non-color tokens, `TokenOverrides` is already a sparse diff (only
+ * overridden tokens appear in the map) — no baseline comparison is needed.
  *
  * Pure / no IO — safe to import anywhere (browser, Node, tests).
  */
 
 import type { ColorTweakState, TweakState, ColorClusterConfig } from '../state/tweak-state';
 import { resolvePaletteCssVar, safeIndex, getActivePrimaryCluster } from '../state/tweak-state';
+import type { TabConfig } from '../tokens/tier-model';
+import { getPanelConfig } from '../config/panel-config';
+import { resolveTierItemValue, emitTierItemCssValue, type TabOverrides } from './tier-resolver';
 
 /**
  * Produce the flat cssVar → value map for the dev-API handler.
@@ -55,11 +68,15 @@ import { resolvePaletteCssVar, safeIndex, getActivePrimaryCluster } from '../sta
  * panel config's color TabConfig so primary-cluster callers do not have to
  * thread the active cluster through every layer. Secondary-cluster callers
  * MUST pass an explicit cluster argument.
+ *
+ * `tabs` defaults to the active panel config's tab list. Injected by tests so
+ * non-color token resolution works without a live panel config singleton.
  */
 export function buildApplyOverrides(
   state: TweakState,
   colorDefaults: ColorTweakState | undefined,
   cluster: ColorClusterConfig = getActivePrimaryCluster(),
+  tabs: readonly TabConfig[] = getPanelConfig().tabs,
 ): Record<string, string> {
   const out: Record<string, string> = {};
   const color = state.color;
@@ -101,7 +118,70 @@ export function buildApplyOverrides(
     out[cssVar] = `var(${resolvePaletteCssVar(cluster, clamped)})`;
   }
 
+  // ---------- Non-color tabs: spacing / typography / size ----------
+  // `TokenOverrides` is already a sparse diff (absent = use stylesheet default)
+  // so no baseline comparison is needed — every present key is an override.
+  // The state's `typography` field maps to the panel tab with id `font`.
+  const NON_COLOR_SLICES: ReadonlyArray<{ tabId: string; overrides: Record<string, string> }> = [
+    { tabId: 'spacing', overrides: state.spacing },
+    { tabId: 'font', overrides: state.typography },
+    { tabId: 'size', overrides: state.size },
+  ];
+
+  for (const { tabId, overrides } of NON_COLOR_SLICES) {
+    if (Object.keys(overrides).length === 0) continue;
+    const tab = tabs.find((t) => t.id === tabId);
+    if (!tab) continue;
+    emitTabOverrides(tab, overrides, out);
+  }
+
   return out;
+}
+
+/**
+ * Walk a tab's tier items and emit `cssVar → cssValue` entries into `out`
+ * for every item id present in `overrides`.
+ *
+ * Uses the tier resolver so reference tiers emit `var(--targetCssVar)` rather
+ * than the raw item-id string. Readonly items are silently skipped (they are
+ * informational rows in the UI, never written to storage or disk).
+ */
+function emitTabOverrides(
+  tab: TabConfig,
+  overrides: Record<string, string>,
+  out: Record<string, string>,
+): void {
+  // Build a TabOverrides-shaped view of the flat overrides so the resolver
+  // can follow cross-tier references. Each item id appears in exactly one
+  // tier, so we bucket them by tier id.
+  const tabOverrides: Record<string, Record<string, string>> = {};
+  for (const tier of tab.tiers) {
+    const tierOverrides: Record<string, string> = {};
+    for (const item of tier.items) {
+      const v = overrides[item.id];
+      if (typeof v === 'string' && v.length > 0) {
+        tierOverrides[item.id] = v;
+      }
+    }
+    tabOverrides[tier.id] = tierOverrides;
+  }
+
+  // Emit one entry per overridden item. The tier resolver is invoked so
+  // reference-tier items produce a `var(--targetCssVar)` rather than the
+  // raw target item id that is stored in `overrides`.
+  for (const tier of tab.tiers) {
+    for (const item of tier.items) {
+      if (item.readonly) continue;
+      const v = overrides[item.id];
+      if (typeof v !== 'string' || v.length === 0) continue;
+      try {
+        const resolved = resolveTierItemValue(tab, tier.id, item.id, tabOverrides as TabOverrides);
+        out[item.cssVar] = emitTierItemCssValue(resolved);
+      } catch {
+        // Misconfigured tab — skip item rather than crashing the apply pipeline.
+      }
+    }
+  }
 }
 
 /**
