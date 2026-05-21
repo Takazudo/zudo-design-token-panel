@@ -5,6 +5,7 @@ import type { PersistSize } from '../state/persist';
 import TierRefSelector from '../controls/tier-ref-selector';
 import { TIER_REF_LITERAL_SIGNAL } from '../controls/tier-ref-selector';
 import GenericItemEditor from './_generic-item-editor';
+import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
 
 interface SizeTabProps {
   tab: TabConfig;
@@ -120,6 +121,7 @@ function TierSection({ tab, tier, state, onChange }: TierSectionProps) {
                   value={value}
                   onChange={onChange}
                 />
+                <HighlightToggleButton cssVar={item.cssVar} />
               </div>
             );
           }
