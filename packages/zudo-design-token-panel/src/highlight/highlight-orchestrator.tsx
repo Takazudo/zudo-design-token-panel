@@ -49,7 +49,10 @@ function tierKindToProbeKind(t: TierValueKind | undefined): ProbeKind | undefine
     case 'color': return 'color';
     case 'length': return 'length';
     case 'number': return 'number';
-    case 'text': return 'fontFamily';
+    // 'text' is a string-valued catch-all in this repo (ref-tier identifiers,
+    // easing functions, etc.) — NOT just font-family. Fall back to auto-detect
+    // so non-font text tokens aren't forced into the font-family probe.
+    case 'text': return undefined;
     case 'select': return undefined; // select can hold any type — fall back to auto-detect
   }
 }
