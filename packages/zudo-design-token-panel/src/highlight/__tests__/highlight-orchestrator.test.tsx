@@ -664,6 +664,8 @@ describe('always-union probe (Option A)', () => {
   });
 
   it('skips differential probe for text-kind tokens (string-only skip)', () => {
+    // Reset first to handle process-global singleton in case a prior test file configured it.
+    __resetPanelConfigForTests();
     // Configure a text-kind token so the orchestrator sees text kind in cssVarKindIndex.
     configurePanel({
       storagePrefix: 'zudo-design-token-panel',
