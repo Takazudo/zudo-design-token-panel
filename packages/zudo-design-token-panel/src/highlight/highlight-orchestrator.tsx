@@ -41,7 +41,7 @@ import type { TierValueKind } from '../tokens/tier-model';
 // Kind helpers
 // ---------------------------------------------------------------------------
 
-type ProbeKind = 'color' | 'length' | 'number' | 'text' | 'easing';
+type ProbeKind = 'color' | 'length' | 'number' | 'text' | 'easing' | 'cursor' | 'content' | 'mask-image';
 
 export function tierKindToProbeKind(t: TierValueKind | undefined): ProbeKind | undefined {
   if (!t) return undefined;
@@ -55,11 +55,14 @@ export function tierKindToProbeKind(t: TierValueKind | undefined): ProbeKind | u
     // cubic-bezier/keywords, 'text' for arbitrary idents).
     case 'text': return undefined;
     case 'select': return undefined; // select can hold any type — fall back to auto-detect
-    // cursor/content/mask-image are string-only CSS property values; fall back
-    // to auto-detect so the prober picks the right kind from the resolved value.
-    case 'cursor': return undefined;
-    case 'content': return undefined;
-    case 'mask-image': return undefined;
+    // cursor/content/mask-image: pass the explicit hint through so find-elements
+    // uses the matching probe config in TOKEN_TYPES. Auto-detect cannot route
+    // url()-valued tokens to 'cursor' or 'mask-image' (it falls back to 'text'
+    // with a warning), so honoring the manifest hint is required for consumers
+    // of those properties to be found.
+    case 'cursor': return 'cursor';
+    case 'content': return 'content';
+    case 'mask-image': return 'mask-image';
   }
 }
 

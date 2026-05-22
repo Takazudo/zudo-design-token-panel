@@ -736,19 +736,25 @@ describe('always-union probe (Option A)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// tierKindToProbeKind — new cursor/content/mask-image kinds return undefined
+// tierKindToProbeKind — new cursor/content/mask-image kinds pass through
 // ---------------------------------------------------------------------------
+//
+// These three new kinds must honor the explicit manifest hint at probe time —
+// auto-detect cannot route url()-valued cursor / mask-image tokens correctly
+// (the url() branch in find-elements.ts falls back to 'text' with a warning).
+// Passing the hint through ensures the dedicated probe config in TOKEN_TYPES
+// for each kind is used.
 
-describe('tierKindToProbeKind — new string-only kinds return undefined', () => {
-  it('returns undefined for { kind: "cursor" }', () => {
-    expect(tierKindToProbeKind({ kind: 'cursor' })).toBeUndefined();
+describe('tierKindToProbeKind — new kinds pass the explicit hint through', () => {
+  it('returns "cursor" for { kind: "cursor" }', () => {
+    expect(tierKindToProbeKind({ kind: 'cursor' })).toBe('cursor');
   });
 
-  it('returns undefined for { kind: "content" }', () => {
-    expect(tierKindToProbeKind({ kind: 'content' })).toBeUndefined();
+  it('returns "content" for { kind: "content" }', () => {
+    expect(tierKindToProbeKind({ kind: 'content' })).toBe('content');
   });
 
-  it('returns undefined for { kind: "mask-image" }', () => {
-    expect(tierKindToProbeKind({ kind: 'mask-image' })).toBeUndefined();
+  it('returns "mask-image" for { kind: "mask-image" }', () => {
+    expect(tierKindToProbeKind({ kind: 'mask-image' })).toBe('mask-image');
   });
 });
