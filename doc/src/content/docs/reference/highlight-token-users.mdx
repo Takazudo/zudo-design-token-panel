@@ -86,20 +86,37 @@ The feature uses two distinct storage layers:
 
 This split means you can set up your preferred slot colors once and keep them permanently, while the list of things you are currently inspecting resets automatically when you reload — preventing leftover debug state from a previous session from polluting a fresh page load.
 
+## How it works
+
+When you click the eye icon next to a token, the panel runs a **sentinel-substitution probe**:
+
+1. The panel temporarily writes a unique marker value (the "sentinel") to the token's CSS custom property — overriding both `:root` and every other element where a stylesheet rule defines that token directly. This ensures cascade-scoped overrides (such as `[data-theme="dark"]` blocks) are covered, not just `:root`.
+2. A style recalculation is forced synchronously.
+3. Every element in the page body — along with their `::before` and `::after` pseudo-elements — is asked for its computed CSS values. Elements whose computed value contains the sentinel are consumers of the token.
+4. The original token value is restored immediately, in the same browser tick. There is no visible flicker.
+
+**Tokens that pass through CSS functions** — if a token's value flows through `calc()`, `min()`, `max()`, `clamp()`, `color-mix()`, or a similar CSS function, the single-sentinel equality check is unreliable (because the function may transform the sentinel beyond recognition). In this case the panel automatically falls back to a **two-probe strategy**: it applies two different sentinel values in sequence and marks elements whose computed properties differ between the two probes. This slower fallback catches transform-wrapped consumers that the fast equality path would miss.
+
+**Token type drives property inspection** — the panel needs to know which CSS properties to interrogate. The type hint (`color`, `length`, `number`, or `font-family`) is supplied by the panel manifest via the token's `type.kind` field. For tokens the manifest does not know about, the type is auto-detected from the token's resolved value on `documentElement`. The type determines the list of computed longhand and compound properties that are compared against the sentinel.
+
+<Warning title="Migrating from the previous algorithm">
+If you were relying on the previous algorithm's alias-chain expansion depth limit (5 hops), that concept no longer applies. The new algorithm uses the browser's own cascade resolution to detect consumers, which has no artificial hop limit. Consumers reachable through any depth of `var()` alias chain are now detected automatically.
+</Warning>
+
 ## Documented limitations
 
-The following limitations are expected in v1 of this feature.
+**Cross-origin stylesheets** — the browser blocks reading CSS rules from stylesheets served from a different origin without CORS headers. Consumers defined exclusively in such sheets won't be detected. A warning is emitted to the browser console when a cross-origin sheet is skipped.
 
-**Cross-origin stylesheets** — stylesheets loaded from a different origin are skipped. The browser raises a `SecurityError` when the panel tries to read their rules; those stylesheets are silently ignored.
+**`adoptedStyleSheets`** — constructed stylesheets attached to the document via the `adoptedStyleSheets` API are not part of `document.styleSheets` and are not inspected by the algorithm.
 
-**Shadow DOM** — `querySelectorAll` does not pierce shadow roots. Elements inside open or closed Shadow Roots will not receive overlays.
+**Shadow DOM** — the DOM walk does not pierce shadow roots. Consumers inside Web Components (whether open or closed shadow roots) will not be detected.
 
-**Constructable / adopted stylesheets** — stylesheets attached to Shadow Roots via the `adoptedStyleSheets` API are not visible to the stylesheet walker.
+**Pseudo-elements beyond `::before` and `::after`** — `::placeholder`, `::marker`, `::selection`, `::backdrop`, and other pseudo-elements are not inspected.
 
-**Selector-scoped custom-property aliases** — rules like `.scoped { --brand: blue }` that define a custom-property alias on a scoped selector are treated as global (the alias is over-approximated as if it were on `:root`). In unusual cascade scenarios this can produce false positives — overlays appearing on elements that do not actually consume the token at runtime.
+**Browser "minimum font-size" preference** — if the user has configured a minimum font-size in their browser above the algorithm's length sentinel (typically around 7.13px), font-size consumers may be missed by the fast equality probe. The two-probe differential fallback usually catches these.
 
-**Inherited-property consumers** — when a token is set on an ancestor through an inheritable property (e.g. `body { color: var(--brand) }`), only the directly-matching element is outlined. Descendants whose computed style inherits the value are NOT outlined, even though they effectively "use" the token via inheritance. The walker matches rule selectors, not computed styles.
+**CSS-in-JS frameworks** — frameworks that inject styles via `adoptedStyleSheets` or shadow DOM are subject to the limitations above. Frameworks that inject plain `<style>` tags are fully supported.
 
-**Very-high host z-index** — overlays sit at `z-index: 49`. Modals or other elements at extremely high `z-index` values (e.g. `z-index: 99999`) will visually cover the outlines. The panel itself sits at `z-index: 50`, so overlays appear below the panel but above typical page content.
+**Very-high host z-index** — overlays sit at `z-index: 49`. Modals or other elements at very high `z-index` values (e.g. `z-index: 99999`) will visually cover the outlines. The panel itself sits at `z-index: 50`, so overlays appear below the panel but above typical page content.
 
-**No auto-update for newly inserted DOM elements** — if a DOM element matching an existing stylesheet rule is inserted dynamically after the highlight is activated, it will not automatically receive an overlay (there is no body-level `MutationObserver` in v1). However, new `<style>` or `<link>` elements added to `<head>` after activation ARE picked up by the stylesheet observer.
+**No auto-update for dynamically inserted elements** — the DOM walk runs once when you click the eye icon, against the elements present at that moment. If a new element is inserted into the DOM after the highlight is activated, it will not automatically receive an overlay. Click the eye icon again to re-run the probe.
