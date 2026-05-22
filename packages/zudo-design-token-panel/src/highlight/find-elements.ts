@@ -1,11 +1,56 @@
 /**
- * findElementsUsingToken — walks document.styleSheets and the DOM to find
- * every element that uses a given CSS custom property (including via
- * custom-property alias chains).
+ * findElementsUsingToken — uses a sentinel-substitution probe to find every
+ * DOM element whose computed style reflects a given CSS custom property.
  *
- * Panel-internal elements (inside .tokenpanel-shell,
- * [data-design-token-panel-modal], or #tokenpanel-highlight-mount) are
- * excluded from the returned set.
+ * ## How it works (high level)
+ *
+ * 1. **Type detection.** If `options.kind` is supplied, use it. Otherwise
+ *    read `getComputedStyle(documentElement).getPropertyValue(cssVar)` and
+ *    classify the resolved value via regex to determine which sentinel values
+ *    and property lists to use.
+ *
+ * 2. **Definer discovery (v2).** Walk all `document.styleSheets` looking for
+ *    every `CSSStyleRule` that directly declares `cssVar` in its declaration
+ *    block. Each matched `selectorText` becomes a "definer selector".
+ *    Cross-origin sheets that throw on `.cssRules` are skipped with a warning.
+ *
+ * 3. **Override apply.** The sentinel value is written (via `setProperty` with
+ *    `important` priority) on `:root` and on every element matched by a
+ *    definer selector. This ensures cascade overrides (e.g. `[data-theme]`
+ *    blocks) are also covered. Panel-internal elements are skipped.
+ *
+ * 4. **Force layout.** `void document.documentElement.offsetHeight` flushes
+ *    style recalculation so computed styles are current.
+ *
+ * 5. **DOM walk.** Every element in `document.body` (including `body` itself)
+ *    and their `::before` / `::after` pseudo-elements are inspected:
+ *    - *Equality mode*: checks whether any type-relevant longhand equals the
+ *      sentinel, or whether any compound property substring-contains it.
+ *    - *Differential mode*: probes twice (sentinel A then B); elements whose
+ *      computed properties differ between A and B are consumers. Catches
+ *      calc/min/max/clamp transforms that equality mode misses.
+ *
+ * 6. **Restore.** Inline overrides are removed in LIFO order, fully
+ *    synchronously — no `await`, `setTimeout`, or `requestAnimationFrame`
+ *    between apply and restore.
+ *
+ * ## Known limitations
+ *
+ * - **Cross-origin stylesheets**: sheets from a different origin throw on
+ *   `.cssRules` and are skipped (a warning is emitted). Tokens defined only in
+ *   cross-origin sheets will not have their definer selectors discovered; the
+ *   `:root` override is still applied, so root-level consumers are still found.
+ * - **adoptedStyleSheets**: not iterated; tokens defined only via the
+ *   `adoptedStyleSheets` API will not be discovered.
+ * - **Shadow DOM**: elements inside shadow roots are not walked; tokens
+ *   consumed inside shadow trees are not found.
+ * - **Pseudo-elements**: only `::before` and `::after` are checked. Other
+ *   pseudo-elements (e.g. `::placeholder`, `::selection`, `::marker`) are not
+ *   inspected.
+ * - **Browser min-font-size preference**: if `font-size` is overridden by the
+ *   browser's minimum-font-size setting, the length sentinel (7.137951px) may
+ *   be floored and equality mode will fail to detect `font-size` consumers.
+ *   Differential mode is more robust in this case.
  */
 
 export interface FindElementsResult {
@@ -13,327 +58,511 @@ export interface FindElementsResult {
   warnings: string[];
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Escape a CSS custom-property name so it can be embedded literally in a
- * RegExp. Custom-property names only legitimately contain [A-Za-z0-9_-] in
- * practice, but we escape everything else defensively.
- */
-function escapeForRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
- * Build a regex that matches `var(--TOKEN_NAME` at the correct right boundary,
- * so --brand does not match --brand-fg.
- * Pattern: /var\(\s*--TOKEN(?![\w-])/
- */
-function buildVarRegex(cssVarName: string): RegExp {
-  // cssVarName already includes leading dashes, e.g. "--brand"
-  return new RegExp(`var\\(\\s*${escapeForRegex(cssVarName)}(?![\\w-])`);
-}
-
-/**
- * Paren-aware comma splitter. Only splits on commas at depth 0 so that
- * selectors like `.a:is(.b, .c)` are not broken at the inner comma.
- */
-function splitSelectorList(selectorText: string): string[] {
-  const parts: string[] = [];
-  let depth = 0;
-  let start = 0;
-
-  for (let i = 0; i < selectorText.length; i++) {
-    const ch = selectorText[i];
-    if (ch === '(') {
-      depth++;
-    } else if (ch === ')') {
-      depth--;
-    } else if (ch === ',' && depth === 0) {
-      parts.push(selectorText.slice(start, i).trim());
-      start = i + 1;
-    }
-  }
-  parts.push(selectorText.slice(start).trim());
-  return parts.filter(Boolean);
-}
-
-/** Strip trailing pseudo-element (e.g. ::before, ::after). */
-const PSEUDO_ELEMENT_RE = /::[\w-]+(\([^)]*\))?$/;
-
-/** Trailing state pseudo-class patterns that are safe to strip. */
-const STATE_PSEUDO_RE =
-  /:(?:hover|focus|focus-visible|focus-within|active|visited|link|target)(\([^)]*\))?$/;
-
-/**
- * Clean a single selector fragment so it can be used in querySelectorAll to
- * match real elements rather than ephemeral states:
- *   - remove trailing pseudo-element
- *   - remove trailing state pseudo-classes (looping until none remain)
- *   - leave functional pseudo-classes like :not(), :is(), :where(), :has() intact
- */
-function cleanSelectorFragment(fragment: string): string {
-  let s = fragment;
-  // Strip trailing pseudo-element first
-  s = s.replace(PSEUDO_ELEMENT_RE, '').trimEnd();
-  // Strip trailing state pseudo-classes in a loop
-  let prev: string;
-  do {
-    prev = s;
-    s = s.replace(STATE_PSEUDO_RE, '').trimEnd();
-  } while (s !== prev);
-  return s;
+export interface FindElementsOptions {
+  /** Explicit token type. Skips auto-detection when supplied. */
+  kind?: 'color' | 'length' | 'number' | 'fontFamily';
+  /**
+   * Probe mode.
+   *   equality (default): single sentinel; fast; misses calc/min/max/clamp.
+   *   differential: two sentinels; catches transforms; ~4–6× slower.
+   */
+  mode?: 'equality' | 'differential';
 }
 
 // ---------------------------------------------------------------------------
-// Alias map builder
+// Token-type registry  (lifted verbatim from probe.js; font shorthand dropped
+// from fontFamily compounds per production spec)
 // ---------------------------------------------------------------------------
 
-/**
- * Selectors that define token aliases for the whole document.
- * Only :root, html, or [data-theme="..."] (any value) qualify.
- */
-function isThemeSelector(sel: string): boolean {
-  const s = sel.trim();
-  if (s === ':root' || s === 'html') return true;
-  // matches [data-theme="..."] or [data-theme='...'] or [data-theme=anything]
-  if (/^\[data-theme\s*=/.test(s)) return true;
-  return false;
+interface TokenTypeConfig {
+  sentinelA: string;
+  sentinelB: string;
+  longhands: string[];
+  compounds: string[];
 }
 
+const TOKEN_TYPES: Record<string, TokenTypeConfig> = {
+  color: {
+    sentinelA: 'rgb(123, 234, 17)',
+    sentinelB: 'rgb(231, 17, 234)',
+    longhands: [
+      'color',
+      'background-color',
+      'border-top-color',
+      'border-right-color',
+      'border-bottom-color',
+      'border-left-color',
+      'outline-color',
+      'caret-color',
+      'text-decoration-color',
+      'accent-color',
+      'fill',
+      'stroke',
+      'column-rule-color',
+    ],
+    compounds: [
+      'box-shadow',
+      'text-shadow',
+      'background-image',
+      'border-image-source',
+    ],
+  },
+  length: {
+    // Small + weird so it survives min()/clamp() ceilings (typical 20–60px)
+    // and stays inside Chrome's internal font-size limits. Differential pair
+    // spans a wide range so min/max/clamp produce different results between A and B.
+    // Precision note: Chrome truncates computed px values to 5 decimal places,
+    // so sentinels use ≤5 decimal places to round-trip correctly in equality mode.
+    sentinelA: '7.13795px',
+    sentinelB: '83.26541px',
+    longhands: [
+      'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+      'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+      'top', 'right', 'bottom', 'left',
+      'width', 'height',
+      'min-width', 'max-width', 'min-height', 'max-height',
+      'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width',
+      'border-top-left-radius', 'border-top-right-radius',
+      'border-bottom-left-radius', 'border-bottom-right-radius',
+      'outline-width', 'outline-offset',
+      'row-gap', 'column-gap',
+      'font-size',
+      'line-height',
+      'letter-spacing', 'word-spacing', 'text-indent',
+      'column-width', 'column-rule-width',
+      'text-decoration-thickness', 'text-underline-offset',
+    ],
+    compounds: [
+      'box-shadow', 'text-shadow',
+      'background-position', 'background-size',
+      'transform', 'transform-origin',
+      'perspective-origin', 'mask-position',
+      'translate',
+    ],
+  },
+  number: {
+    // Sentinels are kept in (0, 1) so they round-trip through opacity without
+    // clamping. Chrome returns exact values for opacity/flex-grow in this range.
+    // Note: line-height always returns a computed px value in Chrome (used value),
+    // so equality mode cannot detect line-height consumers — use differential mode.
+    sentinelA: '0.12346',
+    sentinelB: '0.98765',
+    longhands: [
+      'line-height',     // unitless — equality mode won't hit in Chrome (px used value); differential does
+      'opacity',
+      'z-index',
+      'font-weight',
+      'flex-grow', 'flex-shrink',
+      'order',
+      'column-count',
+      'tab-size',
+    ],
+    compounds: [],
+  },
+  fontFamily: {
+    sentinelA: '__zdtp_probe_ff_AAA__',
+    sentinelB: '__zdtp_probe_ff_BBB__',
+    longhands: ['font-family'],
+    // font shorthand intentionally omitted: Chrome returns empty string for
+    // getComputedStyle(...).font when longhands disagree, defeating substring match.
+    compounds: [],
+  },
+};
+
+const PSEUDOS: Array<string | null> = [null, '::before', '::after'];
+
+// ---------------------------------------------------------------------------
+// Panel exclusion selector (constant value kept from legacy implementation)
+// ---------------------------------------------------------------------------
+
+const PANEL_EXCLUSION_SELECTOR =
+  '.tokenpanel-shell, [data-design-token-panel-modal], #tokenpanel-highlight-mount';
+
+// ---------------------------------------------------------------------------
+// Type detection
+// ---------------------------------------------------------------------------
+
 /**
- * Walk every CSSStyleRule in the sheet's flat rule list and collect alias
- * declarations of the form:
- *   --TARGET: var(--SOURCE [, fallback])
- * on :root / html / [data-theme="..."] selectors.
- *
- * Returns Map<sourceVar, Set<targetVar>> where both include leading "--".
- *
- * Note: we pass `rules` (already extracted with a try/catch by the caller)
- * rather than the CSSStyleSheet itself to keep recursion clean.
+ * CSS named color keywords to recognise during auto-detection.
+ * Not exhaustive — covers common and standard CSS Level 4 named colors.
  */
-function collectAliases(
-  rules: CSSRuleList | Iterable<CSSRule>,
-  out: Map<string, Set<string>>,
-): void {
-  for (const rule of rules) {
-    // Recurse into grouping rules (@media, @supports, @layer block, @container)
-    // using duck-typing: CSSLayerStatementRule (@layer foo, bar;) has no
-    // .cssRules so the duck-typed check filters it automatically.
-    if ('cssRules' in rule && rule.cssRules) {
-      collectAliases(rule.cssRules as CSSRuleList, out);
-      continue;
-    }
+const NAMED_COLOR_RE =
+  /^(transparent|currentcolor|currentColor|inherit|initial|unset|red|blue|green|black|white|gray|grey|silver|yellow|orange|purple|pink|brown|cyan|magenta|lime|olive|navy|maroon|teal|aqua|fuchsia|coral|salmon|gold|khaki|violet|indigo|crimson|lavender|beige|ivory|chocolate|tomato|orchid|plum|turquoise|tan|sienna|peru|papayawhip|peachpuff|moccasin|mistyrose|linen|lemonchiffon|honeydew|gainsboro)$/i;
 
-    if (!(rule instanceof CSSStyleRule)) continue;
+/** Functional color notations. */
+const FUNCTIONAL_COLOR_RE = /^(rgb|rgba|hsl|hsla|color|oklch|hwb|lab|lch)\(/i;
 
-    // Split on top-level commas; check each fragment for a theme selector.
-    const fragments = splitSelectorList(rule.selectorText);
-    const isTheme = fragments.some(isThemeSelector);
-    if (!isTheme) continue;
+/** Hex color. */
+const HEX_COLOR_RE = /^#/;
 
-    const { style } = rule;
-    for (let i = 0; i < style.length; i++) {
-      const prop = style[i];
-      if (!prop.startsWith('--')) continue; // only custom properties
-      const val = style.getPropertyValue(prop).trim();
-      // Match: var(--SOURCE_VAR ...)
-      const m = /^var\(\s*(--[\w-]+)/.exec(val);
-      if (!m) continue;
-      const source = m[1];
-      const target = prop;
-      if (!out.has(source)) out.set(source, new Set());
-      out.get(source)!.add(target);
-    }
-  }
-}
+/** CSS length — numeric followed by a length unit. */
+const LENGTH_RE = /^-?\d+(\.\d+)?(px|rem|em|vh|vw|vmin|vmax|pt|pc|in|cm|mm|ex|ch|fr)%?$/;
 
-// ---------------------------------------------------------------------------
-// BFS forward expansion
-// ---------------------------------------------------------------------------
+/** Bare unitless number (including floating point). */
+const BARE_NUMBER_RE = /^-?\d+(\.\d+)?$/;
 
-const MAX_ALIAS_DEPTH = 5;
-
-/**
- * Starting from rootVar (e.g. "--brand"), compute all custom properties that
- * are reachable via the alias chain within MAX_ALIAS_DEPTH hops. The root
- * itself is always included.
- */
-function expandForward(rootVar: string, aliasMap: Map<string, Set<string>>): Set<string> {
-  const reachable = new Set<string>([rootVar]);
-  const queue: Array<{ var: string; depth: number }> = [{ var: rootVar, depth: 0 }];
-
-  while (queue.length > 0) {
-    const { var: current, depth } = queue.shift()!;
-    if (depth >= MAX_ALIAS_DEPTH) continue;
-    const targets = aliasMap.get(current);
-    if (!targets) continue;
-    for (const t of targets) {
-      if (!reachable.has(t)) {
-        reachable.add(t);
-        queue.push({ var: t, depth: depth + 1 });
-      }
-    }
-  }
-
-  return reachable;
-}
-
-// ---------------------------------------------------------------------------
-// Rule walker
-// ---------------------------------------------------------------------------
-
-/**
- * Walk rules in a stylesheet, collecting DOM elements that reference any
- * token in forwardSet. Modifies `elements` (Set) and `warnings` (Array)
- * in-place.
- */
-function walkRules(
-  rules: CSSRuleList | Iterable<CSSRule>,
-  forwardSet: Set<string>,
-  regexCache: Map<string, RegExp>,
-  elements: Set<Element>,
+function detectKind(
+  cssVar: string,
   warnings: string[],
+): 'color' | 'length' | 'number' | 'fontFamily' {
+  const resolved = getComputedStyle(document.documentElement)
+    .getPropertyValue(cssVar)
+    .trim();
+
+  if (!resolved) {
+    warnings.push(
+      `type auto-detection inconclusive for ${cssVar}; defaulting to color — supply kind explicitly if this is incorrect`,
+    );
+    return 'color';
+  }
+
+  if (FUNCTIONAL_COLOR_RE.test(resolved) || HEX_COLOR_RE.test(resolved) || NAMED_COLOR_RE.test(resolved)) {
+    return 'color';
+  }
+  if (LENGTH_RE.test(resolved)) {
+    return 'length';
+  }
+  if (BARE_NUMBER_RE.test(resolved)) {
+    return 'number';
+  }
+  return 'fontFamily';
+}
+
+// ---------------------------------------------------------------------------
+// Definer discovery (v2)
+// ---------------------------------------------------------------------------
+
+function walkCssRules(
+  rules: CSSRuleList | Iterable<CSSRule>,
+  cssVar: string,
+  out: Set<string>,
 ): void {
   for (const rule of rules) {
-    // Recurse into grouping rules — duck-type on cssRules to avoid depending
-    // on CSSGroupingRule being exposed in every test environment.
-    if ('cssRules' in rule && rule.cssRules) {
-      walkRules(rule.cssRules as CSSRuleList, forwardSet, regexCache, elements, warnings);
-      continue;
-    }
-
-    if (!(rule instanceof CSSStyleRule)) continue;
-
-    const { style, selectorText } = rule;
-    let ruleMatchesToken = false;
-
-    // Enumerate properties (not re-parse cssText) for accurate value access.
-    for (let i = 0; i < style.length; i++) {
-      const prop = style[i];
-      const val = style.getPropertyValue(prop);
-      for (const cssVar of forwardSet) {
-        let re = regexCache.get(cssVar);
-        if (!re) {
-          re = buildVarRegex(cssVar);
-          regexCache.set(cssVar, re);
-        }
-        if (re.test(val)) {
-          ruleMatchesToken = true;
+    if (rule instanceof CSSStyleRule) {
+      // Check this rule's own declaration block for cssVar.
+      const s = rule.style;
+      for (let i = 0; i < s.length; i++) {
+        if (s[i] === cssVar) {
+          out.add(rule.selectorText);
           break;
         }
       }
-      if (ruleMatchesToken) break;
-    }
-
-    if (!ruleMatchesToken) continue;
-
-    // Collect matching DOM elements via cleaned selector fragments.
-    const fragments = splitSelectorList(selectorText);
-    for (const fragment of fragments) {
-      const cleaned = cleanSelectorFragment(fragment);
-      if (!cleaned) continue;
-      try {
-        const found = document.querySelectorAll(cleaned);
-        for (const el of found) {
-          elements.add(el);
-        }
-      } catch {
-        // Invalid selector after cleaning — skip silently.
+      // Also recurse into nested rules (CSS nesting, Chrome 125+).
+      // CSSStyleRule.cssRules is always present in modern Chrome but may be empty.
+      if ((rule as unknown as { cssRules?: CSSRuleList }).cssRules?.length) {
+        walkCssRules(
+          (rule as unknown as { cssRules: CSSRuleList }).cssRules,
+          cssVar,
+          out,
+        );
       }
+    } else if ('cssRules' in rule && rule.cssRules) {
+      // Recurse into grouping rules: @media, @supports, @layer, @container.
+      walkCssRules(rule.cssRules as CSSRuleList, cssVar, out);
     }
   }
+}
+
+function collectDefinerSelectors(cssVar: string, warnings: string[]): Set<string> {
+  const out = new Set<string>();
+  for (const sheet of document.styleSheets) {
+    let rules: CSSRuleList;
+    try {
+      rules = sheet.cssRules;
+    } catch {
+      const href = (sheet as CSSStyleSheet).href ?? '(unknown)';
+      warnings.push(`Cross-origin stylesheet skipped: ${href}`);
+      continue;
+    }
+    walkCssRules(rules, cssVar, out);
+  }
+  return out;
+}
+
+/**
+ * Find elements that define the token via an inline `style` attribute
+ * (e.g. `<section style="--brand: red">`). Stylesheet rules alone don't reach
+ * these definers, so descendants resolve the original value during the probe
+ * and consumers under the inline subtree are missed without this pass.
+ */
+function collectInlineDefinerElements(cssVar: string): Set<Element> {
+  const out = new Set<Element>();
+  const candidates = document.querySelectorAll<HTMLElement>('[style]');
+  for (const el of candidates) {
+    if (el.style.getPropertyValue(cssVar) !== '') {
+      out.add(el);
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Override apply / restore
+// ---------------------------------------------------------------------------
+
+interface OverrideEntry {
+  el: Element;
+  original: string;
+  originalPriority: string;
+}
+
+function applyOverride(
+  cssVar: string,
+  sentinel: string,
+  definerSelectors: Set<string>,
+  inlineDefinerElements: Set<Element>,
+  warnings: string[],
+): OverrideEntry[] {
+  const overridden: OverrideEntry[] = [];
+  const root = document.documentElement;
+  const seen = new WeakSet<Element>();
+
+  // Always apply to :root
+  overridden.push({
+    el: root,
+    original: root.style.getPropertyValue(cssVar),
+    originalPriority: root.style.getPropertyPriority(cssVar),
+  });
+  root.style.setProperty(cssVar, sentinel, 'important');
+  seen.add(root);
+
+  const applyToElement = (el: Element): void => {
+    if (seen.has(el)) return;
+    // Skip panel-internal elements during apply (defense-in-depth)
+    try {
+      if (el.closest(PANEL_EXCLUSION_SELECTOR) !== null) return;
+    } catch {
+      // Ignore if closest() fails
+    }
+    overridden.push({
+      el,
+      original: (el as HTMLElement).style.getPropertyValue(cssVar),
+      originalPriority: (el as HTMLElement).style.getPropertyPriority(cssVar),
+    });
+    (el as HTMLElement).style.setProperty(cssVar, sentinel, 'important');
+    seen.add(el);
+  };
+
+  for (const selector of definerSelectors) {
+    let matches: NodeListOf<Element>;
+    try {
+      matches = document.querySelectorAll(selector);
+    } catch {
+      // Valid CSS but throws in querySelectorAll (e.g. :has(), complex pseudo)
+      warnings.push(`definer selector unparseable: ${selector}`);
+      continue;
+    }
+    for (const el of matches) applyToElement(el);
+  }
+
+  for (const el of inlineDefinerElements) applyToElement(el);
+
+  return overridden;
+}
+
+function restoreOverride(cssVar: string, overridden: OverrideEntry[]): void {
+  for (let i = overridden.length - 1; i >= 0; i--) {
+    const { el, original, originalPriority } = overridden[i];
+    if (original) {
+      (el as HTMLElement).style.setProperty(cssVar, original, originalPriority);
+    } else {
+      (el as HTMLElement).style.removeProperty(cssVar);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Computed style snapshot helpers
+// ---------------------------------------------------------------------------
+
+function snapshotComputed(
+  el: Element,
+  pseudo: string | null,
+  propsToCheck: string[],
+): Record<string, string> | null {
+  let cs: CSSStyleDeclaration;
+  try {
+    cs = getComputedStyle(el, pseudo);
+  } catch {
+    return null;
+  }
+  const snap: Record<string, string> = {};
+  for (const name of propsToCheck) {
+    snap[name] = cs.getPropertyValue(name);
+  }
+  return snap;
+}
+
+function findFirstChange(
+  snapA: Record<string, string> | null,
+  snapB: Record<string, string> | null,
+): string | null {
+  if (!snapA || !snapB) return null;
+  for (const name in snapA) {
+    if (snapA[name] !== snapB[name]) return name;
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-/** Panel-internal selectors whose elements must be excluded from results. */
-const PANEL_EXCLUSION_SELECTOR =
-  '.tokenpanel-shell, [data-design-token-panel-modal], #tokenpanel-highlight-mount';
-
 /**
- * Find all DOM elements that use the given CSS custom property, either
- * directly in a stylesheet rule or via a custom-property alias chain (depth ≤ 5),
- * or via an inline `style` attribute.
+ * Find all DOM elements whose computed style reflects the given CSS custom
+ * property.
  *
- * @param cssVar - The full custom-property name including leading dashes,
- *   e.g. "--brand". Accepts "var(--brand)" defensively (wrapper is stripped).
+ * Uses a **sentinel-substitution probe**:
+ * 1. Override `cssVar` with a high-entropy sentinel value on `:root` and every
+ *    stylesheet definer (v2 algorithm).
+ * 2. Force a style recalculation.
+ * 3. Walk the DOM checking which elements absorbed the sentinel.
+ * 4. Restore all overrides synchronously.
+ *
+ * @param cssVar  The full custom-property name including leading dashes,
+ *   e.g. `"--brand"`. Accepts `"var(--brand)"` defensively.
+ * @param options  Optional configuration:
+ *   - `kind`: explicit token type (`'color' | 'length' | 'number' | 'fontFamily'`).
+ *     When omitted the type is auto-detected from the resolved value on
+ *     `documentElement`. If the token has no value on `:root` (empty resolved
+ *     value) a warning is emitted and `color` is assumed.
+ *   - `mode`: `'equality'` (default, fast) checks whether computed longhands
+ *     equal the sentinel; `'differential'` probes twice (sentinels A and B)
+ *     and marks consumers where any property differs — catches `calc()`,
+ *     `min()`, `max()`, `clamp()` transforms that equality mode misses.
+ *
+ * ## Known limitations
+ *
+ * - Cross-origin stylesheets are skipped (a warning is emitted).
+ * - `adoptedStyleSheets` are not iterated.
+ * - Shadow DOM elements are not walked.
+ * - Only `::before` and `::after` pseudo-elements are checked.
+ * - Browser min-font-size preference may floor the length sentinel (7.137951px),
+ *   causing equality mode to miss `font-size` consumers.
  */
-export function findElementsUsingToken(cssVar: string): FindElementsResult {
-  // Defensive normalization: strip whitespace and the var() wrapper if present.
+export function findElementsUsingToken(
+  cssVar: string,
+  options?: FindElementsOptions,
+): FindElementsResult {
+  // Defensive normalization: strip whitespace and var() wrapper if present.
   let normalized = cssVar.trim();
   if (normalized.startsWith('var(')) {
-    // strip "var(" prefix and trailing ")"
     normalized = normalized.replace(/^var\(\s*/, '').replace(/\s*\)$/, '').trim();
   }
 
   const warnings: string[] = [];
-  const aliasMap: Map<string, Set<string>> = new Map();
+  const mode = options?.mode ?? 'equality';
 
-  // Phase 1: build alias map from all accessible stylesheets.
-  for (const sheet of document.styleSheets) {
-    let rules: CSSRuleList;
-    try {
-      rules = sheet.cssRules;
-    } catch {
-      // Cross-origin — record warning and skip.
-      const href = (sheet as CSSStyleSheet).href ?? '(unknown)';
-      warnings.push(`Cross-origin stylesheet skipped: ${href}`);
-      continue;
-    }
-    collectAliases(rules, aliasMap);
-  }
+  // Phase 1: determine token type
+  const kind: 'color' | 'length' | 'number' | 'fontFamily' =
+    options?.kind ?? detectKind(normalized, warnings);
 
-  // Phase 2: BFS expansion to get all aliases of the target token.
-  const forwardSet = expandForward(normalized, aliasMap);
+  const conf = TOKEN_TYPES[kind] ?? TOKEN_TYPES.color;
 
-  // Phase 3: walk rules to find matching elements.
-  const regexCache = new Map<string, RegExp>();
-  const elements = new Set<Element>();
+  // Phase 2: definer discovery (stylesheets + inline style="--token: ..." attrs)
+  const definerSelectors = collectDefinerSelectors(normalized, warnings);
+  const inlineDefinerElements = collectInlineDefinerElements(normalized);
 
-  for (const sheet of document.styleSheets) {
-    let rules: CSSRuleList;
-    try {
-      rules = sheet.cssRules;
-    } catch {
-      // Already logged in phase 1; skip silently here.
-      continue;
-    }
-    walkRules(rules, forwardSet, regexCache, elements, warnings);
-  }
+  // Phase 3: probe
+  const candidates: Element[] = [document.body, ...document.body.querySelectorAll('*')];
+  const hitElements = new Set<Element>();
 
-  // Phase 4: inline-style hybrid pass — catch elements whose style attribute
-  // contains var(--TOKEN_NAME) without any stylesheet rule.
-  for (const cssVar of forwardSet) {
-    // Fast pre-filter via attribute substring, then post-filter with the
-    // right-boundary regex to avoid false positives (e.g. --brand matching
-    // --brand-fg).
-    const re = buildVarRegex(cssVar);
-    // Encode for the attribute substring selector (avoid quoting issues).
-    const attrSel = `[style*="var(${cssVar})"]`;
-    let candidates: NodeListOf<Element>;
-    try {
-      candidates = document.querySelectorAll(attrSel);
-    } catch {
-      continue;
-    }
+  if (mode === 'equality') {
+    const { sentinelA, longhands, compounds } = conf;
+
+    const overridden = applyOverride(
+      normalized,
+      sentinelA,
+      definerSelectors,
+      inlineDefinerElements,
+      warnings,
+    );
+    void document.documentElement.offsetHeight;
+
     for (const el of candidates) {
-      const styleVal = el.getAttribute('style') ?? '';
-      if (re.test(styleVal)) {
-        elements.add(el);
+      for (const pseudo of PSEUDOS) {
+        let cs: CSSStyleDeclaration;
+        try {
+          cs = getComputedStyle(el, pseudo);
+        } catch {
+          continue;
+        }
+        let hit = false;
+        for (const prop of longhands) {
+          if (cs.getPropertyValue(prop) === sentinelA) {
+            hit = true;
+            break;
+          }
+        }
+        if (!hit) {
+          for (const prop of compounds) {
+            const v = cs.getPropertyValue(prop);
+            if (v && v.includes(sentinelA)) {
+              hit = true;
+              break;
+            }
+          }
+        }
+        if (hit) {
+          hitElements.add(el);
+          break; // no need to check more pseudos once element is a hit
+        }
       }
     }
+
+    restoreOverride(normalized, overridden);
+  } else {
+    // Differential mode
+    const { sentinelA, sentinelB, longhands, compounds } = conf;
+    const propsToCheck = [...longhands, ...compounds];
+
+    // Phase A: apply sentinelA, snapshot
+    const overA = applyOverride(
+      normalized,
+      sentinelA,
+      definerSelectors,
+      inlineDefinerElements,
+      warnings,
+    );
+    void document.documentElement.offsetHeight;
+
+    const snapsA = new Map<Element, Array<Record<string, string> | null>>();
+    for (const el of candidates) {
+      snapsA.set(el, PSEUDOS.map((p) => snapshotComputed(el, p, propsToCheck)));
+    }
+    restoreOverride(normalized, overA);
+
+    // Phase B: apply sentinelB, compare
+    const overB = applyOverride(
+      normalized,
+      sentinelB,
+      definerSelectors,
+      inlineDefinerElements,
+      warnings,
+    );
+    void document.documentElement.offsetHeight;
+
+    for (const el of candidates) {
+      const snapsAEntry = snapsA.get(el)!;
+      for (let pi = 0; pi < PSEUDOS.length; pi++) {
+        const snapB = snapshotComputed(el, PSEUDOS[pi], propsToCheck);
+        if (findFirstChange(snapsAEntry[pi], snapB) !== null) {
+          hitElements.add(el);
+          break;
+        }
+      }
+    }
+    restoreOverride(normalized, overB);
   }
 
-  // Phase 5: panel-exclusion filter.
+  // Phase 4: panel-exclusion filter (defense-in-depth)
   const filtered: Element[] = [];
-  for (const el of elements) {
-    const panelAncestor = el.closest(PANEL_EXCLUSION_SELECTOR);
-    if (panelAncestor !== null) continue;
+  for (const el of hitElements) {
+    try {
+      if (el.closest(PANEL_EXCLUSION_SELECTOR) !== null) continue;
+    } catch {
+      // Ignore if closest() fails (exotic elements)
+    }
     filtered.push(el);
   }
 

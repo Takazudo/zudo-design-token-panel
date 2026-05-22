@@ -6,6 +6,8 @@ on:
       - main
       - 'base/initial-port'
       - 'base/initial-port-*'
+      - 'base/probe-substitution-highlight'
+      - 'base/probe-substitution-highlight-*'
 
 permissions:
   contents: read
@@ -33,6 +35,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium for browser tests
+        run: pnpm --filter @takazudo/zudo-design-token-panel exec playwright install --with-deps chromium
 
       - name: Build
         run: pnpm build

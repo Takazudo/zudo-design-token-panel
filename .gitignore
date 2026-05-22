@@ -36,6 +36,8 @@ Thumbs.db
 coverage/
 playwright-report/
 test-results/
+.vitest-attachments/
+**/__screenshots__/
 
 # inbox (per repo convention; ephemeral worktree files)
 __inbox/

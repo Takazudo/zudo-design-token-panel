@@ -40,7 +40,7 @@ import {
 const mockFindElements = vi.fn();
 
 vi.mock('../find-elements', () => ({
-  findElementsUsingToken: (cssVar: string) => mockFindElements(cssVar),
+  findElementsUsingToken: (cssVar: string, options?: unknown) => mockFindElements(cssVar, options),
 }));
 
 // ---------------------------------------------------------------------------
@@ -469,6 +469,72 @@ describe('disableAll', () => {
     renderOrchestrator((c) => { ctx = c; });
 
     expect(typeof ctx!.disableAll).toBe('function');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9. Theme observer — data-theme attribute change triggers re-probe
+// ---------------------------------------------------------------------------
+
+describe('theme observer', () => {
+  it('changing documentElement data-theme triggers re-probe for active tokens', async () => {
+    const el1 = makeElement();
+    const el2 = makeElement();
+
+    // Phase 1: equality probe returns 1 element
+    mockFindElements.mockReturnValue({ elements: [el1], warnings: [] });
+
+    let ctx: HighlightContextValue | null = null;
+    renderOrchestrator((c) => { ctx = c; });
+
+    act(() => { ctx!.toggle('--brand'); });
+
+    // matchCounts reflects 1 element after equality probe hit
+    expect(ctx!.matchCounts?.['--brand']).toBe(1);
+
+    // Phase 2: after theme flip, return 2 elements
+    mockFindElements.mockReturnValue({ elements: [el1, el2], warnings: [] });
+
+    await act(async () => {
+      document.documentElement.setAttribute('data-theme', 'dark');
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    // themeVersion should have bumped → cache miss → re-probe → matchCounts = 2
+    expect(ctx!.matchCounts?.['--brand']).toBe(2);
+
+    // Cleanup
+    document.documentElement.removeAttribute('data-theme');
+    el1.remove();
+    el2.remove();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10. Match cache — slot edit does NOT re-probe (cache hit)
+// ---------------------------------------------------------------------------
+
+describe('match cache', () => {
+  it('editing a slot does not re-probe the DOM for active tokens', () => {
+    const el = makeElement();
+    mockFindElements.mockReturnValue({ elements: [el], warnings: [] });
+
+    let ctx: HighlightContextValue | null = null;
+    renderOrchestrator((c) => { ctx = c; });
+
+    act(() => { ctx!.toggle('--brand'); });
+
+    // After toggle, probe was called (equality returned 1 element → no differential)
+    const callCountAfterToggle = mockFindElements.mock.calls.length;
+    expect(callCountAfterToggle).toBeGreaterThanOrEqual(1);
+
+    // Now edit the slot color — active tokens and versions unchanged
+    act(() => { ctx!.setSlot!(0, { color: '#0000ff' }); });
+
+    // findElementsUsingToken should NOT have been called again (cache hit)
+    expect(mockFindElements.mock.calls.length).toBe(callCountAfterToggle);
+
+    el.remove();
   });
 });
 

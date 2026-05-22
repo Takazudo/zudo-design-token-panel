@@ -32,7 +32,50 @@ import {
   type HighlightSlotSpec,
 } from './highlight-state';
 import { findElementsUsingToken } from './find-elements';
+import type { FindElementsResult } from './find-elements';
 import { HighlightOverlay, type HighlightOverlayItem } from './highlight-overlay';
+import { getPanelConfig } from '../config/panel-config';
+import type { TierValueKind } from '../tokens/tier-model';
+
+// ---------------------------------------------------------------------------
+// Kind helpers
+// ---------------------------------------------------------------------------
+
+type ProbeKind = 'color' | 'length' | 'number' | 'fontFamily';
+
+function tierKindToProbeKind(t: TierValueKind | undefined): ProbeKind | undefined {
+  if (!t) return undefined;
+  switch (t.kind) {
+    case 'color': return 'color';
+    case 'length': return 'length';
+    case 'number': return 'number';
+    // 'text' is a string-valued catch-all in this repo (ref-tier identifiers,
+    // easing functions, etc.) — NOT just font-family. Fall back to auto-detect
+    // so non-font text tokens aren't forced into the font-family probe.
+    case 'text': return undefined;
+    case 'select': return undefined; // select can hold any type — fall back to auto-detect
+  }
+}
+
+/** Build a cssVar → TierValueKind map from the current panel config's tier items. */
+function buildCssVarKindIndex(): Map<string, TierValueKind> {
+  const out = new Map<string, TierValueKind>();
+  for (const tab of getPanelConfig().tabs) {
+    for (const tier of tab.tiers) {
+      for (const item of tier.items) {
+        out.set(item.cssVar, item.type);
+      }
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Match cache
+// ---------------------------------------------------------------------------
+
+type CacheKey = string; // `${cssVar}|${stylesheetVersion}|${themeVersion}`
+type CacheEntry = FindElementsResult & { usedDifferential: boolean };
 
 // ---------------------------------------------------------------------------
 // Portal mount helpers
@@ -105,6 +148,12 @@ export function HighlightOrchestrator({ children }: { children: ComponentChildre
 
   // Track stylesheet version for cache-busting when new sheets are injected.
   const [stylesheetVersion, setStylesheetVersion] = useState(0);
+
+  // Track theme version for cache-busting when <html data-theme> or class changes.
+  const [themeVersion, setThemeVersion] = useState(0);
+
+  // Per-cssVar match cache keyed by (cssVar, stylesheetVersion, themeVersion).
+  const matchCacheRef = useRef<Map<CacheKey, CacheEntry>>(new Map());
 
   // -------------------------------------------------------------------------
   // State mutation helpers
@@ -195,19 +244,56 @@ export function HighlightOrchestrator({ children }: { children: ComponentChildre
   }, []);
 
   // -------------------------------------------------------------------------
-  // Resolve items + matchCounts via useMemo
-  // Recomputes whenever active tokens, slot specs, or stylesheets change.
+  // documentElement attribute observer — bumps themeVersion when
+  // <html data-theme="..."> or <html class="..."> changes (theme toggles).
+  // -------------------------------------------------------------------------
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return; // SSR safety
+    const observer = new MutationObserver(() => {
+      setThemeVersion((v) => v + 1);
+      matchCacheRef.current.clear();
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme', 'class'],
+    });
+    return () => observer.disconnect();
+  }, []);
+
+  // -------------------------------------------------------------------------
+  // Resolve items + matchCounts via useMemo.
+  // Inner lookupOrProbe consults the per-cssVar cache keyed by
+  // (cssVar, stylesheetVersion, themeVersion) so slot edits — which change
+  // only state.slots — do not re-probe the DOM.
   // -------------------------------------------------------------------------
 
   const { items, matchCounts } = useMemo(() => {
-    // stylesheetVersion is captured to invalidate cache on new sheets.
-    void stylesheetVersion;
+    const cssVarKindIndex = buildCssVarKindIndex();
+
+    function lookupOrProbe(cssVar: string): CacheEntry {
+      const key: CacheKey = `${cssVar}|${stylesheetVersion}|${themeVersion}`;
+      const cached = matchCacheRef.current.get(key);
+      if (cached) return cached;
+
+      const kind = tierKindToProbeKind(cssVarKindIndex.get(cssVar));
+      const kindOpt = kind ? { kind } : {};
+      let result = findElementsUsingToken(cssVar, kindOpt);
+      let usedDifferential = false;
+      if (result.elements.length === 0) {
+        result = findElementsUsingToken(cssVar, { ...kindOpt, mode: 'differential' });
+        usedDifferential = true;
+      }
+      const entry: CacheEntry = { ...result, usedDifferential };
+      matchCacheRef.current.set(key, entry);
+      return entry;
+    }
 
     const resolvedItems: HighlightOverlayItem[] = [];
     const counts: Record<string, number> = {};
 
     for (const [cssVar, slotIdx] of Object.entries(state.active)) {
-      const result = findElementsUsingToken(cssVar);
+      const result = lookupOrProbe(cssVar);
 
       if (result.warnings.length > 0) {
         for (const warning of result.warnings) {
@@ -228,7 +314,7 @@ export function HighlightOrchestrator({ children }: { children: ComponentChildre
 
     return { items: resolvedItems, matchCounts: counts };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.active, state.slots, stylesheetVersion]);
+  }, [state.active, state.slots, stylesheetVersion, themeVersion]);
 
   // -------------------------------------------------------------------------
   // Context value
