@@ -41,7 +41,7 @@ import type { TierValueKind } from '../tokens/tier-model';
 // Kind helpers
 // ---------------------------------------------------------------------------
 
-type ProbeKind = 'color' | 'length' | 'number' | 'fontFamily';
+type ProbeKind = 'color' | 'length' | 'number' | 'text' | 'easing';
 
 function tierKindToProbeKind(t: TierValueKind | undefined): ProbeKind | undefined {
   if (!t) return undefined;
@@ -50,8 +50,9 @@ function tierKindToProbeKind(t: TierValueKind | undefined): ProbeKind | undefine
     case 'length': return 'length';
     case 'number': return 'number';
     // 'text' is a string-valued catch-all in this repo (ref-tier identifiers,
-    // easing functions, etc.) — NOT just font-family. Fall back to auto-detect
-    // so non-font text tokens aren't forced into the font-family probe.
+    // easing functions, font families, animation names, etc.). Fall back to
+    // auto-detect so the resolved value picks the right probe ('easing' for
+    // cubic-bezier/keywords, 'text' for arbitrary idents).
     case 'text': return undefined;
     case 'select': return undefined; // select can hold any type — fall back to auto-detect
   }

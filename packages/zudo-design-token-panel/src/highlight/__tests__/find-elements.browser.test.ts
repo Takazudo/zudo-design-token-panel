@@ -377,77 +377,204 @@ describe('number — decoy', () => {
 });
 
 // ---------------------------------------------------------------------------
-// FONT-FAMILY tokens
+// TEXT tokens (font-family / animation-name / transition-property / will-change)
 // ---------------------------------------------------------------------------
 
-describe('fontFamily — direct use', () => {
+describe('text (font-family) — direct use', () => {
   it('finds element with font-family: var(--ff)', () => {
     injectStyle(":root { --ff: Georgia, serif; }");
     injectStyle('.fx-ff { font-family: var(--ff); }');
     const el = createElement({ className: 'fx-ff' });
-    const { elements } = findElementsUsingToken('--ff', { kind: 'fontFamily' });
+    const { elements } = findElementsUsingToken('--ff', { kind: 'text' });
     expect(elements).toContain(el);
   });
 });
 
-describe('fontFamily — alias depth 1', () => {
+describe('text (font-family) — alias depth 1', () => {
   it('finds element via --ff-semantic aliasing --ff-base', () => {
     injectStyle(":root { --ff-base: Georgia, serif; --ff-semantic: var(--ff-base); }");
     injectStyle('.fx-ff-alias1 { font-family: var(--ff-semantic); }');
     const el = createElement({ className: 'fx-ff-alias1' });
-    const { elements } = findElementsUsingToken('--ff-base', { kind: 'fontFamily' });
+    const { elements } = findElementsUsingToken('--ff-base', { kind: 'text' });
     expect(elements).toContain(el);
   });
 });
 
-describe('fontFamily — alias depth 2', () => {
+describe('text (font-family) — alias depth 2', () => {
   it('finds element via --heading-ff -> --ff-semantic -> --ff-base', () => {
     injectStyle(":root { --ff-base: Georgia, serif; --ff-semantic: var(--ff-base); --heading-ff: var(--ff-semantic); }");
     injectStyle('.fx-ff-alias2 { font-family: var(--heading-ff); }');
     const el = createElement({ className: 'fx-ff-alias2' });
-    const { elements } = findElementsUsingToken('--ff-base', { kind: 'fontFamily' });
+    const { elements } = findElementsUsingToken('--ff-base', { kind: 'text' });
     expect(elements).toContain(el);
   });
 });
 
-describe('fontFamily — inline style', () => {
+describe('text (font-family) — inline style', () => {
   it('finds element with inline font-family: var(--ff)', () => {
     injectStyle(":root { --ff: Georgia, serif; }");
     const el = createElement({ inlineStyle: 'font-family: var(--ff)' });
-    const { elements } = findElementsUsingToken('--ff', { kind: 'fontFamily' });
+    const { elements } = findElementsUsingToken('--ff', { kind: 'text' });
     expect(elements).toContain(el);
   });
 });
 
-describe('fontFamily — multi-property rule', () => {
+describe('text (font-family) — multi-property rule', () => {
   it('finds element using font-family token (only one relevant longhand)', () => {
     injectStyle(":root { --ff: Georgia, serif; }");
     injectStyle('.fx-ff-multi { font-family: var(--ff); font-size: 16px; }');
     const el = createElement({ className: 'fx-ff-multi' });
-    const { elements } = findElementsUsingToken('--ff', { kind: 'fontFamily' });
+    const { elements } = findElementsUsingToken('--ff', { kind: 'text' });
     expect(elements).toContain(el);
   });
 });
 
-describe('fontFamily — pseudo-element consumer', () => {
+describe('text (font-family) — pseudo-element consumer', () => {
   it('finds element whose ::before uses font-family token', () => {
     injectStyle(":root { --ff: Georgia, serif; }");
     injectStyle('.fx-ff-pseudo::before { content: "x"; font-family: var(--ff); }');
     const el = createElement({ className: 'fx-ff-pseudo' });
-    const { elements } = findElementsUsingToken('--ff', { kind: 'fontFamily' });
+    const { elements } = findElementsUsingToken('--ff', { kind: 'text' });
     expect(elements).toContain(el);
   });
 });
 
-describe('fontFamily — decoy', () => {
+describe('text (font-family) — decoy', () => {
   it('does NOT find element with literal Georgia font-family', () => {
     injectStyle(":root { --ff: Georgia, serif; }");
     injectStyle('.fx-real { font-family: var(--ff); }');
     injectStyle(".fx-decoy { font-family: Georgia, serif; }");
     createElement({ className: 'fx-real' });
     const decoy = createElement({ className: 'fx-decoy' });
-    const { elements } = findElementsUsingToken('--ff', { kind: 'fontFamily' });
+    const { elements } = findElementsUsingToken('--ff', { kind: 'text' });
     expect(elements).not.toContain(decoy);
+  });
+});
+
+describe('text (animation-name) — direct use', () => {
+  it('finds element with animation-name: var(--anim)', () => {
+    injectStyle(':root { --anim: my-keyframes; }');
+    injectStyle('.fx-anim { animation-name: var(--anim); animation-duration: 1s; }');
+    const el = createElement({ className: 'fx-anim' });
+    const { elements } = findElementsUsingToken('--anim', { kind: 'text' });
+    expect(elements).toContain(el);
+  });
+});
+
+describe('text (transition-property) — direct use', () => {
+  it('finds element with transition-property: var(--prop)', () => {
+    injectStyle(':root { --prop: opacity; }');
+    injectStyle('.fx-tp { transition-property: var(--prop); transition-duration: 1s; }');
+    const el = createElement({ className: 'fx-tp' });
+    const { elements } = findElementsUsingToken('--prop', { kind: 'text' });
+    expect(elements).toContain(el);
+  });
+});
+
+describe('text (will-change) — direct use', () => {
+  it('finds element with will-change: var(--wc)', () => {
+    injectStyle(':root { --wc: transform; }');
+    injectStyle('.fx-wc { will-change: var(--wc); }');
+    const el = createElement({ className: 'fx-wc' });
+    const { elements } = findElementsUsingToken('--wc', { kind: 'text' });
+    expect(elements).toContain(el);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// EASING tokens (transition-timing-function / animation-timing-function)
+// ---------------------------------------------------------------------------
+
+describe('easing — transition-timing-function (cubic-bezier)', () => {
+  it('finds element with transition-timing-function: var(--ease)', () => {
+    injectStyle(':root { --ease: cubic-bezier(0.42, 0, 1, 1); }');
+    injectStyle('.fx-ease { transition-timing-function: var(--ease); transition-duration: 1s; }');
+    const el = createElement({ className: 'fx-ease' });
+    const { elements } = findElementsUsingToken('--ease', { kind: 'easing' });
+    expect(elements).toContain(el);
+  });
+});
+
+describe('easing — transition-timing-function (keyword)', () => {
+  it('finds element with transition-timing-function: var(--ease) where ease=ease-in', () => {
+    injectStyle(':root { --ease: ease-in; }');
+    injectStyle('.fx-ease-kw { transition-timing-function: var(--ease); transition-duration: 1s; }');
+    const el = createElement({ className: 'fx-ease-kw' });
+    const { elements } = findElementsUsingToken('--ease', { kind: 'easing' });
+    expect(elements).toContain(el);
+  });
+});
+
+describe('easing — animation-timing-function', () => {
+  it('finds element with animation-timing-function: var(--ease)', () => {
+    injectStyle(':root { --ease: cubic-bezier(0.42, 0, 1, 1); }');
+    injectStyle('.fx-anim-ease { animation-name: x; animation-duration: 1s; animation-timing-function: var(--ease); }');
+    const el = createElement({ className: 'fx-anim-ease' });
+    const { elements } = findElementsUsingToken('--ease', { kind: 'easing' });
+    expect(elements).toContain(el);
+  });
+});
+
+describe('easing — transition shorthand (longhand decomposition)', () => {
+  it('finds element using `transition: all 1s var(--ease)` shorthand', () => {
+    injectStyle(':root { --ease: cubic-bezier(0.42, 0, 1, 1); }');
+    injectStyle('.fx-ease-short { transition: all 1s var(--ease); }');
+    const el = createElement({ className: 'fx-ease-short' });
+    const { elements } = findElementsUsingToken('--ease', { kind: 'easing' });
+    expect(elements).toContain(el);
+  });
+});
+
+describe('easing — alias depth 1 (semantic)', () => {
+  it('finds element via --ease-semantic aliasing --ease-base', () => {
+    injectStyle(':root { --ease-base: cubic-bezier(0.42, 0, 1, 1); --ease-semantic: var(--ease-base); }');
+    injectStyle('.fx-ease-alias { transition-timing-function: var(--ease-semantic); transition-duration: 1s; }');
+    const el = createElement({ className: 'fx-ease-alias' });
+    const { elements } = findElementsUsingToken('--ease-base', { kind: 'easing' });
+    expect(elements).toContain(el);
+  });
+});
+
+describe('easing — decoy', () => {
+  it('does NOT find element with a literal cubic-bezier value (no var())', () => {
+    injectStyle(':root { --ease: cubic-bezier(0.42, 0, 1, 1); }');
+    injectStyle('.fx-ease-real { transition-timing-function: var(--ease); transition-duration: 1s; }');
+    injectStyle('.fx-ease-decoy { transition-timing-function: cubic-bezier(0.42, 0, 1, 1); transition-duration: 1s; }');
+    createElement({ className: 'fx-ease-real' });
+    const decoy = createElement({ className: 'fx-ease-decoy' });
+    const { elements } = findElementsUsingToken('--ease', { kind: 'easing' });
+    expect(elements).not.toContain(decoy);
+  });
+});
+
+describe('easing — inline style', () => {
+  it('finds element with inline transition-timing-function: var(--ease)', () => {
+    injectStyle(':root { --ease: cubic-bezier(0.42, 0, 1, 1); }');
+    const el = createElement({ inlineStyle: 'transition-timing-function: var(--ease); transition-duration: 1s' });
+    const { elements } = findElementsUsingToken('--ease', { kind: 'easing' });
+    expect(elements).toContain(el);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// String-sentinel-rejection invariant — encodes the CSS Variables spec
+// behavior that motivated the per-property-family sentinel design (#275).
+// A string sentinel substituted into a typed property (e.g. transition-timing-
+// function) is invalid at computed-value time, so the declaration falls back
+// to its initial value. This means the `text` probe CANNOT detect easing
+// consumers — only the `easing` probe can.
+// ---------------------------------------------------------------------------
+
+describe('invariant — text probe cannot detect easing consumers (#275)', () => {
+  it('text probe finds 0 elements when easing token is consumed via transition-timing-function', () => {
+    injectStyle(':root { --ease: cubic-bezier(0.42, 0, 1, 1); }');
+    injectStyle('.fx-ease-text { transition-timing-function: var(--ease); transition-duration: 1s; }');
+    createElement({ className: 'fx-ease-text' });
+    // Forcing the text probe: sentinel is `__zdtp_probe_text_AAA__`, which is
+    // invalid as <easing-function>; transition-timing-function falls back to
+    // `ease`. The text probe finds no consumers.
+    const { elements } = findElementsUsingToken('--ease', { kind: 'text' });
+    expect(elements).toHaveLength(0);
   });
 });
 
@@ -764,9 +891,25 @@ describe('type detection — auto-classify resolved value', () => {
     expect(elements).toContain(el);
   });
 
-  it("classifies 'Georgia, serif' as fontFamily", () => {
+  it("classifies 'Georgia, serif' as text", () => {
     injectStyle(":root { --t: Georgia, serif; }");
     injectStyle('.tc { font-family: var(--t); }');
+    const el = createElement({ className: 'tc' });
+    const { elements } = findElementsUsingToken('--t');
+    expect(elements).toContain(el);
+  });
+
+  it("classifies 'cubic-bezier(0.42, 0, 1, 1)' as easing", () => {
+    injectStyle(":root { --t: cubic-bezier(0.42, 0, 1, 1); }");
+    injectStyle('.tc { transition-timing-function: var(--t); }');
+    const el = createElement({ className: 'tc' });
+    const { elements } = findElementsUsingToken('--t');
+    expect(elements).toContain(el);
+  });
+
+  it("classifies 'ease-in' as easing", () => {
+    injectStyle(":root { --t: ease-in; }");
+    injectStyle('.tc { transition-timing-function: var(--t); }');
     const el = createElement({ className: 'tc' });
     const { elements } = findElementsUsingToken('--t');
     expect(elements).toContain(el);
@@ -782,13 +925,13 @@ describe('type detection — auto-classify resolved value', () => {
 });
 
 describe('type detection — kind hint overrides auto-detect', () => {
-  it('token with 12px value probed as fontFamily — no elements found (no font-family consumer)', () => {
+  it('token with 12px value probed as text — no elements found (no font-family consumer)', () => {
     injectStyle(':root { --t: 12px; }');
     injectStyle('.tc { padding: var(--t); }');
     const el = createElement({ className: 'tc' });
-    // Force fontFamily probe on a length token → the fontFamily sentinel
-    // (__zdtp_probe_ff_AAA__) won't match padding-top
-    const { elements } = findElementsUsingToken('--t', { kind: 'fontFamily' });
+    // Force the text probe on a length token → the text sentinel
+    // (__zdtp_probe_text_AAA__) won't match padding-top
+    const { elements } = findElementsUsingToken('--t', { kind: 'text' });
     expect(elements).not.toContain(el);
   });
 });

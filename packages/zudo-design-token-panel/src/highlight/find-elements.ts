@@ -60,7 +60,7 @@ export interface FindElementsResult {
 
 export interface FindElementsOptions {
   /** Explicit token type. Skips auto-detection when supplied. */
-  kind?: 'color' | 'length' | 'number' | 'fontFamily';
+  kind?: 'color' | 'length' | 'number' | 'text' | 'easing';
   /**
    * Probe mode.
    *   equality (default): single sentinel; fast; misses calc/min/max/clamp.
@@ -71,7 +71,21 @@ export interface FindElementsOptions {
 
 // ---------------------------------------------------------------------------
 // Token-type registry  (lifted verbatim from probe.js; font shorthand dropped
-// from fontFamily compounds per production spec)
+// from text compounds per production spec)
+//
+// Per-property-family sentinels: the CSS Variables spec causes invalid var()
+// substitutions to be treated as `unset` at the consuming property, so a
+// string sentinel never appears in computed style for typed properties like
+// `transition-timing-function`. Each kind picks a sentinel format the
+// consuming properties will accept verbatim:
+//   - color    → rgb()
+//   - length   → px
+//   - number   → bare float in (0, 1)
+//   - text     → custom-ident (font-family / animation-name / transition-property / will-change)
+//   - easing   → cubic-bezier() (transition-timing-function / animation-timing-function)
+// Strict-typed string properties (cursor, content, mask-image) and time-typed
+// properties (transition-duration, animation-duration) need their own kinds
+// and are not covered here — see #275 follow-ups.
 // ---------------------------------------------------------------------------
 
 interface TokenTypeConfig {
@@ -159,12 +173,28 @@ const TOKEN_TYPES: Record<string, TokenTypeConfig> = {
     ],
     compounds: [],
   },
-  fontFamily: {
-    sentinelA: '__zdtp_probe_ff_AAA__',
-    sentinelB: '__zdtp_probe_ff_BBB__',
-    longhands: ['font-family'],
-    // font shorthand intentionally omitted: Chrome returns empty string for
-    // getComputedStyle(...).font when longhands disagree, defeating substring match.
+  text: {
+    sentinelA: '__zdtp_probe_text_AAA__',
+    sentinelB: '__zdtp_probe_text_BBB__',
+    // Properties that accept an arbitrary custom-ident (or list of idents).
+    // The CSS parser preserves the sentinel string verbatim for these, so
+    // equality mode finds consumers by exact match.
+    longhands: ['font-family', 'animation-name', 'transition-property', 'will-change'],
+    // font / transition / animation shorthands intentionally omitted: Chrome
+    // returns empty string for getComputedStyle(...).font when longhands
+    // disagree, and the shorthands' longhand decomposition above already
+    // catches every consumer.
+    compounds: [],
+  },
+  easing: {
+    // cubic-bezier() with high-entropy coordinates that round-trip exactly
+    // through Chrome's computed-style serialization. Coordinates picked to
+    // avoid collision with common timing functions used in real code.
+    sentinelA: 'cubic-bezier(0.12347, 0.67891, 0.13573, 0.24679)',
+    sentinelB: 'cubic-bezier(0.98763, 0.43217, 0.86419, 0.75319)',
+    longhands: ['transition-timing-function', 'animation-timing-function'],
+    // `transition` / `animation` shorthands decompose into their longhands at
+    // computed-style time, so substring match on the shorthand is not needed.
     compounds: [],
   },
 };
@@ -201,10 +231,17 @@ const LENGTH_RE = /^-?\d+(\.\d+)?(px|rem|em|vh|vw|vmin|vmax|pt|pc|in|cm|mm|ex|ch
 /** Bare unitless number (including floating point). */
 const BARE_NUMBER_RE = /^-?\d+(\.\d+)?$/;
 
+/**
+ * CSS <easing-function> values. Matches the cubic-bezier()/steps()/linear()
+ * functional forms and the bare keywords. Anchored to the start so a stray
+ * "ease" inside a longer ident doesn't false-positive.
+ */
+const EASING_RE = /^(cubic-bezier|steps|linear)\(|^(ease|ease-in|ease-out|ease-in-out|linear|step-start|step-end)$/i;
+
 function detectKind(
   cssVar: string,
   warnings: string[],
-): 'color' | 'length' | 'number' | 'fontFamily' {
+): 'color' | 'length' | 'number' | 'text' | 'easing' {
   const resolved = getComputedStyle(document.documentElement)
     .getPropertyValue(cssVar)
     .trim();
@@ -225,7 +262,10 @@ function detectKind(
   if (BARE_NUMBER_RE.test(resolved)) {
     return 'number';
   }
-  return 'fontFamily';
+  if (EASING_RE.test(resolved)) {
+    return 'easing';
+  }
+  return 'text';
 }
 
 // ---------------------------------------------------------------------------
@@ -422,10 +462,14 @@ function findFirstChange(
  * @param cssVar  The full custom-property name including leading dashes,
  *   e.g. `"--brand"`. Accepts `"var(--brand)"` defensively.
  * @param options  Optional configuration:
- *   - `kind`: explicit token type (`'color' | 'length' | 'number' | 'fontFamily'`).
- *     When omitted the type is auto-detected from the resolved value on
- *     `documentElement`. If the token has no value on `:root` (empty resolved
- *     value) a warning is emitted and `color` is assumed.
+ *   - `kind`: explicit token type (`'color' | 'length' | 'number' | 'text' | 'easing'`).
+ *     `text` covers any property accepting an arbitrary custom-ident
+ *     (font-family, animation-name, transition-property, will-change).
+ *     `easing` covers timing-function properties (transition-timing-function,
+ *     animation-timing-function). When omitted the type is auto-detected from
+ *     the resolved value on `documentElement`. If the token has no value on
+ *     `:root` (empty resolved value) a warning is emitted and `color` is
+ *     assumed.
  *   - `mode`: `'equality'` (default, fast) checks whether computed longhands
  *     equal the sentinel; `'differential'` probes twice (sentinels A and B)
  *     and marks consumers where any property differs — catches `calc()`,
@@ -454,7 +498,7 @@ export function findElementsUsingToken(
   const mode = options?.mode ?? 'equality';
 
   // Phase 1: determine token type
-  const kind: 'color' | 'length' | 'number' | 'fontFamily' =
+  const kind: 'color' | 'length' | 'number' | 'text' | 'easing' =
     options?.kind ?? detectKind(normalized, warnings);
 
   const conf = TOKEN_TYPES[kind] ?? TOKEN_TYPES.color;
