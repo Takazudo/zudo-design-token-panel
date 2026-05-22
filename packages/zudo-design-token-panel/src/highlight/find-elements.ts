@@ -279,6 +279,23 @@ function collectDefinerSelectors(cssVar: string, warnings: string[]): Set<string
   return out;
 }
 
+/**
+ * Find elements that define the token via an inline `style` attribute
+ * (e.g. `<section style="--brand: red">`). Stylesheet rules alone don't reach
+ * these definers, so descendants resolve the original value during the probe
+ * and consumers under the inline subtree are missed without this pass.
+ */
+function collectInlineDefinerElements(cssVar: string): Set<Element> {
+  const out = new Set<Element>();
+  const candidates = document.querySelectorAll<HTMLElement>('[style]');
+  for (const el of candidates) {
+    if (el.style.getPropertyValue(cssVar) !== '') {
+      out.add(el);
+    }
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // Override apply / restore
 // ---------------------------------------------------------------------------
@@ -293,10 +310,12 @@ function applyOverride(
   cssVar: string,
   sentinel: string,
   definerSelectors: Set<string>,
+  inlineDefinerElements: Set<Element>,
   warnings: string[],
 ): OverrideEntry[] {
   const overridden: OverrideEntry[] = [];
   const root = document.documentElement;
+  const seen = new WeakSet<Element>();
 
   // Always apply to :root
   overridden.push({
@@ -305,6 +324,24 @@ function applyOverride(
     originalPriority: root.style.getPropertyPriority(cssVar),
   });
   root.style.setProperty(cssVar, sentinel, 'important');
+  seen.add(root);
+
+  const applyToElement = (el: Element): void => {
+    if (seen.has(el)) return;
+    // Skip panel-internal elements during apply (defense-in-depth)
+    try {
+      if (el.closest(PANEL_EXCLUSION_SELECTOR) !== null) return;
+    } catch {
+      // Ignore if closest() fails
+    }
+    overridden.push({
+      el,
+      original: (el as HTMLElement).style.getPropertyValue(cssVar),
+      originalPriority: (el as HTMLElement).style.getPropertyPriority(cssVar),
+    });
+    (el as HTMLElement).style.setProperty(cssVar, sentinel, 'important');
+    seen.add(el);
+  };
 
   for (const selector of definerSelectors) {
     let matches: NodeListOf<Element>;
@@ -315,22 +352,10 @@ function applyOverride(
       warnings.push(`definer selector unparseable: ${selector}`);
       continue;
     }
-    for (const el of matches) {
-      if (el === root) continue; // :root already handled above
-      // Skip panel-internal elements during apply (defense-in-depth)
-      try {
-        if (el.closest(PANEL_EXCLUSION_SELECTOR) !== null) continue;
-      } catch {
-        // Ignore if closest() fails
-      }
-      overridden.push({
-        el,
-        original: (el as HTMLElement).style.getPropertyValue(cssVar),
-        originalPriority: (el as HTMLElement).style.getPropertyPriority(cssVar),
-      });
-      (el as HTMLElement).style.setProperty(cssVar, sentinel, 'important');
-    }
+    for (const el of matches) applyToElement(el);
   }
+
+  for (const el of inlineDefinerElements) applyToElement(el);
 
   return overridden;
 }
@@ -434,8 +459,9 @@ export function findElementsUsingToken(
 
   const conf = TOKEN_TYPES[kind] ?? TOKEN_TYPES.color;
 
-  // Phase 2: definer discovery
+  // Phase 2: definer discovery (stylesheets + inline style="--token: ..." attrs)
   const definerSelectors = collectDefinerSelectors(normalized, warnings);
+  const inlineDefinerElements = collectInlineDefinerElements(normalized);
 
   // Phase 3: probe
   const candidates: Element[] = [document.body, ...document.body.querySelectorAll('*')];
@@ -444,7 +470,13 @@ export function findElementsUsingToken(
   if (mode === 'equality') {
     const { sentinelA, longhands, compounds } = conf;
 
-    const overridden = applyOverride(normalized, sentinelA, definerSelectors, warnings);
+    const overridden = applyOverride(
+      normalized,
+      sentinelA,
+      definerSelectors,
+      inlineDefinerElements,
+      warnings,
+    );
     void document.documentElement.offsetHeight;
 
     for (const el of candidates) {
@@ -485,7 +517,13 @@ export function findElementsUsingToken(
     const propsToCheck = [...longhands, ...compounds];
 
     // Phase A: apply sentinelA, snapshot
-    const overA = applyOverride(normalized, sentinelA, definerSelectors, warnings);
+    const overA = applyOverride(
+      normalized,
+      sentinelA,
+      definerSelectors,
+      inlineDefinerElements,
+      warnings,
+    );
     void document.documentElement.offsetHeight;
 
     const snapsA = new Map<Element, Array<Record<string, string> | null>>();
@@ -495,7 +533,13 @@ export function findElementsUsingToken(
     restoreOverride(normalized, overA);
 
     // Phase B: apply sentinelB, compare
-    const overB = applyOverride(normalized, sentinelB, definerSelectors, warnings);
+    const overB = applyOverride(
+      normalized,
+      sentinelB,
+      definerSelectors,
+      inlineDefinerElements,
+      warnings,
+    );
     void document.documentElement.offsetHeight;
 
     for (const el of candidates) {

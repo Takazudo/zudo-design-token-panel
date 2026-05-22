@@ -499,6 +499,37 @@ describe('cascade — scoped definer where root has no value', () => {
   });
 });
 
+describe('cascade — inline-style definer (scoped override on a subtree)', () => {
+  it('finds descendants whose var(--token) resolves from a parent inline style="--token: ..."', () => {
+    // No stylesheet rule defines --brand. A parent inline style is the sole definer.
+    // Without inline-definer discovery, the sentinel applied to :root never reaches the child
+    // because the parent's inline style wins the cascade for --brand in this subtree.
+    injectStyle('.brand-text { color: var(--brand); }');
+    const section = createElement({
+      tag: 'section',
+      inlineStyle: '--brand: #112233;',
+    });
+    const child = createElement({
+      className: 'brand-text',
+      parent: section,
+    });
+    const { elements } = findElementsUsingToken('--brand', { kind: 'color' });
+    expect(elements).toContain(child);
+  });
+
+  it('handles inline definer plus stylesheet definer together (no double-apply error)', () => {
+    injectStyle(':root { --shared: red; }');
+    injectStyle('.consumer { color: var(--shared); }');
+    const section = createElement({
+      tag: 'section',
+      inlineStyle: '--shared: blue;',
+    });
+    const child = createElement({ className: 'consumer', parent: section });
+    const { elements } = findElementsUsingToken('--shared', { kind: 'color' });
+    expect(elements).toContain(child);
+  });
+});
+
 describe('cascade — body element as consumer', () => {
   it('finds body itself when it uses a token', () => {
     injectStyle(':root { --page-bg: #fff; }');
