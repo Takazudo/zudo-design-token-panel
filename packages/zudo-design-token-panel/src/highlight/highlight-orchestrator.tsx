@@ -76,7 +76,29 @@ function buildCssVarKindIndex(): Map<string, TierValueKind> {
 // ---------------------------------------------------------------------------
 
 type CacheKey = string; // `${cssVar}|${stylesheetVersion}|${themeVersion}`
-type CacheEntry = FindElementsResult & { usedDifferential: boolean };
+type CacheEntry = FindElementsResult;
+
+// ---------------------------------------------------------------------------
+// Differential-probe eligibility
+// ---------------------------------------------------------------------------
+
+/**
+ * TierValueKind.kind values for which differential mode is NOT applicable.
+ * These kinds use string-only CSS values (custom-idents, easing functions, etc.)
+ * where transforms like calc()/min()/max()/clamp()/color-mix() are not
+ * grammatically applicable. Running differential for these kinds wastes 4-6×
+ * the probe cost with no benefit.
+ *
+ * When the kind is undefined (auto-detect path: 'select' tiers, cssVars not
+ * in the tier index), differential is run because the resolved kind could be
+ * color/length/number where transform consumers would otherwise be missed.
+ */
+const STRING_ONLY_TIER_KINDS = new Set<string>(['text']);
+
+function isDifferentialEligible(tierKind: TierValueKind | undefined): boolean {
+  if (!tierKind) return true; // unknown — run differential to be safe
+  return !STRING_ONLY_TIER_KINDS.has(tierKind.kind);
+}
 
 // ---------------------------------------------------------------------------
 // Portal mount helpers
@@ -277,15 +299,34 @@ export function HighlightOrchestrator({ children }: { children: ComponentChildre
       const cached = matchCacheRef.current.get(key);
       if (cached) return cached;
 
-      const kind = tierKindToProbeKind(cssVarKindIndex.get(cssVar));
+      const tierKind = cssVarKindIndex.get(cssVar);
+      const kind = tierKindToProbeKind(tierKind);
       const kindOpt = kind ? { kind } : {};
-      let result = findElementsUsingToken(cssVar, kindOpt);
-      let usedDifferential = false;
-      if (result.elements.length === 0) {
-        result = findElementsUsingToken(cssVar, { ...kindOpt, mode: 'differential' });
-        usedDifferential = true;
+
+      // Always run equality probe first.
+      const eqResult = findElementsUsingToken(cssVar, kindOpt);
+
+      // Run differential only for kinds where calc()/min()/max()/clamp()/color-mix()
+      // are grammatically applicable (color, length, number, and the auto-detect path).
+      // String-only kinds (text, easing, etc.) gain nothing from differential mode.
+      let elements: Element[];
+      let warnings: string[];
+      if (isDifferentialEligible(tierKind)) {
+        const diffResult = findElementsUsingToken(cssVar, { ...kindOpt, mode: 'differential' });
+        // Union element sets (Set semantics — an element matching both probes appears once).
+        const elementSet = new Set<Element>(eqResult.elements);
+        for (const el of diffResult.elements) elementSet.add(el);
+        elements = Array.from(elementSet);
+        // Union warnings (dedupe identical strings — e.g. duplicate cross-origin warnings).
+        const warnSet = new Set<string>(eqResult.warnings);
+        for (const w of diffResult.warnings) warnSet.add(w);
+        warnings = Array.from(warnSet);
+      } else {
+        elements = eqResult.elements;
+        warnings = eqResult.warnings;
       }
-      const entry: CacheEntry = { ...result, usedDifferential };
+
+      const entry: CacheEntry = { elements, warnings };
       matchCacheRef.current.set(key, entry);
       return entry;
     }
