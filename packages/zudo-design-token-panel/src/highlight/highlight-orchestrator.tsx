@@ -43,7 +43,7 @@ import type { TierValueKind } from '../tokens/tier-model';
 
 type ProbeKind = 'color' | 'length' | 'number' | 'text' | 'easing';
 
-function tierKindToProbeKind(t: TierValueKind | undefined): ProbeKind | undefined {
+export function tierKindToProbeKind(t: TierValueKind | undefined): ProbeKind | undefined {
   if (!t) return undefined;
   switch (t.kind) {
     case 'color': return 'color';
@@ -55,6 +55,11 @@ function tierKindToProbeKind(t: TierValueKind | undefined): ProbeKind | undefine
     // cubic-bezier/keywords, 'text' for arbitrary idents).
     case 'text': return undefined;
     case 'select': return undefined; // select can hold any type — fall back to auto-detect
+    // cursor/content/mask-image are string-only CSS property values; fall back
+    // to auto-detect so the prober picks the right kind from the resolved value.
+    case 'cursor': return undefined;
+    case 'content': return undefined;
+    case 'mask-image': return undefined;
   }
 }
 
@@ -93,7 +98,7 @@ type CacheEntry = FindElementsResult;
  * in the tier index), differential is run because the resolved kind could be
  * color/length/number where transform consumers would otherwise be missed.
  */
-const STRING_ONLY_TIER_KINDS = new Set<string>(['text']);
+const STRING_ONLY_TIER_KINDS = new Set<string>(['text', 'cursor', 'content', 'mask-image']);
 
 function isDifferentialEligible(tierKind: TierValueKind | undefined): boolean {
   if (!tierKind) return true; // unknown — run differential to be safe

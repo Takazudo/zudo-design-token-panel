@@ -37,6 +37,13 @@ const easingTab: TabConfig = {
           default: 'linear',
           type: { kind: 'text' },
         },
+        {
+          id: 'cursor-default',
+          cssVar: '--zfb-easing-cursor-default',
+          label: 'Cursor Default',
+          default: 'default',
+          type: { kind: 'cursor' },
+        },
       ],
     },
     {
@@ -71,6 +78,10 @@ describe('tier-model integration (easing tab, 2-tier mode)', () => {
   it('emits the raw default literal when no override is set', () => {
     expect(emit(easingTab, 'raw', 'ease-in', {})).toBe('cubic-bezier(0.42, 0, 1, 1)');
     expect(emit(easingTab, 'raw', 'linear', {})).toBe('linear');
+  });
+
+  it('emits the cursor-kind item default literal when no override is set', () => {
+    expect(emit(easingTab, 'raw', 'cursor-default', {})).toBe('default');
   });
 
   it('emits the raw override literal when one is set', () => {

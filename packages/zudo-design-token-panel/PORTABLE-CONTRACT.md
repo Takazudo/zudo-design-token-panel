@@ -176,6 +176,9 @@ export type TierValueKind =
   | { kind: 'number'; min: number; max: number; step: number }
   | { kind: 'select'; options: readonly string[] }
   | { kind: 'text' }
+  | { kind: 'cursor' }
+  | { kind: 'content' }
+  | { kind: 'mask-image' }
   | { kind: 'color' };
 
 export interface PillSpec {
@@ -296,6 +299,9 @@ export function isNumberKind(v: TierValueKind): boolean;
 export function isSelectKind(v: TierValueKind): boolean;
 export function isTextKind(v: TierValueKind): boolean;
 export function isColorKind(v: TierValueKind): boolean;
+export function isCursorKind(v: TierValueKind): boolean;
+export function isContentKind(v: TierValueKind): boolean;
+export function isMaskImageKind(v: TierValueKind): boolean;
 ```
 
 ---

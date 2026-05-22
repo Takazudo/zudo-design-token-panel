@@ -10,6 +10,9 @@ export type TierValueKind =
   | { kind: 'number'; min: number; max: number; step: number }
   | { kind: 'select'; options: readonly string[] }
   | { kind: 'text' }
+  | { kind: 'cursor' }
+  | { kind: 'content' }
+  | { kind: 'mask-image' }
   | { kind: 'color' };
 
 // ---------------------------------------------------------------------------
@@ -30,6 +33,18 @@ export function isSelectKind(v: TierValueKind): v is Extract<TierValueKind, { ki
 
 export function isTextKind(v: TierValueKind): v is Extract<TierValueKind, { kind: 'text' }> {
   return v.kind === 'text';
+}
+
+export function isCursorKind(v: TierValueKind): v is Extract<TierValueKind, { kind: 'cursor' }> {
+  return v.kind === 'cursor';
+}
+
+export function isContentKind(v: TierValueKind): v is Extract<TierValueKind, { kind: 'content' }> {
+  return v.kind === 'content';
+}
+
+export function isMaskImageKind(v: TierValueKind): v is Extract<TierValueKind, { kind: 'mask-image' }> {
+  return v.kind === 'mask-image';
 }
 
 export function isColorKind(v: TierValueKind): v is Extract<TierValueKind, { kind: 'color' }> {
