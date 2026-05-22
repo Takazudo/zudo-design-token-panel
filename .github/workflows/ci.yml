@@ -37,7 +37,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Chromium for browser tests
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm --filter @takazudo/zudo-design-token-panel exec playwright install --with-deps chromium
 
       - name: Build
         run: pnpm build
