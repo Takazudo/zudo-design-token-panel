@@ -178,13 +178,16 @@ const TOKEN_TYPES: Record<string, TokenTypeConfig> = {
     sentinelB: '__zdtp_probe_text_BBB__',
     // Properties that accept an arbitrary custom-ident (or list of idents).
     // The CSS parser preserves the sentinel string verbatim for these, so
-    // equality mode finds consumers by exact match.
+    // equality mode finds single-value consumers by exact match.
     longhands: ['font-family', 'animation-name', 'transition-property', 'will-change'],
+    // Same properties listed as compounds so the substring check catches
+    // comma-separated multi-value consumers like
+    // `transition-property: opacity, var(--prop)`, where Chrome serializes
+    // the computed value as a list containing the sentinel.
     // font / transition / animation shorthands intentionally omitted: Chrome
     // returns empty string for getComputedStyle(...).font when longhands
-    // disagree, and the shorthands' longhand decomposition above already
-    // catches every consumer.
-    compounds: [],
+    // disagree, and the longhands above already cover every consumer.
+    compounds: ['font-family', 'animation-name', 'transition-property', 'will-change'],
   },
   easing: {
     // cubic-bezier() with high-entropy coordinates that round-trip exactly
@@ -193,9 +196,13 @@ const TOKEN_TYPES: Record<string, TokenTypeConfig> = {
     sentinelA: 'cubic-bezier(0.12347, 0.67891, 0.13573, 0.24679)',
     sentinelB: 'cubic-bezier(0.98763, 0.43217, 0.86419, 0.75319)',
     longhands: ['transition-timing-function', 'animation-timing-function'],
-    // `transition` / `animation` shorthands decompose into their longhands at
-    // computed-style time, so substring match on the shorthand is not needed.
-    compounds: [],
+    // Same properties as compounds so the substring check catches
+    // comma-separated multi-value lists like
+    // `transition-timing-function: ease, var(--easing)`.
+    // `transition` / `animation` shorthands decompose into their longhands
+    // at computed-style time, so substring match on the shorthand is not
+    // needed.
+    compounds: ['transition-timing-function', 'animation-timing-function'],
   },
 };
 
@@ -232,11 +239,16 @@ const LENGTH_RE = /^-?\d+(\.\d+)?(px|rem|em|vh|vw|vmin|vmax|pt|pc|in|cm|mm|ex|ch
 const BARE_NUMBER_RE = /^-?\d+(\.\d+)?$/;
 
 /**
- * CSS <easing-function> values. Matches the cubic-bezier()/steps()/linear()
- * functional forms and the bare keywords. Anchored to the start so a stray
- * "ease" inside a longer ident doesn't false-positive.
+ * CSS <easing-function> values in their UNAMBIGUOUS functional forms
+ * (`cubic-bezier(...)`, `steps(...)`, `linear(...)`). Bare easing keywords
+ * like `ease`, `ease-in`, `linear`, `step-start` are deliberately NOT matched
+ * here: they collide with `<custom-ident>`, so a token like
+ * `--anim-name: linear` consumed via `animation-name` must auto-detect as
+ * `text`. If a token value really is a bare easing keyword consumed via
+ * `transition-timing-function`, the caller (or a future tier-kind extension)
+ * must pass `kind: 'easing'` explicitly.
  */
-const EASING_RE = /^(cubic-bezier|steps|linear)\(|^(ease|ease-in|ease-out|ease-in-out|linear|step-start|step-end)$/i;
+const EASING_RE = /^(cubic-bezier|steps|linear)\(/i;
 
 function detectKind(
   cssVar: string,

@@ -495,12 +495,45 @@ describe('easing — transition-timing-function (cubic-bezier)', () => {
   });
 });
 
-describe('easing — transition-timing-function (keyword)', () => {
+describe('easing — transition-timing-function (keyword, explicit kind)', () => {
   it('finds element with transition-timing-function: var(--ease) where ease=ease-in', () => {
+    // Bare easing keywords collide with <custom-ident>, so auto-detect routes
+    // them to `text`. Callers that know the token is consumed via a timing-
+    // function property must pass kind: 'easing' explicitly.
     injectStyle(':root { --ease: ease-in; }');
     injectStyle('.fx-ease-kw { transition-timing-function: var(--ease); transition-duration: 1s; }');
     const el = createElement({ className: 'fx-ease-kw' });
     const { elements } = findElementsUsingToken('--ease', { kind: 'easing' });
+    expect(elements).toContain(el);
+  });
+});
+
+describe('easing — multi-value transition-timing-function list', () => {
+  it('finds element with transition-timing-function: ease, var(--ease)', () => {
+    injectStyle(':root { --ease: cubic-bezier(0.42, 0, 1, 1); }');
+    injectStyle('.fx-ease-multi { transition: opacity 1s ease, transform 1s var(--ease); }');
+    const el = createElement({ className: 'fx-ease-multi' });
+    const { elements } = findElementsUsingToken('--ease', { kind: 'easing' });
+    expect(elements).toContain(el);
+  });
+});
+
+describe('text — multi-value will-change list', () => {
+  it('finds element with will-change: opacity, var(--wc)', () => {
+    injectStyle(':root { --wc: transform; }');
+    injectStyle('.fx-wc-multi { will-change: opacity, var(--wc); }');
+    const el = createElement({ className: 'fx-wc-multi' });
+    const { elements } = findElementsUsingToken('--wc', { kind: 'text' });
+    expect(elements).toContain(el);
+  });
+});
+
+describe('text — multi-value transition-property list', () => {
+  it('finds element with transition-property: opacity, var(--prop)', () => {
+    injectStyle(':root { --prop: transform; }');
+    injectStyle('.fx-tp-multi { transition-property: opacity, var(--prop); transition-duration: 1s; }');
+    const el = createElement({ className: 'fx-tp-multi' });
+    const { elements } = findElementsUsingToken('--prop', { kind: 'text' });
     expect(elements).toContain(el);
   });
 });
@@ -907,11 +940,22 @@ describe('type detection — auto-classify resolved value', () => {
     expect(elements).toContain(el);
   });
 
-  it("classifies 'ease-in' as easing", () => {
-    injectStyle(":root { --t: ease-in; }");
+  it("classifies 'steps(3, end)' as easing", () => {
+    injectStyle(":root { --t: steps(3, end); }");
     injectStyle('.tc { transition-timing-function: var(--t); }');
     const el = createElement({ className: 'tc' });
     const { elements } = findElementsUsingToken('--t');
+    expect(elements).toContain(el);
+  });
+
+  it("does NOT classify bare keyword 'linear' as easing (custom-ident collision)", () => {
+    // A bare 'linear' value is also a valid <custom-ident>, so it could be an
+    // animation-name. Auto-detect prefers `text` for keyword values; only the
+    // unambiguous functional forms route to `easing`.
+    injectStyle(":root { --anim-name: linear; }");
+    injectStyle('.tc { animation-name: var(--anim-name); animation-duration: 1s; }');
+    const el = createElement({ className: 'tc' });
+    const { elements } = findElementsUsingToken('--anim-name');
     expect(elements).toContain(el);
   });
 
