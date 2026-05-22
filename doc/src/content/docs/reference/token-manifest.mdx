@@ -20,16 +20,22 @@ export type TierValueKind =
   | { kind: 'number'; min: number; max: number; step: number }
   | { kind: 'select'; options: readonly string[] }
   | { kind: 'text' }
-  | { kind: 'color' };
+  | { kind: 'color' }
+  | { kind: 'cursor' }
+  | { kind: 'content' }
+  | { kind: 'mask-image' };
 ```
 
-| `kind` | Editor | Extra required fields |
-| --- | --- | --- |
-| `'length'` | Range slider with a unit suffix (e.g. `rem`, `px`) | `min`, `max`, `step`, `unit` |
-| `'number'` | Unitless range slider | `min`, `max`, `step` |
-| `'select'` | Dropdown | `options` (non-empty array of strings) |
-| `'text'` | Free-form text input | — |
-| `'color'` | Color picker — used for palette tiers in the Color tab | — |
+| `kind` | Description | Editor | Extra required fields |
+| --- | --- | --- | --- |
+| `'length'` | Dimension values with a unit | Range slider with a unit suffix (e.g. `rem`, `px`) | `min`, `max`, `step`, `unit` |
+| `'number'` | Unitless numeric values | Unitless range slider | `min`, `max`, `step` |
+| `'select'` | Predefined option sets | Dropdown | `options` (non-empty array of strings) |
+| `'text'` | Free-form CSS expressions (easing curves, font families, raw strings) | Free-form text input | — |
+| `'color'` | Color values — used for palette tiers in the Color tab | Color picker | — |
+| `'cursor'` | cursor property values (keywords like `pointer`, `crosshair`, or `url(...) <fallback>`) | Free-form text input | — |
+| `'content'` | content property values for pseudo-elements (quoted strings, `none`, `normal`, `url(...)`, generated-content functions) | Free-form text input | — |
+| `'mask-image'` | mask-image property values (`none`, `url(...)`, gradient functions) | Free-form text input | — |
 
 All items in a given `TierConfig.items` array MUST share the same `kind`. Mixing kinds inside a single tier is rejected at validation time.
 

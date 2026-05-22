@@ -326,7 +326,16 @@ export type {
   TabConfig,
   ColorClusterExtras,
 } from './tokens/tier-model';
-export { isLengthKind, isNumberKind, isSelectKind, isTextKind, isColorKind } from './tokens/tier-model';
+export {
+  isLengthKind,
+  isNumberKind,
+  isSelectKind,
+  isTextKind,
+  isColorKind,
+  isCursorKind,
+  isContentKind,
+  isMaskImageKind,
+} from './tokens/tier-model';
 // Re-export the unified `TweakState` envelope and the `emptyOverrides()`
 // factory so external SerDe / persistence layers (e.g. zudo-doc's
 // `design-token-serde.ts`) can construct and type a fully-populated

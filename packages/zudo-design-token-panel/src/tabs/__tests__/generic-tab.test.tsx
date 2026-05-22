@@ -112,6 +112,27 @@ const MIXED_KINDS_TAB: TabConfig = {
           default: '#ff0000',
           type: { kind: 'color' },
         },
+        {
+          id: 'cursor-item',
+          cssVar: '--test-cursor',
+          label: 'Cursor',
+          default: 'pointer',
+          type: { kind: 'cursor' },
+        },
+        {
+          id: 'content-item',
+          cssVar: '--test-content',
+          label: 'Content',
+          default: '""',
+          type: { kind: 'content' },
+        },
+        {
+          id: 'mask-image-item',
+          cssVar: '--test-mask-image',
+          label: 'Mask Image',
+          default: 'none',
+          type: { kind: 'mask-image' },
+        },
       ],
     },
   ],
@@ -224,6 +245,36 @@ describe('GenericTab — item editors by kind', () => {
     expect(item).not.toBeNull();
     const colorInput = item?.querySelector('input[type="color"]');
     expect(colorInput).not.toBeNull();
+  });
+
+  it('renders a text input for cursor items', async () => {
+    await renderGenericTab(MIXED_KINDS_TAB);
+
+    const item = container.querySelector('[data-testid="tier-item-cursor-item"]');
+    expect(item).not.toBeNull();
+    const input = item?.querySelector('input[type="text"]');
+    expect(input).not.toBeNull();
+    expect(input?.getAttribute('aria-label')).toBe('--test-cursor value');
+  });
+
+  it('renders a text input for content items', async () => {
+    await renderGenericTab(MIXED_KINDS_TAB);
+
+    const item = container.querySelector('[data-testid="tier-item-content-item"]');
+    expect(item).not.toBeNull();
+    const input = item?.querySelector('input[type="text"]');
+    expect(input).not.toBeNull();
+    expect(input?.getAttribute('aria-label')).toBe('--test-content value');
+  });
+
+  it('renders a text input for mask-image items', async () => {
+    await renderGenericTab(MIXED_KINDS_TAB);
+
+    const item = container.querySelector('[data-testid="tier-item-mask-image-item"]');
+    expect(item).not.toBeNull();
+    const input = item?.querySelector('input[type="text"]');
+    expect(input).not.toBeNull();
+    expect(input?.getAttribute('aria-label')).toBe('--test-mask-image value');
   });
 });
 

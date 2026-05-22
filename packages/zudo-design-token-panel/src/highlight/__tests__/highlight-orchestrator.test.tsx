@@ -38,7 +38,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, h } from 'preact';
 import { act } from 'preact/test-utils';
 import { useContext } from 'preact/hooks';
-import { HighlightOrchestrator } from '../highlight-orchestrator';
+import { HighlightOrchestrator, tierKindToProbeKind } from '../highlight-orchestrator';
 import {
   HighlightContext,
   type HighlightContextValue,
@@ -732,5 +732,29 @@ describe('always-union probe (Option A)', () => {
     } finally {
       __resetPanelConfigForTests();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// tierKindToProbeKind — new cursor/content/mask-image kinds pass through
+// ---------------------------------------------------------------------------
+//
+// These three new kinds must honor the explicit manifest hint at probe time —
+// auto-detect cannot route url()-valued cursor / mask-image tokens correctly
+// (the url() branch in find-elements.ts falls back to 'text' with a warning).
+// Passing the hint through ensures the dedicated probe config in TOKEN_TYPES
+// for each kind is used.
+
+describe('tierKindToProbeKind — new kinds pass the explicit hint through', () => {
+  it('returns "cursor" for { kind: "cursor" }', () => {
+    expect(tierKindToProbeKind({ kind: 'cursor' })).toBe('cursor');
+  });
+
+  it('returns "content" for { kind: "content" }', () => {
+    expect(tierKindToProbeKind({ kind: 'content' })).toBe('content');
+  });
+
+  it('returns "mask-image" for { kind: "mask-image" }', () => {
+    expect(tierKindToProbeKind({ kind: 'mask-image' })).toBe('mask-image');
   });
 });

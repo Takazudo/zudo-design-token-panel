@@ -164,7 +164,10 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
       );
     }
 
-    case 'text': {
+    case 'text':
+    case 'cursor':
+    case 'content':
+    case 'mask-image': {
       const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         onChange(item.id, e.currentTarget.value);
       };
