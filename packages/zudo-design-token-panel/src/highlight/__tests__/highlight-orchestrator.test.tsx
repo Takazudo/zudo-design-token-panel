@@ -32,6 +32,10 @@ import {
   HighlightContext,
   type HighlightContextValue,
 } from '../highlight-toggle-button';
+import {
+  configurePanel,
+  __resetPanelConfigForTests,
+} from '../../config/panel-config';
 
 // ---------------------------------------------------------------------------
 // Mock findElementsUsingToken
@@ -524,7 +528,7 @@ describe('match cache', () => {
 
     act(() => { ctx!.toggle('--brand'); });
 
-    // After toggle, probe was called (equality returned 1 element → no differential)
+    // After toggle, both equality and differential probes were called (always-union path).
     const callCountAfterToggle = mockFindElements.mock.calls.length;
     expect(callCountAfterToggle).toBeGreaterThanOrEqual(1);
 
@@ -574,5 +578,132 @@ describe('context value shape', () => {
     act(() => { ctx!.reset!(); });
     // Default slot 0 color
     expect(ctx!.state.slots[0].color).toBe('#ff2d2d');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 11. Always-union: equality + differential probe results
+// ---------------------------------------------------------------------------
+
+describe('always-union probe (Option A)', () => {
+  it('unions elements from equality and differential probes for auto-detect tokens', () => {
+    // cssVar not in tier config → tierKind = undefined → differential eligible
+    const elA = makeElement();
+    const elB = makeElement();
+
+    // equality returns elA; differential returns elB
+    mockFindElements.mockImplementation((_cssVar: string, options?: { mode?: string }) => {
+      if (!options?.mode || options.mode === 'equality') {
+        return { elements: [elA], warnings: [] };
+      }
+      return { elements: [elB], warnings: [] };
+    });
+
+    let ctx: HighlightContextValue | null = null;
+    renderOrchestrator((c) => { ctx = c; });
+
+    act(() => { ctx!.toggle('--union-test'); });
+    act(() => { flushRaf(); });
+
+    // matchCounts should be 2 (both elements)
+    expect(ctx!.matchCounts?.['--union-test']).toBe(2);
+
+    // Both elements should be in the overlay
+    const mount = document.getElementById('tokenpanel-highlight-mount');
+    expect(mount).not.toBeNull();
+    const overlays = mount!.querySelectorAll('.tokenpanel-highlight-overlay');
+    expect(overlays.length).toBe(2);
+
+    elA.remove();
+    elB.remove();
+  });
+
+  it('deduplicates an element that appears in both equality and differential results', () => {
+    const elShared = makeElement();
+    const elExtra = makeElement();
+
+    // equality returns [elShared]; differential returns [elShared, elExtra]
+    mockFindElements.mockImplementation((_cssVar: string, options?: { mode?: string }) => {
+      if (!options?.mode || options.mode === 'equality') {
+        return { elements: [elShared], warnings: [] };
+      }
+      return { elements: [elShared, elExtra], warnings: [] };
+    });
+
+    let ctx: HighlightContextValue | null = null;
+    renderOrchestrator((c) => { ctx = c; });
+
+    act(() => { ctx!.toggle('--dedupe-test'); });
+
+    // elShared appears in both; after union dedupe it should count once → total 2
+    expect(ctx!.matchCounts?.['--dedupe-test']).toBe(2);
+
+    elShared.remove();
+    elExtra.remove();
+  });
+
+  it('deduplicates identical warning strings from equality and differential probes', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const repeated = 'Cross-origin stylesheet skipped: https://cdn.example.com/styles.css';
+
+    // Both probes emit the same cross-origin warning
+    mockFindElements.mockReturnValue({ elements: [], warnings: [repeated] });
+
+    let ctx: HighlightContextValue | null = null;
+    renderOrchestrator((c) => { ctx = c; });
+
+    act(() => { ctx!.toggle('--warn-dedupe'); });
+
+    // After union-dedup the warning should be logged exactly once
+    const warnCalls = warnSpy.mock.calls.filter((args) =>
+      args.some((a) => typeof a === 'string' && a.includes(repeated)),
+    );
+    expect(warnCalls).toHaveLength(1);
+
+    warnSpy.mockRestore();
+  });
+
+  it('skips differential probe for text-kind tokens (string-only skip)', () => {
+    // Configure a text-kind token so the orchestrator sees text kind in cssVarKindIndex.
+    configurePanel({
+      storagePrefix: 'zudo-design-token-panel',
+      consoleNamespace: 'zudo',
+      modalClassPrefix: 'zudo-design-token-panel-modal',
+      schemaId: 'zudo-design-tokens/v1',
+      exportFilenameBase: 'zudo-design-tokens',
+      tabs: [{
+        id: 'generic',
+        label: 'Generic',
+        tiers: [{
+          id: 'fonts',
+          label: 'Fonts',
+          items: [{
+            id: 'font-token',
+            cssVar: '--font-family-text',
+            label: 'Font Family',
+            default: 'sans-serif',
+            type: { kind: 'text' },
+          }],
+        }],
+      }],
+    });
+
+    try {
+      mockFindElements.mockReturnValue({ elements: [], warnings: [] });
+
+      let ctx: HighlightContextValue | null = null;
+      renderOrchestrator((c) => { ctx = c; });
+
+      mockFindElements.mockClear();
+      act(() => { ctx!.toggle('--font-family-text'); });
+
+      // For a text-kind token, only equality is called (differential skipped).
+      expect(mockFindElements).toHaveBeenCalledTimes(1);
+      const call = mockFindElements.mock.calls[0];
+      // The single call should NOT have mode: 'differential'
+      expect((call[1] as { mode?: string } | undefined)?.mode).not.toBe('differential');
+    } finally {
+      __resetPanelConfigForTests();
+    }
   });
 });
