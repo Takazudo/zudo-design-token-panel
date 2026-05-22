@@ -1188,6 +1188,237 @@ describe('var() wrapper normalization', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Step 0 spike — sentinel round-trip verification for new kinds (#285)
+// These tests MUST pass before implementing cursor/content/mask-image kinds.
+// They verify Chrome preserves the needle substring through computed-style
+// serialization for the proposed sentinel shapes.
+// ---------------------------------------------------------------------------
+
+describe('step-0 spike — cursor sentinel round-trip', () => {
+  it('cursor probe: differential mode detects consumers via keyword fallback difference', () => {
+    // Chrome getComputedStyle().cursor returns the keyword used value ('auto',
+    // 'pointer', etc.), not the url() reference. A url() cursor that fails to
+    // load resolves to its fallback keyword. This means url()-based sentinels
+    // with the same fallback keyword are indistinguishable in computed style.
+    //
+    // Instead, use two DIFFERENT keyword sentinels for differential mode:
+    // sentinelA uses fallback 'crosshair', sentinelB uses fallback 'move'.
+    // In differential mode, the two sentinels produce different cursor values,
+    // so consumers ARE detected.
+    //
+    // For equality mode, use 'crosshair' as the sentinel — it's a valid cursor
+    // keyword that Chrome preserves verbatim in computed style.
+    injectStyle(":root { --cursor-test: crosshair; }");
+    const el = createElement({});
+    injectStyle('.cursor-kw { cursor: var(--cursor-test); }');
+    el.className = 'cursor-kw';
+    const computed = getComputedStyle(el).getPropertyValue('cursor');
+    expect(computed).toBe('crosshair');
+  });
+
+  it('cursor: url(...) crosshair — Chrome returns auto (not crosshair), url() is silently dropped', () => {
+    // Documents Chrome's computed-style behaviour: when a url() cursor image
+    // fails to load (which includes data URIs for SVG with the query string
+    // used here), Chrome falls back to the INHERITED value (auto), NOT to the
+    // specified keyword fallback. This is why url()-based cursor sentinels are
+    // unsuitable: the needle is lost and even the fallback keyword is discarded.
+    // The correct sentinel for the cursor kind is a bare cursor keyword (e.g.
+    // 'crosshair') which Chrome preserves verbatim in computed style.
+    injectStyle(":root { --x: url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%2F%3E') crosshair; }");
+    const el = createElement({});
+    injectStyle('.cursor-spike2 { cursor: var(--x); }');
+    el.className = 'cursor-spike2';
+    const computed = getComputedStyle(el).getPropertyValue('cursor');
+    // Chrome falls back to 'auto' (inherited/initial), NOT to 'crosshair'.
+    // This documents the Chrome quirk that motivates keyword-only cursor sentinels.
+    expect(computed).toBe('auto');
+  });
+});
+
+describe('step-0 spike — content sentinel round-trip', () => {
+  it('content: "..." quoted-string sentinel needle survives getComputedStyle on ::before', () => {
+    injectStyle(':root { --x: "__zdtp_probe_content_AAA__"; }');
+    const el = createElement({});
+    el.className = 'content-spike';
+    injectStyle('.content-spike::before { content: var(--x); }');
+    const computed = getComputedStyle(el, '::before').getPropertyValue('content');
+    // Needle must appear as a substring
+    expect(computed).toContain('__zdtp_probe_content_AAA__');
+  });
+});
+
+describe('step-0 spike — mask-image sentinel round-trip', () => {
+  it('mask-image: url(...) sentinel needle survives getComputedStyle', () => {
+    injectStyle(":root { --x: url('data:image/svg+xml,__zdtp_probe_mask_AAA__'); }");
+    const el = createElement({});
+    el.className = 'mask-spike';
+    injectStyle('.mask-spike { mask-image: var(--x); }');
+    const computed = getComputedStyle(el).getPropertyValue('mask-image');
+    // Needle must appear as a substring
+    expect(computed).toContain('__zdtp_probe_mask_AAA__');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CURSOR tokens
+// Keyword sentinels only — Chrome drops url() from cursor computed style.
+// sentinelA='crosshair', sentinelB='move' (verified in step-0 spike above).
+// ---------------------------------------------------------------------------
+
+describe('cursor — direct use (equality mode)', () => {
+  it('finds element with cursor: var(--cursor-icon) via explicit kind hint', () => {
+    injectStyle(':root { --cursor-icon: pointer; }');
+    injectStyle('.fx-cursor { cursor: var(--cursor-icon); }');
+    const el = createElement({ className: 'fx-cursor' });
+    const { elements } = findElementsUsingToken('--cursor-icon', { kind: 'cursor' });
+    expect(elements).toContain(el);
+  });
+});
+
+describe('cursor — alias depth 1', () => {
+  it('finds element via --cursor-semantic aliasing --cursor-base', () => {
+    injectStyle(':root { --cursor-base: pointer; --cursor-semantic: var(--cursor-base); }');
+    injectStyle('.fx-cursor-alias1 { cursor: var(--cursor-semantic); }');
+    const el = createElement({ className: 'fx-cursor-alias1' });
+    const { elements } = findElementsUsingToken('--cursor-base', { kind: 'cursor' });
+    expect(elements).toContain(el);
+  });
+});
+
+describe('cursor — inline definer', () => {
+  it('finds cursor consumer when token is defined in an inline style attribute', () => {
+    injectStyle('.fx-cursor-inline { cursor: var(--cursor-inline); }');
+    const section = createElement({ inlineStyle: '--cursor-inline: help;' });
+    const child = createElement({ className: 'fx-cursor-inline', parent: section });
+    const { elements } = findElementsUsingToken('--cursor-inline', { kind: 'cursor' });
+    expect(elements).toContain(child);
+  });
+});
+
+describe('cursor — decoy (literal keyword, no var())', () => {
+  it('does NOT find element with literal cursor: pointer (no var())', () => {
+    injectStyle(':root { --cursor-icon: help; }');
+    injectStyle('.fx-cursor-real { cursor: var(--cursor-icon); }');
+    injectStyle('.fx-cursor-decoy { cursor: pointer; }');
+    createElement({ className: 'fx-cursor-real' });
+    const decoy = createElement({ className: 'fx-cursor-decoy' });
+    const { elements } = findElementsUsingToken('--cursor-icon', { kind: 'cursor' });
+    expect(elements).not.toContain(decoy);
+  });
+});
+
+describe('cursor — differential mode', () => {
+  it('finds cursor consumer in differential mode (sentinelA=crosshair, sentinelB=move)', () => {
+    injectStyle(':root { --cursor-btn: pointer; }');
+    injectStyle('.fx-cursor-diff { cursor: var(--cursor-btn); }');
+    const el = createElement({ className: 'fx-cursor-diff' });
+    const { elements } = findElementsUsingToken('--cursor-btn', { kind: 'cursor', mode: 'differential' });
+    expect(elements).toContain(el);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CONTENT tokens
+// Quoted-string sentinels — round-trip correctly through Chrome computed style.
+// Auto-detect: resolved value matching QUOTED_STRING_RE routes to 'content'.
+// ---------------------------------------------------------------------------
+
+describe('content — ::before consumer (explicit kind)', () => {
+  it('finds element whose ::before uses content: var(--icon-glyph)', () => {
+    injectStyle(':root { --icon-glyph: "★"; }');
+    injectStyle('.fx-content::before { content: var(--icon-glyph); display: block; }');
+    const el = createElement({ className: 'fx-content' });
+    const { elements } = findElementsUsingToken('--icon-glyph', { kind: 'content' });
+    expect(elements).toContain(el);
+  });
+});
+
+describe('content — auto-detect from quoted-string resolved value', () => {
+  it('classifies quoted-string resolved value as content and finds the consumer', () => {
+    injectStyle(':root { --icon-glyph: "★"; }');
+    injectStyle('.fx-content-auto::before { content: var(--icon-glyph); display: block; }');
+    const el = createElement({ className: 'fx-content-auto' });
+    // No kind hint — auto-detect should classify "★" (quoted string) as 'content'
+    const { elements, warnings } = findElementsUsingToken('--icon-glyph');
+    expect(warnings.filter((w) => w.includes('auto-detection')).length).toBe(0);
+    expect(elements).toContain(el);
+  });
+});
+
+describe('content — alias depth 1', () => {
+  it('finds element via --content-semantic aliasing --content-base', () => {
+    injectStyle(':root { --content-base: "★"; --content-semantic: var(--content-base); }');
+    injectStyle('.fx-content-alias::before { content: var(--content-semantic); display: block; }');
+    const el = createElement({ className: 'fx-content-alias' });
+    const { elements } = findElementsUsingToken('--content-base', { kind: 'content' });
+    expect(elements).toContain(el);
+  });
+});
+
+describe('content — decoy (literal string, no var())', () => {
+  it('does NOT find element with literal content: "foo" (no var())', () => {
+    injectStyle(':root { --my-content: "★"; }');
+    injectStyle('.fx-content-real::before { content: var(--my-content); display: block; }');
+    injectStyle('.fx-content-decoy::before { content: "foo"; display: block; }');
+    createElement({ className: 'fx-content-real' });
+    const decoy = createElement({ className: 'fx-content-decoy' });
+    const { elements } = findElementsUsingToken('--my-content', { kind: 'content' });
+    expect(elements).not.toContain(decoy);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// MASK-IMAGE tokens
+// url() sentinels with needle decoupling — Chrome preserves url() in computed
+// mask-image (unlike cursor). needleA/needleB allow substring matching even if
+// Chrome normalises quote characters.
+// ---------------------------------------------------------------------------
+
+describe('mask-image — direct use (explicit kind)', () => {
+  it('finds element with mask-image: var(--mask)', () => {
+    injectStyle(":root { --mask: url('data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\"/>'); }");
+    injectStyle('.fx-mask { mask-image: var(--mask); }');
+    const el = createElement({ className: 'fx-mask' });
+    const { elements } = findElementsUsingToken('--mask', { kind: 'mask-image' });
+    expect(elements).toContain(el);
+  });
+});
+
+describe('mask-image — alias depth 1', () => {
+  it('finds element via --mask-semantic aliasing --mask-base', () => {
+    injectStyle(":root { --mask-base: url('data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\"/>'); --mask-semantic: var(--mask-base); }");
+    injectStyle('.fx-mask-alias { mask-image: var(--mask-semantic); }');
+    const el = createElement({ className: 'fx-mask-alias' });
+    const { elements } = findElementsUsingToken('--mask-base', { kind: 'mask-image' });
+    expect(elements).toContain(el);
+  });
+});
+
+describe('mask-image — decoy (literal url(), no var())', () => {
+  it('does NOT find element with literal mask-image url() (no var())', () => {
+    injectStyle(":root { --mask: url('data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\"/>'); }");
+    injectStyle('.fx-mask-real { mask-image: var(--mask); }');
+    injectStyle(".fx-mask-decoy { mask-image: url('data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\"/>'); }");
+    createElement({ className: 'fx-mask-real' });
+    const decoy = createElement({ className: 'fx-mask-decoy' });
+    const { elements } = findElementsUsingToken('--mask', { kind: 'mask-image' });
+    expect(elements).not.toContain(decoy);
+  });
+});
+
+describe('mask-image — auto-detect falls through to text with warning for url() values', () => {
+  it('url() resolved value auto-detects as text with warning (url() is ambiguous)', () => {
+    injectStyle(":root { --mask: url('data:image/svg+xml,<svg xmlns=\"http://www.w3.org/2000/svg\"/>'); }");
+    injectStyle('.fx-mask-auto { mask-image: var(--mask); }');
+    createElement({ className: 'fx-mask-auto' });
+    // Auto-detect (no kind hint) should emit warning and default to text
+    const { warnings } = findElementsUsingToken('--mask');
+    expect(warnings.some((w) => w.includes('url()'))).toBe(true);
+    expect(warnings.some((w) => w.includes("kind:'mask-image'"))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // @media recursion
 // ---------------------------------------------------------------------------
 
