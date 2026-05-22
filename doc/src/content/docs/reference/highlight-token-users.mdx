@@ -97,7 +97,22 @@ When you click the eye icon next to a token, the panel runs a **sentinel-substit
 
 **Tokens that pass through CSS functions** — if a token's value flows through `calc()`, `min()`, `max()`, `clamp()`, `color-mix()`, or a similar CSS function, the single-sentinel equality check is unreliable (because the function may transform the sentinel beyond recognition). In this case the panel automatically falls back to a **two-probe strategy**: it applies two different sentinel values in sequence and marks elements whose computed properties differ between the two probes. This slower fallback catches transform-wrapped consumers that the fast equality path would miss.
 
-**Token type drives property inspection** — the panel needs to know which CSS properties to interrogate. The type hint (`color`, `length`, `number`, or `font-family`) is supplied by the panel manifest via the token's `type.kind` field. For tokens the manifest does not know about, the type is auto-detected from the token's resolved value on `documentElement`. The type determines the list of computed longhand and compound properties that are compared against the sentinel.
+**Token type drives property inspection** — the panel needs to know which CSS properties to interrogate. The type hint is supplied by the panel manifest via the token's `type.kind` field. Supported kinds are `color`, `length`, `number`, `text`, `easing`, `time`, `cursor`, `content`, and `mask-image`. For tokens the manifest does not know about, the type is auto-detected from the token's resolved value on `documentElement`. The type determines the list of computed longhand and compound properties that are compared against the sentinel.
+
+- `color` — inspects color properties (`color`, `background-color`, `border-color`, etc.) and compound properties like `box-shadow`.
+- `length` — inspects dimension properties (`padding`, `margin`, `width`, `font-size`, etc.) and compound properties like `transform`.
+- `number` — inspects unitless numeric properties (`opacity`, `line-height`, `z-index`, etc.).
+- `text` — inspects custom-ident properties (`font-family`, `animation-name`, `transition-property`, `will-change`).
+- `easing` — inspects timing-function properties (`transition-timing-function`, `animation-timing-function`).
+- `time` — inspects duration and delay properties (`transition-duration`, `transition-delay`, `animation-duration`, `animation-delay`). Token values like `0.3s` or `150ms` are automatically classified as this kind.
+
+**The three new string-property kinds added in [#285](https://github.com/Takazudo/zudo-design-token-panel/issues/285) have important probe characteristics:**
+
+- **`cursor`** — uses bare cursor-keyword sentinels (`crosshair` / `move`). Chrome's `getComputedStyle` drops the `url()` part from cursor values (the fallback keyword is also discarded when the image cannot load, returning `auto`), so `url()`-based cursor sentinels are not viable. Keyword sentinels round-trip correctly. Trade-off: elements with a literal `cursor: crosshair` or `cursor: move` (without a CSS variable) will be reported as false-positives. Auto-detect does NOT route to `cursor`; you must supply `kind: 'cursor'` explicitly. Manifest-level support requires a `TierValueKind` extension ([#287](https://github.com/Takazudo/zudo-design-token-panel/issues/287)).
+
+- **`content`** — uses double-quoted string sentinels. Quoted-string values survive Chrome computed-style serialization intact. Auto-detect routes to `content` when the token's resolved value matches the pattern `"..."` (a quoted string on `:root`).
+
+- **`mask-image`** — uses `url()` sentinels with a high-entropy needle. Chrome preserves `url()` in `getComputedStyle` for `mask-image` (unlike `cursor`). Chrome may normalise single to double quotes inside `url()`; the needle is a substring of the data URI that is quote-style-agnostic. Auto-detect for `url()` resolved values is **ambiguous** — a `url()` value could be `cursor`, `mask-image`, or `background-image`. Auto-detect falls through to `text` with a warning; supply `kind: 'mask-image'` explicitly. Manifest-level support requires a `TierValueKind` extension ([#287](https://github.com/Takazudo/zudo-design-token-panel/issues/287)).
 
 <Warning title="Migrating from the previous algorithm">
 If you were relying on the previous algorithm's alias-chain expansion depth limit (5 hops), that concept no longer applies. The new algorithm uses the browser's own cascade resolution to detect consumers, which has no artificial hop limit. Consumers reachable through any depth of `var()` alias chain are now detected automatically.

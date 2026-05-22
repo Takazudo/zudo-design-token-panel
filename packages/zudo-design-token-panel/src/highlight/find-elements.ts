@@ -60,7 +60,7 @@ export interface FindElementsResult {
 
 export interface FindElementsOptions {
   /** Explicit token type. Skips auto-detection when supplied. */
-  kind?: 'color' | 'length' | 'number' | 'text' | 'easing';
+  kind?: 'color' | 'length' | 'number' | 'text' | 'easing' | 'time' | 'cursor' | 'content' | 'mask-image';
   /**
    * Probe mode.
    *   equality (default): single sentinel; fast; misses calc/min/max/clamp.
@@ -78,14 +78,22 @@ export interface FindElementsOptions {
 // string sentinel never appears in computed style for typed properties like
 // `transition-timing-function`. Each kind picks a sentinel format the
 // consuming properties will accept verbatim:
-//   - color    → rgb()
-//   - length   → px
-//   - number   → bare float in (0, 1)
-//   - text     → custom-ident (font-family / animation-name / transition-property / will-change)
-//   - easing   → cubic-bezier() (transition-timing-function / animation-timing-function)
-// Strict-typed string properties (cursor, content, mask-image) and time-typed
-// properties (transition-duration, animation-duration) need their own kinds
-// and are not covered here — see #275 follow-ups.
+//   - color      → rgb()
+//   - length     → px
+//   - number     → bare float in (0, 1)
+//   - text       → custom-ident (font-family / animation-name / transition-property / will-change)
+//   - easing     → cubic-bezier() (transition-timing-function / animation-timing-function)
+//   - time       → <time> value in seconds (transition-duration / animation-duration / delays)
+//   - cursor     → bare keyword ('crosshair' / 'move'); Chrome computed style drops
+//                  url() from cursor values (the url() fails to load silently and
+//                  Chrome falls back to auto, not even the specified fallback keyword).
+//                  Keyword sentinels are the only shape that round-trips correctly.
+//                  Caveat: elements with literal cursor:crosshair/move will be
+//                  false-positives.
+//   - content    → quoted string with high-entropy needle; quoted-string values
+//                  round-trip through Chrome computed style correctly.
+//   - mask-image → url() with data-URI needle; Chrome preserves the url() value
+//                  in computed style for mask-image (unlike cursor).
 // ---------------------------------------------------------------------------
 
 interface TokenTypeConfig {
@@ -93,6 +101,16 @@ interface TokenTypeConfig {
   sentinelB: string;
   longhands: string[];
   compounds: string[];
+  /**
+   * Substring to search for in compound-property includes() check.
+   * When omitted, defaults to sentinelA / sentinelB respectively.
+   * Use this when Chrome may normalise the sentinel value (e.g. quote
+   * characters in url() or content strings) so that the serialised computed
+   * value differs from the literal sentinel string while still containing
+   * the high-entropy needle substring.
+   */
+  needleA?: string;
+  needleB?: string;
 }
 
 const TOKEN_TYPES: Record<string, TokenTypeConfig> = {
@@ -204,6 +222,71 @@ const TOKEN_TYPES: Record<string, TokenTypeConfig> = {
     // needed.
     compounds: ['transition-timing-function', 'animation-timing-function'],
   },
+  time: {
+    // Oddly-shaped sentinel <time> values in seconds. Deliberately outside the
+    // typical 0.1s–1s range used in real-world transitions so they won't
+    // collide with literal values in host stylesheets.
+    // 5 decimal places matches Chrome's computed-value serialization precision.
+    sentinelA: '7.13721s',
+    sentinelB: '83.26519s',
+    longhands: [
+      'transition-duration',
+      'transition-delay',
+      'animation-duration',
+      'animation-delay',
+    ],
+    // Same properties as compounds so the substring check catches
+    // comma-separated multi-value lists like
+    // `transition-duration: 0.15s, var(--dur)`, where Chrome serializes the
+    // computed value as a list containing the sentinel.
+    compounds: [
+      'transition-duration',
+      'transition-delay',
+      'animation-duration',
+      'animation-delay',
+    ],
+  },
+  cursor: {
+    // Chrome computed-style drops url() from cursor values: a cursor with
+    // url(...) fallback-keyword is normalised to just the fallback keyword when
+    // the url resource loads, or to 'auto' when it fails. Bare cursor-keyword
+    // sentinels are the only shape that round-trips correctly through
+    // getComputedStyle (verified in step-0 spike, see find-elements.browser.test.ts).
+    // Caveat: any element with literal cursor:crosshair or cursor:move (no var())
+    // will be a false-positive; this is an acceptable trade-off per #285.
+    sentinelA: 'crosshair',
+    sentinelB: 'move',
+    longhands: ['cursor'],
+    compounds: ['cursor'],
+  },
+  content: {
+    // Quoted-string values round-trip through Chrome's getComputedStyle verbatim.
+    // The double-quoted sentinel is written to the CSS var and Chrome preserves
+    // the quotes in the serialised computed content value. needleA/needleB are
+    // the substrings to search for because Chrome may normalise quote style
+    // (single→double) around the outer wrapper.
+    sentinelA: '"__zdtp_probe_content_AAA__"',
+    sentinelB: '"__zdtp_probe_content_BBB__"',
+    needleA: '__zdtp_probe_content_AAA__',
+    needleB: '__zdtp_probe_content_BBB__',
+    // content is only valid on pseudo-elements (::before / ::after). It also
+    // applies to elements with display:none, but the panel focuses on visible
+    // elements. Listed in both longhands and compounds so the substring check
+    // catches any serialization variation.
+    longhands: ['content'],
+    compounds: ['content'],
+  },
+  'mask-image': {
+    // Chrome preserves url() values in computed mask-image (unlike cursor).
+    // needleA/needleB are the substrings to search for because Chrome may
+    // normalise quote characters around the url() parameter (single→double).
+    sentinelA: "url(\"data:image/svg+xml,__zdtp_probe_mask_AAA__\")",
+    sentinelB: "url(\"data:image/svg+xml,__zdtp_probe_mask_BBB__\")",
+    needleA: '__zdtp_probe_mask_AAA__',
+    needleB: '__zdtp_probe_mask_BBB__',
+    longhands: ['mask-image'],
+    compounds: ['mask-image'],
+  },
 };
 
 const PSEUDOS: Array<string | null> = [null, '::before', '::after'];
@@ -250,10 +333,48 @@ const BARE_NUMBER_RE = /^-?\d+(\.\d+)?$/;
  */
 const EASING_RE = /^(cubic-bezier|steps|linear)\(/i;
 
+/**
+ * CSS <time> values: a numeric value (integer or decimal) followed by `s` or
+ * `ms` (case-insensitive). Handles `1s`, `1.5s`, `.5s`, `150ms`, `0.3S`.
+ */
+const TIME_RE = /^-?(?:\d+\.?\d*|\.\d+)(ms|s)$/i;
+
+/**
+ * CSS quoted string — the `content` property accepts quoted strings, and the
+ * resolved value is serialized with surrounding double-quotes.
+ */
+const QUOTED_STRING_RE = /^".*"$/;
+
+/**
+ * CSS url() function — used by mask-image, cursor, background-image, etc.
+ * Cannot distinguish cursor vs mask-image from value shape alone; auto-detect
+ * falls through to 'text' with a warning. Use an explicit kind hint to probe
+ * url()-consuming properties correctly (mask-image needs kind:'mask-image';
+ * cursor needs kind:'cursor').
+ */
+const URL_RE = /^url\(/i;
+
+/**
+ * detectKind — infers the token kind from the resolved value on documentElement.
+ *
+ * Branch order (first match wins):
+ *   1. empty value → warning, default to 'color'
+ *   2. functional / hex / named color → 'color'
+ *   3. CSS length → 'length'
+ *   4. bare number → 'number'
+ *   5. unambiguous easing function → 'easing'
+ *   6. <time> value → 'time'
+ *   7. quoted string → 'content'
+ *   8. url() → warning + fall through to 'text'
+ *      (url() values are used by cursor AND mask-image; the shape alone is
+ *      ambiguous. Supply kind:'cursor' or kind:'mask-image' explicitly when
+ *      the manifest knows the consuming property.)
+ *   9. anything else → 'text'
+ */
 function detectKind(
   cssVar: string,
   warnings: string[],
-): 'color' | 'length' | 'number' | 'text' | 'easing' {
+): 'color' | 'length' | 'number' | 'text' | 'easing' | 'time' | 'content' {
   const resolved = getComputedStyle(document.documentElement)
     .getPropertyValue(cssVar)
     .trim();
@@ -276,6 +397,22 @@ function detectKind(
   }
   if (EASING_RE.test(resolved)) {
     return 'easing';
+  }
+  if (TIME_RE.test(resolved)) {
+    return 'time';
+  }
+  if (QUOTED_STRING_RE.test(resolved)) {
+    return 'content';
+  }
+  if (URL_RE.test(resolved)) {
+    // url() resolved values can be cursor, mask-image, background-image, etc.
+    // The value shape alone is ambiguous — fall through to 'text' and warn.
+    // Supply kind:'cursor' or kind:'mask-image' explicitly for url()-typed tokens.
+    warnings.push(
+      `type auto-detection inconclusive for ${cssVar}: resolved value starts with url(); ` +
+        `defaulting to text — supply kind:'cursor' or kind:'mask-image' explicitly if this is a cursor or mask-image token`,
+    );
+    return 'text';
   }
   return 'text';
 }
@@ -474,14 +611,21 @@ function findFirstChange(
  * @param cssVar  The full custom-property name including leading dashes,
  *   e.g. `"--brand"`. Accepts `"var(--brand)"` defensively.
  * @param options  Optional configuration:
- *   - `kind`: explicit token type (`'color' | 'length' | 'number' | 'text' | 'easing'`).
+ *   - `kind`: explicit token type (`'color' | 'length' | 'number' | 'text' | 'easing' | 'time' | 'cursor' | 'content' | 'mask-image'`).
  *     `text` covers any property accepting an arbitrary custom-ident
  *     (font-family, animation-name, transition-property, will-change).
  *     `easing` covers timing-function properties (transition-timing-function,
- *     animation-timing-function). When omitted the type is auto-detected from
- *     the resolved value on `documentElement`. If the token has no value on
- *     `:root` (empty resolved value) a warning is emitted and `color` is
- *     assumed.
+ *     animation-timing-function). `time` covers duration and delay properties
+ *     (transition-duration, transition-delay, animation-duration, animation-delay).
+ *     `cursor` covers the cursor property using keyword sentinels (Chrome drops
+ *     url() from cursor computed style). `content` covers the content property
+ *     using quoted-string sentinels. `mask-image` covers the mask-image property
+ *     using url() sentinels.
+ *     When omitted the type is auto-detected from the resolved value on
+ *     `documentElement`. `url()` resolved values auto-detect as `text` with
+ *     a warning — supply kind:'cursor' or kind:'mask-image' explicitly for
+ *     url()-typed tokens. If the token has no value on `:root` (empty resolved
+ *     value) a warning is emitted and `color` is assumed.
  *   - `mode`: `'equality'` (default, fast) checks whether computed longhands
  *     equal the sentinel; `'differential'` probes twice (sentinels A and B)
  *     and marks consumers where any property differs — catches `calc()`,
@@ -510,7 +654,7 @@ export function findElementsUsingToken(
   const mode = options?.mode ?? 'equality';
 
   // Phase 1: determine token type
-  const kind: 'color' | 'length' | 'number' | 'text' | 'easing' =
+  const kind: 'color' | 'length' | 'number' | 'text' | 'easing' | 'time' | 'cursor' | 'content' | 'mask-image' =
     options?.kind ?? detectKind(normalized, warnings);
 
   const conf = TOKEN_TYPES[kind] ?? TOKEN_TYPES.color;
@@ -525,6 +669,11 @@ export function findElementsUsingToken(
 
   if (mode === 'equality') {
     const { sentinelA, longhands, compounds } = conf;
+    // needleA defaults to sentinelA when not specified (color / length / number /
+    // text / easing). For kinds where Chrome normalises the serialised value
+    // (content / mask-image), needleA is the high-entropy substring that
+    // survives normalisation even when the sentinel's quote style changes.
+    const needleA = conf.needleA ?? sentinelA;
 
     const overridden = applyOverride(
       normalized,
@@ -553,7 +702,7 @@ export function findElementsUsingToken(
         if (!hit) {
           for (const prop of compounds) {
             const v = cs.getPropertyValue(prop);
-            if (v && v.includes(sentinelA)) {
+            if (v && v.includes(needleA)) {
               hit = true;
               break;
             }
