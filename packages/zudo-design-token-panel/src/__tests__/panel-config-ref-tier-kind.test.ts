@@ -1,8 +1,9 @@
 /**
- * Regression coverage for #245 — the strict inter-tier kind-compatibility
- * rule in `assertValidTab` used to throw whenever a tier with
- * `referencesTier` had a `kind` different from its referenced tier. That
- * rule was over-strict and broke every demo's Font tab at host-adapter
+ * Regression coverage for #245 and the Option 2-a narrower guard added in #282.
+ *
+ * #245 — the strict inter-tier kind-compatibility rule used to throw whenever
+ * a tier with `referencesTier` had a `kind` different from its referenced tier.
+ * That rule was over-strict and broke every demo's Font tab at host-adapter
  * bootstrap time, because:
  *
  *   - The tier resolver (`apply/tier-resolver.ts`) does NOT read
@@ -13,10 +14,15 @@
  *     tier has `referencesTier` to `TierRefSelector` unconditionally —
  *     the item's `kind` is ignored for editor selection.
  *
- * So a ref-tier item's `kind` field has no runtime effect; demos legitimately
- * encode it as `kind: 'text'` to communicate "the stored value is a string
- * identifier". The validator must therefore allow any kind on a ref-tier
- * item regardless of the referenced tier's kind.
+ * So a ref-tier item encoded as `kind: 'text'` is legal regardless of the
+ * referenced tier's kind — the stored value is a string identifier, and the
+ * UI/runtime treat it as such.
+ *
+ * #282 — Option 2-a re-adds a narrower guard: cross-kind refs are rejected
+ * UNLESS the referencing tier has `kind: 'text'` OR both tiers share the
+ * same kind. This catches accidental wiring like a color semantic tier
+ * referencing a length raw tier, which would emit `var(--length-token)` into
+ * a `color:` declaration — invalid CSS that silently falls back at runtime.
  *
  * The intra-tier rule ("all items in one tier share a kind") and the
  * "referenced tier must exist" rule are still enforced — both catch real
@@ -186,5 +192,138 @@ describe('panel-config — ref-tier item kind compatibility (issue #245)', () =>
     expect(() =>
       assertValidPanelConfig({ ...baseHostFields, tabs: [mixedTab] }),
     ).toThrow(/mixed item kinds/);
+  });
+});
+
+describe('panel-config — Option 2-a cross-kind ref guard (issue #282)', () => {
+  it('rejects color(kind:color) semantic referencing length(kind:length) raw', () => {
+    // A misconfigured manifest where a color semantic tier references a length
+    // raw tier. Without the guard this would emit var(--length-token) into a
+    // color: declaration — invalid CSS with silent runtime fallback.
+    const badTab = {
+      id: 'color',
+      label: 'Color',
+      tiers: [
+        {
+          id: 'raw-length',
+          label: 'Length Scale',
+          items: [
+            {
+              id: 'len-base',
+              cssVar: '--len-base',
+              label: 'Base',
+              default: '4px',
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              type: { kind: 'length', min: 0, max: 32, step: 1, unit: 'px' } as any,
+            },
+          ],
+        },
+        {
+          id: 'semantic',
+          label: 'Semantic',
+          referencesTier: 'raw-length',
+          items: [
+            {
+              id: 'color-primary',
+              cssVar: '--color-primary',
+              label: 'Primary',
+              default: 'len-base',
+              type: { kind: 'color' },
+            },
+          ],
+        },
+      ],
+    };
+    expect(() =>
+      assertValidPanelConfig({ ...baseHostFields, tabs: [badTab] }),
+    ).toThrow(
+      /referencing tier has kind "color" but referenced tier "raw-length" has kind "length" \(cross-kind reference is only allowed when the referencing tier has kind "text"\)/,
+    );
+  });
+
+  it('rejects cross-kind length(kind:length) referencing number(kind:number)', () => {
+    const badTab = {
+      id: 'spacing',
+      label: 'Spacing',
+      tiers: [
+        {
+          id: 'raw-number',
+          label: 'Raw Numbers',
+          items: [
+            {
+              id: 'num-base',
+              cssVar: '--num-base',
+              label: 'Base',
+              default: '4',
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              type: { kind: 'number', min: 0, max: 100, step: 1 } as any,
+            },
+          ],
+        },
+        {
+          id: 'semantic-length',
+          label: 'Semantic Length',
+          referencesTier: 'raw-number',
+          items: [
+            {
+              id: 'spacing-md',
+              cssVar: '--spacing-md',
+              label: 'Medium',
+              default: 'num-base',
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              type: { kind: 'length', min: 0, max: 64, step: 1, unit: 'px' } as any,
+            },
+          ],
+        },
+      ],
+    };
+    expect(() =>
+      assertValidPanelConfig({ ...baseHostFields, tabs: [badTab] }),
+    ).toThrow(
+      /referencing tier has kind "length" but referenced tier "raw-number" has kind "number" \(cross-kind reference is only allowed when the referencing tier has kind "text"\)/,
+    );
+  });
+
+  it('rejects cross-kind number(kind:number) referencing length(kind:length)', () => {
+    const badTab = {
+      id: 'size',
+      label: 'Size',
+      tiers: [
+        {
+          id: 'raw-length',
+          label: 'Raw Lengths',
+          items: [
+            {
+              id: 'len-xs',
+              cssVar: '--len-xs',
+              label: 'XS',
+              default: '2px',
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              type: { kind: 'length', min: 0, max: 16, step: 1, unit: 'px' } as any,
+            },
+          ],
+        },
+        {
+          id: 'semantic-number',
+          label: 'Semantic Numbers',
+          referencesTier: 'raw-length',
+          items: [
+            {
+              id: 'size-unit',
+              cssVar: '--size-unit',
+              label: 'Unit',
+              default: 'len-xs',
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              type: { kind: 'number', min: 0, max: 100, step: 1 } as any,
+            },
+          ],
+        },
+      ],
+    };
+    expect(() =>
+      assertValidPanelConfig({ ...baseHostFields, tabs: [badTab] }),
+    ).toThrow(
+      /referencing tier has kind "number" but referenced tier "raw-length" has kind "length" \(cross-kind reference is only allowed when the referencing tier has kind "text"\)/,
+    );
   });
 });

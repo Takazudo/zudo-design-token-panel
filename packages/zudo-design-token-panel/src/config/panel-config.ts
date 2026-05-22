@@ -486,11 +486,8 @@ function assertValidTabs(tabs: unknown): void {
 /**
  * Validate a single tab entry within `PanelConfig.tabs`.
  * Checks tier-id uniqueness, item-id uniqueness across all tiers, cssVar
- * format, and referencesTier existence (the referenced tier id must exist).
- * Cross-tier kind compatibility is deliberately NOT checked — the runtime
- * resolver does pure id lookup and the UI routes ref-tier items via
- * TierRefSelector regardless of kind. See #245 / #255 for the design notes
- * and the follow-up issue about a narrower compatibility guard.
+ * format, referencesTier existence (the referenced tier id must exist), and
+ * cross-tier kind compatibility (Option 2-a narrowed guard — see below).
  */
 function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
   if (!Array.isArray(tab.tiers)) {
@@ -501,6 +498,9 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
 
   // Rule: every tier.id is unique within a tab
   const tierIds = new Set<string>();
+  // Representative kind per tier — populated during the items loop and used
+  // by the referencesTier kind-compat check (Option 2-a, issue #282).
+  const tierKinds = new Map<string, string>();
 
   for (const tier of tab.tiers) {
     if (tier === null || typeof tier !== 'object' || Array.isArray(tier)) {
@@ -530,9 +530,8 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
     // Validate intra-tier kind consistency. All items in a tier must share the
     // same kind — mixed kinds in one tier are invalid because the editor
     // dispatch in `tabs/generic-tab.tsx` and friends keys off a single kind
-    // per tier section. Only the consistency check matters here; the
-    // representative kind itself is not stored (inter-tier kind compatibility
-    // was dropped in issue #245 — see the `referencesTier` block below).
+    // per tier section. The representative kind is also stored in tierKinds
+    // for the inter-tier cross-kind check in the referencesTier block below.
     let tierKind: string | undefined = undefined;
     for (const rawItem of ti.items as unknown[]) {
       if (rawItem === null || typeof rawItem !== 'object' || Array.isArray(rawItem)) continue;
@@ -548,6 +547,9 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
           `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${ti.id}"]: mixed item kinds — found "${tierKind}" and "${kind}" in the same tier (all items must share the same kind)`,
         );
       }
+    }
+    if (tierKind !== undefined) {
+      tierKinds.set(ti.id as string, tierKind);
     }
   }
 
@@ -592,20 +594,24 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
 
   // Rule: referencesTier integrity — the named tier must exist in the same tab.
   //
-  // Note: we deliberately do NOT enforce inter-tier kind compatibility between a
-  // referencing tier and its referenced tier (issue #245). At runtime the
-  // referencing tier's items are id-string references; the tier resolver
-  // (`apply/tier-resolver.ts`) does not inspect `TierItem.type.kind` for them,
-  // and the panel UI (`tabs/generic-tab.tsx`, `tabs/font-tab.tsx`, etc.) routes
-  // every ref-tier item to `TierRefSelector` regardless of `kind`. Demos
-  // therefore legitimately encode ref-tier items as `kind: 'text'` even when
-  // the referenced tier holds (say) `kind: 'length'` values — the stored value
-  // is an identifier string, which is textual. Enforcing a strict kind match
-  // here used to crash host-adapter bootstrap on every demo's Font tab even
-  // though the runtime would have rendered the page correctly.
-  //
-  // The intra-tier rule above ("all items in one tier share a kind") still
-  // catches real encoding bugs and is backed by editor-dispatch behaviour.
+  // Cross-kind guard (Option 2-a, issue #282 — re-added narrower version):
+  // When a tier has `referencesTier: X`, look up the representative kind of
+  // both the referencing tier and tier X. Allow if:
+  //   1. The referencing tier's kind is 'text' — the Font-tab convention
+  //      (demos encode ref-tier items as `kind: 'text'` because the stored
+  //      value is a string identifier; the runtime resolver does pure id lookup
+  //      and the UI routes all ref-tier items to TierRefSelector regardless of
+  //      kind, so 'text' is accurate and harmless regardless of the referenced
+  //      tier's kind). See issue #245.
+  //   2. Both kinds are equal — the canonical same-kind pattern (e.g. color →
+  //      color in the Color tab).
+  // Reject otherwise with an explicit error naming both kinds. This catches
+  // accidental cross-kind ref wiring (e.g. a color semantic tier referencing a
+  // length raw tier) which would emit `var(--length-token)` into a `color:`
+  // declaration — invalid CSS that fails silently at runtime.
+  // If either kind is unknown (empty tier items, missing `type.kind`) the
+  // check is skipped to stay permissive — the intra-tier rule above already
+  // catches structural encoding bugs.
   for (const tier of tab.tiers) {
     const ti = tier as Record<string, unknown>;
     const tierId = ti.id as string;
@@ -620,6 +626,19 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
       if (!tierIds.has(refId)) {
         throw new Error(
           `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].referencesTier: tier "${refId}" does not exist in this tab`,
+        );
+      }
+      // Option 2-a cross-kind guard: reject non-text, non-equal-kind refs.
+      const referencingKind = tierKinds.get(tierId);
+      const referencedKind = tierKinds.get(refId);
+      if (
+        referencingKind !== undefined &&
+        referencedKind !== undefined &&
+        referencingKind !== 'text' &&
+        referencingKind !== referencedKind
+      ) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].referencesTier: referencing tier has kind "${referencingKind}" but referenced tier "${refId}" has kind "${referencedKind}" (cross-kind reference is only allowed when the referencing tier has kind "text")`,
         );
       }
     }
