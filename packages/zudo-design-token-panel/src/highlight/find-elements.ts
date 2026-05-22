@@ -60,7 +60,7 @@ export interface FindElementsResult {
 
 export interface FindElementsOptions {
   /** Explicit token type. Skips auto-detection when supplied. */
-  kind?: 'color' | 'length' | 'number' | 'text' | 'easing';
+  kind?: 'color' | 'length' | 'number' | 'text' | 'easing' | 'time';
   /**
    * Probe mode.
    *   equality (default): single sentinel; fast; misses calc/min/max/clamp.
@@ -83,9 +83,9 @@ export interface FindElementsOptions {
 //   - number   → bare float in (0, 1)
 //   - text     → custom-ident (font-family / animation-name / transition-property / will-change)
 //   - easing   → cubic-bezier() (transition-timing-function / animation-timing-function)
-// Strict-typed string properties (cursor, content, mask-image) and time-typed
-// properties (transition-duration, animation-duration) need their own kinds
-// and are not covered here — see #275 follow-ups.
+//   - time     → <time> value in seconds (transition-duration / animation-duration / delays)
+// Strict-typed string properties (cursor, content, mask-image) need their own
+// kinds and are not covered here — see #275 follow-ups.
 // ---------------------------------------------------------------------------
 
 interface TokenTypeConfig {
@@ -204,6 +204,30 @@ const TOKEN_TYPES: Record<string, TokenTypeConfig> = {
     // needed.
     compounds: ['transition-timing-function', 'animation-timing-function'],
   },
+  time: {
+    // Oddly-shaped sentinel <time> values in seconds. Deliberately outside the
+    // typical 0.1s–1s range used in real-world transitions so they won't
+    // collide with literal values in host stylesheets.
+    // 5 decimal places matches Chrome's computed-value serialization precision.
+    sentinelA: '7.13721s',
+    sentinelB: '83.26519s',
+    longhands: [
+      'transition-duration',
+      'transition-delay',
+      'animation-duration',
+      'animation-delay',
+    ],
+    // Same properties as compounds so the substring check catches
+    // comma-separated multi-value lists like
+    // `transition-duration: 0.15s, var(--dur)`, where Chrome serializes the
+    // computed value as a list containing the sentinel.
+    compounds: [
+      'transition-duration',
+      'transition-delay',
+      'animation-duration',
+      'animation-delay',
+    ],
+  },
 };
 
 const PSEUDOS: Array<string | null> = [null, '::before', '::after'];
@@ -250,10 +274,16 @@ const BARE_NUMBER_RE = /^-?\d+(\.\d+)?$/;
  */
 const EASING_RE = /^(cubic-bezier|steps|linear)\(/i;
 
+/**
+ * CSS <time> values: a numeric value (integer or decimal) followed by `s` or
+ * `ms` (case-insensitive). Handles `1s`, `1.5s`, `.5s`, `150ms`, `0.3S`.
+ */
+const TIME_RE = /^-?(?:\d+\.?\d*|\.\d+)(ms|s)$/i;
+
 function detectKind(
   cssVar: string,
   warnings: string[],
-): 'color' | 'length' | 'number' | 'text' | 'easing' {
+): 'color' | 'length' | 'number' | 'text' | 'easing' | 'time' {
   const resolved = getComputedStyle(document.documentElement)
     .getPropertyValue(cssVar)
     .trim();
@@ -276,6 +306,9 @@ function detectKind(
   }
   if (EASING_RE.test(resolved)) {
     return 'easing';
+  }
+  if (TIME_RE.test(resolved)) {
+    return 'time';
   }
   return 'text';
 }
@@ -474,11 +507,13 @@ function findFirstChange(
  * @param cssVar  The full custom-property name including leading dashes,
  *   e.g. `"--brand"`. Accepts `"var(--brand)"` defensively.
  * @param options  Optional configuration:
- *   - `kind`: explicit token type (`'color' | 'length' | 'number' | 'text' | 'easing'`).
+ *   - `kind`: explicit token type (`'color' | 'length' | 'number' | 'text' | 'easing' | 'time'`).
  *     `text` covers any property accepting an arbitrary custom-ident
  *     (font-family, animation-name, transition-property, will-change).
  *     `easing` covers timing-function properties (transition-timing-function,
- *     animation-timing-function). When omitted the type is auto-detected from
+ *     animation-timing-function). `time` covers duration and delay properties
+ *     (transition-duration, transition-delay, animation-duration, animation-delay).
+ *     When omitted the type is auto-detected from
  *     the resolved value on `documentElement`. If the token has no value on
  *     `:root` (empty resolved value) a warning is emitted and `color` is
  *     assumed.
@@ -510,7 +545,7 @@ export function findElementsUsingToken(
   const mode = options?.mode ?? 'equality';
 
   // Phase 1: determine token type
-  const kind: 'color' | 'length' | 'number' | 'text' | 'easing' =
+  const kind: 'color' | 'length' | 'number' | 'text' | 'easing' | 'time' =
     options?.kind ?? detectKind(normalized, warnings);
 
   const conf = TOKEN_TYPES[kind] ?? TOKEN_TYPES.color;

@@ -612,6 +612,119 @@ describe('invariant — text probe cannot detect easing consumers (#275)', () =>
 });
 
 // ---------------------------------------------------------------------------
+// Time tokens (transition-duration / animation-duration / delays)
+// ---------------------------------------------------------------------------
+
+describe('time — transition-duration direct consumer', () => {
+  it('finds element with transition-duration: var(--dur)', () => {
+    injectStyle(':root { --dur: 0.3s; }');
+    injectStyle('.fx-dur { transition-duration: var(--dur); transition-property: opacity; }');
+    const el = createElement({ className: 'fx-dur' });
+    const { elements } = findElementsUsingToken('--dur', { kind: 'time' });
+    expect(elements).toContain(el);
+  });
+});
+
+describe('time — transition shorthand consumer', () => {
+  it('finds element with transition: opacity var(--dur) ease shorthand', () => {
+    // Chrome decomposes transition shorthand into longhands at computed-style time,
+    // so transition-duration receives the sentinel directly from the longhand check.
+    injectStyle(':root { --dur: 0.3s; }');
+    injectStyle('.fx-dur-short { transition: opacity var(--dur) ease; }');
+    const el = createElement({ className: 'fx-dur-short' });
+    const { elements } = findElementsUsingToken('--dur', { kind: 'time' });
+    expect(elements).toContain(el);
+  });
+});
+
+describe('time — animation shorthand consumer', () => {
+  it('finds element with animation: spin var(--dur) linear shorthand', () => {
+    // Chrome decomposes animation shorthand into longhands at computed-style time,
+    // so animation-duration receives the sentinel.
+    injectStyle(':root { --dur: 0.3s; }');
+    injectStyle('.fx-anim-dur { animation: spin var(--dur) linear; }');
+    const el = createElement({ className: 'fx-anim-dur' });
+    const { elements } = findElementsUsingToken('--dur', { kind: 'time' });
+    expect(elements).toContain(el);
+  });
+});
+
+describe('time — transition-delay direct consumer', () => {
+  it('finds element with transition-delay: var(--dur)', () => {
+    injectStyle(':root { --dur: 0.15s; }');
+    injectStyle('.fx-delay { transition-delay: var(--dur); transition-property: opacity; }');
+    const el = createElement({ className: 'fx-delay' });
+    const { elements } = findElementsUsingToken('--dur', { kind: 'time' });
+    expect(elements).toContain(el);
+  });
+});
+
+describe('time — auto-detect classifies time value', () => {
+  it('auto-detects token resolved as 0.3s as time kind and finds transition-duration consumer', () => {
+    injectStyle(':root { --dur: 0.3s; }');
+    injectStyle('.fx-auto-dur { transition-duration: var(--dur); transition-property: opacity; }');
+    const el = createElement({ className: 'fx-auto-dur' });
+    // No explicit kind: auto-detection should classify 0.3s as 'time'
+    const { elements } = findElementsUsingToken('--dur');
+    expect(elements).toContain(el);
+  });
+
+  it('auto-detects token resolved as 150ms as time kind and finds transition-duration consumer', () => {
+    injectStyle(':root { --dur: 150ms; }');
+    injectStyle('.fx-auto-ms { transition-duration: var(--dur); transition-property: opacity; }');
+    const el = createElement({ className: 'fx-auto-ms' });
+    const { elements } = findElementsUsingToken('--dur');
+    expect(elements).toContain(el);
+  });
+});
+
+describe('time — decoy (literal transition-duration does not match sentinel)', () => {
+  it('does NOT find element with literal transition-duration: 0.3s (not using the token)', () => {
+    injectStyle(':root { --dur: 0.3s; }');
+    injectStyle('.fx-time-real { transition-duration: var(--dur); transition-property: opacity; }');
+    injectStyle('.fx-time-decoy { transition-duration: 0.3s; transition-property: opacity; }');
+    createElement({ className: 'fx-time-real' });
+    const decoy = createElement({ className: 'fx-time-decoy' });
+    const { elements } = findElementsUsingToken('--dur', { kind: 'time' });
+    expect(elements).not.toContain(decoy);
+  });
+});
+
+describe('time — inline-style definer', () => {
+  it('finds descendant whose transition-duration resolves from a parent inline style="--dur: ..."', () => {
+    // No stylesheet rule defines --dur on :root. The parent element's inline
+    // style is the sole definer; inline-definer discovery is required.
+    injectStyle('.fx-time-inline-child { transition-duration: var(--dur); transition-property: opacity; }');
+    const parent = createElement({ inlineStyle: '--dur: 0.15s;' });
+    const child = createElement({ className: 'fx-time-inline-child', parent });
+    const { elements } = findElementsUsingToken('--dur', { kind: 'time' });
+    expect(elements).toContain(child);
+  });
+});
+
+describe('time — differential mode', () => {
+  it('sentinelA and sentinelB produce different computed transition-duration values', () => {
+    injectStyle(':root { --dur: 0.3s; }');
+    injectStyle('.fx-time-diff { transition-duration: var(--dur); transition-property: opacity; }');
+    const el = createElement({ className: 'fx-time-diff' });
+    const { elements } = findElementsUsingToken('--dur', { kind: 'time', mode: 'differential' });
+    expect(elements).toContain(el);
+  });
+});
+
+describe('invariant — text probe cannot detect time consumers', () => {
+  it('text probe finds 0 time-consuming elements when time token is used via transition-duration', () => {
+    injectStyle(':root { --dur: 0.3s; }');
+    injectStyle('.fx-time-text { transition-duration: var(--dur); transition-property: opacity; }');
+    createElement({ className: 'fx-time-text' });
+    // The text sentinel (__zdtp_probe_text_AAA__) is invalid as <time>;
+    // transition-duration falls back to its initial value 0s. No elements found.
+    const { elements } = findElementsUsingToken('--dur', { kind: 'text' });
+    expect(elements).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Cascade fixtures
 // ---------------------------------------------------------------------------
 
@@ -956,6 +1069,22 @@ describe('type detection — auto-classify resolved value', () => {
     injectStyle('.tc { animation-name: var(--anim-name); animation-duration: 1s; }');
     const el = createElement({ className: 'tc' });
     const { elements } = findElementsUsingToken('--anim-name');
+    expect(elements).toContain(el);
+  });
+
+  it("classifies '0.3s' as time", () => {
+    injectStyle(':root { --t: 0.3s; }');
+    injectStyle('.tc { transition-duration: var(--t); transition-property: opacity; }');
+    const el = createElement({ className: 'tc' });
+    const { elements } = findElementsUsingToken('--t');
+    expect(elements).toContain(el);
+  });
+
+  it("classifies '150ms' as time", () => {
+    injectStyle(':root { --t: 150ms; }');
+    injectStyle('.tc { transition-duration: var(--t); transition-property: opacity; }');
+    const el = createElement({ className: 'tc' });
+    const { elements } = findElementsUsingToken('--t');
     expect(elements).toContain(el);
   });
 
