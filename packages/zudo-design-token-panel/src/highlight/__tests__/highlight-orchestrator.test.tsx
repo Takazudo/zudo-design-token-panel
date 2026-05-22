@@ -23,6 +23,17 @@
  * 8. matchCounts are populated in context.
  */
 
+// ---------------------------------------------------------------------------
+// Safety net: pin no-op RAF/cAF on globalThis so bare-global lookups never
+// see `undefined` even if Preact's deferred setTimeout-scheduled cleanup fires
+// after vi.restoreAllMocks() has removed the per-test mocks.
+// ---------------------------------------------------------------------------
+globalThis.requestAnimationFrame = (cb: (time: number) => void): number => {
+  setTimeout(() => cb(0), 0);
+  return 0;
+};
+globalThis.cancelAnimationFrame = (): void => { /* no-op safety net */ };
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, h } from 'preact';
 import { act } from 'preact/test-utils';
@@ -70,7 +81,10 @@ beforeEach(() => {
     rafQueue.push(cb);
     return rafQueue.length;
   };
-  window.cancelAnimationFrame = vi.fn();
+  // Note: cancelAnimationFrame is intentionally NOT mocked with vi.fn() here.
+  // No test asserts on its call count, and mocking it with vi.fn() would clobber
+  // the module-top globalThis safety-net pin, which is then left undefined after
+  // vi.restoreAllMocks() — causing the flaky ReferenceError in jsdom.
 
   // Clear storage to prevent state bleeding between tests
   sessionStorage.clear();
@@ -83,10 +97,21 @@ beforeEach(() => {
   mockFindElements.mockReturnValue({ elements: [], warnings: [] });
 });
 
-afterEach(() => {
+afterEach(async () => {
   act(() => render(null, container));
+  // Flush Preact's deferred setTimeout-scheduled cleanup before restoring mocks.
+  // Without this, Preact may call cancelAnimationFrame after vi.restoreAllMocks()
+  // has removed the per-test mock, causing a ReferenceError in jsdom.
+  await new Promise((r) => setTimeout(r, 0));
   document.body.removeChild(container);
   vi.restoreAllMocks();
+  // Re-arm the safety net after vi.restoreAllMocks() in case any per-test code
+  // clobbered globalThis.cancelAnimationFrame with a spy.
+  globalThis.cancelAnimationFrame = (): void => { /* no-op safety net */ };
+  globalThis.requestAnimationFrame = (cb: (time: number) => void): number => {
+    setTimeout(() => cb(0), 0);
+    return 0;
+  };
   // Clear storage between tests
   sessionStorage.clear();
   localStorage.clear();
