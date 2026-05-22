@@ -102,6 +102,9 @@ Each `TierItem` carries a `type` discriminated union that determines what edit c
 | `'select'` | Dropdown | Predefined option sets |
 | `'text'` | Free-form text input | Easing curves, font-family names, raw CSS expressions |
 | `'color'` | Color swatch picker | Palette entries, semantic color roles |
+| `'cursor'` | Free-form text input | cursor property values (keywords like `pointer`, `crosshair`, or `url(...) <fallback>`) |
+| `'content'` | Free-form text input | content property values for pseudo-elements (quoted strings, `none`, `normal`, `url(...)`, generated-content functions) |
+| `'mask-image'` | Free-form text input | mask-image property values (`none`, `url(...)`, gradient functions) |
 
 ```ts
 type TierValueKind =
@@ -109,7 +112,10 @@ type TierValueKind =
   | { kind: 'number'; min: number; max: number; step: number }
   | { kind: 'select'; options: readonly string[] }
   | { kind: 'text' }
-  | { kind: 'color' };
+  | { kind: 'color' }
+  | { kind: 'cursor' }
+  | { kind: 'content' }
+  | { kind: 'mask-image' };
 ```
 
 ### Flat (1-tier) tab
