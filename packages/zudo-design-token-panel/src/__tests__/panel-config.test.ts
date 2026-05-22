@@ -544,19 +544,17 @@ describe('panel-config — assertValidPanelConfig host-tabs validation', () => {
     ).toThrow(/tier "palette" does not exist/);
   });
 
-  // Rule: referencesTier kind compatibility ----------------------------------
+  // Rule: referencesTier kind compatibility (Option 2-a, issue #282) ----------
   //
-  // The inter-tier kind-compat check was removed in issue #245. Ref-tier
-  // items are id-string references; the resolver does not inspect kind and
-  // the UI routes them to TierRefSelector regardless. See
-  // panel-config-ref-tier-kind.test.ts for the rationale and the
-  // accepts-this-pattern coverage.
+  // #245 removed the strict kind-compat check entirely. #282 re-adds a
+  // narrower guard (Option 2-a): cross-kind refs are rejected UNLESS the
+  // referencing tier has kind 'text' OR both tiers share the same kind.
+  // See panel-config-ref-tier-kind.test.ts for full rationale and coverage.
 
-  it('accepts referencesTier when kinds DIFFER (semantic kind:color references raw kind:length)', () => {
-    // Previously threw "kind mismatch". The rule was over-strict — runtime
-    // ignores ref-tier item kinds. Demos legitimately encode font.semantic
-    // items as `kind: 'text'` while referencing font.raw items of
-    // `kind: 'length'` (the stored value is an id string, which is textual).
+  it('rejects referencesTier when kinds DIFFER and referencing tier is not text (color → length)', () => {
+    // Option 2-a guard: a color semantic tier referencing a length raw tier
+    // would emit var(--length-token) into a color: declaration — invalid CSS.
+    // Previously (#245) this was allowed; #282 Option 2-a rejects it.
     const tabKindDiffer: TabConfig = {
       id: 'mismatch-tab',
       label: 'Mismatch Tab',
@@ -592,7 +590,7 @@ describe('panel-config — assertValidPanelConfig host-tabs validation', () => {
     };
     expect(() =>
       assertValidPanelConfig(makeBaseConfig({ tabs: [tabKindDiffer] })),
-    ).not.toThrow();
+    ).toThrow(/cross-kind reference is only allowed when the referencing tier has kind "text"/);
   });
 
   it('accepts referencesTier when kinds are compatible (text-to-text)', () => {
