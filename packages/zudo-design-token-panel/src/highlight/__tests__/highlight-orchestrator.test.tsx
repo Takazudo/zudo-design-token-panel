@@ -40,7 +40,7 @@ import {
 const mockFindElements = vi.fn();
 
 vi.mock('../find-elements', () => ({
-  findElementsUsingToken: (cssVar: string) => mockFindElements(cssVar),
+  findElementsUsingToken: (cssVar: string, options?: unknown) => mockFindElements(cssVar, options),
 }));
 
 // ---------------------------------------------------------------------------
