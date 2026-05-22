@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
   isColorKind,
+  isContentKind,
+  isCursorKind,
   isLengthKind,
+  isMaskImageKind,
   isNumberKind,
   isSelectKind,
   isTextKind,
@@ -120,6 +123,57 @@ describe('isColorKind', () => {
     ];
     for (const v of cases) {
       expect(isColorKind(v)).toBe(false);
+    }
+  });
+});
+
+describe('isCursorKind', () => {
+  it('returns true for a cursor kind', () => {
+    const v: TierValueKind = { kind: 'cursor' };
+    expect(isCursorKind(v)).toBe(true);
+  });
+
+  it('returns false for non-cursor kinds', () => {
+    const cases: TierValueKind[] = [
+      { kind: 'text' },
+      { kind: 'color' },
+    ];
+    for (const v of cases) {
+      expect(isCursorKind(v)).toBe(false);
+    }
+  });
+});
+
+describe('isContentKind', () => {
+  it('returns true for a content kind', () => {
+    const v: TierValueKind = { kind: 'content' };
+    expect(isContentKind(v)).toBe(true);
+  });
+
+  it('returns false for non-content kinds', () => {
+    const cases: TierValueKind[] = [
+      { kind: 'text' },
+      { kind: 'color' },
+    ];
+    for (const v of cases) {
+      expect(isContentKind(v)).toBe(false);
+    }
+  });
+});
+
+describe('isMaskImageKind', () => {
+  it('returns true for a mask-image kind', () => {
+    const v: TierValueKind = { kind: 'mask-image' };
+    expect(isMaskImageKind(v)).toBe(true);
+  });
+
+  it('returns false for non-mask-image kinds', () => {
+    const cases: TierValueKind[] = [
+      { kind: 'text' },
+      { kind: 'color' },
+    ];
+    for (const v of cases) {
+      expect(isMaskImageKind(v)).toBe(false);
     }
   });
 });

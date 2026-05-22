@@ -484,6 +484,9 @@ export type TierValueKind =
   | { kind: 'number'; min: number; max: number; step: number }
   | { kind: 'select'; options: readonly string[] }
   | { kind: 'text' }
+  | { kind: 'cursor' }
+  | { kind: 'content' }
+  | { kind: 'mask-image' }
   | { kind: 'color' };
 
 export interface TierItem {
@@ -566,7 +569,7 @@ export const spacingTab: TabConfig = {
 | ------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `parseNumericValue` | `(value: string) => number \| null`                                              | Strip the numeric portion from a CSS length string (`'1.5rem'` → `1.5`). Returns `null` for unparseable input (e.g. `clamp(...)`). |
 | `formatValue`       | `(n: number, unit: string) => string`                                            | Re-format a numeric slider value back into the stored string form (`(1.5, 'rem')` → `'1.5rem'`).                               |
-| `isLengthKind` / `isNumberKind` / `isSelectKind` / `isTextKind` / `isColorKind` | `(v: TierValueKind) => boolean` | Kind narrowing helpers for `TierValueKind`. |
+| `isLengthKind` / `isNumberKind` / `isSelectKind` / `isTextKind` / `isColorKind` / `isCursorKind` / `isContentKind` / `isMaskImageKind` | `(v: TierValueKind) => boolean` | Kind narrowing helpers for `TierValueKind`. |
 
 ### 6.5 Apply behaviour
 

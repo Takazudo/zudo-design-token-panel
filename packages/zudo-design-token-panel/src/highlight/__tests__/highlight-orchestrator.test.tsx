@@ -38,7 +38,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, h } from 'preact';
 import { act } from 'preact/test-utils';
 import { useContext } from 'preact/hooks';
-import { HighlightOrchestrator } from '../highlight-orchestrator';
+import { HighlightOrchestrator, tierKindToProbeKind } from '../highlight-orchestrator';
 import {
   HighlightContext,
   type HighlightContextValue,
@@ -732,5 +732,23 @@ describe('always-union probe (Option A)', () => {
     } finally {
       __resetPanelConfigForTests();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// tierKindToProbeKind — new cursor/content/mask-image kinds return undefined
+// ---------------------------------------------------------------------------
+
+describe('tierKindToProbeKind — new string-only kinds return undefined', () => {
+  it('returns undefined for { kind: "cursor" }', () => {
+    expect(tierKindToProbeKind({ kind: 'cursor' })).toBeUndefined();
+  });
+
+  it('returns undefined for { kind: "content" }', () => {
+    expect(tierKindToProbeKind({ kind: 'content' })).toBeUndefined();
+  });
+
+  it('returns undefined for { kind: "mask-image" }', () => {
+    expect(tierKindToProbeKind({ kind: 'mask-image' })).toBeUndefined();
   });
 });
