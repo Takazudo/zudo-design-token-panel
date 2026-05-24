@@ -1,13 +1,17 @@
 /**
- * HighlightSettingsPopover — variation-14 design.
+ * HighlightSettingsPopover — 2-column color-only grid + global outline px input.
  *
- * A 4-column row grid showing 10 highlight slots:
- *   [num] [ring swatch] [token name / "available"] [slider + Npx readout]
+ * Header row: "Highlight outline settings" label (left) + global outline-width
+ * number input with "px" suffix (right).
  *
- * Footer: "Reset to defaults" button.
+ * Slot list: 10 slots in a 2-column grid; each cell = [num] [ring swatch]
+ * [token name / "available"]. The ring opens the ColorPicker for per-slot
+ * color. Per-row slider and px readout are removed.
+ *
+ * Footer: "Disable all highlights" and "Reset to defaults" buttons.
  *
  * Must be rendered inside a HighlightContext.Provider. Gracefully returns
- * null if context is absent (pre-#232 worktrees, or during merges).
+ * null if context is absent.
  */
 
 import { useContext, useRef, useState } from 'preact/compat';
@@ -55,7 +59,7 @@ export function HighlightSettingsPopover({
   // Graceful null guard: no context = no popover.
   if (!ctx) return null;
 
-  const { state, setSlot, reset, disableAll } = ctx;
+  const { state, setSlot, setOutlineWidth, reset, disableAll } = ctx;
 
   // Build reverse map: slotIndex → cssVar (first match wins).
   const slotToCssVar: Record<number, string> = {};
@@ -66,8 +70,8 @@ export function HighlightSettingsPopover({
   }
 
   // Compute the popover position anchored to the gear button.
-  // Estimated size: 440px wide, ~520px tall (10 rows × 44px + header + footer).
-  const popoverStyle = getFixedPopoverStyle(anchorRef.current ?? null, 440, 520);
+  // Estimated size: 370px wide, ~520px tall (10 rows × 44px + header + footer).
+  const popoverStyle = getFixedPopoverStyle(anchorRef.current ?? null, 370, 520);
 
   // Point colorPickerAnchorRef at the active ring element (safe here — past the null guard).
   if (editingSlotIndex !== null) {
@@ -84,15 +88,37 @@ export function HighlightSettingsPopover({
     >
       {/* Header */}
       <div className="tokenpanel-highlight-settings-header">
-        Highlight outline settings
+        <span className="tokenpanel-highlight-settings-header-label">
+          Highlight outline settings
+        </span>
+        <div className="tokenpanel-highlight-settings-outline-control">
+          <input
+            type="number"
+            min={1}
+            max={20}
+            step={1}
+            value={state.outlineWidth}
+            aria-label="Global highlight outline width in px"
+            className="tokenpanel-highlight-settings-outline-input"
+            onInput={(e) => {
+              if (setOutlineWidth) {
+                const val = Number((e.currentTarget as HTMLInputElement).value);
+                if (!Number.isNaN(val)) {
+                  setOutlineWidth(val);
+                }
+              }
+            }}
+          />
+          <span className="tokenpanel-highlight-settings-outline-px">px</span>
+        </div>
       </div>
 
-      {/* Slot list */}
+      {/* Slot grid — 2 columns */}
       <div className="tokenpanel-highlight-settings-list">
         {state.slots.map((slot, index) => {
           const cssVar = slotToCssVar[index];
           const isActive = cssVar !== undefined;
-          const ringBorder = `${slot.outlineWidth}px solid ${slot.color}`;
+          const ringBorder = `${state.outlineWidth}px solid ${slot.color}`;
 
           return (
             <div
@@ -132,27 +158,6 @@ export function HighlightSettingsPopover({
                 }
               >
                 {isActive ? cssVar : 'available'}
-              </div>
-
-              {/* Column 4: width slider + readout */}
-              <div className="tokenpanel-highlight-settings-width">
-                <input
-                  type="range"
-                  min={1}
-                  max={10}
-                  step={1}
-                  value={slot.outlineWidth}
-                  aria-label={`Outline width for slot ${index + 1}`}
-                  className="tokenpanel-highlight-settings-slider"
-                  onInput={(e) => {
-                    if (setSlot) {
-                      setSlot(index, { outlineWidth: Number((e.currentTarget as HTMLInputElement).value) });
-                    }
-                  }}
-                />
-                <div className="tokenpanel-highlight-settings-px">
-                  {slot.outlineWidth}px
-                </div>
               </div>
             </div>
           );

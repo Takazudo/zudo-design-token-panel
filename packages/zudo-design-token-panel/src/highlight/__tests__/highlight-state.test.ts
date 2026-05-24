@@ -7,6 +7,7 @@ import {
   resetSlots,
   clearAllActive,
   setSlot,
+  setOutlineWidth,
   loadHighlightState,
   saveHighlightState,
   type HighlightState,
@@ -46,9 +47,10 @@ describe('DEFAULT_HIGHLIGHT_SLOTS', () => {
     expect(DEFAULT_HIGHLIGHT_SLOTS).toHaveLength(10);
   });
 
-  it('all slots have outlineWidth 2', () => {
+  it('all slots have only a color property (no per-slot outlineWidth)', () => {
     for (const slot of DEFAULT_HIGHLIGHT_SLOTS) {
-      expect(slot.outlineWidth).toBe(2);
+      expect(typeof slot.color).toBe('string');
+      expect('outlineWidth' in slot).toBe(false);
     }
   });
 
@@ -98,6 +100,7 @@ describe('allocateSlot', () => {
 describe('toggleHighlight', () => {
   const base: HighlightState = {
     slots: DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ ...s })),
+    outlineWidth: 2,
     active: {},
   };
 
@@ -165,15 +168,27 @@ describe('resetSlots', () => {
   it('restores slot colors to defaults', () => {
     const modified: HighlightState = {
       slots: DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ ...s, color: '#000000' })),
+      outlineWidth: 5,
       active: { '--x': 3 },
     };
     const next = resetSlots(modified);
     expect(next.slots).toEqual(DEFAULT_HIGHLIGHT_SLOTS);
   });
 
+  it('resets outlineWidth to 2', () => {
+    const modified: HighlightState = {
+      slots: DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ ...s })),
+      outlineWidth: 7,
+      active: {},
+    };
+    const next = resetSlots(modified);
+    expect(next.outlineWidth).toBe(2);
+  });
+
   it('preserves the active map', () => {
     const state: HighlightState = {
       slots: DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ ...s, color: '#000000' })),
+      outlineWidth: 5,
       active: { '--x': 3, '--y': 7 },
     };
     const next = resetSlots(state);
@@ -183,6 +198,7 @@ describe('resetSlots', () => {
   it('returns a new state object (immutable)', () => {
     const state: HighlightState = {
       slots: DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ ...s })),
+      outlineWidth: 2,
       active: {},
     };
     const next = resetSlots(state);
@@ -199,6 +215,7 @@ describe('clearAllActive', () => {
   it('returns state with empty active map', () => {
     const state: HighlightState = {
       slots: DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ ...s })),
+      outlineWidth: 2,
       active: { '--color-brand': 0, '--text-sm': 2, '--spacing-md': 5 },
     };
     const next = clearAllActive(state);
@@ -207,19 +224,31 @@ describe('clearAllActive', () => {
 
   it('preserves slots unchanged', () => {
     const customSlots = DEFAULT_HIGHLIGHT_SLOTS.map((s, i) =>
-      i === 0 ? { color: '#aabbcc', outlineWidth: 4 } : { ...s },
+      i === 0 ? { color: '#aabbcc' } : { ...s },
     );
     const state: HighlightState = {
       slots: customSlots,
+      outlineWidth: 3,
       active: { '--token-x': 0, '--token-y': 3 },
     };
     const next = clearAllActive(state);
     expect(next.slots).toEqual(customSlots);
   });
 
+  it('preserves outlineWidth unchanged', () => {
+    const state: HighlightState = {
+      slots: DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ ...s })),
+      outlineWidth: 4,
+      active: { '--a': 0 },
+    };
+    const next = clearAllActive(state);
+    expect(next.outlineWidth).toBe(4);
+  });
+
   it('returns a new state object (immutable)', () => {
     const state: HighlightState = {
       slots: DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ ...s })),
+      outlineWidth: 2,
       active: { '--a': 0 },
     };
     const next = clearAllActive(state);
@@ -230,6 +259,7 @@ describe('clearAllActive', () => {
   it('returns state with empty active when already empty', () => {
     const state: HighlightState = {
       slots: DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ ...s })),
+      outlineWidth: 2,
       active: {},
     };
     const next = clearAllActive(state);
@@ -244,12 +274,13 @@ describe('clearAllActive', () => {
 describe('setSlot', () => {
   const base: HighlightState = {
     slots: DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ ...s })),
+    outlineWidth: 2,
     active: {},
   };
 
-  it('merges partial into the specified slot', () => {
+  it('merges partial color into the specified slot', () => {
     const next = setSlot(base, 0, { color: '#aabbcc' });
-    expect(next.slots[0]).toEqual({ color: '#aabbcc', outlineWidth: 2 });
+    expect(next.slots[0]).toEqual({ color: '#aabbcc' });
   });
 
   it('leaves other slots unchanged', () => {
@@ -274,10 +305,48 @@ describe('setSlot', () => {
     expect(next).not.toBe(base);
     expect(next.slots).not.toBe(base.slots);
   });
+});
 
-  it('can update outlineWidth independently', () => {
-    const next = setSlot(base, 3, { outlineWidth: 4 });
-    expect(next.slots[3]).toEqual({ color: DEFAULT_HIGHLIGHT_SLOTS[3].color, outlineWidth: 4 });
+// ---------------------------------------------------------------------------
+// setOutlineWidth
+// ---------------------------------------------------------------------------
+
+describe('setOutlineWidth', () => {
+  const base: HighlightState = {
+    slots: DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ ...s })),
+    outlineWidth: 2,
+    active: {},
+  };
+
+  it('sets outlineWidth to the given value', () => {
+    const next = setOutlineWidth(base, 5);
+    expect(next.outlineWidth).toBe(5);
+  });
+
+  it('clamps width to minimum 1 (value 0 → 1)', () => {
+    const next = setOutlineWidth(base, 0);
+    expect(next.outlineWidth).toBe(1);
+  });
+
+  it('clamps width to minimum 1 (negative → 1)', () => {
+    const next = setOutlineWidth(base, -3);
+    expect(next.outlineWidth).toBe(1);
+  });
+
+  it('allows value 1 without clamping', () => {
+    const next = setOutlineWidth(base, 1);
+    expect(next.outlineWidth).toBe(1);
+  });
+
+  it('preserves slots and active (immutable spread)', () => {
+    const next = setOutlineWidth(base, 4);
+    expect(next.slots).toBe(base.slots);
+    expect(next.active).toBe(base.active);
+  });
+
+  it('returns a new state object (immutable)', () => {
+    const next = setOutlineWidth(base, 3);
+    expect(next).not.toBe(base);
   });
 });
 
@@ -291,14 +360,20 @@ describe('loadHighlightState — default (empty storage)', () => {
     expect(state.slots).toEqual(DEFAULT_HIGHLIGHT_SLOTS);
     expect(state.active).toEqual({});
   });
+
+  it('returns outlineWidth 2 (default) when no key stored', () => {
+    const state = loadHighlightState();
+    expect(state.outlineWidth).toBe(2);
+  });
 });
 
 describe('saveHighlightState / loadHighlightState — round-trip', () => {
-  it('round-trips slots and active correctly', () => {
+  it('round-trips slots, outlineWidth, and active correctly', () => {
     const original: HighlightState = {
       slots: DEFAULT_HIGHLIGHT_SLOTS.map((s, i) =>
-        i === 0 ? { color: '#112233', outlineWidth: 3 } : { ...s },
+        i === 0 ? { color: '#112233' } : { ...s },
       ),
+      outlineWidth: 4,
       active: { '--token-a': 0, '--token-b': 5 },
     };
 
@@ -306,12 +381,27 @@ describe('saveHighlightState / loadHighlightState — round-trip', () => {
     const loaded = loadHighlightState();
 
     expect(loaded.slots).toEqual(original.slots);
+    expect(loaded.outlineWidth).toBe(4);
     expect(loaded.active).toEqual(original.active);
+  });
+
+  it('outlineWidth is stored in localStorage under the correct key', () => {
+    const state: HighlightState = {
+      slots: DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ ...s })),
+      outlineWidth: 6,
+      active: {},
+    };
+    saveHighlightState(state);
+
+    const prefix = getPanelConfig().storagePrefix;
+    const widthKey = `${prefix}-highlight-outline-width`;
+    expect(localStorage.getItem(widthKey)).toBe('6');
   });
 
   it('slots are stored in localStorage (not sessionStorage)', () => {
     const state: HighlightState = {
       slots: DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ ...s })),
+      outlineWidth: 2,
       active: {},
     };
     saveHighlightState(state);
@@ -329,6 +419,7 @@ describe('saveHighlightState / loadHighlightState — round-trip', () => {
   it('active is stored in sessionStorage (not localStorage)', () => {
     const state: HighlightState = {
       slots: DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ ...s })),
+      outlineWidth: 2,
       active: { '--token-x': 2 },
     };
     saveHighlightState(state);
@@ -349,11 +440,13 @@ describe('loadHighlightState — storage key contains storagePrefix', () => {
     const prefix = getPanelConfig().storagePrefix;
     const state: HighlightState = {
       slots: DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ ...s })),
+      outlineWidth: 2,
       active: { '--token-a': 1 },
     };
     saveHighlightState(state);
 
     expect(localStorage.getItem(`${prefix}-highlight-slots`)).not.toBeNull();
+    expect(localStorage.getItem(`${prefix}-highlight-outline-width`)).not.toBeNull();
     expect(sessionStorage.getItem(`${prefix}-highlight-active`)).not.toBeNull();
   });
 });
@@ -370,9 +463,42 @@ describe('loadHighlightState — corrupt storage degrades gracefully', () => {
   it('returns empty active when sessionStorage contains invalid JSON', () => {
     const prefix = getPanelConfig().storagePrefix;
     // Put valid slots so we can verify active independently
-    saveHighlightState({ slots: DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ ...s })), active: {} });
+    saveHighlightState({ slots: DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ ...s })), outlineWidth: 2, active: {} });
     sessionStorage.setItem(`${prefix}-highlight-active`, 'not-json{{{');
     const state = loadHighlightState();
     expect(state.active).toEqual({});
+  });
+
+  it('returns default outlineWidth 2 when stored value is invalid JSON', () => {
+    const prefix = getPanelConfig().storagePrefix;
+    localStorage.setItem(`${prefix}-highlight-outline-width`, 'not-a-number');
+    const state = loadHighlightState();
+    expect(state.outlineWidth).toBe(2);
+  });
+
+  it('returns default outlineWidth 2 when stored value is less than 1', () => {
+    const prefix = getPanelConfig().storagePrefix;
+    localStorage.setItem(`${prefix}-highlight-outline-width`, '0');
+    const state = loadHighlightState();
+    expect(state.outlineWidth).toBe(2);
+  });
+});
+
+describe('loadHighlightState — migration: legacy slots with per-slot outlineWidth', () => {
+  it('loads cleanly when old slots payload carries per-slot outlineWidth (extra field ignored)', () => {
+    const prefix = getPanelConfig().storagePrefix;
+    // Simulate old format: slots with { color, outlineWidth } per slot
+    const legacySlots = DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ color: s.color, outlineWidth: 3 }));
+    localStorage.setItem(`${prefix}-highlight-slots`, JSON.stringify(legacySlots));
+
+    const state = loadHighlightState();
+    // Should load color correctly and ignore per-slot outlineWidth
+    expect(state.slots).toHaveLength(10);
+    for (let i = 0; i < 10; i++) {
+      expect(state.slots[i].color).toBe(DEFAULT_HIGHLIGHT_SLOTS[i].color);
+      expect('outlineWidth' in state.slots[i]).toBe(false);
+    }
+    // Global outlineWidth defaults to 2 (no key stored for it)
+    expect(state.outlineWidth).toBe(2);
   });
 });

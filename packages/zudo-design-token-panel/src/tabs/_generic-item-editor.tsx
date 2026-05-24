@@ -4,7 +4,9 @@
  * non-reference items with the appropriate editor.
  *
  * For pill items (item.pill is set), a pill toggle is rendered above the
- * slider — matching the PillSliderRow behaviour from the legacy size tab.
+ * number input row — matching the PillSliderRow behaviour from the legacy
+ * size tab, but without a range slider (sliders need meaningful min/max which
+ * token manifests may not always define well).
  *
  * This is an internal helper; not exported from the package index.
  */
@@ -52,15 +54,8 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
       const unit = type.kind === 'length' ? type.unit : '';
       const min = type.min;
       const max = type.max;
-      const step = type.step;
       const numeric = parseFloat(value);
       const displayNumeric = Number.isFinite(numeric) ? numeric : min;
-
-      const handleSlider = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const n = Number(e.currentTarget.value);
-        if (!Number.isFinite(n)) return;
-        onChange(item.id, unit ? `${n}${unit}` : String(n));
-      };
 
       const handleNumber = (e: React.ChangeEvent<HTMLInputElement>) => {
         const raw = e.currentTarget.value;
@@ -73,7 +68,7 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
       // Effective readonly: either item is readonly OR pill is active
       const effectiveReadonly = isReadonly || (pill !== undefined && isPill);
 
-      const sliderRow = (
+      const numberRow = (
         <div className="tokenpanel-row--stacked" data-testid={`tier-item-${item.id}`}>
           <div className="tokenpanel-row-head">
             <span className="tokenpanel-row-label" title={item.cssVar}>
@@ -96,21 +91,10 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
             </div>
             <HighlightToggleButton cssVar={item.cssVar} />
           </div>
-          <input
-            type="range"
-            min={min}
-            max={max}
-            step={step}
-            value={displayNumeric}
-            onChange={handleSlider}
-            disabled={effectiveReadonly}
-            className="tokenpanel-row-slider"
-            aria-label={`${item.cssVar} slider`}
-          />
         </div>
       );
 
-      if (!pill) return sliderRow;
+      if (!pill) return numberRow;
 
       return (
         <div className="tokenpanel-row--column">
@@ -124,7 +108,7 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
             />
             <span className="tokenpanel-pill-toggle-text">Pill ({pillValue})</span>
           </label>
-          {sliderRow}
+          {numberRow}
         </div>
       );
     }

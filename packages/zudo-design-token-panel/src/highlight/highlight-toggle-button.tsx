@@ -27,6 +27,8 @@ export interface HighlightContextValue {
   matchCounts?: Record<string, number>;
   /** Optional — orchestrator may expose setSlot for slot colour editing. */
   setSlot?: (index: number, partial: Partial<HighlightSlotSpec>) => void;
+  /** Optional — orchestrator may expose setOutlineWidth for global outline width editing. */
+  setOutlineWidth?: (width: number) => void;
   /** Optional — orchestrator may expose reset to clear all active highlights. */
   reset?: () => void;
   /** Optional — orchestrator may expose disableAll to clear the active map while preserving slot colours. */

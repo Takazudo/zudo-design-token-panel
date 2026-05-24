@@ -6,7 +6,7 @@
  * Renders the tab's tiers in declaration order. Each tier shows a heading and
  * its items via kind-appropriate controls:
  *
- *   length / number → slider + number input (numeric range)
+ *   length / number → number input with unit suffix (numeric range)
  *   select          → native <select>
  *   text            → free-form text input
  *   color           → <input type="color"> (native OS color picker)
@@ -71,15 +71,8 @@ function ItemEditor({ tab, tier, item, value, onChange }: ItemEditorProps) {
       const unit = type.kind === 'length' ? type.unit : '';
       const min = type.min;
       const max = type.max;
-      const step = type.step;
       const numeric = parseFloat(value);
       const displayNumeric = Number.isFinite(numeric) ? numeric : min;
-
-      const handleSlider = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const n = Number(e.currentTarget.value);
-        if (!Number.isFinite(n)) return;
-        onChange(item.id, unit ? `${n}${unit}` : String(n));
-      };
 
       const handleNumber = (e: React.ChangeEvent<HTMLInputElement>) => {
         const raw = e.currentTarget.value;
@@ -112,17 +105,6 @@ function ItemEditor({ tab, tier, item, value, onChange }: ItemEditorProps) {
             </div>
             <HighlightToggleButton cssVar={item.cssVar} />
           </div>
-          <input
-            type="range"
-            min={min}
-            max={max}
-            step={step}
-            value={displayNumeric}
-            onChange={handleSlider}
-            disabled={isReadonly}
-            className="tokenpanel-row-slider"
-            aria-label={`${item.cssVar} slider`}
-          />
         </div>
       );
     }
