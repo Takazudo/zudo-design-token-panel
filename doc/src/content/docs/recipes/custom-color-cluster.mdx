@@ -22,7 +22,7 @@ Pick CSS variable names that match your stylesheet. The first palette item's
 
 ```ts
 // src/lib/my-tabs.ts
-import type { PanelConfig, ColorScheme } from '@takazudo/zudo-design-token-panel';
+import type { PanelConfig, ColorScheme } from '@takazudo/zdtp';
 
 type TabConfig = PanelConfig['tabs'][number];
 
@@ -145,7 +145,7 @@ join the same array.
 
 ```ts
 // src/lib/my-panel-config.ts
-import type { PanelConfig } from '@takazudo/zudo-design-token-panel';
+import type { PanelConfig } from '@takazudo/zdtp';
 import { myTabs } from './my-tabs';
 
 export const myPanelConfig: PanelConfig = {

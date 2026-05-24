@@ -1,14 +1,14 @@
 ---
-title: design-token-panel-server CLI
-description: "Reference for the design-token-panel-server bin: every flag, the HTTP endpoint contract, and complete invocation examples."
+title: zdtp-server CLI
+description: "Reference for the zdtp-server bin: every flag, the HTTP endpoint contract, and complete invocation examples."
 sidebar_position: 10
 ---
 
 ## Overview
 
-`design-token-panel-server` is the small Node `http` server that backs the
+`zdtp-server` is the small Node `http` server that backs the
 in-browser **design token panel**. It wraps the framework-agnostic apply
-handler shipped from `zudo-design-token-panel/server` in a tiny CLI bin so
+handler shipped from `@takazudo/zdtp/server` in a tiny CLI bin so
 you can run it next to a Vite / Astro / framework dev server during local
 development.
 
@@ -36,14 +36,14 @@ production.
 ## Synopsis
 
 ```text
-design-token-panel-server [options]
+zdtp-server [options]
 ```
 
 A minimum useful invocation always includes both required flags plus at
 least one allowed origin (otherwise no browser POST will succeed):
 
 ```bash
-design-token-panel-server \
+zdtp-server \
   --write-root tokens \
   --routing ./my.routing.json \
   --allow-origin http://localhost:5173
@@ -53,7 +53,7 @@ Run with `--help` (or `-h`) at any time to print the same usage text the
 bin ships with:
 
 ```bash
-design-token-panel-server --help
+zdtp-server --help
 ```
 
 ## Flags
@@ -77,7 +77,7 @@ from somewhere other than your repository root, pass `--root` to anchor
 those resolutions explicitly.
 
 ```bash
-design-token-panel-server \
+zdtp-server \
   --root /Users/me/work/my-app \
   --write-root tokens \
   --routing config/panel.routing.json \
@@ -105,13 +105,13 @@ point it at your repo root.
 
 ```bash
 # Sandbox writes into ./tokens (relative to --root)
-design-token-panel-server \
+zdtp-server \
   --write-root tokens \
   --routing ./panel.routing.json \
   --allow-origin http://localhost:5173
 
 # Or pass an absolute path
-design-token-panel-server \
+zdtp-server \
   --write-root /Users/me/work/my-app/src/styles/tokens \
   --routing /Users/me/work/my-app/panel.routing.json \
   --allow-origin http://localhost:5173
@@ -128,7 +128,7 @@ file path. The file is loaded **once at startup** via `loadRoutingFromFile`;
 restart the bin to pick up changes.
 
 ```bash
-design-token-panel-server \
+zdtp-server \
   --write-root tokens \
   --routing ./panel.routing.json \
   --allow-origin http://localhost:5173
@@ -153,12 +153,12 @@ integration tests and one-off scripted runs.
 
 ```bash
 # Bind a fixed port
-design-token-panel-server --port 34434 \
+zdtp-server --port 34434 \
   --write-root tokens --routing ./panel.routing.json \
   --allow-origin http://localhost:5173
 
 # Let the OS pick — read the bound port from the startup log
-design-token-panel-server --port 0 \
+zdtp-server --port 0 \
   --write-root tokens --routing ./panel.routing.json \
   --allow-origin http://localhost:5173
 ```
@@ -179,7 +179,7 @@ co-worker's machine on the same network.
 
 ```bash
 # LAN-accessible (only do this on a trusted network)
-design-token-panel-server --host 0.0.0.0 \
+zdtp-server --host 0.0.0.0 \
   --write-root tokens --routing ./panel.routing.json \
   --allow-origin http://192.168.1.20:5173
 ```
@@ -206,12 +206,12 @@ supported; the operator declares each allowed origin verbatim.
 
 ```bash
 # Single origin (typical local dev)
-design-token-panel-server \
+zdtp-server \
   --write-root tokens --routing ./panel.routing.json \
   --allow-origin http://localhost:5173
 
 # Multiple origins (e.g. Vite + Storybook side by side)
-design-token-panel-server \
+zdtp-server \
   --write-root tokens --routing ./panel.routing.json \
   --allow-origin http://localhost:5173 \
   --allow-origin http://localhost:6006
@@ -239,7 +239,7 @@ tokens to M files ...`) and the startup `listening on ...` banner are
 silenced.
 
 ```bash
-design-token-panel-server --quiet \
+zdtp-server --quiet \
   --write-root tokens --routing ./panel.routing.json \
   --allow-origin http://localhost:5173
 ```
@@ -254,8 +254,8 @@ Print the built-in usage text to stdout and exit `0`. Short-circuits all
 validation, so `--help` works even with no other flags set.
 
 ```bash
-design-token-panel-server --help
-design-token-panel-server -h
+zdtp-server --help
+zdtp-server -h
 ```
 
 ## Endpoint contract
@@ -364,7 +364,7 @@ Run the bin alongside your Vite dev server using a process runner like
   "scripts": {
     "dev": "npm-run-all --parallel dev:vite dev:panel",
     "dev:vite": "vite",
-    "dev:panel": "design-token-panel-server --write-root src/styles/tokens --routing ./panel.routing.json --allow-origin http://localhost:5173"
+    "dev:panel": "zdtp-server --write-root src/styles/tokens --routing ./panel.routing.json --allow-origin http://localhost:5173"
   }
 }
 ```
@@ -383,7 +383,7 @@ preview deploy or another developer's machine on the LAN), bind the bin
 to a routable interface and allow that origin explicitly:
 
 ```bash
-design-token-panel-server \
+zdtp-server \
   --host 0.0.0.0 \
   --port 24681 \
   --write-root tokens \
@@ -406,7 +406,7 @@ overwrite real source files:
 
 ```bash
 mkdir -p /tmp/zdtp-sandbox/tokens
-design-token-panel-server \
+zdtp-server \
   --root /tmp/zdtp-sandbox \
   --write-root tokens \
   --routing /tmp/zdtp-sandbox/panel.routing.json \

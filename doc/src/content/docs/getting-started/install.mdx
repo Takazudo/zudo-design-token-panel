@@ -1,10 +1,10 @@
 ---
 title: Install
-description: Install @takazudo/zudo-design-token-panel into any pnpm, npm, yarn, or bun project.
+description: Install @takazudo/zdtp into any pnpm, npm, yarn, or bun project.
 sidebar_position: 2
 ---
 
-`@takazudo/zudo-design-token-panel` is a regular npm package. It works in any project that can render a Preact island — Astro, Vite + React, Next.js, or a plain Vite SPA — because the public surface is just a `configurePanel({...})` call plus a Preact-rendered shell.
+`@takazudo/zdtp` is a regular npm package. It works in any project that can render a Preact island — Astro, Vite + React, Next.js, or a plain Vite SPA — because the public surface is just a `configurePanel({...})` call plus a Preact-rendered shell.
 
 This page covers installing the package itself. For wiring it into your layout, see [Quickstart](./quickstart).
 
@@ -15,25 +15,25 @@ Pick the invocation that matches your project's package manager. Each command in
 ### pnpm
 
 ```sh
-pnpm add @takazudo/zudo-design-token-panel preact
+pnpm add @takazudo/zdtp preact
 ```
 
 ### npm
 
 ```sh
-npm install @takazudo/zudo-design-token-panel preact
+npm install @takazudo/zdtp preact
 ```
 
 ### yarn
 
 ```sh
-yarn add @takazudo/zudo-design-token-panel preact
+yarn add @takazudo/zdtp preact
 ```
 
 ### bun
 
 ```sh
-bun add @takazudo/zudo-design-token-panel preact
+bun add @takazudo/zdtp preact
 ```
 
 <Note title="Preact is a peer dependency">
@@ -44,23 +44,23 @@ bun add @takazudo/zudo-design-token-panel preact
 
 Once the install completes, the package exposes three things you can sanity-check from your project root:
 
-- The library entry — `@takazudo/zudo-design-token-panel` (calls `configurePanel`, renders the panel).
-- The Astro entry — `@takazudo/zudo-design-token-panel/astro` (the `<DesignTokenPanelHost>` component plus the host adapter).
-- The CLI bin — `design-token-panel-server`, used by the apply pipeline (see below).
+- The library entry — `@takazudo/zdtp` (calls `configurePanel`, renders the panel).
+- The Astro entry — `@takazudo/zdtp/astro` (the `<DesignTokenPanelHost>` component plus the host adapter).
+- The CLI bin — `zdtp-server`, used by the apply pipeline (see below).
 
 You can confirm the bin is on the path inside your project with:
 
 ```sh
-pnpm exec design-token-panel-server --help
+pnpm exec zdtp-server --help
 # or
-npx design-token-panel-server --help
+npx zdtp-server --help
 ```
 
 If the help text prints, the package is installed correctly.
 
 ## The apply-pipeline bin
 
-The package ships an executable named `design-token-panel-server`. It runs alongside your dev server, listens on a loopback port, and rewrites your token CSS files when the user clicks **Apply** in the panel.
+The package ships an executable named `zdtp-server`. It runs alongside your dev server, listens on a loopback port, and rewrites your token CSS files when the user clicks **Apply** in the panel.
 
 <Tip title="You can ignore this for now">
   The bin is optional — the panel is fully functional in export/import mode without it. Wire it in once you want users (or you yourself in dev) to push panel tweaks back to disk.
@@ -69,7 +69,7 @@ The package ships an executable named `design-token-panel-server`. It runs along
 The full CLI reference lives on its own page once the reference section is in place. The short version:
 
 ```sh
-npx design-token-panel-server \
+npx zdtp-server \
   --routing ./panel-routing.json \
   --write-root ./tokens \
   --allow-origin http://localhost:5173
@@ -88,7 +88,7 @@ The package's `package.json` declares the following peer:
 </Info>
 
 <Info title="No styles import needed">
-  The panel injects its own stylesheet at runtime — when the panel first opens it appends a `<style>` element carrying the bundled CSS. You do **not** need to import the CSS yourself. The `@takazudo/zudo-design-token-panel/styles` (and `/styles.css`) export still resolves to the bundled stylesheet and remains available if you prefer to pull the CSS into your own stylesheet pipeline, but it is now optional.
+  The panel injects its own stylesheet at runtime — when the panel first opens it appends a `<style>` element carrying the bundled CSS. You do **not** need to import the CSS yourself. The `@takazudo/zdtp/styles` (and `/styles.css`) export still resolves to the bundled stylesheet and remains available if you prefer to pull the CSS into your own stylesheet pipeline, but it is now optional.
 </Info>
 
 ## Next step

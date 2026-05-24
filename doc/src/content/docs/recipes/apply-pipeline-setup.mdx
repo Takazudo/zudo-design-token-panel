@@ -1,11 +1,11 @@
 ---
 title: Apply pipeline setup
-description: "Wire the design-token-panel-server bin into a non-Astro host's dev script — CORS, --write-root sandboxing, and the routing JSON."
+description: "Wire the zdtp-server bin into a non-Astro host's dev script — CORS, --write-root sandboxing, and the routing JSON."
 sidebar_position: 4
 ---
 
 The Apply button POSTs a flat CSS-var diff to the host's apply endpoint,
-which routes the diff to the **bin server** (`design-token-panel-server`),
+which routes the diff to the **bin server** (`zdtp-server`),
 which atomically rewrites your source CSS files. This recipe wires the bin
 into a non-Astro host (e.g. a Vite SPA, Next.js, or any Node-based dev
 server) and sets up the three guards: CORS, `--write-root` sandboxing, and
@@ -18,14 +18,14 @@ implementation guidance, error shapes — see
 ## 1. Install the package as a dev dep
 
 ```sh
-pnpm add -D @takazudo/zudo-design-token-panel
+pnpm add -D @takazudo/zdtp
 ```
 
-The package ships an executable named `design-token-panel-server`. Verify
+The package ships an executable named `zdtp-server`. Verify
 the install with:
 
 ```sh
-pnpm exec design-token-panel-server --help
+pnpm exec zdtp-server --help
 ```
 
 ## 2. Author the routing JSON
@@ -61,10 +61,10 @@ uses.
 // package.json
 {
   "scripts": {
-    "dev": "concurrently --kill-others-on-fail --names dev,panel \"vite\" \"design-token-panel-server --routing ./panel-routing.json --write-root ./src/styles --allow-origin http://localhost:5173\""
+    "dev": "concurrently --kill-others-on-fail --names dev,panel \"vite\" \"zdtp-server --routing ./panel-routing.json --write-root ./src/styles --allow-origin http://localhost:5173\""
   },
   "devDependencies": {
-    "@takazudo/zudo-design-token-panel": "^0.1.0",
+    "@takazudo/zdtp": "^0.1.0",
     "concurrently": "^9.0.0"
   }
 }
@@ -95,7 +95,7 @@ agree without two declarations to keep in sync.
 
 ```ts
 // src/lib/my-panel-config.ts
-import type { PanelConfig } from '@takazudo/zudo-design-token-panel';
+import type { PanelConfig } from '@takazudo/zdtp';
 import routing from '../../panel-routing.json' assert { type: 'json' };
 import { myTabs } from './my-tabs';
 
@@ -124,8 +124,8 @@ panel module so its side-effects register:
 
 ```ts
 // src/main.ts
-import { configurePanel } from '@takazudo/zudo-design-token-panel';
-import '@takazudo/zudo-design-token-panel/styles';
+import { configurePanel } from '@takazudo/zdtp';
+import '@takazudo/zdtp/styles';
 import { myPanelConfig } from './lib/my-panel-config';
 
 configurePanel(myPanelConfig);
@@ -133,7 +133,7 @@ configurePanel(myPanelConfig);
 // Lazy-load the panel module on demand (e.g. when a dev keybinding fires).
 window.addEventListener('keydown', (event) => {
   if (event.altKey && event.shiftKey && event.code === 'KeyP') {
-    void import('@takazudo/zudo-design-token-panel').then((mod) => {
+    void import('@takazudo/zdtp').then((mod) => {
       mod.toggleDesignPanel();
     });
   }
@@ -164,7 +164,7 @@ yourself:
 import { spawn } from 'node:child_process';
 
 const bin = spawn(
-  'design-token-panel-server',
+  'zdtp-server',
   [
     '--routing', './panel-routing.json',
     '--write-root', './src/styles',

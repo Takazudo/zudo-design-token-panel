@@ -34,7 +34,7 @@ When the user overrides a semantic token, the apply pipeline reads the reference
 ### Minimal example
 
 ```ts
-import type { TabConfig } from '@takazudo/zudo-design-token-panel';
+import type { TabConfig } from '@takazudo/zdtp';
 
 export const colorTab: TabConfig = {
   id: 'color',
@@ -163,7 +163,7 @@ export interface ClusterPanelSettings {
 Hosts do not call this directly — it is exposed from `cluster-config` for testing and advanced host tooling.
 
 ```ts
-import { resolveColorClusterFromTab } from '@takazudo/zudo-design-token-panel';
+import { resolveColorClusterFromTab } from '@takazudo/zdtp';
 
 const cluster = resolveColorClusterFromTab(colorTab);
 // cluster.paletteSize, cluster.paletteCssVarTemplate, cluster.semanticDefaults, ...
@@ -218,7 +218,7 @@ On key collision, the cluster's bundled scheme wins for the load lookup. The dro
 Large preset libraries can be deferred to avoid inflating the inline SSR config blob:
 
 ```ts
-import { setPanelColorPresets } from '@takazudo/zudo-design-token-panel';
+import { setPanelColorPresets } from '@takazudo/zdtp';
 
 void import('./large-preset-library').then(({ presets }) => {
   setPanelColorPresets(presets);

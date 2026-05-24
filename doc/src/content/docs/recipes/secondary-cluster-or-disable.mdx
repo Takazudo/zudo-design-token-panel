@@ -35,7 +35,7 @@ recommended starting point for every new host.
 
 ```ts
 // src/lib/my-panel-config.ts
-import type { PanelConfig } from '@takazudo/zudo-design-token-panel';
+import type { PanelConfig } from '@takazudo/zdtp';
 import { colorTab } from './my-tabs';
 
 export const myPanelConfig: PanelConfig = {
@@ -57,7 +57,7 @@ collide with the primary Color tab.
 
 ```ts
 // src/lib/my-tabs.ts
-import type { PanelConfig, ColorScheme } from '@takazudo/zudo-design-token-panel';
+import type { PanelConfig, ColorScheme } from '@takazudo/zdtp';
 
 type TabConfig = PanelConfig['tabs'][number];
 
@@ -139,7 +139,7 @@ Then include both tabs in `PanelConfig.tabs`:
 
 ```ts
 // src/lib/my-panel-config.ts
-import type { PanelConfig } from '@takazudo/zudo-design-token-panel';
+import type { PanelConfig } from '@takazudo/zdtp';
 import { colorTab, colorSecondaryTab } from './my-tabs';
 
 export const myPanelConfig: PanelConfig = {

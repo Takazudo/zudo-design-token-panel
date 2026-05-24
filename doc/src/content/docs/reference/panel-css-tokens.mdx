@@ -31,13 +31,13 @@ The bundled stylesheets declare every panel-chrome variable under a panel-privat
 - `panel.css` — chrome layout / typography / controls.
 - `panel-tokens.css` — the `--tokentweak-*` declarations.
 
-Both ship from the package, combined into a single `dist/zudo-design-token-panel.css` by the Vite library build. Vite library mode strips the source `import './styles/panel.css'` from the emitted JS, so the consumer MUST import the combined stylesheet exactly once on their static module graph (typically next to where they mount `<DesignTokenPanelHost>`):
+Both ship from the package, combined into a single `dist/zdtp.css` by the Vite library build. Vite library mode strips the source `import './styles/panel.css'` from the emitted JS, so the consumer MUST import the combined stylesheet exactly once on their static module graph (typically next to where they mount `<DesignTokenPanelHost>`):
 
 ```ts
-import '@takazudo/zudo-design-token-panel/styles';
+import '@takazudo/zdtp/styles';
 ```
 
-The `./styles` sub-export (alias `./styles.css`) resolves to `dist/zudo-design-token-panel.css`. Skipping this import leaves the panel JS fully functional but every chrome rule missing — `.tokenpanel-shell` renders with the host page's transparent background and default font, so the panel appears invisible.
+The `./styles` sub-export (alias `./styles.css`) resolves to `dist/zdtp.css`. Skipping this import leaves the panel JS fully functional but every chrome rule missing — `.tokenpanel-shell` renders with the host page's transparent background and default font, so the panel appears invisible.
 
 <Warning title="No Tailwind dependency">
 The package MUST build and run without Tailwind in the consumer. The panel JSX uses hand-authored CSS classes backed by `--tokentweak-*` vars exclusively.
@@ -127,7 +127,7 @@ The panel is a developer tool that ships inside a host page. If the panel inheri
 
 ## Host-adapter side-effect import (paired-unit obligation)
 
-Alongside the `./styles` import, the consumer MUST also own a side-effect import for the host-adapter, paired with `<DesignTokenPanelHost>`. The component AND a sibling `<script>` block loading `@takazudo/zudo-design-token-panel/astro/host-adapter` are a single unit — both lines are required, always together.
+Alongside the `./styles` import, the consumer MUST also own a side-effect import for the host-adapter, paired with `<DesignTokenPanelHost>`. The component AND a sibling `<script>` block loading `@takazudo/zdtp/astro/host-adapter` are a single unit — both lines are required, always together.
 
 Required wiring shape:
 
@@ -135,7 +135,7 @@ Required wiring shape:
 <DesignTokenPanelHost config={myPanelConfig} />
 
 <script>
-  void import('@takazudo/zudo-design-token-panel/astro/host-adapter');
+  void import('@takazudo/zdtp/astro/host-adapter');
 </script>
 ```
 

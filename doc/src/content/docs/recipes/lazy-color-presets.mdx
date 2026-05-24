@@ -48,7 +48,7 @@ call `setPanelColorPresets` with the result.
 
 ```ts
 // src/lib/color-presets.ts
-import type { ColorScheme } from '@takazudo/zudo-design-token-panel';
+import type { ColorScheme } from '@takazudo/zdtp';
 
 const dracula: ColorScheme = {
   background: 0,
@@ -95,7 +95,7 @@ only the cluster's bundled schemes ride along on first paint.
 
 ```ts
 // src/lib/my-panel-config.ts
-import type { PanelConfig } from '@takazudo/zudo-design-token-panel';
+import type { PanelConfig } from '@takazudo/zdtp';
 import { myTabs } from './my-tabs';
 
 export const myPanelConfig: PanelConfig = {
@@ -117,8 +117,8 @@ own JS chunk, so it never blocks first paint.
 
 ```ts
 // src/main.ts (Vite host)
-import { configurePanel, setPanelColorPresets } from '@takazudo/zudo-design-token-panel';
-import '@takazudo/zudo-design-token-panel/styles';
+import { configurePanel, setPanelColorPresets } from '@takazudo/zdtp';
+import '@takazudo/zdtp/styles';
 import { myPanelConfig } from './lib/my-panel-config';
 
 configurePanel(myPanelConfig);
@@ -135,7 +135,7 @@ alongside the host-adapter import:
 ```astro
 <script>
   void import('./lib/color-presets').then(({ colorPresets }) => {
-    void import('@takazudo/zudo-design-token-panel').then((mod) => {
+    void import('@takazudo/zdtp').then((mod) => {
       mod.setPanelColorPresets(colorPresets);
     });
   });
