@@ -626,13 +626,17 @@ export default function ColorTab({
             {primaryLabel} — Base
           </div>
           {/*
-           * `background (bg)` and `foreground (fg)` are panel-only knobs that
-           * pick which palette index seeds the rest of the UI; they do NOT
-           * correspond to real `--zd-*` cssVars in this package, so the
+           * `background (bg)` and `foreground (fg)` are palette-index knobs:
+           * the value picks which palette slot seeds that base role. The
            * labels read as plain English with the short key in parentheses
-           * (intentionally not the full `--zd-…` form). The `cursor`,
-           * `sel-bg`, `sel-fg` upstream rows are dropped here because
-           * nothing in this package references them.
+           * rather than the cssVar name. The eye toggle, however, wires to the
+           * cluster's declared base-role cssVar (`cluster.baseRoles.background`
+           * / `.foreground`) — those ARE real tokens written to the DOM by
+           * `applyColorState`, so highlighting them is just as valid as any
+           * semantic token. When a cluster declares no cssVar for a base role,
+           * `cssVar` is undefined and the eye is omitted. The `cursor`,
+           * `sel-bg`, `sel-fg` upstream rows are dropped here because nothing
+           * in this package references them.
            */}
           <div className="tokenpanel-color-base-grid">
             <PaletteSelector
@@ -642,6 +646,7 @@ export default function ColorTab({
               palette={state.palette}
               paletteCssVar={clusterPaletteCssVar}
               onChange={handleBaseIndexChange}
+              cssVar={safeCluster.baseRoles.background}
             />
             <PaletteSelector
               label="foreground (fg)"
@@ -650,6 +655,7 @@ export default function ColorTab({
               palette={state.palette}
               paletteCssVar={clusterPaletteCssVar}
               onChange={handleBaseIndexChange}
+              cssVar={safeCluster.baseRoles.foreground}
             />
           </div>
         </div>
