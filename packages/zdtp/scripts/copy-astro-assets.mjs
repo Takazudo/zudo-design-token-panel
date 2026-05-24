@@ -2,14 +2,16 @@
 /**
  * Postbuild step.
  *
- * Vite lib mode does not compile .astro files. The package's exports map
- * points `./astro` at `dist/astro/index.js`, whose re-export
- * (`export { default as DesignTokenPanelHost } from './DesignTokenPanelHost.astro'`)
- * is left as a literal because `vite.config.ts` marks `*.astro` external.
+ * Vite lib mode does not compile .astro files. The host component ships as
+ * a raw `.astro` file exposed via the `./astro/DesignTokenPanelHost.astro`
+ * subexport in the package's exports map. Consumers import it directly
+ * (`import DesignTokenPanelHost from '@takazudo/zdtp/astro/DesignTokenPanelHost.astro'`)
+ * so their own Astro toolchain compiles it. The sibling `dist/astro/index.js`
+ * JS entry deliberately does NOT import this `.astro` (zdtp#308 — a static
+ * `.astro` import crashed real npm consumers at prerender).
  *
- * This script copies the raw `.astro` source alongside the emitted JS so
- * the consumer's Astro toolchain can resolve the relative import at build
- * time.
+ * This script copies the raw `.astro` source into dist so the subexport
+ * resolves.
  *
  * The sibling `dist/astro/host-adapter.js` file emitted by the Vite library
  * build is part of the package's public surface — exposed via the
