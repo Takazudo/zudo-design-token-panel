@@ -186,7 +186,7 @@ export type BaseRoleKey = 'background' | 'foreground' | 'cursor' | 'selectionBg'
 A simple tab with one literal tier — every item is a length token:
 
 ```ts
-import type { TabConfig } from '@takazudo/zudo-design-token-panel';
+import type { TabConfig } from '@takazudo/zdtp';
 
 export const spacingTab: TabConfig = {
   id: 'spacing',
@@ -210,7 +210,7 @@ export const spacingTab: TabConfig = {
 A generic tab where a *semantic* tier references a *raw* tier. The panel emits `var(--myapp-easing-ease-in)` for a semantic item rather than a raw cubic-bezier string:
 
 ```ts
-import type { TabConfig } from '@takazudo/zudo-design-token-panel';
+import type { TabConfig } from '@takazudo/zdtp';
 
 export const easingTab: TabConfig = {
   id: 'easing',

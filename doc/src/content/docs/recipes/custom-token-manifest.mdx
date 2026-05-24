@@ -22,7 +22,7 @@ properties — the kind drives which editor the panel renders.
 
 ```ts
 // src/lib/my-tabs.ts
-import type { PanelConfig } from '@takazudo/zudo-design-token-panel';
+import type { PanelConfig } from '@takazudo/zdtp';
 
 type TabConfig = PanelConfig['tabs'][number];
 
@@ -62,7 +62,7 @@ Pass the array to `PanelConfig.tabs`:
 
 ```ts
 // src/lib/my-panel-config.ts
-import type { PanelConfig } from '@takazudo/zudo-design-token-panel';
+import type { PanelConfig } from '@takazudo/zdtp';
 import { myTabs } from './my-tabs';
 
 export const myPanelConfig: PanelConfig = {

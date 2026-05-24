@@ -1,3 +1,27 @@
 packages:
   - "packages/*"
   - "doc"
+
+# pnpm 11 only reads auth/registry from .npmrc and ignores pnpm.* in package.json.
+# Everything else (peer-deps policy, engine strictness, supply-chain delays,
+# build-script allowlist) lives here. See https://pnpm.io/settings.
+autoInstallPeers: true
+strictPeerDependencies: false
+preferFrozenLockfile: true
+engineStrict: true
+
+# pnpm 11 defaults minimumReleaseAge to 1440 (24h), which would block CI
+# `pnpm install --frozen-lockfile` on any dep published in the last day. CI must
+# be deterministic, so disable the delay here.
+minimumReleaseAge: 0
+
+# pnpm 11 replaces the legacy `onlyBuiltDependencies` list with `allowBuilds`,
+# a per-package true/false map. Each entry is a deliberate decision to allow the
+# dependency's install/postinstall script. All four are legitimate native-binary
+# builds — esbuild ships a Go binary, sharp builds libvips bindings, lefthook +
+# workerd ship native binaries — so all approved.
+allowBuilds:
+  esbuild: true
+  lefthook: true
+  sharp: true
+  workerd: true

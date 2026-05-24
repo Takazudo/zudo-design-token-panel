@@ -12,7 +12,7 @@ This page is the side-by-side overview. For full code, see the [Examples](./exam
 
 | Step | Astro | Vite + React | Next.js (App Router) | zfb | zfb + Tailwind v4 |
 | --- | --- | --- | --- | --- | --- |
-| Install package | `pnpm add @takazudo/zudo-design-token-panel preact` | same | same | same | same + `tailwindcss` |
+| Install package | `pnpm add @takazudo/zdtp preact` | same | same | same | same + `tailwindcss` |
 | Define `PanelConfig` | one TS file, host-side | same | same | same | same |
 | Mount the host | `<DesignTokenPanelHost>` in layout | call `configurePanel(...)` from entry | call `configurePanel(...)` from a `'use client'` module | call `configurePanel(...)` from a `"use client"` island | same as zfb |
 | Side-effect script | `void import('.../astro/host-adapter')` next to the host | not required | not required | `void import('.../astro/host-adapter')` in a `"use client"` island | same as zfb |
@@ -45,8 +45,8 @@ The Astro entry handles mounting for you. Drop `<DesignTokenPanelHost>` into a s
 ---
 // src/layouts/Layout.astro
 import { ClientRouter } from 'astro:transitions';
-import { DesignTokenPanelHost } from '@takazudo/zudo-design-token-panel/astro';
-import '@takazudo/zudo-design-token-panel/styles';
+import { DesignTokenPanelHost } from '@takazudo/zdtp/astro';
+import '@takazudo/zdtp/styles';
 import { myPanelConfig } from '../lib/my-panel-config';
 ---
 
@@ -62,7 +62,7 @@ import { myPanelConfig } from '../lib/my-panel-config';
 </html>
 
 <script>
-  void import('@takazudo/zudo-design-token-panel/astro/host-adapter');
+  void import('@takazudo/zdtp/astro/host-adapter');
 </script>
 ```
 
@@ -76,8 +76,8 @@ Vite hosts call `configurePanel(...)` themselves at app boot. The panel mounts a
 // src/main.tsx
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { configurePanel } from '@takazudo/zudo-design-token-panel';
-import '@takazudo/zudo-design-token-panel/styles';
+import { configurePanel } from '@takazudo/zdtp';
+import '@takazudo/zdtp/styles';
 import { App } from './App';
 import { myPanelConfig } from './lib/my-panel-config';
 
@@ -99,8 +99,8 @@ Next.js needs a `'use client'` boundary so `configurePanel(...)` runs in the bro
 'use client';
 
 import { useEffect } from 'react';
-import { configurePanel } from '@takazudo/zudo-design-token-panel';
-import '@takazudo/zudo-design-token-panel/styles';
+import { configurePanel } from '@takazudo/zdtp';
+import '@takazudo/zdtp/styles';
 import { myPanelConfig } from '@/lib/my-panel-config';
 
 export function InstallPanel(): null {
@@ -137,7 +137,7 @@ Worked example: [GitHub source](https://github.com/Takazudo/zudo-design-token-pa
 
 [zfb](https://github.com/Takazudo/zudo-front-builder) is a WIP build orchestrator the author is developing in a separate repo (`Takazudo/zudo-front-builder`). The zfb example shows how to drop the panel into a zfb project.
 
-The integration shape is close to Astro: zfb uses Preact islands with a `"use client"` marker, so the `@takazudo/zudo-design-token-panel/astro/host-adapter` side-effect import is used the same way.
+The integration shape is close to Astro: zfb uses Preact islands with a `"use client"` marker, so the `@takazudo/zdtp/astro/host-adapter` side-effect import is used the same way.
 
 The key difference from the other three examples is how the dev-time apply proxy is wired up. Vite and Next.js have built-in proxy/rewrite config; zfb exposes a `devMiddleware` plugin hook instead. Register the proxy in a plugin:
 
@@ -194,5 +194,5 @@ Worked example: [GitHub source](https://github.com/Takazudo/zudo-design-token-pa
 ## Where to go next
 
 - For per-field detail on `PanelConfig`, see the [Configure Panel reference](/docs/reference/configure-panel).
-- For the apply-pipeline bin (`design-token-panel-server`) and routing JSON, see the CLI reference once it lands.
+- For the apply-pipeline bin (`zdtp-server`) and routing JSON, see the CLI reference once it lands.
 - For the smallest possible end-to-end wiring, see [Quickstart](./quickstart).

@@ -12,7 +12,7 @@ This page pins the public shape of `PanelConfig`, the `configurePanel` call, and
 ## `configurePanel(config)`
 
 ```ts
-import { configurePanel } from '@takazudo/zudo-design-token-panel';
+import { configurePanel } from '@takazudo/zdtp';
 
 configurePanel({
   storagePrefix: 'myapp-design-token-panel',
@@ -148,7 +148,7 @@ Hosts whose item ids are stable (no historical renames) can omit this field — 
 ### `ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP`
 
 ```ts
-import { ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP } from '@takazudo/zudo-design-token-panel';
+import { ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP } from '@takazudo/zdtp';
 
 configurePanel({
   // ...
@@ -165,7 +165,7 @@ The panel exports two primitives for hosts that need to read or write panel stat
 ### `TweakState`
 
 ```ts
-import type { TweakState } from '@takazudo/zudo-design-token-panel';
+import type { TweakState } from '@takazudo/zdtp';
 ```
 
 `TweakState` is the TypeScript type of the serialisable override state that the panel persists in `localStorage` and embeds in JSON exports. Import it when building typed SerDe utilities that consume or produce panel state.
@@ -173,7 +173,7 @@ import type { TweakState } from '@takazudo/zudo-design-token-panel';
 ### `emptyOverrides`
 
 ```ts
-import { emptyOverrides } from '@takazudo/zudo-design-token-panel';
+import { emptyOverrides } from '@takazudo/zdtp';
 ```
 
 `emptyOverrides` is a ready-made `TweakState` value with all override maps empty. Use it as a starting point when constructing a fresh state object or when resetting overrides programmatically.
@@ -181,8 +181,8 @@ import { emptyOverrides } from '@takazudo/zudo-design-token-panel';
 ## Complete example
 
 ```ts
-import { configurePanel } from '@takazudo/zudo-design-token-panel';
-import type { TabConfig } from '@takazudo/zudo-design-token-panel';
+import { configurePanel } from '@takazudo/zdtp';
+import type { TabConfig } from '@takazudo/zdtp';
 
 const colorTab: TabConfig = {
   id: 'color',
@@ -263,7 +263,7 @@ import {
   hideDesignTokenPanel,
   toggleDesignPanel,
   reapplyPersistedOverrides,
-} from '@takazudo/zudo-design-token-panel';
+} from '@takazudo/zdtp';
 ```
 
 ### `showDesignTokenPanel(): void`
@@ -297,7 +297,7 @@ Each helper lazy-imports the adapter module and forwards to its corresponding sy
 ### `setLifecycleAdapter(adapter)`
 
 ```ts
-import { setLifecycleAdapter } from '@takazudo/zudo-design-token-panel';
+import { setLifecycleAdapter } from '@takazudo/zdtp';
 
 setLifecycleAdapter({
   onBeforeSwap: (cb) => { /* register a before-swap hook */ },
@@ -312,7 +312,7 @@ Call `setLifecycleAdapter` after `configurePanel` and before the panel is first 
 ## `setPanelColorPresets(presets)`
 
 ```ts
-import { setPanelColorPresets } from '@takazudo/zudo-design-token-panel';
+import { setPanelColorPresets } from '@takazudo/zdtp';
 
 setPanelColorPresets({
   Dracula: { /* ColorScheme */ },

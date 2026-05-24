@@ -38,7 +38,7 @@ item — is reflected everywhere the semantic variable is consumed.
 
 ```ts
 // src/lib/my-tabs.ts
-import type { PanelConfig } from '@takazudo/zudo-design-token-panel';
+import type { PanelConfig } from '@takazudo/zdtp';
 
 type TabConfig = PanelConfig['tabs'][number];
 
@@ -127,7 +127,7 @@ Add `easingTab` to your `PanelConfig.tabs` array:
 
 ```ts
 // src/lib/my-panel-config.ts
-import type { PanelConfig } from '@takazudo/zudo-design-token-panel';
+import type { PanelConfig } from '@takazudo/zdtp';
 import { easingTab } from './my-tabs';
 // ...other tabs...
 
@@ -241,7 +241,7 @@ export const myPanelConfig: PanelConfig = {
 Start the bin alongside your dev server:
 
 ```sh
-pnpm exec design-token-panel-server \
+pnpm exec zdtp-server \
   --routing ./panel-routing.json \
   --write-root ./src/styles \
   --allow-origin http://localhost:5173
