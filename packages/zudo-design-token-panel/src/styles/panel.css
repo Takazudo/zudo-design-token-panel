@@ -361,25 +361,24 @@
 
 .tokenpanel-color-palette-grid {
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  /* Width-based reflow: density slider drives --tokenpanel-grid-min on
+     .tokenpanel-shell; 3.5rem fallback keeps swatches square at any width. */
+  grid-template-columns: repeat(auto-fit, minmax(var(--tokenpanel-grid-min, 3.5rem), 1fr));
   gap: var(--tokentweak-pad-sm);
 }
 
 .tokenpanel-color-palette-grid--secondary {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  /* Same width-based reflow as the primary palette grid. */
+  grid-template-columns: repeat(auto-fit, minmax(var(--tokenpanel-grid-min, 3.5rem), 1fr));
   gap: var(--tokentweak-pad-sm);
-}
-
-@media (min-width: 768px) {
-  .tokenpanel-color-palette-grid--secondary {
-    grid-template-columns: repeat(9, minmax(0, 1fr));
-  }
 }
 
 .tokenpanel-color-base-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* Width-based reflow for pulldown rows. 11rem fallback keeps each row
+     wide enough that the label + color swatch + value label are readable. */
+  grid-template-columns: repeat(auto-fit, minmax(var(--tokenpanel-grid-min, 11rem), 1fr));
   gap: 6px;
 }
 
@@ -415,16 +414,56 @@
   outline-offset: 2px;
 }
 
+.tokenpanel-color-swatch-label-row {
+  /* Flex row: label text + optional eye icon side by side, label truncates. */
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+
 .tokenpanel-color-swatch-label {
   color: var(--tokentweak-color-muted);
   font-family: var(--tokentweak-font-mono);
   user-select: none;
   font-size: 0.6875rem;
   line-height: 1.1;
-  max-width: 100%;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ===========================================================================
+ * Color-tab DOM tooltip
+ *
+ * Single shared tooltip element rendered via portal to document.body so that
+ * panel overflow clipping cannot hide it. Positioned by the TooltipProvider.
+ * ========================================================================= */
+
+.tokenpanel-tooltip {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  background: var(--tokentweak-color-surface);
+  color: var(--tokentweak-color-fg);
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-family: var(--tokentweak-font-mono);
+  font-size: 11px;
+  line-height: 1.3;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity 90ms ease, transform 90ms ease;
+}
+
+.tokenpanel-tooltip[data-show='true'] {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 /* ===========================================================================
@@ -446,13 +485,21 @@
 .tokenpanel-palette-selector {
   position: relative;
   width: 100%;
+  /* Flex row: trigger takes remaining space, eye icon sits to the right.
+     The listbox popover is position:fixed so it stays out of this flow. */
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .tokenpanel-palette-trigger {
   display: flex;
   align-items: center;
   gap: 4px;
-  width: 100%;
+  /* flex:1 so the trigger fills available width within the flex parent;
+     width:100% removed — would fight the flex layout. */
+  flex: 1;
+  min-width: 0;
   border: 1px solid var(--tokentweak-color-muted);
   background-color: var(--tokentweak-color-surface);
   padding-inline: 6px;

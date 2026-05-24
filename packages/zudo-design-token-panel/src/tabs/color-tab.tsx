@@ -46,6 +46,7 @@ import { resolveColorClusterFromTab } from '../config/cluster-config';
 import type { TabConfig } from '../tokens/tier-model';
 import type { PersistColor, PersistSecondary } from '../state/persist';
 import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
+import { TooltipProvider, useTooltip } from '../controls/tooltip';
 
 // The bundled scheme registry now lives on
 // `panelConfig.colorCluster.colorSchemes`, not on a global import. Read it
@@ -170,6 +171,7 @@ const ColorSwatch = memo(function ColorSwatch({
     [onChange, index],
   );
   const handleToggle = useCallback(() => setIsOpen((prev) => !prev), []);
+  const tooltipProps = useTooltip(`${label}: ${color}`);
   return (
     <div className="tokenpanel-color-swatch-wrap">
       <div
@@ -185,9 +187,9 @@ const ColorSwatch = memo(function ColorSwatch({
             handleToggle();
           }
         }}
-        title={`${label}: ${color}`}
         aria-label={`${label}: ${color}`}
         aria-expanded={isOpen}
+        {...tooltipProps}
       />
       {isOpen && (
         <ColorPicker
@@ -198,7 +200,7 @@ const ColorSwatch = memo(function ColorSwatch({
         />
       )}
       <div className="tokenpanel-color-swatch-label-row">
-        <span className="tokenpanel-color-swatch-label" title={label}>
+        <span className="tokenpanel-color-swatch-label">
           {label}
         </span>
         {cssVar && <HighlightToggleButton cssVar={cssVar} />}
@@ -268,6 +270,8 @@ const PaletteSelector = memo(function PaletteSelector({
 
   usePopoverClose(containerRef, handleClose, isOpen);
 
+  const tooltipProps = useTooltip(`${label}: ${valueLabel}`);
+
   function select(val: number | 'bg' | 'fg') {
     onChange(idKey, val);
     setIsOpen(false);
@@ -288,10 +292,10 @@ const PaletteSelector = memo(function PaletteSelector({
         }}
         className="tokenpanel-palette-trigger"
         aria-label={`${label}: ${valueLabel}`}
-        title={`${label}: ${valueLabel}`}
         aria-expanded={isOpen}
+        {...tooltipProps}
       >
-        <span className="tokenpanel-palette-trigger-label" title={label}>
+        <span className="tokenpanel-palette-trigger-label">
           {label}
         </span>
         <div
@@ -553,6 +557,7 @@ export default function ColorTab({
   );
 
   return (
+    <TooltipProvider>
     <div className="tokenpanel-tab-content">
       {/* Preset loader — tab-scoped so the outer header row stays general */}
       <div className="tokenpanel-tab-actions">
@@ -744,5 +749,6 @@ export default function ColorTab({
          */}
       </div>
     </div>
+    </TooltipProvider>
   );
 }
