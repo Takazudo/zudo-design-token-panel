@@ -26,6 +26,7 @@ import {
   saveHighlightState,
   toggleHighlight,
   setSlot as setSlotHelper,
+  setOutlineWidth as setOutlineWidthHelper,
   resetSlots,
   clearAllActive,
   type HighlightState,
@@ -206,6 +207,14 @@ export function HighlightOrchestrator({ children }: { children: ComponentChildre
     });
   }, []);
 
+  const setOutlineWidth = useCallback((width: number) => {
+    setState((s) => {
+      const next = setOutlineWidthHelper(s, width);
+      saveHighlightState(next);
+      return next;
+    });
+  }, []);
+
   const reset = useCallback(() => {
     setState((s) => {
       const next = resetSlots(s);
@@ -358,21 +367,24 @@ export function HighlightOrchestrator({ children }: { children: ComponentChildre
       if (!slot) continue;
 
       for (const element of elements) {
-        resolvedItems.push({ element, slot });
+        // Stamp the global outlineWidth onto each overlay item so HighlightOverlay
+        // receives a complete HighlightSlotSpec (color + outlineWidth) without
+        // needing to know about the global-width concept itself.
+        resolvedItems.push({ element, slot: { color: slot.color, outlineWidth: state.outlineWidth } });
       }
     }
 
     return { items: resolvedItems, matchCounts: counts };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.active, state.slots, stylesheetVersion, themeVersion]);
+  }, [state.active, state.slots, state.outlineWidth, stylesheetVersion, themeVersion]);
 
   // -------------------------------------------------------------------------
   // Context value
   // -------------------------------------------------------------------------
 
   const ctxValue = useMemo<HighlightContextValue>(
-    () => ({ state, toggle, setSlot, reset, disableAll, matchCounts }),
-    [state, toggle, setSlot, reset, disableAll, matchCounts],
+    () => ({ state, toggle, setSlot, setOutlineWidth, reset, disableAll, matchCounts }),
+    [state, toggle, setSlot, setOutlineWidth, reset, disableAll, matchCounts],
   );
 
   return (

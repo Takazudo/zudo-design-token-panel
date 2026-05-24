@@ -136,6 +136,7 @@ function makeColorState(): ColorTweakState {
 function makeHighlightState(overrides: Partial<HighlightState> = {}): HighlightState {
   return {
     slots: DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ ...s })),
+    outlineWidth: 2,
     active: {},
     ...overrides,
   };

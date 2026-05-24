@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 /**
- * Tests for HighlightSettingsPopover and the gear button in panel.tsx.
+ * Tests for HighlightSettingsPopover — 2-column color-only grid + global
+ * outline-px input in the header.
  *
  * Isolation strategy:
  * - HighlightContext is imported from ../highlight-toggle-button (the canonical
@@ -52,6 +53,7 @@ vi.mock('../../components/color-picker/index', async (importOriginal) => {
 function makeState(overrides: Partial<HighlightState> = {}): HighlightState {
   return {
     slots: DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ ...s })),
+    outlineWidth: 2,
     active: {},
     ...overrides,
   };
@@ -62,6 +64,7 @@ function makeCtx(overrides: Partial<HighlightContextValue> = {}): HighlightConte
     state: makeState(),
     toggle: vi.fn(),
     setSlot: vi.fn(),
+    setOutlineWidth: vi.fn(),
     reset: vi.fn(),
     disableAll: vi.fn(),
     matchCounts: {},
@@ -117,10 +120,10 @@ describe('HighlightSettingsPopover', () => {
       expect(dialog?.getAttribute('aria-label')).toBe('Highlight outline settings');
     });
 
-    it('renders header text "Highlight outline settings"', () => {
+    it('renders header containing "Highlight outline settings" text', () => {
       renderPopover(makeCtx(), container);
       const header = container.querySelector('.tokenpanel-highlight-settings-header');
-      expect(header?.textContent?.trim()).toBe('Highlight outline settings');
+      expect(header?.textContent).toContain('Highlight outline settings');
     });
 
     it('returns null when HighlightContext is not provided', () => {
@@ -141,17 +144,11 @@ describe('HighlightSettingsPopover', () => {
     });
 
     it('popover root carries .tokenpanel-highlight-settings-popover so --tokentweak-* vars resolve', () => {
-      // The popover renders outside .tokenpanel-shell; the :where() selector
-      // in panel-tokens.css lists .tokenpanel-highlight-settings-popover
-      // directly so the --tokentweak-* tokens resolve without pulling in
-      // the modal-chrome rules (which would apply translate(-50%, -50%) and
-      // break the gear-anchored fixed-position layout).
       renderPopover(makeCtx(), container);
       const dialog = container.querySelector('[role="dialog"]') as HTMLElement;
       expect(dialog).not.toBeNull();
       expect(dialog.classList.contains('tokenpanel-highlight-settings-popover')).toBe(true);
-      // Negative assertion: do NOT carry the modal attribute (would force
-      // modal chrome and shift the popover off-anchor).
+      // Negative assertion: do NOT carry the modal attribute
       expect(dialog.hasAttribute('data-design-token-panel-modal')).toBe(false);
     });
 
@@ -162,7 +159,55 @@ describe('HighlightSettingsPopover', () => {
     });
   });
 
-  describe('10 slot rows', () => {
+  describe('header — global outline width input', () => {
+    it('renders a number input in the header', () => {
+      renderPopover(makeCtx(), container);
+      const input = container.querySelector('.tokenpanel-highlight-settings-outline-input') as HTMLInputElement;
+      expect(input).not.toBeNull();
+      expect(input.type).toBe('number');
+    });
+
+    it('header input reflects state.outlineWidth (default 2)', () => {
+      renderPopover(makeCtx(), container);
+      const input = container.querySelector('.tokenpanel-highlight-settings-outline-input') as HTMLInputElement;
+      expect(Number(input.value)).toBe(2);
+    });
+
+    it('header input reflects custom outlineWidth (5)', () => {
+      const ctx = makeCtx({ state: makeState({ outlineWidth: 5 }) });
+      renderPopover(ctx, container);
+      const input = container.querySelector('.tokenpanel-highlight-settings-outline-input') as HTMLInputElement;
+      expect(Number(input.value)).toBe(5);
+    });
+
+    it('header input has aria-label for accessibility', () => {
+      renderPopover(makeCtx(), container);
+      const input = container.querySelector('.tokenpanel-highlight-settings-outline-input') as HTMLInputElement;
+      expect(input.getAttribute('aria-label')).toBeTruthy();
+    });
+
+    it('renders "px" suffix label next to the input', () => {
+      renderPopover(makeCtx(), container);
+      const px = container.querySelector('.tokenpanel-highlight-settings-outline-px');
+      expect(px?.textContent?.trim()).toBe('px');
+    });
+
+    it('onInput on header number input calls setOutlineWidth with parsed integer', () => {
+      const setOutlineWidth = vi.fn();
+      const ctx = makeCtx({ setOutlineWidth });
+      renderPopover(ctx, container);
+
+      const input = container.querySelector('.tokenpanel-highlight-settings-outline-input') as HTMLInputElement;
+      act(() => {
+        Object.defineProperty(input, 'value', { value: '4', writable: true, configurable: true });
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+
+      expect(setOutlineWidth).toHaveBeenCalledWith(4);
+    });
+  });
+
+  describe('2-column slot grid', () => {
     it('renders 10 rows', () => {
       renderPopover(makeCtx(), container);
       const rows = container.querySelectorAll('.tokenpanel-highlight-settings-row');
@@ -181,20 +226,10 @@ describe('HighlightSettingsPopover', () => {
       expect(names).toHaveLength(10);
     });
 
-    it('renders 10 sliders', () => {
+    it('slot list uses 2-column grid class', () => {
       renderPopover(makeCtx(), container);
-      const sliders = container.querySelectorAll('input[type="range"]');
-      // 10 slot sliders (ColorPicker is not open)
-      expect(sliders.length).toBeGreaterThanOrEqual(10);
-    });
-
-    it('renders 10 px readouts with "px" suffix', () => {
-      renderPopover(makeCtx(), container);
-      const readouts = container.querySelectorAll('.tokenpanel-highlight-settings-px');
-      expect(readouts).toHaveLength(10);
-      for (const readout of readouts) {
-        expect(readout.textContent).toMatch(/\d+px/);
-      }
+      const list = container.querySelector('.tokenpanel-highlight-settings-list');
+      expect(list).not.toBeNull();
     });
 
     it('shows slot numbers 1–10', () => {
@@ -205,55 +240,37 @@ describe('HighlightSettingsPopover', () => {
         expect(nums[i].textContent?.trim()).toBe(String(i + 1));
       }
     });
+
+    it('does NOT render any per-row range sliders', () => {
+      renderPopover(makeCtx(), container);
+      const sliders = container.querySelectorAll('input[type="range"]');
+      expect(sliders).toHaveLength(0);
+    });
+
+    it('does NOT render per-row .tokenpanel-highlight-settings-px elements', () => {
+      renderPopover(makeCtx(), container);
+      const readouts = container.querySelectorAll('.tokenpanel-highlight-settings-px');
+      // Only the header outline-px suffix should be present (not per-row readouts)
+      // The per-row px readouts are removed; only .tokenpanel-highlight-settings-outline-px remains
+      expect(readouts).toHaveLength(0);
+    });
   });
 
   describe('ring swatch border', () => {
-    it('ring 0 has border reflecting slot 0 outlineWidth (2px solid)', () => {
+    it('ring 0 has border reflecting global outlineWidth (2px solid) from state', () => {
       const ctx = makeCtx();
       renderPopover(ctx, container);
       const ring = container.querySelector('.tokenpanel-highlight-settings-ring') as HTMLElement;
-      // jsdom may normalize hex color to rgb, so only assert outlineWidth and "solid"
       expect(ring.style.border).toContain('2px solid');
     });
 
-    it('ring reflects custom outlineWidth in border-width', () => {
-      const ctx = makeCtx({
-        state: makeState({
-          slots: DEFAULT_HIGHLIGHT_SLOTS.map((s, i) =>
-            i === 0 ? { ...s, outlineWidth: 5 } : { ...s },
-          ),
-        }),
-      });
+    it('ring reflects global outlineWidth=5 in all ring borders', () => {
+      const ctx = makeCtx({ state: makeState({ outlineWidth: 5 }) });
       renderPopover(ctx, container);
-      const ring = container.querySelector('.tokenpanel-highlight-settings-ring') as HTMLElement;
-      expect(ring.style.border).toContain('5px solid');
-    });
-
-    it('ring reflects default outlineWidth of 2px', () => {
-      renderPopover(makeCtx(), container);
       const rings = container.querySelectorAll('.tokenpanel-highlight-settings-ring') as NodeListOf<HTMLElement>;
-      expect(rings[0].style.border).toContain('2px solid');
-    });
-  });
-
-  describe('width readout text', () => {
-    it('renders "${N}px" for slot 0 with outlineWidth 2', () => {
-      renderPopover(makeCtx(), container);
-      const readout = container.querySelector('.tokenpanel-highlight-settings-px');
-      expect(readout?.textContent?.trim()).toBe('2px');
-    });
-
-    it('renders correct px string when outlineWidth is 4', () => {
-      const ctx = makeCtx({
-        state: makeState({
-          slots: DEFAULT_HIGHLIGHT_SLOTS.map((s, i) =>
-            i === 0 ? { ...s, outlineWidth: 4 } : { ...s },
-          ),
-        }),
-      });
-      renderPopover(ctx, container);
-      const readouts = container.querySelectorAll('.tokenpanel-highlight-settings-px');
-      expect(readouts[0].textContent?.trim()).toBe('4px');
+      for (const ring of rings) {
+        expect(ring.style.border).toContain('5px solid');
+      }
     });
   });
 
@@ -306,47 +323,11 @@ describe('HighlightSettingsPopover', () => {
     });
   });
 
-  describe('slider onInput dispatches setSlot', () => {
-    it('calls setSlot with new outlineWidth when slider fires onInput', () => {
-      const setSlot = vi.fn();
-      const ctx = makeCtx({ setSlot });
-      renderPopover(ctx, container);
-
-      const slider = container.querySelector('input[type="range"]') as HTMLInputElement;
-      expect(slider).not.toBeNull();
-
-      act(() => {
-        // Simulate range input event with value 5
-        Object.defineProperty(slider, 'value', { value: '5', writable: true });
-        slider.dispatchEvent(new Event('input', { bubbles: true }));
-      });
-
-      expect(setSlot).toHaveBeenCalledWith(0, { outlineWidth: 5 });
-    });
-
-    it('calls setSlot for the correct slot index', () => {
-      const setSlot = vi.fn();
-      const ctx = makeCtx({ setSlot });
-      renderPopover(ctx, container);
-
-      const sliders = container.querySelectorAll('input[type="range"]') as NodeListOf<HTMLInputElement>;
-      // fire slot 2 (index 2) slider
-      const slider2 = sliders[2];
-      act(() => {
-        Object.defineProperty(slider2, 'value', { value: '7', writable: true });
-        slider2.dispatchEvent(new Event('input', { bubbles: true }));
-      });
-
-      expect(setSlot).toHaveBeenCalledWith(2, { outlineWidth: 7 });
-    });
-  });
-
   describe('ring click opens ColorPicker', () => {
     it('clicking ring 0 makes a ColorPicker dialog appear in the DOM', () => {
       renderPopover(makeCtx(), container);
       const ring = container.querySelector('.tokenpanel-highlight-settings-ring') as HTMLElement;
 
-      // No picker open initially (the color-picker uses role="dialog")
       const pickersBefore = container.querySelectorAll('.tokenpanel-color-picker');
       expect(pickersBefore).toHaveLength(0);
 
@@ -368,8 +349,6 @@ describe('HighlightSettingsPopover', () => {
         ring.click();
       });
 
-      // Find the hex input inside the color picker and fire the 'input' event
-      // (ColorPicker uses Preact's onChange which maps to 'input', not 'change').
       const hexInput = container.querySelector('.tokenpanel-color-picker-hex-input') as HTMLInputElement;
       expect(hexInput).not.toBeNull();
 
@@ -382,7 +361,6 @@ describe('HighlightSettingsPopover', () => {
         hexInput.dispatchEvent(new Event('input', { bubbles: true }));
       });
 
-      // setSlot should have been called with slot 0 and the new hex
       expect(setSlot).toHaveBeenCalledWith(0, { color: '#aabbcc' });
     });
 
@@ -425,12 +403,13 @@ describe('HighlightSettingsPopover', () => {
       expect(reset).toHaveBeenCalledTimes(1);
     });
 
-    it('reset button does NOT call toggle, setSlot, or disableAll', () => {
+    it('reset button does NOT call toggle, setSlot, setOutlineWidth, or disableAll', () => {
       const toggle = vi.fn();
       const setSlot = vi.fn();
+      const setOutlineWidth = vi.fn();
       const reset = vi.fn();
       const disableAll = vi.fn();
-      const ctx = makeCtx({ toggle, setSlot, reset, disableAll });
+      const ctx = makeCtx({ toggle, setSlot, setOutlineWidth, reset, disableAll });
       renderPopover(ctx, container);
 
       const resetBtns = Array.from(container.querySelectorAll('.tokenpanel-highlight-settings-reset-btn')) as HTMLElement[];
@@ -439,6 +418,7 @@ describe('HighlightSettingsPopover', () => {
 
       expect(toggle).not.toHaveBeenCalled();
       expect(setSlot).not.toHaveBeenCalled();
+      expect(setOutlineWidth).not.toHaveBeenCalled();
       expect(disableAll).not.toHaveBeenCalled();
     });
   });

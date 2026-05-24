@@ -1,15 +1,18 @@
 /**
  * Highlight state slice — reservation-sheet model.
  *
- * 10 colour slots ({color, outlineWidth}) are pre-defined. A cssVar can be
- * mapped to a slot (0..9) via toggleHighlight. The slot is reserved until
- * the same cssVar is toggled off, giving a stable colour across inspect
- * sessions (the "reservation-sheet" property: slot 2 always means the same
- * colour regardless of toggle order).
+ * 10 colour slots ({color}) are pre-defined. A cssVar can be mapped to a slot
+ * (0..9) via toggleHighlight. The slot is reserved until the same cssVar is
+ * toggled off, giving a stable colour across inspect sessions (the
+ * "reservation-sheet" property: slot 2 always means the same colour regardless
+ * of toggle order).
+ *
+ * A single global `outlineWidth` applies to all overlay rings simultaneously.
  *
  * Persistence is split:
- *   slots  → localStorage  (survives full page reload — user colour edits kept)
- *   active → sessionStorage (cleared on reload — inspection set is ephemeral)
+ *   slots        → localStorage  (survives full page reload — user colour edits kept)
+ *   outlineWidth → localStorage  (survives full page reload — user width setting kept)
+ *   active       → sessionStorage (cleared on reload — inspection set is ephemeral)
  */
 
 import { getPanelConfig } from '../config/panel-config';
@@ -20,12 +23,13 @@ import { getPanelConfig } from '../config/panel-config';
 
 export interface HighlightSlotSpec {
   color: string;
-  outlineWidth: number;
 }
 
 export interface HighlightState {
   /** Fixed-length array of 10 slot specs. */
   slots: HighlightSlotSpec[];
+  /** Global outline width in px applied to all overlay rings. Default 2. */
+  outlineWidth: number;
   /** cssVar → slotIndex (0..9) for every currently-highlighted token. */
   active: Record<string, number>;
 }
@@ -35,17 +39,19 @@ export interface HighlightState {
 // ---------------------------------------------------------------------------
 
 export const DEFAULT_HIGHLIGHT_SLOTS: HighlightSlotSpec[] = [
-  { color: '#ff2d2d', outlineWidth: 2 }, // red
-  { color: '#ff2dcf', outlineWidth: 2 }, // pink
-  { color: '#2dd4ff', outlineWidth: 2 }, // skyblue
-  { color: '#ffa92d', outlineWidth: 2 }, // orange
-  { color: '#2dff5b', outlineWidth: 2 }, // green
-  { color: '#a92dff', outlineWidth: 2 }, // purple
-  { color: '#ff2d6e', outlineWidth: 2 }, // magenta-pink
-  { color: '#2dffd1', outlineWidth: 2 }, // mint
-  { color: '#ffe92d', outlineWidth: 2 }, // yellow
-  { color: '#2d6eff', outlineWidth: 2 }, // blue
+  { color: '#ff2d2d' }, // red
+  { color: '#ff2dcf' }, // pink
+  { color: '#2dd4ff' }, // skyblue
+  { color: '#ffa92d' }, // orange
+  { color: '#2dff5b' }, // green
+  { color: '#a92dff' }, // purple
+  { color: '#ff2d6e' }, // magenta-pink
+  { color: '#2dffd1' }, // mint
+  { color: '#ffe92d' }, // yellow
+  { color: '#2d6eff' }, // blue
 ];
+
+const DEFAULT_OUTLINE_WIDTH = 2;
 
 // ---------------------------------------------------------------------------
 // Storage key helpers (read prefix at call-time — never at module init)
@@ -57,6 +63,10 @@ function storageKey_highlightSlots(): string {
 
 function storageKey_highlightActive(): string {
   return `${getPanelConfig().storagePrefix}-highlight-active`;
+}
+
+function storageKey_highlightOutlineWidth(): string {
+  return `${getPanelConfig().storagePrefix}-highlight-outline-width`;
 }
 
 // ---------------------------------------------------------------------------
@@ -105,16 +115,21 @@ export function toggleHighlight(state: HighlightState, cssVar: string): Highligh
 }
 
 /**
- * Reset slot specs to the defaults. The `active` map is preserved — the user
- * is resetting slot colours, not their inspection set.
+ * Reset slot specs to the defaults and restore global outlineWidth to 2.
+ * The `active` map is preserved — the user is resetting slot colours, not
+ * their inspection set.
  */
 export function resetSlots(state: HighlightState): HighlightState {
-  return { ...state, slots: DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ ...s })) };
+  return {
+    ...state,
+    slots: DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ ...s })),
+    outlineWidth: DEFAULT_OUTLINE_WIDTH,
+  };
 }
 
 /**
  * Clear all active highlights. Returns a new state with an empty `active` map;
- * `slots` (colors + outline widths) are left untouched.
+ * `slots` (colors) and `outlineWidth` are left untouched.
  */
 export function clearAllActive(state: HighlightState): HighlightState {
   return { ...state, active: {} };
@@ -134,6 +149,14 @@ export function setSlot(
   return { ...state, slots: nextSlots };
 }
 
+/**
+ * Set the global outline width. Width is clamped to >= 1.
+ */
+export function setOutlineWidth(state: HighlightState, width: number): HighlightState {
+  const clamped = Math.max(1, width);
+  return { ...state, outlineWidth: clamped };
+}
+
 // ---------------------------------------------------------------------------
 // Persistence
 // ---------------------------------------------------------------------------
@@ -141,14 +164,19 @@ export function setSlot(
 /**
  * Load highlight state from the split storage backends.
  *
- * - slots  ← localStorage  (key: `${storagePrefix}-highlight-slots`)
- * - active ← sessionStorage (key: `${storagePrefix}-highlight-active`)
+ * - slots        ← localStorage  (key: `${storagePrefix}-highlight-slots`)
+ * - outlineWidth ← localStorage  (key: `${storagePrefix}-highlight-outline-width`)
+ * - active       ← sessionStorage (key: `${storagePrefix}-highlight-active`)
  *
  * On any parse / access failure the affected slice falls back to its default
- * (`DEFAULT_HIGHLIGHT_SLOTS` / `{}`).
+ * (`DEFAULT_HIGHLIGHT_SLOTS` / 2 / `{}`).
+ *
+ * Migration: existing localStorage `slots` arrays may carry a per-slot
+ * `outlineWidth` field — the extra field is simply ignored on load.
  */
 export function loadHighlightState(): HighlightState {
   let slots: HighlightSlotSpec[] = DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ ...s }));
+  let outlineWidth: number = DEFAULT_OUTLINE_WIDTH;
   let active: Record<string, number> = {};
 
   try {
@@ -156,11 +184,24 @@ export function loadHighlightState(): HighlightState {
     if (raw !== null) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length === 10) {
-        slots = parsed as HighlightSlotSpec[];
+        // Strip any extra fields (e.g. legacy per-slot outlineWidth) — keep only color.
+        slots = (parsed as Array<{ color: string }>).map((s) => ({ color: s.color }));
       }
     }
   } catch {
     // Storage unavailable or parse error — use default slots.
+  }
+
+  try {
+    const raw = localStorage.getItem(storageKey_highlightOutlineWidth());
+    if (raw !== null) {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed === 'number' && parsed >= 1) {
+        outlineWidth = parsed;
+      }
+    }
+  } catch {
+    // Storage unavailable or parse error — use default outlineWidth.
   }
 
   try {
@@ -175,20 +216,27 @@ export function loadHighlightState(): HighlightState {
     // Storage unavailable or parse error — use empty active map.
   }
 
-  return { slots, active };
+  return { slots, outlineWidth, active };
 }
 
 /**
  * Persist highlight state to the split storage backends.
  *
- * - slots  → localStorage
- * - active → sessionStorage
+ * - slots        → localStorage
+ * - outlineWidth → localStorage
+ * - active       → sessionStorage
  *
  * Gracefully handles environments where storage is unavailable.
  */
 export function saveHighlightState(state: HighlightState): void {
   try {
     localStorage.setItem(storageKey_highlightSlots(), JSON.stringify(state.slots));
+  } catch {
+    // Storage unavailable — degrade silently.
+  }
+
+  try {
+    localStorage.setItem(storageKey_highlightOutlineWidth(), JSON.stringify(state.outlineWidth));
   } catch {
     // Storage unavailable — degrade silently.
   }
