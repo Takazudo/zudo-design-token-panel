@@ -644,15 +644,6 @@
   width: 2rem;
 }
 
-.tokenpanel-row-slider {
-  width: 100%;
-  height: 1.25rem;
-  accent-color: var(--tokentweak-color-accent);
-}
-.tokenpanel-row-slider:disabled {
-  opacity: 0.5;
-}
-
 .tokenpanel-row-select {
   background-color: var(--tokentweak-color-surface);
   color: var(--tokentweak-color-fg);

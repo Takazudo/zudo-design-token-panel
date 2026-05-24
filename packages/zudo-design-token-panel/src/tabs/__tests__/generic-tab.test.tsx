@@ -6,8 +6,9 @@
  * Acceptance criteria:
  *
  *  1. Tier section headings are rendered.
- *  2. Items render the appropriate editor by kind (length/number → slider+input,
- *     select → <select>, text → text input, color → color input).
+ *  2. Items render the appropriate editor by kind (length/number → number input
+ *     only (NO range slider), select → <select>, text → text input, color →
+ *     color input).
  *  3. onChange fires with the correct (tierId, itemId, value) triple for each
  *     editor type.
  *  4. Items in a tier with referencesTier render the TierRefSelector placeholder
@@ -189,24 +190,28 @@ describe('GenericTab — tier headings', () => {
 });
 
 describe('GenericTab — item editors by kind', () => {
-  it('renders a slider + number input for length items', async () => {
+  it('renders a number input (NO slider) for length items', async () => {
     await renderGenericTab(MIXED_KINDS_TAB);
 
     const item = container.querySelector('[data-testid="tier-item-length-item"]');
     expect(item).not.toBeNull();
+    // Slider removed — S2: range slider not useful without meaningful min/max
     const slider = item?.querySelector('input[type="range"]');
+    expect(slider).toBeNull();
     const numInput = item?.querySelector('input[type="text"]');
-    expect(slider).not.toBeNull();
     expect(numInput).not.toBeNull();
   });
 
-  it('renders a slider + number input for number items', async () => {
+  it('renders a number input (NO slider) for number items', async () => {
     await renderGenericTab(MIXED_KINDS_TAB);
 
     const item = container.querySelector('[data-testid="tier-item-number-item"]');
     expect(item).not.toBeNull();
+    // Slider removed — S2: range slider not useful without meaningful min/max
     const slider = item?.querySelector('input[type="range"]');
-    expect(slider).not.toBeNull();
+    expect(slider).toBeNull();
+    const numInput = item?.querySelector('input[type="text"]');
+    expect(numInput).not.toBeNull();
   });
 
   it('renders a <select> for select items', async () => {
