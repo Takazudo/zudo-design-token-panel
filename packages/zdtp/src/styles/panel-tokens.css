@@ -34,11 +34,13 @@
  * A host that wants to retheme the panel chrome assigns directly to the
  * `--tokentweak-color-*` / `--tokentweak-font-mono` names on either
  * `.tokenpanel-shell`, `[data-design-token-panel-modal]`,
- * `.tokenpanel-highlight-settings-popover`, or `.tokenpanel-color-picker`
- * (or any ancestor — `:where()` keeps specificity at 0). The two popover
- * classes are listed directly so anchored popovers rendered outside the
- * shell (siblings, NOT modals) resolve the tokens without inheriting modal
- * chrome rules. The panel deliberately
+ * `.tokenpanel-highlight-settings-popover`, `.tokenpanel-color-picker`, or
+ * `.tokenpanel-tooltip` (or any ancestor — `:where()` keeps specificity at 0).
+ * The popover/tooltip classes are listed directly because they render OUTSIDE
+ * `.tokenpanel-shell` (anchored siblings, or — for the tooltip — portaled to
+ * `document.body`); without their own entry here `var(--tokentweak-*)` would
+ * resolve to nothing and the surface would render transparent. The panel
+ * deliberately
  * does NOT read `--color-*` / `--font-mono` from the host so that
  * host-side theme changes — including theme tweaks the panel itself
  * drives in a demo — cannot bleed into the panel chrome.
@@ -47,7 +49,8 @@
   .tokenpanel-shell,
   [data-design-token-panel-modal],
   .tokenpanel-highlight-settings-popover,
-  .tokenpanel-color-picker
+  .tokenpanel-color-picker,
+  .tokenpanel-tooltip
 ) {
   /* ----------------------------------------------------------------------
    * Color palette (self-contained, dark)
