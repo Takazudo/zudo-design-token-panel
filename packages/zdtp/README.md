@@ -290,7 +290,7 @@ The `<DesignTokenPanelHost>` component AND a paired `<script>` block that loads 
 ---
 // src/layouts/Layout.astro
 import { ClientRouter } from 'astro:transitions';
-import { DesignTokenPanelHost } from '@takazudo/zdtp/astro';
+import DesignTokenPanelHost from '@takazudo/zdtp/astro/DesignTokenPanelHost.astro';
 import { myPanelConfig } from '../lib/my-panel-config';
 import '@takazudo/zdtp/styles';
 ---
@@ -736,7 +736,7 @@ export const myPanelConfig: PanelConfig = {
 
 ```astro
 ---
-import { DesignTokenPanelHost } from '@takazudo/zdtp/astro';
+import DesignTokenPanelHost from '@takazudo/zdtp/astro/DesignTokenPanelHost.astro';
 import { myPanelConfig } from '../lib/my-panel-config';
 ---
 
@@ -999,7 +999,7 @@ This recipe walks through wiring the panel into a project that does not currentl
 
    ```astro
    ---
-   import { DesignTokenPanelHost } from '@takazudo/zdtp/astro';
+   import DesignTokenPanelHost from '@takazudo/zdtp/astro/DesignTokenPanelHost.astro';
    import { myPanelConfig } from '../lib/panel-config';
    ---
 

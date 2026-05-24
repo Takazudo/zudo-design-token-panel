@@ -45,7 +45,7 @@ bun add @takazudo/zdtp preact
 Once the install completes, the package exposes three things you can sanity-check from your project root:
 
 - The library entry — `@takazudo/zdtp` (calls `configurePanel`, renders the panel).
-- The Astro entry — `@takazudo/zdtp/astro` (the `<DesignTokenPanelHost>` component plus the host adapter).
+- The Astro entries — `@takazudo/zdtp/astro/DesignTokenPanelHost.astro` (the `<DesignTokenPanelHost>` component, imported directly so Astro compiles it) and `@takazudo/zdtp/astro` (config types plus helpers). The host adapter is the side-effect import `@takazudo/zdtp/astro/host-adapter`.
 - The CLI bin — `zdtp-server`, used by the apply pipeline (see below).
 
 You can confirm the bin is on the path inside your project with:

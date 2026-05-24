@@ -77,11 +77,13 @@ export default defineConfig({
         'preact/compat',
         'preact/hooks',
         'preact/jsx-runtime',
-        // Leave `from './DesignTokenPanelHost.astro'` literal in the
-        // emitted `astro/index.js` so the consumer's Astro toolchain
-        // resolves the .astro file. Vite lib mode does not compile .astro;
-        // a postbuild copy script (`scripts/copy-astro-assets.mjs`) places
-        // the raw file alongside the emitted JS.
+        // Defensive: never let Vite try to compile a `.astro` file into the
+        // lib bundle. The JS `astro/index.js` entry no longer imports the
+        // `.astro` component (zdtp#308 — a static `.astro` import crashed
+        // real npm consumers at prerender). The host component now ships only
+        // via the `./astro/DesignTokenPanelHost.astro` subexport, placed in
+        // dist by `scripts/copy-astro-assets.mjs`, and consumers import it
+        // directly so their own Astro toolchain compiles it.
         /\.astro$/,
         // Package self-reference for the host adapter's lazy
         // dynamic import. Stays as a runtime resolution against the

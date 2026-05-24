@@ -1,25 +1,28 @@
 /**
- * Astro sub-export entry.
+ * Astro sub-export entry — JS helpers and TypeScript types only.
  *
- * Consumers import the host component via:
+ * The host **component** is NOT re-exported here. Import it directly from
+ * its dedicated `.astro` subexport so the consumer's Astro toolchain
+ * compiles it natively:
  *
  * ```astro
- * import { DesignTokenPanelHost } from '@takazudo/zdtp/astro';
+ * import DesignTokenPanelHost from '@takazudo/zdtp/astro/DesignTokenPanelHost.astro';
  * ```
  *
- * The named-export pattern is preserved verbatim through the lib build:
- * `vite.config.ts` marks `*.astro` external (regex) so Vite leaves the
- * `from './DesignTokenPanelHost.astro'` literal in `dist/astro/index.js`,
- * and a postbuild copy step (`scripts/copy-astro-assets.mjs`) places the
- * raw `.astro` file alongside it. The consumer's own Astro toolchain then
- * resolves the relative path at build time.
+ * Why not `import { DesignTokenPanelHost } from '@takazudo/zdtp/astro'`?
+ * That named-export form forced `dist/astro/index.js` to statically
+ * `import ... from './DesignTokenPanelHost.astro'`. As a `file:` workspace
+ * link Vite compiles the `.astro`; as a real node_modules dependency it is
+ * externalized, so Node hits the raw `.astro` at prerender and throws
+ * `ERR_UNKNOWN_FILE_EXTENSION` (zdtp#308). Keeping this entry value-free
+ * means that crash can't be reintroduced by following the docs.
  *
- * `PanelConfig` is re-exported here so callers don't need a deep
- * `@takazudo/zdtp/dist/config/panel-config` import to
- * type their config object.
+ * Type-only imports from this entry (`import type { PanelConfig } ...`) are
+ * erased at build and stay safe — `PanelConfig` is re-exported here so
+ * callers don't need a deep `@takazudo/zdtp/dist/config/panel-config`
+ * import to type their config object.
  */
 
-export { default as DesignTokenPanelHost } from './DesignTokenPanelHost.astro';
 export type { PanelConfig } from '../config/panel-config';
 // Re-exported so Astro-host wiring can type the entries of its
 // `colorPresets` map without reaching into an internal sub-path.

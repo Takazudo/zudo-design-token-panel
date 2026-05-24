@@ -580,7 +580,7 @@ The package exposes a second entry point, `./astro`, for Astro projects.
 
 ```astro
 ---
-import { DesignTokenPanelHost } from '@takazudo/zdtp/astro';
+import DesignTokenPanelHost from '@takazudo/zdtp/astro/DesignTokenPanelHost.astro';
 import { panelConfig } from '~/lib/design-token-panel-config';
 ---
 
