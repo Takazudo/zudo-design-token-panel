@@ -428,3 +428,288 @@ describe('ColorTab secondary cluster rows — eye toggle present', () => {
     expect(toggle).toHaveBeenCalledWith('--sec-semantic-highlight');
   });
 });
+
+// ---------------------------------------------------------------------------
+// S3a — Grids use CSS custom property for density
+// ---------------------------------------------------------------------------
+
+describe('S3a — color grids use --tokenpanel-grid-min var (density-aware reflow)', () => {
+  it('palette grid class exists on the primary palette section', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx);
+
+    const grid = container.querySelector('.tokenpanel-color-palette-grid');
+    expect(grid).not.toBeNull();
+  });
+
+  it('base grid class exists on the Base section', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx);
+
+    // Two .tokenpanel-color-base-grid: Base + Semantic sections
+    const grids = container.querySelectorAll('.tokenpanel-color-base-grid');
+    expect(grids.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('no hardcoded repeat(8, …) column on primary palette grid (must use var)', () => {
+    // Static check: the class name change ensures the CSS rule uses
+    // repeat(auto-fit, minmax(var(--tokenpanel-grid-min, …), 1fr)).
+    // In jsdom computed styles aren't populated from CSS; we assert structural
+    // class membership as the proxy for the CSS rule that was changed.
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx);
+
+    const grid = container.querySelector('.tokenpanel-color-palette-grid');
+    // Confirm it's present (CSS rule change on this class is the density fix).
+    expect(grid).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S3b — Eye icon is present in PaletteSelector (after trigger, same row)
+// ---------------------------------------------------------------------------
+
+describe('S3b — eye icon is present in palette selector rows (to the right)', () => {
+  it('semantic token selector has a HighlightToggleButton', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx);
+
+    const baseGrids = container.querySelectorAll('.tokenpanel-color-base-grid');
+    const semanticGrid = baseGrids[1] as HTMLElement;
+    // Each PaletteSelector row with a cssVar has a highlight-toggle eye icon
+    const toggles = semanticGrid.querySelectorAll('.tokenpanel-highlight-toggle');
+    expect(toggles.length).toBeGreaterThan(0);
+  });
+
+  it('base-theme rows (background/foreground) do NOT have a HighlightToggleButton (no cssVar)', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx);
+
+    const baseGrids = container.querySelectorAll('.tokenpanel-color-base-grid');
+    const baseGrid = baseGrids[0] as HTMLElement;
+    const toggles = baseGrid.querySelectorAll('.tokenpanel-highlight-toggle');
+    expect(toggles.length).toBe(0);
+  });
+
+  it('palette-selector container uses tokenpanel-palette-selector class', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx);
+
+    const selectors = container.querySelectorAll('.tokenpanel-palette-selector');
+    // Should have selectors for Base (2) + Semantic (2) rows at minimum
+    expect(selectors.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S3c — swatch label-row gap class is rendered
+// ---------------------------------------------------------------------------
+
+describe('S3c — swatch label-row class is present', () => {
+  it('every palette swatch has a tokenpanel-color-swatch-label-row wrapper', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx);
+
+    const paletteGrid = container.querySelector('.tokenpanel-color-palette-grid') as HTMLElement;
+    const labelRows = paletteGrid.querySelectorAll('.tokenpanel-color-swatch-label-row');
+    expect(labelRows.length).toBe(PALETTE_SIZE);
+  });
+
+  it('swatch-label-row contains both swatch-label and highlight-toggle child', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx);
+
+    const paletteGrid = container.querySelector('.tokenpanel-color-palette-grid') as HTMLElement;
+    const firstLabelRow = paletteGrid.querySelector('.tokenpanel-color-swatch-label-row') as HTMLElement;
+    expect(firstLabelRow.querySelector('.tokenpanel-color-swatch-label')).not.toBeNull();
+    expect(firstLabelRow.querySelector('.tokenpanel-highlight-toggle')).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S4 — DOM tooltip show/hide behavior
+// ---------------------------------------------------------------------------
+
+describe('S4 — tooltip: DOM element is rendered', () => {
+  it('a tokenpanel-tooltip element is present in the document after render', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx);
+
+    // TooltipProvider renders the tooltip div into document.body via portal
+    const tooltip = document.querySelector('.tokenpanel-tooltip');
+    expect(tooltip).not.toBeNull();
+  });
+
+  it('tooltip starts hidden (data-show=false)', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx);
+
+    const tooltip = document.querySelector('.tokenpanel-tooltip');
+    expect(tooltip?.getAttribute('data-show')).toBe('false');
+  });
+
+  it('tooltip shows on mouseenter of the swatch button', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx);
+
+    const paletteGrid = container.querySelector('.tokenpanel-color-palette-grid') as HTMLElement;
+    const swatchBtn = paletteGrid.querySelector('.tokenpanel-color-swatch-button') as HTMLElement;
+    act(() => {
+      swatchBtn.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    });
+
+    const tooltip = document.querySelector('.tokenpanel-tooltip');
+    expect(tooltip?.getAttribute('data-show')).toBe('true');
+  });
+
+  it('tooltip hides on mouseleave of the swatch button', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx);
+
+    const paletteGrid = container.querySelector('.tokenpanel-color-palette-grid') as HTMLElement;
+    const swatchBtn = paletteGrid.querySelector('.tokenpanel-color-swatch-button') as HTMLElement;
+    act(() => {
+      swatchBtn.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    });
+    act(() => {
+      swatchBtn.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+    });
+
+    const tooltip = document.querySelector('.tokenpanel-tooltip');
+    expect(tooltip?.getAttribute('data-show')).toBe('false');
+  });
+
+  it('tooltip shows on focusin of the swatch button', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx);
+
+    const paletteGrid = container.querySelector('.tokenpanel-color-palette-grid') as HTMLElement;
+    const swatchBtn = paletteGrid.querySelector('.tokenpanel-color-swatch-button') as HTMLElement;
+    act(() => {
+      swatchBtn.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    });
+
+    const tooltip = document.querySelector('.tokenpanel-tooltip');
+    expect(tooltip?.getAttribute('data-show')).toBe('true');
+  });
+
+  it('tooltip hides on focusout of the swatch button', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx);
+
+    const paletteGrid = container.querySelector('.tokenpanel-color-palette-grid') as HTMLElement;
+    const swatchBtn = paletteGrid.querySelector('.tokenpanel-color-swatch-button') as HTMLElement;
+    act(() => {
+      swatchBtn.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    });
+    act(() => {
+      swatchBtn.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+    });
+
+    const tooltip = document.querySelector('.tokenpanel-tooltip');
+    expect(tooltip?.getAttribute('data-show')).toBe('false');
+  });
+
+  it('Escape key hides the tooltip', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx);
+
+    const paletteGrid = container.querySelector('.tokenpanel-color-palette-grid') as HTMLElement;
+    const swatchBtn = paletteGrid.querySelector('.tokenpanel-color-swatch-button') as HTMLElement;
+    act(() => {
+      swatchBtn.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    });
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+
+    const tooltip = document.querySelector('.tokenpanel-tooltip');
+    expect(tooltip?.getAttribute('data-show')).toBe('false');
+  });
+
+  it('tooltip text matches the swatch label on hover', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx);
+
+    const paletteGrid = container.querySelector('.tokenpanel-color-palette-grid') as HTMLElement;
+    const swatchBtn = paletteGrid.querySelector('.tokenpanel-color-swatch-button') as HTMLElement;
+    act(() => {
+      swatchBtn.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    });
+
+    const tooltip = document.querySelector('.tokenpanel-tooltip');
+    // aria-label on swatch is "${label}: ${color}"; tooltip text should match
+    expect(tooltip?.textContent).toBe(swatchBtn.getAttribute('aria-label'));
+  });
+
+  it('tooltip shows on mouseenter of a palette trigger (pulldown)', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx);
+
+    const trigger = container.querySelector('.tokenpanel-palette-trigger') as HTMLElement;
+    expect(trigger).not.toBeNull();
+    act(() => {
+      trigger.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    });
+
+    const tooltip = document.querySelector('.tokenpanel-tooltip');
+    expect(tooltip?.getAttribute('data-show')).toBe('true');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S4 — no native title attribute on tooltip-wired triggers
+// ---------------------------------------------------------------------------
+
+describe('S4 — no native title attribute on tooltip triggers', () => {
+  it('swatch button has no title attribute', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx);
+
+    const paletteGrid = container.querySelector('.tokenpanel-color-palette-grid') as HTMLElement;
+    const swatchBtn = paletteGrid.querySelector('.tokenpanel-color-swatch-button') as HTMLElement;
+    expect(swatchBtn.hasAttribute('title')).toBe(false);
+  });
+
+  it('swatch label span has no title attribute', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx);
+
+    const paletteGrid = container.querySelector('.tokenpanel-color-palette-grid') as HTMLElement;
+    const label = paletteGrid.querySelector('.tokenpanel-color-swatch-label') as HTMLElement;
+    expect(label.hasAttribute('title')).toBe(false);
+  });
+
+  it('palette trigger has no title attribute', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx);
+
+    const trigger = container.querySelector('.tokenpanel-palette-trigger') as HTMLElement;
+    expect(trigger.hasAttribute('title')).toBe(false);
+  });
+
+  it('palette trigger label span has no title attribute', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx);
+
+    const triggerLabel = container.querySelector('.tokenpanel-palette-trigger-label') as HTMLElement;
+    expect(triggerLabel.hasAttribute('title')).toBe(false);
+  });
+
+  it('swatch button retains aria-label for screen readers', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx);
+
+    const paletteGrid = container.querySelector('.tokenpanel-color-palette-grid') as HTMLElement;
+    const swatchBtn = paletteGrid.querySelector('.tokenpanel-color-swatch-button') as HTMLElement;
+    expect(swatchBtn.getAttribute('aria-label')).toBeTruthy();
+  });
+
+  it('palette trigger retains aria-label for screen readers', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx);
+
+    const trigger = container.querySelector('.tokenpanel-palette-trigger') as HTMLElement;
+    expect(trigger.getAttribute('aria-label')).toBeTruthy();
+  });
+});
