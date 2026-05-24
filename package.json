@@ -1,7 +1,7 @@
 {
   "name": "zudo-design-token-panel",
   "private": true,
-  "packageManager": "pnpm@10.33.2",
+  "packageManager": "pnpm@11.3.0",
   "scripts": {
     "dev": "pnpm --filter doc dev",
     "build": "pnpm -r --if-present build",
@@ -14,7 +14,8 @@
     "init-worktree": "bash scripts/install-git-hooks.sh"
   },
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.12.0",
+    "pnpm": ">=11.0.0"
   },
   "license": "MIT",
   "repository": {
@@ -25,13 +26,5 @@
   "devDependencies": {
     "lefthook": "^2.1.6",
     "wrangler": "^4.85.0"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "lefthook",
-      "sharp",
-      "workerd"
-    ]
   }
 }

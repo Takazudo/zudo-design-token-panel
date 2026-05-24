@@ -91,7 +91,7 @@ importers:
         specifier: ^5.9.0
         version: 5.9.3
 
-  packages/zudo-design-token-panel:
+  packages/zdtp:
     dependencies:
       culori:
         specifier: ^4.0.2
