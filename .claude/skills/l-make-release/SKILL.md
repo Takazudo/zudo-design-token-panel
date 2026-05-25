@@ -68,10 +68,24 @@ git tag -l "v$CUR"   # empty output = no tag yet for the current version
 ```
 
 - **If `v$CUR` does NOT exist** and the working tree is clean: the current version
-  is un-tagged. Tell the user the bump for `v$CUR` is already committed and offer to
+  is un-tagged. Locate the actual commit that set this version — do NOT assume it is
+  `HEAD`:
+
+  ```bash
+  # The commit that introduced the current version string (the bump commit)
+  BUMP_SHA=$(git log -1 --format=%H -S"\"version\": \"$CUR\"" -- packages/zdtp/package.json)
+  ```
+
+  Tell the user the bump for `v$CUR` is already committed (`$BUMP_SHA`) and offer to
   **RESUME** — skip Steps 2–5 (bump / changelog / commit) and jump straight to
-  Step 6 (CI wait) + Step 7 (tag) for `v$CUR`, using the current `main` HEAD as the
-  bump SHA. Wait for the user's choice (resume vs. start a new bump).
+  Step 6 (CI wait) + Step 7 (tag) for `v$CUR`, tagging **`$BUMP_SHA`** (not `HEAD`).
+
+  **Guard against a moved HEAD**: if `$BUMP_SHA` is not the current `HEAD`
+  (`git rev-parse HEAD`), commits landed after the bump. Surface this and let the
+  user choose: (a) tag `$BUMP_SHA` as-is so the release matches the bumped version
+  exactly, or (b) abort and start a fresh bump (Steps 2–5) so the newer commits are
+  included and the changelog reflects them. Never silently tag `HEAD` under the old
+  version.
 - **If `v$CUR` already exists**: the current version is released. Proceed with a
   normal cold-start bump (Steps 2–5).
 
@@ -249,7 +263,14 @@ Delegate CI polling to the `/watch-ci` skill — do NOT reimplement polling:
 Skill(skill="watch-ci", args="--branch main --commit <BUMP_SHA>")
 ```
 
-If CI fails, fix the issue, re-push, then re-invoke `/watch-ci` before proceeding.
+`/watch-ci` is a user-global skill, not a repo-local one. If it is unavailable in
+the running session, fall back to a direct poll:
+
+```bash
+gh run watch "$(gh run list --branch main --commit <BUMP_SHA> --limit 1 --json databaseId -q '.[0].databaseId')" --exit-status
+```
+
+If CI fails, fix the issue, re-push, then re-watch before proceeding.
 
 ## Step 7: Mint the Tag, then STOP
 
