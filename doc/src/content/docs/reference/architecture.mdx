@@ -97,8 +97,8 @@ Each `TierItem` carries a `type` discriminated union that determines what edit c
 
 | `type.kind` | Edit control | Use-cases |
 | --- | --- | --- |
-| `'length'` | Slider with `min`, `max`, `step`, `unit` | Spacing, font-size, border-radius |
-| `'number'` | Slider (unitless) | Opacity, line-height, z-index scales |
+| `'length'` | Text input with `step`, `unit` | Spacing, font-size, border-radius |
+| `'number'` | Unconstrained text input (unitless) | Opacity, line-height, z-index scales |
 | `'select'` | Dropdown | Predefined option sets |
 | `'text'` | Free-form text input | Easing curves, font-family names, raw CSS expressions |
 | `'color'` | Color swatch picker | Palette entries, semantic color roles |
@@ -108,8 +108,8 @@ Each `TierItem` carries a `type` discriminated union that determines what edit c
 
 ```ts
 type TierValueKind =
-  | { kind: 'length'; min: number; max: number; step: number; unit: string }
-  | { kind: 'number'; min: number; max: number; step: number }
+  | { kind: 'length'; step: number; unit: string }
+  | { kind: 'number'; step: number }
   | { kind: 'select'; options: readonly string[] }
   | { kind: 'text' }
   | { kind: 'color' }
@@ -137,7 +137,7 @@ const spacingTab: TabConfig = {
           label: 'Spacing M',
           group: 'hsp',
           default: '1rem',
-          type: { kind: 'length', min: 0, max: 4, step: 0.0625, unit: 'rem' },
+          type: { kind: 'length', step: 0.0625, unit: 'rem' },
         },
       ],
     },
@@ -161,9 +161,9 @@ const fontTab: TabConfig = {
       id: 'raw',
       label: 'Type Scale',
       items: [
-        { id: 'myapp-scale-sm',   cssVar: '--myapp-scale-sm',   label: 'Scale SM',   default: '0.875rem', type: { kind: 'length', min: 0.5, max: 2, step: 0.0625, unit: 'rem' } },
-        { id: 'myapp-scale-base', cssVar: '--myapp-scale-base', label: 'Scale Base', default: '1rem',     type: { kind: 'length', min: 0.5, max: 2, step: 0.0625, unit: 'rem' } },
-        { id: 'myapp-scale-xl',   cssVar: '--myapp-scale-xl',   label: 'Scale XL',   default: '1.75rem',  type: { kind: 'length', min: 1, max: 4, step: 0.0625, unit: 'rem' } },
+        { id: 'myapp-scale-sm',   cssVar: '--myapp-scale-sm',   label: 'Scale SM',   default: '0.875rem', type: { kind: 'length', step: 0.0625, unit: 'rem' } },
+        { id: 'myapp-scale-base', cssVar: '--myapp-scale-base', label: 'Scale Base', default: '1rem',     type: { kind: 'length', step: 0.0625, unit: 'rem' } },
+        { id: 'myapp-scale-xl',   cssVar: '--myapp-scale-xl',   label: 'Scale XL',   default: '1.75rem',  type: { kind: 'length', step: 0.0625, unit: 'rem' } },
       ],
     },
     {
@@ -251,7 +251,7 @@ The panel keeps an in-memory `TabOverrides` map — a two-level nested record:
 tierId → itemId → overrideValue (CSS string or ref item id)
 ```
 
-On every slider drag or color pick, the resolver calls `resolveTierItemValue(tab, tierId, itemId, overrides)` and then `emitTierItemCssValue(resolved)` to get the final CSS string. The result is written to `:root` via `document.documentElement.style.setProperty(cssVar, value)` immediately.
+On every input change or color pick, the resolver calls `resolveTierItemValue(tab, tierId, itemId, overrides)` and then `emitTierItemCssValue(resolved)` to get the final CSS string. The result is written to `:root` via `document.documentElement.style.setProperty(cssVar, value)` immediately.
 
 ### Resolver semantics
 

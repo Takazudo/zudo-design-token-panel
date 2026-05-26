@@ -50,7 +50,7 @@ const SPACING_TAB_WITH_ITEMS: TabConfig = {
           cssVar: '--demo-sm',
           label: 'Demo SM',
           default: '4px',
-          type: { kind: 'length', min: 0, max: 32, step: 1, unit: 'px' },
+          type: { kind: 'length', step: 1, unit: 'px' },
         },
       ],
     },
