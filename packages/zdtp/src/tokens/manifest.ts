@@ -38,11 +38,11 @@ export type TokenGroup = string;
 /**
  * Control kind for a token row.
  *
- * - `"slider"` — default; numeric range input paired with a number field.
+ * - `"slider"` — default; numeric number input (no range slider).
  * - `"select"` — native `<select>` with `options` (e.g. font-weight 100..900).
  * - `"text"`   — free-form text input (e.g. font-family CSS string).
  *
- * `min`/`max`/`step`/`unit` are only meaningful for the slider control. They
+ * `step`/`unit` are only meaningful for the slider control. They
  * stay on the interface with zero defaults for non-slider rows so the manifest
  * shape stays uniform.
  */
@@ -59,11 +59,7 @@ export interface TokenDef {
   group: TokenGroup;
   /** Default value as a CSS length string (e.g. `0.125rem`). */
   default: string;
-  /** Slider min (numeric, in `unit`). Unused when `readonly`. */
-  min: number;
-  /** Slider max (numeric, in `unit`). Unused when `readonly`. */
-  max: number;
-  /** Slider step (numeric, in `unit`). Unused when `readonly`. */
+  /** Number input step (numeric, in `unit`). Unused when `readonly`. */
   step: number;
   /** Unit suffix (e.g. `rem`, `px`). Read-only rows may use an empty string. */
   unit: string;
