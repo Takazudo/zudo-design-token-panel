@@ -172,8 +172,8 @@ public surface:
 ```ts
 // Value-kind discriminated union — describes how a tier item is edited.
 export type TierValueKind =
-  | { kind: 'length'; min: number; max: number; step: number; unit: string }
-  | { kind: 'number'; min: number; max: number; step: number }
+  | { kind: 'length'; step: number; unit: string }
+  | { kind: 'number'; step: number }
   | { kind: 'select'; options: readonly string[] }
   | { kind: 'text' }
   | { kind: 'cursor' }

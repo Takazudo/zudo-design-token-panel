@@ -13,13 +13,13 @@ import {
 
 describe('isLengthKind', () => {
   it('returns true for a length kind', () => {
-    const v: TierValueKind = { kind: 'length', min: 0, max: 10, step: 0.5, unit: 'rem' };
+    const v: TierValueKind = { kind: 'length', step: 0.5, unit: 'rem' };
     expect(isLengthKind(v)).toBe(true);
   });
 
   it('returns false for non-length kinds', () => {
     const cases: TierValueKind[] = [
-      { kind: 'number', min: 0, max: 10, step: 1 },
+      { kind: 'number', step: 1 },
       { kind: 'select', options: ['a'] },
       { kind: 'text' },
       { kind: 'color' },
@@ -30,7 +30,7 @@ describe('isLengthKind', () => {
   });
 
   it('narrows the type so unit is accessible without error', () => {
-    const v: TierValueKind = { kind: 'length', min: 0, max: 10, step: 0.5, unit: 'px' };
+    const v: TierValueKind = { kind: 'length', step: 0.5, unit: 'px' };
     if (isLengthKind(v)) {
       expect(v.unit).toBe('px');
     }
@@ -39,13 +39,13 @@ describe('isLengthKind', () => {
 
 describe('isNumberKind', () => {
   it('returns true for a number kind', () => {
-    const v: TierValueKind = { kind: 'number', min: 1, max: 100, step: 1 };
+    const v: TierValueKind = { kind: 'number', step: 1 };
     expect(isNumberKind(v)).toBe(true);
   });
 
   it('returns false for non-number kinds', () => {
     const cases: TierValueKind[] = [
-      { kind: 'length', min: 0, max: 10, step: 0.5, unit: 'rem' },
+      { kind: 'length', step: 0.5, unit: 'rem' },
       { kind: 'select', options: ['a'] },
       { kind: 'text' },
       { kind: 'color' },
@@ -56,7 +56,7 @@ describe('isNumberKind', () => {
   });
 
   it('narrows the type so step is accessible without error', () => {
-    const v: TierValueKind = { kind: 'number', min: 0, max: 10, step: 2 };
+    const v: TierValueKind = { kind: 'number', step: 2 };
     if (isNumberKind(v)) {
       expect(v.step).toBe(2);
     }
@@ -71,8 +71,8 @@ describe('isSelectKind', () => {
 
   it('returns false for non-select kinds', () => {
     const cases: TierValueKind[] = [
-      { kind: 'length', min: 0, max: 10, step: 0.5, unit: 'rem' },
-      { kind: 'number', min: 0, max: 10, step: 1 },
+      { kind: 'length', step: 0.5, unit: 'rem' },
+      { kind: 'number', step: 1 },
       { kind: 'text' },
       { kind: 'color' },
     ];
@@ -97,8 +97,8 @@ describe('isTextKind', () => {
 
   it('returns false for non-text kinds', () => {
     const cases: TierValueKind[] = [
-      { kind: 'length', min: 0, max: 10, step: 0.5, unit: 'rem' },
-      { kind: 'number', min: 0, max: 10, step: 1 },
+      { kind: 'length', step: 0.5, unit: 'rem' },
+      { kind: 'number', step: 1 },
       { kind: 'select', options: ['a'] },
       { kind: 'color' },
     ];
@@ -116,8 +116,8 @@ describe('isColorKind', () => {
 
   it('returns false for non-color kinds', () => {
     const cases: TierValueKind[] = [
-      { kind: 'length', min: 0, max: 10, step: 0.5, unit: 'rem' },
-      { kind: 'number', min: 0, max: 10, step: 1 },
+      { kind: 'length', step: 0.5, unit: 'rem' },
+      { kind: 'number', step: 1 },
       { kind: 'select', options: ['a'] },
       { kind: 'text' },
     ];

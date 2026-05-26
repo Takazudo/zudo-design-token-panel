@@ -258,7 +258,7 @@ const spacingTier: TierConfig = {
       label: 'Spacing M',
       group: 'hsp',
       default: '1rem',
-      type: { kind: 'length', min: 0, max: 4, step: 0.0625, unit: 'rem' },
+      type: { kind: 'length', step: 0.0625, unit: 'rem' },
     },
   ],
 };
@@ -480,8 +480,8 @@ spec; this section is the consumer-oriented summary.
 
 ```ts
 export type TierValueKind =
-  | { kind: 'length'; min: number; max: number; step: number; unit: string }
-  | { kind: 'number'; min: number; max: number; step: number }
+  | { kind: 'length'; step: number; unit: string }
+  | { kind: 'number'; step: number }
   | { kind: 'select'; options: readonly string[] }
   | { kind: 'text' }
   | { kind: 'cursor' }
@@ -555,7 +555,7 @@ export const spacingTab: TabConfig = {
           label: 'Spacing M',
           group: 'hsp',
           default: '1rem',
-          type: { kind: 'length', min: 0, max: 4, step: 0.0625, unit: 'rem' },
+          type: { kind: 'length', step: 0.0625, unit: 'rem' },
         },
       ],
     },

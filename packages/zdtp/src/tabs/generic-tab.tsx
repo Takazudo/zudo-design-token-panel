@@ -75,49 +75,37 @@ function ItemEditor({ tab, tier, item, value, overrides, onChange }: ItemEditorP
     case 'length':
     case 'number': {
       const unit = type.kind === 'length' ? type.unit : '';
-      const min = type.min;
-      const max = type.max;
       const numeric = parseFloat(value);
-      const numericForDraft = Number.isFinite(numeric) ? numeric : min;
+      const numericForDraft = Number.isFinite(numeric) ? numeric : 0;
 
-      // Draft mirrors slider-row pattern: no mid-keystroke clamping (#313).
+      // Draft lets the user type freely ("1.", "1.2") without committing on every
+      // keystroke. Commit every parseable value immediately; revert on blur only
+      // when the draft is empty or unparseable (no clamping).
       const [numDraft, setNumDraft] = useState<string>(String(numericForDraft));
 
       // Sync draft when external value changes (reset, preset load, etc.)
       useEffect(() => {
-        setNumDraft(String(Number.isFinite(parseFloat(value)) ? parseFloat(value) : min));
+        setNumDraft(String(Number.isFinite(parseFloat(value)) ? parseFloat(value) : 0));
         // eslint-disable-next-line react-hooks/exhaustive-deps
       }, [value]);
-
-      const isNumOutOfRange = (n: number) => n < min || n > max;
 
       const handleNumber = (e: React.ChangeEvent<HTMLInputElement>) => {
         const raw = e.currentTarget.value;
         setNumDraft(raw);
         const n = parseFloat(raw);
-        // Only commit in-range values; never clamp mid-keystroke.
-        if (!Number.isFinite(n) || isNumOutOfRange(n)) return;
+        // Commit every parseable value; skip unparseable mid-typing drafts.
+        if (!Number.isFinite(n)) return;
         onChange(item.id, unit ? `${n}${unit}` : String(n));
       };
 
-      // On blur: clamp out-of-range, revert if unparseable.
+      // On blur: revert unparseable drafts to last-known-good. No clamping.
       const handleNumberBlur = () => {
         const n = parseFloat(numDraft);
         if (!Number.isFinite(n)) {
           setNumDraft(String(numericForDraft));
-          return;
         }
-        if (isNumOutOfRange(n)) {
-          const clamped = Math.min(max, Math.max(min, n));
-          setNumDraft(String(clamped));
-          onChange(item.id, unit ? `${clamped}${unit}` : String(clamped));
-        }
+        // Parseable values were already committed on each keystroke; nothing more to do.
       };
-
-      const numIsInvalid = (() => {
-        const n = parseFloat(numDraft);
-        return Number.isFinite(n) && isNumOutOfRange(n);
-      })();
 
       return (
         <div className="tokenpanel-row--stacked" data-testid={`tier-item-${item.id}`}>
@@ -136,9 +124,8 @@ function ItemEditor({ tab, tier, item, value, overrides, onChange }: ItemEditorP
                 onChange={handleNumber}
                 onBlur={handleNumberBlur}
                 disabled={isReadonly}
-                className={`tokenpanel-row-number-input${numIsInvalid ? ' tokenpanel-row-number-input--invalid' : ''}`}
+                className="tokenpanel-row-number-input"
                 aria-label={`${item.cssVar} value`}
-                aria-invalid={numIsInvalid || undefined}
               />
               {unit && <span className="tokenpanel-row-unit">{unit}</span>}
             </div>

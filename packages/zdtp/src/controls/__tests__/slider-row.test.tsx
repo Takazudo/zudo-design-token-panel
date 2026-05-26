@@ -1,17 +1,26 @@
 // @vitest-environment jsdom
 
 /**
- * Unit tests for SliderRow — focuses on the input-clamping regression (#313).
+ * Unit tests for SliderRow — focuses on free numeric input behavior.
  *
- * Core scenario: typing "22" into an input with max=6 must NOT snap the
- * displayed value to "6" mid-keystroke. The draft is preserved; clamping only
- * happens on blur.
+ * Previously (pre-#326) this file tested clamping behavior: typing "22" into
+ * an input with max=6 would clamp to "6" on blur. That contract is gone.
+ *
+ * New contract:
+ *  - Every parseable value commits immediately (no range check).
+ *  - Mid-typing partial drafts ("1.", "") do NOT commit.
+ *  - On blur: empty/unparseable reverts to last-known-good; parseable values
+ *    were already committed and nothing more happens (no clamping).
+ *  - No aria-invalid, no tokenpanel-row-number-input--invalid class (ever).
+ *  - No <input type="range"> slider element.
+ *
+ * These tests guard against any future re-introduction of clamping logic.
  *
  * Event simulation notes:
  *  - Preact-compat maps `onChange` to the native `input` event.
  *  - jsdom does NOT propagate React/Preact synthetic events from raw
  *    `input.value =` assignments; use Object.defineProperty + `new Event`.
- *  - Blur uses a plain `FocusEvent('blur', { bubbles: true })`.
+ *  - Blur uses a plain `FocusEvent('focusout', { bubbles: true })`.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -21,7 +30,7 @@ import SliderRow from '../slider-row';
 import type { TokenDef } from '../../tokens/manifest';
 
 // ---------------------------------------------------------------------------
-// Fixture token: Header Height, min=0 max=6 step=0.25 unit=rem
+// Fixture token: Header Height, step=0.25 unit=rem (no min/max)
 // ---------------------------------------------------------------------------
 
 const HEADER_HEIGHT_TOKEN: TokenDef = {
@@ -30,8 +39,6 @@ const HEADER_HEIGHT_TOKEN: TokenDef = {
   label: 'Header Height',
   group: 'dimensions',
   default: '2rem',
-  min: 0,
-  max: 6,
   step: 0.25,
   unit: 'rem',
 };
@@ -86,53 +93,44 @@ function getNumberInput(): HTMLInputElement {
 }
 
 // ---------------------------------------------------------------------------
-// Regression: 2 → 22 should not snap to 6 mid-keystroke (#313)
+// Guard: no slider element (#326 — range slider removed)
 // ---------------------------------------------------------------------------
 
-describe('SliderRow — mid-keystroke clamping regression', () => {
-  it('does NOT call onChange when typed value exceeds max', () => {
+describe('SliderRow — no range slider', () => {
+  it('does NOT render an <input type="range"> element', () => {
+    renderSliderRow(HEADER_HEIGHT_TOKEN, '2rem');
+
+    const slider = container.querySelector('input[type="range"]');
+    expect(slider).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Free numeric input: every parseable value commits immediately
+// ---------------------------------------------------------------------------
+
+describe('SliderRow — free numeric input (no clamping)', () => {
+  it('calls onChange immediately when typing any parseable value', () => {
     const onChange = vi.fn();
     renderSliderRow(HEADER_HEIGHT_TOKEN, '2rem', onChange);
 
     const input = getNumberInput();
-    expect(input).not.toBeNull();
-
-    // Simulate typing "22" (user had "2", types another "2")
     simulateInput(input, '22');
 
-    // onChange must NOT have been called — "22" is outside [0, 6]
-    expect(onChange).not.toHaveBeenCalled();
+    // "22" is parseable — must commit even though it exceeds the old max=6
+    expect(onChange).toHaveBeenCalledWith('header-height', '22rem');
   });
 
-  it('keeps draft as "22" after typing (does not snap to 6)', () => {
+  it('keeps draft as typed value without snapping', () => {
     renderSliderRow(HEADER_HEIGHT_TOKEN, '2rem');
 
     const input = getNumberInput();
     simulateInput(input, '22');
 
-    // The input still shows what the user typed, not the clamped value
     expect(input.value).toBe('22');
   });
 
-  it('applies --invalid class when draft is out of range', () => {
-    renderSliderRow(HEADER_HEIGHT_TOKEN, '2rem');
-
-    const input = getNumberInput();
-    simulateInput(input, '22');
-
-    expect(input.classList.contains('tokenpanel-row-number-input--invalid')).toBe(true);
-  });
-
-  it('does NOT apply --invalid class when draft is within range', () => {
-    renderSliderRow(HEADER_HEIGHT_TOKEN, '2rem');
-
-    const input = getNumberInput();
-    simulateInput(input, '3');
-
-    expect(input.classList.contains('tokenpanel-row-number-input--invalid')).toBe(false);
-  });
-
-  it('calls onChange for in-range values mid-keystroke', () => {
+  it('calls onChange for any parseable value mid-keystroke', () => {
     const onChange = vi.fn();
     renderSliderRow(HEADER_HEIGHT_TOKEN, '2rem', onChange);
 
@@ -141,29 +139,59 @@ describe('SliderRow — mid-keystroke clamping regression', () => {
 
     expect(onChange).toHaveBeenCalledWith('header-height', '3rem');
   });
-});
 
-// ---------------------------------------------------------------------------
-// Blur handling: clamp + commit on blur when out of range
-// ---------------------------------------------------------------------------
-
-describe('SliderRow — blur handling', () => {
-  it('clamps and commits out-of-range value on blur', () => {
+  it('does NOT call onChange for unparseable drafts (letters only)', () => {
     const onChange = vi.fn();
     renderSliderRow(HEADER_HEIGHT_TOKEN, '2rem', onChange);
 
     const input = getNumberInput();
-    simulateInput(input, '22');
-    // onChange not called yet
+    // "abc" cannot be parsed by parseNumericValue — returns null
+    simulateInput(input, 'abc');
+
     expect(onChange).not.toHaveBeenCalled();
-
-    simulateBlur(input);
-
-    // On blur, the out-of-range "22" is clamped to max=6 and committed
-    expect(onChange).toHaveBeenCalledWith('header-height', '6rem');
-    expect(input.value).toBe('6');
+    expect(input.value).toBe('abc');
   });
 
+  it('does NOT call onChange for empty draft', () => {
+    const onChange = vi.fn();
+    renderSliderRow(HEADER_HEIGHT_TOKEN, '2rem', onChange);
+
+    const input = getNumberInput();
+    simulateInput(input, '');
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// No invalid state — inputs are never marked invalid
+// ---------------------------------------------------------------------------
+
+describe('SliderRow — no aria-invalid / --invalid class', () => {
+  it('does NOT apply --invalid class for any numeric input', () => {
+    renderSliderRow(HEADER_HEIGHT_TOKEN, '2rem');
+
+    const input = getNumberInput();
+    simulateInput(input, '22');
+
+    expect(input.classList.contains('tokenpanel-row-number-input--invalid')).toBe(false);
+  });
+
+  it('does NOT set aria-invalid for any numeric input', () => {
+    renderSliderRow(HEADER_HEIGHT_TOKEN, '2rem');
+
+    const input = getNumberInput();
+    simulateInput(input, '22');
+
+    expect(input.getAttribute('aria-invalid')).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Blur handling: revert on empty/unparseable only — no clamping
+// ---------------------------------------------------------------------------
+
+describe('SliderRow — blur handling', () => {
   it('reverts to last-known-good on blur when input is empty', () => {
     const onChange = vi.fn();
     renderSliderRow(HEADER_HEIGHT_TOKEN, '2rem', onChange);
@@ -182,7 +210,6 @@ describe('SliderRow — blur handling', () => {
     renderSliderRow(HEADER_HEIGHT_TOKEN, '2rem', onChange);
 
     const input = getNumberInput();
-    // "abc" is fully unparseable (parseNumericValue returns null)
     simulateInput(input, 'abc');
     simulateBlur(input);
 
@@ -191,7 +218,23 @@ describe('SliderRow — blur handling', () => {
     expect(input.value).toBe('2');
   });
 
-  it('does NOT call onChange on blur when draft is already in range', () => {
+  it('does NOT clamp a large value on blur — commits as typed', () => {
+    const onChange = vi.fn();
+    renderSliderRow(HEADER_HEIGHT_TOKEN, '2rem', onChange);
+
+    const input = getNumberInput();
+    simulateInput(input, '22');
+    onChange.mockClear(); // clear the keystroke commit
+
+    simulateBlur(input);
+
+    // On blur, parseable value was already committed on keystroke — no additional
+    // commit (especially not a clamped one)
+    expect(onChange).not.toHaveBeenCalled();
+    expect(input.value).toBe('22');
+  });
+
+  it('does NOT call onChange on blur when draft is already committed', () => {
     const onChange = vi.fn();
     renderSliderRow(HEADER_HEIGHT_TOKEN, '2rem', onChange);
 
@@ -225,26 +268,5 @@ describe('SliderRow — external value sync', () => {
     });
 
     expect(input.value).toBe('4');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Slider still commits live
-// ---------------------------------------------------------------------------
-
-describe('SliderRow — slider input', () => {
-  it('calls onChange immediately when slider moves', () => {
-    const onChange = vi.fn();
-    renderSliderRow(HEADER_HEIGHT_TOKEN, '2rem', onChange);
-
-    const slider = container.querySelector<HTMLInputElement>('input[type="range"]')!;
-    expect(slider).not.toBeNull();
-
-    act(() => {
-      Object.defineProperty(slider, 'value', { value: '4', writable: true, configurable: true });
-      slider.dispatchEvent(new Event('input', { bubbles: true }));
-    });
-
-    expect(onChange).toHaveBeenCalledWith('header-height', '4rem');
   });
 });

@@ -14,7 +14,7 @@ import type { TokenDef } from '../tokens/manifest';
  * number input go read-only so the user can't accidentally de-pill via typing.
  *
  * When the checkbox is OFF the row behaves as a normal `SliderRow` — the user
- * can drag or type any value in the manifest's min/max range.
+ * can type any numeric value in the number input (unconstrained free input).
  *
  * Toggling between modes preserves the last custom value (kept in a ref so we
  * don't round-trip it through state / persistence) — this is the "without data
