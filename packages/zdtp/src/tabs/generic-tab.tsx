@@ -18,7 +18,7 @@
 
 import { useCallback } from 'preact/compat';
 import type { TabConfig, TierConfig, TierItem, TierValueKind } from '../tokens/tier-model';
-import type { TabOverrides } from '../apply/tier-resolver';
+import { type TabOverrides, resolveTierItemValue } from '../apply/tier-resolver';
 import TierRefSelector from '../controls/tier-ref-selector';
 import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
 
@@ -31,6 +31,7 @@ interface ItemEditorProps {
   tier: TierConfig;
   item: TierItem;
   value: string;
+  overrides: TabOverrides;
   /** Called with (itemId, newValue) when the user commits a change. */
   onChange: (itemId: string, next: string) => void;
 }
@@ -39,9 +40,10 @@ interface ItemEditorProps {
  * Dispatch to TierRefSelector for reference tiers, otherwise render the
  * kind-appropriate editor (slider, select, text, color).
  */
-function ItemEditor({ tab, tier, item, value, onChange }: ItemEditorProps) {
+function ItemEditor({ tab, tier, item, value, overrides, onChange }: ItemEditorProps) {
   // Reference tier: delegate to TierRefSelector.
   if (tier.referencesTier !== undefined) {
+    const refTierId = tier.referencesTier;
     return (
       <div className="tokenpanel-row" data-testid={`tier-ref-row-${item.id}`}>
         <span className="tokenpanel-row-label" title={item.cssVar}>
@@ -56,6 +58,10 @@ function ItemEditor({ tab, tier, item, value, onChange }: ItemEditorProps) {
           itemId={item.id}
           value={value}
           onChange={onChange}
+          previewValueFor={(refItemId) => {
+            const result = resolveTierItemValue(tab, refTierId, refItemId, overrides);
+            return result.kind === 'literal' ? result.value : result.targetCssVar;
+          }}
         />
         <HighlightToggleButton cssVar={item.cssVar} />
       </div>
@@ -214,10 +220,11 @@ interface TierSectionProps {
   tab: TabConfig;
   tier: TierConfig;
   overrides: Record<string, string>;
+  fullOverrides: TabOverrides;
   onItemChange: (tierId: string, itemId: string, next: string) => void;
 }
 
-function TierSection({ tab, tier, overrides, onItemChange }: TierSectionProps) {
+function TierSection({ tab, tier, overrides, fullOverrides, onItemChange }: TierSectionProps) {
   const handleItemChange = useCallback(
     (itemId: string, next: string) => {
       onItemChange(tier.id, itemId, next);
@@ -244,6 +251,7 @@ function TierSection({ tab, tier, overrides, onItemChange }: TierSectionProps) {
               tier={tier}
               item={item}
               value={value}
+              overrides={fullOverrides}
               onChange={handleItemChange}
             />
           );
@@ -302,6 +310,7 @@ export default function GenericTab({ tab, overrides, onChange }: GenericTabProps
             tab={tab}
             tier={tier}
             overrides={tierOverrides}
+            fullOverrides={overrides}
             onItemChange={handleItemChange}
           />
         );
