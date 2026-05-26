@@ -83,14 +83,14 @@ const MIXED_KINDS_TAB: TabConfig = {
           cssVar: '--test-length',
           label: 'Length',
           default: '1rem',
-          type: { kind: 'length', min: 0, max: 4, step: 0.25, unit: 'rem' },
+          type: { kind: 'length', step: 0.25, unit: 'rem' },
         },
         {
           id: 'number-item',
           cssVar: '--test-number',
           label: 'Number',
           default: '1.5',
-          type: { kind: 'number', min: 1, max: 10, step: 0.5 },
+          type: { kind: 'number', step: 0.5 },
         },
         {
           id: 'select-item',
@@ -406,8 +406,8 @@ function simulateFocusout(input: HTMLInputElement): void {
   });
 }
 
-describe('GenericItemEditor — mid-keystroke clamping regression (#313)', () => {
-  it('does NOT call onChange when typed length value exceeds max', async () => {
+describe('GenericItemEditor — free numeric input, no clamping (#326)', () => {
+  it('calls onChange immediately when typing any parseable length value', async () => {
     const onChange = vi.fn();
     await renderGenericTab(MIXED_KINDS_TAB, {}, onChange);
 
@@ -416,15 +416,15 @@ describe('GenericItemEditor — mid-keystroke clamping regression (#313)', () =>
     )!;
     expect(input).not.toBeNull();
 
-    // Simulate typing "22" — max=4 for length-item
+    // "22" is parseable — must commit even if it would have exceeded the old max
     simulateInputEvent(input, '22');
 
-    // "22" is out of range; onChange must NOT have been called
     const lengthCalls = onChange.mock.calls.filter(([, itemId]) => itemId === 'length-item');
-    expect(lengthCalls).toHaveLength(0);
+    expect(lengthCalls).toHaveLength(1);
+    expect(lengthCalls[0]).toEqual(['values', 'length-item', '22rem']);
   });
 
-  it('keeps draft "22" visible after typing (does not snap to clamped value)', async () => {
+  it('keeps draft "22" visible after typing (no snapping)', async () => {
     await renderGenericTab(MIXED_KINDS_TAB, {});
 
     const input = container.querySelector<HTMLInputElement>(
@@ -436,7 +436,7 @@ describe('GenericItemEditor — mid-keystroke clamping regression (#313)', () =>
     expect(input.value).toBe('22');
   });
 
-  it('applies --invalid class to out-of-range length input', async () => {
+  it('does NOT apply --invalid class for any numeric input', async () => {
     await renderGenericTab(MIXED_KINDS_TAB, {});
 
     const input = container.querySelector<HTMLInputElement>(
@@ -445,22 +445,22 @@ describe('GenericItemEditor — mid-keystroke clamping regression (#313)', () =>
 
     simulateInputEvent(input, '22');
 
-    expect(input.classList.contains('tokenpanel-row-number-input--invalid')).toBe(true);
+    expect(input.classList.contains('tokenpanel-row-number-input--invalid')).toBe(false);
   });
 
-  it('does NOT apply --invalid class when draft is in range', async () => {
+  it('does NOT set aria-invalid for any numeric input', async () => {
     await renderGenericTab(MIXED_KINDS_TAB, {});
 
     const input = container.querySelector<HTMLInputElement>(
       '[data-testid="tier-item-length-item"] input[type="text"]',
     )!;
 
-    simulateInputEvent(input, '2');
+    simulateInputEvent(input, '22');
 
-    expect(input.classList.contains('tokenpanel-row-number-input--invalid')).toBe(false);
+    expect(input.getAttribute('aria-invalid')).toBeNull();
   });
 
-  it('clamps and commits out-of-range length value on blur', async () => {
+  it('does NOT clamp on blur — large value was already committed on keystroke', async () => {
     const onChange = vi.fn();
     await renderGenericTab(MIXED_KINDS_TAB, {}, onChange);
 
@@ -469,20 +469,17 @@ describe('GenericItemEditor — mid-keystroke clamping regression (#313)', () =>
     )!;
 
     simulateInputEvent(input, '22');
-    // Not yet committed
-    const beforeBlur = onChange.mock.calls.filter(([, itemId]) => itemId === 'length-item');
-    expect(beforeBlur).toHaveLength(0);
+    onChange.mockClear(); // clear the keystroke commit
 
     simulateFocusout(input);
 
-    // After blur: clamped to max=4 and committed
+    // On blur, parseable value was already committed — no additional (clamped) commit
     const afterBlur = onChange.mock.calls.filter(([, itemId]) => itemId === 'length-item');
-    expect(afterBlur).toHaveLength(1);
-    expect(afterBlur[0]).toEqual(['values', 'length-item', '4rem']);
-    expect(input.value).toBe('4');
+    expect(afterBlur).toHaveLength(0);
+    expect(input.value).toBe('22');
   });
 
-  it('does NOT call onChange mid-keystroke for a number item within range', async () => {
+  it('calls onChange immediately for parseable number item values', async () => {
     const onChange = vi.fn();
     await renderGenericTab(MIXED_KINDS_TAB, {}, onChange);
 
@@ -490,7 +487,6 @@ describe('GenericItemEditor — mid-keystroke clamping regression (#313)', () =>
       '[data-testid="tier-item-number-item"] input[type="text"]',
     )!;
 
-    // number-item: min=1 max=10; typing "5" should commit
     simulateInputEvent(input, '5');
 
     const numberCalls = onChange.mock.calls.filter(([, itemId]) => itemId === 'number-item');
