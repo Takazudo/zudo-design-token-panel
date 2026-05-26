@@ -16,8 +16,8 @@ Discriminated union that controls which editor widget appears for a row.
 
 ```ts
 export type TierValueKind =
-  | { kind: 'length'; min: number; max: number; step: number; unit: string }
-  | { kind: 'number'; min: number; max: number; step: number }
+  | { kind: 'length'; step: number; unit: string }
+  | { kind: 'number'; step: number }
   | { kind: 'select'; options: readonly string[] }
   | { kind: 'text' }
   | { kind: 'color' }
@@ -28,8 +28,8 @@ export type TierValueKind =
 
 | `kind` | Description | Editor | Extra required fields |
 | --- | --- | --- | --- |
-| `'length'` | Dimension values with a unit | Range slider with a unit suffix (e.g. `rem`, `px`) | `min`, `max`, `step`, `unit` |
-| `'number'` | Unitless numeric values | Unitless range slider | `min`, `max`, `step` |
+| `'length'` | Dimension values with a unit | Text input with a unit suffix (e.g. `rem`, `px`) | `step`, `unit` |
+| `'number'` | Unitless numeric values | Unconstrained text input | `step` |
 | `'select'` | Predefined option sets | Dropdown | `options` (non-empty array of strings) |
 | `'text'` | Free-form CSS expressions (easing curves, font families, raw strings) | Free-form text input | — |
 | `'color'` | Color values — used for palette tiers in the Color tab | Color picker | — |
@@ -41,7 +41,7 @@ All items in a given `TierConfig.items` array MUST share the same `kind`. Mixing
 
 ## `PillSpec`
 
-Optional pill toggle that supplements the main slider / input for a single `TierItem`.
+Optional pill toggle that supplements the main input for a single `TierItem`.
 
 ```ts
 export interface PillSpec {
@@ -196,9 +196,9 @@ export const spacingTab: TabConfig = {
       id: 'base',
       label: 'Base spacing',
       items: [
-        { id: 'sp-xs', cssVar: '--myapp-spacing-xs', label: 'XS', default: '0.25rem', type: { kind: 'length', min: 0, max: 2, step: 0.125, unit: 'rem' } },
-        { id: 'sp-sm', cssVar: '--myapp-spacing-sm', label: 'SM', default: '0.5rem',  type: { kind: 'length', min: 0, max: 4, step: 0.125, unit: 'rem' } },
-        { id: 'sp-md', cssVar: '--myapp-spacing-md', label: 'MD', default: '1rem',    type: { kind: 'length', min: 0, max: 8, step: 0.25,  unit: 'rem' } },
+        { id: 'sp-xs', cssVar: '--myapp-spacing-xs', label: 'XS', default: '0.25rem', type: { kind: 'length', step: 0.125, unit: 'rem' } },
+        { id: 'sp-sm', cssVar: '--myapp-spacing-sm', label: 'SM', default: '0.5rem',  type: { kind: 'length', step: 0.125, unit: 'rem' } },
+        { id: 'sp-md', cssVar: '--myapp-spacing-md', label: 'MD', default: '1rem',    type: { kind: 'length', step: 0.25,  unit: 'rem' } },
       ],
     },
   ],

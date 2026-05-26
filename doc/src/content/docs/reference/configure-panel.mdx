@@ -30,7 +30,7 @@ configurePanel({
           label: 'Base',
           items: [
             { id: 'sp-md', cssVar: '--myapp-spacing-md', label: 'MD', default: '1rem',
-              type: { kind: 'length', min: 0, max: 8, step: 0.25, unit: 'rem' } },
+              type: { kind: 'length', step: 0.25, unit: 'rem' } },
           ],
         },
       ],
@@ -230,8 +230,8 @@ const spacingTab: TabConfig = {
       id: 'base',
       label: 'Base spacing',
       items: [
-        { id: 'sp-sm', cssVar: '--myapp-spacing-sm', label: 'SM', default: '0.5rem', type: { kind: 'length', min: 0, max: 4, step: 0.125, unit: 'rem' } },
-        { id: 'sp-md', cssVar: '--myapp-spacing-md', label: 'MD', default: '1rem',   type: { kind: 'length', min: 0, max: 8, step: 0.25,  unit: 'rem' } },
+        { id: 'sp-sm', cssVar: '--myapp-spacing-sm', label: 'SM', default: '0.5rem', type: { kind: 'length', step: 0.125, unit: 'rem' } },
+        { id: 'sp-md', cssVar: '--myapp-spacing-md', label: 'MD', default: '1rem',   type: { kind: 'length', step: 0.25,  unit: 'rem' } },
       ],
     },
   ],
