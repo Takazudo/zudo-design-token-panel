@@ -24,7 +24,7 @@ const lengthItem = (id: string, cssVar: string, defaultVal: string): TierItem =>
   cssVar,
   label: id,
   default: defaultVal,
-  type: { kind: 'length', min: 0, max: 10, step: 0.25, unit: 'rem' },
+  type: { kind: 'length', step: 0.25, unit: 'rem' },
 });
 
 const numberItem = (id: string, cssVar: string, defaultVal: string): TierItem => ({
@@ -32,7 +32,7 @@ const numberItem = (id: string, cssVar: string, defaultVal: string): TierItem =>
   cssVar,
   label: id,
   default: defaultVal,
-  type: { kind: 'number', min: 0, max: 100, step: 1 },
+  type: { kind: 'number', step: 1 },
 });
 
 const selectItem = (id: string, cssVar: string, defaultVal: string, options: string[]): TierItem => ({
@@ -107,7 +107,7 @@ const SIZE_TAB_WITH_PILL: TabConfig = {
           cssVar: '--zd-radius-full',
           label: 'Radius Full',
           default: '0.5rem',
-          type: { kind: 'length', min: 0, max: 9999, step: 1, unit: 'px' },
+          type: { kind: 'length', step: 1, unit: 'px' },
           pill: {
             value: '9999px',
             customDefault: '0.5rem',

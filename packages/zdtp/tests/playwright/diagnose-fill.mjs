@@ -86,11 +86,10 @@ const fixtureHtml = `<!DOCTYPE html>
     const componentVariant = urlParams.get('component') || 'slider';
     window.__componentVariant = componentVariant;
 
-    // SliderRow — exact copy of slider-row.tsx draft+commit pattern
-    // value={draft} (string draft state), only commits when parseable
+    // SliderRow — mirrors slider-row.tsx draft+commit pattern (post-#326: no slider, no clamping)
+    // value={draft} (string draft state), commits every parseable value immediately
     function SliderRow({ token, value, onChange }) {
       const numeric = parseNumericValue(value);
-      const slidable = !token.readonly && numeric !== null;
       const [draft, setDraft] = useState(numeric !== null ? String(numeric) : value);
 
       useEffect(() => {
@@ -107,11 +106,10 @@ const fixtureHtml = `<!DOCTYPE html>
             window.__eventLog.push({ type: 'parse-null', raw });
             return;
           }
-          const clamped = Math.min(token.max, Math.max(token.min, n));
-          window.__eventLog.push({ type: 'commit', value: formatValue(clamped, token.unit) });
-          onChange(token.id, formatValue(clamped, token.unit));
+          window.__eventLog.push({ type: 'commit', value: formatValue(n, token.unit) });
+          onChange(token.id, formatValue(n, token.unit));
         },
-        [onChange, token.id, token.min, token.max, token.unit],
+        [onChange, token.id, token.unit],
       );
 
       return h('div', { className: 'tokenpanel-row--stacked' },
@@ -126,27 +124,16 @@ const fixtureHtml = `<!DOCTYPE html>
             'data-testid': 'number-input',
           }),
           h('span', null, token.unit)
-        ),
-        h('input', {
-          type: 'range',
-          min: token.min,
-          max: token.max,
-          step: token.step,
-          value: slidable ? numeric : token.min,
-          className: 'tokenpanel-row-slider',
-          'aria-label': token.cssVar + ' slider',
-        })
+        )
       );
     }
 
-    // GenericItemEditor (length case) — exact copy of _generic-item-editor.tsx
+    // GenericItemEditor (length case) — mirrors _generic-item-editor.tsx (post-#326: no clamping)
     // value={displayNumeric} (a number, NO draft state), commits immediately when finite
     function GenericItemEditor({ token, value, onChange }) {
       const numeric = parseFloat(value);
-      const displayNumeric = Number.isFinite(numeric) ? numeric : token.min;
+      const displayNumeric = Number.isFinite(numeric) ? numeric : 0;
       const unit = token.unit;
-      const min = token.min;
-      const max = token.max;
       const step = token.step;
 
       const handleNumber = (e) => {
@@ -157,9 +144,8 @@ const fixtureHtml = `<!DOCTYPE html>
           window.__eventLog.push({ type: 'parse-nan', raw });
           return;
         }
-        const clamped = Math.min(max, Math.max(min, n));
-        window.__eventLog.push({ type: 'commit', value: unit ? String(clamped) + unit : String(clamped) });
-        onChange(token.id, unit ? String(clamped) + unit : String(clamped));
+        window.__eventLog.push({ type: 'commit', value: unit ? String(n) + unit : String(n) });
+        onChange(token.id, unit ? String(n) + unit : String(n));
       };
 
       return h('div', { className: 'tokenpanel-row--stacked', 'data-testid': 'tier-item-' + token.id },
@@ -174,16 +160,7 @@ const fixtureHtml = `<!DOCTYPE html>
             'data-testid': 'number-input',
           }),
           unit && h('span', { className: 'tokenpanel-row-unit' }, unit)
-        ),
-        h('input', {
-          type: 'range',
-          min: min,
-          max: max,
-          step: step,
-          value: displayNumeric,
-          className: 'tokenpanel-row-slider',
-          'aria-label': token.cssVar + ' slider',
-        })
+        )
       );
     }
 
@@ -192,8 +169,6 @@ const fixtureHtml = `<!DOCTYPE html>
       id: 'hsp-md',
       cssVar: '--zd-spacing-hgap-md',
       label: 'hsp-md',
-      min: 0,
-      max: 64,
       step: 1,
       unit: 'px',
       group: 'hsp',

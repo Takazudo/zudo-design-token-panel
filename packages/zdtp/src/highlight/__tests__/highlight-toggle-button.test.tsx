@@ -294,7 +294,7 @@ const GENERIC_TAB_CONFIG: TabConfig = {
           cssVar: '--gap-md',
           label: 'gap-md',
           default: '16px',
-          type: { kind: 'length', min: 0, max: 64, step: 1, unit: 'px' },
+          type: { kind: 'length', step: 1, unit: 'px' },
         },
       ],
     },
@@ -426,7 +426,7 @@ const SPACING_ITEM: TierItem = {
   cssVar: '--zd-spacing-hgap-md',
   label: 'hsp-md',
   default: '40px',
-  type: { kind: 'length', min: 0, max: 64, step: 1, unit: 'px' },
+  type: { kind: 'length', step: 1, unit: 'px' },
 };
 
 const FONT_ITEM: TierItem = {
@@ -434,7 +434,7 @@ const FONT_ITEM: TierItem = {
   cssVar: '--zd-font-base-size',
   label: 'text-base',
   default: '1.4rem',
-  type: { kind: 'length', min: 0.5, max: 4, step: 0.05, unit: 'rem' },
+  type: { kind: 'length', step: 0.05, unit: 'rem' },
 };
 
 const SIZE_ITEM: TierItem = {
@@ -442,7 +442,7 @@ const SIZE_ITEM: TierItem = {
   cssVar: '--radius-lg',
   label: 'radius-lg',
   default: '8px',
-  type: { kind: 'length', min: 0, max: 32, step: 1, unit: 'px' },
+  type: { kind: 'length', step: 1, unit: 'px' },
 };
 
 describe('_generic-item-editor — eye button present (spacing/font/size via this editor)', () => {

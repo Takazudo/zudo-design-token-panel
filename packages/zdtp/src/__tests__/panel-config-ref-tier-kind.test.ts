@@ -57,14 +57,14 @@ describe('panel-config — ref-tier item kind compatibility (issue #245)', () =>
               cssVar: '--astro-scale-base',
               label: 'Scale Base',
               default: '1rem',
-              type: { kind: 'length', min: 0.5, max: 2, step: 0.0625, unit: 'rem' },
+              type: { kind: 'length', step: 0.0625, unit: 'rem' },
             },
             {
               id: 'astro-scale-lg',
               cssVar: '--astro-scale-lg',
               label: 'Scale LG',
               default: '1.25rem',
-              type: { kind: 'length', min: 0.5, max: 2, step: 0.0625, unit: 'rem' },
+              type: { kind: 'length', step: 0.0625, unit: 'rem' },
             },
           ],
         },
@@ -183,7 +183,7 @@ describe('panel-config — ref-tier item kind compatibility (issue #245)', () =>
               label: 'B',
               default: '4px',
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              type: { kind: 'length', min: 0, max: 10, step: 1, unit: 'px' } as any,
+              type: { kind: 'length', step: 1, unit: 'px' } as any,
             },
           ],
         },
@@ -214,7 +214,7 @@ describe('panel-config — Option 2-a cross-kind ref guard (issue #282)', () => 
               label: 'Base',
               default: '4px',
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              type: { kind: 'length', min: 0, max: 32, step: 1, unit: 'px' } as any,
+              type: { kind: 'length', step: 1, unit: 'px' } as any,
             },
           ],
         },
@@ -256,7 +256,7 @@ describe('panel-config — Option 2-a cross-kind ref guard (issue #282)', () => 
               label: 'Base',
               default: '4',
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              type: { kind: 'number', min: 0, max: 100, step: 1 } as any,
+              type: { kind: 'number', step: 1 } as any,
             },
           ],
         },
@@ -271,7 +271,7 @@ describe('panel-config — Option 2-a cross-kind ref guard (issue #282)', () => 
               label: 'Medium',
               default: 'num-base',
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              type: { kind: 'length', min: 0, max: 64, step: 1, unit: 'px' } as any,
+              type: { kind: 'length', step: 1, unit: 'px' } as any,
             },
           ],
         },
@@ -299,7 +299,7 @@ describe('panel-config — Option 2-a cross-kind ref guard (issue #282)', () => 
               label: 'XS',
               default: '2px',
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              type: { kind: 'length', min: 0, max: 16, step: 1, unit: 'px' } as any,
+              type: { kind: 'length', step: 1, unit: 'px' } as any,
             },
           ],
         },
@@ -314,7 +314,7 @@ describe('panel-config — Option 2-a cross-kind ref guard (issue #282)', () => 
               label: 'Unit',
               default: 'len-xs',
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              type: { kind: 'number', min: 0, max: 100, step: 1 } as any,
+              type: { kind: 'number', step: 1 } as any,
             },
           ],
         },
