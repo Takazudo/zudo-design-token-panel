@@ -683,6 +683,10 @@
 .tokenpanel-row-number-input:disabled {
   opacity: 0.6;
 }
+.tokenpanel-row-number-input--invalid {
+  border-color: #e05252;
+  color: #e05252;
+}
 
 .tokenpanel-row-unit {
   color: var(--tokentweak-color-muted);

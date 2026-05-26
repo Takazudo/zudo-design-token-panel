@@ -1,6 +1,12 @@
 import { memo, useState, useEffect, useCallback } from 'preact/compat';
 import { type TokenDef, formatValue, parseNumericValue } from '../tokens/manifest';
 
+// isOutOfRange: returns true when n is a finite number outside [min, max].
+// Does NOT flag NaN/null — those are "still typing" states, not invalid values.
+function isOutOfRange(n: number | null, min: number, max: number): boolean {
+  return n !== null && Number.isFinite(n) && (n < min || n > max);
+}
+
 /**
  * One manifest-driven token row:
  *
@@ -38,12 +44,19 @@ function SliderRow({ token, value, onChange }: SliderRowProps) {
   const slidable = !token.readonly && numeric !== null;
 
   // Draft lets the user type freely ("1.", "1.2") without the slider snapping
-  // every keystroke. We only commit (call onChange) when the draft parses.
+  // every keystroke. We only commit (call onChange) when the draft parses AND
+  // is within [min, max]. Out-of-range drafts are flagged but not clamped mid-
+  // typing; clamping happens on blur so the user sees the snap only when they
+  // leave the field, not while they are still editing.
   const [draft, setDraft] = useState<string>(numeric !== null ? String(numeric) : value);
 
   // Sync the draft when the external value changes (reset, preset load, etc.)
+  // The guard `draft !== (...)` is intentional: when the user just committed a
+  // value from this component the parent echoes it back here, but the draft is
+  // already correct — don't clobber it and interrupt mid-keystroke editing.
   useEffect(() => {
-    setDraft(numeric !== null ? String(numeric) : value);
+    const incoming = numeric !== null ? String(numeric) : value;
+    setDraft(incoming);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
@@ -62,13 +75,38 @@ function SliderRow({ token, value, onChange }: SliderRowProps) {
       const raw = e.currentTarget.value;
       setDraft(raw);
       const n = parseNumericValue(raw);
-      if (n === null) return; // wait for a parseable value before committing
-      // Clamp into the token's legal range on commit to keep the slider sane.
-      const clamped = Math.min(token.max, Math.max(token.min, n));
-      onChange(token.id, formatValue(clamped, token.unit));
+      // Only commit when the parsed value is within the token's legal range.
+      // Out-of-range or unparseable values keep the draft visible but do NOT
+      // call onChange — this prevents mid-typing snap (e.g. "22" clamped to 6).
+      if (n === null || isOutOfRange(n, token.min, token.max)) return;
+      onChange(token.id, formatValue(n, token.unit));
     },
     [onChange, token.id, token.min, token.max, token.unit],
   );
+
+  // On blur: commit a valid in-range value, clamp an out-of-range value, or
+  // revert to the last persisted value if the draft is empty / unparseable.
+  // This is the only place clamping happens — never mid-keystroke.
+  const handleNumberBlur = useCallback(() => {
+    const n = parseNumericValue(draft);
+    if (n === null) {
+      // Empty or unparseable: revert to last-known-good.
+      setDraft(numeric !== null ? String(numeric) : value);
+      return;
+    }
+    if (isOutOfRange(n, token.min, token.max)) {
+      // Out of range: clamp, commit, and update the draft to the clamped value.
+      const clamped = Math.min(token.max, Math.max(token.min, n));
+      setDraft(String(clamped));
+      onChange(token.id, formatValue(clamped, token.unit));
+    }
+    // In-range values were already committed on each keystroke; nothing more to do.
+  }, [draft, numeric, value, onChange, token.id, token.min, token.max, token.unit]);
+
+  // Mark the input invalid when the draft parses to a number outside the
+  // token's legal range (not when it's empty/partial — those aren't errors yet).
+  const parsedDraft = parseNumericValue(draft);
+  const isInvalid = isOutOfRange(parsedDraft, token.min, token.max);
 
   return (
     <div className="tokenpanel-row--stacked">
@@ -83,9 +121,11 @@ function SliderRow({ token, value, onChange }: SliderRowProps) {
             inputMode="decimal"
             value={draft}
             onChange={handleNumber}
+            onBlur={handleNumberBlur}
             disabled={token.readonly}
-            className="tokenpanel-row-number-input"
+            className={`tokenpanel-row-number-input${isInvalid ? ' tokenpanel-row-number-input--invalid' : ''}`}
             aria-label={`${token.cssVar} value`}
+            aria-invalid={isInvalid || undefined}
           />
           <span className="tokenpanel-row-unit">
             {token.readonly && !token.unit ? '' : token.unit}
