@@ -378,3 +378,123 @@ describe('GenericTab — data-testid wrapper', () => {
     expect(wrapper).not.toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Regression: mid-keystroke clamping in _generic-item-editor (#313)
+//
+// The same "2 → 22 snaps to 6" bug existed in _generic-item-editor's
+// length/number branch. These tests confirm the fix is in place.
+//
+// Event simulation follows the same pattern as slider-row.test.tsx:
+//  - Object.defineProperty + `new Event('input', { bubbles: true })` for onChange
+//  - `new FocusEvent('focusout', { bubbles: true })` for onBlur
+//    (Preact-compat maps `onBlur` → `onfocusout`)
+// ---------------------------------------------------------------------------
+
+/** Simulates a native input event on an HTMLInputElement (Preact onChange trigger). */
+function simulateInputEvent(input: HTMLInputElement, newValue: string): void {
+  act(() => {
+    Object.defineProperty(input, 'value', { value: newValue, writable: true, configurable: true });
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+}
+
+/** Simulates blur via focusout (Preact maps onBlur → onfocusout). */
+function simulateFocusout(input: HTMLInputElement): void {
+  act(() => {
+    input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+  });
+}
+
+describe('GenericItemEditor — mid-keystroke clamping regression (#313)', () => {
+  it('does NOT call onChange when typed length value exceeds max', async () => {
+    const onChange = vi.fn();
+    await renderGenericTab(MIXED_KINDS_TAB, {}, onChange);
+
+    const input = container.querySelector<HTMLInputElement>(
+      '[data-testid="tier-item-length-item"] input[type="text"]',
+    )!;
+    expect(input).not.toBeNull();
+
+    // Simulate typing "22" — max=4 for length-item
+    simulateInputEvent(input, '22');
+
+    // "22" is out of range; onChange must NOT have been called
+    const lengthCalls = onChange.mock.calls.filter(([, itemId]) => itemId === 'length-item');
+    expect(lengthCalls).toHaveLength(0);
+  });
+
+  it('keeps draft "22" visible after typing (does not snap to clamped value)', async () => {
+    await renderGenericTab(MIXED_KINDS_TAB, {});
+
+    const input = container.querySelector<HTMLInputElement>(
+      '[data-testid="tier-item-length-item"] input[type="text"]',
+    )!;
+
+    simulateInputEvent(input, '22');
+
+    expect(input.value).toBe('22');
+  });
+
+  it('applies --invalid class to out-of-range length input', async () => {
+    await renderGenericTab(MIXED_KINDS_TAB, {});
+
+    const input = container.querySelector<HTMLInputElement>(
+      '[data-testid="tier-item-length-item"] input[type="text"]',
+    )!;
+
+    simulateInputEvent(input, '22');
+
+    expect(input.classList.contains('tokenpanel-row-number-input--invalid')).toBe(true);
+  });
+
+  it('does NOT apply --invalid class when draft is in range', async () => {
+    await renderGenericTab(MIXED_KINDS_TAB, {});
+
+    const input = container.querySelector<HTMLInputElement>(
+      '[data-testid="tier-item-length-item"] input[type="text"]',
+    )!;
+
+    simulateInputEvent(input, '2');
+
+    expect(input.classList.contains('tokenpanel-row-number-input--invalid')).toBe(false);
+  });
+
+  it('clamps and commits out-of-range length value on blur', async () => {
+    const onChange = vi.fn();
+    await renderGenericTab(MIXED_KINDS_TAB, {}, onChange);
+
+    const input = container.querySelector<HTMLInputElement>(
+      '[data-testid="tier-item-length-item"] input[type="text"]',
+    )!;
+
+    simulateInputEvent(input, '22');
+    // Not yet committed
+    const beforeBlur = onChange.mock.calls.filter(([, itemId]) => itemId === 'length-item');
+    expect(beforeBlur).toHaveLength(0);
+
+    simulateFocusout(input);
+
+    // After blur: clamped to max=4 and committed
+    const afterBlur = onChange.mock.calls.filter(([, itemId]) => itemId === 'length-item');
+    expect(afterBlur).toHaveLength(1);
+    expect(afterBlur[0]).toEqual(['values', 'length-item', '4rem']);
+    expect(input.value).toBe('4');
+  });
+
+  it('does NOT call onChange mid-keystroke for a number item within range', async () => {
+    const onChange = vi.fn();
+    await renderGenericTab(MIXED_KINDS_TAB, {}, onChange);
+
+    const input = container.querySelector<HTMLInputElement>(
+      '[data-testid="tier-item-number-item"] input[type="text"]',
+    )!;
+
+    // number-item: min=1 max=10; typing "5" should commit
+    simulateInputEvent(input, '5');
+
+    const numberCalls = onChange.mock.calls.filter(([, itemId]) => itemId === 'number-item');
+    expect(numberCalls).toHaveLength(1);
+    expect(numberCalls[0]).toEqual(['values', 'number-item', '5']);
+  });
+});

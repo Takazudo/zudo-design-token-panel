@@ -16,9 +16,9 @@
  * `var(--target-cssvar)` at apply time) or flip the item back to literal mode.
  */
 
-import { useCallback } from 'preact/compat';
+import { useCallback, useState, useEffect } from 'preact/compat';
 import type { TabConfig, TierConfig, TierItem, TierValueKind } from '../tokens/tier-model';
-import type { TabOverrides } from '../apply/tier-resolver';
+import { type TabOverrides, resolveTierItemValue } from '../apply/tier-resolver';
 import TierRefSelector from '../controls/tier-ref-selector';
 import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
 
@@ -31,6 +31,7 @@ interface ItemEditorProps {
   tier: TierConfig;
   item: TierItem;
   value: string;
+  overrides: TabOverrides;
   /** Called with (itemId, newValue) when the user commits a change. */
   onChange: (itemId: string, next: string) => void;
 }
@@ -39,9 +40,10 @@ interface ItemEditorProps {
  * Dispatch to TierRefSelector for reference tiers, otherwise render the
  * kind-appropriate editor (slider, select, text, color).
  */
-function ItemEditor({ tab, tier, item, value, onChange }: ItemEditorProps) {
+function ItemEditor({ tab, tier, item, value, overrides, onChange }: ItemEditorProps) {
   // Reference tier: delegate to TierRefSelector.
   if (tier.referencesTier !== undefined) {
+    const refTierId = tier.referencesTier;
     return (
       <div className="tokenpanel-row" data-testid={`tier-ref-row-${item.id}`}>
         <span className="tokenpanel-row-label" title={item.cssVar}>
@@ -56,6 +58,10 @@ function ItemEditor({ tab, tier, item, value, onChange }: ItemEditorProps) {
           itemId={item.id}
           value={value}
           onChange={onChange}
+          previewValueFor={(refItemId) => {
+            const result = resolveTierItemValue(tab, refTierId, refItemId, overrides);
+            return result.kind === 'literal' ? result.value : result.targetCssVar;
+          }}
         />
         <HighlightToggleButton cssVar={item.cssVar} />
       </div>
@@ -72,15 +78,46 @@ function ItemEditor({ tab, tier, item, value, onChange }: ItemEditorProps) {
       const min = type.min;
       const max = type.max;
       const numeric = parseFloat(value);
-      const displayNumeric = Number.isFinite(numeric) ? numeric : min;
+      const numericForDraft = Number.isFinite(numeric) ? numeric : min;
+
+      // Draft mirrors slider-row pattern: no mid-keystroke clamping (#313).
+      const [numDraft, setNumDraft] = useState<string>(String(numericForDraft));
+
+      // Sync draft when external value changes (reset, preset load, etc.)
+      useEffect(() => {
+        setNumDraft(String(Number.isFinite(parseFloat(value)) ? parseFloat(value) : min));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [value]);
+
+      const isNumOutOfRange = (n: number) => n < min || n > max;
 
       const handleNumber = (e: React.ChangeEvent<HTMLInputElement>) => {
         const raw = e.currentTarget.value;
+        setNumDraft(raw);
         const n = parseFloat(raw);
-        if (!Number.isFinite(n)) return;
-        const clamped = Math.min(max, Math.max(min, n));
-        onChange(item.id, unit ? `${clamped}${unit}` : String(clamped));
+        // Only commit in-range values; never clamp mid-keystroke.
+        if (!Number.isFinite(n) || isNumOutOfRange(n)) return;
+        onChange(item.id, unit ? `${n}${unit}` : String(n));
       };
+
+      // On blur: clamp out-of-range, revert if unparseable.
+      const handleNumberBlur = () => {
+        const n = parseFloat(numDraft);
+        if (!Number.isFinite(n)) {
+          setNumDraft(String(numericForDraft));
+          return;
+        }
+        if (isNumOutOfRange(n)) {
+          const clamped = Math.min(max, Math.max(min, n));
+          setNumDraft(String(clamped));
+          onChange(item.id, unit ? `${clamped}${unit}` : String(clamped));
+        }
+      };
+
+      const numIsInvalid = (() => {
+        const n = parseFloat(numDraft);
+        return Number.isFinite(n) && isNumOutOfRange(n);
+      })();
 
       return (
         <div className="tokenpanel-row--stacked" data-testid={`tier-item-${item.id}`}>
@@ -95,11 +132,13 @@ function ItemEditor({ tab, tier, item, value, onChange }: ItemEditorProps) {
               <input
                 type="text"
                 inputMode="decimal"
-                value={displayNumeric}
+                value={numDraft}
                 onChange={handleNumber}
+                onBlur={handleNumberBlur}
                 disabled={isReadonly}
-                className="tokenpanel-row-number-input"
+                className={`tokenpanel-row-number-input${numIsInvalid ? ' tokenpanel-row-number-input--invalid' : ''}`}
                 aria-label={`${item.cssVar} value`}
+                aria-invalid={numIsInvalid || undefined}
               />
               {unit && <span className="tokenpanel-row-unit">{unit}</span>}
             </div>
@@ -214,10 +253,11 @@ interface TierSectionProps {
   tab: TabConfig;
   tier: TierConfig;
   overrides: Record<string, string>;
+  fullOverrides: TabOverrides;
   onItemChange: (tierId: string, itemId: string, next: string) => void;
 }
 
-function TierSection({ tab, tier, overrides, onItemChange }: TierSectionProps) {
+function TierSection({ tab, tier, overrides, fullOverrides, onItemChange }: TierSectionProps) {
   const handleItemChange = useCallback(
     (itemId: string, next: string) => {
       onItemChange(tier.id, itemId, next);
@@ -244,6 +284,7 @@ function TierSection({ tab, tier, overrides, onItemChange }: TierSectionProps) {
               tier={tier}
               item={item}
               value={value}
+              overrides={fullOverrides}
               onChange={handleItemChange}
             />
           );
@@ -302,6 +343,7 @@ export default function GenericTab({ tab, overrides, onChange }: GenericTabProps
             tab={tab}
             tier={tier}
             overrides={tierOverrides}
+            fullOverrides={overrides}
             onItemChange={handleItemChange}
           />
         );

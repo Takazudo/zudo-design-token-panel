@@ -6,6 +6,7 @@ import TierRefSelector from '../controls/tier-ref-selector';
 import { TIER_REF_LITERAL_SIGNAL } from '../controls/tier-ref-selector';
 import GenericItemEditor from './_generic-item-editor';
 import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
+import { resolveTierItemValue } from '../apply/tier-resolver';
 
 interface FontTabProps {
   tab: TabConfig;
@@ -122,6 +123,13 @@ function TierSection({ tab, tier, state, onChange }: TierSectionProps) {
                   itemId={item.id}
                   value={value}
                   onChange={onChange}
+                  previewValueFor={(refItemId) => {
+                    const refTierId = tier.referencesTier!;
+                    const result = resolveTierItemValue(tab, refTierId, refItemId, {
+                      [refTierId]: state,
+                    });
+                    return result.kind === 'literal' ? result.value : result.targetCssVar;
+                  }}
                 />
                 <HighlightToggleButton cssVar={item.cssVar} />
               </div>

@@ -1,20 +1,16 @@
 // @vitest-environment jsdom
 
 /**
- * Unit tests for TierRefSelector.
- *
- * Uses Preact's `render` + `act` for DOM interaction so the full
- * component lifecycle (effects, state updates) runs under vitest/jsdom.
+ * Unit tests for TierRefSelector (native <select> implementation).
  *
  * Test structure:
- *  1. Rendering — trigger button shows current ref label + preview
- *  2. Opening — clicking trigger mounts the listbox
- *  3. Keyboard: ArrowDown / ArrowUp navigate focus
- *  4. Keyboard: Enter picks the focused option, calls onChange, closes
- *  5. Keyboard: Escape closes without calling onChange
- *  6. Mouse: clicking an option calls onChange, closes
- *  7. Literal option — picks TIER_REF_LITERAL_SIGNAL, closes
- *  8. Click-outside — mousedown outside closes the listbox
+ *  1. Rendering — renders a <select> with correct options
+ *  2. Option labels — each option shows cssVar (resolved-value preview)
+ *  3. Literal option — last option is "Literal…" with TIER_REF_LITERAL_SIGNAL value
+ *  4. Selection change — fireEvent.change calls onChange with (itemId, refItemId)
+ *  5. Literal selection — fireEvent.change with sentinel calls onChange correctly
+ *  6. Value sync — overriding a tier-1 value via previewValueFor updates option labels
+ *  7. TIER_REF_LITERAL_SIGNAL sentinel value is "__literal__"
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -24,8 +20,7 @@ import TierRefSelector, { TIER_REF_LITERAL_SIGNAL } from '../tier-ref-selector';
 import type { TabConfig } from '../../tokens/tier-model';
 
 // ---------------------------------------------------------------------------
-// Fixture tab config — 2-tier easing example (mirrors tier-model-integration
-// test so the synthetic data is familiar and well-tested).
+// Fixture tab config — 2-tier easing example
 // ---------------------------------------------------------------------------
 
 const EASING_TAB: TabConfig = {
@@ -84,7 +79,7 @@ const EASING_TAB: TabConfig = {
 };
 
 // ---------------------------------------------------------------------------
-// Test helpers
+// Helpers
 // ---------------------------------------------------------------------------
 
 let container: HTMLDivElement;
@@ -101,9 +96,17 @@ afterEach(() => {
   container.remove();
 });
 
+/** Default previewValueFor — returns the item's manifest default. */
+function defaultPreviewValueFor(refItemId: string): string {
+  const rawTier = EASING_TAB.tiers[0];
+  const item = rawTier.items.find((i) => i.id === refItemId);
+  return item?.default ?? refItemId;
+}
+
 function renderSelector(
   value: string,
   onChange: (itemId: string, next: string) => void,
+  previewValueFor: (refItemId: string) => string = defaultPreviewValueFor,
 ) {
   act(() => {
     render(
@@ -113,41 +116,21 @@ function renderSelector(
         itemId="tab-open"
         value={value}
         onChange={onChange}
+        previewValueFor={previewValueFor}
       />,
       container,
     );
   });
 }
 
-/** Fire a keyboard event on an element. */
-function fireKey(el: Element, key: string) {
-  act(() => {
-    el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
-  });
+function getSelect(): HTMLSelectElement {
+  const el = container.querySelector<HTMLSelectElement>('select.tokenpanel-tier-ref-select');
+  if (!el) throw new Error('select.tokenpanel-tier-ref-select not found');
+  return el;
 }
 
-function getTrigger(): HTMLDivElement {
-  const btn = container.querySelector<HTMLDivElement>('.tokenpanel-tier-ref-trigger');
-  if (!btn) throw new Error('trigger button not found');
-  return btn;
-}
-
-function getListbox(): HTMLDivElement | null {
-  return container.querySelector<HTMLDivElement>('.tokenpanel-tier-ref-listbox');
-}
-
-function getOptions(): NodeListOf<HTMLElement> {
-  return container.querySelectorAll<HTMLElement>('[role="option"]');
-}
-
-function getFocusedOption(): HTMLElement | null {
-  return container.querySelector<HTMLElement>('.tokenpanel-tier-ref-option--focused');
-}
-
-function clickTrigger() {
-  act(() => {
-    getTrigger().click();
-  });
+function getOptions(): HTMLOptionElement[] {
+  return Array.from(getSelect().querySelectorAll('option'));
 }
 
 // ---------------------------------------------------------------------------
@@ -155,360 +138,166 @@ function clickTrigger() {
 // ---------------------------------------------------------------------------
 
 describe('TierRefSelector — rendering', () => {
-  it('renders a trigger button with current ref item cssVar and value preview', () => {
+  it('renders a native <select> element', () => {
     renderSelector('ease-out', vi.fn());
-
-    const trigger = getTrigger();
-    // The trigger should contain the ref item cssVar "--easing-ease-out" and a
-    // truncated preview of its default value.
-    expect(trigger.textContent).toContain('--easing-ease-out');
-    // "cubic-bezier(0, 0, 0.58, 1)" is 26 chars — fits within PREVIEW_MAX_LEN
-    expect(trigger.textContent).toContain('cubic-bezier(0, 0, 0.58, 1)');
-  });
-
-  it('truncates long value previews in the trigger', () => {
-    // ease-in default is "cubic-bezier(0.42, 0, 1, 1)" — 28 chars, at limit
-    renderSelector('ease-in', vi.fn());
-    const trigger = getTrigger();
-    // cssVar must be present
-    expect(trigger.textContent).toContain('--easing-ease-in');
-  });
-
-  it('does not render the listbox when closed', () => {
-    renderSelector('ease-out', vi.fn());
-    expect(getListbox()).toBeNull();
-  });
-
-  it('trigger has aria-haspopup=listbox and aria-expanded=false when closed', () => {
-    renderSelector('ease-out', vi.fn());
-    const trigger = getTrigger();
-    expect(trigger.getAttribute('aria-haspopup')).toBe('listbox');
-    expect(trigger.getAttribute('aria-expanded')).toBe('false');
-  });
-});
-
-describe('TierRefSelector — opening the dropdown', () => {
-  it('shows the listbox after clicking the trigger', () => {
-    renderSelector('ease-out', vi.fn());
-    clickTrigger();
-    expect(getListbox()).not.toBeNull();
-  });
-
-  it('trigger aria-expanded becomes true when open', () => {
-    renderSelector('ease-out', vi.fn());
-    clickTrigger();
-    expect(getTrigger().getAttribute('aria-expanded')).toBe('true');
-  });
-
-  it('listbox has role=listbox', () => {
-    renderSelector('ease-out', vi.fn());
-    clickTrigger();
-    expect(getListbox()?.getAttribute('role')).toBe('listbox');
+    expect(getSelect()).not.toBeNull();
   });
 
   it('renders one option per raw tier item plus the Literal option', () => {
     renderSelector('ease-out', vi.fn());
-    clickTrigger();
-    // EASING_TAB raw tier has 3 items + 1 Literal sentinel = 4 options
+    // 3 raw items + 1 Literal sentinel = 4 options
+    expect(getOptions().length).toBe(4);
+  });
+
+  it('does NOT use role=listbox markup', () => {
+    renderSelector('ease-out', vi.fn());
+    expect(container.querySelector('[role="listbox"]')).toBeNull();
+  });
+
+  it('does NOT use role=option markup', () => {
+    renderSelector('ease-out', vi.fn());
+    expect(container.querySelector('[role="option"]')).toBeNull();
+  });
+
+  it('selected value matches the current ref item id', () => {
+    renderSelector('ease-out', vi.fn());
+    expect(getSelect().value).toBe('ease-out');
+  });
+
+  it('falls back to first item when value is unrecognised', () => {
+    renderSelector('unknown-id', vi.fn());
+    expect(getSelect().value).toBe('ease-in');
+  });
+});
+
+describe('TierRefSelector — option labels', () => {
+  it('each raw item option label includes cssVar and preview value', () => {
+    renderSelector('ease-out', vi.fn());
     const options = getOptions();
-    expect(options.length).toBe(4);
+    const easeInOpt = options.find((o) => o.value === 'ease-in');
+    expect(easeInOpt).not.toBeUndefined();
+    // Label format: "--easing-ease-in (cubic-bezier(0.42, 0, 1, 1))"
+    expect(easeInOpt!.textContent).toContain('--easing-ease-in');
+    expect(easeInOpt!.textContent).toContain('cubic-bezier(0.42, 0, 1, 1)');
   });
 
-  it('each raw item option shows cssVar and value preview', () => {
-    renderSelector('linear', vi.fn());
-    clickTrigger();
-    const options = Array.from(getOptions());
-    const easeInOption = options.find((o) => o.textContent?.includes('--easing-ease-in'));
-    expect(easeInOption).not.toBeUndefined();
-    // preview of "cubic-bezier(0.42, 0, 1, 1)" (28 chars — at limit, no truncation needed)
-    expect(easeInOption?.textContent).toContain('cubic-bezier(0.42, 0, 1, 1)');
+  it('truncates long preview values in option labels', () => {
+    // Provide a preview value that exceeds 28 chars.
+    const longValue = 'a'.repeat(40);
+    const previewValueFor = (refItemId: string) => (refItemId === 'ease-in' ? longValue : refItemId);
+    renderSelector('ease-out', vi.fn(), previewValueFor);
+
+    const options = getOptions();
+    const easeInOpt = options.find((o) => o.value === 'ease-in');
+    expect(easeInOpt).not.toBeUndefined();
+    // Truncated to 28 chars: 27 + '…'
+    const label = easeInOpt!.textContent ?? '';
+    expect(label).toContain('…');
+    // Original long value should not appear verbatim
+    expect(label).not.toContain(longValue);
   });
 
-  it('currently selected option has aria-selected=true', () => {
+  it('Literal option is last with value TIER_REF_LITERAL_SIGNAL', () => {
     renderSelector('ease-out', vi.fn());
-    clickTrigger();
-    const options = Array.from(getOptions());
-    const selected = options.filter((o) => o.getAttribute('aria-selected') === 'true');
-    expect(selected.length).toBe(1);
-    expect(selected[0].textContent).toContain('--easing-ease-out');
-  });
-
-  it('opens with focus on the currently selected item', () => {
-    renderSelector('ease-out', vi.fn());
-    clickTrigger();
-    // ease-out is index 1 in raw items
-    const focused = getFocusedOption();
-    expect(focused?.textContent).toContain('--easing-ease-out');
-  });
-
-  it('opens with focus on first item when value is unrecognised', () => {
-    renderSelector('unknown-id', vi.fn());
-    clickTrigger();
-    const focused = getFocusedOption();
-    expect(focused?.textContent).toContain('--easing-ease-in');
-  });
-
-  it('Enter on the trigger opens the dropdown', () => {
-    renderSelector('ease-out', vi.fn());
-    fireKey(getTrigger(), 'Enter');
-    expect(getListbox()).not.toBeNull();
-  });
-
-  it('ArrowDown on the trigger opens the dropdown', () => {
-    renderSelector('ease-out', vi.fn());
-    fireKey(getTrigger(), 'ArrowDown');
-    expect(getListbox()).not.toBeNull();
+    const options = getOptions();
+    const last = options[options.length - 1];
+    expect(last.value).toBe(TIER_REF_LITERAL_SIGNAL);
+    expect(last.textContent).toContain('Literal');
   });
 });
 
-describe('TierRefSelector — keyboard navigation', () => {
-  it('ArrowDown moves focus to the next option', () => {
-    // Start with ease-in selected (index 0) so ArrowDown → index 1 (ease-out).
-    renderSelector('ease-in', vi.fn());
-    clickTrigger();
-    fireKey(getListbox()!, 'ArrowDown');
-    const focused = getFocusedOption();
-    expect(focused?.textContent).toContain('--easing-ease-out');
+describe('TierRefSelector — value sync (override-aware preview)', () => {
+  it('reflects overridden tier-1 value in option label', () => {
+    // Simulate a tier-1 override: ease-in now resolves to "custom-value".
+    const previewValueFor = (refItemId: string) =>
+      refItemId === 'ease-in' ? 'custom-value' : defaultPreviewValueFor(refItemId);
+
+    renderSelector('ease-out', vi.fn(), previewValueFor);
+
+    const options = getOptions();
+    const easeInOpt = options.find((o) => o.value === 'ease-in');
+    expect(easeInOpt).not.toBeUndefined();
+    expect(easeInOpt!.textContent).toContain('custom-value');
+    // Original manifest default should NOT appear when overridden
+    expect(easeInOpt!.textContent).not.toContain('cubic-bezier(0.42, 0, 1, 1)');
   });
 
-  it('ArrowUp moves focus to the previous option', () => {
-    // Start with ease-out selected (index 1) so ArrowUp → index 0 (ease-in).
-    renderSelector('ease-out', vi.fn());
-    clickTrigger();
-    fireKey(getListbox()!, 'ArrowUp');
-    const focused = getFocusedOption();
-    expect(focused?.textContent).toContain('--easing-ease-in');
-  });
+  it('re-renders with updated option labels when previewValueFor changes', () => {
+    const onChange = vi.fn();
 
-  it('ArrowDown does not go past the last option', () => {
-    // Start with Literal option focused (last): navigate down, should stay.
-    renderSelector('unknown-id', vi.fn());
-    clickTrigger();
-    const lb = getListbox()!;
-    // 3 raw items + 1 literal = 4 options; navigate to last (index 3)
+    // First render: default previews.
+    renderSelector('ease-out', onChange, defaultPreviewValueFor);
+    let easeInOpt = getOptions().find((o) => o.value === 'ease-in')!;
+    expect(easeInOpt.textContent).toContain('cubic-bezier(0.42, 0, 1, 1)');
+
+    // Second render: override ease-in to a new value.
+    const overriddenPreview = (refItemId: string) =>
+      refItemId === 'ease-in' ? '0.5s ease' : defaultPreviewValueFor(refItemId);
     act(() => {
-      lb.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-      lb.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-      lb.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-      lb.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      render(
+        <TierRefSelector
+          tab={EASING_TAB}
+          tierId="semantic"
+          itemId="tab-open"
+          value="ease-out"
+          onChange={onChange}
+          previewValueFor={overriddenPreview}
+        />,
+        container,
+      );
     });
-    const options = Array.from(getOptions());
-    const lastOption = options[options.length - 1];
-    expect(lastOption.classList.contains('tokenpanel-tier-ref-option--focused')).toBe(true);
-  });
 
-  it('ArrowUp does not go before the first option', () => {
-    // Start with ease-in (index 0), ArrowUp should keep focus at index 0.
-    renderSelector('ease-in', vi.fn());
-    clickTrigger();
-    fireKey(getListbox()!, 'ArrowUp');
-    const options = Array.from(getOptions());
-    expect(options[0].classList.contains('tokenpanel-tier-ref-option--focused')).toBe(true);
+    easeInOpt = getOptions().find((o) => o.value === 'ease-in')!;
+    expect(easeInOpt.textContent).toContain('0.5s ease');
+    expect(easeInOpt.textContent).not.toContain('cubic-bezier(0.42, 0, 1, 1)');
   });
 });
 
-describe('TierRefSelector — picking an option', () => {
-  it('Enter picks the focused option and calls onChange with (itemId, refItemId)', () => {
+/** Fire a native change event on a select element, setting its value first. */
+function fireSelectChange(select: HTMLSelectElement, newValue: string) {
+  act(() => {
+    // Directly mutate the select's value so the event handler sees it.
+    Object.defineProperty(select, 'value', { value: newValue, writable: true, configurable: true });
+    select.value = newValue;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+}
+
+describe('TierRefSelector — selection via change event', () => {
+  it('calls onChange with (itemId, refItemId) when user changes selection', () => {
     const onChange = vi.fn();
     renderSelector('ease-in', onChange);
-    clickTrigger();
-    // Default focus is on ease-in (index 0). Navigate to ease-out (index 1).
-    fireKey(getListbox()!, 'ArrowDown');
-    fireKey(getListbox()!, 'Enter');
+
+    const select = getSelect();
+    fireSelectChange(select, 'ease-out');
 
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(onChange).toHaveBeenCalledWith('tab-open', 'ease-out');
   });
 
-  it('picking an option closes the dropdown', () => {
-    renderSelector('ease-in', vi.fn());
-    clickTrigger();
-    fireKey(getListbox()!, 'Enter');
-    expect(getListbox()).toBeNull();
-  });
-
-  it('mouse click on an option calls onChange and closes', () => {
+  it('calls onChange with (itemId, linear) when linear is selected', () => {
     const onChange = vi.fn();
     renderSelector('ease-in', onChange);
-    clickTrigger();
 
-    const options = Array.from(getOptions());
-    // Click on the "linear" option (index 2 in raw items) — identified by cssVar.
-    const linearOption = options.find((o) => o.textContent?.includes('--easing-linear'));
-    expect(linearOption).not.toBeUndefined();
-    act(() => {
-      linearOption!.dispatchEvent(
-        new MouseEvent('mousedown', { bubbles: true }),
-      );
-    });
+    const select = getSelect();
+    fireSelectChange(select, 'linear');
 
     expect(onChange).toHaveBeenCalledWith('tab-open', 'linear');
-    expect(getListbox()).toBeNull();
-  });
-});
-
-describe('TierRefSelector — Escape closes without committing', () => {
-  it('Escape closes the dropdown', () => {
-    renderSelector('ease-in', vi.fn());
-    clickTrigger();
-    fireKey(getListbox()!, 'Escape');
-    expect(getListbox()).toBeNull();
   });
 
-  it('Escape does not call onChange', () => {
+  it('calls onChange with TIER_REF_LITERAL_SIGNAL when Literal is selected', () => {
     const onChange = vi.fn();
     renderSelector('ease-in', onChange);
-    clickTrigger();
-    fireKey(getListbox()!, 'Escape');
-    expect(onChange).not.toHaveBeenCalled();
-  });
 
-  it('Escape returns focus to the trigger button', () => {
-    renderSelector('ease-in', vi.fn());
-    const trigger = getTrigger();
-    clickTrigger();
-    fireKey(getListbox()!, 'Escape');
-    // After Escape the trigger should be focused (checked via document.activeElement).
-    expect(document.activeElement).toBe(trigger);
-  });
-});
-
-describe('TierRefSelector — Literal option', () => {
-  it('last option is "Literal…"', () => {
-    renderSelector('ease-in', vi.fn());
-    clickTrigger();
-    const options = Array.from(getOptions());
-    const lastOption = options[options.length - 1];
-    expect(lastOption.textContent).toContain('Literal');
-  });
-
-  it('picking Literal calls onChange with TIER_REF_LITERAL_SIGNAL', () => {
-    const onChange = vi.fn();
-    renderSelector('ease-in', onChange);
-    clickTrigger();
-    // Navigate to Literal (last option): 3 raw + 1 literal = index 3
-    const lb = getListbox()!;
-    act(() => {
-      lb.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-      lb.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-      lb.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-    });
-    fireKey(lb, 'Enter');
+    const select = getSelect();
+    fireSelectChange(select, TIER_REF_LITERAL_SIGNAL);
 
     expect(onChange).toHaveBeenCalledWith('tab-open', TIER_REF_LITERAL_SIGNAL);
   });
+});
 
+describe('TierRefSelector — TIER_REF_LITERAL_SIGNAL', () => {
   it('TIER_REF_LITERAL_SIGNAL value is "__literal__"', () => {
-    // Contractual assertion — consumers depend on this exact sentinel.
     expect(TIER_REF_LITERAL_SIGNAL).toBe('__literal__');
-  });
-});
-
-describe('TierRefSelector — click-outside closes', () => {
-  it('mousedown outside the selector closes the listbox', () => {
-    renderSelector('ease-in', vi.fn());
-    clickTrigger();
-    expect(getListbox()).not.toBeNull();
-
-    act(() => {
-      document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-    });
-    expect(getListbox()).toBeNull();
-  });
-
-  it('mousedown inside the selector does not close the listbox', () => {
-    renderSelector('ease-in', vi.fn());
-    clickTrigger();
-    act(() => {
-      // Click on the listbox itself (not an option).
-      getListbox()!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-    });
-    // The listbox is still open because we rely on mousedown+preventDefault in
-    // option handlers; a bare listbox mousedown does not commit a selection.
-    // The click-outside handler only fires when target is outside both the
-    // trigger and listbox containers — this test ensures the contains() guard
-    // works correctly.
-    //
-    // Note: the listbox mousedown bubbles to the document handler which checks
-    // `listboxRef.current.contains(target)` — this should be true, so the
-    // listbox stays open.
-    expect(getListbox()).not.toBeNull();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// #149 — div-based role=listbox, aria-activedescendant, and Enter-trigger
-// These tests assert that the ul→div and button→div swaps preserve accessible
-// semantics (ARIA roles, aria-activedescendant linkage, trigger keyboard API).
-// ---------------------------------------------------------------------------
-
-describe('TierRefSelector — div-based ARIA semantics after #149 swap', () => {
-  it('listbox container is a div with role=listbox', () => {
-    renderSelector('ease-out', vi.fn());
-    clickTrigger();
-    const listbox = getListbox();
-    expect(listbox).not.toBeNull();
-    expect(listbox!.tagName.toLowerCase()).toBe('div');
-    expect(listbox!.getAttribute('role')).toBe('listbox');
-  });
-
-  it('option elements are divs with role=option', () => {
-    renderSelector('ease-out', vi.fn());
-    clickTrigger();
-    const options = Array.from(getOptions());
-    expect(options.length).toBeGreaterThan(0);
-    for (const opt of options) {
-      expect(opt.tagName.toLowerCase()).toBe('div');
-      expect(opt.getAttribute('role')).toBe('option');
-    }
-  });
-
-  it('listbox has aria-activedescendant pointing to the focused option', () => {
-    renderSelector('ease-in', vi.fn()); // ease-in is index 0
-    clickTrigger();
-    const listbox = getListbox()!;
-    const activedesc = listbox.getAttribute('aria-activedescendant');
-    expect(activedesc).not.toBeNull();
-    // The focused option element must exist in the DOM with that id
-    const focusedEl = document.getElementById(activedesc!);
-    expect(focusedEl).not.toBeNull();
-    expect(focusedEl!.getAttribute('role')).toBe('option');
-    // ease-in is index 0 so the focused element should reference ease-in's option
-    expect(focusedEl!.textContent).toContain('--easing-ease-in');
-  });
-
-  it('aria-activedescendant updates when ArrowDown moves focus', () => {
-    renderSelector('ease-in', vi.fn());
-    clickTrigger();
-    const listbox = getListbox()!;
-    // Before navigation — points to ease-in (index 0)
-    const before = listbox.getAttribute('aria-activedescendant');
-    fireKey(listbox, 'ArrowDown');
-    // After navigation — should point to ease-out (index 1)
-    const after = listbox.getAttribute('aria-activedescendant');
-    expect(after).not.toBe(before);
-    const focusedEl = document.getElementById(after!);
-    expect(focusedEl?.textContent).toContain('--easing-ease-out');
-  });
-
-  it('trigger is a div with role=button', () => {
-    renderSelector('ease-out', vi.fn());
-    const trigger = getTrigger();
-    expect(trigger.tagName.toLowerCase()).toBe('div');
-    expect(trigger.getAttribute('role')).toBe('button');
-  });
-
-  it('Enter keypress on trigger opens the dropdown', () => {
-    renderSelector('ease-out', vi.fn());
-    expect(getListbox()).toBeNull();
-    fireKey(getTrigger(), 'Enter');
-    expect(getListbox()).not.toBeNull();
-  });
-
-  it('Space keypress on trigger opens the dropdown', () => {
-    renderSelector('ease-out', vi.fn());
-    expect(getListbox()).toBeNull();
-    fireKey(getTrigger(), ' ');
-    expect(getListbox()).not.toBeNull();
   });
 });

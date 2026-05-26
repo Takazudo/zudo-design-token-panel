@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useId, useRef, useState } from 'preact/compat';
+import { memo } from 'preact/compat';
 import type { TabConfig, TierConfig, TierItem } from '../tokens/tier-model';
 
 // ---------------------------------------------------------------------------
@@ -7,16 +7,15 @@ import type { TabConfig, TierConfig, TierItem } from '../tokens/tier-model';
 
 /**
  * Sentinel string passed to `onChange` when the user picks "Literal...".
- * The parent component (Wave 5) interprets this as a request to flip the
- * item back into its kind-specific editor (slider / text / select) writing a
- * literal CSS override.
+ * The parent component interprets this as a request to flip the item back
+ * into its kind-specific editor (slider / text / select) writing a literal
+ * CSS override.
  */
 export const TIER_REF_LITERAL_SIGNAL = '__literal__' as const;
 
 /**
- * Maximum length of a value preview string shown in the trigger button and
- * dropdown options. Long values like cubic-bezier strings are truncated so
- * the UI stays compact.
+ * Maximum length of a value preview string shown in option labels.
+ * Long values like cubic-bezier strings are truncated so the UI stays compact.
  */
 const PREVIEW_MAX_LEN = 28;
 
@@ -35,18 +34,6 @@ function findTier(tab: TabConfig, tierId: string): TierConfig | undefined {
 
 function findItem(tier: TierConfig, itemId: string): TierItem | undefined {
   return tier.items.find((i) => i.id === itemId);
-}
-
-/**
- * Resolve the label + preview string for the currently-selected ref item.
- * Falls back to the first item in the ref tier when the current `value` id
- * does not match any known item (mirrors tier-resolver fallback semantics).
- */
-function resolveCurrentRefItem(
-  refTier: TierConfig,
-  currentRefId: string,
-): TierItem {
-  return findItem(refTier, currentRefId) ?? refTier.items[0];
 }
 
 // ---------------------------------------------------------------------------
@@ -73,22 +60,19 @@ export interface TierRefSelectorProps {
    * - Picking "Literal...": `onChange(itemId, TIER_REF_LITERAL_SIGNAL)`
    */
   onChange: (itemId: string, next: string) => void;
+  /**
+   * Returns the resolved (override-aware) preview string for a tier-1 item id.
+   * Each option label is formatted as `${item.cssVar} (${truncated preview})`.
+   * Pass a wrapper around resolveTierItemValue using the current tweak-state map.
+   */
+  previewValueFor: (refItemId: string) => string;
 }
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-function TierRefSelector({ tab, tierId, itemId, value, onChange }: TierRefSelectorProps) {
-  const [open, setOpen] = useState(false);
-  const [focusedIndex, setFocusedIndex] = useState<number>(0);
-
-  const triggerRef = useRef<HTMLDivElement | null>(null);
-  const listboxRef = useRef<HTMLDivElement | null>(null);
-
-  const triggerId = useId();
-  const listboxId = useId();
-
+function TierRefSelector({ tab, tierId, itemId, value, onChange, previewValueFor }: TierRefSelectorProps) {
   // -------------------------------------------------------------------------
   // Derive ref tier and options
   // -------------------------------------------------------------------------
@@ -97,206 +81,44 @@ function TierRefSelector({ tab, tierId, itemId, value, onChange }: TierRefSelect
   const refTierId = thisTier?.referencesTier ?? '';
   const refTier = refTierId ? findTier(tab, refTierId) : undefined;
 
-  // All options: tier-1 items + "Literal..." sentinel at the end.
   const refItems: readonly TierItem[] = refTier?.items ?? [];
 
-  // "Literal..." is always last in the list.
-  const optionCount = refItems.length + 1;
-  const LITERAL_INDEX = refItems.length;
+  // Determine the currently selected value — fall back to first item if unrecognised.
+  const selectedRefItemId = (() => {
+    if (refTier && findItem(refTier, value)) return value;
+    return refItems[0]?.id ?? '';
+  })();
 
   // -------------------------------------------------------------------------
-  // Current selection display
+  // Handler
   // -------------------------------------------------------------------------
 
-  const currentRefItem = refTier ? resolveCurrentRefItem(refTier, value) : undefined;
-  const triggerLabel = currentRefItem
-    ? `${currentRefItem.cssVar} — ${truncatePreview(currentRefItem.default)}`
-    : value || '—';
-
-  // -------------------------------------------------------------------------
-  // Handlers
-  // -------------------------------------------------------------------------
-
-  const openDropdown = useCallback(() => {
-    // Position focus on the currently-selected item when opening.
-    const selectedIdx = refItems.findIndex((i) => i.id === value);
-    setFocusedIndex(selectedIdx >= 0 ? selectedIdx : 0);
-    setOpen(true);
-  }, [refItems, value]);
-
-  const closeDropdown = useCallback(() => {
-    setOpen(false);
-    triggerRef.current?.focus();
-  }, []);
-
-  const commitSelection = useCallback(
-    (idx: number) => {
-      if (idx === LITERAL_INDEX) {
-        onChange(itemId, TIER_REF_LITERAL_SIGNAL);
-      } else {
-        const picked = refItems[idx];
-        if (picked) onChange(itemId, picked.id);
-      }
-      closeDropdown();
-    },
-    [LITERAL_INDEX, refItems, itemId, onChange, closeDropdown],
-  );
-
-  // Trigger keydown: Enter / Space open; arrow keys also open.
-  const handleTriggerKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        openDropdown();
-      }
-    },
-    [openDropdown],
-  );
-
-  // Listbox keydown: ArrowUp/Down navigate, Enter/Space picks, Escape closes.
-  const handleListKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setFocusedIndex((prev) => Math.min(prev + 1, optionCount - 1));
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setFocusedIndex((prev) => Math.max(prev - 1, 0));
-      } else if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        commitSelection(focusedIndex);
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        closeDropdown();
-      }
-    },
-    [focusedIndex, optionCount, commitSelection, closeDropdown],
-  );
-
-  // Close when clicking outside.
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      const target = e.target as Node | null;
-      if (
-        triggerRef.current &&
-        !triggerRef.current.contains(target) &&
-        listboxRef.current &&
-        !listboxRef.current.contains(target)
-      ) {
-        closeDropdown();
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open, closeDropdown]);
-
-  // Move focus to the listbox when it opens; move focus back to trigger when it
-  // closes is handled in closeDropdown().
-  useEffect(() => {
-    if (open) {
-      listboxRef.current?.focus();
-    }
-  }, [open]);
+  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    onChange(itemId, e.currentTarget.value);
+  };
 
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
 
-  // Stable option id helper — scoped to this listbox instance via listboxId.
-  // Used for aria-activedescendant on the listbox container.
-  function optionId(idx: number): string {
-    return `${listboxId}-opt-${idx}`;
-  }
-
-  const activedescendant = open ? optionId(focusedIndex) : undefined;
-
   return (
     <div className="tokenpanel-tier-ref-selector">
-      {/* Trigger — chrome button policy: div role=button with Enter/Space keydown.
-          Uses a plain div (not RoleButton) to keep ref assignment and full
-          aria-haspopup / aria-expanded / aria-controls control in one place. */}
-      <div
-        ref={triggerRef}
-        role="button"
-        tabIndex={0}
-        id={triggerId}
-        className="tokenpanel-tier-ref-trigger"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={open ? listboxId : undefined}
-        onClick={openDropdown}
-        onKeyDown={handleTriggerKeyDown}
+      <select
+        className="tokenpanel-tier-ref-select"
+        value={selectedRefItemId === '' ? TIER_REF_LITERAL_SIGNAL : selectedRefItemId}
+        onChange={handleChange}
+        aria-label={`${itemId} tier reference`}
       >
-        <span className="tokenpanel-tier-ref-trigger-label">{triggerLabel}</span>
-        <span className="tokenpanel-tier-ref-trigger-arrow" aria-hidden>
-          {open ? '▲' : '▼'}
-        </span>
-      </div>
-
-      {/* Dropdown listbox — div role=listbox replaces ul; ARIA roles preserved.
-          aria-activedescendant tracks the keyboard-focused option by id. */}
-      {open && (
-        <div
-          ref={listboxRef}
-          id={listboxId}
-          role="listbox"
-          aria-labelledby={triggerId}
-          aria-activedescendant={activedescendant}
-          tabIndex={-1}
-          className="tokenpanel-tier-ref-listbox"
-          onKeyDown={handleListKeyDown}
-        >
-          {refItems.map((item, idx) => (
-            <div
-              key={item.id}
-              id={optionId(idx)}
-              role="option"
-              aria-selected={item.id === value}
-              data-focused={idx === focusedIndex || undefined}
-              className={
-                'tokenpanel-tier-ref-option' +
-                (idx === focusedIndex ? ' tokenpanel-tier-ref-option--focused' : '')
-              }
-              onMouseDown={(e) => {
-                e.preventDefault(); // keep listbox focus
-                commitSelection(idx);
-              }}
-              onMouseEnter={() => setFocusedIndex(idx)}
-            >
-              <span className="tokenpanel-tier-ref-option-label">
-                {item.cssVar}
-                {item.label !== item.cssVar && (
-                  <span className="tokenpanel-row-label-sub">{item.label}</span>
-                )}
-              </span>
-              <span className="tokenpanel-tier-ref-option-preview">
-                {truncatePreview(item.default)}
-              </span>
-            </div>
-          ))}
-
-          {/* "Literal..." sentinel option */}
-          <div
-            key="__literal__"
-            id={optionId(LITERAL_INDEX)}
-            role="option"
-            aria-selected={false}
-            data-focused={LITERAL_INDEX === focusedIndex || undefined}
-            className={
-              'tokenpanel-tier-ref-option tokenpanel-tier-ref-option--literal' +
-              (LITERAL_INDEX === focusedIndex ? ' tokenpanel-tier-ref-option--focused' : '')
-            }
-            onMouseDown={(e) => {
-              e.preventDefault();
-              commitSelection(LITERAL_INDEX);
-            }}
-            onMouseEnter={() => setFocusedIndex(LITERAL_INDEX)}
-          >
-            <span className="tokenpanel-tier-ref-option-label">Literal…</span>
-          </div>
-        </div>
-      )}
+        {refItems.map((item) => {
+          const preview = truncatePreview(previewValueFor(item.id));
+          return (
+            <option key={item.id} value={item.id}>
+              {item.cssVar} ({preview})
+            </option>
+          );
+        })}
+        <option value={TIER_REF_LITERAL_SIGNAL}>Literal…</option>
+      </select>
     </div>
   );
 }
