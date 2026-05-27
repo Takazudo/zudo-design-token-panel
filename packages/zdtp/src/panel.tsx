@@ -10,6 +10,7 @@ import FontTab from './tabs/font-tab';
 import SizeTab from './tabs/size-tab';
 import SpacingTab from './tabs/spacing-tab';
 import GenericTab from './tabs/generic-tab';
+import { TooltipProvider } from './controls/tooltip';
 import { getPanelConfig, storageKey_visible } from './config/panel-config';
 import type { TabConfig } from './tokens/tier-model';
 import { usePersist } from './state/persist';
@@ -473,6 +474,7 @@ export default function DesignTokenTweakPanel() {
 
   return (
     <HighlightOrchestrator>
+      <TooltipProvider>
       {open && (() => {
         const {
           width: panelW,
@@ -774,6 +776,7 @@ export default function DesignTokenTweakPanel() {
           </>
         );
       })()}
+      </TooltipProvider>
     </HighlightOrchestrator>
   );
 }

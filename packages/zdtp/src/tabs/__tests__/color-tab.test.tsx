@@ -33,6 +33,7 @@ import {
 } from '../../highlight/highlight-toggle-button';
 import { DEFAULT_HIGHLIGHT_SLOTS, type HighlightState } from '../../highlight/highlight-state';
 import ColorTab from '../color-tab';
+import { TooltipProvider } from '../../controls/tooltip';
 import type { TabConfig } from '../../tokens/tier-model';
 import type { ColorTweakState } from '../../state/tweak-state';
 import {
@@ -151,7 +152,7 @@ function makeCtx(
 
 function noop() {}
 
-/** Render ColorTab wrapped in a HighlightContext provider */
+/** Render ColorTab wrapped in TooltipProvider and HighlightContext provider */
 function renderColorTab(
   ctx: HighlightContextValue,
   opts: {
@@ -169,16 +170,18 @@ function renderColorTab(
   } = opts;
   act(() => {
     render(
-      <HighlightContext.Provider value={ctx}>
-        <ColorTab
-          tab={tab}
-          state={colorState}
-          persistColor={noop}
-          secondaryTab={secondaryTab}
-          secondaryState={secondaryState}
-          persistSecondary={noop}
-        />
-      </HighlightContext.Provider>,
+      <TooltipProvider>
+        <HighlightContext.Provider value={ctx}>
+          <ColorTab
+            tab={tab}
+            state={colorState}
+            persistColor={noop}
+            secondaryTab={secondaryTab}
+            secondaryState={secondaryState}
+            persistSecondary={noop}
+          />
+        </HighlightContext.Provider>
+      </TooltipProvider>,
       container,
     );
   });
@@ -282,17 +285,19 @@ describe('ColorTab — no <button> elements (hostile-host policy)', () => {
   });
 
   it('renders no <button> elements without HighlightContext (null context)', () => {
-    // Render without provider — toggles should silently not render
+    // Render with TooltipProvider but without HighlightContext — toggles should silently not render
     act(() => {
       render(
-        <ColorTab
-          tab={PRIMARY_COLOR_TAB}
-          state={makeColorState()}
-          persistColor={noop}
-          secondaryTab={null}
-          secondaryState={null}
-          persistSecondary={noop}
-        />,
+        <TooltipProvider>
+          <ColorTab
+            tab={PRIMARY_COLOR_TAB}
+            state={makeColorState()}
+            persistColor={noop}
+            secondaryTab={null}
+            secondaryState={null}
+            persistSecondary={noop}
+          />
+        </TooltipProvider>,
         container,
       );
     });
