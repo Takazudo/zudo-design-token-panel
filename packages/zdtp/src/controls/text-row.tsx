@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useState } from 'preact/compat';
 import type { TokenDef } from '../tokens/manifest';
 import { sanitizeCssValue } from './sanitize-css-value';
+import TokenLabel from './token-label';
 
 /**
  * One manifest-driven token row backed by a free-form text input.
@@ -48,9 +49,7 @@ function TextRow({ token, value, onChange }: TextRowProps) {
 
   return (
     <div className="tokenpanel-row">
-      <span className="tokenpanel-row-label" title={token.cssVar}>
-        {token.cssVar}
-      </span>
+      <TokenLabel cssVar={token.cssVar} />
       <input
         type="text"
         value={draft}

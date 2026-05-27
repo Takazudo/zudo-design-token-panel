@@ -22,6 +22,7 @@ import { act } from 'preact/test-utils';
 import GenericTab from '../generic-tab';
 import type { TabConfig } from '../../tokens/tier-model';
 import type { TabOverrides } from '../../apply/tier-resolver';
+import { TooltipProvider } from '../../controls/tooltip';
 
 // ---------------------------------------------------------------------------
 // Synthetic TabConfig fixtures
@@ -151,6 +152,11 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // Unmount the Preact tree to clean up portals (e.g. TooltipProvider's
+  // .tokenpanel-tooltip div rendered into document.body).
+  act(() => {
+    render(null, container);
+  });
   document.body.removeChild(container);
 });
 
@@ -158,10 +164,12 @@ async function renderGenericTab(
   tab: TabConfig,
   overrides: TabOverrides = {},
   onChange: (tierId: string, itemId: string, next: string) => void = () => undefined,
+  withTooltipProvider = false,
 ): Promise<void> {
   await act(() => {
+    const content = <GenericTab tab={tab} overrides={overrides} onChange={onChange} />;
     render(
-      <GenericTab tab={tab} overrides={overrides} onChange={onChange} />,
+      withTooltipProvider ? <TooltipProvider>{content}</TooltipProvider> : content,
       container,
     );
   });
@@ -492,5 +500,82 @@ describe('GenericItemEditor — free numeric input, no clamping (#326)', () => {
     const numberCalls = onChange.mock.calls.filter(([, itemId]) => itemId === 'number-item');
     expect(numberCalls).toHaveLength(1);
     expect(numberCalls[0]).toEqual(['values', 'number-item', '5']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rich tooltip on token-name labels
+// ---------------------------------------------------------------------------
+
+describe('GenericTab — rich tooltip on token-name labels', () => {
+  it('renders a tokenpanel-tooltip element when wrapped in TooltipProvider', async () => {
+    await renderGenericTab(EASING_TAB, {}, () => undefined, true);
+
+    const tooltip = document.querySelector('.tokenpanel-tooltip');
+    expect(tooltip).not.toBeNull();
+  });
+
+  it('tooltip starts hidden (data-show=false)', async () => {
+    await renderGenericTab(EASING_TAB, {}, () => undefined, true);
+
+    const tooltip = document.querySelector('.tokenpanel-tooltip');
+    expect(tooltip?.getAttribute('data-show')).toBe('false');
+  });
+
+  it('mouseenter on label shows tooltip with the full cssVar text', async () => {
+    await renderGenericTab(EASING_TAB, {}, () => undefined, true);
+
+    // Get the label for the first item in the literal tier (raw → ease-in)
+    const label = container.querySelector('.tokenpanel-row-label') as HTMLElement;
+    expect(label).not.toBeNull();
+
+    act(() => {
+      label.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    });
+
+    const tooltip = document.querySelector('.tokenpanel-tooltip');
+    expect(tooltip?.getAttribute('data-show')).toBe('true');
+    // Tooltip text should be the full cssVar, not truncated
+    expect(tooltip?.textContent).toBe('--test-easing-ease-in');
+  });
+
+  it('mouseleave on label hides the tooltip', async () => {
+    await renderGenericTab(EASING_TAB, {}, () => undefined, true);
+
+    const label = container.querySelector('.tokenpanel-row-label') as HTMLElement;
+    act(() => {
+      label.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    });
+    act(() => {
+      label.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+    });
+
+    const tooltip = document.querySelector('.tokenpanel-tooltip');
+    expect(tooltip?.getAttribute('data-show')).toBe('false');
+  });
+
+  it('label has no native title attribute', async () => {
+    await renderGenericTab(EASING_TAB, {}, () => undefined, true);
+
+    const label = container.querySelector('.tokenpanel-row-label') as HTMLElement;
+    expect(label.hasAttribute('title')).toBe(false);
+  });
+
+  it('ref-tier row label also has rich tooltip with correct cssVar', async () => {
+    await renderGenericTab(EASING_TAB, {}, () => undefined, true);
+
+    // The semantic tier has referencesTier — its label should also use TokenLabel
+    const refRow = container.querySelector('[data-testid="tier-ref-row-tab-open"]') as HTMLElement;
+    expect(refRow).not.toBeNull();
+    const label = refRow.querySelector('.tokenpanel-row-label') as HTMLElement;
+    expect(label).not.toBeNull();
+
+    act(() => {
+      label.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    });
+
+    const tooltip = document.querySelector('.tokenpanel-tooltip');
+    expect(tooltip?.getAttribute('data-show')).toBe('true');
+    expect(tooltip?.textContent).toBe('--test-easing-tab-open');
   });
 });
