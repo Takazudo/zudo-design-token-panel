@@ -1,5 +1,6 @@
 import { memo, useCallback } from 'preact/compat';
 import type { TokenDef } from '../tokens/manifest';
+import TokenLabel from './token-label';
 
 /**
  * One manifest-driven token row backed by a native `<select>`.
@@ -39,9 +40,7 @@ function SelectRow({ token, value, onChange }: SelectRowProps) {
 
   return (
     <div className="tokenpanel-row">
-      <span className="tokenpanel-row-label" title={token.cssVar}>
-        {token.cssVar}
-      </span>
+      <TokenLabel cssVar={token.cssVar} />
       <select
         value={value}
         onChange={handleChange}

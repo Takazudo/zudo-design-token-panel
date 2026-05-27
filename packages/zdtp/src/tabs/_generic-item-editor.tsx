@@ -12,6 +12,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'preact/compat';
 import type { TierItem, TierValueKind } from '../tokens/tier-model';
 import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
+import TokenLabel from '../controls/token-label';
 
 export interface GenericItemEditorProps {
   item: TierItem;
@@ -89,12 +90,7 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
       const numberRow = (
         <div className="tokenpanel-row--stacked" data-testid={`tier-item-${item.id}`}>
           <div className="tokenpanel-row-head">
-            <span className="tokenpanel-row-label" title={item.cssVar}>
-              {item.cssVar}
-              {item.label !== item.cssVar && (
-                <span className="tokenpanel-row-label-sub">{item.label}</span>
-              )}
-            </span>
+            <TokenLabel cssVar={item.cssVar} label={item.label} />
             <div className="tokenpanel-row-input-group">
               <input
                 type="text"
@@ -143,12 +139,7 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
       };
       return (
         <div className="tokenpanel-row" data-testid={`tier-item-${item.id}`}>
-          <span className="tokenpanel-row-label" title={item.cssVar}>
-            {item.cssVar}
-            {item.label !== item.cssVar && (
-              <span className="tokenpanel-row-label-sub">{item.label}</span>
-            )}
-          </span>
+          <TokenLabel cssVar={item.cssVar} label={item.label} />
           <select
             value={selectDraft}
             onChange={handleChange}
@@ -176,12 +167,7 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
       };
       return (
         <div className="tokenpanel-row" data-testid={`tier-item-${item.id}`}>
-          <span className="tokenpanel-row-label" title={item.cssVar}>
-            {item.cssVar}
-            {item.label !== item.cssVar && (
-              <span className="tokenpanel-row-label-sub">{item.label}</span>
-            )}
-          </span>
+          <TokenLabel cssVar={item.cssVar} label={item.label} />
           <input
             type="text"
             value={value}
@@ -205,12 +191,7 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
       };
       return (
         <div className="tokenpanel-row" data-testid={`tier-item-${item.id}`}>
-          <span className="tokenpanel-row-label" title={item.cssVar}>
-            {item.cssVar}
-            {item.label !== item.cssVar && (
-              <span className="tokenpanel-row-label-sub">{item.label}</span>
-            )}
-          </span>
+          <TokenLabel cssVar={item.cssVar} label={item.label} />
           <input
             type="color"
             value={value}

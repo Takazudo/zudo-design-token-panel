@@ -46,7 +46,7 @@ import { resolveColorClusterFromTab } from '../config/cluster-config';
 import type { TabConfig } from '../tokens/tier-model';
 import type { PersistColor, PersistSecondary } from '../state/persist';
 import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
-import { TooltipProvider, useTooltip } from '../controls/tooltip';
+import { useTooltip } from '../controls/tooltip';
 
 // The bundled scheme registry now lives on
 // `panelConfig.colorCluster.colorSchemes`, not on a global import. Read it
@@ -557,7 +557,6 @@ export default function ColorTab({
   );
 
   return (
-    <TooltipProvider>
     <div className="tokenpanel-tab-content">
       {/* Preset loader — tab-scoped so the outer header row stays general */}
       <div className="tokenpanel-tab-actions">
@@ -755,6 +754,5 @@ export default function ColorTab({
          */}
       </div>
     </div>
-    </TooltipProvider>
   );
 }
