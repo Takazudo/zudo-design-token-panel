@@ -1,5 +1,6 @@
 import { memo, useState, useEffect, useCallback } from 'preact/compat';
 import { type TokenDef, formatValue, parseNumericValue } from '../tokens/manifest';
+import TokenLabel from './token-label';
 
 /**
  * One manifest-driven token row:
@@ -75,9 +76,7 @@ function SliderRow({ token, value, onChange }: SliderRowProps) {
     <div className="tokenpanel-row--stacked">
       {/* Top row: label + number input */}
       <div className="tokenpanel-row-head">
-        <span className="tokenpanel-row-label" title={token.cssVar}>
-          {token.cssVar}
-        </span>
+        <TokenLabel cssVar={token.cssVar} />
         <div className="tokenpanel-row-input-group">
           <input
             type="text"

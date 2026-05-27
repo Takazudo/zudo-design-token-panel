@@ -7,6 +7,7 @@ import { TIER_REF_LITERAL_SIGNAL } from '../controls/tier-ref-selector';
 import GenericItemEditor from './_generic-item-editor';
 import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
 import { resolveTierItemValue } from '../apply/tier-resolver';
+import TokenLabel from '../controls/token-label';
 
 interface FontTabProps {
   tab: TabConfig;
@@ -111,12 +112,7 @@ function TierSection({ tab, tier, state, onChange }: TierSectionProps) {
                 className="tokenpanel-row"
                 data-testid={`tier-ref-row-${item.id}`}
               >
-                <span className="tokenpanel-row-label" title={item.cssVar}>
-                  {item.cssVar}
-                  {item.label !== item.cssVar && (
-                    <span className="tokenpanel-row-label-sub">{item.label}</span>
-                  )}
-                </span>
+                <TokenLabel cssVar={item.cssVar} label={item.label} />
                 <TierRefSelector
                   tab={tab}
                   tierId={tier.id}

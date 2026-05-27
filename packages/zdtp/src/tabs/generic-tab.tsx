@@ -21,6 +21,7 @@ import type { TabConfig, TierConfig, TierItem, TierValueKind } from '../tokens/t
 import { type TabOverrides, resolveTierItemValue } from '../apply/tier-resolver';
 import TierRefSelector from '../controls/tier-ref-selector';
 import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
+import TokenLabel from '../controls/token-label';
 
 // ---------------------------------------------------------------------------
 // Item editor dispatch
@@ -46,12 +47,7 @@ function ItemEditor({ tab, tier, item, value, overrides, onChange }: ItemEditorP
     const refTierId = tier.referencesTier;
     return (
       <div className="tokenpanel-row" data-testid={`tier-ref-row-${item.id}`}>
-        <span className="tokenpanel-row-label" title={item.cssVar}>
-          {item.cssVar}
-          {item.label !== item.cssVar && (
-            <span className="tokenpanel-row-label-sub">{item.label}</span>
-          )}
-        </span>
+        <TokenLabel cssVar={item.cssVar} label={item.label} />
         <TierRefSelector
           tab={tab}
           tierId={tier.id}
@@ -110,12 +106,7 @@ function ItemEditor({ tab, tier, item, value, overrides, onChange }: ItemEditorP
       return (
         <div className="tokenpanel-row--stacked" data-testid={`tier-item-${item.id}`}>
           <div className="tokenpanel-row-head">
-            <span className="tokenpanel-row-label" title={item.cssVar}>
-              {item.cssVar}
-              {item.label !== item.cssVar && (
-                <span className="tokenpanel-row-label-sub">{item.label}</span>
-              )}
-            </span>
+            <TokenLabel cssVar={item.cssVar} label={item.label} />
             <div className="tokenpanel-row-input-group">
               <input
                 type="text"
@@ -142,12 +133,7 @@ function ItemEditor({ tab, tier, item, value, overrides, onChange }: ItemEditorP
       };
       return (
         <div className="tokenpanel-row" data-testid={`tier-item-${item.id}`}>
-          <span className="tokenpanel-row-label" title={item.cssVar}>
-            {item.cssVar}
-            {item.label !== item.cssVar && (
-              <span className="tokenpanel-row-label-sub">{item.label}</span>
-            )}
-          </span>
+          <TokenLabel cssVar={item.cssVar} label={item.label} />
           <select
             value={value}
             onChange={handleChange}
@@ -175,12 +161,7 @@ function ItemEditor({ tab, tier, item, value, overrides, onChange }: ItemEditorP
       };
       return (
         <div className="tokenpanel-row" data-testid={`tier-item-${item.id}`}>
-          <span className="tokenpanel-row-label" title={item.cssVar}>
-            {item.cssVar}
-            {item.label !== item.cssVar && (
-              <span className="tokenpanel-row-label-sub">{item.label}</span>
-            )}
-          </span>
+          <TokenLabel cssVar={item.cssVar} label={item.label} />
           <input
             type="text"
             value={value}
@@ -204,12 +185,7 @@ function ItemEditor({ tab, tier, item, value, overrides, onChange }: ItemEditorP
       };
       return (
         <div className="tokenpanel-row" data-testid={`tier-item-${item.id}`}>
-          <span className="tokenpanel-row-label" title={item.cssVar}>
-            {item.cssVar}
-            {item.label !== item.cssVar && (
-              <span className="tokenpanel-row-label-sub">{item.label}</span>
-            )}
-          </span>
+          <TokenLabel cssVar={item.cssVar} label={item.label} />
           <input
             type="color"
             value={value}
