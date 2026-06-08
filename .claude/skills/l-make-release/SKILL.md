@@ -111,41 +111,78 @@ re-bump.
 ## Step 2: Determine Next Version
 
 Read the current version from `packages/zdtp/package.json` (the source-of-truth).
+
+### Versioning rule — the pre-1.0 (0.x) clean-mainline ruling
+
+While the package is `0.x`, the everyday mainline ships **clean `0.MINOR.PATCH`
+versions straight to the `latest` dist-tag — never a `-next` mainline.** This is the
+npm dist-tag rule for 0.x packages (see the `/dev-npm-package` skill's "dist-tags:
+`latest`, `next`, and the pre-1.0 (0.x) strategy" section): a bare
+`pnpm add @takazudo/zdtp` is a direct `latest`-pointer dereference, so the only way a
+tagless install always resolves the newest build is to keep `latest` on the newest
+clean release. `release.yml` derives the dist-tag from the version string (a `-next.`
+/ `-beta.` / `-rc.` suffix → `next`, anything clean → `latest`), so a clean bump
+lands on `latest` automatically — nothing to wire up.
+
+Therefore:
+
+- **Breaking change → minor bump** (`0.2.0` → `0.3.0`). On 0.x the major-zero is
+  itself SemVer's "anything may change" signal, so breaking changes are minor bumps.
+- **Everything else → patch bump** (`0.2.0` → `0.2.1`).
+- A `-next` **prerelease is an opt-in side channel only** (the `next` argument, plus
+  the `1.0.0` run-up via `major`) — reserved for previewing a *specific* upcoming
+  version *ahead of* `latest`. **Never run the mainline on `-next.N`** and **never
+  mirror `next` onto `latest`**: both strand `latest` on a stale version, the exact
+  footgun this rule prevents (tagless installs silently downgrade). At `1.0.0` the
+  normal stable/preview split resumes automatically under the same version-derived
+  dist-tag — no special-casing.
+
 Apply these rules based on the optional argument:
 
-### No argument
+### No argument (default — clean mainline → `latest`)
 
-- If current is `X.Y.Z-next.N` (prerelease): propose `X.Y.Z-next.{N+1}`
-  - Example: `0.1.0-next.2` → `0.1.0-next.3`
-- If current is stable `X.Y.Z`: propose `X.{Y+1}.0-next.1`
-  - Example: `0.1.0` → `0.2.0-next.1`
+- If current is stable `X.Y.Z`: propose a **patch** bump `X.Y.{Z+1}` (clean).
+  - Example: `0.2.0` → `0.2.1`
+- If current is a prerelease `X.Y.Z-next.N`: **finalize it** — strip the suffix to
+  clean `X.Y.Z`, promoting the in-progress line to stable on `latest` (identical to
+  the `stable` argument). To instead continue a deliberate prerelease run-up, pass
+  `next`.
+  - Example: `0.2.0-next.2` → `0.2.0`
 
-### `next` argument (from stable)
+### `patch` argument (→ `latest`)
 
-- Force-start a new minor prerelease: `X.{Y+1}.0-next.1`
-- Example: `0.1.0` → `0.2.0-next.1`
+- Bump the patch of the **clean base** of the current version (drop any `-next.N`
+  suffix, then `+1` patch): `X.Y.{Z+1}` (clean).
+  - Example: `0.2.0` → `0.2.1`, `0.2.0-next.2` → `0.2.1`
 
-### `major` argument
+### `minor` argument (breaking change on 0.x → `latest`)
 
-- Bump major, reset minor+patch, start prerelease: `{X+1}.0.0-next.1`
-- Example: `0.1.0-next.5` → `1.0.0-next.1`, `0.1.0` → `1.0.0-next.1`
+- Bump the minor of the **clean base**, reset patch, clean (no suffix): `X.{Y+1}.0`.
+  - Example: `0.2.1` → `0.3.0`, `0.2.0-next.2` → `0.3.0`
 
-### `minor` argument
+### `stable` argument (finalize a prerelease → `latest`)
 
-- Bump minor, reset patch, start prerelease: `X.{Y+1}.0-next.1`
-- Example: `0.1.0-next.5` → `0.2.0-next.1`, `0.1.0` → `0.2.0-next.1`
-
-### `patch` argument
-
-- Bump patch, start prerelease: `X.Y.{Z+1}-next.1`
-- Example: `0.1.0-next.5` → `0.1.1-next.1`, `0.1.0` → `0.1.1-next.1`
-
-### `stable` argument
-
-- Strip the `-next.N` suffix from the current prerelease.
+- Strip the `-next.N` suffix from the current prerelease → clean `X.Y.Z`.
 - Requires the current version to be a `-next.N` prerelease. If it is already
   stable, stop with an error.
-- Example: `0.1.0-next.5` → `0.1.0`
+- Example: `0.2.0-next.2` → `0.2.0`
+
+### `next` argument (opt-in prerelease side channel → `next`)
+
+- Open or continue a prerelease line published to the `next` dist-tag, *ahead of*
+  `latest` — for previewing a specific upcoming version:
+  - From stable `X.Y.Z`: start a new minor prerelease `X.{Y+1}.0-next.1`.
+    - Example: `0.2.0` → `0.3.0-next.1`
+  - From prerelease `X.Y.Z-next.N`: continue the run-up `X.Y.Z-next.{N+1}`.
+    - Example: `0.3.0-next.1` → `0.3.0-next.2`
+
+### `major` argument (`1.0.0` run-up → `next`, finalize later → `latest`)
+
+- Start the major prerelease run-up: `{X+1}.0.0-next.1` (published to `next`).
+  `1.0.0` is the one milestone that earns a deliberate `-next` / `-rc` run-up;
+  finalize it later with `stable` (or no-arg), which routes the clean `1.0.0` to
+  `latest`.
+  - Example: `0.3.0` → `1.0.0-next.1`, `0.2.0-next.2` → `1.0.0-next.1`
 
 ## Step 3: Analyze Changes and Propose — THE GATE
 
