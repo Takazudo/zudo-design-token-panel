@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.2.0
+
+First clean stable release on the `latest` dist-tag, promoting the
+`0.2.0-next.1` / `0.2.0-next.2` prerelease line. A tagless
+`pnpm add @takazudo/zdtp` now resolves this build.
+
+### Breaking Changes
+
+- **Removed the `min` and `max` properties from `TokenDef` and `TierValueKind` (`'length'` | `'number'` variants).** Numeric token rows are now plain unconstrained number inputs — the `<input type="range">` slider and the mid-keystroke / on-blur clamp logic (and the `aria-invalid` out-of-range styling) are gone; values commit as typed. Real-world use proved sliders too restrictive for a developer tool. **Migration**: remove every `min: ...` and `max: ...` field from your token manifests. The internal color-picker `SliderConfig.min` / `.max` (OKLCH/HSL axis bounds) is unrelated and unchanged. (a9b768e, [#325](https://github.com/Takazudo/zudo-design-token-panel/issues/325), [#328](https://github.com/Takazudo/zudo-design-token-panel/pull/328))
+
+### Features
+
+- **Token-name tooltip parity across all tabs (Size / Font / Spacing / Easing / GenericTab).** A new shared `TokenLabel` component renders the same `.tokenpanel-tooltip` primitive at every token-name display site (previously only the Color tab had the rich tooltip; others fell back to the native `title` attribute). `TooltipProvider` was lifted from `color-tab.tsx` to `panel.tsx` so all tabs share a single provider. (559c59f, 426e9c6, 84f5981, [#330](https://github.com/Takazudo/zudo-design-token-panel/issues/330), [#337](https://github.com/Takazudo/zudo-design-token-panel/pull/337))
+
+### Other Changes
+
+- Strip `min` / `max` from 35+ test fixture files and rewrite the [#313](https://github.com/Takazudo/zudo-design-token-panel/pull/313) clamp-regression tests to assert the new free-input contract. (b8ef56e, 9798e07)
+- Drop slider-describing prose and min/max examples from `README.md`, `PORTABLE-CONTRACT.md`, and the doc-site reference pages (`token-manifest.mdx`, `architecture.mdx`, `configure-panel.mdx`). (e210a2d, 9262585)
+- Resolve all `pnpm audit` advisories (1 critical, 3 high, 7 moderate, 1 low) in dev/doc-only tooling — none ship in the published package. (f3574e0)
+
 ## 0.2.0-next.2
 
 ### Features
