@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.2
+
+### Other Changes
+
+- Post-review internal cleanups for the Element Path Copy feature (no behavior change): single source of truth for the highlight / element-path portal-mount ids (`HIGHLIGHT_PORTAL_MOUNT_ID` / `ELPATH_PORTAL_MOUNT_ID`, folded into `PANEL_EXCLUSION_SELECTOR`); `ElementPathToast` now owns its own fixed top-center positioning and z-index; `buildSummary` escapes the id consistently with the selector line; the always-on `mousemove` listener is passive + non-capture; and the hover-label summary is memoized. (0fdcbd6)
+
 ## 0.2.1
 
 ### Features
