@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.1
+
+### Features
+
+- **Element Path Copy inspect mode.** A new crosshair toggle in the panel header arms an inspector: hold **Alt** and hover to draw a DevTools-style box + label over the host element under the cursor, then click to copy an annotated path block — unique CSS `selector`, human-readable `breadcrumb`, ARIA `role`, `text` snippet, identifying `attrs`, and rendered `size` — to the clipboard for precise human↔AI communication about the page. State persists in `localStorage`; the click is swallowed so host links/handlers don't fire. (e8bd453, 736d6d2, [#344](https://github.com/Takazudo/zudo-design-token-panel/pull/344))
+
+### Other Changes
+
+- Apply pre-release deep-review fixes: extract a shared `usePortalMount()` hook used by both the highlight and element-path orchestrators (removing ~80 lines of duplicated portal/`astro:after-swap` lifecycle), render the header toggle via the shared `RoleButton` control, add a persistent visually-hidden `aria-live` region so screen readers announce copy results, and harden the `cssEscapeIdent` fallback for control characters. (9b893f6, a64f4d3, [#344](https://github.com/Takazudo/zudo-design-token-panel/pull/344))
+- Bump GitHub Actions off the deprecated Node 20 runtime: `checkout` / `setup-node` / pnpm-setup and the artifact actions to their Node-24-matched versions. (08d5b48, b46fd66, [#339](https://github.com/Takazudo/zudo-design-token-panel/pull/339), [#341](https://github.com/Takazudo/zudo-design-token-panel/pull/341))
+- Add a web-env bootstrap for Claude Code on the web. (23f00c3)
+
 ## 0.2.0
 
 First clean stable release on the `latest` dist-tag, promoting the
