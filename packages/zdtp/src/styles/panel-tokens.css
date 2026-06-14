@@ -50,7 +50,9 @@
   [data-design-token-panel-modal],
   .tokenpanel-highlight-settings-popover,
   .tokenpanel-color-picker,
-  .tokenpanel-tooltip
+  .tokenpanel-tooltip,
+  .tokenpanel-elpath-label,
+  .tokenpanel-elpath-toast
 ) {
   /* ----------------------------------------------------------------------
    * Color palette (self-contained, dark)
