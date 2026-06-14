@@ -78,12 +78,13 @@ describe('buildUniqueSelector', () => {
   });
 
   it('anchors on an ancestor id to keep the chain short', () => {
+    // Two structurally-identical subtrees mean the bare tag chain (`div > a`)
+    // is ambiguous, so uniqueness can only be reached by climbing to #card.
     setBody(`
-      <div id="card">
-        <div><div><a href="/x">link</a></div></div>
-      </div>
+      <div id="card"><div><a href="/x">link</a></div></div>
+      <div><div><a href="/y">other</a></div></div>
     `);
-    const link = $('a');
+    const link = $('#card a');
     const sel = buildUniqueSelector(link);
     expect(sel.startsWith('#card')).toBe(true);
     expect(document.querySelector(sel)).toBe(link);
