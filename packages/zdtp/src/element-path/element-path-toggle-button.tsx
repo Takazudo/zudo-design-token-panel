@@ -5,13 +5,15 @@
  * highlights elements; clicking copies an annotated path block. Reads
  * ElementPathContext; renders nothing when used outside the orchestrator.
  *
- * Follows the chrome-button policy: a `div role="button"` with explicit
- * Enter/Space handlers.
+ * Follows the chrome-button policy via the shared `RoleButton` control
+ * (role="button" + tabIndex + Enter/Space wiring), exposing `aria-pressed`
+ * through its `ariaProps` bag.
  */
 
 import { useContext } from 'preact/hooks';
 import type { JSX } from 'preact';
 import { ElementPathContext } from './element-path-context';
+import { RoleButton } from '../controls/role-button';
 
 export function ElementPathToggleButton(): JSX.Element | null {
   const ctx = useContext(ElementPathContext);
@@ -24,20 +26,12 @@ export function ElementPathToggleButton(): JSX.Element | null {
     : 'Element path copy: OFF — click to enable, then hold Alt and click an element to copy its path.';
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
+    <RoleButton
       className={enabled ? 'tokenpanel-elpath-toggle is-active' : 'tokenpanel-elpath-toggle'}
       aria-label="Toggle element path copy"
-      aria-pressed={enabled}
+      ariaProps={{ 'aria-pressed': enabled }}
       title={title}
       onClick={toggle}
-      onKeyDown={(e: KeyboardEvent) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          toggle();
-        }
-      }}
     >
       <svg
         width="14"
@@ -58,6 +52,6 @@ export function ElementPathToggleButton(): JSX.Element | null {
         <line x1="20" y1="12" x2="23" y2="12" />
         <circle cx="12" cy="12" r="1.5" />
       </svg>
-    </div>
+    </RoleButton>
   );
 }

@@ -1482,6 +1482,12 @@ html.tokenpanel-elpath-inspecting * {
   fill: none;
   stroke: var(--tokentweak-color-success, #93bb77);
   pointer-events: none;
+  /* The toast renders in the #tokenpanel-elpath-mount portal (outside
+   * .tokenpanel-shell), so the shell-scoped defensive SVG reset never reaches
+   * it. Restate display/overflow here so a hostile host `svg { … }` rule cannot
+   * distort the icon. */
+  display: inline-block;
+  overflow: visible;
 }
 .tokenpanel-elpath-toast.is-error svg {
   stroke: var(--tokentweak-color-danger, #da6871);

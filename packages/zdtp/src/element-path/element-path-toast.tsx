@@ -7,6 +7,13 @@
  *
  * Stateless: the parent owns the message lifecycle (auto-dismiss timer). When
  * `message` is null nothing renders.
+ *
+ * Purely visual — it carries no ARIA live-region semantics. InspectorOverlay
+ * renders a separate always-mounted visually-hidden live region for screen
+ * reader announcements (a region inserted already-populated is often not
+ * announced), so duplicating `role="status"` here would be redundant and
+ * unreliable. The icon is `aria-hidden` and the text is conveyed by the
+ * persistent announcer.
  */
 
 import type { JSX } from 'preact';
@@ -23,8 +30,7 @@ export function ElementPathToast({ message, ok }: ElementPathToastProps): JSX.El
   return (
     <div
       className={ok ? 'tokenpanel-elpath-toast' : 'tokenpanel-elpath-toast is-error'}
-      role="status"
-      aria-live="polite"
+      aria-hidden="true"
     >
       <svg
         width="14"

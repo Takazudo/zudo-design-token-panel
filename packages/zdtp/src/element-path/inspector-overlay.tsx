@@ -140,7 +140,12 @@ export function InspectorOverlay({ enabled }: InspectorOverlayProps): JSX.Elemen
       if (armedRef.current) resolveHoverAt(e.clientX, e.clientY);
     }
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Alt' || e.altKey) {
+      // Only do the arm-transition work on the first Alt-down. Without the
+      // `!armedRef.current` guard, every Alt-modified keystroke (Alt+letter host
+      // shortcuts, Alt+Tab attempts) would re-run the layout-querying
+      // elementFromPoint for no behavioural benefit — the position is already
+      // tracked by the always-on mousemove handler.
+      if ((e.key === 'Alt' || e.altKey) && !armedRef.current) {
         setArmed(true);
         const last = lastMouseRef.current;
         if (last) resolveHoverAt(last.x, last.y);
@@ -278,6 +283,31 @@ export function InspectorOverlay({ enabled }: InspectorOverlayProps): JSX.Elemen
 
   return (
     <>
+      {/*
+        Persistent, always-mounted live region. Screen readers reliably announce
+        a live region only when it already exists in the DOM and its text then
+        changes — a region inserted already-populated is frequently NOT announced
+        (JAWS/NVDA/VoiceOver). So the announcer stays mounted and we only swap its
+        text; the visual ElementPathToast below is purely presentational.
+      */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        style={{
+          position: 'fixed',
+          width: '1px',
+          height: '1px',
+          padding: 0,
+          margin: '-1px',
+          overflow: 'hidden',
+          clip: 'rect(0 0 0 0)',
+          whiteSpace: 'nowrap',
+          border: 0,
+        }}
+      >
+        {toast?.message ?? ''}
+      </div>
       {showBox && rect && (
         <>
           <div
