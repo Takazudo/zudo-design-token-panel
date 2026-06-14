@@ -1,9 +1,12 @@
 /**
  * ElementPathToast — transient top-center notification shown after a copy.
  *
- * Rendered inside the Element Path Copy portal (outside `.tokenpanel-shell`), so
- * it carries its own `--tokentweak-*` scope via panel.css. `pointer-events:none`
- * keeps it from intercepting hover while inspect mode is active.
+ * Self-contained presentation: it owns its own fixed, top-center, full-width
+ * `pointer-events:none` container AND the pill, so the inspector overlay just
+ * renders `<ElementPathToast>` without wrapping it in positioning markup. The
+ * `pointer-events:none` keeps it from intercepting hover while inspect mode is
+ * active. Rendered inside the Element Path Copy portal (outside
+ * `.tokenpanel-shell`), so it carries its own `--tokentweak-*` scope via panel.css.
  *
  * Stateless: the parent owns the message lifecycle (auto-dismiss timer). When
  * `message` is null nothing renders.
@@ -18,6 +21,9 @@
 
 import type { JSX } from 'preact';
 
+/** Toast sits above everything the panel renders — one above the element box (2147483000). */
+const TOAST_Z_INDEX = 2147483001;
+
 export interface ElementPathToastProps {
   /** Toast body; null hides the toast. */
   message: string | null;
@@ -29,31 +35,44 @@ export function ElementPathToast({ message, ok }: ElementPathToastProps): JSX.El
   if (message === null) return null;
   return (
     <div
-      className={ok ? 'tokenpanel-elpath-toast' : 'tokenpanel-elpath-toast is-error'}
-      aria-hidden="true"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: TOAST_Z_INDEX,
+        display: 'flex',
+        justifyContent: 'center',
+        pointerEvents: 'none',
+      }}
     >
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
+      <div
+        className={ok ? 'tokenpanel-elpath-toast' : 'tokenpanel-elpath-toast is-error'}
         aria-hidden="true"
       >
-        {ok ? (
-          <path d="M20 6 9 17l-5-5" />
-        ) : (
-          <>
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </>
-        )}
-      </svg>
-      <span className="tokenpanel-elpath-toast-text">{message}</span>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          {ok ? (
+            <path d="M20 6 9 17l-5-5" />
+          ) : (
+            <>
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </>
+          )}
+        </svg>
+        <span className="tokenpanel-elpath-toast-text">{message}</span>
+      </div>
     </div>
   );
 }

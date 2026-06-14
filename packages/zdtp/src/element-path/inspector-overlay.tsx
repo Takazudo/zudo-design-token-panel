@@ -19,7 +19,7 @@
  * in the DOM this renders.
  */
 
-import { useState, useEffect, useRef, useCallback } from 'preact/hooks';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'preact/hooks';
 import type { JSX } from 'preact';
 import { PANEL_EXCLUSION_SELECTOR } from '../highlight/find-elements';
 import { buildSummary, buildElementPathString } from './build-element-path';
@@ -30,10 +30,9 @@ import { ElementPathToast } from './element-path-toast';
 // Constants
 // ---------------------------------------------------------------------------
 
-/** Above the highlight overlay (49) and panel shell (50); below modals. */
+/** Above the highlight overlay (49) and panel shell (50); below modals. The
+ *  toast renders one level above this (TOAST_Z_INDEX in element-path-toast.tsx). */
 const BOX_Z_INDEX = 2147483000;
-/** Toast sits above everything the panel renders. */
-const TOAST_Z_INDEX = 2147483001;
 /** Auto-dismiss delay for the copy toast (ms). */
 const TOAST_DURATION = 2200;
 /** Gap between the element box and its label tag (px). */
@@ -162,12 +161,17 @@ export function InspectorOverlay({ enabled }: InspectorOverlayProps): JSX.Elemen
       setHoverEl(null);
     }
 
-    document.addEventListener('mousemove', onMouseMove, true);
+    // mousemove is passive + non-capture: it only records the pointer position
+    // (and resolves a hovered element while armed) — it never preventDefault/
+    // stopPropagation, so it has no reason to run in the capture phase ahead of
+    // host handlers. keydown/keyup stay in capture so Alt arming is observed
+    // before host shortcuts.
+    document.addEventListener('mousemove', onMouseMove, { passive: true });
     window.addEventListener('keydown', onKeyDown, true);
     window.addEventListener('keyup', onKeyUp, true);
     window.addEventListener('blur', onBlur);
     return () => {
-      document.removeEventListener('mousemove', onMouseMove, true);
+      document.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('keydown', onKeyDown, true);
       window.removeEventListener('keyup', onKeyUp, true);
       window.removeEventListener('blur', onBlur);
@@ -232,6 +236,13 @@ export function InspectorOverlay({ enabled }: InspectorOverlayProps): JSX.Elemen
     if (!armed || !hoverEl) return;
     let rafId = 0;
 
+    // NB: box + label styles are rewritten unconditionally every frame on
+    // purpose. The label's vertical position (above the box) differs from the
+    // label's JSX inline `top` (the box's own top), so a re-render that fires
+    // while hovering (e.g. the copy toast) re-applies the JSX value and would
+    // strand the label on the box edge — the unconditional rewrite self-heals
+    // that within a frame. (A geometry short-circuit here regressed exactly
+    // this; see the element-path review notes.)
     function position() {
       const el = hoverElRef.current;
       const box = boxRef.current;
@@ -278,7 +289,14 @@ export function InspectorOverlay({ enabled }: InspectorOverlayProps): JSX.Elemen
   // -------------------------------------------------------------------------
 
   const showBox = enabled && armed && hoverEl !== null;
-  const labelText = showBox && hoverEl ? buildSummary(hoverEl) : '';
+  // Memoize the summary so unrelated re-renders (e.g. a toast appearing) don't
+  // re-run buildSummary's attribute reads + class-filter regexes; it recomputes
+  // only when the hovered element changes. The rect below stays a live read so
+  // the box paints at the right place on the first frame before the RAF loop.
+  const labelText = useMemo(
+    () => (showBox && hoverEl ? buildSummary(hoverEl) : ''),
+    [showBox, hoverEl],
+  );
   const rect = showBox && hoverEl ? hoverEl.getBoundingClientRect() : null;
 
   return (
@@ -342,20 +360,7 @@ export function InspectorOverlay({ enabled }: InspectorOverlayProps): JSX.Elemen
         </>
       )}
       {toast && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            zIndex: TOAST_Z_INDEX,
-            display: 'flex',
-            justifyContent: 'center',
-            pointerEvents: 'none',
-          }}
-        >
-          <ElementPathToast key={toast.key} message={toast.message} ok={toast.ok} />
-        </div>
+        <ElementPathToast key={toast.key} message={toast.message} ok={toast.ok} />
       )}
     </>
   );

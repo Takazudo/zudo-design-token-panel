@@ -339,7 +339,10 @@ export function buildSummary(el: Element): string {
   const id = el.getAttribute('id');
   const classes = stableClasses(el).slice(0, 2);
   let out = tag;
-  if (id) out += `#${id}`;
+  // Escape the id like buildUniqueSelector does — a no-op for ordinary ids, but
+  // keeps the descriptor consistent with (and as paste-able as) the selector line
+  // when an id contains CSS-special characters.
+  if (id) out += `#${cssEscapeIdent(id)}`;
   for (const c of classes) out += `.${c}`;
   return out;
 }

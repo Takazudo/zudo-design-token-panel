@@ -292,8 +292,18 @@ const TOKEN_TYPES: Record<string, TokenTypeConfig> = {
 const PSEUDOS: Array<string | null> = [null, '::before', '::after'];
 
 // ---------------------------------------------------------------------------
-// Panel exclusion selector (constant value kept from legacy implementation)
+// Panel portal-mount ids + exclusion selector
 // ---------------------------------------------------------------------------
+
+/**
+ * Ids of the singleton portal-mount `<div>`s each overlay appends to
+ * document.body. Single source of truth: the orchestrators pass these to
+ * `usePortalMount(...)` and they are folded into PANEL_EXCLUSION_SELECTOR below,
+ * so the id can never drift between where it is registered and where it is
+ * excluded. Changing an id here updates every consumer.
+ */
+export const HIGHLIGHT_PORTAL_MOUNT_ID = 'tokenpanel-highlight-mount';
+export const ELPATH_PORTAL_MOUNT_ID = 'tokenpanel-elpath-mount';
 
 /**
  * Selector matching every panel-owned surface that must NEVER be treated as a
@@ -302,7 +312,7 @@ const PSEUDOS: Array<string | null> = [null, '::before', '::after'];
  * resolving the element under the cursor.
  */
 export const PANEL_EXCLUSION_SELECTOR =
-  '.tokenpanel-shell, [data-design-token-panel-modal], #tokenpanel-highlight-mount, #tokenpanel-elpath-mount';
+  `.tokenpanel-shell, [data-design-token-panel-modal], #${HIGHLIGHT_PORTAL_MOUNT_ID}, #${ELPATH_PORTAL_MOUNT_ID}`;
 
 // ---------------------------------------------------------------------------
 // Type detection

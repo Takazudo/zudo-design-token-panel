@@ -22,20 +22,18 @@ import {
 import { loadElementPathEnabled, saveElementPathEnabled } from './element-path-state';
 import { InspectorOverlay } from './inspector-overlay';
 import { usePortalMount } from '../utils/use-portal-mount';
+import { ELPATH_PORTAL_MOUNT_ID } from '../highlight/find-elements';
 
 // ---------------------------------------------------------------------------
 // Portal mount
 // ---------------------------------------------------------------------------
-
-/** Must match the id added to PANEL_EXCLUSION_SELECTOR in find-elements.ts. */
-const PORTAL_MOUNT_ID = 'tokenpanel-elpath-mount';
 
 interface OverlayPortalProps {
   enabled: boolean;
 }
 
 function OverlayPortal({ enabled }: OverlayPortalProps) {
-  const mountNode = usePortalMount(PORTAL_MOUNT_ID);
+  const mountNode = usePortalMount(ELPATH_PORTAL_MOUNT_ID);
   if (!mountNode) return null;
   return createPortal(<InspectorOverlay enabled={enabled} />, mountNode);
 }

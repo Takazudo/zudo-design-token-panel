@@ -54,7 +54,12 @@ import {
 
 const mockFindElements = vi.fn();
 
-vi.mock('../find-elements', () => ({
+// Spread the real module so genuine exports (PANEL_EXCLUSION_SELECTOR and the
+// HIGHLIGHT_PORTAL_MOUNT_ID / ELPATH_PORTAL_MOUNT_ID constants the orchestrator
+// reads) keep their real values; only findElementsUsingToken is mocked for
+// deterministic probe results.
+vi.mock('../find-elements', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../find-elements')>()),
   findElementsUsingToken: (cssVar: string, options?: unknown) => mockFindElements(cssVar, options),
 }));
 

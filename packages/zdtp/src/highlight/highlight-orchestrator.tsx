@@ -32,7 +32,7 @@ import {
   type HighlightState,
   type HighlightSlotSpec,
 } from './highlight-state';
-import { findElementsUsingToken } from './find-elements';
+import { findElementsUsingToken, HIGHLIGHT_PORTAL_MOUNT_ID } from './find-elements';
 import type { FindElementsResult } from './find-elements';
 import { HighlightOverlay, type HighlightOverlayItem } from './highlight-overlay';
 import { getPanelConfig } from '../config/panel-config';
@@ -114,15 +114,12 @@ function isDifferentialEligible(tierKind: TierValueKind | undefined): boolean {
 // Portal mount
 // ---------------------------------------------------------------------------
 
-/** ID also referenced in find-elements.ts PANEL_EXCLUSION_SELECTOR. Must match exactly. */
-const PORTAL_MOUNT_ID = 'tokenpanel-highlight-mount';
-
 interface OverlayPortalProps {
   items: ReadonlyArray<HighlightOverlayItem>;
 }
 
 function OverlayPortal({ items }: OverlayPortalProps) {
-  const mountNode = usePortalMount(PORTAL_MOUNT_ID);
+  const mountNode = usePortalMount(HIGHLIGHT_PORTAL_MOUNT_ID);
   if (!mountNode) return null;
   return createPortal(<HighlightOverlay items={items} />, mountNode);
 }
