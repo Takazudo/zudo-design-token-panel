@@ -5,6 +5,8 @@ import { ApplyModal } from './apply-modal';
 import { RoleButton } from './controls/role-button';
 import { HighlightSettingsPopover } from './highlight/highlight-settings-popover';
 import { HighlightOrchestrator } from './highlight/highlight-orchestrator';
+import { ElementPathOrchestrator } from './element-path/element-path-orchestrator';
+import { ElementPathToggleButton } from './element-path/element-path-toggle-button';
 import ColorTab from './tabs/color-tab';
 import FontTab from './tabs/font-tab';
 import SizeTab from './tabs/size-tab';
@@ -474,6 +476,7 @@ export default function DesignTokenTweakPanel() {
 
   return (
     <HighlightOrchestrator>
+      <ElementPathOrchestrator>
       <TooltipProvider>
       {open && (() => {
         const {
@@ -543,6 +546,8 @@ export default function DesignTokenTweakPanel() {
             Reset
           </RoleButton>
           <div className="tokenpanel-spacer" />
+          {/* Element-path-copy toggle — enable, then Alt+click any element to copy its path */}
+          <ElementPathToggleButton />
           {/* Gear button — inline div so we can attach a ref for popover anchoring */}
           <div
             ref={gearBtnRef}
@@ -777,6 +782,7 @@ export default function DesignTokenTweakPanel() {
         );
       })()}
       </TooltipProvider>
+      </ElementPathOrchestrator>
     </HighlightOrchestrator>
   );
 }

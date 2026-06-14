@@ -295,8 +295,14 @@ const PSEUDOS: Array<string | null> = [null, '::before', '::after'];
 // Panel exclusion selector (constant value kept from legacy implementation)
 // ---------------------------------------------------------------------------
 
-const PANEL_EXCLUSION_SELECTOR =
-  '.tokenpanel-shell, [data-design-token-panel-modal], #tokenpanel-highlight-mount';
+/**
+ * Selector matching every panel-owned surface that must NEVER be treated as a
+ * host element (the shell, modals, and the highlight/element-path portal mounts).
+ * Exported so the Element Path Copy inspector can skip the same surfaces when
+ * resolving the element under the cursor.
+ */
+export const PANEL_EXCLUSION_SELECTOR =
+  '.tokenpanel-shell, [data-design-token-panel-modal], #tokenpanel-highlight-mount, #tokenpanel-elpath-mount';
 
 // ---------------------------------------------------------------------------
 // Type detection

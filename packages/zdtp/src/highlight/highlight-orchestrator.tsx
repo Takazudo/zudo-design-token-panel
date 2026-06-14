@@ -36,6 +36,7 @@ import { findElementsUsingToken } from './find-elements';
 import type { FindElementsResult } from './find-elements';
 import { HighlightOverlay, type HighlightOverlayItem } from './highlight-overlay';
 import { getPanelConfig } from '../config/panel-config';
+import { usePortalMount } from '../utils/use-portal-mount';
 import type { TierValueKind } from '../tokens/tier-model';
 
 // ---------------------------------------------------------------------------
@@ -110,65 +111,20 @@ function isDifferentialEligible(tierKind: TierValueKind | undefined): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Portal mount helpers
+// Portal mount
 // ---------------------------------------------------------------------------
 
 /** ID also referenced in find-elements.ts PANEL_EXCLUSION_SELECTOR. Must match exactly. */
 const PORTAL_MOUNT_ID = 'tokenpanel-highlight-mount';
-
-/**
- * Get or create the singleton portal mount <div> at document.body.
- * Idempotent: if an element with the id already exists it is returned as-is.
- * SSR-safe: returns null when document is unavailable (server-render / prerender).
- */
-function getOrCreateMountNode(): HTMLDivElement | null {
-  if (typeof document === 'undefined') return null;
-  const existing = document.getElementById(PORTAL_MOUNT_ID) as HTMLDivElement | null;
-  if (existing) return existing;
-
-  const node = document.createElement('div');
-  node.id = PORTAL_MOUNT_ID;
-  document.body.appendChild(node);
-  return node;
-}
-
-// ---------------------------------------------------------------------------
-// OverlayPortal
-// ---------------------------------------------------------------------------
 
 interface OverlayPortalProps {
   items: ReadonlyArray<HighlightOverlayItem>;
 }
 
 function OverlayPortal({ items }: OverlayPortalProps) {
-  const mountNodeRef = useRef<HTMLDivElement | null>(null);
-  const [mountVersion, setMountVersion] = useState(0);
-
-  useEffect(() => {
-    if (!mountNodeRef.current || !mountNodeRef.current.isConnected) {
-      mountNodeRef.current = getOrCreateMountNode();
-      setMountVersion((v) => v + 1);
-    }
-    function handleAfterSwap() {
-      if (!mountNodeRef.current || !mountNodeRef.current.isConnected) {
-        mountNodeRef.current = getOrCreateMountNode();
-        setMountVersion((v) => v + 1);
-      }
-    }
-    if (typeof window !== 'undefined') {
-      window.addEventListener('astro:after-swap', handleAfterSwap);
-    }
-    return () => {
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('astro:after-swap', handleAfterSwap);
-      }
-    };
-  }, []);
-
-  void mountVersion;
-
-  if (!mountNodeRef.current) return null;
-  return createPortal(<HighlightOverlay items={items} />, mountNodeRef.current);
+  const mountNode = usePortalMount(PORTAL_MOUNT_ID);
+  if (!mountNode) return null;
+  return createPortal(<HighlightOverlay items={items} />, mountNode);
 }
 
 // ---------------------------------------------------------------------------
