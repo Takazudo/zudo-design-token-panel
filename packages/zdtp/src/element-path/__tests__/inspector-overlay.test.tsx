@@ -91,6 +91,18 @@ describe('InspectorOverlay', () => {
     expect(document.querySelector('.tokenpanel-elpath-box')).not.toBeNull();
   });
 
+  it('highlights the element already under the cursor as soon as Alt is pressed', () => {
+    act(() => {
+      render(<InspectorOverlay enabled={true} />, container);
+    });
+    // Move first (records position) — no box yet because not armed.
+    act(() => moveOverTarget());
+    expect(document.querySelector('.tokenpanel-elpath-box')).toBeNull();
+    // Pressing Alt arms AND resolves the element under the last cursor position.
+    act(() => pressAlt());
+    expect(document.querySelector('.tokenpanel-elpath-box')).not.toBeNull();
+  });
+
   it('shows the element label with the summary descriptor', () => {
     act(() => {
       render(<InspectorOverlay enabled={true} />, container);

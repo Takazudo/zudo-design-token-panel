@@ -146,10 +146,11 @@ function stableClasses(el: Element): string[] {
   return raw
     .split(/\s+/)
     .filter((c) => c.length > 0)
-    // Drop hash-y fragments: 5+ char runs that mix letters and digits, or
-    // contain a CSS-module style double-underscore / sc- prefix.
+    // Drop machine-generated class fragments that make selectors/breadcrumbs
+    // noisy: CSS-module (`Button__root`), styled-components (`sc-xxxx`), emotion
+    // (`css-1a2b3c`), and bare hashes (6+ chars mixing letters and digits).
     .filter((c) => !/__|^sc-|^css-[a-z0-9]{4,}/i.test(c))
-    .filter((c) => !/[a-z][0-9]|[0-9][a-z]/i.test(c) || c.length <= 4);
+    .filter((c) => !(/[a-z][0-9]|[0-9][a-z]/i.test(c) && c.length >= 6));
 }
 
 // ---------------------------------------------------------------------------
@@ -179,9 +180,15 @@ function nthOfTypeSuffix(el: Element): string {
   return `:nth-of-type(${index})`;
 }
 
-/** Selector segment for a single element: lowercased tag + nth-of-type if needed. */
+/**
+ * Selector segment for a single element: tag + nth-of-type if needed.
+ *
+ * Uses `localName` (not `tagName.toLowerCase()`) so camel-cased SVG elements
+ * like `linearGradient` keep their exact case — CSS type selectors are
+ * case-sensitive for non-HTML elements, so lowercasing would break the match.
+ */
 function segmentFor(el: Element): string {
-  return el.tagName.toLowerCase() + nthOfTypeSuffix(el);
+  return el.localName + nthOfTypeSuffix(el);
 }
 
 /**
@@ -196,6 +203,9 @@ function segmentFor(el: Element): string {
  *     full chain anyway — it is the best available.
  */
 export function buildUniqueSelector(el: Element): string {
+  // Root element — `html` is always unique and has no useful ancestor chain.
+  if (el.tagName === 'HTML') return 'html';
+
   // Fast path: unique id.
   const id = el.getAttribute('id');
   if (id) {
@@ -245,7 +255,7 @@ export function buildBreadcrumb(el: Element): string {
   let current: Element | null = el;
 
   while (current && current.nodeType === 1 && current.tagName !== 'HTML') {
-    const tag = current.tagName.toLowerCase();
+    const tag = current.localName;
     const cls = stableClasses(current)[0];
     segments.unshift(cls ? `${tag}.${cls}` : tag);
     current = current.parentElement;
@@ -307,7 +317,7 @@ export function resolveAttrs(el: Element): string[] {
 
 /** One-line descriptor: `tag#id.class1.class2` (id first, then up to 2 classes). */
 export function buildSummary(el: Element): string {
-  const tag = el.tagName.toLowerCase();
+  const tag = el.localName;
   const id = el.getAttribute('id');
   const classes = stableClasses(el).slice(0, 2);
   let out = tag;

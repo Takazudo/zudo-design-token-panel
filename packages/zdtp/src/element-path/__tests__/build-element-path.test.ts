@@ -73,6 +73,10 @@ describe('buildUniqueSelector', () => {
     expect(document.querySelector(sel)).toBe(second);
   });
 
+  it('returns "html" for the document root element', () => {
+    expect(buildUniqueSelector(document.documentElement)).toBe('html');
+  });
+
   it('anchors on an ancestor id to keep the chain short', () => {
     setBody(`
       <div id="card">

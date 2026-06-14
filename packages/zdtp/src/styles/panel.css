@@ -1398,6 +1398,16 @@ select.tokenpanel-tier-ref-select:focus-visible {
   stroke: currentColor;
 }
 
+/* While armed (Alt held in inspect mode): force a crosshair everywhere and
+   lock text selection so an inspect-click is purely a copy gesture. The class
+   is toggled on <html> by InspectorOverlay; `!important` beats host element
+   cursors (links/buttons). */
+html.tokenpanel-elpath-inspecting,
+html.tokenpanel-elpath-inspecting * {
+  cursor: crosshair !important;
+  user-select: none !important;
+}
+
 /* Hover highlight box — DevTools-style. Geometry is inline; this carries the
    visual ring + a translucent fill, plus defensive resets so host * {} rules
    cannot shift it. */
