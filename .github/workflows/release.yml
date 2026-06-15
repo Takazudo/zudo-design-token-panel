@@ -14,11 +14,10 @@
 #   All other v* tags                           → npm dist-tag "latest"
 # Prerelease consumers opt in with `pnpm add @takazudo/zdtp@next`.
 #
-# Stale-`next` cleanup (#345): the package does not currently maintain a
-# prerelease line, so a leftover `next` tag can silently lag `latest` (a host
-# resolving `@next` would get an older build). On every stable publish, the
-# "Drop stale next dist-tag" step below removes `next` IF it points behind the
-# just-published `latest` — a legitimately-ahead prerelease `next` is preserved.
+# Stale-`next` cleanup (#345) is handled out-of-band by
+# .github/workflows/prune-stale-next-dist-tag.yml (manual dispatch) — registry
+# dist-tag mutation is kept OUT of this publish job so a prune hiccup can never
+# mark a successful release as failed.
 #
 # The pre-publish test gate lives upstream in ci.yml / pr-checks.yml (the panel's
 # test suite needs Playwright Chromium for browser tests). `prepublishOnly` here
@@ -112,31 +111,5 @@ jobs:
       - name: Publish to npm
         if: ${{ inputs.dry_run != true && startsWith(github.ref, 'refs/tags/v') }}
         run: pnpm -r publish --tag "$DIST_TAG" --no-git-checks --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      # Drop a stale `next` dist-tag on stable releases (#345). Only removes
-      # `next` when it lags the just-published `latest`; a legitimately-ahead
-      # prerelease `next` is left intact. semver-sort decides "behind": if the
-      # greater of {next, latest} is latest, next is stale. Idempotent — a no-op
-      # when there is no `next` tag.
-      - name: Drop stale next dist-tag (stable releases)
-        if: ${{ inputs.dry_run != true && startsWith(github.ref, 'refs/tags/v') && env.DIST_TAG == 'latest' }}
-        shell: bash
-        run: |
-          PKG="@takazudo/zdtp"
-          NEXT_VER=$(npm dist-tag ls "$PKG" | awk -F': ' '/^next:/{print $2}')
-          if [ -z "$NEXT_VER" ]; then
-            echo "No 'next' dist-tag on $PKG — nothing to drop."
-            exit 0
-          fi
-          LATEST_VER=$(npm dist-tag ls "$PKG" | awk -F': ' '/^latest:/{print $2}')
-          GREATEST=$(npx --yes semver "$NEXT_VER" "$LATEST_VER" | tail -1)
-          if [ "$NEXT_VER" != "$LATEST_VER" ] && [ "$GREATEST" = "$LATEST_VER" ]; then
-            echo "Dropping stale '$PKG@next' ($NEXT_VER < latest $LATEST_VER)…"
-            npm dist-tag rm "$PKG" next
-          else
-            echo "Keeping '$PKG@next' ($NEXT_VER) — not behind latest ($LATEST_VER)."
-          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
