@@ -982,23 +982,31 @@ function applyTabOverridesFlat(
 }
 
 /**
- * Strip all tweak-applied inline CSS variables so the stylesheet-provided
- * values from the active scheme take effect again.
+ * Default wipe set — follows the host's configuration. Derives the clusters
+ * to clear from the color tabs (primary + optional secondary).
+ */
+function defaultClusterWipeSet(): readonly ColorClusterDataConfig[] {
+  const cfg = getPanelConfig();
+  const primary = getActivePrimaryCluster(cfg);
+  const secondary = resolveSecondaryColorCluster(cfg);
+  return secondary ? [primary, secondary] : [primary];
+}
+
+/**
+ * Strip the inline CSS variables written by the color cluster(s) only —
+ * palette slots, base roles, and semantic vars. Spacing / typography / size
+ * tab vars are left untouched.
+ *
+ * This is the scheme-change clear path. A host light/dark toggle re-seeds the
+ * absolute color palette from the new scheme, but the user's spacing /
+ * typography / size tweaks are scheme-independent and must survive the toggle
+ * (#347). For a full panel-level reset (Reset / Apply) use `clearAppliedStyles`.
  *
  * Accepts an optional list of clusters so callers can scope the wipe to a
- * subset; the default wipes both the primary and secondary clusters so a
- * panel-level reset leaves no stale inline overrides on `:root` regardless
- * of which cluster was last edited.
+ * subset; the default covers both the primary and secondary clusters.
  */
-export function clearAppliedStyles(
-  clusters: readonly ColorClusterDataConfig[] = (() => {
-    // Default wipe set follows the host's configuration. Derive clusters
-    // from the color tabs (primary + optional secondary).
-    const cfg = getPanelConfig();
-    const primary = getActivePrimaryCluster(cfg);
-    const secondary = resolveSecondaryColorCluster(cfg);
-    return secondary ? [primary, secondary] : [primary];
-  })(),
+export function clearAppliedColorStyles(
+  clusters: readonly ColorClusterDataConfig[] = defaultClusterWipeSet(),
 ) {
   const root = document.documentElement;
   for (const cluster of clusters) {
@@ -1012,8 +1020,26 @@ export function clearAppliedStyles(
       root.style.removeProperty(cssName);
     }
   }
+}
+
+/**
+ * Strip ALL tweak-applied inline CSS variables — color clusters AND every
+ * spacing / typography / size tab var — so the stylesheet-provided values from
+ * the active scheme take effect again.
+ *
+ * Accepts an optional list of clusters so callers can scope the color wipe to a
+ * subset; the default wipes both the primary and secondary clusters so a
+ * panel-level reset leaves no stale inline overrides on `:root` regardless
+ * of which cluster was last edited.
+ */
+export function clearAppliedStyles(
+  clusters: readonly ColorClusterDataConfig[] = defaultClusterWipeSet(),
+) {
+  // Color cluster vars (palette / base roles / semantic).
+  clearAppliedColorStyles(clusters);
   // Tabs — clear all cssVars for items in spacing/font/size tabs so the
   // stylesheet defaults take effect again.
+  const root = document.documentElement;
   for (const tab of getPanelConfig().tabs) {
     // Color tab vars are handled above via cluster clear paths.
     if (tab.id === 'color') continue;

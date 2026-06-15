@@ -2,6 +2,10 @@
 
 ## 0.2.3
 
+### Bug Fixes
+
+- A host `color-scheme-changed` event (light/dark toggle) no longer wipes the user's `spacing` / `typography` / `size` tweaks from the live panel. The scheme-change handler now clears only the color cluster's inline `:root` vars and re-seeds only the `color` (and optional `secondary`) slices, leaving the scheme-independent non-color slices — and their applied inline vars — intact. Previously it called the full `clearAppliedStyles()` + `freshTweakState()`, which stripped every spacing/font/size var and emptied those live slices, so the next in-panel edit permanently persisted the loss. A new internal `clearAppliedColorStyles()` performs the color-only clear; full resets (Reset / Apply) keep using `clearAppliedStyles()`. ([#347](https://github.com/Takazudo/zudo-design-token-panel/issues/347))
+
 ### Features
 
 - Make `ColorScheme.shikiTheme` optional so hosts can pass their color-scheme maps without a dummy `shikiTheme` or an `as unknown as` cast — the runtime already falls back to the cluster's `defaultShikiTheme`. The hydrated `ColorTweakState.shikiTheme` stays required (it is always defaulted, and `TweakState` is re-exported, so keeping it required avoids widening the public `state.color.shikiTheme` type). (e057388, fd87423, [#342](https://github.com/Takazudo/zudo-design-token-panel/issues/342))
