@@ -26,6 +26,7 @@ import {
   applyFullState,
   clampPosition,
   clampSize,
+  clearAppliedColorStyles,
   clearAppliedStyles,
   clearPersistedState,
   defaultSize,
@@ -234,17 +235,29 @@ export default function DesignTokenTweakPanel() {
     };
   }, []);
 
-  // Re-initialize when the color scheme or light/dark mode changes.
-  // Global tweak model (see README §9): the stored palette is absolute, so on a
-  // scheme change we drop the inline overrides and re-seed the live envelope
-  // from the new scheme rather than layering the old absolute colors on top.
+  // Re-initialize the COLOR slice when the color scheme or light/dark mode
+  // changes. Global tweak model (see README §9): the stored palette is
+  // absolute, so on a scheme change we drop the inline color overrides and
+  // re-seed the live color envelope from the new scheme rather than layering
+  // the old absolute colors on top.
+  //
+  // Spacing / typography / size tweaks are scheme-INDEPENDENT (a light/dark
+  // toggle does not change them), so they are preserved across the toggle:
+  // we clear only the color cluster vars and re-seed only the color slices,
+  // leaving the non-color live state and its applied inline vars intact (#347).
+  //
   // This does not rewrite localStorage — the persisted envelope is left until
   // the next edit re-persists or a reload re-applies it.
   useEffect(() => {
     function handleSchemeChange() {
-      // Clear all inline style overrides so the new scheme's <style> tag takes effect
-      clearAppliedStyles();
-      setState(freshTweakState());
+      // Clear only the color cluster inline vars so the new scheme's <style>
+      // tag takes effect for color; spacing/font/size inline vars stay applied.
+      clearAppliedColorStyles();
+      setState((prev) =>
+        prev
+          ? { ...prev, color: initColorFromScheme(), secondary: initSecondaryFromConfig() }
+          : freshTweakState(),
+      );
     }
     window.addEventListener('color-scheme-changed', handleSchemeChange);
     return () => window.removeEventListener('color-scheme-changed', handleSchemeChange);
