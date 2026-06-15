@@ -32,7 +32,12 @@
  * The `shikiTheme` field stays on the state + persist envelope so JSON
  * round-tripping with external exports is seamless; the UI hides it and
  * `applyShikiTheme` is a no-op. Removing the field would churn the serde
- * format for no real benefit.
+ * format for no real benefit. It stays *required* on the hydrated state —
+ * constructors and hydrators always default it (from the scheme / cluster
+ * default, or backfilled from defaults), and `TweakState` is re-exported, so
+ * keeping it required avoids widening the public `state.color.shikiTheme` type.
+ * Only the input `ColorScheme.shikiTheme` is optional (#342), so hosts may omit
+ * it on their scheme maps.
  */
 
 import type { ColorRef, ColorScheme } from '../config/color-schemes';

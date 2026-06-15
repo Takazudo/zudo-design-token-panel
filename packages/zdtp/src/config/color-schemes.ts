@@ -44,8 +44,13 @@ export interface ColorScheme {
    * in the Astro types (this package isn't an Astro app — this field is
    * preserved for symmetry with upstream presets and for any future
    * code-block tooling).
+   *
+   * Optional: this package only uses it for the (no-op) code-block preview,
+   * and `initColorFromSchemeData` falls back to `colorExtras.defaultShikiTheme`
+   * when a scheme omits it. Hosts whose schemes carry no Shiki theme can pass
+   * their scheme maps directly, without a dummy value or an `as unknown as` cast.
    */
-  shikiTheme: string;
+  shikiTheme?: string;
   /**
    * Optional semantic overrides — when omitted, defaults from
    * `SEMANTIC_DEFAULTS_ZD` (in `color-scheme-utils.ts`) are used.

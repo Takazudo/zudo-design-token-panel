@@ -234,7 +234,12 @@ export default function DesignTokenTweakPanel() {
     };
   }, []);
 
-  // Re-initialize when the color scheme or light/dark mode changes
+  // Re-initialize when the color scheme or light/dark mode changes.
+  // Global tweak model (see README §9): the stored palette is absolute, so on a
+  // scheme change we drop the inline overrides and re-seed the live envelope
+  // from the new scheme rather than layering the old absolute colors on top.
+  // This does not rewrite localStorage — the persisted envelope is left until
+  // the next edit re-persists or a reload re-applies it.
   useEffect(() => {
     function handleSchemeChange() {
       // Clear all inline style overrides so the new scheme's <style> tag takes effect
