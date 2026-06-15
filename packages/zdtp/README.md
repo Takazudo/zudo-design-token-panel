@@ -838,6 +838,17 @@ myapp-design-token-panel:visible
 
 The `visible` key uses a literal `:` separator, not `-`. Every other derived key uses `-`. This is intentional — see [`PORTABLE-CONTRACT.md`](./PORTABLE-CONTRACT.md) §2 for the historical reason. Don't try to "normalize" it; the unit tests assert this specific shape.
 
+### Scheme changes and the global tweak model
+
+Tweak state is **global**, not scheme-scoped: the keys above are derived only from `storagePrefix` and carry no color-scheme name. A single envelope holds every slice — the `color` slice stores **absolute** colors (palette + role/semantic indices resolved against that palette), while the `spacing` / `typography` / `size` slices store token overrides that are independent of the active scheme.
+
+Because the stored palette is absolute, it cannot simply be re-applied on top of a different scheme. So when the host dispatches a `color-scheme-changed` event (e.g. a light/dark toggle), the panel **re-seeds its live state from the newly active scheme**: it removes the inline `:root` overrides it had applied (`clearAppliedStyles`) and re-initializes the live envelope from that scheme (`freshTweakState`). Palette tweaks are therefore intentionally **not** carried across a scheme switch — the panel adopts the new scheme's palette rather than layering the previous absolute colors on top of it. This is the panel's deliberate global model; it does **not** persist a separate color slice per scheme.
+
+Two consequences worth knowing as a host integrator:
+
+- The event handler does not rewrite the `localStorage` envelope — it only re-seeds the live (in-memory) state and clears the inline overrides. The persisted envelope remains until the next in-panel edit re-persists the (re-seeded) state, or a full reload re-applies it via `loadPersistedState`.
+- Do **not** manually delete the tweak keys on a scheme toggle. The panel already re-seeds on the event, and a manual envelope delete would also discard the scheme-independent `spacing` / `typography` / `size` overrides.
+
 ---
 
 ## 10. Console API contract
