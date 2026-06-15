@@ -45,6 +45,11 @@ jobs:
         with:
           node-version: 22
           registry-url: "https://registry.npmjs.org"
+          # This job only needs node + npm (the script uses `npm dist-tag`); it
+          # does NOT set pnpm up. setup-node defaults package-manager-cache to
+          # true, which auto-detects pnpm from the repo and fails with
+          # "Unable to locate executable file: pnpm". Disable it.
+          package-manager-cache: false
 
       - name: Prune stale next dist-tag
         run: node scripts/prune-stale-next-dist-tag.mjs ${{ inputs.dry_run && '--dry-run' || '' }}
