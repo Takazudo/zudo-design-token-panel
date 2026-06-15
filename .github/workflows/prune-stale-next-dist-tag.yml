@@ -1,0 +1,52 @@
+# prune-stale-next-dist-tag.yml
+#
+# Manually-triggered maintenance: drop a stale npm `next` dist-tag for
+# @takazudo/zdtp when it lags `latest` (#345). The package does not maintain a
+# prerelease line, so a leftover `next` tag silently serves an older build to
+# anyone resolving `@takazudo/zdtp@next`.
+#
+# Decision logic + the npm calls live in scripts/prune-stale-next-dist-tag.mjs
+# (dependency-free, unit-tested comparator). This is intentionally a separate,
+# manual workflow rather than a step in release.yml: registry dist-tag mutation
+# is kept out of the publish job so a prune hiccup never marks a successful
+# release as failed.
+#
+# Run from the Actions tab, or: `gh workflow run prune-stale-next-dist-tag.yml`.
+# Auth reuses the same Automation-type NPM_TOKEN secret as release.yml.
+
+name: Prune stale next dist-tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print the decision without mutating the registry"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-dist-tag-maintenance
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    name: Prune stale next dist-tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Prune stale next dist-tag
+        run: node scripts/prune-stale-next-dist-tag.mjs ${{ inputs.dry_run && '--dry-run' || '' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
