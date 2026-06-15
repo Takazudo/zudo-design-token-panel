@@ -1,13 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP,
+  getActivePrimaryCluster,
   getStorageKeyV1,
   getStorageKeyV2,
   getStorageKeyV3,
+  initColorFromSchemeData,
   type ColorTweakState,
   type StorageLike,
   loadPersistedState,
 } from '../state/tweak-state';
+import type { ColorScheme } from '../config/color-schemes';
 import { __resetPanelConfigForTests } from '../config/panel-config';
 import { installFixturePanelConfig } from './_test-helpers';
 
@@ -524,5 +527,36 @@ describe('loadPersistedState — typography rename map (configurable)', () => {
     expect(result!.typography['toString']).toBe('1rem');
     expect(result!.typography['constructor']).toBe('2rem');
     expect(result!.typography['text-xs']).toBe('0.9rem');
+  });
+});
+
+describe('#342 — ColorScheme.shikiTheme is optional', () => {
+  // A scheme literal that omits `shikiTheme` must type-check (this annotation
+  // would fail to compile if the field were still required) and, at runtime,
+  // fall back to the cluster's `defaultShikiTheme`. The palette cast is an
+  // unrelated concern — `ColorScheme.palette` is a 16-tuple, our fixture a
+  // plain `string[]`.
+  const schemeWithoutShiki: ColorScheme = {
+    background: 0,
+    foreground: 15,
+    cursor: 6,
+    selectionBg: 0,
+    selectionFg: 15,
+    palette: palette16 as ColorScheme['palette'],
+  };
+
+  it('falls back to the cluster defaultShikiTheme when a scheme omits it', () => {
+    const cluster = getActivePrimaryCluster();
+    const state = initColorFromSchemeData(schemeWithoutShiki, cluster);
+    expect(state.shikiTheme).toBe(cluster.defaultShikiTheme);
+  });
+
+  it('honors an explicit shikiTheme when the scheme provides one', () => {
+    const cluster = getActivePrimaryCluster();
+    const state = initColorFromSchemeData(
+      { ...schemeWithoutShiki, shikiTheme: 'vitesse-dark' },
+      cluster,
+    );
+    expect(state.shikiTheme).toBe('vitesse-dark');
   });
 });

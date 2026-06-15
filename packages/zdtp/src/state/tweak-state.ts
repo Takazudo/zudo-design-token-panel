@@ -27,12 +27,14 @@
  * The secondary cluster is an opt-in field on `PanelConfig`. When the host
  * does not configure one, the secondary slice is hidden / skipped end to end.
  *
- * **shikiTheme kept, applyShikiTheme stubbed**
+ * **shikiTheme kept (optional), applyShikiTheme stubbed**
  *
  * The `shikiTheme` field stays on the state + persist envelope so JSON
  * round-tripping with external exports is seamless; the UI hides it and
  * `applyShikiTheme` is a no-op. Removing the field would churn the serde
- * format for no real benefit.
+ * format for no real benefit. It is typed optional because the runtime always
+ * defaults it (init from the scheme / cluster default, hydrate backfills from
+ * defaults) — so neither hosts nor persisted payloads must supply it.
  */
 
 import type { ColorRef, ColorScheme } from '../config/color-schemes';
@@ -376,7 +378,7 @@ export function clampPosition(
  * changes. This package does not use Shiki — we keep the function for
  * API shape + persisted-state round-tripping, but the body is a no-op.
  */
-export async function applyShikiTheme(_themeName: string): Promise<void> {
+export async function applyShikiTheme(_themeName?: string): Promise<void> {
   // No Shiki integration here; preserved as a no-op for persist-envelope
   // round-trip compatibility with zudo-doc exports.
 }
@@ -438,7 +440,8 @@ export interface ColorTweakState {
   selectionBg: number;
   selectionFg: number;
   semanticMappings: Record<string, number | 'bg' | 'fg'>;
-  shikiTheme: string;
+  /** Optional — runtime always defaults it; see the file header note. */
+  shikiTheme?: string;
 }
 
 /**
