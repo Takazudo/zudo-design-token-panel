@@ -79,6 +79,17 @@ export interface PanelConfig {
   /** Default filename base — exports save as `${exportFilenameBase}.json`. */
   exportFilenameBase: string;
   /**
+   * Optional window-event name that toggles THIS instance's panel.
+   *
+   * The default (single-panel) instance keeps the historical public event
+   * `toggle-design-token-panel` (plus its `toggle-color-tweak-panel` alias) and
+   * ignores this field — see `toggleEventName()`. A configured instance with a
+   * NON-default `storagePrefix` listens on this name; when omitted it defaults
+   * to `toggle-${storagePrefix}` so two panels on one page get independent
+   * toggle channels with no cross-talk.
+   */
+  toggleEvent?: string;
+  /**
    * Optional host-supplied color-scheme presets.
    *
    * Surfaces additional named `ColorScheme` entries in the Color tab's
@@ -364,6 +375,17 @@ function makeHandle(prefix: string): PanelInstanceHandle {
  * register without reaching into private module scope.
  */
 export interface PanelLifecycleHooks {
+  /**
+   * Fired ONCE per newly-registered instance, immediately after
+   * `configurePanel` installs it (and AFTER the instance's post-configure
+   * hooks run). Z2 uses this to bind the instance's per-instance toggle-event
+   * listener at configure time — unlike `registerPostConfigureHook` (which
+   * adopts parked hooks for the FIRST instance only), this fires for EVERY
+   * `configurePanel` call, including the 2nd+ instance, so a non-default
+   * panel's `toggle-${storagePrefix}` channel is live the moment it is
+   * configured.
+   */
+  configured?: (instanceId: string) => void;
   open?: (instanceId: string) => void;
   close?: (instanceId: string) => void;
   toggle?: (instanceId: string) => void;
@@ -374,11 +396,12 @@ const panelLifecycleHooks: PanelLifecycleHooks = {};
 
 /**
  * Z2 seam: install per-instance lifecycle handlers used by every instance
- * handle's open/close/toggle/destroy. Last call wins (Z2 owns its own
- * idempotency). No-op-friendly: unset handlers leave the corresponding handle
- * method a no-op.
+ * handle's open/close/toggle/destroy plus the per-configure `configured` hook.
+ * Last call wins (Z2 owns its own idempotency). No-op-friendly: unset handlers
+ * leave the corresponding hook a no-op.
  */
 export function __setPanelLifecycleHooks(hooks: PanelLifecycleHooks): void {
+  panelLifecycleHooks.configured = hooks.configured;
   panelLifecycleHooks.open = hooks.open;
   panelLifecycleHooks.close = hooks.close;
   panelLifecycleHooks.toggle = hooks.toggle;
@@ -456,6 +479,10 @@ export function configurePanel(config: PanelConfig): PanelInstanceHandle {
   for (const hook of record.postConfigureHooks) {
     hook();
   }
+  // Fire the Z2 per-configure hook for THIS (every) instance, so the lifecycle
+  // module can bind the instance's toggle-event channel at configure time —
+  // including the 2nd+ instance that the post-configure-hook adoption skips.
+  panelLifecycleHooks.configured?.(prefix);
   return record.handle;
 }
 
@@ -632,6 +659,54 @@ export function panelRootId(cfg: PanelConfig): string {
 }
 
 /**
+ * The public `storagePrefix` of the default (single-panel) instance. An
+ * instance whose prefix equals this keeps the historical public toggle-event
+ * name; every other prefix gets a per-instance channel. Kept in lockstep with
+ * `DEFAULT_PANEL_CONFIG.storagePrefix`.
+ */
+const DEFAULT_STORAGE_PREFIX = DEFAULT_PANEL_CONFIG.storagePrefix;
+
+/**
+ * Historical public toggle-event name. Hosts have shipped `window.dispatchEvent(
+ * new CustomEvent('toggle-design-token-panel'))` since the single-panel era, so
+ * the default instance MUST keep emitting/listening on this name regardless of
+ * its derived `toggle-${storagePrefix}` form.
+ */
+export const DEFAULT_TOGGLE_EVENT = 'toggle-design-token-panel';
+
+/**
+ * Window-event name that toggles this instance's panel.
+ *
+ *  - Default instance (prefix === `DEFAULT_STORAGE_PREFIX`): the historical
+ *    `toggle-design-token-panel`. The `index.tsx` listener additionally binds
+ *    the deprecated `toggle-color-tweak-panel` alias for this instance only.
+ *  - Configured instance (any other prefix): `cfg.toggleEvent` when supplied,
+ *    else `toggle-${storagePrefix}` — a per-instance channel so two panels do
+ *    not cross-talk.
+ */
+export function toggleEventName(cfg: PanelConfig): string {
+  if (cfg.storagePrefix === DEFAULT_STORAGE_PREFIX) return DEFAULT_TOGGLE_EVENT;
+  return cfg.toggleEvent ?? `toggle-${cfg.storagePrefix}`;
+}
+
+/** Base name of the internal per-instance open-state sync event (see below). */
+const OPEN_STATE_CHANGED_EVENT_BASE = '__zdtp:open-state-changed';
+
+/**
+ * Per-instance internal sync event name. `index.tsx` dispatches this on
+ * `window` after writing `localStorage[OPEN_KEY]`; the mounted `panel.tsx`
+ * listens for it and re-reads `OPEN_KEY`. Keyed by `storagePrefix` so a change
+ * to panel A's open state only pokes panel A's listener — two panels on one
+ * page stay fully independent (issue #354).
+ *
+ * Internal (double-underscore prefix) — NOT part of the public DOM contract;
+ * hosts must dispatch the public toggle event, never this one.
+ */
+export function openStateChangedEventName(cfg: PanelConfig): string {
+  return `${OPEN_STATE_CHANGED_EVENT_BASE}:${cfg.storagePrefix}`;
+}
+
+/**
  * BEM-style modal class. Pass an empty `suffix` for the base block, or
  * `'--export'` / `'__title'` etc. for elements / modifiers.
  */
@@ -679,6 +754,14 @@ export function assertValidPanelConfig(value: unknown): asserts value is PanelCo
   assertValidTabs(cfg.tabs);
 
   // Optional fields — only validate when present.
+  if (
+    cfg.toggleEvent !== undefined &&
+    (typeof cfg.toggleEvent !== 'string' || (cfg.toggleEvent as string).length === 0)
+  ) {
+    throw new Error(
+      `[design-token-panel] PanelConfig.toggleEvent must be a non-empty string when set (got ${typeof cfg.toggleEvent})`,
+    );
+  }
   if (cfg.applyEndpoint !== undefined && typeof cfg.applyEndpoint !== 'string') {
     throw new Error(
       `[design-token-panel] PanelConfig.applyEndpoint must be a string when set (got ${typeof cfg.applyEndpoint})`,
