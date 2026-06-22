@@ -690,27 +690,14 @@ export function cssColorToHex(color: string): string {
 }
 
 /**
- * Write a single CSS custom property. When `sink` is supplied the write is
- * routed through it; otherwise it falls through to `document.documentElement`.
+ * Write a single CSS custom property to `document.documentElement`.
  *
- * This helper is kept intentionally thin — callers batch pairs themselves
- * (e.g. `applyColorState`) and flush them to the sink in one call.
- * Individual-call routing here keeps every existing call site unchanged while
- * still allowing per-call sink overrides during the internal batch loops.
+ * The sink-aware write path bypasses this helper entirely: sink callers
+ * collect all pairs into a batch and call `sink.apply(pairs)` directly.
+ * This helper is used only by the default (no-sink) path in the `else`
+ * branches of `applyColorState`, `applyTabOverridesFlat`, etc.
  */
-export function setCssVar(name: string, value: string, sink?: ApplySink) {
-  if (sink) {
-    // Sink batching is the caller's responsibility; we just delegate.
-    // The sink's `apply` contract is "upsert these pairs" so a single-pair
-    // call is valid — it's the cheapest per-call contract that doesn't
-    // require the caller to collect pairs up front.
-    try {
-      sink.apply([[name, value]]);
-    } catch (err) {
-      console.warn('[design-token-panel] applySink.apply threw; falling back silently.', err);
-    }
-    return;
-  }
+export function setCssVar(name: string, value: string) {
   document.documentElement.style.setProperty(name, value);
 }
 

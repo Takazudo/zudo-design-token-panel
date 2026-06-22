@@ -46,9 +46,8 @@ export function usePersist(setState: SetState<TweakState>, cfg?: PanelConfig) {
         return next;
       });
     },
-    // cfg is intentionally included in the deps array so the callback
-    // re-binds when the config reference changes (e.g. hot-reload in dev).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // cfg is intentionally included so the callback re-binds when the
+    // config reference changes (e.g. hot-reload in dev).
     [setState, cfg],
   );
 
