@@ -40,6 +40,13 @@
  * }
  * ```
  *
+ * Host-coined GENERIC tabs (any configured tab whose id is not one of the
+ * dedicated slices `color` / `color-secondary` / `spacing` / `font` / `size`)
+ * round-trip the same way as spacing/size: their overrides live in
+ * `state.tabs[id]` (the v3 envelope) and serialize under `tabs[id].raw`,
+ * cssVar-keyed (issue #363). The apply path (`applyFullState`) already consumes
+ * `state.tabs`; serialize + deserialize make Export/Load symmetric with it.
+ *
  * Key decisions (issue #74):
  * - cssVar-keyed leaves for portability across host id renames.
  * - Tier-2 ref values are stored as the literal `var(--tier1-cssvar)` CSS
@@ -65,7 +72,7 @@
  * Read-only manifest tokens are skipped in both directions.
  */
 
-import type { ColorTweakState, TokenOverrides, TweakState } from '../state/tweak-state';
+import type { ColorTweakState, TabOverrides, TokenOverrides, TweakState } from '../state/tweak-state';
 import { getActivePrimaryCluster } from '../state/tweak-state';
 import { getPanelConfig, type PanelConfig } from '../config/panel-config';
 import { resolvePaletteCssVar } from '../config/cluster-config';
@@ -96,6 +103,61 @@ function getTabItems(tabId: string, cfg: PanelConfig = getPanelConfig()): readon
     }
   }
   return items;
+}
+
+/**
+ * Tab ids handled by a dedicated serde slice — the four reserved external tab
+ * ids plus `color-secondary` (carried by `state.secondary`, not `state.tabs`).
+ * Everything else configured in `cfg.tabs` is a host-coined GENERIC tab whose
+ * overrides live in `state.tabs[id]` and round-trip under `tabs[id].raw`.
+ */
+const RESERVED_TAB_IDS: ReadonlySet<string> = new Set([
+  'color',
+  'color-secondary',
+  'spacing',
+  'font',
+  'size',
+]);
+
+/**
+ * Flatten a tier-nested `TabOverrides` (`tierId → itemId → value`) into a flat
+ * `TokenOverrides` (`itemId → value`) so it can be fed to `serializeOverridesV2`,
+ * which keys diff/emit by item id. Item ids are unique across a tab's tiers
+ * (enforced by panel-config validation), so the flatten is lossless; any stale
+ * or readonly item id that lingers in the persisted map is filtered out later by
+ * `serializeOverridesV2` (it only walks the manifest items).
+ */
+function flattenTabOverrides(tabOverrides: TabOverrides | undefined): TokenOverrides {
+  const flat: TokenOverrides = {};
+  if (!tabOverrides) return flat;
+  for (const tierMap of Object.values(tabOverrides)) {
+    for (const [itemId, value] of Object.entries(tierMap)) {
+      flat[itemId] = value;
+    }
+  }
+  return flat;
+}
+
+/**
+ * Build a `cssVar → { tierId, itemId }` reverse lookup for a tab (readonly items
+ * skipped). Used by the generic-tab deserialize pass to rebuild the tier-nested
+ * `TabOverrides` shape — `getTabItems` flattens away the tier id, so it can't be
+ * used here. Returns an empty map when the tab is not configured.
+ */
+function buildTabVarLookup(
+  tabId: string,
+  cfg: PanelConfig,
+): Map<string, { tierId: string; itemId: string }> {
+  const map = new Map<string, { tierId: string; itemId: string }>();
+  const tab = cfg.tabs.find((t) => t.id === tabId);
+  if (!tab) return map;
+  for (const tier of tab.tiers) {
+    for (const item of tier.items) {
+      if (item.readonly) continue;
+      map.set(item.cssVar, { tierId: tier.id, itemId: item.id });
+    }
+  }
+  return map;
 }
 
 /** The canonical v2 schema identifier emitted by serialize(). */
@@ -181,7 +243,14 @@ export interface DesignTokenJson {
  */
 export type V2TierMap = Record<string, string | number>;
 
-/** Per-tab overrides in v2 format. Key is tier id. */
+/**
+ * Per-tab overrides in v2 format. Keyed nominally by tier id — but only the
+ * `color` tab uses real tier ids (`palette` / `semantic`). Every other tab
+ * (spacing / font / size AND host-coined generic tabs) uses the single synthetic
+ * external key `raw` regardless of its internal tier ids; the cssVar leaves under
+ * `raw` carry the identity, so the external JSON never depends on a tab's
+ * internal tier structure.
+ */
 export type V2TabEntry = Record<string, V2TierMap>;
 
 /** v2 external JSON document shape. */
@@ -297,6 +366,20 @@ export function serialize(
 
   const sizeTab = serializeOverridesV2(getTabItems('size', cfg), state.size, opts);
   if (sizeTab) tabs['size'] = sizeTab;
+
+  // Generic (host-coined, custom-id) tabs — any configured tab that isn't one of
+  // the dedicated slices above. Their overrides live in `state.tabs[id]` (the v3
+  // envelope) and are emitted under `tabs[id].raw`, cssVar-keyed, exactly like
+  // spacing/size. Driven by `cfg.tabs` so this is symmetric with the deserialize
+  // pass and with the apply path (`applyFullState`), which already consumes
+  // `state.tabs`. The stored override value is written verbatim — no `var()`
+  // resolution here (that belongs to the apply/build path, not serde).
+  for (const tab of cfg.tabs) {
+    if (RESERVED_TAB_IDS.has(tab.id)) continue;
+    const flat = flattenTabOverrides(state.tabs?.[tab.id]);
+    const genericTab = serializeOverridesV2(getTabItems(tab.id, cfg), flat, opts);
+    if (genericTab) tabs[tab.id] = genericTab;
+  }
 
   if (Object.keys(tabs).length > 0) {
     out.tabs = tabs;
@@ -509,8 +592,47 @@ function deserializeV2(
     : undefined;
   const size = deserializeOverridesV2(sizeRaw, getTabItems('size', cfg), 'size', unknownTokens, warnings);
 
+  // Generic (custom-id) tabs — driven by the CONFIGURED tabs, not arbitrary
+  // payload keys, so foreign / unconfigured tab ids in the JSON are ignored
+  // rather than admitted into `state.tabs` (there is no "unknownTabs" channel;
+  // unknown cssVars within a configured tab still surface via `unknownTokens`).
+  // Rebuilds the tier-nested `TabOverrides` shape so the round-trip equals what
+  // `persistTab` writes and `applyFullState` consumes.
+  let tabsState: Record<string, TabOverrides> | undefined;
+  for (const tab of cfg.tabs) {
+    if (RESERVED_TAB_IDS.has(tab.id)) continue;
+    const tabEntry = tabsRaw[tab.id];
+    const rawMap =
+      tabEntry && typeof tabEntry === 'object' && !Array.isArray(tabEntry)
+        ? (tabEntry as Record<string, unknown>)['raw']
+        : undefined;
+    if (!rawMap || typeof rawMap !== 'object' || Array.isArray(rawMap)) continue;
+
+    const lookup = buildTabVarLookup(tab.id, cfg);
+    const tierBuckets: Record<string, Record<string, string>> = {};
+    let wrote = false;
+    for (const [cssVar, value] of Object.entries(rawMap as Record<string, unknown>)) {
+      const hit = lookup.get(cssVar);
+      if (!hit) {
+        unknownTokens.push(cssVar);
+        continue;
+      }
+      if (typeof value !== 'string' || value.length === 0) {
+        warnings.push(`${tab.id}.raw.${cssVar} is not a non-empty string; ignored.`);
+        continue;
+      }
+      const bucket = tierBuckets[hit.tierId] ?? (tierBuckets[hit.tierId] = {});
+      bucket[hit.itemId] = value;
+      wrote = true;
+    }
+    if (wrote) {
+      if (!tabsState) tabsState = {};
+      tabsState[tab.id] = tierBuckets;
+    }
+  }
+
   return {
-    state: { color, spacing, typography, size },
+    state: { color, spacing, typography, size, ...(tabsState ? { tabs: tabsState } : {}) },
     unknownTokens,
     warnings,
   };

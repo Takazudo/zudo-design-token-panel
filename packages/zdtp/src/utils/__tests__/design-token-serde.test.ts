@@ -10,7 +10,8 @@ import {
 } from '../design-token-serde';
 import type { ColorTweakState, TweakState } from '../../state/tweak-state';
 import { __resetPanelConfigForTests } from '../../config/panel-config';
-import { installFixturePanelConfig, FIXTURE_CLUSTER } from '../../__tests__/_test-helpers';
+import { installFixturePanelConfig, FIXTURE_CLUSTER, FIXTURE_TABS } from '../../__tests__/_test-helpers';
+import type { TabConfig } from '../../tokens/tier-model';
 
 beforeEach(() => {
   installFixturePanelConfig();
@@ -484,5 +485,139 @@ describe('getDesignTokenSchema', () => {
     // (from FIXTURE_PANEL_CONFIG). This is the host-configured "expected" schema
     // for import validation UI. serialize() independently always emits SCHEMA_V2.
     expect(getDesignTokenSchema()).toBe('zudo-design-tokens/v1');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// serialize / deserialize — generic (custom-id) tabs (issue #363)
+// ---------------------------------------------------------------------------
+
+/**
+ * A host-coined GENERIC tab: id `ui-color` is NOT one of the reserved dedicated
+ * slices (color/spacing/font/size), so its overrides live in `state.tabs['ui-color']`
+ * and must round-trip under `tabs['ui-color'].raw`. Deliberately TWO tiers
+ * (`brand` with two items, `surface` with one) so the round-trip exercises the
+ * tier-aware reverse lookup — a single-tier fixture would not prove that items
+ * are rebucketed into the correct tier on deserialize. Text-kind rows mirror the
+ * #363 repro (custom text tabs that can't use the reserved `color` id).
+ */
+const GENERIC_TAB: TabConfig = {
+  id: 'ui-color',
+  label: 'UI Color',
+  tiers: [
+    {
+      id: 'brand',
+      label: 'Brand',
+      items: [
+        { id: 'brand-base', cssVar: '--ui-brand', label: 'brand', default: 'rebeccapurple', type: { kind: 'text' } },
+        { id: 'brand-ink', cssVar: '--ui-brand-ink', label: 'brand ink', default: 'white', type: { kind: 'text' } },
+      ],
+    },
+    {
+      id: 'surface',
+      label: 'Surface',
+      items: [
+        { id: 'surface-base', cssVar: '--ui-surface', label: 'surface', default: 'canvas', type: { kind: 'text' } },
+      ],
+    },
+  ],
+};
+
+/** Install the fixture config WITH the generic `ui-color` tab appended. */
+function installWithGenericTab(): void {
+  installFixturePanelConfig({ tabs: [...FIXTURE_TABS, GENERIC_TAB] });
+}
+
+describe('serialize/deserialize — generic (custom-id) tabs', () => {
+  beforeEach(() => {
+    installWithGenericTab();
+  });
+
+  it('serialize emits tabs[<customId>].raw (cssVar-keyed) when a generic-tab item differs from its default', () => {
+    const state = makeState({ tabs: { 'ui-color': { brand: { 'brand-base': '#ff0000' } } } });
+    const json = serialize(state, { colorDefaults: COLOR_BASELINE });
+    expect(json.tabs?.['ui-color']?.['raw']).toEqual({ '--ui-brand': '#ff0000' });
+  });
+
+  it('serialize drops a generic-tab override that equals the item default (diff-only)', () => {
+    // 'rebeccapurple' is the declared default for --ui-brand, so it must NOT appear.
+    const state = makeState({ tabs: { 'ui-color': { brand: { 'brand-base': 'rebeccapurple' } } } });
+    const json = serialize(state, { colorDefaults: COLOR_BASELINE });
+    expect(json.tabs?.['ui-color']).toBeUndefined();
+  });
+
+  it('serialize under includeDefaults dumps every editable generic-tab item', () => {
+    const json = serialize(makeState(), { colorDefaults: COLOR_BASELINE, includeDefaults: true });
+    expect(json.tabs?.['ui-color']?.['raw']).toEqual({
+      '--ui-brand': 'rebeccapurple',
+      '--ui-brand-ink': 'white',
+      '--ui-surface': 'canvas',
+    });
+  });
+
+  it('round-trips generic-tab overrides across MULTIPLE tiers (serialize → JSON → deserialize)', () => {
+    const original = makeState({
+      tabs: {
+        'ui-color': {
+          brand: { 'brand-base': '#ff0000', 'brand-ink': '#eeeeee' },
+          surface: { 'surface-base': 'navy' },
+        },
+      },
+    });
+
+    const json = serialize(original, { colorDefaults: COLOR_BASELINE });
+    // Sanity: every changed item lands under the single synthetic external `raw` key.
+    expect(json.tabs?.['ui-color']?.['raw']).toEqual({
+      '--ui-brand': '#ff0000',
+      '--ui-brand-ink': '#eeeeee',
+      '--ui-surface': 'navy',
+    });
+
+    const parsed = JSON.parse(JSON.stringify(json));
+    const { state, unknownTokens } = deserialize(parsed, { colorDefaults: COLOR_BASELINE });
+
+    expect(unknownTokens).toEqual([]);
+    // Tier-aware reconstruction: items are rebucketed into their original tiers.
+    expect(state.tabs).toEqual(original.tabs);
+  });
+
+  it('collects unknown cssVars inside a generic tab into unknownTokens', () => {
+    const payload: DesignTokenJsonV2 = {
+      $schema: SCHEMA_V2,
+      exportedAt: new Date().toISOString(),
+      tabs: {
+        'ui-color': {
+          raw: {
+            '--ui-brand': '#ff0000',
+            '--ui-bogus': 'nope',
+          },
+        },
+      },
+    };
+    const { state, unknownTokens } = deserialize(payload, { colorDefaults: COLOR_BASELINE });
+    expect(state.tabs).toEqual({ 'ui-color': { brand: { 'brand-base': '#ff0000' } } });
+    expect(unknownTokens).toEqual(['--ui-bogus']);
+  });
+
+  it('ignores an unconfigured/foreign generic tab id present in the JSON (not admitted into state.tabs)', () => {
+    const payload: DesignTokenJsonV2 = {
+      $schema: SCHEMA_V2,
+      exportedAt: new Date().toISOString(),
+      tabs: {
+        'not-a-configured-tab': { raw: { '--whatever': '1rem' } },
+      },
+    };
+    const { state, unknownTokens } = deserialize(payload, { colorDefaults: COLOR_BASELINE });
+    expect(state.tabs).toBeUndefined();
+    // A foreign tab id is ignored wholesale — its cssVars are NOT reported as unknown tokens.
+    expect(unknownTokens).toEqual([]);
+  });
+
+  it('no generic-tab overrides → tabs omitted on serialize, state.tabs undefined on deserialize (no regression)', () => {
+    const json = serialize(makeState(), { colorDefaults: COLOR_BASELINE });
+    expect(json.tabs?.['ui-color']).toBeUndefined();
+
+    const { state } = deserialize(JSON.parse(JSON.stringify(json)), { colorDefaults: COLOR_BASELINE });
+    expect(state.tabs).toBeUndefined();
   });
 });
