@@ -123,7 +123,44 @@ describe('panel-config — derivation flips with a non-default config', () => {
   });
 });
 
-describe('panel-config — configurePanel idempotency', () => {
+describe('panel-config — configurePanel idempotency (per prefix)', () => {
+  const CONFIG_A: PanelConfig = {
+    storagePrefix: 'aaa',
+    consoleNamespace: 'aaa',
+    modalClassPrefix: 'aaa-modal',
+    schemaId: 'aaa/v1',
+    exportFilenameBase: 'aaa',
+    tabs: [],
+  };
+
+  /** Same prefix as CONFIG_A but a structurally-different non-prefix field. */
+  const CONFIG_A_CONFLICT: PanelConfig = {
+    ...CONFIG_A,
+    consoleNamespace: 'aaa-renamed',
+  };
+
+  it('calling configurePanel twice with identical values is a no-op (does not throw)', () => {
+    configurePanel(CONFIG_A);
+    expect(() => configurePanel({ ...CONFIG_A })).not.toThrow();
+    expect(getPanelConfig()).toEqual(CONFIG_A);
+  });
+
+  it('idempotent re-call for the same prefix returns the SAME handle', () => {
+    const handle = configurePanel(CONFIG_A);
+    const again = configurePanel({ ...CONFIG_A });
+    expect(again).toBe(handle);
+    expect(again.instanceId).toBe('aaa');
+  });
+
+  it('same prefix but structurally-different config throws (reconfigure rule: reject-with-error)', () => {
+    configurePanel(CONFIG_A);
+    expect(() => configurePanel(CONFIG_A_CONFLICT)).toThrow(/already called with different values/);
+    // The first config is preserved — the conflicting call did not overwrite it.
+    expect(getPanelConfig()).toEqual(CONFIG_A);
+  });
+});
+
+describe('panel-config — multi-instance registry (distinct prefixes)', () => {
   const CONFIG_A: PanelConfig = {
     storagePrefix: 'aaa',
     consoleNamespace: 'aaa',
@@ -142,17 +179,58 @@ describe('panel-config — configurePanel idempotency', () => {
     tabs: [],
   };
 
-  it('calling configurePanel twice with identical values is a no-op (does not throw)', () => {
+  it('a distinct prefix registers a second instance without throwing', () => {
     configurePanel(CONFIG_A);
-    expect(() => configurePanel({ ...CONFIG_A })).not.toThrow();
+    expect(() => configurePanel(CONFIG_B)).not.toThrow();
+  });
+
+  it('returns distinct handles whose instanceId equals the storagePrefix', () => {
+    const handleA = configurePanel(CONFIG_A);
+    const handleB = configurePanel(CONFIG_B);
+    expect(handleA).not.toBe(handleB);
+    expect(handleA.instanceId).toBe('aaa');
+    expect(handleB.instanceId).toBe('bbb');
+  });
+
+  it('the most-recently-configured instance becomes the default getPanelConfig() returns', () => {
+    configurePanel(CONFIG_A);
+    configurePanel(CONFIG_B);
+    // CONFIG_B was configured last → it is the active/default instance.
+    expect(getPanelConfig()).toEqual(CONFIG_B);
+  });
+
+  it('two instances derive independent storage keys / root ids from their prefixes', () => {
+    const handleA = configurePanel(CONFIG_A);
+    const handleB = configurePanel(CONFIG_B);
+    void handleA;
+    void handleB;
+    // Storage keys are a pure function of storagePrefix → fully independent.
+    expect(storageKey_stateV3(CONFIG_A)).toBe('aaa-state-v3');
+    expect(storageKey_stateV3(CONFIG_B)).toBe('bbb-state-v3');
+    expect(storageKey_open(CONFIG_A)).toBe('aaa-open');
+    expect(storageKey_open(CONFIG_B)).toBe('bbb-open');
+    expect(panelRootId(CONFIG_A)).toBe('aaa-root');
+    expect(panelRootId(CONFIG_B)).toBe('bbb-root');
+  });
+
+  it('destroy() deregisters an instance and re-points the default to the remaining one', () => {
+    const handleA = configurePanel(CONFIG_A);
+    configurePanel(CONFIG_B);
+    // B is the default; destroying B falls the default back to A.
+    const handleB = configurePanel(CONFIG_B); // idempotent — same handle as before
+    void handleA;
+    handleB.destroy();
     expect(getPanelConfig()).toEqual(CONFIG_A);
   });
 
-  it('calling configurePanel twice with different values throws', () => {
-    configurePanel(CONFIG_A);
-    expect(() => configurePanel(CONFIG_B)).toThrow(/already called with different values/);
-    // The first config is preserved — the second call did not silently overwrite.
-    expect(getPanelConfig()).toEqual(CONFIG_A);
+  it('destroy() then re-configure the same prefix with a different config no longer throws', () => {
+    const handleA = configurePanel(CONFIG_A);
+    handleA.destroy();
+    // After destroy the prefix is free — a fresh config under the same prefix
+    // is accepted (the reconfigure escape hatch documented on RECONFIGURE_RULE).
+    const reconfigured: PanelConfig = { ...CONFIG_A, consoleNamespace: 'aaa-v2' };
+    expect(() => configurePanel(reconfigured)).not.toThrow();
+    expect(getPanelConfig()).toEqual(reconfigured);
   });
 });
 
