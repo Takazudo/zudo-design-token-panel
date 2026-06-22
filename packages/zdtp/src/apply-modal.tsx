@@ -35,8 +35,13 @@ import {
   modalClass,
   resolveApplyRouting,
   resolveSecondaryColorCluster,
+  type PanelConfig,
 } from './config/panel-config';
-import { type ColorTweakState, type TweakState } from './state/tweak-state';
+import {
+  getActivePrimaryCluster,
+  type ColorTweakState,
+  type TweakState,
+} from './state/tweak-state';
 import { serialize } from './utils/design-token-serde';
 
 const COPY_REVERT_MS = 2000;
@@ -58,6 +63,15 @@ export interface ApplyModalProps {
    * clear any inline-applied styles, and reset in-memory state to empty.
    */
   onApplied: () => void;
+  /**
+   * The mounted panel instance's config (multi-instance, #357). When supplied,
+   * the modal resolves its apply routing / endpoint / secondary cluster / modal
+   * classes from THIS instance rather than the active default instance — so an
+   * Apply on panel A targets A's endpoint+routing, not whichever instance was
+   * configured last. Omitted (e.g. a direct test render) → `getPanelConfig()`,
+   * preserving the single-panel path.
+   */
+  instanceConfig?: PanelConfig;
 }
 
 /**
@@ -206,10 +220,13 @@ function buildClasses(cfg: ReturnType<typeof getPanelConfig>): ModalClasses {
 // ---------------------------------------------------------------------------
 
 export function ApplyModal(props: ApplyModalProps) {
-  const { state, open, onClose, colorDefaults, onApplied } = props;
+  const { state, open, onClose, colorDefaults, onApplied, instanceConfig } = props;
   const dialogRef = useRef<HTMLDialogElement | null>(null);
   const primaryButtonRef = useRef<HTMLDivElement | null>(null);
-  const cfg = getPanelConfig();
+  // Resolve THIS instance's config (multi-instance, #357): the mounted panel
+  // passes its `instanceConfig`; a prop-less test render falls back to the
+  // active default instance.
+  const cfg = instanceConfig ?? getPanelConfig();
   const cls = useMemo(() => buildClasses(cfg), [cfg]);
 
   // Instance-scoped id for aria-labelledby. useId() ensures uniqueness when
@@ -263,8 +280,14 @@ export function ApplyModal(props: ApplyModalProps) {
   }, [copyLabel]);
 
   const flattenedOverrides = useMemo(() => {
+    // Resolve THIS instance's primary cluster + tabs so the payload's CSS-var
+    // names / tab token set come from the panel that's applying — NOT the active
+    // default instance (#357). Without this, panel A would POST A's endpoint with
+    // vars/tabs derived from default panel B (wrong token names → rejects or
+    // edits to the wrong tokens).
+    const primaryCluster = getActivePrimaryCluster(cfg);
     // Primary zd cluster — diffed against the scheme baseline.
-    const zdOverrides = buildApplyOverrides(state, colorDefaults);
+    const zdOverrides = buildApplyOverrides(state, colorDefaults, primaryCluster, cfg.tabs);
     // Optional secondary cluster. Three short-circuits:
     //
     //   1. Host opted out (`secondaryColorCluster: null`) — `secondaryCluster`
@@ -279,7 +302,12 @@ export function ApplyModal(props: ApplyModalProps) {
     const secondaryCluster = resolveSecondaryColorCluster(cfg);
     const secondaryOverrides =
       secondaryCluster && state.secondary
-        ? buildApplyOverrides({ ...state, color: state.secondary }, undefined, secondaryCluster)
+        ? buildApplyOverrides(
+            { ...state, color: state.secondary },
+            undefined,
+            secondaryCluster,
+            cfg.tabs,
+          )
         : {};
     return { ...zdOverrides, ...secondaryOverrides };
   }, [state, colorDefaults, cfg]);

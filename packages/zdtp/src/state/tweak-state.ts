@@ -179,9 +179,9 @@ export function defaultPosition(): PanelPosition {
   return { top, left };
 }
 
-export function loadPosition(): PanelPosition {
+export function loadPosition(cfg?: PanelConfig): PanelPosition {
   try {
-    const saved = localStorage.getItem(getPositionKey());
+    const saved = localStorage.getItem(getPositionKey(cfg));
     if (saved) {
       const parsed = JSON.parse(saved) as PanelPosition;
       if (typeof parsed.top === 'number' && typeof parsed.left === 'number') {
@@ -194,9 +194,9 @@ export function loadPosition(): PanelPosition {
   return defaultPosition();
 }
 
-export function savePosition(pos: PanelPosition) {
+export function savePosition(pos: PanelPosition, cfg?: PanelConfig) {
   try {
-    localStorage.setItem(getPositionKey(), JSON.stringify(pos));
+    localStorage.setItem(getPositionKey(cfg), JSON.stringify(pos));
   } catch {
     /* ignore */
   }
@@ -262,9 +262,9 @@ export function clampSize(width: number, height: number): PanelSize {
   };
 }
 
-export function loadSize(): PanelSize {
+export function loadSize(cfg?: PanelConfig): PanelSize {
   try {
-    const saved = localStorage.getItem(getSizeKey());
+    const saved = localStorage.getItem(getSizeKey(cfg));
     if (saved) {
       const parsed = JSON.parse(saved) as PanelSize;
       if (
@@ -282,9 +282,9 @@ export function loadSize(): PanelSize {
   return defaultSize();
 }
 
-export function saveSize(size: PanelSize) {
+export function saveSize(size: PanelSize, cfg?: PanelConfig) {
   try {
-    localStorage.setItem(getSizeKey(), JSON.stringify(size));
+    localStorage.setItem(getSizeKey(cfg), JSON.stringify(size));
   } catch {
     /* ignore */
   }
@@ -316,9 +316,9 @@ export function densityToGridMin(density: PanelDensity): string {
   return '18rem';
 }
 
-export function loadDensity(): PanelDensity {
+export function loadDensity(cfg?: PanelConfig): PanelDensity {
   try {
-    const saved = localStorage.getItem(getDensityKey());
+    const saved = localStorage.getItem(getDensityKey(cfg));
     if (saved === '0' || saved === '1' || saved === '2') {
       return Number(saved) as PanelDensity;
     }
@@ -328,9 +328,9 @@ export function loadDensity(): PanelDensity {
   return DEFAULT_DENSITY;
 }
 
-export function saveDensity(density: PanelDensity) {
+export function saveDensity(density: PanelDensity, cfg?: PanelConfig) {
   try {
-    localStorage.setItem(getDensityKey(), String(density));
+    localStorage.setItem(getDensityKey(cfg), String(density));
   } catch {
     /* ignore */
   }
@@ -587,12 +587,16 @@ export function initSecondaryDefaults(cluster: ColorClusterDataConfig): ColorTwe
 
 /**
  * Convenience helper used by `panel.tsx` and tests: seed a fresh secondary
- * `ColorTweakState` from the active panel config's secondary cluster.
+ * `ColorTweakState` from the panel config's secondary cluster.
  * Returns `undefined` when the host opted out of the secondary cluster
  * (`secondaryColorCluster: null` or omitted).
+ *
+ * `cfg` scopes the secondary-cluster lookup to a specific panel instance
+ * (multi-instance, #357). Omitting it resolves the default instance, preserving
+ * the single-panel path.
  */
-export function initSecondaryFromConfig(): ColorTweakState | undefined {
-  const secondary = resolveSecondaryColorCluster();
+export function initSecondaryFromConfig(cfg?: PanelConfig): ColorTweakState | undefined {
+  const secondary = resolveSecondaryColorCluster(cfg);
   return secondary ? initSecondaryDefaults(secondary) : undefined;
 }
 
@@ -1200,9 +1204,27 @@ function nonColorTabVarNames(cfg: PanelConfig): string[] {
  *
  * When `sink` is supplied, clears are routed through it instead of
  * `document.documentElement`.
+ *
+ * `cfg` scopes the clear to a specific panel instance (multi-instance, #357):
+ * when supplied AND no explicit `clusters` / `sink` are given, the default
+ * cluster wipe set is derived from `cfg`'s tabs and clears route through
+ * `cfg.applySink`. An explicitly-passed `clusters` or `sink` still wins, so the
+ * historical `(clusters, sink)` call shape (e.g. the scheme-change path before
+ * #357, and existing tests) is unchanged. Omitting all three preserves the
+ * single-panel default-instance behaviour.
  */
 export function clearAppliedColorStyles(
-  clusters: readonly ColorClusterDataConfig[] = defaultClusterWipeSet(),
+  clusters?: readonly ColorClusterDataConfig[],
+  sink?: ApplySink,
+  cfg?: PanelConfig,
+) {
+  const resolvedClusters = clusters ?? defaultClusterWipeSet(cfg);
+  const resolvedSink = sink ?? cfg?.applySink;
+  return clearAppliedColorStylesImpl(resolvedClusters, resolvedSink);
+}
+
+function clearAppliedColorStylesImpl(
+  clusters: readonly ColorClusterDataConfig[],
   sink?: ApplySink,
 ) {
   if (sink) {
@@ -1536,17 +1558,18 @@ function hydrateV2OrV3Object(
   },
   cluster: ColorClusterDataConfig,
   colorDefaults?: ColorTweakState,
+  cfg: PanelConfig = getPanelConfig(),
 ): TweakState | null {
   if (!obj.color || !isValidColorShape(obj.color, cluster.paletteSize)) return null;
 
   const defaults = colorDefaults ?? tryInitColorFromScheme(cluster);
   const typographySlice = obj.typography !== undefined ? obj.typography : obj.font;
-  // Rename map sourced from the active panel config. Defaults to an
+  // Rename map sourced from THIS instance's panel config. Defaults to an
   // empty map (no renaming) so hosts whose manifest ids are stable are
   // not corrupted — see issue #51 and the doc on
   // `ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP` for the opt-in zdtp-internal
   // map.
-  const renameMap = getPanelConfig().legacyIdRenameMap ?? {};
+  const renameMap = cfg.legacyIdRenameMap ?? {};
   const next: TweakState = {
     color: hydrateColorState(obj.color as Partial<ColorTweakState>, defaults),
     // New sections added after v1 migration — tolerate their absence so
@@ -1566,7 +1589,7 @@ function hydrateV2OrV3Object(
   // entirely — the apply path also skips secondary writes, and the
   // JSON envelope simply omits the slice for opt-out hosts. Defaults
   // come from `initSecondaryDefaults(cluster)`.
-  const secondaryCluster = resolveSecondaryColorCluster();
+  const secondaryCluster = resolveSecondaryColorCluster(cfg);
   if (
     secondaryCluster &&
     obj.secondary &&
@@ -1589,10 +1612,11 @@ export function loadPersistedState(
   storage: StorageLike = localStorage,
   colorDefaults?: ColorTweakState,
   cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
+  cfg: PanelConfig = getPanelConfig(),
 ): TweakState | null {
-  const STORAGE_KEY_V1 = getStorageKeyV1();
-  const STORAGE_KEY_V2 = getStorageKeyV2();
-  const STORAGE_KEY_V3 = getStorageKeyV3();
+  const STORAGE_KEY_V1 = getStorageKeyV1(cfg);
+  const STORAGE_KEY_V2 = getStorageKeyV2(cfg);
+  const STORAGE_KEY_V3 = getStorageKeyV3(cfg);
 
   // 1. v3 wins.
   const rawV3 = safeGet(storage, STORAGE_KEY_V3);
@@ -1609,7 +1633,7 @@ export function loadPersistedState(
         secondary?: unknown;
         tabs?: unknown;
       };
-      const next = hydrateV2OrV3Object(obj, cluster, colorDefaults);
+      const next = hydrateV2OrV3Object(obj, cluster, colorDefaults, cfg);
       if (next !== null) {
         // Renormalize storage when the typography migration actually changed
         // the slice (rename or null-drop) OR the legacy `font` alias was
@@ -1649,7 +1673,7 @@ export function loadPersistedState(
         secondary?: unknown;
         tabs?: unknown;
       };
-      const migrated = hydrateV2OrV3Object(obj, cluster, colorDefaults);
+      const migrated = hydrateV2OrV3Object(obj, cluster, colorDefaults, cfg);
       if (migrated !== null) {
         try {
           storage.setItem(STORAGE_KEY_V3, JSON.stringify(migrated));
@@ -1703,29 +1727,48 @@ export function loadPersistedState(
   return null;
 }
 
-/** Persist the full `TweakState` to v3. */
-export function savePersistedState(state: TweakState, storage: StorageLike = localStorage) {
+/**
+ * Persist the full `TweakState` to v3.
+ *
+ * `cfg` scopes the storage key to a specific panel instance (multi-instance,
+ * #357). Omitting it resolves the default instance via `getPanelConfig()`,
+ * preserving the single-panel path.
+ */
+export function savePersistedState(
+  state: TweakState,
+  storage: StorageLike = localStorage,
+  cfg: PanelConfig = getPanelConfig(),
+) {
   try {
-    storage.setItem(getStorageKeyV3(), JSON.stringify(state));
+    storage.setItem(getStorageKeyV3(cfg), JSON.stringify(state));
   } catch {
     // Storage full.
   }
 }
 
-/** Remove v3 (and lingering v2/v1) keys. */
-export function clearPersistedState(storage: StorageLike = localStorage) {
+/**
+ * Remove v3 (and lingering v2/v1) keys.
+ *
+ * `cfg` scopes the cleared keys to a specific panel instance (multi-instance,
+ * #357). Omitting it resolves the default instance via `getPanelConfig()`,
+ * preserving the single-panel path.
+ */
+export function clearPersistedState(
+  storage: StorageLike = localStorage,
+  cfg: PanelConfig = getPanelConfig(),
+) {
   try {
-    storage.removeItem(getStorageKeyV3());
+    storage.removeItem(getStorageKeyV3(cfg));
   } catch {
     /* ignore */
   }
   try {
-    storage.removeItem(getStorageKeyV2());
+    storage.removeItem(getStorageKeyV2(cfg));
   } catch {
     /* ignore */
   }
   try {
-    storage.removeItem(getStorageKeyV1());
+    storage.removeItem(getStorageKeyV1(cfg));
   } catch {
     /* ignore */
   }

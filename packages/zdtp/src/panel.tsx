@@ -37,6 +37,7 @@ import {
   defaultSize,
   densityToGridMin,
   emptyOverrides,
+  getActivePrimaryCluster,
   getOpenKey,
   initColorFromScheme,
   initSecondaryFromConfig,
@@ -98,14 +99,18 @@ function computePanelSize(
  *
  * Extracted from four identical inline object literals throughout the panel
  * so that adding or renaming a state slice only requires one change.
+ *
+ * `cfg` scopes the colour-cluster + secondary-cluster derivation to THIS
+ * mounted panel instance (multi-instance, #357). Omitting it resolves the
+ * default instance, preserving the single-panel path.
  */
-function freshTweakState(): TweakState {
+function freshTweakState(cfg?: PanelConfig): TweakState {
   return {
-    color: initColorFromScheme(),
+    color: initColorFromScheme(getActivePrimaryCluster(cfg)),
     spacing: emptyOverrides(),
     typography: emptyOverrides(),
     size: emptyOverrides(),
-    secondary: initSecondaryFromConfig(),
+    secondary: initSecondaryFromConfig(cfg),
   };
 }
 
@@ -175,7 +180,7 @@ export default function DesignTokenTweakPanel({
   const resizeCleanupRef = useRef<(() => void) | null>(null);
 
   const { persistColor, persistSpacing, persistFont, persistSize, persistSecondary, persistTab } =
-    usePersist(setState);
+    usePersist(setState, instanceConfig);
 
   // Restore open state, position, and size from localStorage after mount (avoids SSR hydration mismatch)
   useEffect(() => {
@@ -184,23 +189,26 @@ export default function DesignTokenTweakPanel({
     } catch {
       /* ignore */
     }
-    const loaded = loadPosition();
+    const loaded = loadPosition(instanceConfig);
     setPosition(loaded);
     positionRef.current = loaded;
-    const loadedSize = loadSize();
+    const loadedSize = loadSize(instanceConfig);
     setSize(loadedSize);
     sizeRef.current = loadedSize;
-    setDensity(loadDensity());
+    setDensity(loadDensity(instanceConfig));
     // Initial narrow-check
     setIsNarrow(window.innerWidth < NARROW_BREAKPOINT);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Persist density on change
-  const handleDensityChange = useCallback((next: PanelDensity) => {
-    setDensity(next);
-    saveDensity(next);
-  }, []);
+  const handleDensityChange = useCallback(
+    (next: PanelDensity) => {
+      setDensity(next);
+      saveDensity(next, instanceConfig);
+    },
+    [instanceConfig],
+  );
 
   // Persist open state, and keep the adapter-level :visible key in sync.
   // The adapter (index.tsx) only writes :visible from its public API paths
@@ -291,23 +299,36 @@ export default function DesignTokenTweakPanel({
     function handleSchemeChange() {
       // Clear only the color cluster inline vars so the new scheme's <style>
       // tag takes effect for color; spacing/font/size inline vars stay applied.
-      clearAppliedColorStyles();
+      // Scoped to THIS instance's clusters + sink so a scheme change on panel A
+      // never wipes panel B's color vars / sink target (#357).
+      clearAppliedColorStyles(undefined, undefined, instanceConfig);
       setState((prev) =>
         prev
-          ? { ...prev, color: initColorFromScheme(), secondary: initSecondaryFromConfig() }
-          : freshTweakState(),
+          ? {
+              ...prev,
+              color: initColorFromScheme(getActivePrimaryCluster(instanceConfig)),
+              secondary: initSecondaryFromConfig(instanceConfig),
+            }
+          : freshTweakState(instanceConfig),
       );
     }
     window.addEventListener('color-scheme-changed', handleSchemeChange);
     return () => window.removeEventListener('color-scheme-changed', handleSchemeChange);
-  }, []);
+  }, [instanceConfig]);
 
-  // Initialize state on first open
+  // Initialize state on first open. Every storage read + apply is scoped to
+  // THIS instance's config (#357): panel A loads from A's storage keys and
+  // applies through A's sink, never touching B's.
   useEffect(() => {
     if (!open || state) return;
-    const persisted = loadPersistedState();
+    const persisted = loadPersistedState(
+      undefined,
+      undefined,
+      getActivePrimaryCluster(instanceConfig),
+      instanceConfig,
+    );
     if (persisted) {
-      applyFullState(persisted);
+      applyFullState(persisted, instanceConfig);
       setState(persisted);
       return;
     }
@@ -316,8 +337,8 @@ export default function DesignTokenTweakPanel({
     // The `secondary` slice is always seeded — every fresh-state path
     // includes it so the persisted envelope shape stays stable regardless
     // of the user's path.
-    setState(freshTweakState());
-  }, [open, state]);
+    setState(freshTweakState(instanceConfig));
+  }, [open, state, instanceConfig]);
 
   // Drag handler for panel header (stable — reads position from ref)
   const handleDragStart = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -360,7 +381,7 @@ export default function DesignTokenTweakPanel({
       // Commit final position to React state (single re-render on drag end).
       const finalPos = positionRef.current;
       setPosition(finalPos);
-      savePosition(finalPos);
+      savePosition(finalPos, instanceConfig);
     }
 
     document.addEventListener('mousemove', onMouseMove);
@@ -369,7 +390,7 @@ export default function DesignTokenTweakPanel({
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
     };
-  }, []);
+  }, [instanceConfig]);
 
   // Resize handler for the bottom-right grip — mirrors handleDragStart's
   // structure: writes directly to the DOM during the drag (to avoid 60 fps
@@ -407,7 +428,7 @@ export default function DesignTokenTweakPanel({
       resizeCleanupRef.current = null;
       const finalSize = sizeRef.current;
       setSize(finalSize);
-      saveSize(finalSize);
+      saveSize(finalSize, instanceConfig);
       // Re-clamp position against the new size — a wider panel may need its
       // anchor pulled back into the viewport.
       const finalPos = clampPosition(
@@ -418,7 +439,7 @@ export default function DesignTokenTweakPanel({
       );
       if (finalPos.top !== positionRef.current.top || finalPos.left !== positionRef.current.left) {
         setPosition(finalPos);
-        savePosition(finalPos);
+        savePosition(finalPos, instanceConfig);
       }
     }
 
@@ -428,7 +449,7 @@ export default function DesignTokenTweakPanel({
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
     };
-  }, []);
+  }, [instanceConfig]);
 
   // Clean up drag + resize listeners on unmount
   useEffect(() => {
@@ -447,7 +468,7 @@ export default function DesignTokenTweakPanel({
       setSize((prev) => {
         const clamped = clampSize(prev.width, prev.height);
         if (clamped.width !== prev.width || clamped.height !== prev.height) {
-          saveSize(clamped);
+          saveSize(clamped, instanceConfig);
         }
         return clamped;
       });
@@ -455,41 +476,46 @@ export default function DesignTokenTweakPanel({
       const panelHeight = panelRef.current?.offsetHeight ?? 600;
       setPosition((prev) => {
         const clamped = clampPosition(prev.top, prev.left, panelWidth, panelHeight);
-        savePosition(clamped);
+        savePosition(clamped, instanceConfig);
         return clamped;
       });
     }
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  }, [instanceConfig]);
 
-  const handleLoadFromJson = useCallback((loaded: TweakState) => {
-    // Replace the panel state with the loaded tweak, apply CSS vars, persist
-    // to localStorage (v2). Unknown tokens have already been filtered out by
-    // deserialize().
-    applyFullState(loaded);
-    savePersistedState(loaded);
-    setState(loaded);
-  }, []);
+  const handleLoadFromJson = useCallback(
+    (loaded: TweakState) => {
+      // Replace the panel state with the loaded tweak, apply CSS vars, persist
+      // to localStorage (v3). Unknown tokens have already been filtered out by
+      // deserialize(). Apply + persist are scoped to THIS instance (#357).
+      applyFullState(loaded, instanceConfig);
+      savePersistedState(loaded, undefined, instanceConfig);
+      setState(loaded);
+    },
+    [instanceConfig],
+  );
 
   const handleResetAll = useCallback(() => {
-    clearPersistedState();
-    clearAppliedStyles();
+    // Clear + reset are scoped to THIS instance's storage keys, clusters, and
+    // sink so a reset on panel A never touches panel B's storage/vars (#357).
+    clearPersistedState(undefined, instanceConfig);
+    clearAppliedStyles(undefined, instanceConfig);
     // Always seed the secondary slice — every fresh-state path emits a
     // uniform envelope shape so persistence stays consistent.
-    setState(freshTweakState());
-  }, []);
+    setState(freshTweakState(instanceConfig));
+  }, [instanceConfig]);
 
   const handleApplied = useCallback(() => {
     // After a successful apply the on-disk CSS now matches the current tweak,
     // so drop the persisted override envelope and any inline overrides — the
-    // page will re-render from the fresh stylesheet.
-    clearPersistedState();
-    clearAppliedStyles();
+    // page will re-render from the fresh stylesheet. Scoped to THIS instance (#357).
+    clearPersistedState(undefined, instanceConfig);
+    clearAppliedStyles(undefined, instanceConfig);
     // Always seed the secondary slice — every fresh-state path emits a
     // uniform envelope shape.
-    setState(freshTweakState());
-  }, []);
+    setState(freshTweakState(instanceConfig));
+  }, [instanceConfig]);
 
   // Build the active tab list from this instance's PanelConfig.tabs (required).
   // Keyed on `instanceConfig` so a non-default panel renders ITS own manifest,
@@ -739,7 +765,7 @@ export default function DesignTokenTweakPanel({
                     state={state.color}
                     persistColor={persistColor}
                     secondaryTab={tabConfigById['color-secondary'] ?? null}
-                    secondaryState={state.secondary ?? initSecondaryFromConfig() ?? null}
+                    secondaryState={state.secondary ?? initSecondaryFromConfig(instanceConfig) ?? null}
                     persistSecondary={persistSecondary}
                   />
                 )}
@@ -806,7 +832,8 @@ export default function DesignTokenTweakPanel({
         <ExportModal
           onClose={() => setShowExport(false)}
           state={state}
-          colorDefaults={initColorFromScheme()}
+          colorDefaults={initColorFromScheme(getActivePrimaryCluster(instanceConfig))}
+          instanceConfig={instanceConfig}
         />
       )}
 
@@ -814,7 +841,8 @@ export default function DesignTokenTweakPanel({
         <ImportModal
           onClose={() => setShowImport(false)}
           onLoad={handleLoadFromJson}
-          colorDefaults={initColorFromScheme()}
+          colorDefaults={initColorFromScheme(getActivePrimaryCluster(instanceConfig))}
+          instanceConfig={instanceConfig}
         />
       )}
 
@@ -823,8 +851,9 @@ export default function DesignTokenTweakPanel({
           state={state}
           open={showApply}
           onClose={() => setShowApply(false)}
-          colorDefaults={initColorFromScheme()}
+          colorDefaults={initColorFromScheme(getActivePrimaryCluster(instanceConfig))}
           onApplied={handleApplied}
+          instanceConfig={instanceConfig}
         />
       )}
 
