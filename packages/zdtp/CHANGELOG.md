@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- **Multi-instance support.** `configurePanel(config)` now returns a `PanelInstanceHandle` and supports multiple independent panel instances on one page. Calling it with a distinct `storagePrefix` registers a new instance (independent storage keys, DOM root, toggle event, apply target). Calling it again with the same prefix and structurally-equal config is a no-op that returns the same handle (covers Astro view-transition reruns). Calling it with the same prefix but a structurally-different config throws immediately (`RECONFIGURE_RULE = 'reject-with-error'`); call `handle.destroy()` first to re-configure a prefix. Additive and backward-compatible — single-panel hosts observe no change. ([#353](https://github.com/Takazudo/zudo-design-token-panel/issues/353))
+
+- **`PanelInstanceHandle`.** `configurePanel` now returns a handle with `{ instanceId, open(), close(), toggle(), destroy() }`. `instanceId` equals `storagePrefix`. `destroy()` deregisters the instance, unmounts its Preact tree, removes its DOM root, and unbinds its toggle-event listener — freeing the prefix for re-configuration. ([#353](https://github.com/Takazudo/zudo-design-token-panel/issues/353))
+
+- **Per-instance toggle events.** The default instance (the historical `storagePrefix`) keeps `toggle-design-token-panel` unchanged. Any instance with a non-default prefix listens on `config.toggleEvent` when supplied, or `toggle-${storagePrefix}` by default — giving each instance its own independent toggle channel. `PanelConfig.toggleEvent?: string` is a new optional field. ([#354](https://github.com/Takazudo/zudo-design-token-panel/issues/354))
+
+- **`PanelConfig.applySink`.** An optional `{ apply(pairs), clear(names) }` sink routes this instance's CSS-var writes and clears through a caller-supplied object instead of `document.documentElement`. Useful for shadow DOM, iframe, or test-spy contexts. `apply` = upsert; `clear` = remove. Reset sends the full token-name set for the instance to `sink.clear` so the sink target is completely cleaned. Sink errors are non-fatal (`console.warn`). The host owns the sink target's lifecycle. `applySink` carries function references and must not be passed through the Astro inline JSON config. ([#355](https://github.com/Takazudo/zudo-design-token-panel/issues/355))
+
 ## 0.2.3
 
 ### Bug Fixes

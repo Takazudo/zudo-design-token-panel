@@ -14,16 +14,19 @@ configuration (tiers, items, color cluster extras) are all host-supplied.
 
 ---
 
-## 1. `configurePanel({...})` — configure-once init
+## 1. `configurePanel({...})` — multi-instance init
 
-The package exposes a single, idempotent setup function. Hosts call it exactly
-once per page lifecycle, before the panel adapter is dynamically imported
-(typically from a small Astro host script that gates the adapter behind a
-visibility / persistence probe — see §6).
+The package exposes a setup function that returns a `PanelInstanceHandle`.
+Hosts call it once per `storagePrefix` per page lifecycle, before the panel
+adapter for that instance is dynamically imported (typically from a small Astro
+host script that gates the adapter behind a visibility / persistence probe —
+see §6). The same function supports **multiple independent panel instances** on
+one page: call it with a distinct `storagePrefix` to register a new instance;
+call it with the same prefix and equal config for an idempotent no-op.
 
 ```ts
 export interface PanelConfig {
-  /** Base for every derived storage key. See §2. */
+  /** Base for every derived storage key. Also the instance id. See §2. */
   storagePrefix: string;
   /** Console API namespace — installed as `window[consoleNamespace].showDesignPanel`, etc. */
   consoleNamespace: string;
@@ -33,6 +36,16 @@ export interface PanelConfig {
   schemaId: string;
   /** Default filename base — exports save as `${exportFilenameBase}.json`. */
   exportFilenameBase: string;
+  /**
+   * Optional window-event name that toggles THIS instance's panel.
+   *
+   * The default (single-panel) instance keeps the historical public event
+   * `toggle-design-token-panel` and ignores this field. A configured instance
+   * with a NON-default `storagePrefix` listens on this name; when omitted it
+   * defaults to `toggle-${storagePrefix}` so two panels on one page get
+   * independent toggle channels with no cross-talk.
+   */
+  toggleEvent?: string;
   /**
    * Host-supplied tab configuration (required). The panel renders a tab strip
    * from this array. See §3 for the full tab/tier model.
@@ -74,6 +87,16 @@ export interface PanelConfig {
    */
   applyRouting?: Record<string, string>;
   /**
+   * Optional apply sink. Routes this instance's CSS-var writes and clears
+   * through the caller-supplied object instead of `document.documentElement`.
+   * See §3.5 for the full sink contract.
+   *
+   * NOTE: this field carries a function reference and is therefore NOT
+   * JSON-serializable. It cannot pass through Astro's inline JSON config.
+   * Supply it via a post-configure call or a custom adapter.
+   */
+  applySink?: ApplySink;
+  /**
    * Optional id rename map applied during `loadPersistedState` migration.
    * Keys are old ids found in persisted state; values are either the new
    * canonical id (string) or `null` to drop the legacy id entirely.
@@ -82,7 +105,48 @@ export interface PanelConfig {
   legacyIdRenameMap?: Record<string, string | null>;
 }
 
-export function configurePanel(config: PanelConfig): void;
+/**
+ * Apply sink — routes CSS-var writes for one panel instance somewhere other
+ * than the host `:root`. See §3.5.
+ */
+export interface ApplySink {
+  /** Upsert the given var name→value pairs on the sink target. */
+  apply(pairs: ReadonlyArray<readonly [string, string]>): void;
+  /** Remove the given var names from the sink target. */
+  clear(names: readonly string[]): void;
+}
+
+/**
+ * Handle returned by `configurePanel`. Identifies one configured instance
+ * and exposes its imperative lifecycle controls.
+ *
+ * `instanceId` equals `config.storagePrefix` — the registry key.
+ * Two `configurePanel` calls with the same prefix+config return the SAME
+ * handle (referential identity is stable across idempotent re-calls).
+ */
+export interface PanelInstanceHandle {
+  /** Stable instance id — equal to the instance's `storagePrefix`. */
+  readonly instanceId: string;
+  /** Show this instance's panel. */
+  open(): void;
+  /** Hide this instance's panel. */
+  close(): void;
+  /** Toggle this instance's panel open/closed. */
+  toggle(): void;
+  /**
+   * Deregister this instance from the registry. Unmounts the instance's
+   * Preact tree, removes its DOM root, and unbinds its toggle-event listener.
+   * After `destroy()` the prefix can be re-configured by calling
+   * `configurePanel` again.
+   */
+  destroy(): void;
+}
+
+/**
+ * Configure one panel instance. Returns the instance handle.
+ * Call once per `storagePrefix` per page lifecycle.
+ */
+export function configurePanel(config: PanelConfig): PanelInstanceHandle;
 
 /**
  * Lazy preset attachment. Hosts that don't want to ship the preset library
@@ -104,20 +168,70 @@ export function assertValidPanelConfig(value: unknown): asserts value is PanelCo
 
 Required behaviours:
 
-- **One-shot.** Calling `configurePanel` more than once with different values
-  is an error. The panel may either throw or warn-and-ignore, but it MUST
-  NOT silently overwrite a previously-configured cluster mid-session.
+- **Multi-instance.** Calling `configurePanel` with a **distinct**
+  `storagePrefix` registers an independent panel instance (no throw). Distinct
+  instances derive independent storage keys, DOM roots, and toggle events and
+  do not interfere with each other.
+- **Idempotent for same prefix+config.** Calling `configurePanel` a second
+  time with the same `storagePrefix` and structurally-equal config values is a
+  no-op and returns the SAME handle. This covers Astro view-transition reruns
+  that re-parse the inline JSON config.
+- **Same-prefix-different-config THROWS (`RECONFIGURE_RULE = 'reject-with-error'`).** Calling
+  `configurePanel` with a `storagePrefix` already in the registry but a
+  structurally-different config throws immediately. To re-configure a prefix,
+  call `handle.destroy()` first, then `configurePanel` again.
 - **Synchronous.** No I/O, no awaits. The call must be cheap enough to run
   inline at module-init from the Astro frontmatter side.
-- **Pure data only.** Every field on `PanelConfig` (and every nested field
-  inside `tabs`) MUST be JSON-serializable. This is the hard precondition for
-  the Astro frontmatter → island prop handoff (§6): Astro stringifies props,
-  so functions / class instances do not survive.
+- **Pure data only (except `applySink`).** Every field on `PanelConfig` other
+  than `applySink` MUST be JSON-serializable. This is the hard precondition
+  for the Astro frontmatter → island prop handoff (§6): Astro stringifies
+  props, so functions / class instances do not survive. `applySink` carries
+  function references and MUST NOT be included in the Astro JSON config.
 - **No default `PanelConfig` baked into the package.** Hosts MUST configure
   the panel explicitly via `<DesignTokenPanelHost config={...} />` or a
   direct `configurePanel({...})` call. The package ships zero baked-in
   identifiers — every storage prefix, namespace, and manifest entry comes
   from the host.
+
+### Multi-instance example
+
+```ts
+// Primary panel instance
+const primaryHandle = configurePanel({
+  storagePrefix: 'myapp-design-token-panel',
+  // ...other fields
+});
+
+// Secondary panel instance — distinct prefix, independent instance
+const secondaryHandle = configurePanel({
+  storagePrefix: 'myapp-preview-panel',
+  toggleEvent: 'toggle-preview-panel', // optional; default: toggle-${storagePrefix}
+  // ...other fields
+});
+
+// Each handle controls only its own instance:
+primaryHandle.open();    // opens primary panel
+secondaryHandle.toggle(); // toggles secondary panel
+
+// Listen for the secondary panel's toggle event:
+window.dispatchEvent(new CustomEvent('toggle-preview-panel'));
+
+// To re-configure a prefix, destroy first:
+primaryHandle.destroy();
+configurePanel({ storagePrefix: 'myapp-design-token-panel', /* new config */ });
+```
+
+### Per-instance toggle events
+
+| Instance | `storagePrefix` | `toggleEvent` field | Effective toggle event name |
+| --- | --- | --- | --- |
+| Default (single-panel path) | `'zudo-design-token-panel'` (the historical default) | (ignored) | `toggle-design-token-panel` |
+| Any other | any distinct value | omitted | `toggle-${storagePrefix}` |
+| Any other | any distinct value | supplied | the supplied string |
+
+The default instance keeps the historical `toggle-design-token-panel` event for
+backwards compatibility. Every non-default instance gets its own independent
+channel so two panels on one page do not cross-talk.
 
 ---
 
@@ -288,10 +402,73 @@ item's persisted value as the id of an item in the referenced tier. The
 emitted CSS override is `var(--target-cssvar)` where `target-cssvar` is the
 `cssVar` of the matched item in the base tier.
 
-The contract requires this read/write target to be `:root`. No shadow DOM, no
-scoped overrides — this is intentional, the panel ships a global tweak.
+By default the write target is `:root` (`document.documentElement`). When a
+`PanelConfig.applySink` is configured for the instance, writes are routed
+through the sink instead — see §3.5.
 
-### 3.5 Helpers (re-exported from the package root)
+### 3.5 `applySink` — optional CSS-var write target
+
+When `PanelConfig.applySink` is set, all CSS-var writes and clears for that
+panel instance route through the sink rather than `document.documentElement`.
+This enables embedding the panel in a shadow root, an iframe document, or a
+test spy without touching `:root`.
+
+```ts
+interface ApplySink {
+  /** Upsert the given var name→value pairs on the sink target. */
+  apply(pairs: ReadonlyArray<readonly [string, string]>): void;
+  /** Remove the given var names from the sink target. */
+  clear(names: readonly string[]): void;
+}
+```
+
+Contract:
+
+- `apply(pairs)` — **upsert**: set each `pairs[i][0]` CSS var to
+  `pairs[i][1]` on the sink target.
+- `clear(names)` — **remove**: remove each named CSS var from the sink target.
+- **Reset clears the instance's full token set.** When the user clicks Reset,
+  `sink.clear` receives every var the instance can own (all palette,
+  base-role, semantic, and non-color tab vars) — not just the currently-dirty
+  vars — so the sink target is completely cleaned.
+- **Default (no sink):** writes go to `document.documentElement` (unchanged
+  behaviour for existing integrations).
+- **Sink errors are non-fatal.** The apply pipeline swallows errors from
+  `sink.apply` and `sink.clear` with `console.warn` and continues.
+- **The host owns the sink.** The package calls `apply`/`clear`; it does not
+  manage the sink target's lifecycle. A host that passes a shadow-root target
+  must keep the target alive as long as the panel instance is alive.
+- **Not JSON-serializable.** `applySink` carries function references and
+  MUST NOT be included in the Astro inline JSON config. Supply it via a
+  post-configure approach or a custom adapter that calls `configurePanel`
+  directly after adding the sink field.
+
+Example — routing a panel instance to a shadow root:
+
+```ts
+const shadowHost = document.createElement('div');
+document.body.appendChild(shadowHost);
+const shadow = shadowHost.attachShadow({ mode: 'open' });
+
+const handle = configurePanel({
+  storagePrefix: 'myapp-shadow-panel',
+  // ...other required fields...
+  applySink: {
+    apply(pairs) {
+      for (const [name, value] of pairs) {
+        (shadow.host as HTMLElement).style.setProperty(name, value);
+      }
+    },
+    clear(names) {
+      for (const name of names) {
+        (shadow.host as HTMLElement).style.removeProperty(name);
+      }
+    },
+  },
+});
+```
+
+### 3.6 Helpers (re-exported from the package root)
 
 ```ts
 export function isLengthKind(v: TierValueKind): boolean;
@@ -843,7 +1020,9 @@ Items this contract deliberately does NOT pin down:
   existing user state round-trips without migration.
 - **Schema id versioning.** `schemaId` is a configure-time string; bumping
   it is the host's responsibility.
-- **Shadow-DOM scoping.** The panel writes to `:root` only.
+- **Shadow-DOM scoping.** The panel writes to `:root` by default; hosts
+  that need scoped writes use `PanelConfig.applySink` (§3.5). The sink
+  target's lifecycle is owned by the host — not pinned here.
 - **Theme-API surface.** The panel does not expose a programmatic API for
   reading the current overrides outside the persist envelope.
 
@@ -855,9 +1034,10 @@ Cross-reference table — what each section pins down.
 
 | Topic                                                                                       | Section       |
 | ------------------------------------------------------------------------------------------- | ------------- |
-| `configurePanel({...})` signature and lifecycle                                             | §1            |
+| `configurePanel({...})` signature, multi-instance, `PanelInstanceHandle`, per-instance toggle events | §1     |
 | Storage-key derivation                                                                      | §2, §8        |
 | `TabConfig` / `TierConfig` / `TierItem` / `TierValueKind` interfaces and apply behaviour   | §3            |
+| `applySink` — optional CSS-var write target (upsert / clear / Reset full set)              | §3.5          |
 | `ColorClusterExtras` shape and multi-cluster support                                        | §4.1, §4.3    |
 | JSON-serializable constraint on color tab config                                            | §4.2          |
 | `colorPresets` and `setPanelColorPresets()` lazy attachment                                 | §4.4          |
