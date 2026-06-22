@@ -283,13 +283,32 @@ interface InstanceRegistry {
    * prefix to key on yet — it mirrors the historical global holding slot.
    */
   pendingColorPresets: Record<string, ColorScheme> | null;
+  /**
+   * Post-configure hooks registered via `registerPostConfigureHook` BEFORE any
+   * instance was configured. Drained into the first instance to be configured.
+   *
+   * MUST live on the shared registry (not module scope): in Vite/Astro
+   * multi-entry builds, `index.tsx` registers POST_CONFIGURE_REAPPLY_HOOK from
+   * one `panel-config` module instance while the host adapter calls
+   * `configurePanel` through another. The two instances share this registry via
+   * the globalThis symbol, so the configuring side sees the hook the
+   * registering side parked. A module-scoped array would be per-chunk — the
+   * configuring chunk would drain an empty list and the #111 reapply hook would
+   * never fire on first load.
+   */
+  pendingPostConfigureHooks: (() => void)[];
 }
 
 function getRegistry(): InstanceRegistry {
   const g = globalThis as unknown as Record<symbol, InstanceRegistry | undefined>;
   let registry = g[REGISTRY_SYMBOL];
   if (!registry) {
-    registry = { instances: new Map(), defaultPrefix: null, pendingColorPresets: null };
+    registry = {
+      instances: new Map(),
+      defaultPrefix: null,
+      pendingColorPresets: null,
+      pendingPostConfigureHooks: [],
+    };
     g[REGISTRY_SYMBOL] = registry;
   }
   return registry;
@@ -420,8 +439,8 @@ export function configurePanel(config: PanelConfig): PanelInstanceHandle {
   // hooks — they target "the default single-panel instance" and there is no
   // ambiguity until a second instance appears.
   const isFirstInstance = registry.instances.size === 0;
-  const adoptedHooks = isFirstInstance ? [...pendingPostConfigureHooks] : [];
-  if (isFirstInstance) pendingPostConfigureHooks.length = 0;
+  const adoptedHooks = isFirstInstance ? [...registry.pendingPostConfigureHooks] : [];
+  if (isFirstInstance) registry.pendingPostConfigureHooks.length = 0;
   const record: PanelInstanceRecord = {
     config: installedConfig,
     pendingColorPresets: null,
@@ -472,10 +491,13 @@ function getDefaultRecord(): PanelInstanceRecord | null {
 export function registerPostConfigureHook(hook: () => void): void {
   const record = getDefaultRecord();
   if (record === null) {
-    // No instance configured yet — park the hook so the next configurePanel
-    // attaches and runs it. Mirrors the historical pre-configure behaviour.
-    if (pendingPostConfigureHooks.includes(hook)) return;
-    pendingPostConfigureHooks.push(hook);
+    // No instance configured yet — park the hook on the SHARED registry so the
+    // next configurePanel (possibly from a different code-split module instance
+    // in a Vite/Astro multi-entry build) attaches and runs it. Mirrors the
+    // historical globalThis-slot pre-configure behaviour.
+    const registry = getRegistry();
+    if (registry.pendingPostConfigureHooks.includes(hook)) return;
+    registry.pendingPostConfigureHooks.push(hook);
     return;
   }
   if (record.postConfigureHooks.includes(hook)) return; // idempotent on reference
@@ -484,14 +506,6 @@ export function registerPostConfigureHook(hook: () => void): void {
   // index.tsx module-init and configurePanel is non-load-bearing.
   hook();
 }
-
-/**
- * Hooks registered via `registerPostConfigureHook` BEFORE any instance was
- * configured. Drained into the first instance to be configured. Module-scope
- * (not on the registry) is acceptable: index.tsx's single module-init registers
- * exactly one stable hook here, and `configurePanel` drains it on first use.
- */
-const pendingPostConfigureHooks: (() => void)[] = [];
 
 /**
  * Read the active panel config. Returns the config of the default (most-
@@ -512,7 +526,7 @@ export function __resetPanelConfigForTests(): void {
   registry.instances.clear();
   registry.defaultPrefix = null;
   registry.pendingColorPresets = null;
-  pendingPostConfigureHooks.length = 0;
+  registry.pendingPostConfigureHooks.length = 0;
 }
 
 // Re-export cluster resolution helpers so callers can import from panel-config
