@@ -525,14 +525,18 @@ export default function DesignTokenTweakPanel({
     return instanceConfig.tabs.map((t: TabConfig) => ({ id: t.id, label: t.label }));
   }, [instanceConfig]);
 
-  // Build an id→TabConfig lookup for GenericTab dispatch (this instance's tabs).
+  // Build an id→TabConfig lookup for the tab-body dispatch (this instance's
+  // tabs). Keyed on `instanceConfig` — same as `activeTabs` above — so the body
+  // dispatch map tracks the active config. A prior `useMemo([])` left this map
+  // frozen at first render: a config change updated the tab strip (`activeTabs`)
+  // but the body kept dispatching against the stale map, rendering empty (#370).
   const tabConfigById = useMemo((): Record<string, TabConfig> => {
     const out: Record<string, TabConfig> = {};
     for (const t of instanceConfig.tabs) {
       out[t.id] = t;
     }
     return out;
-  }, []);
+  }, [instanceConfig]);
 
   // --- Tab keyboard navigation (WAI-ARIA tablist pattern) ---
   const handleTabKeyDown = useCallback(
