@@ -60,7 +60,10 @@ export function ImportModal({ onClose, onLoad, colorDefaults, instanceConfig }: 
   // Resolve THIS instance's config (multi-instance, #357); a prop-less test
   // render falls back to the active default instance.
   const cfg = instanceConfig ?? getPanelConfig();
-  const expectedSchema = getDesignTokenSchema();
+  // Thread THIS instance's config (multi-instance, #361) so the schema label
+  // surfaced in the UI comes from the mounted panel's OWN schema id, not the
+  // active default instance's.
+  const expectedSchema = getDesignTokenSchema(cfg);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -117,9 +120,16 @@ export function ImportModal({ onClose, onLoad, colorDefaults, instanceConfig }: 
     }
 
     try {
-      const { state, unknownTokens, warnings } = deserialize(parsed, {
-        colorDefaults,
-      });
+      // Thread THIS instance's config (multi-instance, #361) so the
+      // schema-check + cssVar→id mapping validate against the mounted panel's
+      // OWN tab manifest + color cluster, not the active default instance's.
+      const { state, unknownTokens, warnings } = deserialize(
+        parsed,
+        {
+          colorDefaults,
+        },
+        cfg,
+      );
 
       if (unknownTokens.length > 0) {
         // Grouped console.warn so developers can inspect the list without

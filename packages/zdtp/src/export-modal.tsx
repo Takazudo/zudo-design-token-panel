@@ -82,12 +82,19 @@ export function ExportModal({ onClose, state, colorDefaults, instanceConfig }: E
   // the displayed timestamp reflects "when you clicked copy".
   const code = useMemo(() => {
     const baseline = resolveColorDefaults(state.color, colorDefaults);
-    const json = serialize(state, {
-      includeDefaults,
-      colorDefaults: baseline,
-    });
+    // Thread THIS instance's config (multi-instance, #361) so the export JSON
+    // is built from the mounted panel's OWN tab manifest + color cluster, not
+    // the active default instance's.
+    const json = serialize(
+      state,
+      {
+        includeDefaults,
+        colorDefaults: baseline,
+      },
+      cfg,
+    );
     return JSON.stringify(json, null, 2);
-  }, [state, colorDefaults, includeDefaults]);
+  }, [state, colorDefaults, includeDefaults, cfg]);
 
   useEffect(() => {
     const dialog = dialogRef.current;

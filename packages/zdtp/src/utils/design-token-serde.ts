@@ -67,7 +67,7 @@
 
 import type { ColorTweakState, TokenOverrides, TweakState } from '../state/tweak-state';
 import { getActivePrimaryCluster } from '../state/tweak-state';
-import { getPanelConfig } from '../config/panel-config';
+import { getPanelConfig, type PanelConfig } from '../config/panel-config';
 import { resolvePaletteCssVar } from '../config/cluster-config';
 import type { TierItem } from '../tokens/tier-model';
 
@@ -76,13 +76,18 @@ type SerdeItem = Pick<TierItem, 'id' | 'cssVar' | 'default' | 'readonly'>;
 
 /**
  * Collect all items (across all tiers) from the tab identified by `tabId` in
- * the active PanelConfig. Returns an empty array when the tab is not found.
+ * the supplied PanelConfig. Returns an empty array when the tab is not found.
  *
  * Used by serialize / deserialize to iterate the known items for a tab so
  * cssVar ↔ id mapping stays consistent with what the UI renders.
+ *
+ * `cfg` defaults to the active (most-recently-configured) instance so the
+ * single-default path and any non-panel caller stay byte-identical. The panel
+ * threads its OWN mounted instance config (multi-instance, #361) so a
+ * non-default panel's export/import iterates ITS manifest, not the default's.
  */
-function getTabItems(tabId: string): readonly SerdeItem[] {
-  const tab = getPanelConfig().tabs.find((t) => t.id === tabId);
+function getTabItems(tabId: string, cfg: PanelConfig = getPanelConfig()): readonly SerdeItem[] {
+  const tab = cfg.tabs.find((t) => t.id === tabId);
   if (!tab) return [];
   const items: SerdeItem[] = [];
   for (const tier of tab.tiers) {
@@ -109,14 +114,20 @@ function emptyOverrides(): TokenOverrides {
 }
 
 /**
- * Read the active design-token schema id at call time.
+ * Read the design-token schema id at call time.
  *
- * Returns the host-configured schema id from `panelConfig.schemaId`. Used as
- * the `$schema` value in legacy v1 exports (for hosts that have not upgraded
- * their config to v2). The canonical v2 serialize path always emits `SCHEMA_V2`.
+ * Returns the host-configured schema id from `cfg.schemaId`. Used as the
+ * `$schema` value in legacy v1 exports (for hosts that have not upgraded their
+ * config to v2) and as the expected-schema label the Import modal surfaces. The
+ * canonical v2 serialize path always emits `SCHEMA_V2`.
+ *
+ * `cfg` defaults to the active (most-recently-configured) instance so the
+ * single-default path stays byte-identical. The Import modal threads its OWN
+ * mounted instance config (multi-instance, #361) so a non-default panel
+ * validates against ITS schema id, not the default's.
  */
-export function getDesignTokenSchema(): string {
-  return getPanelConfig().schemaId;
+export function getDesignTokenSchema(cfg: PanelConfig = getPanelConfig()): string {
+  return cfg.schemaId;
 }
 
 // ---------------------------------------------------------------------------
@@ -251,8 +262,18 @@ export class DesignTokenSchemaError extends Error {
  * defaults; set `opts.includeDefaults = true` to dump everything.
  *
  * The output `$schema` is always `SCHEMA_V2` ("zudo-design-tokens/v2").
+ *
+ * `cfg` defaults to the active (most-recently-configured) instance so the
+ * single-default path stays byte-identical. The Export / Apply modals thread
+ * their OWN mounted instance config (multi-instance, #361) so a non-default
+ * panel's export JSON / revert blob is built from ITS tab manifest + color
+ * cluster, not the default instance's.
  */
-export function serialize(state: TweakState, opts: SerializeOptions = {}): DesignTokenJsonV2 {
+export function serialize(
+  state: TweakState,
+  opts: SerializeOptions = {},
+  cfg: PanelConfig = getPanelConfig(),
+): DesignTokenJsonV2 {
   const now = opts.now ? opts.now() : new Date();
   const out: DesignTokenJsonV2 = {
     $schema: SCHEMA_V2,
@@ -262,19 +283,19 @@ export function serialize(state: TweakState, opts: SerializeOptions = {}): Desig
   const tabs: Record<string, V2TabEntry> = {};
 
   // Color tab — keyed under "color".
-  const colorTab = serializeColorV2(state.color, opts);
+  const colorTab = serializeColorV2(state.color, opts, cfg);
   if (colorTab) tabs['color'] = colorTab;
 
   // Read items from tabs[] so a host-supplied config drives the diff pass.
   // The internal state slice is named `typography`; the external tab id is
   // `font` to match the external spec (issue #74). `deserialize()` maps back.
-  const spacingTab = serializeOverridesV2(getTabItems('spacing'), state.spacing, opts);
+  const spacingTab = serializeOverridesV2(getTabItems('spacing', cfg), state.spacing, opts);
   if (spacingTab) tabs['spacing'] = spacingTab;
 
-  const fontTab = serializeOverridesV2(getTabItems('font'), state.typography, opts);
+  const fontTab = serializeOverridesV2(getTabItems('font', cfg), state.typography, opts);
   if (fontTab) tabs['font'] = fontTab;
 
-  const sizeTab = serializeOverridesV2(getTabItems('size'), state.size, opts);
+  const sizeTab = serializeOverridesV2(getTabItems('size', cfg), state.size, opts);
   if (sizeTab) tabs['size'] = sizeTab;
 
   if (Object.keys(tabs).length > 0) {
@@ -302,10 +323,11 @@ export function serialize(state: TweakState, opts: SerializeOptions = {}): Desig
 function serializeColorV2(
   color: ColorTweakState,
   opts: SerializeOptions,
+  cfg: PanelConfig,
 ): V2TabEntry | undefined {
   const baseline = opts.colorDefaults;
   const full = opts.includeDefaults === true;
-  const cluster = getActivePrimaryCluster();
+  const cluster = getActivePrimaryCluster(cfg);
 
   const out: V2TabEntry = {};
   let wrote = false;
@@ -403,8 +425,18 @@ function serializeOverridesV2(
  *
  * Missing fields fall back to `opts.colorDefaults` (or, absent that, a
  * minimal neutral default) so the result is always a valid `TweakState`.
+ *
+ * `cfg` defaults to the active (most-recently-configured) instance so the
+ * single-default path stays byte-identical. The Import modal threads its OWN
+ * mounted instance config (multi-instance, #361) so a non-default panel's
+ * schema-check + cssVar→id mapping use ITS tab manifest + color cluster, not
+ * the default instance's.
  */
-export function deserialize(input: unknown, opts: DeserializeOptions = {}): DeserializeResult {
+export function deserialize(
+  input: unknown,
+  opts: DeserializeOptions = {},
+  cfg: PanelConfig = getPanelConfig(),
+): DeserializeResult {
   if (input === null || typeof input !== 'object' || Array.isArray(input)) {
     throw new DesignTokenSchemaError('not-object', 'Input is not a JSON object.');
   }
@@ -420,11 +452,11 @@ export function deserialize(input: unknown, opts: DeserializeOptions = {}): Dese
   }
 
   if (schema === SCHEMA_V2) {
-    return deserializeV2(obj, opts);
+    return deserializeV2(obj, opts, cfg);
   }
 
   if (schema === SCHEMA_V1) {
-    return deserializeV1(obj, opts);
+    return deserializeV1(obj, opts, cfg);
   }
 
   throw new DesignTokenSchemaError(
@@ -438,11 +470,15 @@ export function deserialize(input: unknown, opts: DeserializeOptions = {}): Dese
 // v2 deserialization
 // ---------------------------------------------------------------------------
 
-function deserializeV2(obj: Record<string, unknown>, opts: DeserializeOptions): DeserializeResult {
+function deserializeV2(
+  obj: Record<string, unknown>,
+  opts: DeserializeOptions,
+  cfg: PanelConfig,
+): DeserializeResult {
   const warnings: string[] = [];
   const unknownTokens: string[] = [];
-  const baseline = opts.colorDefaults ?? neutralColorDefaults();
-  const cluster = getActivePrimaryCluster();
+  const baseline = opts.colorDefaults ?? neutralColorDefaults(cfg);
+  const cluster = getActivePrimaryCluster(cfg);
 
   const tabsRaw = obj.tabs && typeof obj.tabs === 'object' && !Array.isArray(obj.tabs)
     ? (obj.tabs as Record<string, unknown>)
@@ -457,21 +493,21 @@ function deserializeV2(obj: Record<string, unknown>, opts: DeserializeOptions): 
   const spacingRaw = spacingTab && typeof spacingTab === 'object'
     ? (spacingTab as Record<string, unknown>)['raw']
     : undefined;
-  const spacing = deserializeOverridesV2(spacingRaw, getTabItems('spacing'), 'spacing', unknownTokens, warnings);
+  const spacing = deserializeOverridesV2(spacingRaw, getTabItems('spacing', cfg), 'spacing', unknownTokens, warnings);
 
   // Font tab (id "font" in v2 external, maps to internal "typography").
   const fontTab = tabsRaw['font'];
   const fontRaw = fontTab && typeof fontTab === 'object'
     ? (fontTab as Record<string, unknown>)['raw']
     : undefined;
-  const typography = deserializeOverridesV2(fontRaw, getTabItems('font'), 'font.raw', unknownTokens, warnings);
+  const typography = deserializeOverridesV2(fontRaw, getTabItems('font', cfg), 'font.raw', unknownTokens, warnings);
 
   // Size tab.
   const sizeTab = tabsRaw['size'];
   const sizeRaw = sizeTab && typeof sizeTab === 'object'
     ? (sizeTab as Record<string, unknown>)['raw']
     : undefined;
-  const size = deserializeOverridesV2(sizeRaw, getTabItems('size'), 'size', unknownTokens, warnings);
+  const size = deserializeOverridesV2(sizeRaw, getTabItems('size', cfg), 'size', unknownTokens, warnings);
 
   return {
     state: { color, spacing, typography, size },
@@ -578,17 +614,21 @@ function deserializeOverridesV2(
 // v1 deserialization (one-way migration, no longer a valid output format)
 // ---------------------------------------------------------------------------
 
-function deserializeV1(obj: Record<string, unknown>, opts: DeserializeOptions): DeserializeResult {
+function deserializeV1(
+  obj: Record<string, unknown>,
+  opts: DeserializeOptions,
+  cfg: PanelConfig,
+): DeserializeResult {
   const warnings: string[] = [];
   const unknownTokens: string[] = [];
-  const baseline = opts.colorDefaults ?? neutralColorDefaults();
+  const baseline = opts.colorDefaults ?? neutralColorDefaults(cfg);
 
   const color = deserializeColorV1(obj.color, baseline, warnings);
   // Read items from tabs[] so a host-supplied config drives validation.
   // v1 used "typography" as the key (not "font") for the typography tab.
-  const spacing = deserializeOverridesV1(obj.spacing, getTabItems('spacing'), 'spacing', unknownTokens, warnings);
-  const typography = deserializeOverridesV1(obj.typography, getTabItems('font'), 'typography', unknownTokens, warnings);
-  const size = deserializeOverridesV1(obj.size, getTabItems('size'), 'size', unknownTokens, warnings);
+  const spacing = deserializeOverridesV1(obj.spacing, getTabItems('spacing', cfg), 'spacing', unknownTokens, warnings);
+  const typography = deserializeOverridesV1(obj.typography, getTabItems('font', cfg), 'typography', unknownTokens, warnings);
+  const size = deserializeOverridesV1(obj.size, getTabItems('size', cfg), 'size', unknownTokens, warnings);
 
   return {
     state: { color, spacing, typography, size },
@@ -712,13 +752,14 @@ function numOr(v: unknown, fallback: number): number {
 /**
  * Minimal color state used as the last-resort baseline when the caller can't
  * provide one (e.g. unit tests without a DOM). The palette is sized to the
- * active panel config's color cluster `paletteSize` so smaller clusters
+ * supplied panel config's color cluster `paletteSize` so smaller clusters
  * don't end up with orphan trailing slots.
  *
- * Falls back to a length of 16 when no cluster is configured.
+ * Falls back to a length of 16 when no cluster is configured. `cfg` defaults to
+ * the active instance so the single-default path stays byte-identical.
  */
-function neutralColorDefaults(): ColorTweakState {
-  const cluster = getActivePrimaryCluster();
+function neutralColorDefaults(cfg: PanelConfig = getPanelConfig()): ColorTweakState {
+  const cluster = getActivePrimaryCluster(cfg);
   const size = cluster && cluster.paletteSize > 0 ? cluster.paletteSize : 16;
   const lastIdx = size - 1;
   const palette = Array.from({ length: size }, (_, i) => {
