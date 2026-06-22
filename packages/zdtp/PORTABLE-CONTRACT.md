@@ -468,7 +468,7 @@ const handle = configurePanel({
 });
 ```
 
-### 3.5 Helpers (re-exported from the package root)
+### 3.6 Helpers (re-exported from the package root)
 
 ```ts
 export function isLengthKind(v: TierValueKind): boolean;

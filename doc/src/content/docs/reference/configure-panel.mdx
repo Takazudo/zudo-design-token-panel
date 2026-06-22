@@ -107,10 +107,9 @@ export interface PanelConfig {
   /**
    * Host-supplied tab configuration. Required.
    * The panel renders its tab strip from this array.
-   *  - Reserved ids ('color', 'color-secondary', 'font', 'spacing', 'size') dispatch
-   *    to built-in tab components.
-   *  - Any other id dispatches to GenericTab, which renders the tab's tiers using
-   *    kind-appropriate editors.
+   *  - Reserved ids ('color', 'color-secondary') dispatch to built-in color tab
+   *    components. Every other id dispatches to GenericTab, which renders the
+   *    tab's tiers using kind-appropriate editors.
    */
   tabs: readonly TabConfig[];
   /**
@@ -345,7 +344,7 @@ const spacingTab: TabConfig = {
   ],
 };
 
-configurePanel({
+const handle = configurePanel({
   storagePrefix: 'myapp-design-token-panel',
   consoleNamespace: 'myapp',
   modalClassPrefix: 'myapp-design-token-panel-modal',
@@ -359,6 +358,7 @@ configurePanel({
     'myapp-spacing': 'src/styles/spacing.css',
   },
 });
+// handle.instanceId === 'myapp-design-token-panel'
 ```
 
 ## Lifecycle helpers
