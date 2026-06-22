@@ -13,7 +13,12 @@ import SizeTab from './tabs/size-tab';
 import SpacingTab from './tabs/spacing-tab';
 import GenericTab from './tabs/generic-tab';
 import { TooltipProvider } from './controls/tooltip';
-import { getPanelConfig, storageKey_visible } from './config/panel-config';
+import {
+  getPanelConfig,
+  openStateChangedEventName,
+  storageKey_visible,
+  type PanelConfig,
+} from './config/panel-config';
 import type { TabConfig } from './tokens/tier-model';
 import { usePersist } from './state/persist';
 import {
@@ -106,10 +111,37 @@ function freshTweakState(): TweakState {
 
 // --- Main Component ---
 
-export default function DesignTokenTweakPanel() {
+/**
+ * Props for the panel shell.
+ *
+ * `storagePrefix` identifies WHICH configured instance this mounted tree
+ * belongs to (issue #354). The adapter (`index.tsx`) passes `cfg.storagePrefix`
+ * at `render(...)` time. The panel uses it to derive its OWN open key, visible
+ * key, and per-instance open-state sync-event name — so two panels on one page
+ * read/write distinct storage keys and listen on distinct sync events, never
+ * cross-talking. Omitted (e.g. a direct test render) → the active/default
+ * instance, preserving the historical single-panel behaviour.
+ */
+interface DesignTokenTweakPanelProps {
+  storagePrefix?: string;
+}
+
+export default function DesignTokenTweakPanel({ storagePrefix }: DesignTokenTweakPanelProps = {}) {
+  // Per-instance config: every storage key + the sync-event name are pure
+  // functions of `storagePrefix`, so override just that field on the active
+  // config. When the prop is omitted we fall back to the active instance,
+  // matching the single-panel default. Memoised so the derived config object
+  // is stable across re-renders (the prop is fixed for a mount's lifetime).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const instanceConfig = useMemo<PanelConfig>(() => {
+    const active = getPanelConfig();
+    if (storagePrefix === undefined || storagePrefix === active.storagePrefix) return active;
+    return { ...active, storagePrefix };
+  }, [storagePrefix]);
+
   // Scope WAI-ARIA IDs to this panel instance so that two mounted panels in
   // the same document do not share dtp-tab-* / dtp-panel-* IDs.
-  const instanceId = useId();
+  const ariaIdScope = useId();
   const [open, setOpen] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -147,7 +179,7 @@ export default function DesignTokenTweakPanel() {
   // Restore open state, position, and size from localStorage after mount (avoids SSR hydration mismatch)
   useEffect(() => {
     try {
-      if (localStorage.getItem(getOpenKey()) === '1') setOpen(true);
+      if (localStorage.getItem(getOpenKey(instanceConfig)) === '1') setOpen(true);
     } catch {
       /* ignore */
     }
@@ -160,6 +192,7 @@ export default function DesignTokenTweakPanel() {
     setDensity(loadDensity());
     // Initial narrow-check
     setIsNarrow(window.innerWidth < NARROW_BREAKPOINT);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Persist density on change
@@ -176,19 +209,19 @@ export default function DesignTokenTweakPanel() {
   // here ensures every close path (public API or internal UI) stays in lockstep.
   useEffect(() => {
     try {
-      const openKey = getOpenKey();
+      const openKey = getOpenKey(instanceConfig);
       if (open) localStorage.setItem(openKey, '1');
       else localStorage.removeItem(openKey);
     } catch {
       /* ignore */
     }
     try {
-      const visibleKey = storageKey_visible(getPanelConfig());
+      const visibleKey = storageKey_visible(instanceConfig);
       localStorage.setItem(visibleKey, open ? '1' : '0');
     } catch {
       /* ignore */
     }
-  }, [open]);
+  }, [open, instanceConfig]);
 
   // ESC key closes the panel when no modal is open. When a modal is open the
   // native <dialog> handles ESC first (fires cancel → onClose), and we must
@@ -215,25 +248,30 @@ export default function DesignTokenTweakPanel() {
   // internal sync event on `window`. This component is downstream: it doesn't
   // compute the toggle from its own `prev` state — it just mirrors storage.
   //
+  // The event name and the open key are BOTH keyed by this instance's
+  // `storagePrefix` (issue #354): the panel listens only on its OWN
+  // per-instance sync event and reads only its OWN open key, so panel A's
+  // toggle never flips panel B.
+  //
   // The two historical public event names (`toggle-design-token-panel` and
-  // its deprecated `toggle-color-tweak-panel` alias) are now handled in
-  // `index.tsx` (see `handleExternalToggleEvent`). Removing them from this
-  // effect eliminates the dual-listener race that caused the
-  // "click-twice-after-close" regression — see `index.tsx` for the full
-  // rationale.
+  // its deprecated `toggle-color-tweak-panel` alias) are handled in `index.tsx`
+  // (see `handleExternalToggleEvent`). Removing them from this effect
+  // eliminates the dual-listener race that caused the "click-twice-after-close"
+  // regression — see `index.tsx` for the full rationale.
   useEffect(() => {
+    const eventName = openStateChangedEventName(instanceConfig);
     function syncOpenFromStorage() {
       try {
-        setOpen(localStorage.getItem(getOpenKey()) === '1');
+        setOpen(localStorage.getItem(getOpenKey(instanceConfig)) === '1');
       } catch {
         /* ignore */
       }
     }
-    window.addEventListener('__zdtp:open-state-changed', syncOpenFromStorage);
+    window.addEventListener(eventName, syncOpenFromStorage);
     return () => {
-      window.removeEventListener('__zdtp:open-state-changed', syncOpenFromStorage);
+      window.removeEventListener(eventName, syncOpenFromStorage);
     };
-  }, []);
+  }, [instanceConfig]);
 
   // Re-initialize the COLOR slice when the color scheme or light/dark mode
   // changes. Global tweak model (see README §9): the stored palette is
@@ -640,9 +678,9 @@ export default function DesignTokenTweakPanel() {
                     tabRefs.current[tab.id] = el;
                   }}
                   role="tab"
-                  id={`dtp-tab-${instanceId}-${tab.id}`}
+                  id={`dtp-tab-${ariaIdScope}-${tab.id}`}
                   aria-selected={isSelected}
-                  aria-controls={`dtp-panel-${instanceId}-${tab.id}`}
+                  aria-controls={`dtp-panel-${ariaIdScope}-${tab.id}`}
                   tabIndex={isSelected ? 0 : -1}
                   onClick={() => setActiveTab(tab.id)}
                   onKeyDown={handleTabKeyDown}
@@ -657,14 +695,14 @@ export default function DesignTokenTweakPanel() {
           </div>
           <div className="tokenpanel-density">
             <label
-              htmlFor={`dtp-density-${instanceId}`}
+              htmlFor={`dtp-density-${ariaIdScope}`}
               className="tokenpanel-density-label"
               title="Tab grid density: dense / cozy / wide (forces 1 column)"
             >
               Density
             </label>
             <input
-              id={`dtp-density-${instanceId}`}
+              id={`dtp-density-${ariaIdScope}`}
               type="range"
               min={0}
               max={2}
@@ -690,8 +728,8 @@ export default function DesignTokenTweakPanel() {
               <div
                 key={tab.id}
                 role="tabpanel"
-                id={`dtp-panel-${instanceId}-${tab.id}`}
-                aria-labelledby={`dtp-tab-${instanceId}-${tab.id}`}
+                id={`dtp-panel-${ariaIdScope}-${tab.id}`}
+                aria-labelledby={`dtp-tab-${ariaIdScope}-${tab.id}`}
                 tabIndex={0}
                 hidden={!isSelected}
               >

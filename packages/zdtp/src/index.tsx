@@ -56,10 +56,14 @@ import {
   loadPersistedState,
 } from './state/tweak-state';
 import {
+  __setPanelLifecycleHooks,
+  DEFAULT_TOGGLE_EVENT,
   getPanelConfig,
+  openStateChangedEventName,
   panelRootId,
   registerPostConfigureHook,
   storageKey_visible,
+  toggleEventName,
   type PanelConfig,
 } from './config/panel-config';
 
@@ -67,85 +71,72 @@ import {
 // Public DOM contract (kept in sync with astro/host-adapter.ts)
 // ---------------------------------------------------------------------------
 
-/** Root element id that hosts the Preact panel tree. Derived from `panelConfig.storagePrefix`. */
-function getPanelId(): string {
-  return panelRootId(getPanelConfig());
+/**
+ * Root element id that hosts the Preact panel tree. Derived from
+ * `cfg.storagePrefix` — pass the instance's config so a non-default panel
+ * mounts into ITS own `${storagePrefix}-root`, not the default instance's.
+ */
+function getPanelId(cfg: PanelConfig): string {
+  return panelRootId(cfg);
 }
 
-/** Adapter's visibility-intent flag. Derived from `panelConfig.storagePrefix` (colon separator). */
-function getStorageKey(): string {
-  return storageKey_visible(getPanelConfig());
+/** Adapter's visibility-intent flag. Derived from `cfg.storagePrefix` (colon separator). */
+function getStorageKey(cfg: PanelConfig): string {
+  return storageKey_visible(cfg);
 }
 
-const TOGGLE_EVENT = 'toggle-design-token-panel';
-/** Deprecated — kept so legacy callers still flip the panel. */
+/** Deprecated — kept so legacy callers still flip the default panel. */
 const TOGGLE_EVENT_ALIAS = 'toggle-color-tweak-panel';
 
 /**
- * Internal sync event. The module-scope toggle handler writes
- * `localStorage[OPEN_KEY]` to the new desired value and then dispatches this
- * on `window`; the mounted panel's `useEffect`-installed listener re-reads
- * `OPEN_KEY` and calls `setOpen` accordingly. Single source of truth lives in
- * `localStorage[OPEN_KEY]`; the event is just a "go re-read" pulse.
+ * Dispatch the instance's internal open-state sync event so a mounted
+ * `panel.tsx` re-reads `localStorage[OPEN_KEY]` and updates its `open` state.
+ * SSR-safe. The event name is per-instance (`openStateChangedEventName(cfg)`,
+ * defined in `config/panel-config.ts`) so a change to panel A's open state only
+ * pokes panel A's listener, never panel B's — the two share `window` but must
+ * stay fully independent (issue #354).
  *
- * Internal name (double-underscore prefix) — not part of the public DOM
- * contract; hosts must continue to dispatch `toggle-design-token-panel`.
- *
- * Why this exists: the old design had `panel.tsx`'s own window listener
- * toggle internal `open` state via `setOpen((prev) => !prev)`. That made the
- * in-component listener authoritative for the toggle, but its registration is
- * deferred until Preact's `useEffect` flushes (one rAF after mount). A click
- * that lands during that window — or any subtle pre-hydration / SPA-nav race
- * that drops the in-component listener — is silently lost; the user has to
- * click twice. The internal sync event lets the module-scope handler own the
- * authoritative write and notify the panel separately, so the panel's job is
- * the trivial one (re-read storage), not toggle arithmetic.
+ * The toggle handler writes `localStorage[OPEN_KEY]` to the new desired value
+ * first and then dispatches this event; the panel's listener just re-reads the
+ * key. Single source of truth lives in `localStorage[OPEN_KEY]`; the event is
+ * a "go re-read" pulse — no toggle arithmetic in the listener, so a missed
+ * pulse during Preact's effect-flush rAF gap self-heals on the next render.
  */
-const OPEN_STATE_CHANGED_EVENT = '__zdtp:open-state-changed';
-
-/**
- * Dispatch the internal sync event so a mounted `panel.tsx` re-reads
- * `localStorage[OPEN_KEY]` and updates its `open` state. SSR-safe.
- *
- * Internal — exported for tests only.
- */
-function notifyPanelOpenChanged(): void {
+function notifyPanelOpenChanged(cfg: PanelConfig): void {
   if (typeof window === 'undefined') return;
-  window.dispatchEvent(new CustomEvent(OPEN_STATE_CHANGED_EVENT));
+  window.dispatchEvent(new CustomEvent(openStateChangedEventName(cfg)));
 }
-
-export const __OPEN_STATE_CHANGED_EVENT_FOR_TEST = OPEN_STATE_CHANGED_EVENT;
 
 // ---------------------------------------------------------------------------
 // Storage helpers (SSR-safe, tolerant of private mode / quota errors)
 // ---------------------------------------------------------------------------
 
-function setStoredVisibility(isVisible: boolean): void {
+function setStoredVisibility(cfg: PanelConfig, isVisible: boolean): void {
   if (typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(getStorageKey(), isVisible ? '1' : '0');
+    window.localStorage.setItem(getStorageKey(cfg), isVisible ? '1' : '0');
   } catch {
     /* ignore */
   }
 }
 
-function wasVisible(): boolean {
+function wasVisible(cfg: PanelConfig): boolean {
   if (typeof window === 'undefined') return false;
   try {
-    return window.localStorage.getItem(getStorageKey()) === '1';
+    return window.localStorage.getItem(getStorageKey(cfg)) === '1';
   } catch {
     return false;
   }
 }
 
-function hasPersistedOverrides(): boolean {
+function hasPersistedOverrides(cfg: PanelConfig): boolean {
   if (typeof window === 'undefined') return false;
   try {
     // Check v3 key first; fall back to v2 for sessions that have not yet
     // migrated (migration runs on first loadPersistedState call, i.e. once
     // the panel mounts — before mount we may only see the v2 key).
     const ls = window.localStorage;
-    return ls.getItem(getStorageKeyV3()) !== null || ls.getItem(getStorageKeyV2()) !== null;
+    return ls.getItem(getStorageKeyV3(cfg)) !== null || ls.getItem(getStorageKeyV2(cfg)) !== null;
   } catch {
     return false;
   }
@@ -162,10 +153,10 @@ function hasPersistedOverrides(): boolean {
  * `seedOpenStateBeforeMount` — see the seed function's docstring for the
  * timing rationale.
  */
-function isPanelCurrentlyOpen(): boolean {
+function isPanelCurrentlyOpen(cfg: PanelConfig): boolean {
   if (typeof window === 'undefined') return false;
   try {
-    return window.localStorage.getItem(getOpenKey()) === '1';
+    return window.localStorage.getItem(getOpenKey(cfg)) === '1';
   } catch {
     return false;
   }
@@ -197,10 +188,10 @@ function isPanelCurrentlyOpen(): boolean {
  * Keep this in lockstep with `OPEN_KEY` reads in `panel.tsx` (the first
  * `useEffect` in `DesignTokenTweakPanel`).
  */
-function seedOpenStateBeforeMount(desiredOpen: boolean): void {
+function seedOpenStateBeforeMount(cfg: PanelConfig, desiredOpen: boolean): void {
   if (typeof window === 'undefined') return;
   try {
-    const openKey = getOpenKey();
+    const openKey = getOpenKey(cfg);
     if (desiredOpen) window.localStorage.setItem(openKey, '1');
     else window.localStorage.removeItem(openKey);
   } catch {
@@ -212,9 +203,9 @@ function seedOpenStateBeforeMount(desiredOpen: boolean): void {
 // Mount / unmount
 // ---------------------------------------------------------------------------
 
-function findRoot(): HTMLElement | null {
+function findRoot(cfg: PanelConfig): HTMLElement | null {
   if (typeof document === 'undefined') return null;
-  return document.getElementById(getPanelId());
+  return document.getElementById(getPanelId(cfg));
 }
 
 // Stable id for the injected <style> element so injection is idempotent
@@ -248,16 +239,38 @@ function ensurePanelStyles(): void {
  * mount-effect reads `OPEN_KEY` synchronously, so the seed has to be visible
  * by then.
  */
-function ensureMounted(): boolean {
+function ensureMounted(cfg: PanelConfig): boolean {
   if (typeof document === 'undefined') return false;
-  const panelId = getPanelId();
+  // Bind this instance's toggle-event listener at its materialization point so
+  // that, after the first programmatic interaction (handle.open/toggle, show/
+  // hide), a host-dispatched `toggle-${storagePrefix}` window event keeps
+  // flipping the SAME instance. Idempotent per prefix. The default instance is
+  // additionally bound eagerly at module init.
+  bindInstance(cfg);
+  const panelId = getPanelId(cfg);
   if (document.getElementById(panelId)) return false;
   ensurePanelStyles();
   const root = document.createElement('div');
   root.id = panelId;
   document.body.appendChild(root);
-  render(<DesignTokenTweakPanel />, root);
+  // Pass the instance's storagePrefix so the panel reads ITS own open key and
+  // subscribes to ITS own per-instance sync event — two panels on one page
+  // stay fully independent (issue #354).
+  render(<DesignTokenTweakPanel storagePrefix={cfg.storagePrefix} />, root);
   return true;
+}
+
+/**
+ * Full Preact unmount + DOM-root removal for ONE instance. Drives the panel's
+ * `useEffect` cleanups (so its window/document listeners detach) before
+ * detaching the root, so a destroyed instance leaks nothing. No-op when the
+ * instance is not mounted.
+ */
+function unmountInstance(cfg: PanelConfig): void {
+  const root = findRoot(cfg);
+  if (!root) return;
+  render(null, root);
+  root.remove();
 }
 
 // NOTE: `dispatchToggle()` was removed in favour of `notifyPanelOpenChanged()`.
@@ -345,53 +358,73 @@ export {
 export type { TweakState } from './state/tweak-state';
 export { emptyOverrides } from './state/tweak-state';
 
-export function showDesignTokenPanel(): void {
+/**
+ * Show ONE instance's panel. Internal per-instance core shared by the public
+ * default-instance API (`showDesignTokenPanel`) and the per-instance handle's
+ * `open()`. Every storage read/write and the sync-event dispatch are keyed by
+ * `cfg.storagePrefix`, so distinct instances stay independent.
+ */
+function showInstance(cfg: PanelConfig): void {
   if (typeof window === 'undefined') return;
-  const isFreshMount = !findRoot();
+  const isFreshMount = !findRoot(cfg);
   // Write OPEN_KEY synchronously so both the fresh-mount path (panel reads on
   // mount) and the steady-state path (panel reads on sync event) see the
   // same authoritative value.
-  seedOpenStateBeforeMount(true);
-  ensureMounted();
-  setStoredVisibility(true);
+  seedOpenStateBeforeMount(cfg, true);
+  ensureMounted(cfg);
+  setStoredVisibility(cfg, true);
   // Fresh mount: panel.tsx's mount-effect picks up OPEN_KEY="1" and renders
   // open — no listener race because the listener doesn't run yet anyway.
   if (isFreshMount) return;
   // Steady state: always notify the mounted panel to re-read OPEN_KEY.
-  // `seedOpenStateBeforeMount(true)` already wrote OPEN_KEY='1' above, so a
+  // `seedOpenStateBeforeMount(cfg, true)` already wrote OPEN_KEY='1' above, so a
   // post-seed `isPanelCurrentlyOpen()` probe would *always* read "open" — it
   // cannot distinguish "already open" from "just re-shown after a hide". The
-  // notify must therefore be unconditional (mirrors `hideDesignTokenPanel`).
+  // notify must therefore be unconditional (mirrors `hideInstance`).
   // The sync event is idempotent: if the panel is genuinely already open the
   // panel's `setOpen(true)` is a no-op via Preact's setState identity check.
-  notifyPanelOpenChanged();
+  notifyPanelOpenChanged(cfg);
 }
 
-export function hideDesignTokenPanel(): void {
+/** Hide ONE instance's panel. See `showInstance` for the per-instance keying. */
+function hideInstance(cfg: PanelConfig): void {
   if (typeof window === 'undefined') return;
-  const isFreshMount = !findRoot();
-  seedOpenStateBeforeMount(false);
-  ensureMounted();
-  setStoredVisibility(false);
+  const isFreshMount = !findRoot(cfg);
+  seedOpenStateBeforeMount(cfg, false);
+  ensureMounted(cfg);
+  setStoredVisibility(cfg, false);
   if (isFreshMount) return;
   // After the seed, isPanelCurrentlyOpen() returns false. We don't have the
   // pre-seed value here, so just always notify — the sync event is idempotent
   // (panel re-reads OPEN_KEY and calls setOpen(false); if already false, no
   // re-render thanks to Preact's identity check on setState).
-  notifyPanelOpenChanged();
+  notifyPanelOpenChanged(cfg);
+}
+
+/** Toggle ONE instance's panel. See `showInstance` for the per-instance keying. */
+function toggleInstance(cfg: PanelConfig): void {
+  if (typeof window === 'undefined') return;
+  // Snapshot intent *before* the seed flips `OPEN_KEY`.
+  const willBeOpen = !isPanelCurrentlyOpen(cfg);
+  const isFreshMount = !findRoot(cfg);
+  seedOpenStateBeforeMount(cfg, willBeOpen);
+  ensureMounted(cfg);
+  setStoredVisibility(cfg, willBeOpen);
+  // Fresh mount: seed already drove the mount-effect to the desired state.
+  if (isFreshMount) return;
+  notifyPanelOpenChanged(cfg);
+}
+
+export function showDesignTokenPanel(): void {
+  showInstance(getPanelConfig());
+}
+
+export function hideDesignTokenPanel(): void {
+  hideInstance(getPanelConfig());
 }
 
 export function toggleDesignPanel(): void {
-  if (typeof window === 'undefined') return;
-  // Snapshot intent *before* the seed flips `OPEN_KEY`.
-  const willBeOpen = !isPanelCurrentlyOpen();
-  const isFreshMount = !findRoot();
-  seedOpenStateBeforeMount(willBeOpen);
-  ensureMounted();
-  setStoredVisibility(willBeOpen);
-  // Fresh mount: seed already drove the mount-effect to the desired state.
-  if (isFreshMount) return;
-  notifyPanelOpenChanged();
+  toggleInstance(getPanelConfig());
 }
 
 /**
@@ -433,12 +466,16 @@ export function reapplyPersistedOverrides(): void {
  * reflects the user's last state, not an artefact of the unmount path.
  */
 function unmountForSwap(): void {
-  const root = findRoot();
+  // Astro page-swap is a default-instance (single-panel) concern — the astro
+  // fallback / lifecycle adapter is a global, document-level channel. Resolve
+  // the active instance at call time.
+  const cfg = getPanelConfig();
+  const root = findRoot(cfg);
   if (!root) return;
-  const shouldRestore = wasVisible();
+  const shouldRestore = wasVisible(cfg);
   render(null, root);
   root.remove();
-  if (shouldRestore) setStoredVisibility(true);
+  if (shouldRestore) setStoredVisibility(cfg, true);
 }
 
 /**
@@ -452,11 +489,12 @@ function unmountForSwap(): void {
  * same way the adapter's module-init path kills it on hard-nav.
  */
 function reapplyFromStorage(): void {
+  const cfg = getPanelConfig();
   reapplyPersistedOverrides();
-  if (wasVisible()) {
-    showDesignTokenPanel();
-  } else if (hasPersistedOverrides()) {
-    hideDesignTokenPanel();
+  if (wasVisible(cfg)) {
+    showInstance(cfg);
+  } else if (hasPersistedOverrides(cfg)) {
+    hideInstance(cfg);
   }
 }
 
@@ -499,22 +537,164 @@ function reapplyFromStorage(): void {
  *   is already correct — so the very next render reads the right value
  *   from the mount-effect path (line 170 in `panel.tsx`).
  */
-function handleExternalToggleEvent(): void {
-  const isFreshMount = !findRoot();
+function handleExternalToggleEvent(cfg: PanelConfig): void {
+  const isFreshMount = !findRoot(cfg);
   // When the panel root is absent (fresh mount, or SPA-nav zombie state where
   // `unmountForSwap` removed the root but left `OPEN_KEY='1'` behind), the
   // user's intent on this toggle event is unambiguously "open" — deriving
   // direction from a possibly-stale `OPEN_KEY` would mount the panel CLOSED
   // and require a second click. See zudolab/zudo-doc#1633 / #1640 / #1631.
-  const willBeOpen = isFreshMount ? true : !isPanelCurrentlyOpen();
-  seedOpenStateBeforeMount(willBeOpen);
-  ensureMounted();
+  const willBeOpen = isFreshMount ? true : !isPanelCurrentlyOpen(cfg);
+  seedOpenStateBeforeMount(cfg, willBeOpen);
+  ensureMounted(cfg);
   // Fresh mount: the seed has already driven the mount-effect to the desired
   // state; no in-component listener exists to notify yet. The sync event
   // would harmlessly land in the void.
   if (isFreshMount) return;
-  notifyPanelOpenChanged();
+  notifyPanelOpenChanged(cfg);
 }
+
+// ---------------------------------------------------------------------------
+// Per-instance event/lifecycle bindings (#354)
+//
+// Each configured panel instance owns ITS OWN window-event wiring: a toggle-
+// event listener (keyed by `toggleEventName(cfg)`) and — for the default
+// instance only — the deprecated `toggle-color-tweak-panel` alias. Two panels
+// with distinct `storagePrefix`es therefore bind and tear down fully
+// independently; `destroy()` on one removes only that one's listeners + root.
+//
+// This is a SEPARATE concern from the framework-agnostic lifecycle adapter
+// below (`setLifecycleAdapter`): that adapter is a single, document-level
+// page-swap channel for the default (single-panel) astro flow, whereas these
+// bindings are per-instance window-event channels. Keeping them in distinct
+// registries lets two panels coexist without either one's bind/teardown
+// touching the other's listeners or the shared astro adapter.
+// ---------------------------------------------------------------------------
+
+/** One instance's active window-event bindings. */
+interface InstanceBindingRecord {
+  /** Listener removers — drained on `unbindInstance`. */
+  cleanups: Array<() => void>;
+}
+
+type InstanceBindingsWindow = Window & {
+  __zudoDesignTokenPanelInstanceBindings?: Map<string, InstanceBindingRecord>;
+};
+
+function getInstanceBindings(): Map<string, InstanceBindingRecord> {
+  const w = window as InstanceBindingsWindow;
+  if (w.__zudoDesignTokenPanelInstanceBindings) return w.__zudoDesignTokenPanelInstanceBindings;
+  const map = new Map<string, InstanceBindingRecord>();
+  w.__zudoDesignTokenPanelInstanceBindings = map;
+  return map;
+}
+
+/**
+ * Idempotently bind ONE instance's toggle-event listener(s). Keyed by
+ * `cfg.storagePrefix` — a second call for an already-bound prefix is a no-op,
+ * so re-running the post-configure hook (Astro view-transition reruns) never
+ * stacks duplicate listeners.
+ *
+ * The handler closes over the instance config so it always operates on the
+ * right storage keys / root / sync event, regardless of which instance is the
+ * default at dispatch time.
+ */
+function bindInstance(cfg: PanelConfig): void {
+  if (typeof window === 'undefined') return;
+  const bindings = getInstanceBindings();
+  if (bindings.has(cfg.storagePrefix)) return;
+
+  const toggleEvent = toggleEventName(cfg);
+  const handler = (): void => handleExternalToggleEvent(cfg);
+  window.addEventListener(toggleEvent, handler);
+  const cleanups: Array<() => void> = [() => window.removeEventListener(toggleEvent, handler)];
+
+  // The deprecated alias only ever flipped the default single-panel instance;
+  // binding it for every instance would let one panel's legacy event leak into
+  // another. Scope it to the default instance only.
+  if (toggleEvent === DEFAULT_TOGGLE_EVENT) {
+    window.addEventListener(TOGGLE_EVENT_ALIAS, handler);
+    cleanups.push(() => window.removeEventListener(TOGGLE_EVENT_ALIAS, handler));
+  }
+
+  bindings.set(cfg.storagePrefix, { cleanups });
+}
+
+/** Remove ONE instance's toggle-event listener(s). No-op when not bound. */
+function unbindInstance(instanceId: string): void {
+  if (typeof window === 'undefined') return;
+  const bindings = getInstanceBindings();
+  const record = bindings.get(instanceId);
+  if (!record) return;
+  for (const fn of record.cleanups) {
+    try {
+      fn();
+    } catch {
+      /* a listener-removal that throws should not abort the teardown */
+    }
+  }
+  bindings.delete(instanceId);
+}
+
+/**
+ * Test-only: drain EVERY instance's window-event listeners and clear the
+ * bindings map. Unlike `delete window.__zudoDesignTokenPanelInstanceBindings`,
+ * this actively removes the real `addEventListener` registrations — dropping
+ * the map alone would orphan live listeners that then leak across tests (a
+ * stale listener from a previous test re-mounts a panel on the next dispatch).
+ *
+ * Exported with the `__` internal prefix; not part of the public API.
+ */
+export function __resetInstanceBindingsForTests(): void {
+  if (typeof window === 'undefined') return;
+  const bindings = getInstanceBindings();
+  for (const instanceId of [...bindings.keys()]) {
+    unbindInstance(instanceId);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Z2 lifecycle-hook wiring: back the instance handle's open/close/toggle/
+// destroy (from `configurePanel(...)`) with real per-instance behaviour. The
+// handle methods receive an `instanceId` (=== storagePrefix); we look the
+// instance's config up via `configForInstance` so every storage/event read is
+// correctly keyed.
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve a `PanelConfig` for a handle method given its `instanceId`. The
+ * registry does not expose a per-prefix config getter, but the default
+ * instance's config (`getPanelConfig()`) carries the matching prefix in the
+ * single-/active-panel case. When the ids differ we still return the active
+ * config but override `storagePrefix` so all derivations key off the right
+ * instance — every derivation in this module is a pure function of
+ * `storagePrefix`, so this is sufficient and avoids reaching into registry
+ * internals.
+ */
+function configForInstance(instanceId: string): PanelConfig {
+  const active = getPanelConfig();
+  if (active.storagePrefix === instanceId) return active;
+  return { ...active, storagePrefix: instanceId };
+}
+
+__setPanelLifecycleHooks({
+  // Fires once per `configurePanel` (every instance, incl. the 2nd+). Bind the
+  // instance's toggle-event channel now so a host-dispatched
+  // `toggle-${storagePrefix}` window event works immediately, before any
+  // handle method or mount.
+  configured: (instanceId) => bindInstance(configForInstance(instanceId)),
+  open: (instanceId) => showInstance(configForInstance(instanceId)),
+  close: (instanceId) => hideInstance(configForInstance(instanceId)),
+  toggle: (instanceId) => toggleInstance(configForInstance(instanceId)),
+  destroy: (instanceId) => {
+    // Remove ONLY this instance's listeners + root, and unmount its Preact
+    // tree (so its effect cleanups fire). The registry-level deregistration is
+    // handled by Z1's `handle.destroy()` AFTER this hook runs.
+    const cfg = configForInstance(instanceId);
+    unbindInstance(instanceId);
+    unmountInstance(cfg);
+  },
+});
 
 // ---------------------------------------------------------------------------
 // Framework-agnostic lifecycle adapter (#50)
@@ -703,14 +883,20 @@ const POST_CONFIGURE_REAPPLY_HOOK = (): void => {
 
 if (typeof window !== 'undefined') {
   const state = getAdapterState();
+  // Bind the DEFAULT instance's toggle listener eagerly so the historical
+  // single-panel path (hosts that dispatch `toggle-design-token-panel` before
+  // — or without — calling configurePanel) keeps working out of the box.
+  // Configured instances are bound at configure time via the `configured`
+  // lifecycle hook above.
+  bindInstance(getPanelConfig());
+
   if (!state.bound) {
     state.bound = true;
 
-    window.addEventListener(TOGGLE_EVENT, handleExternalToggleEvent);
-    window.addEventListener(TOGGLE_EVENT_ALIAS, handleExternalToggleEvent);
-
     // Initial bindings: astro fallback. `setLifecycleAdapter(...)` rewrites
-    // this set later if a host installs an adapter.
+    // this set later if a host installs an adapter. This is a single,
+    // document-level page-swap channel (NOT per-instance) — see the
+    // per-instance bindings section above for the toggle-event channels.
     bindAstroFallback(state);
 
     // H2 fix (#111): register reapply as a post-configure hook instead of
