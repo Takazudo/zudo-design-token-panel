@@ -51,7 +51,9 @@ import {
   type TweakState,
 } from '../state/tweak-state';
 import { usePersist } from '../state/persist';
+import { buildApplyOverrides } from '../apply/build-apply-overrides';
 import { FIXTURE_TABS } from './_test-helpers';
+import type { TabConfig } from '../tokens/tier-model';
 import { __resetInstanceBindingsForTests } from '../index';
 
 // ---------------------------------------------------------------------------
@@ -106,6 +108,35 @@ function fullTweakStateFor(cfg: PanelConfig): TweakState {
     typography: {},
     size: {},
   };
+}
+
+/**
+ * A spacing-only tabs variant whose `hsp-md` item writes a DISTINCT cssVar.
+ * Used to prove the apply-payload (buildApplyOverrides) reads THIS instance's
+ * tab manifest, not the active default's.
+ */
+function spacingTabsWithCssVar(cssVar: string): readonly TabConfig[] {
+  return [
+    {
+      id: 'spacing',
+      label: 'Spacing',
+      tiers: [
+        {
+          id: 'raw',
+          label: 'Spacing',
+          items: [
+            {
+              id: 'hsp-md',
+              cssVar,
+              label: 'hsp-md',
+              default: '40px',
+              type: { kind: 'length', step: 1, unit: 'px' },
+            },
+          ],
+        },
+      ],
+    },
+  ];
 }
 
 let setPropertySpy: ReturnType<typeof vi.spyOn>;
@@ -266,6 +297,48 @@ describe('state path — reset (handleResetAll) on a non-default instance clears
     expect(flatClearNames(sinkB.clearCalls).length).toBe(0);
     // :root untouched — A has a sink.
     expect(removePropertySpy).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3b. Apply payload (buildApplyOverrides) reads A's cluster + tabs, not default
+// ---------------------------------------------------------------------------
+
+describe('apply payload — buildApplyOverrides scoped to A emits A\'s cssVars, not the default instance\'s', () => {
+  it('non-color tab override resolves through A\'s tab manifest, not B\'s, while B is the default', () => {
+    // A and B both define an `hsp-md` spacing item, but under DIFFERENT cssVars.
+    // The apply POST payload must use the cssVar from the instance that's
+    // applying (A) — the codex finding was that buildApplyOverrides fell back to
+    // getPanelConfig().tabs (= B, the default), POSTing the wrong token name.
+    const tabsA = spacingTabsWithCssVar('--inst-a-hsp-md');
+    const tabsB = spacingTabsWithCssVar('--inst-b-hsp-md');
+    const cfgA = makeConfig('inst-alpha', { tabs: tabsA });
+    const cfgB = makeConfig('inst-beta', { tabs: tabsB });
+    configurePanel(cfgA);
+    configurePanel(cfgB); // B is the active default
+
+    const state: TweakState = {
+      color: initColorFromScheme(getActivePrimaryCluster(cfgA)),
+      spacing: { 'hsp-md': '99px' },
+      typography: {},
+      size: {},
+    };
+
+    // The instance-scoped call panel.tsx's ApplyModal now makes: pass A's
+    // primary cluster + A's tabs.
+    const payloadA = buildApplyOverrides(
+      state,
+      undefined,
+      getActivePrimaryCluster(cfgA),
+      cfgA.tabs,
+    );
+    expect(payloadA['--inst-a-hsp-md']).toBe('99px');
+    expect(payloadA['--inst-b-hsp-md']).toBeUndefined();
+
+    // The OLD no-tabs call resolved getPanelConfig().tabs = B → B's cssVar.
+    const payloadDefault = buildApplyOverrides(state, undefined);
+    expect(payloadDefault['--inst-b-hsp-md']).toBe('99px');
+    expect(payloadDefault['--inst-a-hsp-md']).toBeUndefined();
   });
 });
 

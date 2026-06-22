@@ -37,7 +37,11 @@ import {
   resolveSecondaryColorCluster,
   type PanelConfig,
 } from './config/panel-config';
-import { type ColorTweakState, type TweakState } from './state/tweak-state';
+import {
+  getActivePrimaryCluster,
+  type ColorTweakState,
+  type TweakState,
+} from './state/tweak-state';
 import { serialize } from './utils/design-token-serde';
 
 const COPY_REVERT_MS = 2000;
@@ -276,8 +280,14 @@ export function ApplyModal(props: ApplyModalProps) {
   }, [copyLabel]);
 
   const flattenedOverrides = useMemo(() => {
+    // Resolve THIS instance's primary cluster + tabs so the payload's CSS-var
+    // names / tab token set come from the panel that's applying — NOT the active
+    // default instance (#357). Without this, panel A would POST A's endpoint with
+    // vars/tabs derived from default panel B (wrong token names → rejects or
+    // edits to the wrong tokens).
+    const primaryCluster = getActivePrimaryCluster(cfg);
     // Primary zd cluster — diffed against the scheme baseline.
-    const zdOverrides = buildApplyOverrides(state, colorDefaults);
+    const zdOverrides = buildApplyOverrides(state, colorDefaults, primaryCluster, cfg.tabs);
     // Optional secondary cluster. Three short-circuits:
     //
     //   1. Host opted out (`secondaryColorCluster: null`) — `secondaryCluster`
@@ -292,7 +302,12 @@ export function ApplyModal(props: ApplyModalProps) {
     const secondaryCluster = resolveSecondaryColorCluster(cfg);
     const secondaryOverrides =
       secondaryCluster && state.secondary
-        ? buildApplyOverrides({ ...state, color: state.secondary }, undefined, secondaryCluster)
+        ? buildApplyOverrides(
+            { ...state, color: state.secondary },
+            undefined,
+            secondaryCluster,
+            cfg.tabs,
+          )
         : {};
     return { ...zdOverrides, ...secondaryOverrides };
   }, [state, colorDefaults, cfg]);
