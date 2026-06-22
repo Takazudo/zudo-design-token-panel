@@ -59,6 +59,7 @@ import {
   __setPanelLifecycleHooks,
   DEFAULT_TOGGLE_EVENT,
   getPanelConfig,
+  getPanelConfigByPrefix,
   openStateChangedEventName,
   panelRootId,
   registerPostConfigureHook,
@@ -253,10 +254,11 @@ function ensureMounted(cfg: PanelConfig): boolean {
   const root = document.createElement('div');
   root.id = panelId;
   document.body.appendChild(root);
-  // Pass the instance's storagePrefix so the panel reads ITS own open key and
-  // subscribes to ITS own per-instance sync event — two panels on one page
-  // stay fully independent (issue #354).
-  render(<DesignTokenTweakPanel storagePrefix={cfg.storagePrefix} />, root);
+  // Pass the instance's OWN config so the panel reads ITS own open/visible
+  // keys, subscribes to ITS own per-instance sync event, and renders ITS own
+  // tabs — two panels on one page stay fully independent (issue #354). `cfg`
+  // is the registered per-instance config (via `configForInstance`).
+  render(<DesignTokenTweakPanel instanceConfig={cfg} />, root);
   return true;
 }
 
@@ -662,16 +664,21 @@ export function __resetInstanceBindingsForTests(): void {
 // ---------------------------------------------------------------------------
 
 /**
- * Resolve a `PanelConfig` for a handle method given its `instanceId`. The
- * registry does not expose a per-prefix config getter, but the default
- * instance's config (`getPanelConfig()`) carries the matching prefix in the
- * single-/active-panel case. When the ids differ we still return the active
- * config but override `storagePrefix` so all derivations key off the right
- * instance — every derivation in this module is a pure function of
- * `storagePrefix`, so this is sufficient and avoids reaching into registry
- * internals.
+ * Resolve the `PanelConfig` for a handle method / lifecycle hook given its
+ * `instanceId`. Prefer the instance's OWN registered config so a non-default
+ * panel uses its real tabs / schema / apply settings / custom `toggleEvent`,
+ * not the active default instance's — distinct instances stay independent even
+ * while another prefix is the active default.
+ *
+ * Fallback (synthesize from the active config, overriding only `storagePrefix`)
+ * covers the default-instance-before-configure window: the eager module-init
+ * bind runs with `DEFAULT_PANEL_CONFIG` before any `configurePanel`, so the
+ * instance is not yet registered. Every derivation that fallback feeds is a
+ * pure function of `storagePrefix`, so it is correct for that bootstrap case.
  */
 function configForInstance(instanceId: string): PanelConfig {
+  const registered = getPanelConfigByPrefix(instanceId);
+  if (registered) return registered;
   const active = getPanelConfig();
   if (active.storagePrefix === instanceId) return active;
   return { ...active, storagePrefix: instanceId };

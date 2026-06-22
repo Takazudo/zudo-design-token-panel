@@ -46,6 +46,29 @@ function makeConfig(prefix: string, overrides: Partial<PanelConfig> = {}): Panel
   };
 }
 
+/** Minimal one-tier `size` tab whose label is unique-per-instance for the render assertion. */
+function genericTab(id: string, label: string): PanelConfig['tabs'][number] {
+  return {
+    id,
+    label,
+    tiers: [
+      {
+        id: `${id}-raw`,
+        label: `${label} tier`,
+        items: [
+          {
+            id: `${id}-item`,
+            cssVar: `--${id}-item`,
+            label: `${label} item`,
+            default: '1rem',
+            type: { kind: 'length', step: 0.0625, unit: 'rem' },
+          },
+        ],
+      },
+    ],
+  };
+}
+
 async function waitForEffectFlush(): Promise<void> {
   await new Promise<void>((resolve) =>
     requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
@@ -200,5 +223,27 @@ describe('multi-instance lifecycle (#354)', () => {
     window.dispatchEvent(new CustomEvent(toggleEventName(cfgA)));
     await waitForEffectFlush();
     expect(isOpen(cfgA), 'A works again after re-configure').toBe(true);
+  });
+
+  it('each mounted panel renders ITS OWN tabs, not the active default instance config', async () => {
+    await import('../index');
+
+    // Two instances with DISTINCT manifests. B is configured last, so it is the
+    // active default — yet A's mounted panel must still render A's tab.
+    const cfgA = makeConfig('alpha', { tabs: [genericTab('size', 'Alpha Size')] });
+    const cfgB = makeConfig('beta', { tabs: [genericTab('size', 'Beta Size')] });
+    configurePanel(cfgA);
+    configurePanel(cfgB);
+
+    window.dispatchEvent(new CustomEvent(toggleEventName(cfgA)));
+    window.dispatchEvent(new CustomEvent(toggleEventName(cfgB)));
+    await waitForEffectFlush();
+
+    const aText = rootFor(cfgA)!.textContent ?? '';
+    const bText = rootFor(cfgB)!.textContent ?? '';
+    expect(aText, 'A renders its own tab label').toContain('Alpha Size');
+    expect(aText, 'A does not leak B label').not.toContain('Beta Size');
+    expect(bText, 'B renders its own tab label').toContain('Beta Size');
+    expect(bText, 'B does not leak A label').not.toContain('Alpha Size');
   });
 });

@@ -114,30 +114,31 @@ function freshTweakState(): TweakState {
 /**
  * Props for the panel shell.
  *
- * `storagePrefix` identifies WHICH configured instance this mounted tree
- * belongs to (issue #354). The adapter (`index.tsx`) passes `cfg.storagePrefix`
- * at `render(...)` time. The panel uses it to derive its OWN open key, visible
- * key, and per-instance open-state sync-event name — so two panels on one page
- * read/write distinct storage keys and listen on distinct sync events, never
- * cross-talking. Omitted (e.g. a direct test render) → the active/default
- * instance, preserving the historical single-panel behaviour.
+ * `instanceConfig` is the FULL registered config of the instance this mounted
+ * tree belongs to (issue #354). The adapter (`index.tsx`) passes it at
+ * `render(...)` time. The panel reads its OWN open key, visible key,
+ * per-instance open-state sync-event name, AND its OWN tabs from this config —
+ * so two panels on one page read/write distinct storage keys, listen on
+ * distinct sync events, and render distinct manifests, never cross-talking.
+ * Omitted (e.g. a direct test render) → the active/default instance, preserving
+ * the historical single-panel behaviour.
  */
 interface DesignTokenTweakPanelProps {
-  storagePrefix?: string;
+  instanceConfig?: PanelConfig;
 }
 
-export default function DesignTokenTweakPanel({ storagePrefix }: DesignTokenTweakPanelProps = {}) {
-  // Per-instance config: every storage key + the sync-event name are pure
-  // functions of `storagePrefix`, so override just that field on the active
-  // config. When the prop is omitted we fall back to the active instance,
-  // matching the single-panel default. Memoised so the derived config object
-  // is stable across re-renders (the prop is fixed for a mount's lifetime).
+export default function DesignTokenTweakPanel({
+  instanceConfig: instanceConfigProp,
+}: DesignTokenTweakPanelProps = {}) {
+  // Resolve the instance config: the passed-in registered config, or the active
+  // default instance for a direct (prop-less) test render. Memoised so the
+  // object identity is stable across re-renders (the prop is fixed for a
+  // mount's lifetime), which keeps the [instanceConfig] effect deps quiet.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const instanceConfig = useMemo<PanelConfig>(() => {
-    const active = getPanelConfig();
-    if (storagePrefix === undefined || storagePrefix === active.storagePrefix) return active;
-    return { ...active, storagePrefix };
-  }, [storagePrefix]);
+  const instanceConfig = useMemo<PanelConfig>(
+    () => instanceConfigProp ?? getPanelConfig(),
+    [instanceConfigProp],
+  );
 
   // Scope WAI-ARIA IDs to this panel instance so that two mounted panels in
   // the same document do not share dtp-tab-* / dtp-panel-* IDs.
@@ -490,19 +491,18 @@ export default function DesignTokenTweakPanel({ storagePrefix }: DesignTokenTwea
     setState(freshTweakState());
   }, []);
 
-  // Build the active tab list from PanelConfig.tabs (now required).
-  // useMemo with no deps is intentional — configurePanel is one-shot per
-  // lifecycle, so the list never changes after mount.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Build the active tab list from this instance's PanelConfig.tabs (required).
+  // Keyed on `instanceConfig` so a non-default panel renders ITS own manifest,
+  // not the active default instance's (#354). configurePanel is one-shot per
+  // prefix, so the list is stable for a mount's lifetime.
   const activeTabs = useMemo((): readonly { id: string; label: string }[] => {
-    return getPanelConfig().tabs.map((t: TabConfig) => ({ id: t.id, label: t.label }));
-  }, []);
+    return instanceConfig.tabs.map((t: TabConfig) => ({ id: t.id, label: t.label }));
+  }, [instanceConfig]);
 
-  // Build an id→TabConfig lookup for GenericTab dispatch.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Build an id→TabConfig lookup for GenericTab dispatch (this instance's tabs).
   const tabConfigById = useMemo((): Record<string, TabConfig> => {
     const out: Record<string, TabConfig> = {};
-    for (const t of getPanelConfig().tabs) {
+    for (const t of instanceConfig.tabs) {
       out[t.id] = t;
     }
     return out;

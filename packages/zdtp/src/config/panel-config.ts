@@ -308,6 +308,16 @@ interface InstanceRegistry {
    * never fire on first load.
    */
   pendingPostConfigureHooks: (() => void)[];
+  /**
+   * Z2 per-instance lifecycle hooks (configured / open / close / toggle /
+   * destroy). MUST live on the shared registry for the same reason as
+   * `pendingPostConfigureHooks`: in Vite/Astro multi-entry builds `index.tsx`
+   * installs the hooks from one `panel-config` module instance while
+   * `configurePanel` fires the `configured` hook from another. A module-scoped
+   * object would be per-chunk — the configuring chunk would see unset hooks and
+   * second+ instances would never bind their per-instance toggle events.
+   */
+  lifecycleHooks: PanelLifecycleHooks;
 }
 
 function getRegistry(): InstanceRegistry {
@@ -319,6 +329,7 @@ function getRegistry(): InstanceRegistry {
       defaultPrefix: null,
       pendingColorPresets: null,
       pendingPostConfigureHooks: [],
+      lifecycleHooks: {},
     };
     g[REGISTRY_SYMBOL] = registry;
   }
@@ -339,19 +350,19 @@ function makeHandle(prefix: string): PanelInstanceHandle {
   return {
     instanceId: prefix,
     open() {
-      panelLifecycleHooks.open?.(prefix);
+      getRegistry().lifecycleHooks.open?.(prefix);
     },
     close() {
-      panelLifecycleHooks.close?.(prefix);
+      getRegistry().lifecycleHooks.close?.(prefix);
     },
     toggle() {
-      panelLifecycleHooks.toggle?.(prefix);
+      getRegistry().lifecycleHooks.toggle?.(prefix);
     },
     destroy() {
       // Model-level cleanup: drop the instance from the registry. Z2 extends
-      // this via `panelLifecycleHooks.destroy` to also unmount the Preact tree
+      // this via the `destroy` lifecycle hook to also unmount the Preact tree
       // and remove the DOM root.
-      panelLifecycleHooks.destroy?.(prefix);
+      getRegistry().lifecycleHooks.destroy?.(prefix);
       const registry = getRegistry();
       registry.instances.delete(prefix);
       if (registry.defaultPrefix === prefix) {
@@ -392,20 +403,25 @@ export interface PanelLifecycleHooks {
   destroy?: (instanceId: string) => void;
 }
 
-const panelLifecycleHooks: PanelLifecycleHooks = {};
-
 /**
  * Z2 seam: install per-instance lifecycle handlers used by every instance
  * handle's open/close/toggle/destroy plus the per-configure `configured` hook.
  * Last call wins (Z2 owns its own idempotency). No-op-friendly: unset handlers
  * leave the corresponding hook a no-op.
+ *
+ * Stored on the SHARED globalThis registry (not module scope) so the install
+ * side (`index.tsx`) and the fire side (`configurePanel`) observe the same
+ * hooks even when a Vite/Astro multi-entry build code-splits `panel-config`
+ * into two module instances — mirrors `pendingPostConfigureHooks`.
  */
 export function __setPanelLifecycleHooks(hooks: PanelLifecycleHooks): void {
-  panelLifecycleHooks.configured = hooks.configured;
-  panelLifecycleHooks.open = hooks.open;
-  panelLifecycleHooks.close = hooks.close;
-  panelLifecycleHooks.toggle = hooks.toggle;
-  panelLifecycleHooks.destroy = hooks.destroy;
+  getRegistry().lifecycleHooks = {
+    configured: hooks.configured,
+    open: hooks.open,
+    close: hooks.close,
+    toggle: hooks.toggle,
+    destroy: hooks.destroy,
+  };
 }
 
 /**
@@ -482,7 +498,7 @@ export function configurePanel(config: PanelConfig): PanelInstanceHandle {
   // Fire the Z2 per-configure hook for THIS (every) instance, so the lifecycle
   // module can bind the instance's toggle-event channel at configure time —
   // including the 2nd+ instance that the post-configure-hook adoption skips.
-  panelLifecycleHooks.configured?.(prefix);
+  registry.lifecycleHooks.configured?.(prefix);
   return record.handle;
 }
 
@@ -541,6 +557,19 @@ export function registerPostConfigureHook(hook: () => void): void {
  */
 export function getPanelConfig(): PanelConfig {
   return getDefaultRecord()?.config ?? DEFAULT_PANEL_CONFIG;
+}
+
+/**
+ * Resolve the registered config for a SPECIFIC instance by its `storagePrefix`
+ * (=== `instanceId`), or `null` when no such instance is registered.
+ *
+ * Z2 uses this so a non-default panel mounts/operates against ITS OWN config
+ * (tabs, schema, apply settings, custom `toggleEvent`) instead of the active
+ * default instance's config — distinct instances stay fully independent even
+ * while another prefix is the active default.
+ */
+export function getPanelConfigByPrefix(prefix: string): PanelConfig | null {
+  return getRegistry().instances.get(prefix)?.config ?? null;
 }
 
 /**
