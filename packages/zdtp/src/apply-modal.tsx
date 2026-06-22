@@ -116,9 +116,17 @@ type CopyLabel = 'Copy pre-apply state to clipboard' | 'Copied!';
  * Pretty-print the pre-apply diff JSON so the success view can offer it as a
  * revert blob. The user pastes this back into Import → Apply to roll the
  * change back.
+ *
+ * `cfg` is THIS instance's config (multi-instance, #361) so the revert blob is
+ * computed from the mounted panel's OWN tab manifest + color cluster, not the
+ * active default instance's.
  */
-function buildPreviewJson(state: TweakState, colorDefaults: ColorTweakState | undefined): string {
-  return JSON.stringify(serialize(state, { colorDefaults }), null, 2);
+function buildPreviewJson(
+  state: TweakState,
+  colorDefaults: ColorTweakState | undefined,
+  cfg: PanelConfig,
+): string {
+  return JSON.stringify(serialize(state, { colorDefaults }, cfg), null, 2);
 }
 
 /**
@@ -340,7 +348,7 @@ export function ApplyModal(props: ApplyModalProps) {
     }
     // Snapshot the pre-apply JSON now so the success view can still show it
     // after the parent clears persisted state in `onApplied`.
-    const previewJson = buildPreviewJson(state, colorDefaults);
+    const previewJson = buildPreviewJson(state, colorDefaults, cfg);
     setPhase({ kind: 'applying' });
 
     try {
