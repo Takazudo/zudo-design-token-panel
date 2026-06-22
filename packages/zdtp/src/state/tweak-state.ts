@@ -57,8 +57,13 @@ import {
   storageKey_stateV1,
   storageKey_stateV2,
   storageKey_stateV3,
+  type ApplySink,
   type PanelConfig,
 } from '../config/panel-config';
+
+// Re-export ApplySink so callers can import the type from the state module
+// (same pattern used for TabOverrides).
+export type { ApplySink } from '../config/panel-config';
 import { resolvePrimaryColorCluster } from '../config/cluster-config';
 import type { TabConfig } from '../tokens/tier-model';
 import {
@@ -684,6 +689,14 @@ export function cssColorToHex(color: string): string {
   }
 }
 
+/**
+ * Write a single CSS custom property to `document.documentElement`.
+ *
+ * The sink-aware write path bypasses this helper entirely: sink callers
+ * collect all pairs into a batch and call `sink.apply(pairs)` directly.
+ * This helper is used only by the default (no-sink) path in the `else`
+ * branches of `applyColorState`, `applyTabOverridesFlat`, etc.
+ */
 export function setCssVar(name: string, value: string) {
   document.documentElement.style.setProperty(name, value);
 }
@@ -754,12 +767,24 @@ function hexToRgb(hex: string): { r: number; g: number; b: number; aa: number } 
  * light/dark mode. Reads `panelSettings` from the cluster so a
  * host-supplied cluster can declare its own scheme + light/dark pairing
  * without editing the panel package.
+ *
+ * When `cfg` is supplied AND it has an `applySink`, this instance is a
+ * "sink instance" — it does NOT read the host's `data-theme` attribute
+ * (which belongs to the host's document, not to this instance). Instead it
+ * falls back to the panel's own `colorScheme` setting so it picks the
+ * correct default scheme and a scheme switch touches only its own overrides.
  */
 export function getActiveSchemeName(
   cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
+  cfg?: PanelConfig,
 ): string {
   const settings = cluster.panelSettings;
-  if (settings.colorMode) {
+  // Sink instances must NOT read the host document's data-theme — the host
+  // theme attribute targets the host's own :root, which is irrelevant to a
+  // panel routed to a different sink target. Fall back to the static
+  // colorScheme declared in the cluster's panelSettings instead.
+  const isSinkInstance = cfg !== undefined && cfg.applySink !== undefined;
+  if (settings.colorMode && !isSinkInstance) {
     const theme = document.documentElement.getAttribute('data-theme');
     if (theme === 'light') return settings.colorMode.lightScheme;
     if (theme === 'dark') return settings.colorMode.darkScheme;
@@ -864,8 +889,33 @@ export function safeIndex(index: number, len: number): number {
 export function applyColorState(
   state: ColorTweakState,
   cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
+  sink?: ApplySink,
 ) {
   const len = state.palette.length;
+  if (sink) {
+    // Batch all writes for this cluster into one sink.apply() call.
+    const pairs: [string, string][] = [];
+    for (let i = 0; i < len; i++) {
+      pairs.push([resolvePaletteCssVar(cluster, i), state.palette[i]]);
+    }
+    for (const [key, cssName] of Object.entries(cluster.baseRoles)) {
+      if (typeof cssName !== 'string' || cssName.length === 0) continue;
+      const stateIndex = state[key as BaseRoleKey];
+      if (typeof stateIndex !== 'number') continue;
+      pairs.push([cssName, state.palette[safeIndex(stateIndex, len)]]);
+    }
+    for (const [key, cssName] of Object.entries(cluster.semanticCssNames)) {
+      const mapping = state.semanticMappings[key] ?? cluster.semanticDefaults[key];
+      pairs.push([cssName, resolveMapping(mapping, state.palette, state.background, state.foreground)]);
+    }
+    try {
+      sink.apply(pairs);
+    } catch (err) {
+      console.warn('[design-token-panel] applySink.apply threw; falling back silently.', err);
+    }
+    return;
+  }
+  // Default path — write directly to document.documentElement.
   // Palette slots.
   for (let i = 0; i < len; i++) {
     setCssVar(resolvePaletteCssVar(cluster, i), state.palette[i]);
@@ -895,7 +945,39 @@ export function applyColorState(
  * Read-only tokens are skipped in both directions: they are informational rows
  * in the UI and are never written to storage.
  */
-export function applyTokenOverrides(tokens: readonly TokenDef[], overrides: TokenOverrides) {
+export function applyTokenOverrides(
+  tokens: readonly TokenDef[],
+  overrides: TokenOverrides,
+  sink?: ApplySink,
+) {
+  if (sink) {
+    const applyPairs: [string, string][] = [];
+    const clearNames: string[] = [];
+    for (const t of tokens) {
+      if (t.readonly) continue;
+      const v = overrides[t.id];
+      if (typeof v === 'string' && v.length > 0) {
+        applyPairs.push([t.cssVar, v]);
+      } else {
+        clearNames.push(t.cssVar);
+      }
+    }
+    if (applyPairs.length > 0) {
+      try {
+        sink.apply(applyPairs);
+      } catch (err) {
+        console.warn('[design-token-panel] applySink.apply threw; falling back silently.', err);
+      }
+    }
+    if (clearNames.length > 0) {
+      try {
+        sink.clear(clearNames);
+      } catch (err) {
+        console.warn('[design-token-panel] applySink.clear threw; falling back silently.', err);
+      }
+    }
+    return;
+  }
   for (const t of tokens) {
     if (t.readonly) continue;
     const v = overrides[t.id];
@@ -914,20 +996,40 @@ export function applyTokenOverrides(tokens: readonly TokenDef[], overrides: Toke
  * Tab configs AND the primary color cluster are read from `panelConfig`
  * at call time so a host that calls `configurePanel` before mount sees its
  * own data driving the apply pass.
+ *
+ * When `cfg` is supplied its `applySink` (if any) is used to route all
+ * CSS-var writes for this instance. Omitting `cfg` uses the default active
+ * config (single-panel path, unchanged behavior).
  */
-export function applyFullState(state: TweakState) {
-  const config = getPanelConfig();
+export function applyFullState(state: TweakState, cfg?: PanelConfig) {
+  const config = cfg ?? getPanelConfig();
+  const sink = config.applySink;
   // Primary color cluster is derived from the color TabConfig.
-  applyColorState(state.color, getActivePrimaryCluster(config));
+  applyColorState(state.color, getActivePrimaryCluster(config), sink);
   // Apply spacing / typography / size from tabs[] (required field post-Wave-5).
-  applyTabOverridesFlat(config.tabs, 'spacing', state.spacing);
-  applyTabOverridesFlat(config.tabs, 'font', state.typography);
-  applyTabOverridesFlat(config.tabs, 'size', state.size);
+  applyTabOverridesFlat(config.tabs, 'spacing', state.spacing, sink);
+  applyTabOverridesFlat(config.tabs, 'font', state.typography, sink);
+  applyTabOverridesFlat(config.tabs, 'size', state.size, sink);
   // The secondary cluster is host-driven via the 'color-secondary' tab.
   // When no such tab is configured, skip the secondary apply pass entirely.
   const secondaryCluster = resolveSecondaryColorCluster(config);
   if (secondaryCluster && state.secondary) {
-    applyColorState(state.secondary, secondaryCluster);
+    applyColorState(state.secondary, secondaryCluster, sink);
+  }
+  // Apply generic tab overrides (v3 envelope tabs field).
+  // The `tabs` field stores `TabOverrides` (tierId → { itemId → value }).
+  // `applyTabOverridesFlat` takes a flat `TokenOverrides` (itemId → value),
+  // so we flatten each tab's tier map before passing it through.
+  if (state.tabs) {
+    for (const [tabId, tabOverrides] of Object.entries(state.tabs)) {
+      const flatOverrides: TokenOverrides = {};
+      for (const tierOverrides of Object.values(tabOverrides)) {
+        for (const [itemId, value] of Object.entries(tierOverrides)) {
+          flatOverrides[itemId] = value;
+        }
+      }
+      applyTabOverridesFlat(config.tabs, tabId, flatOverrides, sink);
+    }
   }
 }
 
@@ -939,11 +1041,15 @@ export function applyFullState(state: TweakState) {
  * property removed so the stylesheet default re-asserts.
  *
  * Skips gracefully when the tab is not found (host config without that tab).
+ *
+ * When `sink` is supplied, CSS-var writes and clears are routed through it
+ * instead of `document.documentElement`.
  */
 function applyTabOverridesFlat(
   tabs: readonly TabConfig[],
   tabId: string,
   overrides: TokenOverrides,
+  sink?: ApplySink,
 ) {
   const tab = tabs.find((t) => t.id === tabId);
   if (!tab) return;
@@ -961,6 +1067,45 @@ function applyTabOverridesFlat(
       }
     }
     tabOverrides[tier.id] = tierOverrides;
+  }
+
+  if (sink) {
+    // Collect all apply pairs and clear names, then flush to the sink.
+    const applyPairs: [string, string][] = [];
+    const clearNames: string[] = [];
+    for (const tier of tab.tiers) {
+      for (const item of tier.items) {
+        if (item.readonly) continue;
+        try {
+          const resolved = resolveTierItemValue(tab, tier.id, item.id, tabOverrides);
+          const cssValue = emitTierItemCssValue(resolved);
+          const hasOverride =
+            typeof overrides[item.id] === 'string' && overrides[item.id].length > 0;
+          if (hasOverride || tier.referencesTier !== undefined) {
+            applyPairs.push([item.cssVar, cssValue]);
+          } else {
+            clearNames.push(item.cssVar);
+          }
+        } catch {
+          clearNames.push(item.cssVar);
+        }
+      }
+    }
+    if (applyPairs.length > 0) {
+      try {
+        sink.apply(applyPairs);
+      } catch (err) {
+        console.warn('[design-token-panel] applySink.apply threw; falling back silently.', err);
+      }
+    }
+    if (clearNames.length > 0) {
+      try {
+        sink.clear(clearNames);
+      } catch (err) {
+        console.warn('[design-token-panel] applySink.clear threw; falling back silently.', err);
+      }
+    }
+    return;
   }
 
   // Apply each item using the resolver so reference tiers emit var() refs.
@@ -996,11 +1141,48 @@ function applyTabOverridesFlat(
  * Default wipe set — follows the host's configuration. Derives the clusters
  * to clear from the color tabs (primary + optional secondary).
  */
-function defaultClusterWipeSet(): readonly ColorClusterDataConfig[] {
-  const cfg = getPanelConfig();
-  const primary = getActivePrimaryCluster(cfg);
-  const secondary = resolveSecondaryColorCluster(cfg);
+function defaultClusterWipeSet(cfg?: PanelConfig): readonly ColorClusterDataConfig[] {
+  const config = cfg ?? getPanelConfig();
+  const primary = getActivePrimaryCluster(config);
+  const secondary = resolveSecondaryColorCluster(config);
   return secondary ? [primary, secondary] : [primary];
+}
+
+/**
+ * Collect ALL CSS var names owned by a color cluster (palette slots, base
+ * roles, semantic vars). Used by the sink-aware clear path to call
+ * `sink.clear(fullTokenNameSet)` for a full-instance reset.
+ */
+function clusterVarNames(cluster: ColorClusterDataConfig): string[] {
+  const names: string[] = [];
+  for (let i = 0; i < cluster.paletteSize; i++) {
+    names.push(resolvePaletteCssVar(cluster, i));
+  }
+  for (const prop of Object.values(cluster.baseRoles)) {
+    if (typeof prop === 'string' && prop.length > 0) names.push(prop);
+  }
+  for (const cssName of Object.values(cluster.semanticCssNames)) {
+    names.push(cssName);
+  }
+  return names;
+}
+
+/**
+ * Collect ALL CSS var names owned by non-color tabs (spacing/font/size and
+ * generic host tabs). Used by the sink-aware reset path.
+ */
+function nonColorTabVarNames(cfg: PanelConfig): string[] {
+  const names: string[] = [];
+  for (const tab of cfg.tabs) {
+    if (tab.id === 'color' || tab.id === 'color-secondary') continue;
+    for (const tier of tab.tiers) {
+      for (const item of tier.items) {
+        if (item.readonly) continue;
+        names.push(item.cssVar);
+      }
+    }
+  }
+  return names;
 }
 
 /**
@@ -1015,10 +1197,28 @@ function defaultClusterWipeSet(): readonly ColorClusterDataConfig[] {
  *
  * Accepts an optional list of clusters so callers can scope the wipe to a
  * subset; the default covers both the primary and secondary clusters.
+ *
+ * When `sink` is supplied, clears are routed through it instead of
+ * `document.documentElement`.
  */
 export function clearAppliedColorStyles(
   clusters: readonly ColorClusterDataConfig[] = defaultClusterWipeSet(),
+  sink?: ApplySink,
 ) {
+  if (sink) {
+    const names: string[] = [];
+    for (const cluster of clusters) {
+      names.push(...clusterVarNames(cluster));
+    }
+    if (names.length > 0) {
+      try {
+        sink.clear(names);
+      } catch (err) {
+        console.warn('[design-token-panel] applySink.clear threw; falling back silently.', err);
+      }
+    }
+    return;
+  }
   const root = document.documentElement;
   for (const cluster of clusters) {
     for (let i = 0; i < cluster.paletteSize; i++) {
@@ -1042,18 +1242,47 @@ export function clearAppliedColorStyles(
  * subset; the default wipes both the primary and secondary clusters so a
  * panel-level reset leaves no stale inline overrides on `:root` regardless
  * of which cluster was last edited.
+ *
+ * When `cfg` is supplied its `applySink` (if any) routes the clear through the
+ * sink with the FULL token-name set for this instance (not just dirty vars).
+ * This satisfies the Reset contract: the sink `clear` receives every var the
+ * instance can own, so the sink's target element is completely clean.
  */
 export function clearAppliedStyles(
-  clusters: readonly ColorClusterDataConfig[] = defaultClusterWipeSet(),
+  clusters?: readonly ColorClusterDataConfig[],
+  cfg?: PanelConfig,
 ) {
+  const config = cfg ?? getPanelConfig();
+  const sink = config.applySink;
+  const resolvedClusters = clusters ?? defaultClusterWipeSet(config);
+
+  if (sink) {
+    // Collect the FULL token-name set for this instance so the sink target
+    // is completely cleaned — not just the currently-dirty vars.
+    const names: string[] = [];
+    for (const cluster of resolvedClusters) {
+      names.push(...clusterVarNames(cluster));
+    }
+    names.push(...nonColorTabVarNames(config));
+    if (names.length > 0) {
+      try {
+        sink.clear(names);
+      } catch (err) {
+        console.warn('[design-token-panel] applySink.clear threw; falling back silently.', err);
+      }
+    }
+    return;
+  }
+
+  // Default path — write/remove directly on document.documentElement.
   // Color cluster vars (palette / base roles / semantic).
-  clearAppliedColorStyles(clusters);
+  clearAppliedColorStyles(resolvedClusters);
   // Tabs — clear all cssVars for items in spacing/font/size tabs so the
   // stylesheet defaults take effect again.
   const root = document.documentElement;
-  for (const tab of getPanelConfig().tabs) {
+  for (const tab of config.tabs) {
     // Color tab vars are handled above via cluster clear paths.
-    if (tab.id === 'color') continue;
+    if (tab.id === 'color' || tab.id === 'color-secondary') continue;
     for (const tier of tab.tiers) {
       for (const item of tier.items) {
         if (item.readonly) continue;

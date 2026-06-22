@@ -23,21 +23,32 @@ import {
   type TokenOverrides,
   type TweakState,
 } from './tweak-state';
+import type { PanelConfig } from '../config/panel-config';
 
 type SetState<T> = (updater: (prev: T | null) => T | null) => void;
 
-export function usePersist(setState: SetState<TweakState>) {
+/**
+ * `usePersist` hook.
+ *
+ * Accepts an optional `cfg` — the panel instance config. When supplied its
+ * `applySink` (if any) routes every CSS-var write through the sink instead
+ * of `document.documentElement`. Omitting `cfg` uses `getPanelConfig()` via
+ * the no-arg `applyFullState` call, preserving the single-panel default path.
+ */
+export function usePersist(setState: SetState<TweakState>, cfg?: PanelConfig) {
   const persist = useCallback(
     (updater: (prev: TweakState) => TweakState) => {
       setState((prev) => {
         if (!prev) return prev;
         const next = updater(prev);
-        applyFullState(next);
+        applyFullState(next, cfg);
         savePersistedState(next);
         return next;
       });
     },
-    [setState],
+    // cfg is intentionally included so the callback re-binds when the
+    // config reference changes (e.g. hot-reload in dev).
+    [setState, cfg],
   );
 
   /**
