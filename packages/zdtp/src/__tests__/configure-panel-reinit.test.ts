@@ -48,11 +48,19 @@ describe('configurePanel — structural re-init guard (P0-4)', () => {
     expect(() => configurePanel(reparsed)).not.toThrow();
   });
 
-  it('still throws on a structurally different second call', () => {
+  it('still throws on a same-prefix structurally-different second call', () => {
     configurePanel(BASE);
-    expect(() => configurePanel({ ...BASE, storagePrefix: 'other' })).toThrow(
+    // Same prefix, different non-prefix field → genuine config conflict, throws.
+    expect(() => configurePanel({ ...BASE, consoleNamespace: 'other' })).toThrow(
       /already called with different values/,
     );
+  });
+
+  it('does NOT throw when the second call uses a distinct storagePrefix (multi-instance)', () => {
+    configurePanel(BASE);
+    // A distinct prefix registers an independent instance — the multi-instance
+    // model lifted the global one-shot singleton to a per-prefix registry (#353).
+    expect(() => configurePanel({ ...BASE, storagePrefix: 'other' })).not.toThrow();
   });
 });
 

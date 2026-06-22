@@ -432,31 +432,98 @@ The zfb (zudo-front-builder) integration is documented in that project's own rep
 
 ## 5. `configurePanel()` and the `PanelConfig` shape
 
-`configurePanel(config)` is the configure-once init. The Astro host adapter calls it for you (it reads the inline JSON config emitted by `<DesignTokenPanelHost>` and forwards it). For a non-Astro host, you would call `configurePanel(myPanelConfig)` yourself before the panel adapter is dynamically imported.
+`configurePanel(config)` is the multi-instance init. It returns a `PanelInstanceHandle`. The Astro host adapter calls it for you (it reads the inline JSON config emitted by `<DesignTokenPanelHost>` and forwards it). For a non-Astro host, you would call `configurePanel(myPanelConfig)` yourself before the panel adapter is dynamically imported.
 
 ```ts
 import { configurePanel, type PanelConfig } from '@takazudo/zdtp';
 
-configurePanel(myPanelConfig);
+const handle = configurePanel(myPanelConfig);
+// handle.instanceId === myPanelConfig.storagePrefix
+// handle.open() / close() / toggle() / destroy()
 ```
 
 ### 5.1 Behaviour
 
-- **One-shot per page lifecycle.** Calling `configurePanel` twice with identical values is a no-op. Calling it twice with different values throws — silently overwriting a previously-configured cluster mid-session is the failure mode the contract explicitly rules out.
+- **Multi-instance.** Call `configurePanel` with a **distinct** `storagePrefix` to register an independent panel instance (independent storage keys, DOM root, toggle event, and apply target). No throw.
+- **Idempotent for same prefix+config.** Calling `configurePanel` again with the same `storagePrefix` and structurally-equal config values is a no-op and returns the same handle. This covers Astro view-transition reruns that re-parse the inline JSON config.
+- **Same-prefix-different-config THROWS.** Calling `configurePanel` with an already-registered prefix but a different config throws immediately. To re-configure a prefix, call `handle.destroy()` first, then `configurePanel` again.
 - **Synchronous, no I/O.** The call must be cheap enough to run inline at module init.
-- **JSON-serializable input.** Every nested field MUST round-trip through `JSON.stringify` / `JSON.parse` without loss. No function fields, no class instances, no `Symbol` keys, no `undefined`-where-`null`-is-meant. This is the hard precondition for the Astro frontmatter → client island handoff (§8).
+- **JSON-serializable input (except `applySink`).** Every nested field other than `applySink` MUST round-trip through `JSON.stringify` / `JSON.parse` without loss. `applySink` carries function references and must not be passed through the Astro inline JSON config.
 
-### 5.2 Field summary
+### 5.2 `PanelInstanceHandle`
+
+```ts
+export interface PanelInstanceHandle {
+  /** Stable instance id — equal to the instance's `storagePrefix`. */
+  readonly instanceId: string;
+  open(): void;   // show this instance's panel
+  close(): void;  // hide this instance's panel
+  toggle(): void; // toggle open/closed
+  /**
+   * Deregister this instance. Unmounts Preact tree, removes DOM root,
+   * unbinds toggle-event listener. Prefix can then be re-configured.
+   */
+  destroy(): void;
+}
+```
+
+### 5.3 Field summary
 
 | Field                | Type                           | Purpose                                                                                                                                                                |
 | -------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `storagePrefix`      | `string`                       | Base for every derived `localStorage` key. See §9.                                                                                                                     |
+| `storagePrefix`      | `string`                       | Base for every derived `localStorage` key. Also the instance id. See §9.                                                                                               |
 | `consoleNamespace`   | `string`                       | Global object the package installs `showDesignPanel` / `hideDesignPanel` / `toggleDesignPanel` on (e.g. `consoleNamespace: 'myapp'` → `window.myapp.showDesignPanel`). |
 | `modalClassPrefix`   | `string`                       | BEM root class for every modal the panel owns (export, import, apply). Emits `${prefix}__overlay`, `${prefix}__panel`, etc.                                            |
 | `schemaId`           | `string`                       | `$schema` value emitted into export JSON and required on import.                                                                                                       |
 | `exportFilenameBase` | `string`                       | Default download filename base — exports save as `${exportFilenameBase}.json`.                                                                                         |
+| `toggleEvent`        | `string` (optional)            | Window-event name that toggles THIS instance. Defaults to `toggle-${storagePrefix}` for non-default instances; the default instance keeps `toggle-design-token-panel`. |
 | `tabs`               | `readonly TabConfig[]`         | **Required.** Tab strip data — each entry is a tab with one or more `TierConfig` objects. The color tab (id `'color'`) additionally requires `colorExtras`. See §6.    |
 | `colorPresets`       | `Record<string, ColorScheme>` (optional) | Optional named scheme presets surfaced in the Color tab "Scheme..." dropdown. Defaults to `{}`. See §7.5.                                              |
+| `applySink`          | `ApplySink` (optional)         | Optional sink that routes this instance's CSS-var writes off `:root`. See §5.4. Not JSON-serializable — do not include in Astro inline config.                        |
+
+### 5.4 `applySink` — optional write target
+
+When `PanelConfig.applySink` is set for an instance, all CSS-var writes and clears for that instance route through the sink rather than `document.documentElement`. This enables embedding the panel in a shadow root, iframe, or test spy without touching `:root`.
+
+```ts
+export interface ApplySink {
+  /** Upsert the given var name→value pairs on the sink target. */
+  apply(pairs: ReadonlyArray<readonly [string, string]>): void;
+  /** Remove the given var names from the sink target. */
+  clear(names: readonly string[]): void;
+}
+```
+
+Key behaviours:
+
+- `apply` = **upsert**: set each named CSS var on the sink target.
+- `clear` = **remove**: remove each named CSS var from the sink target.
+- **Reset clears the full token set**: when the user clicks Reset, `sink.clear` receives every var the instance can own (not just dirty vars) so the sink target is fully cleaned.
+- **Sink errors are non-fatal**: `console.warn` is emitted and the apply pipeline continues.
+- **The host owns the sink target's lifecycle.** Keep the sink target alive as long as the panel instance is alive.
+- **Not JSON-serializable.** Supply it after `configurePanel` via a custom adapter or by constructing the config object with the sink already attached.
+
+```ts
+// Example: routing to a shadow root
+const shadow = shadowHost.attachShadow({ mode: 'open' });
+
+const handle = configurePanel({
+  storagePrefix: 'myapp-shadow-panel',
+  // ...other required fields...
+  applySink: {
+    apply(pairs) {
+      for (const [name, value] of pairs) {
+        (shadow.host as HTMLElement).style.setProperty(name, value);
+      }
+    },
+    clear(names) {
+      for (const name of names) {
+        (shadow.host as HTMLElement).style.removeProperty(name);
+      }
+    },
+  },
+});
+```
 
 ### 5.3 Mount strategy & auto-mount
 
@@ -577,13 +644,15 @@ The panel walks each `TierItem` on apply:
 
 - If `readonly`, the row is display-only — no writes.
 - For a **base tier item**: if the override map has a non-empty string for
-  `id`, the panel calls `document.documentElement.style.setProperty(item.cssVar, value)`.
-  Otherwise it removes the inline property so the consumer's stylesheet default wins.
+  `id`, the panel writes `item.cssVar` ← value. Otherwise it removes the
+  inline property so the consumer's stylesheet default wins.
 - For a **ref-tier item** (`referencesTier` set): the persisted value is the id
   of an item in the referenced base tier. The apply pipeline emits
   `var(--base-tier-cssvar)` as the written value.
 
-The write target is always `:root`. No shadow DOM, no scoped overrides — the panel ships a global tweak intentionally.
+The default write target is `:root` (`document.documentElement`). An instance
+with `PanelConfig.applySink` set routes writes through the sink instead — see
+§5.4 for the full sink contract.
 
 ---
 

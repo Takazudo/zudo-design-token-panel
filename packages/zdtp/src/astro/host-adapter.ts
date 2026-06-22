@@ -56,6 +56,7 @@ import {
   storageKey_stateV3,
   storageKey_visible,
   type PanelConfig,
+  type PanelInstanceHandle,
 } from '../config/panel-config';
 import { ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP } from '../state/tweak-state';
 
@@ -219,23 +220,42 @@ async function loadPanelModule(state: DesignTokenPanelAdapterState) {
   return state.modulePromise;
 }
 
+/**
+ * Install the console API on `window[namespace]`, bound to THIS instance's
+ * handle (multi-instance, #357).
+ *
+ * The handlers must target the instance whose namespace they were installed
+ * under — NOT `getPanelConfig()` at call time. Previously they called the
+ * no-arg exports (`panel.showDesignTokenPanel()` etc.), which resolve the
+ * most-recently-configured (default) instance: once a SECOND instance was
+ * configured, namespace A's console call drove instance B. Binding to the
+ * instance `handle` (captured at install time, keyed by its `storagePrefix`)
+ * keeps namespace A's console call driving instance A regardless of which
+ * instance is the active default.
+ *
+ * `handle.open/close/toggle` route through the per-instance lifecycle hooks the
+ * panel module installs at load. We still `await loadPanelModule(state)` first
+ * so those hooks are installed (and the panel root materialises) before the
+ * handle method fires — otherwise the handle methods are no-ops.
+ */
 function installConsoleApi(
   win: AdapterWindow,
   namespace: string,
   state: DesignTokenPanelAdapterState,
+  handle: PanelInstanceHandle,
 ): void {
   const existing = (win[namespace] as ConsoleApiSurface | undefined) ?? {};
   existing.showDesignPanel = async () => {
-    const panel = await loadPanelModule(state);
-    panel.showDesignTokenPanel();
+    await loadPanelModule(state);
+    handle.open();
   };
   existing.hideDesignPanel = async () => {
-    const panel = await loadPanelModule(state);
-    panel.hideDesignTokenPanel();
+    await loadPanelModule(state);
+    handle.close();
   };
   existing.toggleDesignPanel = async () => {
-    const panel = await loadPanelModule(state);
-    panel.toggleDesignPanel();
+    await loadPanelModule(state);
+    handle.toggle();
   };
   win[namespace] = existing;
 }
@@ -258,7 +278,10 @@ function installConsoleApi(
   const config: PanelConfig = inline.legacyIdRenameMap
     ? inline
     : { ...inline, legacyIdRenameMap: { ...ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP } };
-  configurePanel(config);
+  // Capture THIS instance's handle (keyed by its storagePrefix). The console
+  // handlers bind to it so a namespace's console call always targets ITS
+  // instance, never whichever instance was configured last (#357).
+  const handle = configurePanel(config);
 
   // Re-read via `getPanelConfig()` so the storage/namespace derivations use
   // the canonical source. (`configurePanel` shallow-clones, so `config` and
@@ -270,8 +293,8 @@ function installConsoleApi(
 
   // 2. Install console API every time — `bound` only gates the lazy-load
   //    probes, since the console handlers are idempotent (re-assigning the
-  //    same closures is a no-op semantically).
-  installConsoleApi(win, cfg.consoleNamespace, state);
+  //    same closures is a no-op semantically). Bind to this instance's handle.
+  installConsoleApi(win, cfg.consoleNamespace, state, handle);
 
   if (state.bound) return;
   state.bound = true;

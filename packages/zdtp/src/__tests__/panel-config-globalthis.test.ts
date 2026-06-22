@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   configurePanel as ConfigurePanelFn,
   getPanelConfig as GetPanelConfigFn,
+  registerPostConfigureHook as RegisterHookFn,
   __resetPanelConfigForTests as ResetFn,
   PanelConfig,
 } from '../config/panel-config';
@@ -133,5 +134,28 @@ describe('panel-config globalThis singleton — multi-instance isolation', () =>
     } finally {
       warnSpy.mockRestore();
     }
+  });
+
+  it('a pre-configure hook registered via instance A still fires when instance B configures (#111 cross-chunk)', async () => {
+    // Regression guard for the multi-instance lift (#353 Z1): the pending
+    // pre-configure hook list MUST live on the shared globalThis registry, not
+    // in module scope. index.tsx (chunk A) registers POST_CONFIGURE_REAPPLY_HOOK
+    // before the host adapter (chunk B) calls configurePanel. If the pending
+    // list were module-scoped, chunk B would drain an empty list and the #111
+    // reapply hook would never run on first load.
+    const instanceA = await import('../config/panel-config');
+
+    const hook = vi.fn();
+    // Register through instance A BEFORE any configure call.
+    (instanceA.registerPostConfigureHook as typeof RegisterHookFn)(hook);
+    expect(hook).not.toHaveBeenCalled();
+
+    vi.resetModules();
+    const instanceB = await import('../config/panel-config');
+    expect(instanceA.configurePanel).not.toBe(instanceB.configurePanel);
+
+    // Configure through instance B — the hook parked via A must fire exactly once.
+    (instanceB.configurePanel as typeof ConfigurePanelFn)(BASE_CONFIG);
+    expect(hook).toHaveBeenCalledTimes(1);
   });
 });
