@@ -8,16 +8,32 @@
  *
  * Plumbing approach
  * -----------------
- * Module-level singleton (NOT Preact context). The panel is a single-instance
- * dev tool, config is set once before the adapter mounts, and every read site
- * is happy to pay a function call to read the current config.
+ * Module-level registry (NOT Preact context), keyed by `storagePrefix`. Each
+ * distinct prefix owns one panel *instance* — its config, its post-configure
+ * hooks, its returned handle. Every read site is happy to pay a function call
+ * to read the current config. Historically this was a single global singleton;
+ * issue #353 (Z1) lifts it to a per-instance registry so multiple panels with
+ * distinct `storagePrefix`es can coexist on one page.
  *
- * Idempotency
- * -----------
- * `configurePanel` is one-shot. Calling it twice with structurally-equal
- * values is a silent no-op (a freshly-parsed inline JSON config can be
- * byte-equal to the previous call but referentially distinct, e.g. on Astro
- * view-transition reruns). Calling with structurally-different values throws.
+ * Backward-compatible default instance
+ * ------------------------------------
+ * The single-panel path is unchanged. `getPanelConfig()` (no argument) returns
+ * the config of the most-recently-configured instance — the "default" / active
+ * instance — or `DEFAULT_PANEL_CONFIG` when no host has called `configurePanel`
+ * yet. A host that only ever calls `configurePanel` once observes the exact
+ * same behaviour as the old singleton.
+ *
+ * Idempotency & re-configure rule (same-prefix)
+ * ---------------------------------------------
+ * `configurePanel(config)` returns an instance handle. For a GIVEN prefix it is
+ * one-shot: calling it again with structurally-equal values is a no-op and
+ * returns the SAME handle (a freshly-parsed inline JSON config can be byte-equal
+ * to the previous call but referentially distinct, e.g. on Astro view-transition
+ * reruns). Calling again with the same prefix but structurally-DIFFERENT values
+ * REJECTS WITH AN ERROR (see `configurePanel` JSDoc) — config conflicts surface
+ * immediately instead of silently corrupting one of the callers' assumptions.
+ * Calling with a DISTINCT prefix registers a new, independent instance and does
+ * NOT throw. This is the chosen rule for Z4/Z5; see `RECONFIGURE_RULE` below.
  *
  * Default fallback
  * ----------------
@@ -128,6 +144,48 @@ export interface PanelConfig {
 }
 
 /**
+ * Handle returned by `configurePanel`. Identifies one configured panel
+ * instance and exposes its imperative lifecycle controls.
+ *
+ * Identity & keying
+ * -----------------
+ * `instanceId` equals the instance's `storagePrefix` — the registry key. Two
+ * `configurePanel` calls with the same prefix+config return the SAME handle
+ * object (referential identity is stable across idempotent re-calls); distinct
+ * prefixes return distinct handles.
+ *
+ * Method bodies — seams for later sub-tasks
+ * -----------------------------------------
+ * This sub-task (Z1) owns the instance MODEL only. `open` / `close` / `toggle`
+ * carry the correct method shape but defer their actual mount/visibility wiring
+ * to Z2 (events/lifecycle/mount). Today they drive the SAME global show/hide
+ * surface the console API uses for the default (single-panel) instance, so the
+ * default path keeps working end-to-end; Z2 replaces the bodies with
+ * per-instance event dispatch keyed by `instanceId`. `destroy()` deregisters
+ * the instance from the registry (model-level cleanup); Z2 extends it to also
+ * unmount the instance's Preact tree and remove its DOM root.
+ *
+ * @see RECONFIGURE_RULE for the same-prefix-different-config behaviour.
+ */
+export interface PanelInstanceHandle {
+  /** Stable instance id — equal to the instance's `storagePrefix` (the registry key). */
+  readonly instanceId: string;
+  /** Show this instance's panel. Z2 wires per-instance mount/visibility; today drives the shared show surface. */
+  open(): void;
+  /** Hide this instance's panel. Z2 wires per-instance mount/visibility; today drives the shared hide surface. */
+  close(): void;
+  /** Toggle this instance's panel open/closed. Z2 wires per-instance mount/visibility. */
+  toggle(): void;
+  /**
+   * Deregister this instance. Removes it from the registry so its prefix can be
+   * re-configured with a fresh config (and so it stops being the default
+   * instance `getPanelConfig()` resolves to). Z2 extends this to also unmount
+   * the instance's Preact tree and remove its DOM root.
+   */
+  destroy(): void;
+}
+
+/**
  * Default config — minimal stub values. Hosts MUST call `configurePanel(...)`
  * with real values to see useful behaviour.
  */
@@ -146,24 +204,38 @@ export const DEFAULT_PANEL_CONFIG: PanelConfig = {
 };
 
 // ---------------------------------------------------------------------------
-// Singleton storage
+// Instance registry (keyed by storagePrefix)
 // ---------------------------------------------------------------------------
 
 /**
- * The symbol key used to store the singleton slot on globalThis.
+ * Same-prefix-different-config rule (CHOSEN: reject-with-error).
  *
- * WHY globalThis instead of module-scope `let` bindings:
- * Vite's multi-entry build (e.g. Astro) can produce TWO separate module
- * instances of panel-config.ts — one in the host-adapter chunk, one in the
- * panel module chunk. Module-scope variables are per-instance, so
- * configurePanel() on instance A is invisible to getPanelConfig() on instance
- * B. Storing state on a Symbol.for() registry key makes all instances share
- * one slot regardless of chunk fragmentation. See epic #108 for context.
+ * When `configurePanel` is called a second time with a prefix that is ALREADY
+ * registered but a structurally-DIFFERENT config, we throw. The alternative
+ * (deterministic-update) was rejected because:
+ *
+ *  - PORTABLE-CONTRACT §1 pins `configurePanel` as one-shot per page lifecycle
+ *    ("MUST NOT silently overwrite a previously-configured cluster mid-session").
+ *  - The existing single-panel tests assert the throw, and the throw is what
+ *    surfaces a genuine config-conflict bug (two callers fighting over one
+ *    prefix) instead of letting the last writer silently win.
+ *
+ * Multi-instance does NOT need same-prefix mutation: a host that wants a second
+ * panel uses a DISTINCT `storagePrefix`, which registers an independent
+ * instance with no throw. Z4/Z5 must follow this rule — to re-configure a
+ * prefix, call `handle.destroy()` first, then `configurePanel` again.
+ *
+ * Exported (machine-discoverable) so Z4/Z5 can branch on the chosen rule
+ * without re-deriving it from the throw behaviour.
  */
-const SLOT_SYMBOL = Symbol.for('@takazudo/zdtp:singleton');
+export const RECONFIGURE_RULE = 'reject-with-error' as const;
 
-interface SingletonSlot {
-  configuredConfig: PanelConfig | null;
+/**
+ * One registered panel instance. Owns its config, its pending color presets
+ * (parked before configure), its post-configure hooks, and its handle.
+ */
+interface PanelInstanceRecord {
+  config: PanelConfig;
   pendingColorPresets: Record<string, ColorScheme> | null;
   /**
    * Post-configure hooks — callbacks registered by src/index.tsx that must run
@@ -174,50 +246,227 @@ interface SingletonSlot {
    * Deferring reapply until configurePanel fires avoids the race entirely.
    */
   postConfigureHooks: (() => void)[];
-}
-
-function getSingletonSlot(): SingletonSlot {
-  const g = globalThis as unknown as Record<symbol, SingletonSlot | undefined>;
-  let slot = g[SLOT_SYMBOL];
-  if (!slot) {
-    slot = { configuredConfig: null, pendingColorPresets: null, postConfigureHooks: [] };
-    g[SLOT_SYMBOL] = slot;
-  }
-  return slot;
+  /** Stable handle for this instance — identity preserved across idempotent re-calls. */
+  handle: PanelInstanceHandle;
 }
 
 /**
- * Configure the panel runtime. Call exactly once per page lifecycle, before
- * the adapter is imported / mounted. Idempotent: calling twice with
- * structurally-equal values is a silent no-op; calling twice with structurally
- * different values throws so config conflicts surface immediately instead of
- * silently corrupting one of the two callers' assumptions.
+ * The symbol key used to store the instance registry on globalThis.
  *
- * The re-init guard MUST use structural deep-equality, NOT referential
- * identity. The Astro host-adapter parses the inline JSON config on every
- * script run, including post view-transition reruns; that produces a
- * freshly-parsed object that is byte-for-byte identical to the previous call
- * but referentially distinct.
+ * WHY globalThis instead of module-scope `let` bindings:
+ * Vite's multi-entry build (e.g. Astro) can produce TWO separate module
+ * instances of panel-config.ts — one in the host-adapter chunk, one in the
+ * panel module chunk. Module-scope variables are per-instance, so
+ * configurePanel() on instance A is invisible to getPanelConfig() on instance
+ * B. Storing state on a Symbol.for() registry key makes all instances share
+ * one registry regardless of chunk fragmentation. See epic #108 for context.
+ *
+ * Symbol value is unchanged from the pre-#353 singleton so external tests that
+ * read `Symbol.for('@takazudo/zdtp:singleton')` directly keep working — and so
+ * the two code-split module instances continue to share one slot.
  */
-export function configurePanel(config: PanelConfig): void {
-  const slot = getSingletonSlot();
-  if (slot.configuredConfig !== null) {
-    if (structuralEqual(slot.configuredConfig, config)) return;
+const REGISTRY_SYMBOL = Symbol.for('@takazudo/zdtp:singleton');
+
+interface InstanceRegistry {
+  /** All configured instances, keyed by `storagePrefix`. */
+  instances: Map<string, PanelInstanceRecord>;
+  /**
+   * Prefix of the "default" / active instance — the one `getPanelConfig()`
+   * (no-arg) resolves to. Set to the most-recently-configured prefix so the
+   * single-panel path is unchanged. `null` when no instance is configured.
+   */
+  defaultPrefix: string | null;
+  /**
+   * Color presets parked via `setPanelColorPresets` before ANY instance was
+   * configured. Merged into the first instance to be configured. Kept at the
+   * registry level (not per-instance) because the pre-configure caller has no
+   * prefix to key on yet — it mirrors the historical global holding slot.
+   */
+  pendingColorPresets: Record<string, ColorScheme> | null;
+  /**
+   * Post-configure hooks registered via `registerPostConfigureHook` BEFORE any
+   * instance was configured. Drained into the first instance to be configured.
+   *
+   * MUST live on the shared registry (not module scope): in Vite/Astro
+   * multi-entry builds, `index.tsx` registers POST_CONFIGURE_REAPPLY_HOOK from
+   * one `panel-config` module instance while the host adapter calls
+   * `configurePanel` through another. The two instances share this registry via
+   * the globalThis symbol, so the configuring side sees the hook the
+   * registering side parked. A module-scoped array would be per-chunk — the
+   * configuring chunk would drain an empty list and the #111 reapply hook would
+   * never fire on first load.
+   */
+  pendingPostConfigureHooks: (() => void)[];
+}
+
+function getRegistry(): InstanceRegistry {
+  const g = globalThis as unknown as Record<symbol, InstanceRegistry | undefined>;
+  let registry = g[REGISTRY_SYMBOL];
+  if (!registry) {
+    registry = {
+      instances: new Map(),
+      defaultPrefix: null,
+      pendingColorPresets: null,
+      pendingPostConfigureHooks: [],
+    };
+    g[REGISTRY_SYMBOL] = registry;
+  }
+  return registry;
+}
+
+/**
+ * Build the handle for a freshly-registered instance. The handle closes over
+ * the prefix only (the registry record is looked up lazily on each call) so it
+ * stays valid as the record mutates and so `destroy()` can deregister cleanly.
+ *
+ * The open/close/toggle bodies are deliberately thin seams for Z2 — see the
+ * `PanelInstanceHandle` JSDoc. They route through the lazily-imported public
+ * show/hide surface so the DEFAULT (single-panel) instance works end-to-end
+ * today; Z2 replaces them with per-instance dispatch keyed by `instanceId`.
+ */
+function makeHandle(prefix: string): PanelInstanceHandle {
+  return {
+    instanceId: prefix,
+    open() {
+      panelLifecycleHooks.open?.(prefix);
+    },
+    close() {
+      panelLifecycleHooks.close?.(prefix);
+    },
+    toggle() {
+      panelLifecycleHooks.toggle?.(prefix);
+    },
+    destroy() {
+      // Model-level cleanup: drop the instance from the registry. Z2 extends
+      // this via `panelLifecycleHooks.destroy` to also unmount the Preact tree
+      // and remove the DOM root.
+      panelLifecycleHooks.destroy?.(prefix);
+      const registry = getRegistry();
+      registry.instances.delete(prefix);
+      if (registry.defaultPrefix === prefix) {
+        // Fall back the default pointer to whatever instance remains (last
+        // configured), or null when none are left.
+        const remaining = [...registry.instances.keys()];
+        registry.defaultPrefix = remaining.length > 0 ? remaining[remaining.length - 1] : null;
+      }
+    },
+  };
+}
+
+/**
+ * Z2 lifecycle seam. Z2 (events/lifecycle/mount) installs handlers here so the
+ * instance handle's open/close/toggle/destroy route to real per-instance
+ * mount + visibility behaviour. Z1 leaves it empty: the handle methods are
+ * no-ops until Z2 wires them, which is fine because the default single-panel
+ * path is driven by the existing console API / window events, not by handles.
+ *
+ * Exported (with the `__` internal prefix) so the lifecycle module (Z2) can
+ * register without reaching into private module scope.
+ */
+export interface PanelLifecycleHooks {
+  open?: (instanceId: string) => void;
+  close?: (instanceId: string) => void;
+  toggle?: (instanceId: string) => void;
+  destroy?: (instanceId: string) => void;
+}
+
+const panelLifecycleHooks: PanelLifecycleHooks = {};
+
+/**
+ * Z2 seam: install per-instance lifecycle handlers used by every instance
+ * handle's open/close/toggle/destroy. Last call wins (Z2 owns its own
+ * idempotency). No-op-friendly: unset handlers leave the corresponding handle
+ * method a no-op.
+ */
+export function __setPanelLifecycleHooks(hooks: PanelLifecycleHooks): void {
+  panelLifecycleHooks.open = hooks.open;
+  panelLifecycleHooks.close = hooks.close;
+  panelLifecycleHooks.toggle = hooks.toggle;
+  panelLifecycleHooks.destroy = hooks.destroy;
+}
+
+/**
+ * Configure a panel instance. Call once per `storagePrefix` per page lifecycle,
+ * before that instance's adapter is imported / mounted. Returns the instance
+ * handle (`{ instanceId, open, close, toggle, destroy }`).
+ *
+ * Keying & multi-instance: the instance is keyed by `config.storagePrefix`.
+ * Distinct prefixes register independent instances (no throw); each derives its
+ * own storage keys, root id, modal classes, etc.
+ *
+ * Same-prefix idempotency: calling again with the same prefix and structurally-
+ * equal values is a no-op and returns the SAME handle. The re-init guard MUST
+ * use structural deep-equality, NOT referential identity — the Astro
+ * host-adapter parses the inline JSON config on every script run (including
+ * post view-transition reruns), producing a freshly-parsed object that is
+ * byte-for-byte identical to the previous call but referentially distinct.
+ *
+ * Same-prefix-different-config: REJECTS WITH AN ERROR (chosen rule — see
+ * `RECONFIGURE_RULE`). To re-configure a prefix, `destroy()` the existing
+ * handle first, then call `configurePanel` again.
+ *
+ * The most-recently-configured instance becomes the "default" instance that the
+ * no-arg `getPanelConfig()` resolves to, preserving the single-panel path.
+ */
+export function configurePanel(config: PanelConfig): PanelInstanceHandle {
+  const registry = getRegistry();
+  const prefix = config.storagePrefix;
+  const existing = registry.instances.get(prefix);
+  if (existing) {
+    if (structuralEqual(existing.config, config)) {
+      // Idempotent re-call for this prefix — keep the installed config and the
+      // stable handle, just re-point the default to this prefix (Astro
+      // view-transition reruns re-assert "this is the active instance").
+      registry.defaultPrefix = prefix;
+      return existing.handle;
+    }
+    // RECONFIGURE_RULE = 'reject-with-error': same prefix, different config.
     throw new Error(
-      '[design-token-panel] configurePanel() was already called with different values. ' +
-        'Configuration is one-shot per page lifecycle.',
+      '[design-token-panel] configurePanel() was already called with different values ' +
+        `for storagePrefix "${prefix}". Configuration is one-shot per prefix per page ` +
+        'lifecycle. To re-configure this prefix, call handle.destroy() first, then ' +
+        'configurePanel() again. (Use a distinct storagePrefix for a second panel instance.)',
     );
   }
-  slot.configuredConfig = slot.pendingColorPresets
-    ? { ...config, colorPresets: slot.pendingColorPresets }
-    : { ...config };
-  slot.pendingColorPresets = null;
-  // Fire post-configure hooks. These run AFTER the host's config is installed,
-  // ensuring reapply paths (reapplyPersistedOverrides / reapplyFromStorage) use
-  // the correct storagePrefix — not the DEFAULT sentinel. See issue #111 H2 fix.
-  for (const hook of slot.postConfigureHooks) {
+
+  // Fresh instance for this prefix. Merge any registry-level pending presets
+  // (parked before ANY instance was configured) into this first instance.
+  const presets = registry.pendingColorPresets;
+  const installedConfig: PanelConfig = presets ? { ...config, colorPresets: presets } : { ...config };
+  registry.pendingColorPresets = null;
+  // Drain any hooks parked before this (the first-configured) instance existed.
+  // Only the FIRST instance to be configured adopts the parked pre-configure
+  // hooks — they target "the default single-panel instance" and there is no
+  // ambiguity until a second instance appears.
+  const isFirstInstance = registry.instances.size === 0;
+  const adoptedHooks = isFirstInstance ? [...registry.pendingPostConfigureHooks] : [];
+  if (isFirstInstance) registry.pendingPostConfigureHooks.length = 0;
+  const record: PanelInstanceRecord = {
+    config: installedConfig,
+    pendingColorPresets: null,
+    postConfigureHooks: adoptedHooks,
+    handle: makeHandle(prefix),
+  };
+  registry.instances.set(prefix, record);
+  registry.defaultPrefix = prefix;
+  // Fire post-configure hooks for THIS instance. These run AFTER the host's
+  // config is installed, ensuring reapply paths (reapplyPersistedOverrides /
+  // reapplyFromStorage) use the correct storagePrefix — not the DEFAULT
+  // sentinel. See issue #111 H2 fix.
+  for (const hook of record.postConfigureHooks) {
     hook();
   }
+  return record.handle;
+}
+
+/**
+ * Resolve the registry record for the default (active) instance, or `null` when
+ * no instance has been configured yet.
+ */
+function getDefaultRecord(): PanelInstanceRecord | null {
+  const registry = getRegistry();
+  if (registry.defaultPrefix === null) return null;
+  return registry.instances.get(registry.defaultPrefix) ?? null;
 }
 
 /**
@@ -225,43 +474,59 @@ export function configurePanel(config: PanelConfig): void {
  * host's config. Used by src/index.tsx to defer reapplyPersistedOverrides and
  * reapplyFromStorage until AFTER the host has supplied the correct storagePrefix.
  *
+ * Scope: this targets the DEFAULT (single-panel) instance — the historical
+ * single-panel contract. When no instance is configured yet, the hook is parked
+ * on a registry-level pending list and attached to the first instance to be
+ * configured. When the default instance already exists, the hook fires
+ * immediately so late registrants don't miss the trigger.
+ *
  * H2 fix for issue #111: module-init in index.tsx previously ran reapply
  * synchronously — before configurePanel — using DEFAULT_PANEL_CONFIG's prefix,
  * causing a default-prefix panel to mount and clobber host-prefix storage keys
  * on the first toggle when contaminated localStorage was present.
  *
  * Idempotent: if the same hook reference is registered twice, the second call
- * is a no-op. If configurePanel has already been called, the hook fires
- * immediately so late registrants don't miss the trigger.
+ * is a no-op.
  */
 export function registerPostConfigureHook(hook: () => void): void {
-  const slot = getSingletonSlot();
-  if (slot.postConfigureHooks.includes(hook)) return; // idempotent on reference
-  slot.postConfigureHooks.push(hook);
-  // If configurePanel was already called, run the hook immediately so ordering
-  // between index.tsx module-init and configurePanel is non-load-bearing.
-  if (slot.configuredConfig !== null) {
-    hook();
+  const record = getDefaultRecord();
+  if (record === null) {
+    // No instance configured yet — park the hook on the SHARED registry so the
+    // next configurePanel (possibly from a different code-split module instance
+    // in a Vite/Astro multi-entry build) attaches and runs it. Mirrors the
+    // historical globalThis-slot pre-configure behaviour.
+    const registry = getRegistry();
+    if (registry.pendingPostConfigureHooks.includes(hook)) return;
+    registry.pendingPostConfigureHooks.push(hook);
+    return;
   }
+  if (record.postConfigureHooks.includes(hook)) return; // idempotent on reference
+  record.postConfigureHooks.push(hook);
+  // The default instance already exists → run immediately so ordering between
+  // index.tsx module-init and configurePanel is non-load-bearing.
+  hook();
 }
 
 /**
- * Read the active panel config. Returns the value passed to `configurePanel`
- * if one was supplied, else `DEFAULT_PANEL_CONFIG`.
+ * Read the active panel config. Returns the config of the default (most-
+ * recently-configured) instance, else `DEFAULT_PANEL_CONFIG` when no host has
+ * called `configurePanel`.
  */
 export function getPanelConfig(): PanelConfig {
-  return getSingletonSlot().configuredConfig ?? DEFAULT_PANEL_CONFIG;
+  return getDefaultRecord()?.config ?? DEFAULT_PANEL_CONFIG;
 }
 
 /**
- * Test-only: clear the singleton so unit tests can exercise different configs
- * in isolation.
+ * Test-only: clear the entire instance registry so unit tests can exercise
+ * different configs in isolation. Resets the default pointer, every registered
+ * instance, parked presets, and parked pre-configure hooks.
  */
 export function __resetPanelConfigForTests(): void {
-  const slot = getSingletonSlot();
-  slot.configuredConfig = null;
-  slot.pendingColorPresets = null;
-  slot.postConfigureHooks = [];
+  const registry = getRegistry();
+  registry.instances.clear();
+  registry.defaultPrefix = null;
+  registry.pendingColorPresets = null;
+  registry.pendingPostConfigureHooks.length = 0;
 }
 
 // Re-export cluster resolution helpers so callers can import from panel-config
@@ -669,12 +934,16 @@ export function resolveApplyRouting(cfg: PanelConfig = getPanelConfig()): ApplyR
  * non-empty map overwrites the previous one (no throw, unlike
  * `configurePanel`) — the dropdown source-of-truth is whichever bundle
  * landed last.
+ *
+ * Scope: targets the DEFAULT (active) instance — the historical single-panel
+ * contract. When no instance is configured yet, the presets are parked at the
+ * registry level and merged into the first instance to be configured.
  */
 export function setPanelColorPresets(presets: Record<string, ColorScheme>): void {
-  const slot = getSingletonSlot();
-  if (slot.configuredConfig === null) {
-    slot.pendingColorPresets = presets;
+  const record = getDefaultRecord();
+  if (record === null) {
+    getRegistry().pendingColorPresets = presets;
     return;
   }
-  slot.configuredConfig = { ...slot.configuredConfig, colorPresets: presets };
+  record.config = { ...record.config, colorPresets: presets };
 }

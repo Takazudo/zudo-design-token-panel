@@ -277,7 +277,7 @@ function ensureMounted(): boolean {
 // adapter calls configurePanel internally, but a Vite-only host needs to
 // reach it from the package root per PORTABLE-CONTRACT.md §1.
 export { configurePanel, setPanelColorPresets } from './config/panel-config';
-export type { PanelConfig } from './config/panel-config';
+export type { PanelConfig, PanelInstanceHandle } from './config/panel-config';
 
 /**
  * Internal-test-only accessor that returns this panel-module bundle's view of

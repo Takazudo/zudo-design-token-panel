@@ -57,6 +57,7 @@ import {
   storageKey_stateV1,
   storageKey_stateV2,
   storageKey_stateV3,
+  type PanelConfig,
 } from '../config/panel-config';
 import { resolvePrimaryColorCluster } from '../config/cluster-config';
 import type { TabConfig } from '../tokens/tier-model';
@@ -93,37 +94,47 @@ export type { TabOverrides } from '../apply/tier-resolver';
  *
  * **Lazy derivation**
  *
- * Each helper reads `getPanelConfig()` on every call so a `configurePanel`
- * call that lands *after* this module is imported still influences the keys
- * the panel hits. Capturing the values at module load would freeze them
- * before the host has a chance to configure.
+ * Each helper reads `getPanelConfig()` on every call by default so a
+ * `configurePanel` call that lands *after* this module is imported still
+ * influences the keys the panel hits. Capturing the values at module load
+ * would freeze them before the host has a chance to configure.
+ *
+ * **Per-instance derivation (multi-instance, #353 Z1)**
+ *
+ * Each accessor takes an OPTIONAL `cfg: PanelConfig`. Passing it derives the
+ * key for THAT instance instead of the default (active) instance — the seam
+ * Z2/Z3 use to scope storage, mount, and apply to a specific panel instance.
+ * Omitting it preserves the historical single-panel behaviour (resolve the
+ * default instance via `getPanelConfig()`). Storage keys are a pure function of
+ * `cfg.storagePrefix`, so two instances with distinct prefixes derive fully
+ * independent keys.
  */
-export function getStorageKeyV1(): string {
-  return storageKey_stateV1(getPanelConfig());
+export function getStorageKeyV1(cfg: PanelConfig = getPanelConfig()): string {
+  return storageKey_stateV1(cfg);
 }
 
-export function getStorageKeyV2(): string {
-  return storageKey_stateV2(getPanelConfig());
+export function getStorageKeyV2(cfg: PanelConfig = getPanelConfig()): string {
+  return storageKey_stateV2(cfg);
 }
 
-export function getStorageKeyV3(): string {
-  return storageKey_stateV3(getPanelConfig());
+export function getStorageKeyV3(cfg: PanelConfig = getPanelConfig()): string {
+  return storageKey_stateV3(cfg);
 }
 
-export function getOpenKey(): string {
-  return storageKey_open(getPanelConfig());
+export function getOpenKey(cfg: PanelConfig = getPanelConfig()): string {
+  return storageKey_open(cfg);
 }
 
-export function getPositionKey(): string {
-  return storageKey_position(getPanelConfig());
+export function getPositionKey(cfg: PanelConfig = getPanelConfig()): string {
+  return storageKey_position(cfg);
 }
 
-export function getSizeKey(): string {
-  return storageKey_size(getPanelConfig());
+export function getSizeKey(cfg: PanelConfig = getPanelConfig()): string {
+  return storageKey_size(cfg);
 }
 
-export function getDensityKey(): string {
-  return storageKey_density(getPanelConfig());
+export function getDensityKey(cfg: PanelConfig = getPanelConfig()): string {
+  return storageKey_density(cfg);
 }
 
 // ---------------------------------------------------------------------------
