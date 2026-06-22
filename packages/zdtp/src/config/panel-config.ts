@@ -65,6 +65,23 @@ import { structuralEqual } from '../utils/structural-equal';
 export type ApplyRoutingMap = Record<string, string>;
 
 /**
+ * Apply sink interface — allows routing CSS-var writes somewhere other than
+ * the host `:root` (e.g. a shadow root, an iframe document, or a spy in
+ * tests).
+ *
+ * - `apply(pairs)` — upsert the given var name→value pairs.
+ * - `clear(names)` — remove the given var names.
+ *
+ * Both methods receive only the vars that belong to THIS panel instance.
+ * Sink errors are non-fatal: the apply pipeline swallows them with
+ * `console.warn` and continues.
+ */
+export interface ApplySink {
+  apply(pairs: ReadonlyArray<readonly [string, string]>): void;
+  clear(names: readonly string[]): void;
+}
+
+/**
  * The portable PanelConfig shape.
  */
 export interface PanelConfig {
@@ -117,6 +134,21 @@ export interface PanelConfig {
    * under the reserved id 'color-secondary'.
    */
   tabs: readonly TabConfig[];
+  /**
+   * Optional apply sink. When present, CSS-var writes and clears for this
+   * panel instance are routed through the sink instead of
+   * `document.documentElement`. This allows embedding the panel in a shadow
+   * DOM, an iframe, or a test spy without touching `:root`.
+   *
+   * Sink errors are non-fatal — the panel swallows them with `console.warn`.
+   * When absent the default path writes to `document.documentElement`
+   * (unchanged behavior).
+   *
+   * NOTE: this field carries a function reference and is therefore NOT
+   * JSON-serializable. It cannot be passed through Astro's inline JSON
+   * config. Supply it via a post-configure call or a custom adapter.
+   */
+  applySink?: ApplySink;
   /**
    * Optional id rename map applied during `loadPersistedState` migration.
    * Keys are old ids found in persisted state; values are either:
