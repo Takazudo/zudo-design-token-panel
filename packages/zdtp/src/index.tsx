@@ -579,6 +579,14 @@ interface InstanceBindingRecord {
   cleanups: Array<() => void>;
 }
 
+/**
+ * A toggle Event annotated with the set of instance prefixes already driven in
+ * THIS dispatch. The DOM delivers one shared Event object to every listener of
+ * a given name, so listeners that resolve to the same instance can coordinate
+ * through it (see `bindInstance`'s dedupe).
+ */
+type DedupableToggleEvent = Event & { __zdtpToggledPrefixes?: Set<string> };
+
 type InstanceBindingsWindow = Window & {
   __zudoDesignTokenPanelInstanceBindings?: Map<string, InstanceBindingRecord>;
 };
@@ -651,8 +659,21 @@ function bindInstance(cfg: PanelConfig): void {
   const prefix = cfg.storagePrefix;
   const toggleEvent = toggleEventName(cfg);
   const isDefaultEvent = toggleEvent === DEFAULT_TOGGLE_EVENT;
-  const handler = (): void =>
-    handleExternalToggleEvent(resolveLiveInstanceConfig(prefix, isDefaultEvent, cfg));
+  const handler = (event: Event): void => {
+    const target = resolveLiveInstanceConfig(prefix, isDefaultEvent, cfg);
+    // A single dispatch can reach multiple listeners on the same event name —
+    // the eagerly-bound default listener AND a custom instance that opted into
+    // the reserved name via `config.toggleEvent`. With the dispatch-time
+    // fallback both can resolve to the SAME instance, which would toggle it
+    // twice (open, then immediately close) in one dispatch (#370). Dedupe by the
+    // resolved instance id, carried on the shared Event object.
+    const ev = event as DedupableToggleEvent;
+    const seen = ev.__zdtpToggledPrefixes ?? new Set<string>();
+    if (seen.has(target.storagePrefix)) return;
+    seen.add(target.storagePrefix);
+    ev.__zdtpToggledPrefixes = seen;
+    handleExternalToggleEvent(target);
+  };
   window.addEventListener(toggleEvent, handler);
   const cleanups: Array<() => void> = [() => window.removeEventListener(toggleEvent, handler)];
 

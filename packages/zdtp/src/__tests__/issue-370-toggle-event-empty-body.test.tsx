@@ -197,6 +197,38 @@ describe('issue #370 — reserved event opens the configured panel for a custom-
     const defaultRoot = document.getElementById(panelRootId(DEFAULT_PANEL_CONFIG));
     expect(defaultRoot, 'no empty default-prefix panel mounted').toBeNull();
   });
+
+  it('custom-prefix host that opts into the reserved event name opens (and STAYS open) on one dispatch', async () => {
+    // A host following the older host-side mitigation sets
+    // `toggleEvent: 'toggle-design-token-panel'` on a custom-prefix config. That
+    // binds a second listener on the reserved event; with the dispatch-time
+    // fallback BOTH the eager default listener and the custom listener resolve
+    // to this same instance. The handler must dedupe per dispatch so the panel
+    // is toggled exactly once (regression: it opened then immediately closed).
+    await import('../index');
+    const { configurePanel, panelRootId, DEFAULT_PANEL_CONFIG } = await import(
+      '../config/panel-config'
+    );
+
+    const cfg = makeConfig('zudo-sg-tweak', {
+      toggleEvent: 'toggle-design-token-panel',
+      tabs: [sizeTab('SG Size')],
+    });
+    configurePanel(cfg);
+
+    window.dispatchEvent(new CustomEvent('toggle-design-token-panel'));
+    await waitForEffectFlush();
+
+    const customRoot = document.getElementById(panelRootId(cfg));
+    expect(customRoot, 'configured panel mounted').not.toBeNull();
+    // Body present ⇒ still open after the single dispatch (a double-toggle would
+    // have closed it, leaving the root present but rendering null).
+    expect(customRoot!.textContent ?? '', 'panel stays open after one dispatch').toContain(
+      'SG Size tier',
+    );
+    const defaultRoot = document.getElementById(panelRootId(DEFAULT_PANEL_CONFIG));
+    expect(defaultRoot, 'no empty default-prefix panel mounted').toBeNull();
+  });
 });
 
 describe('issue #370 — panel tabConfigById tracks instanceConfig (no stale useMemo)', () => {
