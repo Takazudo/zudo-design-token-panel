@@ -35,6 +35,7 @@ import {
   modalClass,
   resolveApplyRouting,
   resolveSecondaryColorCluster,
+  type PanelConfig,
 } from './config/panel-config';
 import { type ColorTweakState, type TweakState } from './state/tweak-state';
 import { serialize } from './utils/design-token-serde';
@@ -58,6 +59,15 @@ export interface ApplyModalProps {
    * clear any inline-applied styles, and reset in-memory state to empty.
    */
   onApplied: () => void;
+  /**
+   * The mounted panel instance's config (multi-instance, #357). When supplied,
+   * the modal resolves its apply routing / endpoint / secondary cluster / modal
+   * classes from THIS instance rather than the active default instance — so an
+   * Apply on panel A targets A's endpoint+routing, not whichever instance was
+   * configured last. Omitted (e.g. a direct test render) → `getPanelConfig()`,
+   * preserving the single-panel path.
+   */
+  instanceConfig?: PanelConfig;
 }
 
 /**
@@ -206,10 +216,13 @@ function buildClasses(cfg: ReturnType<typeof getPanelConfig>): ModalClasses {
 // ---------------------------------------------------------------------------
 
 export function ApplyModal(props: ApplyModalProps) {
-  const { state, open, onClose, colorDefaults, onApplied } = props;
+  const { state, open, onClose, colorDefaults, onApplied, instanceConfig } = props;
   const dialogRef = useRef<HTMLDialogElement | null>(null);
   const primaryButtonRef = useRef<HTMLDivElement | null>(null);
-  const cfg = getPanelConfig();
+  // Resolve THIS instance's config (multi-instance, #357): the mounted panel
+  // passes its `instanceConfig`; a prop-less test render falls back to the
+  // active default instance.
+  const cfg = instanceConfig ?? getPanelConfig();
   const cls = useMemo(() => buildClasses(cfg), [cfg]);
 
   // Instance-scoped id for aria-labelledby. useId() ensures uniqueness when

@@ -29,7 +29,12 @@ import {
   initColorFromSchemeData,
 } from './state/tweak-state';
 import { colorSchemes } from './config/color-schemes';
-import { exportFilename, getPanelConfig, modalClass } from './config/panel-config';
+import {
+  exportFilename,
+  getPanelConfig,
+  modalClass,
+  type PanelConfig,
+} from './config/panel-config';
 
 export interface ExportModalProps {
   onClose: () => void;
@@ -38,6 +43,13 @@ export interface ExportModalProps {
   /** Color baseline used for diff-only output. Optional: callers without DOM
    *  access (tests) can omit and we'll treat the entire color block as changed. */
   colorDefaults?: ColorTweakState;
+  /**
+   * The mounted panel instance's config (multi-instance, #357). When supplied,
+   * the modal derives its filename hint + modal classes + title id from THIS
+   * instance rather than the active default instance. Omitted (e.g. a direct
+   * test render) → `getPanelConfig()`, preserving the single-panel path.
+   */
+  instanceConfig?: PanelConfig;
 }
 
 /** Resolve a color baseline for diff-only serialization. */
@@ -54,13 +66,15 @@ function resolveColorDefaults(
   return fallback;
 }
 
-export function ExportModal({ onClose, state, colorDefaults }: ExportModalProps) {
+export function ExportModal({ onClose, state, colorDefaults, instanceConfig }: ExportModalProps) {
   const [copyLabel, setCopyLabel] = useState('Copy');
   const [includeDefaults, setIncludeDefaults] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const copyButtonRef = useRef<HTMLDivElement>(null);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cfg = getPanelConfig();
+  // Resolve THIS instance's config (multi-instance, #357); a prop-less test
+  // render falls back to the active default instance.
+  const cfg = instanceConfig ?? getPanelConfig();
   const exportFilenameHint = exportFilename(cfg);
 
   // Memo the serialized JSON so flipping the toggle doesn't rebuild on every

@@ -28,7 +28,7 @@ import {
   getDesignTokenSchema,
 } from './utils/design-token-serde';
 import type { ColorTweakState, TweakState } from './state/tweak-state';
-import { getPanelConfig, modalClass } from './config/panel-config';
+import { getPanelConfig, modalClass, type PanelConfig } from './config/panel-config';
 import { structuralEqual } from './utils/structural-equal';
 
 export interface ImportModalProps {
@@ -38,6 +38,13 @@ export interface ImportModalProps {
   onLoad: (state: TweakState) => void;
   /** Color baseline filled in for fields absent from the payload. */
   colorDefaults: ColorTweakState;
+  /**
+   * The mounted panel instance's config (multi-instance, #357). When supplied,
+   * the modal derives its modal classes + title id from THIS instance rather
+   * than the active default instance. Omitted (e.g. a direct test render) →
+   * `getPanelConfig()`, preserving the single-panel path.
+   */
+  instanceConfig?: PanelConfig;
 }
 
 interface InlineNote {
@@ -45,12 +52,14 @@ interface InlineNote {
   text: string;
 }
 
-export function ImportModal({ onClose, onLoad, colorDefaults }: ImportModalProps) {
+export function ImportModal({ onClose, onLoad, colorDefaults, instanceConfig }: ImportModalProps) {
   const [text, setText] = useState('');
   const [note, setNote] = useState<InlineNote | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const cfg = getPanelConfig();
+  // Resolve THIS instance's config (multi-instance, #357); a prop-less test
+  // render falls back to the active default instance.
+  const cfg = instanceConfig ?? getPanelConfig();
   const expectedSchema = getDesignTokenSchema();
 
   useEffect(() => {

@@ -32,8 +32,10 @@ type SetState<T> = (updater: (prev: T | null) => T | null) => void;
  *
  * Accepts an optional `cfg` — the panel instance config. When supplied its
  * `applySink` (if any) routes every CSS-var write through the sink instead
- * of `document.documentElement`. Omitting `cfg` uses `getPanelConfig()` via
- * the no-arg `applyFullState` call, preserving the single-panel default path.
+ * of `document.documentElement`, AND its `storagePrefix` scopes the persisted
+ * envelope to THIS instance's storage key (multi-instance, #357). Omitting
+ * `cfg` resolves the default instance via `getPanelConfig()` inside both
+ * `applyFullState` and `savePersistedState`, preserving the single-panel path.
  */
 export function usePersist(setState: SetState<TweakState>, cfg?: PanelConfig) {
   const persist = useCallback(
@@ -42,7 +44,7 @@ export function usePersist(setState: SetState<TweakState>, cfg?: PanelConfig) {
         if (!prev) return prev;
         const next = updater(prev);
         applyFullState(next, cfg);
-        savePersistedState(next);
+        savePersistedState(next, undefined, cfg);
         return next;
       });
     },
