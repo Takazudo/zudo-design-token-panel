@@ -79,6 +79,17 @@ export interface PanelConfig {
   /** Default filename base — exports save as `${exportFilenameBase}.json`. */
   exportFilenameBase: string;
   /**
+   * Optional window-event name that toggles THIS instance's panel.
+   *
+   * The default (single-panel) instance keeps the historical public event
+   * `toggle-design-token-panel` (plus its `toggle-color-tweak-panel` alias) and
+   * ignores this field — see `toggleEventName()`. A configured instance with a
+   * NON-default `storagePrefix` listens on this name; when omitted it defaults
+   * to `toggle-${storagePrefix}` so two panels on one page get independent
+   * toggle channels with no cross-talk.
+   */
+  toggleEvent?: string;
+  /**
    * Optional host-supplied color-scheme presets.
    *
    * Surfaces additional named `ColorScheme` entries in the Color tab's
@@ -297,6 +308,16 @@ interface InstanceRegistry {
    * never fire on first load.
    */
   pendingPostConfigureHooks: (() => void)[];
+  /**
+   * Z2 per-instance lifecycle hooks (configured / open / close / toggle /
+   * destroy). MUST live on the shared registry for the same reason as
+   * `pendingPostConfigureHooks`: in Vite/Astro multi-entry builds `index.tsx`
+   * installs the hooks from one `panel-config` module instance while
+   * `configurePanel` fires the `configured` hook from another. A module-scoped
+   * object would be per-chunk — the configuring chunk would see unset hooks and
+   * second+ instances would never bind their per-instance toggle events.
+   */
+  lifecycleHooks: PanelLifecycleHooks;
 }
 
 function getRegistry(): InstanceRegistry {
@@ -308,6 +329,7 @@ function getRegistry(): InstanceRegistry {
       defaultPrefix: null,
       pendingColorPresets: null,
       pendingPostConfigureHooks: [],
+      lifecycleHooks: {},
     };
     g[REGISTRY_SYMBOL] = registry;
   }
@@ -328,19 +350,19 @@ function makeHandle(prefix: string): PanelInstanceHandle {
   return {
     instanceId: prefix,
     open() {
-      panelLifecycleHooks.open?.(prefix);
+      getRegistry().lifecycleHooks.open?.(prefix);
     },
     close() {
-      panelLifecycleHooks.close?.(prefix);
+      getRegistry().lifecycleHooks.close?.(prefix);
     },
     toggle() {
-      panelLifecycleHooks.toggle?.(prefix);
+      getRegistry().lifecycleHooks.toggle?.(prefix);
     },
     destroy() {
       // Model-level cleanup: drop the instance from the registry. Z2 extends
-      // this via `panelLifecycleHooks.destroy` to also unmount the Preact tree
+      // this via the `destroy` lifecycle hook to also unmount the Preact tree
       // and remove the DOM root.
-      panelLifecycleHooks.destroy?.(prefix);
+      getRegistry().lifecycleHooks.destroy?.(prefix);
       const registry = getRegistry();
       registry.instances.delete(prefix);
       if (registry.defaultPrefix === prefix) {
@@ -364,25 +386,42 @@ function makeHandle(prefix: string): PanelInstanceHandle {
  * register without reaching into private module scope.
  */
 export interface PanelLifecycleHooks {
+  /**
+   * Fired ONCE per newly-registered instance, immediately after
+   * `configurePanel` installs it (and AFTER the instance's post-configure
+   * hooks run). Z2 uses this to bind the instance's per-instance toggle-event
+   * listener at configure time — unlike `registerPostConfigureHook` (which
+   * adopts parked hooks for the FIRST instance only), this fires for EVERY
+   * `configurePanel` call, including the 2nd+ instance, so a non-default
+   * panel's `toggle-${storagePrefix}` channel is live the moment it is
+   * configured.
+   */
+  configured?: (instanceId: string) => void;
   open?: (instanceId: string) => void;
   close?: (instanceId: string) => void;
   toggle?: (instanceId: string) => void;
   destroy?: (instanceId: string) => void;
 }
 
-const panelLifecycleHooks: PanelLifecycleHooks = {};
-
 /**
  * Z2 seam: install per-instance lifecycle handlers used by every instance
- * handle's open/close/toggle/destroy. Last call wins (Z2 owns its own
- * idempotency). No-op-friendly: unset handlers leave the corresponding handle
- * method a no-op.
+ * handle's open/close/toggle/destroy plus the per-configure `configured` hook.
+ * Last call wins (Z2 owns its own idempotency). No-op-friendly: unset handlers
+ * leave the corresponding hook a no-op.
+ *
+ * Stored on the SHARED globalThis registry (not module scope) so the install
+ * side (`index.tsx`) and the fire side (`configurePanel`) observe the same
+ * hooks even when a Vite/Astro multi-entry build code-splits `panel-config`
+ * into two module instances — mirrors `pendingPostConfigureHooks`.
  */
 export function __setPanelLifecycleHooks(hooks: PanelLifecycleHooks): void {
-  panelLifecycleHooks.open = hooks.open;
-  panelLifecycleHooks.close = hooks.close;
-  panelLifecycleHooks.toggle = hooks.toggle;
-  panelLifecycleHooks.destroy = hooks.destroy;
+  getRegistry().lifecycleHooks = {
+    configured: hooks.configured,
+    open: hooks.open,
+    close: hooks.close,
+    toggle: hooks.toggle,
+    destroy: hooks.destroy,
+  };
 }
 
 /**
@@ -456,6 +495,10 @@ export function configurePanel(config: PanelConfig): PanelInstanceHandle {
   for (const hook of record.postConfigureHooks) {
     hook();
   }
+  // Fire the Z2 per-configure hook for THIS (every) instance, so the lifecycle
+  // module can bind the instance's toggle-event channel at configure time —
+  // including the 2nd+ instance that the post-configure-hook adoption skips.
+  registry.lifecycleHooks.configured?.(prefix);
   return record.handle;
 }
 
@@ -514,6 +557,19 @@ export function registerPostConfigureHook(hook: () => void): void {
  */
 export function getPanelConfig(): PanelConfig {
   return getDefaultRecord()?.config ?? DEFAULT_PANEL_CONFIG;
+}
+
+/**
+ * Resolve the registered config for a SPECIFIC instance by its `storagePrefix`
+ * (=== `instanceId`), or `null` when no such instance is registered.
+ *
+ * Z2 uses this so a non-default panel mounts/operates against ITS OWN config
+ * (tabs, schema, apply settings, custom `toggleEvent`) instead of the active
+ * default instance's config — distinct instances stay fully independent even
+ * while another prefix is the active default.
+ */
+export function getPanelConfigByPrefix(prefix: string): PanelConfig | null {
+  return getRegistry().instances.get(prefix)?.config ?? null;
 }
 
 /**
@@ -632,6 +688,54 @@ export function panelRootId(cfg: PanelConfig): string {
 }
 
 /**
+ * The public `storagePrefix` of the default (single-panel) instance. An
+ * instance whose prefix equals this keeps the historical public toggle-event
+ * name; every other prefix gets a per-instance channel. Kept in lockstep with
+ * `DEFAULT_PANEL_CONFIG.storagePrefix`.
+ */
+const DEFAULT_STORAGE_PREFIX = DEFAULT_PANEL_CONFIG.storagePrefix;
+
+/**
+ * Historical public toggle-event name. Hosts have shipped `window.dispatchEvent(
+ * new CustomEvent('toggle-design-token-panel'))` since the single-panel era, so
+ * the default instance MUST keep emitting/listening on this name regardless of
+ * its derived `toggle-${storagePrefix}` form.
+ */
+export const DEFAULT_TOGGLE_EVENT = 'toggle-design-token-panel';
+
+/**
+ * Window-event name that toggles this instance's panel.
+ *
+ *  - Default instance (prefix === `DEFAULT_STORAGE_PREFIX`): the historical
+ *    `toggle-design-token-panel`. The `index.tsx` listener additionally binds
+ *    the deprecated `toggle-color-tweak-panel` alias for this instance only.
+ *  - Configured instance (any other prefix): `cfg.toggleEvent` when supplied,
+ *    else `toggle-${storagePrefix}` — a per-instance channel so two panels do
+ *    not cross-talk.
+ */
+export function toggleEventName(cfg: PanelConfig): string {
+  if (cfg.storagePrefix === DEFAULT_STORAGE_PREFIX) return DEFAULT_TOGGLE_EVENT;
+  return cfg.toggleEvent ?? `toggle-${cfg.storagePrefix}`;
+}
+
+/** Base name of the internal per-instance open-state sync event (see below). */
+const OPEN_STATE_CHANGED_EVENT_BASE = '__zdtp:open-state-changed';
+
+/**
+ * Per-instance internal sync event name. `index.tsx` dispatches this on
+ * `window` after writing `localStorage[OPEN_KEY]`; the mounted `panel.tsx`
+ * listens for it and re-reads `OPEN_KEY`. Keyed by `storagePrefix` so a change
+ * to panel A's open state only pokes panel A's listener — two panels on one
+ * page stay fully independent (issue #354).
+ *
+ * Internal (double-underscore prefix) — NOT part of the public DOM contract;
+ * hosts must dispatch the public toggle event, never this one.
+ */
+export function openStateChangedEventName(cfg: PanelConfig): string {
+  return `${OPEN_STATE_CHANGED_EVENT_BASE}:${cfg.storagePrefix}`;
+}
+
+/**
  * BEM-style modal class. Pass an empty `suffix` for the base block, or
  * `'--export'` / `'__title'` etc. for elements / modifiers.
  */
@@ -679,6 +783,14 @@ export function assertValidPanelConfig(value: unknown): asserts value is PanelCo
   assertValidTabs(cfg.tabs);
 
   // Optional fields — only validate when present.
+  if (
+    cfg.toggleEvent !== undefined &&
+    (typeof cfg.toggleEvent !== 'string' || (cfg.toggleEvent as string).length === 0)
+  ) {
+    throw new Error(
+      `[design-token-panel] PanelConfig.toggleEvent must be a non-empty string when set (got ${typeof cfg.toggleEvent})`,
+    );
+  }
   if (cfg.applyEndpoint !== undefined && typeof cfg.applyEndpoint !== 'string') {
     throw new Error(
       `[design-token-panel] PanelConfig.applyEndpoint must be a string when set (got ${typeof cfg.applyEndpoint})`,
