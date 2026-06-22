@@ -592,34 +592,79 @@ function getInstanceBindings(): Map<string, InstanceBindingRecord> {
 }
 
 /**
+ * Resolve the config a toggle-event handler should drive, re-read at DISPATCH
+ * time rather than captured at bind time.
+ *
+ * Fixes #370. The default instance's listener is bound eagerly at module init
+ * with `DEFAULT_PANEL_CONFIG` (empty `tabs`), BEFORE the host calls
+ * `configurePanel()`. The post-configure `bindInstance` re-call no-ops for an
+ * already-bound prefix, so a handler that closed over the bind-time config would
+ * mount an empty-bodied panel forever. Re-reading by prefix picks up the real
+ * config the host registered after import. Two facets, both producing the
+ * "toolbar mounts, body empty" symptom:
+ *
+ *  1. Default-`storagePrefix` host: `getPanelConfigByPrefix(prefix)` returns the
+ *     host's now-registered config (real tabs) instead of the stale empty one.
+ *  2. Custom-`storagePrefix`-only host dispatching the historical reserved
+ *     `toggle-design-token-panel`: no default-prefix instance is registered, so
+ *     the by-prefix lookup misses. For the reserved default event we then fall
+ *     back to the active (most-recently-configured) instance so the host's real
+ *     panel opens instead of the empty default. A genuine multi-instance page
+ *     that DOES register a default-prefix instance keeps the reserved event on
+ *     that instance (the by-prefix lookup hits first).
+ *
+ * When nothing is configured yet (`getPanelConfigByPrefix` misses and the active
+ * config is still the default), this returns `fallback` (= the bind-time config,
+ * i.e. `DEFAULT_PANEL_CONFIG`), preserving the pre-configure bootstrap path.
+ */
+function resolveLiveInstanceConfig(
+  prefix: string,
+  isDefaultEvent: boolean,
+  fallback: PanelConfig,
+): PanelConfig {
+  const registered = getPanelConfigByPrefix(prefix);
+  if (registered) return registered;
+  if (isDefaultEvent) {
+    const active = getPanelConfig();
+    if (active.storagePrefix !== prefix) return active;
+  }
+  return fallback;
+}
+
+/**
  * Idempotently bind ONE instance's toggle-event listener(s). Keyed by
  * `cfg.storagePrefix` — a second call for an already-bound prefix is a no-op,
  * so re-running the post-configure hook (Astro view-transition reruns) never
  * stacks duplicate listeners.
  *
- * The handler closes over the instance config so it always operates on the
- * right storage keys / root / sync event, regardless of which instance is the
- * default at dispatch time.
+ * The handler re-resolves the live instance config by prefix at DISPATCH time
+ * (see `resolveLiveInstanceConfig`) so it always operates on the right storage
+ * keys / root / sync event / tabs — even though the default instance is bound
+ * eagerly at module init, before the host's `configurePanel()` supplies the real
+ * config (#370).
  */
 function bindInstance(cfg: PanelConfig): void {
   if (typeof window === 'undefined') return;
   const bindings = getInstanceBindings();
   if (bindings.has(cfg.storagePrefix)) return;
 
+  const prefix = cfg.storagePrefix;
   const toggleEvent = toggleEventName(cfg);
-  const handler = (): void => handleExternalToggleEvent(cfg);
+  const isDefaultEvent = toggleEvent === DEFAULT_TOGGLE_EVENT;
+  const handler = (): void =>
+    handleExternalToggleEvent(resolveLiveInstanceConfig(prefix, isDefaultEvent, cfg));
   window.addEventListener(toggleEvent, handler);
   const cleanups: Array<() => void> = [() => window.removeEventListener(toggleEvent, handler)];
 
   // The deprecated alias only ever flipped the default single-panel instance;
   // binding it for every instance would let one panel's legacy event leak into
   // another. Scope it to the default instance only.
-  if (toggleEvent === DEFAULT_TOGGLE_EVENT) {
+  if (isDefaultEvent) {
     window.addEventListener(TOGGLE_EVENT_ALIAS, handler);
     cleanups.push(() => window.removeEventListener(TOGGLE_EVENT_ALIAS, handler));
   }
 
-  bindings.set(cfg.storagePrefix, { cleanups });
+  bindings.set(prefix, { cleanups });
 }
 
 /** Remove ONE instance's toggle-event listener(s). No-op when not bound. */
