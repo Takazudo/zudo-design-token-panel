@@ -203,3 +203,125 @@ export function isInSrgbGamut(o: Oklcha): boolean {
   if (!rgb) return false;
   return isInSrgbGamutFn(rgb);
 }
+
+// ---------------------------------------------------------------------------
+// cssToOklcha
+// ---------------------------------------------------------------------------
+
+/**
+ * Normalize an angle value (with optional unit) to degrees in [0, 360).
+ * Supported units: deg (default), rad, grad, turn.
+ */
+function parseAngleToDeg(value: string, unit: string): number {
+  const n = parseFloat(value);
+  let deg: number;
+  switch (unit.toLowerCase()) {
+    case 'rad':
+      deg = n * (180 / Math.PI);
+      break;
+    case 'grad':
+      // 400 gradians = 360 degrees
+      deg = n * (360 / 400);
+      break;
+    case 'turn':
+      deg = n * 360;
+      break;
+    default:
+      // 'deg' or no unit
+      deg = n;
+  }
+  // Normalize into [0, 360)
+  return ((deg % 360) + 360) % 360;
+}
+
+/**
+ * Parse a CSS Color 4 `oklch()` string into the panel's `Oklcha` shape.
+ *
+ * Supported syntax:
+ *   oklch(L C H)
+ *   oklch(L C H / A)
+ *
+ * L: number (0–1) or percentage (0%–100% → 0–1), stored as 0–100 internally.
+ * C: number in culori-native units, OR percentage where 100% = 0.4
+ *    (CSS Color 4 reference range). Wide-gamut chroma is NOT clamped.
+ * H: number (degrees) or angle with deg/rad/grad/turn unit; normalized to [0,360).
+ * A: number (0–1) or percentage (0%–100%); stored as 0–100 internally.
+ * `none` per channel is treated as 0.
+ *
+ * Returns null for non-oklch or unparseable input.
+ */
+export function cssToOklcha(css: string): Oklcha | null {
+  // Case-insensitive match on oklch( ... ) with optional whitespace
+  const trimmed = css.trim();
+  const outerMatch = trimmed.match(/^oklch\(\s*(.*?)\s*\)$/i);
+  if (!outerMatch) return null;
+
+  const inner = outerMatch[1];
+
+  // Split on '/' to separate color channels from alpha
+  const slashParts = inner.split('/');
+  if (slashParts.length > 2) return null;
+
+  const channelsPart = slashParts[0].trim();
+  const alphaPart = slashParts.length === 2 ? slashParts[1].trim() : null;
+
+  // Tokenize the channel part: values can be numbers, percentages, or angle values
+  // (e.g. "120deg", "1.5rad", "0.5turn", "200grad")
+  const TOKEN_RE = /none|[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?(%|deg|rad|grad|turn)?/gi;
+  const channelTokens = channelsPart.match(TOKEN_RE);
+  if (!channelTokens || channelTokens.length !== 3) return null;
+
+  // Helper: parse a single channel token
+  const parseValue = (token: string): { value: number; isPercent: boolean; unit: string } | null => {
+    if (token.toLowerCase() === 'none') return { value: 0, isPercent: false, unit: '' };
+    const m = token.match(/^([+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)(.*)?$/i);
+    if (!m) return null;
+    const num = parseFloat(m[1]);
+    if (isNaN(num)) return null;
+    const suffix = (m[2] ?? '').toLowerCase();
+    const isPercent = suffix === '%';
+    const unit = isPercent ? '%' : suffix;
+    return { value: num, isPercent, unit };
+  };
+
+  // Parse L
+  const lToken = parseValue(channelTokens[0]);
+  if (!lToken) return null;
+  // L stored 0–100; CSS L is 0–1 (number) or 0%–100% (percentage → /100 → still 0–1 → *100)
+  const lInternal = lToken.isPercent ? lToken.value : lToken.value * 100;
+
+  // Parse C
+  const cToken = parseValue(channelTokens[1]);
+  if (!cToken) return null;
+  // CSS Color 4: 100% chroma = 0.4 (reference range for chroma percentage)
+  const cInternal = cToken.isPercent ? (cToken.value / 100) * 0.4 : cToken.value;
+
+  // Parse H
+  const hRaw = channelTokens[2];
+  let hInternal: number;
+  if (hRaw.toLowerCase() === 'none') {
+    hInternal = 0;
+  } else {
+    const hMatch = hRaw.match(/^([+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)(deg|rad|grad|turn)?$/i);
+    if (!hMatch) return null;
+    const hNum = hMatch[1];
+    const hUnit = hMatch[2] ?? 'deg';
+    hInternal = parseAngleToDeg(hNum, hUnit);
+  }
+
+  // Parse A (optional)
+  let aInternal = 100; // default fully opaque
+  if (alphaPart !== null) {
+    const aToken = parseValue(alphaPart.trim());
+    if (!aToken) return null;
+    // A stored 0–100; CSS A is 0–1 (number) or 0%–100% (percentage)
+    aInternal = aToken.isPercent ? aToken.value : aToken.value * 100;
+  }
+
+  return {
+    l: lInternal,
+    c: cInternal,
+    h: hInternal,
+    a: aInternal,
+  };
+}
