@@ -805,6 +805,16 @@ export default function DesignTokenTweakPanel({
                         [tierId]: { ...prev[tierId], [itemId]: next },
                       }))
                     }
+                    onCommitBatch={(tierId, patch) =>
+                      // One drag gesture = ONE persistTab call: merge the whole
+                      // { [itemId]: oklch } patch for the tier in a single
+                      // updater so the DOM apply + localStorage write happen
+                      // once, not once per drag frame.
+                      persistTab('palette', (prev) => ({
+                        ...prev,
+                        [tierId]: { ...prev[tierId], ...patch },
+                      }))
+                    }
                   />
                 )}
                 {!isReserved && tabConfigById[tab.id] && state && (

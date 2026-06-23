@@ -53,14 +53,23 @@ type PaletteMode = 'edit' | 'check';
 export interface PaletteTabProps {
   tab: TabConfig;
   overrides: TabOverrides;
+  /** Single-item write (mode-toggle direct edits + Check-mode handoff). */
   onChange: (tierId: string, itemId: string, next: string) => void;
+  /**
+   * Batched write for a whole Edit-mode graph drag. Fires ONCE on pointer-up
+   * with `{ [itemId]: oklchString }` for every changed step in `tierId`. The
+   * panel folds the whole patch into a single `persistTab('palette', …)` so a
+   * drag costs one DOM apply + one localStorage write, not one per frame.
+   * Optional — Check mode and older callers don't supply it.
+   */
+  onCommitBatch?: (tierId: string, patch: Record<string, string>) => void;
 }
 
 // ---------------------------------------------------------------------------
 // PaletteTab
 // ---------------------------------------------------------------------------
 
-export default function PaletteTab({ tab, overrides, onChange }: PaletteTabProps) {
+export default function PaletteTab({ tab, overrides, onChange, onCommitBatch }: PaletteTabProps) {
   const [mode, setMode] = useState<PaletteMode>('edit');
 
   const handleSetEdit = useCallback(() => {
@@ -121,7 +130,12 @@ export default function PaletteTab({ tab, overrides, onChange }: PaletteTabProps
       </div>
 
       {mode === 'edit' && (
-        <PaletteEditView tab={tab} overrides={overrides} onChange={onChange} />
+        <PaletteEditView
+          tab={tab}
+          overrides={overrides}
+          onChange={onChange}
+          onCommitBatch={onCommitBatch}
+        />
       )}
       {mode === 'check' && (
         <PaletteCheckView tab={tab} overrides={overrides} onChange={onChange} />
