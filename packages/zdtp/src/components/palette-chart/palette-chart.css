@@ -1,0 +1,122 @@
+/* ── PaletteChart (OKLCH L/C/H curve editor, ported from pgen PrismChart) ──────
+ *
+ * Stacked-SVG chart:
+ *   • .tokenpanel-palette-chart        — position:relative container, fills slot.
+ *   • .tokenpanel-palette-chart-bands  — bottom layer, full-height color bands.
+ *   • .tokenpanel-palette-chart-curve  — one absolute overlay SVG per channel
+ *     (L/C/H), each with its own Y-domain mapped to the same pixel height. They
+ *     share the container's box so x = step lines up across layers.
+ *
+ * Class prefix: tokenpanel-palette-chart-
+ * Band fills come from props (dynamic OKLCH→hex) and are set as SVG `fill`
+ * attributes in TSX — not literals here.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/* Defensive SVG reset (package DOM-hygiene rule) — host icon rules must not
+ * repaint the chart's functional SVGs. Scoped to the chart so it cannot bleed
+ * into the host page. The curve/node strokes are re-asserted by the rules
+ * below, so this only neutralises an inherited host `fill`/`pointer-events`. */
+.tokenpanel-palette-chart svg {
+  fill: currentColor;
+  overflow: visible;
+}
+
+.tokenpanel-palette-chart {
+  position: relative;
+  width: 100%;
+  /* Tall canvas so the full-height draggable bands read clearly. */
+  height: 280px; /* ARBITRARY: ~280px tall chart canvas */
+  border-radius: var(--radius-tokentweak);
+  overflow: hidden;
+  /* Each SVG paints its own pixels; the container just clips + stacks them.
+   * touch-action:none lets pointer drags own the gesture without scrolling. */
+  touch-action: none;
+}
+
+/* ── Bottom layer: full-height color bands ── */
+.tokenpanel-palette-chart-bands {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Overlay layers: one SVG per channel curve ── */
+.tokenpanel-palette-chart-curve {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* Wrapper passes clicks through to the band layer where no node sits; the
+   * interactive hit circles + hit line re-enable pointer events on themselves. */
+  pointer-events: none;
+  overflow: visible;
+}
+
+/* ── Whole-curve drag hit area ──
+ * A transparent fat line beneath the visible curve. `pointer-events: stroke`
+ * makes ONLY the (wide) stroke grabbable — not the SVG's whole bounding box —
+ * so the stacked channel SVGs don't steal pointer events from each other or
+ * from the bands below. The node hit circles render after this line, so an
+ * overlapping pointer-down lands on a node (per-node drag wins). */
+.tokenpanel-palette-chart-hit-line {
+  fill: none;
+  pointer-events: stroke;
+  cursor: grab;
+}
+
+.tokenpanel-palette-chart-hit-line:active {
+  cursor: grabbing;
+}
+
+/* ── Curve line ── */
+.tokenpanel-palette-chart-line {
+  fill: none;
+}
+
+.tokenpanel-palette-chart-curve--l .tokenpanel-palette-chart-line {
+  stroke: var(--tokentweak-color-accent);
+}
+
+.tokenpanel-palette-chart-curve--c .tokenpanel-palette-chart-line {
+  stroke: var(--tokentweak-color-success);
+}
+
+.tokenpanel-palette-chart-curve--h .tokenpanel-palette-chart-line {
+  stroke: var(--tokentweak-color-warning);
+}
+
+/* ── Visual nodes (white core + channel stroke) ── */
+.tokenpanel-palette-chart-node-visual {
+  fill: var(--tokentweak-color-bg);
+}
+
+.tokenpanel-palette-chart-curve--l .tokenpanel-palette-chart-node-visual {
+  stroke: var(--tokentweak-color-accent);
+}
+
+.tokenpanel-palette-chart-curve--c .tokenpanel-palette-chart-node-visual {
+  stroke: var(--tokentweak-color-success);
+}
+
+.tokenpanel-palette-chart-curve--h .tokenpanel-palette-chart-node-visual {
+  stroke: var(--tokentweak-color-warning);
+}
+
+/* ── Hit areas: re-enable pointer events, grab cursor ── */
+.tokenpanel-palette-chart-node-hit {
+  pointer-events: all;
+  cursor: grab;
+  outline: none;
+}
+
+.tokenpanel-palette-chart-node-hit:active {
+  cursor: grabbing;
+}
+
+.tokenpanel-palette-chart-node-hit:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+}
