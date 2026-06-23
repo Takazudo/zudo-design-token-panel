@@ -415,6 +415,35 @@
   outline-offset: 2px;
 }
 
+/* ColorField — swatch-button used by GenericTab opt-in `format:'oklch'` color
+   items. It replaces the native <input type="color">, which has an intrinsic
+   box; a bare <div> has none, so explicit dimensions are required or the
+   affordance renders invisible/zero-size. Sized as an inline row control. */
+.tokenpanel-color-field {
+  display: inline-flex;
+}
+.tokenpanel-color-field-swatch {
+  display: block;
+  width: 2.75rem;
+  height: 1.75rem;
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: var(--radius-tokentweak);
+  cursor: pointer;
+  padding: 0;
+  transition: border-color 150ms ease;
+}
+.tokenpanel-color-field-swatch:hover {
+  border-color: var(--tokentweak-color-fg);
+}
+.tokenpanel-color-field-swatch:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+}
+.tokenpanel-color-field-swatch[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.6;
+}
+
 .tokenpanel-color-swatch-label-row {
   /* Flex row: label text + optional eye icon side by side, label truncates. */
   display: flex;

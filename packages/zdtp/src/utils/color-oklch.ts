@@ -265,23 +265,24 @@ export function cssToOklcha(css: string): Oklcha | null {
   const channelsPart = slashParts[0].trim();
   const alphaPart = slashParts.length === 2 ? slashParts[1].trim() : null;
 
-  // Tokenize the channel part: values can be numbers, percentages, or angle values
-  // (e.g. "120deg", "1.5rad", "0.5turn", "200grad")
-  const TOKEN_RE = /none|[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?(%|deg|rad|grad|turn)?/gi;
-  const channelTokens = channelsPart.match(TOKEN_RE);
-  if (!channelTokens || channelTokens.length !== 3) return null;
+  // CSS Color 4 oklch channels are whitespace-separated. Split on whitespace and
+  // require EXACTLY three fully-formed tokens — a global regex `.match()` would
+  // silently skip unmatched junk (e.g. tokenizing "50px 0.1 120" to ["50","0.1","120"]),
+  // so malformed channels must be rejected here rather than truncated to a bogus number.
+  const channelTokens = channelsPart.split(/\s+/).filter(Boolean);
+  if (channelTokens.length !== 3) return null;
 
-  // Helper: parse a single channel token
-  const parseValue = (token: string): { value: number; isPercent: boolean; unit: string } | null => {
-    if (token.toLowerCase() === 'none') return { value: 0, isPercent: false, unit: '' };
-    const m = token.match(/^([+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)(.*)?$/i);
+  // Helper: parse a single L/C/A channel token. Only a bare number or a percentage
+  // is valid — the regex is fully anchored, so any trailing junk (e.g. "50px",
+  // "0.1deg") yields null instead of a silently-truncated value. (H is parsed
+  // separately below with its own angle-aware anchored regex.)
+  const parseValue = (token: string): { value: number; isPercent: boolean } | null => {
+    if (token.toLowerCase() === 'none') return { value: 0, isPercent: false };
+    const m = token.match(/^([+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)(%?)$/i);
     if (!m) return null;
     const num = parseFloat(m[1]);
     if (isNaN(num)) return null;
-    const suffix = (m[2] ?? '').toLowerCase();
-    const isPercent = suffix === '%';
-    const unit = isPercent ? '%' : suffix;
-    return { value: num, isPercent, unit };
+    return { value: num, isPercent: m[2] === '%' };
   };
 
   // Parse L

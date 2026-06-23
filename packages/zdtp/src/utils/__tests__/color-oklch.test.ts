@@ -504,3 +504,35 @@ describe('cssToOklcha — round-trip with oklchaToCss', () => {
     });
   }
 });
+
+describe('cssToOklcha — rejects malformed channel tokens (codex review #380)', () => {
+  it('returns null when a channel has an invalid unit suffix (oklch(50px 0.1 120))', () => {
+    // Regression: the old global-regex tokenizer skipped the "px" and parsed
+    // "50" → l=5000. Must reject instead of silently truncating.
+    expect(cssToOklcha('oklch(50px 0.1 120)')).toBeNull();
+  });
+
+  it('returns null when chroma carries an angle unit (oklch(0.5 0.1deg 120))', () => {
+    expect(cssToOklcha('oklch(0.5 0.1deg 120)')).toBeNull();
+  });
+
+  it('returns null for trailing junk on lightness (oklch(0.5junk 0.1 120))', () => {
+    expect(cssToOklcha('oklch(0.5junk 0.1 120)')).toBeNull();
+  });
+
+  it('returns null for a malformed alpha token (oklch(0.5 0.1 120 / 50px))', () => {
+    expect(cssToOklcha('oklch(0.5 0.1 120 / 50px)')).toBeNull();
+  });
+
+  it('returns null when hue has a bogus unit (oklch(0.5 0.1 120px))', () => {
+    expect(cssToOklcha('oklch(0.5 0.1 120px)')).toBeNull();
+  });
+
+  it('still parses a fully-valid space-separated triple after the fix', () => {
+    const result = cssToOklcha('oklch(0.5 0.1 120)');
+    expect(result).not.toBeNull();
+    expect(result!.l).toBeCloseTo(50, 4);
+    expect(result!.c).toBeCloseTo(0.1, 5);
+    expect(result!.h).toBeCloseTo(120, 2);
+  });
+});
