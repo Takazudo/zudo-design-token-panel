@@ -40,6 +40,7 @@ import {
   MAX_OKLCH_CHROMA,
   oklchaToCss,
   oklchaToHex,
+  oklchaToHsla,
 } from '../../utils/color-oklch';
 import { CustomSlider, type SliderConfig } from './custom-slider';
 
@@ -449,13 +450,24 @@ export function ColorPicker({
   // OKLCH and HSL projections of the current color.
   // In hex mode, hex is the single source of truth and both are derived from it.
   // In oklch mode, the canonical Oklcha is the source of truth — `oklch` is that
-  // value directly (preserving wide-gamut chroma); hsla is still derived from
-  // the sRGB hex projection (S3b owns wide-gamut HSL).
+  // value directly (preserving wide-gamut chroma). The HSL slider values are an
+  // sRGB-oriented projection: HSL cannot represent wide-gamut colors, so a
+  // wide-gamut canonical value is gamut-mapped (clampToSrgbGamut) before the
+  // oklch → Hsla conversion, keeping the displayed S/L within the sane 0–100
+  // range. This is a VIEW projection only — the canonical Oklcha is never
+  // mutated by it (toggling to HSL stays non-clamping). The single
+  // deliberately-lossy mutation happens in commitHsl on an actual slider edit.
   const oklch = useMemo(
     () => (isOklchFormat ? canonicalOklch : hexToOklcha(hex)),
     [isOklchFormat, canonicalOklch, hex],
   );
-  const hsla = useMemo(() => hexToHsla(hex), [hex]);
+  const hsla = useMemo(
+    () =>
+      isOklchFormat
+        ? oklchaToHsla(clampToSrgbGamut(canonicalOklch))
+        : hexToHsla(hex),
+    [isOklchFormat, canonicalOklch, hex],
+  );
 
   // Commit a hex string (hex mode) or, in oklch mode, the `oklch()` of that hex.
   // The internal hex state and hex-input box always track the (normalized) hex
@@ -518,12 +530,21 @@ export function ColorPicker({
         l: partial.l ?? hsla.l,
         a: partial.a ?? hsla.a,
       };
-      // HSL mode still round-trips through hex even in oklch format (S3b owns
-      // wide-gamut HSL). commit() handles the hex → oklch() conversion in
-      // oklch mode, so onChange still emits the right format.
-      commit(hslaToHex(next.h, next.s, next.l, next.a));
+      if (isOklchFormat) {
+        // DELIBERATELY LOSSY PATH. HSL is an sRGB-oriented edit space: an HSL
+        // slider edit reinterprets the color through sRGB. Convert the edited
+        // HSL straight to the canonical Oklcha (hsl → Oklcha) and emit oklch(),
+        // so the format contract still holds while the value is sRGB-reanchored.
+        // A wide-gamut chroma the user was *viewing* in HSL mode is collapsed
+        // here — this is the single intentional precision-losing edit. (Merely
+        // toggling OKLCH↔HSL does NOT take this path; handleModeToggle never
+        // commits, so viewing in HSL alone never loses the wide-gamut value.)
+        commitCanonicalOklch(hslaToOklcha(next));
+      } else {
+        commit(hslaToHex(next.h, next.s, next.l, next.a));
+      }
     },
-    [hsla, commit],
+    [hsla, isOklchFormat, commitCanonicalOklch, commit],
   );
 
   const handleHexChange = (value: string) => {
