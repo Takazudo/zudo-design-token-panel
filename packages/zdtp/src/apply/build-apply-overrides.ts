@@ -135,6 +135,25 @@ export function buildApplyOverrides(
     emitTabOverrides(tab, overrides, out);
   }
 
+  // ---------- Generic tabs (state.tabs[*]) ----------
+  // `state.tabs` stores per-tab overrides as `TabOverrides` (tierId → itemId → value).
+  // Flatten each tab's tier map into a single itemId → value map before resolving,
+  // mirroring the same flatten step the live-apply path uses in `applyFullState`.
+  if (state.tabs) {
+    for (const [tabId, tabOverrides] of Object.entries(state.tabs)) {
+      const tab = tabs.find((t) => t.id === tabId);
+      if (!tab) continue;
+      const flatOverrides: Record<string, string> = {};
+      for (const tierOverrides of Object.values(tabOverrides)) {
+        for (const [itemId, value] of Object.entries(tierOverrides)) {
+          flatOverrides[itemId] = value;
+        }
+      }
+      if (Object.keys(flatOverrides).length === 0) continue;
+      emitTabOverrides(tab, flatOverrides, out);
+    }
+  }
+
   return out;
 }
 
