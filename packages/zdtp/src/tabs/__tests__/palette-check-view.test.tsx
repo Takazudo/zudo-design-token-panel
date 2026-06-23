@@ -476,6 +476,28 @@ describe('PaletteCheckView — grouped/flat toggle', () => {
       expect(candidateRow).not.toBeNull();
     }
   });
+
+  it('flat mode resolves overrides via each item\'s REAL tier id', async () => {
+    // Override a cool-tier item. With the synthetic-'__flat__'-tier bug the
+    // override was looked up under overrides['__flat__'] (always empty) and the
+    // swatch would render the DEFAULT color instead.
+    const overridden = 'oklch(30% 0.1 120)';
+    await renderCheckView(PALETTE_TAB_FIXTURE, { cool: { 'cool-1': overridden } });
+
+    const toggle = container.querySelector<HTMLInputElement>(
+      '[data-testid="palette-check-flat-toggle"]',
+    );
+    await act(() => {
+      toggle!.checked = true;
+      toggle!.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    const swatch = container.querySelector<HTMLElement>(
+      '[data-testid="palette-check-base-row-cool-1"] .tokenpanel-palette-check-swatch',
+    );
+    expect(swatch).not.toBeNull();
+    expect(swatch!.style.background).toBe(hexToRgbString(oklchToHex(overridden)));
+  });
 });
 
 // ---------------------------------------------------------------------------

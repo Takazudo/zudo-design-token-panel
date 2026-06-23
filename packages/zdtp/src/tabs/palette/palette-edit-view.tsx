@@ -46,7 +46,7 @@ import {
   isInSrgbGamut,
   type Oklcha,
 } from '../../utils/color-oklch';
-import type { Channel } from '../../utils/palette-curve';
+import { clampHueForPersist, type Channel } from '../../utils/palette-curve';
 import { PaletteChart } from '../../components/palette-chart';
 import { ColorField } from '../../components/color-picker/color-field';
 import PaletteReadout from './palette-readout';
@@ -262,7 +262,10 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
       // accumulator is always current within the gesture.
       const prev = transientRef.current;
       const base = prev[item.id] ?? resolveItemOklcha(item, activeTier.id, overrides);
-      writeTransient({ ...prev, [item.id]: { ...base, [channel]: value } });
+      // Cap hue at the commit boundary so a node dragged to the top of the axis
+      // (h=360) survives the oklch() round-trip instead of wrapping back to 0.
+      const safeValue = channel === 'h' ? clampHueForPersist(value) : value;
+      writeTransient({ ...prev, [item.id]: { ...base, [channel]: safeValue } });
     },
     [activeTier, overrides, writeTransient],
   );

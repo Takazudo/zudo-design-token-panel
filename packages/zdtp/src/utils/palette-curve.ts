@@ -57,3 +57,26 @@ export function yToValue(y: number, channel: Channel): number {
   const clampedY = Math.max(0, Math.min(1, y));
   return (1 - clampedY) * max;
 }
+
+/**
+ * Largest hue (degrees) that survives a CSS `oklch()` round-trip.
+ *
+ * The chart axis spans the full [0, 360] (CHANNEL_MAX.h), so a node dragged to
+ * the very top of the hue axis (or the End key) yields h=360. But CSS hue angles
+ * normalize into [0, 360) when an `oklch(… 360)` string is parsed back
+ * (`cssToOklcha` → `((deg % 360) + 360) % 360`), so a persisted 360 reads back as
+ * 0 and the node teleports to the bottom on reload. Committed hues are therefore
+ * capped at this value: just below 360, and chosen so `oklchaToCss`'s 2-decimal
+ * formatting (`toFixed(2)`) preserves it rather than rounding back up to 360.00.
+ */
+export const HUE_PERSIST_MAX = 359.99;
+
+/**
+ * Cap a hue for persistence so an `oklch()` round-trip stays stable.
+ * Hues at/above 360° collapse to {@link HUE_PERSIST_MAX}; everything else is
+ * returned unchanged. Apply this only at the commit boundary — the live axis
+ * math (`valueToY`/`yToValue`) intentionally keeps the full [0, 360] range.
+ */
+export function clampHueForPersist(h: number): number {
+  return h >= 360 ? HUE_PERSIST_MAX : h;
+}

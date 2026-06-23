@@ -289,12 +289,13 @@ export default function PaletteCheckView({ tab, overrides }: PaletteCheckViewPro
 
   const baseLabel = selectedItem?.label ?? '';
 
-  // Build a flat pseudo-tier for flat-mode rendering
-  const flatTier: TierConfig = {
-    id: '__flat__',
-    label: '',
-    items: allItems,
-  };
+  // Flat-mode entries keep each item paired with its REAL tier id. A synthetic
+  // '__flat__' tier id would make resolveItemValue look under overrides.__flat__
+  // (always empty → edited values ignored) and store selectedTierId='__flat__'
+  // (base lookup falls back to the first tier → wrong ratios/tally).
+  const flatEntries = tiers.flatMap((tier) =>
+    tier.items.map((item) => ({ item, tierId: tier.id })),
+  );
 
   return (
     <div className="tokenpanel-palette-check-view" data-testid="palette-check-view">
@@ -340,14 +341,21 @@ export default function PaletteCheckView({ tab, overrides }: PaletteCheckViewPro
                 />
               ))
             : (
-                <LeftSection
-                  tier={flatTier}
-                  overrides={overrides}
-                  selectedTierId={selectedTierId}
-                  selectedItemId={selectedItemId}
-                  onSelect={handleSelect}
-                  showHeading={false}
-                />
+                <div
+                  className="tokenpanel-tab-section"
+                  data-testid="palette-check-left-tier-__flat__"
+                >
+                  {flatEntries.map(({ item, tierId }) => (
+                    <BaseRow
+                      key={item.id}
+                      item={item}
+                      tierId={tierId}
+                      overrides={overrides}
+                      isSelected={selectedTierId === tierId && selectedItemId === item.id}
+                      onSelect={handleSelect}
+                    />
+                  ))}
+                </div>
               )}
         </div>
 
@@ -368,13 +376,21 @@ export default function PaletteCheckView({ tab, overrides }: PaletteCheckViewPro
                 />
               ))
             : (
-                <RightSection
-                  tier={flatTier}
-                  overrides={overrides}
-                  baseHex={baseHex}
-                  isLarge={isLarge}
-                  showHeading={false}
-                />
+                <div
+                  className="tokenpanel-tab-section"
+                  data-testid="palette-check-right-tier-__flat__"
+                >
+                  {flatEntries.map(({ item, tierId }) => (
+                    <CandidateRow
+                      key={item.id}
+                      item={item}
+                      tierId={tierId}
+                      overrides={overrides}
+                      baseHex={baseHex}
+                      isLarge={isLarge}
+                    />
+                  ))}
+                </div>
               )}
         </div>
       </div>

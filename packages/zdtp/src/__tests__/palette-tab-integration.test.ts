@@ -302,7 +302,7 @@ describe('palette-tab integration — serde export/import round-trip (generic pa
       cool: { 'cool-2': 'oklch(0.5 0.18 265)' },
     });
 
-    const json = serialize(state, undefined, undefined, PALETTE_PANEL_CONFIG);
+    const json = serialize(state, undefined, PALETTE_PANEL_CONFIG);
 
     expect(json.$schema).toBe(SCHEMA_V2);
     expect(json.tabs).toBeDefined();
@@ -315,7 +315,7 @@ describe('palette-tab integration — serde export/import round-trip (generic pa
 
   it('serialize does NOT emit palette under reserved slices (color / spacing / font / size)', () => {
     const state = makeFreshState({ warm: { 'warm-1': 'oklch(0.9 0.05 50)' } });
-    const json = serialize(state, undefined, undefined, PALETTE_PANEL_CONFIG);
+    const json = serialize(state, undefined, PALETTE_PANEL_CONFIG);
 
     // color slice must not contain palette-warm vars
     const colorSlice = json.tabs?.['color'];
@@ -338,7 +338,7 @@ describe('palette-tab integration — serde export/import round-trip (generic pa
       cool: { 'cool-1': 'oklch(0.8 0.12 240)' },
     });
 
-    const json = serialize(original, undefined, undefined, PALETTE_PANEL_CONFIG);
+    const json = serialize(original, undefined, PALETTE_PANEL_CONFIG);
     const { state: restored, unknownTokens, warnings } = deserialize(json, undefined, PALETTE_PANEL_CONFIG);
 
     expect(unknownTokens).toHaveLength(0);
@@ -357,7 +357,7 @@ describe('palette-tab integration — serde export/import round-trip (generic pa
       cool: { 'cool-1': 'oklch(0.8 0.12 240)', 'cool-2': 'oklch(0.5 0.18 265)' },
     });
 
-    const json = serialize(original, undefined, undefined, PALETTE_PANEL_CONFIG);
+    const json = serialize(original, undefined, PALETTE_PANEL_CONFIG);
     const { state: restored } = deserialize(json, undefined, PALETTE_PANEL_CONFIG);
 
     // Apply both states and compare the CSS vars on :root
@@ -414,7 +414,7 @@ describe('palette-tab integration — serde RESERVED_TAB_IDS check', () => {
       warm: { 'warm-1': 'oklch(0.8 0.1 55)' },
     });
 
-    const json = serialize(state, undefined, undefined, PALETTE_PANEL_CONFIG);
+    const json = serialize(state, undefined, PALETTE_PANEL_CONFIG);
     const { state: restored, unknownTokens } = deserialize(json, undefined, PALETTE_PANEL_CONFIG);
 
     // If palette were in RESERVED_TAB_IDS, this override would be missing

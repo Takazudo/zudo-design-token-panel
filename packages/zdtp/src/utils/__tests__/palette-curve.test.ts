@@ -2,8 +2,15 @@
  * Tests for the OKLCH channel-curve math helpers.
  */
 import { describe, expect, it } from 'vitest';
-import { CHANNEL_MAX, stepX, valueToY, yToValue } from '../palette-curve';
-import { MAX_OKLCH_CHROMA } from '../color-oklch';
+import {
+  CHANNEL_MAX,
+  stepX,
+  valueToY,
+  yToValue,
+  clampHueForPersist,
+  HUE_PERSIST_MAX,
+} from '../palette-curve';
+import { MAX_OKLCH_CHROMA, oklchaToCss, cssToOklcha } from '../color-oklch';
 
 // ---------------------------------------------------------------------------
 // CHANNEL_MAX
@@ -252,5 +259,43 @@ describe('C clamping', () => {
 
   it('valueToY: c < 0 is clamped to y=1', () => {
     expect(valueToY(-0.1, 'c')).toBeCloseTo(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// clampHueForPersist — stable oklch() round-trip (no wrap to 0 at the top)
+// ---------------------------------------------------------------------------
+
+describe('clampHueForPersist', () => {
+  it('HUE_PERSIST_MAX is just below 360', () => {
+    expect(HUE_PERSIST_MAX).toBeLessThan(360);
+    expect(HUE_PERSIST_MAX).toBeGreaterThan(359);
+  });
+
+  it('caps h=360 to HUE_PERSIST_MAX', () => {
+    expect(clampHueForPersist(360)).toBe(HUE_PERSIST_MAX);
+  });
+
+  it('caps h>360 (e.g. 720) to HUE_PERSIST_MAX', () => {
+    expect(clampHueForPersist(720)).toBe(HUE_PERSIST_MAX);
+  });
+
+  it('leaves hues below 360 unchanged', () => {
+    expect(clampHueForPersist(0)).toBe(0);
+    expect(clampHueForPersist(180)).toBe(180);
+    expect(clampHueForPersist(359.5)).toBe(359.5);
+  });
+
+  it('a capped hue survives an oklch() string round-trip (stays near the top)', () => {
+    const css = oklchaToCss({ l: 50, c: 0.1, h: clampHueForPersist(360), a: 100 });
+    const parsed = cssToOklcha(css);
+    expect(parsed).not.toBeNull();
+    expect(parsed!.h).toBeGreaterThan(359);
+    expect(parsed!.h).toBeLessThan(360);
+  });
+
+  it('documents the bug the cap prevents: an UNCAPPED h=360 wraps to 0', () => {
+    const parsed = cssToOklcha(oklchaToCss({ l: 50, c: 0.1, h: 360, a: 100 }));
+    expect(parsed!.h).toBeCloseTo(0);
   });
 });
