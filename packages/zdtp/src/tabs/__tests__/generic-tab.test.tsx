@@ -579,3 +579,183 @@ describe('GenericTab — rich tooltip on token-name labels', () => {
     expect(tooltip?.textContent).toBe('--test-easing-tab-open');
   });
 });
+
+// ---------------------------------------------------------------------------
+// S4 acceptance criteria: oklch color items route through ColorField (#378)
+// ---------------------------------------------------------------------------
+
+/** Tab with an oklch color item. */
+const OKLCH_COLOR_TAB: TabConfig = {
+  id: 'theme',
+  label: 'Theme',
+  tiers: [
+    {
+      id: 'base',
+      label: 'Base colors',
+      items: [
+        {
+          id: 'brand',
+          cssVar: '--test-brand',
+          label: 'Brand',
+          default: 'oklch(60% 0.2 240)',
+          type: { kind: 'color', format: 'oklch' },
+        },
+      ],
+    },
+  ],
+};
+
+/** Tab with a readonly oklch color item. */
+const READONLY_OKLCH_COLOR_TAB: TabConfig = {
+  id: 'theme-ro',
+  label: 'Theme RO',
+  tiers: [
+    {
+      id: 'base',
+      label: 'Base colors',
+      items: [
+        {
+          id: 'brand-ro',
+          cssVar: '--test-brand-ro',
+          label: 'Brand RO',
+          default: 'oklch(60% 0.2 240)',
+          type: { kind: 'color', format: 'oklch' },
+          readonly: true,
+        },
+      ],
+    },
+  ],
+};
+
+describe('GenericTab — oklch color items use ColorField (S4 #378)', () => {
+  it('renders ColorField swatch-button (not native <input type="color">) for oklch color items', async () => {
+    await renderGenericTab(OKLCH_COLOR_TAB);
+
+    const item = container.querySelector('[data-testid="tier-item-brand"]');
+    expect(item).not.toBeNull();
+
+    // Must NOT render a native color input
+    const nativeColorInput = item?.querySelector('input[type="color"]');
+    expect(nativeColorInput).toBeNull();
+
+    // Must render a ColorField swatch-button
+    const swatch = item?.querySelector('[data-testid="color-field-swatch"]');
+    expect(swatch).not.toBeNull();
+  });
+
+  it('oklch color swatch has role="button" and is keyboard accessible', async () => {
+    await renderGenericTab(OKLCH_COLOR_TAB);
+
+    const swatch = container.querySelector('[data-testid="color-field-swatch"]');
+    expect(swatch).not.toBeNull();
+    expect(swatch?.getAttribute('role')).toBe('button');
+    expect(swatch?.getAttribute('tabindex')).toBe('0');
+  });
+
+  it('clicking the swatch opens the ColorPicker for an oklch item', async () => {
+    await renderGenericTab(OKLCH_COLOR_TAB);
+
+    // Before click: no picker present
+    let picker = container.querySelector('.tokenpanel-color-picker');
+    expect(picker).toBeNull();
+
+    const swatch = container.querySelector<HTMLElement>('[data-testid="color-field-swatch"]');
+    expect(swatch).not.toBeNull();
+
+    act(() => {
+      swatch!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    picker = container.querySelector('.tokenpanel-color-picker');
+    expect(picker).not.toBeNull();
+  });
+
+  it('pressing Enter on the swatch opens the ColorPicker for an oklch item', async () => {
+    await renderGenericTab(OKLCH_COLOR_TAB);
+
+    let picker = container.querySelector('.tokenpanel-color-picker');
+    expect(picker).toBeNull();
+
+    const swatch = container.querySelector<HTMLElement>('[data-testid="color-field-swatch"]');
+    expect(swatch).not.toBeNull();
+
+    act(() => {
+      swatch!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+
+    picker = container.querySelector('.tokenpanel-color-picker');
+    expect(picker).not.toBeNull();
+  });
+
+  it('pressing Space on the swatch opens the ColorPicker for an oklch item', async () => {
+    await renderGenericTab(OKLCH_COLOR_TAB);
+
+    let picker = container.querySelector('.tokenpanel-color-picker');
+    expect(picker).toBeNull();
+
+    const swatch = container.querySelector<HTMLElement>('[data-testid="color-field-swatch"]');
+    expect(swatch).not.toBeNull();
+
+    act(() => {
+      swatch!.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+    });
+
+    picker = container.querySelector('.tokenpanel-color-picker');
+    expect(picker).not.toBeNull();
+  });
+
+  it('plain hex color item still renders <input type="color">, not ColorField', async () => {
+    await renderGenericTab(MIXED_KINDS_TAB);
+
+    const item = container.querySelector('[data-testid="tier-item-color-item"]');
+    expect(item).not.toBeNull();
+
+    const nativeColorInput = item?.querySelector('input[type="color"]');
+    expect(nativeColorInput).not.toBeNull();
+
+    const swatch = item?.querySelector('[data-testid="color-field-swatch"]');
+    expect(swatch).toBeNull();
+  });
+
+  it('readonly oklch color item does NOT open the picker on click', async () => {
+    await renderGenericTab(READONLY_OKLCH_COLOR_TAB);
+
+    const swatch = container.querySelector<HTMLElement>('[data-testid="color-field-swatch"]');
+    expect(swatch).not.toBeNull();
+
+    act(() => {
+      swatch!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const picker = container.querySelector('.tokenpanel-color-picker');
+    expect(picker).toBeNull();
+  });
+
+  it('readonly oklch color item does NOT open the picker on Enter', async () => {
+    await renderGenericTab(READONLY_OKLCH_COLOR_TAB);
+
+    const swatch = container.querySelector<HTMLElement>('[data-testid="color-field-swatch"]');
+    expect(swatch).not.toBeNull();
+
+    act(() => {
+      swatch!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+
+    const picker = container.querySelector('.tokenpanel-color-picker');
+    expect(picker).toBeNull();
+  });
+
+  it('readonly oklch color item does NOT open the picker on Space', async () => {
+    await renderGenericTab(READONLY_OKLCH_COLOR_TAB);
+
+    const swatch = container.querySelector<HTMLElement>('[data-testid="color-field-swatch"]');
+    expect(swatch).not.toBeNull();
+
+    act(() => {
+      swatch!.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+    });
+
+    const picker = container.querySelector('.tokenpanel-color-picker');
+    expect(picker).toBeNull();
+  });
+});

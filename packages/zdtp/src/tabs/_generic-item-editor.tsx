@@ -16,6 +16,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'preact/compat';
 import type { TierItem, TierValueKind } from '../tokens/tier-model';
 import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
 import TokenLabel from '../controls/token-label';
+import ColorField from '../components/color-picker/color-field';
 
 export interface GenericItemEditorProps {
   item: TierItem;
@@ -189,6 +190,25 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
     }
 
     case 'color': {
+      if (type.format === 'oklch') {
+        const handleColorFieldChange = (next: string) => {
+          onChange(item.id, next);
+        };
+        return (
+          <div className="tokenpanel-row" data-testid={`tier-item-${item.id}`}>
+            <TokenLabel cssVar={item.cssVar} label={item.label} />
+            <ColorField
+              value={value}
+              onChange={handleColorFieldChange}
+              valueFormat="oklch"
+              label={item.label}
+              cssVar={item.cssVar}
+              readonly={isReadonly}
+            />
+            <HighlightToggleButton cssVar={item.cssVar} />
+          </div>
+        );
+      }
       const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         onChange(item.id, e.currentTarget.value);
       };
