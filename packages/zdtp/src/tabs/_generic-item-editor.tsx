@@ -6,6 +6,9 @@
  * For pill items (item.pill is set), a pill toggle is rendered above the
  * number input row.
  *
+ * For color items: native <input type="color"> by default; with format:'oklch' →
+ * OKLCH picker emitting oklch() (rendering wired in later sub-tasks).
+ *
  * This is an internal helper; not exported from the package index.
  */
 

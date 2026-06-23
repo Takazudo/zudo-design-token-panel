@@ -9,7 +9,7 @@
  *   length / number → number input with unit suffix (numeric range)
  *   select          → native <select>
  *   text            → free-form text input
- *   color           → <input type="color"> (native OS color picker)
+ *   color           → native <input type="color"> by default; with format:'oklch' → OKLCH picker emitting oklch()
  *
  * For items in a tier with `referencesTier`, TierRefSelector is rendered
  * instead, so the user can either pick a tier-1 item id (emitted as
