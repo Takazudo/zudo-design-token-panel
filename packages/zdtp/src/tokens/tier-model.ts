@@ -13,7 +13,12 @@ export type TierValueKind =
   | { kind: 'cursor' }
   | { kind: 'content' }
   | { kind: 'mask-image' }
-  | { kind: 'color' };
+  /**
+   * Omitting `format` (or passing `'hex'`) uses the native `<input type="color">`
+   * (today's behavior, emits a hex string). Passing `'oklch'` opts into the OKLCH
+   * picker that emits an `oklch(...)` string (rendering wired in later sub-tasks).
+   */
+  | { kind: 'color'; format?: 'hex' | 'oklch' };
 
 // ---------------------------------------------------------------------------
 // Narrowing helpers

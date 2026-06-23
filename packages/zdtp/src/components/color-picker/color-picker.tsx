@@ -33,12 +33,14 @@ import { hexToHsla, hslaToHex } from '../../utils/color-hsla';
 import {
   type Oklcha,
   clampToSrgbGamut,
+  cssToOklcha,
   hexToOklcha,
   hslaToOklcha,
   isInSrgbGamut,
   MAX_OKLCH_CHROMA,
   oklchaToCss,
   oklchaToHex,
+  oklchaToHsla,
 } from '../../utils/color-oklch';
 import { CustomSlider, type SliderConfig } from './custom-slider';
 
@@ -46,11 +48,36 @@ import { CustomSlider, type SliderConfig } from './custom-slider';
 
 export type ColorPickerMode = 'oklch' | 'hsl';
 
+/**
+ * Output value format for the picker.
+ *
+ *   'hex'   — `color` prop is a hex string, `onChange` emits hex. The internal
+ *             source of truth is the hex string. (Default — back-compatible.)
+ *   'oklch' — `color` prop is a CSS `oklch(...)` string (a hex is also tolerated
+ *             on input), `onChange` emits a normalized `oklch(...)` string. The
+ *             internal source of truth is a canonical `Oklcha`, so wide-gamut
+ *             chroma and sub-step precision survive edits without sRGB clamping.
+ */
+export type ColorPickerValueFormat = 'hex' | 'oklch';
+
 export interface ColorPickerProps {
-  /** Current hex color (#RRGGBB or #RRGGBBAA). Source of truth. */
+  /**
+   * Current color. In `valueFormat='hex'` (default) this is a hex string
+   * (#RRGGBB or #RRGGBBAA). In `valueFormat='oklch'` this is a CSS `oklch(...)`
+   * string (a hex is tolerated and parsed via the hex path as a fallback).
+   */
   color: string;
-  /** Called when the user commits a new color via any sub-control. */
-  onChange: (hex: string) => void;
+  /**
+   * Called when the user commits a new color via any sub-control. The argument
+   * matches `valueFormat`: a hex string in 'hex' mode, an `oklch(...)` string
+   * in 'oklch' mode.
+   */
+  onChange: (value: string) => void;
+  /**
+   * Output format for `color` / `onChange`. Defaults to 'hex' (back-compatible
+   * with existing callers that pass no value).
+   */
+  valueFormat?: ColorPickerValueFormat;
   /** Optional label rendered in the picker header. */
   label?: string;
   /**
@@ -220,6 +247,36 @@ function useSyncedHex(
 }
 
 /**
+ * Parse the incoming `color` prop into a canonical Oklcha for oklch mode.
+ *
+ * Prefers `cssToOklcha` (preserves wide-gamut chroma and sub-step precision).
+ * Falls back to `hexToOklcha` when the prop is a hex string (or any non-oklch
+ * value) that `cssToOklcha` rejects.
+ */
+function parseOklchColor(css: string): Oklcha {
+  return cssToOklcha(css) ?? hexToOklcha(css);
+}
+
+/**
+ * OKLCH-mode analogue of `useSyncedHex`: keeps a canonical Oklcha as the
+ * source of truth and ignores incoming `color` prop changes while a slider
+ * drag is in flight (so a mid-gesture external prop change cannot clobber the
+ * dragged value). The wide-gamut chroma and precision of the canonical value
+ * survive because it is never round-tripped through hex.
+ */
+function useSyncedOklch(
+  externalColor: string,
+  isDraggingRef: React.RefObject<boolean>,
+): [Oklcha, (next: Oklcha) => void] {
+  const [oklch, setOklch] = useState<Oklcha>(() => parseOklchColor(externalColor));
+  useEffect(() => {
+    if (isDraggingRef.current) return;
+    setOklch(parseOklchColor(externalColor));
+  }, [externalColor, isDraggingRef]);
+  return [oklch, setOklch];
+}
+
+/**
  * Compute a `position: fixed` style that places the popover below (or above,
  * if flipped) the anchor element, then clamps all edges inside the viewport.
  *
@@ -321,15 +378,31 @@ export function usePopoverClose(
 export function ColorPicker({
   color,
   onChange,
+  valueFormat = 'hex',
   label,
   defaultMode = 'oklch',
   anchorRef,
   onClose,
 }: ColorPickerProps): JSX.Element {
+  const isOklchFormat = valueFormat === 'oklch';
+
   const containerRef = useRef<HTMLDivElement>(null);
   const dragHandleRef = useRef<HTMLSpanElement>(null);
   const isDraggingRef = useRef(false);
-  const [hex, setHex] = useSyncedHex(color, isDraggingRef);
+
+  // Two parallel sources of truth, one per output format. In hex mode the hex
+  // string is canonical (byte-for-byte unchanged from the legacy behavior). In
+  // oklch mode the canonical Oklcha is the source of truth so wide-gamut chroma
+  // & precision survive without round-tripping through sRGB hex.
+  const [hexState, setHexState] = useSyncedHex(color, isDraggingRef);
+  const [canonicalOklch, setCanonicalOklch] = useSyncedOklch(
+    color,
+    isDraggingRef,
+  );
+
+  // The hex shown by the picker. In oklch mode this is the sRGB projection of
+  // the canonical value (for the hex-input box, preview is handled separately).
+  const hex = isOklchFormat ? oklchaToHex(canonicalOklch) : hexState;
 
   // ── Drag-handle state ─────────────────────────────────────────────────────
   // dragPos holds the current dragged-to position (left, top in viewport px).
@@ -374,19 +447,62 @@ export function ColorPicker({
 
   usePopoverClose(containerRef, onClose);
 
-  // OKLCH and HSL projections of the current hex.
-  // Recomputed on render — hex is the single source of truth.
-  const oklch = useMemo(() => hexToOklcha(hex), [hex]);
-  const hsla = useMemo(() => hexToHsla(hex), [hex]);
+  // OKLCH and HSL projections of the current color.
+  // In hex mode, hex is the single source of truth and both are derived from it.
+  // In oklch mode, the canonical Oklcha is the source of truth — `oklch` is that
+  // value directly (preserving wide-gamut chroma). The HSL slider values are an
+  // sRGB-oriented projection: HSL cannot represent wide-gamut colors, so a
+  // wide-gamut canonical value is gamut-mapped (clampToSrgbGamut) before the
+  // oklch → Hsla conversion, keeping the displayed S/L within the sane 0–100
+  // range. This is a VIEW projection only — the canonical Oklcha is never
+  // mutated by it (toggling to HSL stays non-clamping). The single
+  // deliberately-lossy mutation happens in commitHsl on an actual slider edit.
+  const oklch = useMemo(
+    () => (isOklchFormat ? canonicalOklch : hexToOklcha(hex)),
+    [isOklchFormat, canonicalOklch, hex],
+  );
+  const hsla = useMemo(
+    () =>
+      isOklchFormat
+        ? oklchaToHsla(clampToSrgbGamut(canonicalOklch))
+        : hexToHsla(hex),
+    [isOklchFormat, canonicalOklch, hex],
+  );
 
+  // Commit a hex string (hex mode) or, in oklch mode, the `oklch()` of that hex.
+  // The internal hex state and hex-input box always track the (normalized) hex
+  // so the input box keeps showing the sRGB projection for reference.
   const commit = useCallback(
     (next: string) => {
       const normalized = next.toLowerCase();
-      setHex(normalized);
+      setHexState(normalized);
       setHexInput(normalized);
-      onChange(normalized);
+      if (isOklchFormat) {
+        // The hex-input box and preset grid commit a hex; in oklch mode emit
+        // the oklch() of that hex (hex → Oklcha → oklch string), never raw hex.
+        const asOklch = parseOklchColor(normalized);
+        setCanonicalOklch(asOklch);
+        onChange(oklchaToCss(asOklch));
+      } else {
+        onChange(normalized);
+      }
     },
-    [setHex, onChange],
+    [setHexState, setCanonicalOklch, isOklchFormat, onChange],
+  );
+
+  // Commit a canonical Oklcha directly without any sRGB clamp — used by the
+  // OKLCH sliders and the preset grid in oklch mode so out-of-gamut chroma and
+  // precision survive. Emits the normalized oklch() string.
+  const commitCanonicalOklch = useCallback(
+    (next: Oklcha) => {
+      setCanonicalOklch(next);
+      // Keep the hex-input box / hex state in sync with the sRGB projection.
+      const projHex = oklchaToHex(next).toLowerCase();
+      setHexState(projHex);
+      setHexInput(projHex);
+      onChange(oklchaToCss(next));
+    },
+    [setCanonicalOklch, setHexState, onChange],
   );
 
   const commitOklch = useCallback(
@@ -397,9 +513,13 @@ export function ColorPicker({
         h: partial.h ?? oklch.h,
         a: partial.a ?? oklch.a,
       };
-      commit(oklchaToHex(next));
+      if (isOklchFormat) {
+        commitCanonicalOklch(next);
+      } else {
+        commit(oklchaToHex(next));
+      }
     },
-    [oklch, commit],
+    [oklch, isOklchFormat, commitCanonicalOklch, commit],
   );
 
   const commitHsl = useCallback(
@@ -410,9 +530,21 @@ export function ColorPicker({
         l: partial.l ?? hsla.l,
         a: partial.a ?? hsla.a,
       };
-      commit(hslaToHex(next.h, next.s, next.l, next.a));
+      if (isOklchFormat) {
+        // DELIBERATELY LOSSY PATH. HSL is an sRGB-oriented edit space: an HSL
+        // slider edit reinterprets the color through sRGB. Convert the edited
+        // HSL straight to the canonical Oklcha (hsl → Oklcha) and emit oklch(),
+        // so the format contract still holds while the value is sRGB-reanchored.
+        // A wide-gamut chroma the user was *viewing* in HSL mode is collapsed
+        // here — this is the single intentional precision-losing edit. (Merely
+        // toggling OKLCH↔HSL does NOT take this path; handleModeToggle never
+        // commits, so viewing in HSL alone never loses the wide-gamut value.)
+        commitCanonicalOklch(hslaToOklcha(next));
+      } else {
+        commit(hslaToHex(next.h, next.s, next.l, next.a));
+      }
     },
-    [hsla, commit],
+    [hsla, isOklchFormat, commitCanonicalOklch, commit],
   );
 
   const handleHexChange = (value: string) => {
@@ -432,10 +564,16 @@ export function ColorPicker({
   const handlePresetClick = useCallback(
     (rowIdx: number, colIdx: number) => {
       const preset = presetOklchForCell(rowIdx, colIdx, oklch.a, presetHCols);
-      const safe = clampToSrgbGamut(preset);
-      commit(oklchaToHex(safe));
+      if (isOklchFormat) {
+        // Commit the cell's UNCLAMPED Oklcha so wide-gamut presets survive.
+        // (The display background still uses clampToSrgbGamut — see the grid.)
+        commitCanonicalOklch(preset);
+      } else {
+        const safe = clampToSrgbGamut(preset);
+        commit(oklchaToHex(safe));
+      }
     },
-    [oklch.a, presetHCols, commit],
+    [oklch.a, presetHCols, isOklchFormat, commitCanonicalOklch, commit],
   );
 
   const handleGridKeyDown = useCallback(
@@ -604,8 +742,16 @@ export function ColorPicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Checkerboard is only needed when the color has a non-opaque alpha byte.
-  const hasAlpha = /^#[0-9a-fA-F]{8}$/.test(hex);
+  // Checkerboard is only needed when the color is non-opaque. In hex mode the
+  // 8-digit hex byte signals alpha; in oklch mode the canonical alpha does.
+  const hasAlpha = isOklchFormat
+    ? canonicalOklch.a < 100
+    : /^#[0-9a-fA-F]{8}$/.test(hex);
+
+  // Preview swatch background. In oklch mode use the canonical oklch() value so
+  // wide-gamut colors render correctly (and are not silently sRGB-clamped); in
+  // hex mode keep the exact hex string the legacy path used.
+  const previewBackground = isOklchFormat ? oklchaToCss(canonicalOklch) : hex;
 
   const onDragStart = useCallback(() => {
     isDraggingRef.current = true;
@@ -710,7 +856,7 @@ export function ColorPicker({
           )}
           <div
             className="tokenpanel-color-picker-preview-color"
-            style={{ backgroundColor: hex }}
+            style={{ backgroundColor: previewBackground }}
           />
         </div>
         <input

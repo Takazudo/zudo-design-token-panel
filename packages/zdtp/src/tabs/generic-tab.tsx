@@ -9,7 +9,7 @@
  *   length / number → number input with unit suffix (numeric range)
  *   select          → native <select>
  *   text            → free-form text input
- *   color           → <input type="color"> (native OS color picker)
+ *   color           → native <input type="color"> by default; with format:'oklch' → OKLCH picker emitting oklch()
  *
  * For items in a tier with `referencesTier`, TierRefSelector is rendered
  * instead, so the user can either pick a tier-1 item id (emitted as
@@ -22,6 +22,7 @@ import { type TabOverrides, resolveTierItemValue } from '../apply/tier-resolver'
 import TierRefSelector from '../controls/tier-ref-selector';
 import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
 import TokenLabel from '../controls/token-label';
+import ColorField from '../components/color-picker/color-field';
 
 // ---------------------------------------------------------------------------
 // Item editor dispatch
@@ -180,6 +181,25 @@ function ItemEditor({ tab, tier, item, value, overrides, onChange }: ItemEditorP
     }
 
     case 'color': {
+      if (type.format === 'oklch') {
+        const handleColorFieldChange = (next: string) => {
+          onChange(item.id, next);
+        };
+        return (
+          <div className="tokenpanel-row" data-testid={`tier-item-${item.id}`}>
+            <TokenLabel cssVar={item.cssVar} label={item.label} />
+            <ColorField
+              value={value}
+              onChange={handleColorFieldChange}
+              valueFormat="oklch"
+              label={item.label}
+              cssVar={item.cssVar}
+              readonly={isReadonly}
+            />
+            <HighlightToggleButton cssVar={item.cssVar} />
+          </div>
+        );
+      }
       const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         onChange(item.id, e.currentTarget.value);
       };

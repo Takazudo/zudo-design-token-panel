@@ -14,6 +14,7 @@ import {
   hslaToOklcha,
   clampToSrgbGamut,
   isInSrgbGamut,
+  cssToOklcha,
   MAX_OKLCH_CHROMA,
   type Oklcha,
   type Hsla,
@@ -285,5 +286,253 @@ describe('isInSrgbGamut', () => {
 describe('MAX_OKLCH_CHROMA', () => {
   it('is 0.37', () => {
     expect(MAX_OKLCH_CHROMA).toBe(0.37);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// cssToOklcha
+// ---------------------------------------------------------------------------
+
+describe('cssToOklcha — null for non-oklch input', () => {
+  it('returns null for a hex string', () => {
+    expect(cssToOklcha('#aabbcc')).toBeNull();
+  });
+
+  it('returns null for named color "red"', () => {
+    expect(cssToOklcha('red')).toBeNull();
+  });
+
+  it('returns null for rgb()', () => {
+    expect(cssToOklcha('rgb(0,0,0)')).toBeNull();
+  });
+
+  it('returns null for hsl()', () => {
+    expect(cssToOklcha('hsl(0 0% 0%)')).toBeNull();
+  });
+
+  it('returns null for garbage input', () => {
+    expect(cssToOklcha('not a color')).toBeNull();
+  });
+
+  it('returns null for empty string', () => {
+    expect(cssToOklcha('')).toBeNull();
+  });
+
+  it('returns null for oklch with wrong number of channels', () => {
+    expect(cssToOklcha('oklch(0.5 0.1)')).toBeNull();
+  });
+
+  it('returns null for oklch with too many channels', () => {
+    expect(cssToOklcha('oklch(0.5 0.1 120 200)')).toBeNull();
+  });
+});
+
+describe('cssToOklcha — basic numeric parsing', () => {
+  it('parses oklch(0.21 0.03 264)', () => {
+    const result = cssToOklcha('oklch(0.21 0.03 264)');
+    expect(result).not.toBeNull();
+    expect(result!.l).toBeCloseTo(21, 4);
+    expect(result!.c).toBeCloseTo(0.03, 6);
+    expect(result!.h).toBeCloseTo(264, 4);
+    expect(result!.a).toBeCloseTo(100, 4);
+  });
+
+  it('parses oklch(0.5 0.1 120 / 0.5) — numeric alpha', () => {
+    const result = cssToOklcha('oklch(0.5 0.1 120 / 0.5)');
+    expect(result).not.toBeNull();
+    expect(result!.l).toBeCloseTo(50, 4);
+    expect(result!.c).toBeCloseTo(0.1, 6);
+    expect(result!.h).toBeCloseTo(120, 4);
+    expect(result!.a).toBeCloseTo(50, 4);
+  });
+
+  it('is case-insensitive (OKLCH uppercased)', () => {
+    const result = cssToOklcha('OKLCH(0.5 0.1 120)');
+    expect(result).not.toBeNull();
+    expect(result!.l).toBeCloseTo(50, 4);
+  });
+
+  it('tolerates extra internal whitespace', () => {
+    const result = cssToOklcha('oklch(  0.5   0.1   120  )');
+    expect(result).not.toBeNull();
+    expect(result!.l).toBeCloseTo(50, 4);
+  });
+});
+
+describe('cssToOklcha — percentage L and A', () => {
+  it('parses oklch(93% 0.01 264deg / 50%) — percent L + angle unit + percent A', () => {
+    const result = cssToOklcha('oklch(93% 0.01 264deg / 50%)');
+    expect(result).not.toBeNull();
+    // 93% L → stored as 93
+    expect(result!.l).toBeCloseTo(93, 4);
+    expect(result!.c).toBeCloseTo(0.01, 6);
+    expect(result!.h).toBeCloseTo(264, 4);
+    // 50% A → stored as 50
+    expect(result!.a).toBeCloseTo(50, 4);
+  });
+
+  it('parses 0% L as l=0', () => {
+    const result = cssToOklcha('oklch(0% 0 0)');
+    expect(result).not.toBeNull();
+    expect(result!.l).toBeCloseTo(0, 4);
+  });
+
+  it('parses 100% L as l=100', () => {
+    const result = cssToOklcha('oklch(100% 0 0)');
+    expect(result).not.toBeNull();
+    expect(result!.l).toBeCloseTo(100, 4);
+  });
+});
+
+describe('cssToOklcha — chroma percentage (100% = 0.4)', () => {
+  it('parses oklch(0.6 50% 0.5turn) — chroma as percentage', () => {
+    const result = cssToOklcha('oklch(0.6 50% 0.5turn)');
+    expect(result).not.toBeNull();
+    // 50% chroma → 0.5 * 0.4 = 0.2
+    expect(result!.c).toBeCloseTo(0.2, 6);
+    // 0.5turn → 180 degrees
+    expect(result!.h).toBeCloseTo(180, 4);
+  });
+
+  it('parses 100% chroma as 0.4', () => {
+    const result = cssToOklcha('oklch(0.5 100% 120)');
+    expect(result).not.toBeNull();
+    expect(result!.c).toBeCloseTo(0.4, 6);
+  });
+
+  it('does NOT clamp wide-gamut chroma (chroma > 0.4 survives)', () => {
+    // Direct numeric chroma above the slider cap (MAX_OKLCH_CHROMA = 0.37)
+    const result = cssToOklcha('oklch(0.7 0.25 150)');
+    expect(result).not.toBeNull();
+    expect(result!.c).toBeCloseTo(0.25, 6);
+    // Also test percentage that exceeds 100% → chroma > 0.4
+    const result2 = cssToOklcha('oklch(0.7 150% 150)');
+    expect(result2).not.toBeNull();
+    expect(result2!.c).toBeCloseTo(0.6, 6);
+  });
+});
+
+describe('cssToOklcha — angle units', () => {
+  it('parses hue with deg unit', () => {
+    const result = cssToOklcha('oklch(0.5 0.1 180deg)');
+    expect(result).not.toBeNull();
+    expect(result!.h).toBeCloseTo(180, 4);
+  });
+
+  it('parses hue with rad unit', () => {
+    // Math.PI rad ≈ 180 degrees
+    const result = cssToOklcha(`oklch(0.5 0.1 ${Math.PI}rad)`);
+    expect(result).not.toBeNull();
+    expect(result!.h).toBeCloseTo(180, 3);
+  });
+
+  it('parses hue with grad unit', () => {
+    // 200 gradians = 180 degrees
+    const result = cssToOklcha('oklch(0.5 0.1 200grad)');
+    expect(result).not.toBeNull();
+    expect(result!.h).toBeCloseTo(180, 4);
+  });
+
+  it('parses hue with turn unit', () => {
+    // 0.5 turn = 180 degrees
+    const result = cssToOklcha('oklch(0.5 0.1 0.5turn)');
+    expect(result).not.toBeNull();
+    expect(result!.h).toBeCloseTo(180, 4);
+  });
+});
+
+describe('cssToOklcha — hue normalization', () => {
+  it('normalizes negative hue: -30 → 330', () => {
+    const result = cssToOklcha('oklch(0.5 0.1 -30)');
+    expect(result).not.toBeNull();
+    expect(result!.h).toBeCloseTo(330, 4);
+  });
+
+  it('normalizes hue > 360: 400 → 40', () => {
+    const result = cssToOklcha('oklch(0.5 0.1 400)');
+    expect(result).not.toBeNull();
+    expect(result!.h).toBeCloseTo(40, 4);
+  });
+
+  it('normalizes 360 → 0', () => {
+    const result = cssToOklcha('oklch(0.5 0.1 360)');
+    expect(result).not.toBeNull();
+    expect(result!.h).toBeCloseTo(0, 4);
+  });
+});
+
+describe('cssToOklcha — none keyword', () => {
+  it('parses oklch(0.5 0.1 none) — none hue becomes 0', () => {
+    const result = cssToOklcha('oklch(0.5 0.1 none)');
+    expect(result).not.toBeNull();
+    expect(result!.h).toBeCloseTo(0, 4);
+  });
+
+  it('parses oklch(0.5 none 264 / none) — none chroma and none alpha', () => {
+    const result = cssToOklcha('oklch(0.5 none 264 / none)');
+    expect(result).not.toBeNull();
+    expect(result!.c).toBeCloseTo(0, 6);
+    expect(result!.h).toBeCloseTo(264, 4);
+    expect(result!.a).toBeCloseTo(0, 4);
+  });
+
+  it('parses none as L → l=0', () => {
+    const result = cssToOklcha('oklch(none 0.1 120)');
+    expect(result).not.toBeNull();
+    expect(result!.l).toBeCloseTo(0, 4);
+  });
+});
+
+describe('cssToOklcha — round-trip with oklchaToCss', () => {
+  const testCases: Array<{ label: string; o: Oklcha }> = [
+    { label: 'black', o: { l: 0, c: 0, h: 0, a: 100 } },
+    { label: 'white', o: { l: 100, c: 0, h: 0, a: 100 } },
+    { label: 'mid sRGB blue', o: { l: 50, c: 0.1, h: 264, a: 100 } },
+    { label: 'semi-transparent', o: { l: 70, c: 0.15, h: 120, a: 50 } },
+    { label: 'wide-gamut oklch(0.7 0.25 150)', o: { l: 70, c: 0.25, h: 150, a: 100 } },
+  ];
+
+  for (const { label, o } of testCases) {
+    it(`round-trips ${label}`, () => {
+      const css = oklchaToCss(o);
+      const parsed = cssToOklcha(css);
+      expect(parsed).not.toBeNull();
+      expect(parsed!.l).toBeCloseTo(o.l, 3);
+      expect(parsed!.c).toBeCloseTo(o.c, 5);
+      expect(parsed!.h).toBeCloseTo(o.h, 2);
+      expect(parsed!.a).toBeCloseTo(o.a, 3);
+    });
+  }
+});
+
+describe('cssToOklcha — rejects malformed channel tokens (codex review #380)', () => {
+  it('returns null when a channel has an invalid unit suffix (oklch(50px 0.1 120))', () => {
+    // Regression: the old global-regex tokenizer skipped the "px" and parsed
+    // "50" → l=5000. Must reject instead of silently truncating.
+    expect(cssToOklcha('oklch(50px 0.1 120)')).toBeNull();
+  });
+
+  it('returns null when chroma carries an angle unit (oklch(0.5 0.1deg 120))', () => {
+    expect(cssToOklcha('oklch(0.5 0.1deg 120)')).toBeNull();
+  });
+
+  it('returns null for trailing junk on lightness (oklch(0.5junk 0.1 120))', () => {
+    expect(cssToOklcha('oklch(0.5junk 0.1 120)')).toBeNull();
+  });
+
+  it('returns null for a malformed alpha token (oklch(0.5 0.1 120 / 50px))', () => {
+    expect(cssToOklcha('oklch(0.5 0.1 120 / 50px)')).toBeNull();
+  });
+
+  it('returns null when hue has a bogus unit (oklch(0.5 0.1 120px))', () => {
+    expect(cssToOklcha('oklch(0.5 0.1 120px)')).toBeNull();
+  });
+
+  it('still parses a fully-valid space-separated triple after the fix', () => {
+    const result = cssToOklcha('oklch(0.5 0.1 120)');
+    expect(result).not.toBeNull();
+    expect(result!.l).toBeCloseTo(50, 4);
+    expect(result!.c).toBeCloseTo(0.1, 5);
+    expect(result!.h).toBeCloseTo(120, 2);
   });
 });
