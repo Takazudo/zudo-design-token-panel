@@ -282,6 +282,36 @@ describe('buildApplyOverrides — mixed color + non-color payloads', () => {
   });
 });
 
+/** A minimal `palette` tab fixture for state.tabs generic-tab tests. */
+const PALETTE_TAB: TabConfig = {
+  id: 'palette',
+  label: 'Palette',
+  tiers: [
+    {
+      id: 'raw',
+      label: 'Gray',
+      items: [
+        {
+          id: 'palette-gray-3',
+          cssVar: '--palette-gray-3',
+          label: 'gray-3',
+          default: '#aaaaaa',
+          type: { kind: 'color' },
+        },
+        {
+          id: 'palette-gray-5',
+          cssVar: '--palette-gray-5',
+          label: 'gray-5',
+          default: '#555555',
+          type: { kind: 'color' },
+        },
+      ],
+    },
+  ],
+};
+
+const FIXTURE_TABS_WITH_PALETTE: readonly TabConfig[] = [...FIXTURE_TABS, PALETTE_TAB];
+
 // ---------------------------------------------------------------------------
 // Tests — no tab configured
 // ---------------------------------------------------------------------------
@@ -361,5 +391,86 @@ describe('buildApplyOverrides — color-only regression', () => {
     expect(result['--fixture-p3']).toBe('#ffffff');
     // Semantic mapping emitted.
     expect(result['--fixture-semantic-accent']).toBe('var(--fixture-p1)');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests — state.tabs generic tab overrides
+// ---------------------------------------------------------------------------
+
+describe('buildApplyOverrides — state.tabs generic tab overrides', () => {
+  it('emits a palette tab override from state.tabs', () => {
+    const state: TweakState = {
+      color: EMPTY_COLOR,
+      spacing: {},
+      typography: {},
+      size: {},
+      tabs: { palette: { raw: { 'palette-gray-3': '#cccccc' } } },
+    };
+    const result = buildApplyOverrides(state, undefined, STUB_CLUSTER, FIXTURE_TABS_WITH_PALETTE);
+    expect(result['--palette-gray-3']).toBe('#cccccc');
+  });
+
+  it('emits multiple palette tab overrides from state.tabs', () => {
+    const state: TweakState = {
+      color: EMPTY_COLOR,
+      spacing: {},
+      typography: {},
+      size: {},
+      tabs: { palette: { raw: { 'palette-gray-3': '#cccccc', 'palette-gray-5': '#333333' } } },
+    };
+    const result = buildApplyOverrides(state, undefined, STUB_CLUSTER, FIXTURE_TABS_WITH_PALETTE);
+    expect(result['--palette-gray-3']).toBe('#cccccc');
+    expect(result['--palette-gray-5']).toBe('#333333');
+  });
+
+  it('does not emit palette vars that are absent from state.tabs overrides', () => {
+    const state: TweakState = {
+      color: EMPTY_COLOR,
+      spacing: {},
+      typography: {},
+      size: {},
+      tabs: { palette: { raw: { 'palette-gray-3': '#cccccc' } } },
+    };
+    const result = buildApplyOverrides(state, undefined, STUB_CLUSTER, FIXTURE_TABS_WITH_PALETTE);
+    expect(result['--palette-gray-5']).toBeUndefined();
+  });
+
+  it('emits nothing when state.tabs is absent', () => {
+    const state: TweakState = {
+      color: EMPTY_COLOR,
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+    const result = buildApplyOverrides(state, undefined, STUB_CLUSTER, FIXTURE_TABS_WITH_PALETTE);
+    expect(Object.keys(result)).toHaveLength(0);
+  });
+
+  it('silently skips a state.tabs entry when the tab is absent from the tabs config', () => {
+    const state: TweakState = {
+      color: EMPTY_COLOR,
+      spacing: {},
+      typography: {},
+      size: {},
+      tabs: { palette: { raw: { 'palette-gray-3': '#cccccc' } } },
+    };
+    // FIXTURE_TABS does not include the palette tab.
+    const result = buildApplyOverrides(state, undefined, STUB_CLUSTER, FIXTURE_TABS);
+    expect(result['--palette-gray-3']).toBeUndefined();
+    expect(Object.keys(result)).toHaveLength(0);
+  });
+
+  it('does not affect existing spacing/font/size emission when state.tabs is set', () => {
+    const state: TweakState = {
+      color: EMPTY_COLOR,
+      spacing: { 'hsp-md': '24px' },
+      typography: {},
+      size: {},
+      tabs: { palette: { raw: { 'palette-gray-3': '#cccccc' } } },
+    };
+    const result = buildApplyOverrides(state, undefined, STUB_CLUSTER, FIXTURE_TABS_WITH_PALETTE);
+    expect(result['--zd-spacing-hgap-md']).toBe('24px');
+    expect(result['--palette-gray-3']).toBe('#cccccc');
   });
 });

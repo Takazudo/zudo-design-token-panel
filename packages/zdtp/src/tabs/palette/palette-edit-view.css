@@ -1,0 +1,172 @@
+/* ── PaletteEditView (#395) — grouped grid + per-group OKLCH curve editor ──────
+ *
+ * Class prefix: tokenpanel-palette-edit-
+ * All chrome colors come from the panel's self-contained --tokentweak-* tokens
+ * (panel-tokens.css) so the view is isolated from the host page.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+.tokenpanel-palette-edit-view {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.tokenpanel-palette-edit-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+/* ── Step swatch row ── */
+.tokenpanel-palette-edit-swatches {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.tokenpanel-palette-edit-swatch {
+  position: relative;
+  flex: 1 1 0;
+  height: 30px;
+  border-radius: var(--radius-tokentweak);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  outline: 0 solid transparent;
+  cursor: pointer;
+  transition: outline-width 0.08s ease;
+}
+
+.tokenpanel-palette-edit-swatch.is-selected {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 1px;
+}
+
+.tokenpanel-palette-edit-swatch:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent-hover);
+  outline-offset: 1px;
+}
+
+/* Out-of-gamut steps: display-only dashed flag. The stored OKLCH stays raw. */
+.tokenpanel-palette-edit-swatch[data-out-of-gamut] {
+  border-style: dashed;
+  border-color: var(--tokentweak-color-danger);
+  border-width: 2px;
+}
+
+.tokenpanel-palette-edit-swatch-idx {
+  position: absolute;
+  inset: auto 0 2px 0;
+  text-align: center;
+  font-size: 9px;
+  color: rgba(0, 0, 0, 0.55);
+  text-shadow: 0 0 2px rgba(255, 255, 255, 0.4);
+  pointer-events: none;
+}
+
+/* ── Per-group editor ── */
+.tokenpanel-palette-edit-editor {
+  margin-top: 0.375rem;
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: var(--radius-tokentweak);
+  background: var(--tokentweak-color-surface);
+}
+
+.tokenpanel-palette-edit-editor-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  border-bottom: 1px solid var(--tokentweak-color-muted);
+}
+
+.tokenpanel-palette-edit-editor-title {
+  flex: 1 1 auto;
+  font-size: 11px;
+  color: var(--tokentweak-color-muted);
+}
+
+/* ── Channel toggle (L/C/H) ── */
+.tokenpanel-palette-edit-channels {
+  display: flex;
+  gap: 0.1875rem;
+}
+
+.tokenpanel-palette-edit-channel {
+  padding: 0.25rem 0.5625rem;
+  font-size: 11px;
+  font-weight: 650;
+  border-radius: var(--radius-tokentweak);
+  border: 1px solid var(--tokentweak-color-muted);
+  color: var(--tokentweak-color-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.tokenpanel-palette-edit-channel:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 1px;
+}
+
+.tokenpanel-palette-edit-channel--l.is-on {
+  border-color: var(--tokentweak-color-accent);
+  color: var(--tokentweak-color-accent);
+}
+
+.tokenpanel-palette-edit-channel--c.is-on {
+  border-color: var(--tokentweak-color-success);
+  color: var(--tokentweak-color-success);
+}
+
+.tokenpanel-palette-edit-channel--h.is-on {
+  border-color: var(--tokentweak-color-warning);
+  color: var(--tokentweak-color-warning);
+}
+
+/* ── Direct-edit (ColorField) row ── */
+.tokenpanel-palette-edit-direct {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  border-top: 1px solid var(--tokentweak-color-muted);
+}
+
+.tokenpanel-palette-edit-direct-hint {
+  font-size: 11px;
+  color: var(--tokentweak-color-muted);
+}
+
+/* ── Readout ── */
+.tokenpanel-palette-readout {
+  display: flex;
+  gap: 0.625rem;
+  align-items: center;
+  padding: 0.5rem 0.625rem 0.625rem;
+  border-top: 1px solid var(--tokentweak-color-muted);
+}
+
+.tokenpanel-palette-readout-swatch {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-tokentweak);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.tokenpanel-palette-readout-rows {
+  font-family: var(--tokentweak-font-mono);
+  font-size: 10.5px;
+  color: var(--tokentweak-color-fg);
+  line-height: 1.5;
+}
+
+.tokenpanel-palette-readout-key {
+  display: inline-block;
+  width: 42px;
+  color: var(--tokentweak-color-muted);
+  font-weight: 600;
+}
+
+.tokenpanel-palette-readout-gamut {
+  margin-top: 0.25rem;
+  color: var(--tokentweak-color-danger);
+  font-size: 10px;
+}
