@@ -12,6 +12,7 @@ import FontTab from './tabs/font-tab';
 import SizeTab from './tabs/size-tab';
 import SpacingTab from './tabs/spacing-tab';
 import GenericTab from './tabs/generic-tab';
+import PaletteTab from './tabs/palette/palette-tab';
 import { TooltipProvider } from './controls/tooltip';
 import {
   getPanelConfig,
@@ -54,7 +55,7 @@ import {
 // --- Tab configuration ---
 
 // Reserved tab ids dispatched to their dedicated components.
-const RESERVED_TAB_IDS = ['color', 'font', 'spacing', 'size'] as const;
+const RESERVED_TAB_IDS = ['color', 'font', 'spacing', 'size', 'palette'] as const;
 type ReservedTabId = (typeof RESERVED_TAB_IDS)[number];
 
 const DEFAULT_TAB_ID: ReservedTabId = 'color';
@@ -792,6 +793,18 @@ export default function DesignTokenTweakPanel({
                     tab={tabConfigById['size']}
                     state={state.size}
                     persistSize={persistSize}
+                  />
+                )}
+                {tab.id === 'palette' && state && tabConfigById['palette'] && (
+                  <PaletteTab
+                    tab={tabConfigById['palette']}
+                    overrides={state.tabs?.['palette'] ?? {}}
+                    onChange={(tierId, itemId, next) =>
+                      persistTab('palette', (prev) => ({
+                        ...prev,
+                        [tierId]: { ...prev[tierId], [itemId]: next },
+                      }))
+                    }
                   />
                 )}
                 {!isReserved && tabConfigById[tab.id] && state && (
