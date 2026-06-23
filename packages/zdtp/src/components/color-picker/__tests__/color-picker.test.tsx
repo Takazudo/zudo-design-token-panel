@@ -37,7 +37,7 @@ import { useRef } from 'preact/compat';
 import type { JSX } from 'preact';
 import { ColorPicker, LOCAL_STORAGE_KEY } from '../color-picker';
 import type { ColorPickerProps } from '../color-picker';
-import { oklchaToHex } from '../../../utils/color-oklch';
+import { cssToOklcha, oklchaToHex } from '../../../utils/color-oklch';
 
 // ---------------------------------------------------------------------------
 // Test harness helpers
@@ -89,6 +89,7 @@ function renderPicker(
       <PickerWrapper
         color={partial.color ?? '#ff0000'}
         onChange={partial.onChange ?? vi.fn()}
+        valueFormat={partial.valueFormat}
         label={partial.label}
         defaultMode={partial.defaultMode}
         onClose={partial.onClose ?? (() => {})}
@@ -855,5 +856,231 @@ describe('ColorPicker — defaultMode is initial-only', () => {
     )[1] as HTMLElement;
     expect(oklchBtn.getAttribute('aria-pressed')).toBe('true');
     expect(hslBtn.getAttribute('aria-pressed')).toBe('false');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 16. S3a — valueFormat='oklch' wide-gamut canonical path (#376)
+// ---------------------------------------------------------------------------
+
+/** Find a slider host by its aria-label (Lightness / Chroma / Hue / Alpha). */
+function getSliderByLabel(ariaLabel: string): HTMLElement {
+  const el = container.querySelector<HTMLElement>(
+    `[role="slider"][aria-label="${ariaLabel}"]`,
+  );
+  if (!el) throw new Error(`slider "${ariaLabel}" not found`);
+  return el;
+}
+
+/**
+ * Nudge a slider with a keyboard arrow. The slider's pointer path is inert in
+ * jsdom (zero-width rects), but the keydown path calls onChange directly with
+ * value ± step, so this is the deterministic way to emit a slider commit.
+ */
+function fireSliderArrow(ariaLabel: string, key: string): void {
+  const slider = getSliderByLabel(ariaLabel);
+  act(() => {
+    slider.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+  });
+}
+
+describe('ColorPicker — valueFormat=hex default unchanged (S3a)', () => {
+  it('emits hex (not oklch) on a slider edit when valueFormat is omitted', () => {
+    const onChange = vi.fn();
+    renderPicker({ color: '#ff0000', onChange, defaultMode: 'oklch' });
+    fireSliderArrow('Lightness', 'ArrowUp');
+    expect(onChange).toHaveBeenCalledOnce();
+    const emitted = onChange.mock.calls[0][0] as string;
+    expect(/^#[0-9a-fA-F]{6,8}$/.test(emitted)).toBe(true);
+    expect(emitted.startsWith('oklch(')).toBe(false);
+  });
+
+  it('emits hex on a preset click when valueFormat is omitted', () => {
+    const onChange = vi.fn();
+    renderPicker({ onChange });
+    fireClick(container.querySelector<HTMLElement>('[role="gridcell"]')!);
+    const emitted = onChange.mock.calls[0][0] as string;
+    expect(/^#[0-9a-fA-F]{6,8}$/.test(emitted)).toBe(true);
+  });
+});
+
+describe('ColorPicker — valueFormat=oklch (S3a)', () => {
+  it('parses an incoming oklch() prop with wide-gamut chroma and alpha (not sRGB-clamped)', () => {
+    // C=0.25 sits beyond what L=70/H=150 can hold in sRGB; it must NOT be clamped.
+    renderPicker({
+      color: 'oklch(0.7 0.25 150 / 0.5)',
+      valueFormat: 'oklch',
+      defaultMode: 'oklch',
+    });
+    // Chroma slider value span shows toFixed(3).
+    const rows = container.querySelectorAll('.tokenpanel-color-picker-slider-row');
+    const labels = Array.from(rows).map(
+      (r) => r.querySelector('.tokenpanel-color-picker-slider-label')?.textContent,
+    );
+    const cIdx = labels.indexOf('C');
+    const aIdx = labels.indexOf('A');
+    const cVal = rows[cIdx].querySelector('.tokenpanel-color-picker-slider-value')!
+      .textContent;
+    const aVal = rows[aIdx].querySelector('.tokenpanel-color-picker-slider-value')!
+      .textContent;
+    expect(cVal).toBe('0.250'); // chroma preserved, not gamut-clamped
+    expect(aVal).toBe('50%'); // alpha ≈ 50 on the 0–100 scale
+  });
+
+  it('dragging the L/C/H sliders emits oklch(...) strings, never hex', () => {
+    const onChange = vi.fn();
+    renderPicker({
+      color: 'oklch(0.7 0.25 150 / 0.5)',
+      valueFormat: 'oklch',
+      onChange,
+      defaultMode: 'oklch',
+    });
+    fireSliderArrow('Lightness', 'ArrowUp');
+    fireSliderArrow('Chroma', 'ArrowUp');
+    fireSliderArrow('Hue', 'ArrowUp');
+    expect(onChange.mock.calls.length).toBe(3);
+    for (const call of onChange.mock.calls) {
+      expect(call[0] as string).toMatch(/^oklch\(/);
+    }
+  });
+
+  it('editing only L preserves the original (out-of-sRGB) chroma in the emit', () => {
+    const onChange = vi.fn();
+    renderPicker({
+      color: 'oklch(0.7 0.25 150 / 0.5)',
+      valueFormat: 'oklch',
+      onChange,
+      defaultMode: 'oklch',
+    });
+    fireSliderArrow('Lightness', 'ArrowUp');
+    const emitted = onChange.mock.calls[0][0] as string;
+    const parsed = cssToOklcha(emitted)!;
+    expect(parsed).not.toBeNull();
+    // L changed (was 70, +1 step → 71), chroma & hue & alpha intact.
+    expect(parsed.c).toBeCloseTo(0.25, 3);
+    expect(parsed.h).toBeCloseTo(150, 1);
+    expect(parsed.a).toBeCloseTo(50, 1);
+    expect(parsed.l).toBeCloseTo(71, 1);
+  });
+
+  it('preset click in oklch mode emits an unclamped oklch(...)', () => {
+    const onChange = vi.fn();
+    renderPicker({
+      color: 'oklch(0.7 0.25 150 / 0.5)',
+      valueFormat: 'oklch',
+      onChange,
+      defaultMode: 'oklch',
+    });
+    // Click a cell. Preset C is fixed at 0.18; the emitted chroma must match the
+    // unclamped preset chroma (clampToSrgbGamut would reduce it for dark/light
+    // out-of-gamut rows).
+    const cell = container.querySelector<HTMLElement>(
+      '[data-grid-row="0"][data-grid-col="0"]',
+    )!;
+    fireClick(cell);
+    const emitted = onChange.mock.calls[0][0] as string;
+    expect(emitted).toMatch(/^oklch\(/);
+    const parsed = cssToOklcha(emitted)!;
+    expect(parsed.c).toBeCloseTo(0.18, 3); // PRESET_C_FIXED, unclamped
+  });
+
+  it('the in-picker preview swatch uses an oklch() background in oklch mode', () => {
+    renderPicker({
+      color: 'oklch(0.7 0.25 150 / 0.5)',
+      valueFormat: 'oklch',
+      defaultMode: 'oklch',
+    });
+    const preview = container.querySelector<HTMLElement>(
+      '.tokenpanel-color-picker-preview-color',
+    )!;
+    expect(preview.style.backgroundColor).toMatch(/^oklch\(/);
+  });
+
+  it('typing a hex into the hex-input box in oklch mode commits an oklch(...) string, not raw hex', () => {
+    const onChange = vi.fn();
+    renderPicker({
+      color: 'oklch(0.7 0.25 150 / 0.5)',
+      valueFormat: 'oklch',
+      onChange,
+      defaultMode: 'oklch',
+    });
+    const input = container.querySelector<HTMLInputElement>(
+      '.tokenpanel-color-picker-hex-input',
+    )!;
+    act(() => {
+      Object.defineProperty(input, 'value', {
+        value: '#00ff00',
+        writable: true,
+        configurable: true,
+      });
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(onChange).toHaveBeenCalledOnce();
+    const emitted = onChange.mock.calls[0][0] as string;
+    expect(emitted).toMatch(/^oklch\(/);
+    expect(/^#[0-9a-fA-F]{6,8}$/.test(emitted)).toBe(false);
+  });
+
+  it('still shows the sRGB hex projection in the hex-input box for reference', () => {
+    renderPicker({
+      // A safely in-gamut oklch so the hex projection is stable.
+      color: 'oklch(0.5 0.05 150 / 1)',
+      valueFormat: 'oklch',
+      defaultMode: 'oklch',
+    });
+    const input = container.querySelector<HTMLInputElement>(
+      '.tokenpanel-color-picker-hex-input',
+    )!;
+    expect(/^#[0-9a-fA-F]{6}$/.test(input.value)).toBe(true);
+  });
+
+  it('ignores an external color prop change while a slider drag is in flight', () => {
+    const onChange = vi.fn();
+    renderPicker({
+      color: 'oklch(0.7 0.25 150 / 1)',
+      valueFormat: 'oklch',
+      onChange,
+      defaultMode: 'oklch',
+    });
+    // Start a drag on the L slider track (flips isDraggingRef via pointerdown).
+    const sliderTrack = getSliderByLabel('Lightness');
+    act(() => {
+      sliderTrack.dispatchEvent(
+        new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }),
+      );
+    });
+    // External prop change mid-drag — must be ignored.
+    act(() => {
+      render(
+        <PickerWrapper
+          color="oklch(0.2 0.05 30 / 1)"
+          valueFormat="oklch"
+          onChange={onChange}
+        />,
+        container,
+      );
+    });
+    // Chroma slider must still reflect the original 0.25, not the new 0.05.
+    const rows = container.querySelectorAll('.tokenpanel-color-picker-slider-row');
+    const labels = Array.from(rows).map(
+      (r) => r.querySelector('.tokenpanel-color-picker-slider-label')?.textContent,
+    );
+    const cIdx = labels.indexOf('C');
+    const cVal = rows[cIdx].querySelector('.tokenpanel-color-picker-slider-value')!
+      .textContent;
+    expect(cVal).toBe('0.250');
+  });
+
+  it('falls back to the hex path when a hex slips into the oklch-mode color prop', () => {
+    renderPicker({
+      color: '#00ff00',
+      valueFormat: 'oklch',
+      defaultMode: 'oklch',
+    });
+    // No throw; the picker renders and the hex-input shows the projection.
+    const input = container.querySelector<HTMLInputElement>(
+      '.tokenpanel-color-picker-hex-input',
+    )!;
+    expect(input.value).toBe('#00ff00');
   });
 });
