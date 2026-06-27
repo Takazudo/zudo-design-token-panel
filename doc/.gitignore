@@ -26,6 +26,6 @@ pnpm-debug.log*
 .zudo-doc/
 
 # Generated doc-lookup skill
-.claude/skills/zudo-design-token-panel-wisdom/SKILL.md
-.claude/skills/zudo-design-token-panel-wisdom/docs
-.claude/skills/zudo-design-token-panel-wisdom/docs-ja
+.claude/skills/doc-wisdom/SKILL.md
+.claude/skills/doc-wisdom/docs
+.claude/skills/doc-wisdom/docs-ja
