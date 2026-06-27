@@ -1,5 +1,14 @@
 name: Deploy doc site (production)
 
+# Builds the zfb/zudo-doc site and deploys it to Cloudflare Workers (static
+# assets) on every push to main. The site is served at the custom domain
+# configured by `[[routes]] custom_domain = true` in wrangler.toml.
+#
+# Go-live gate: the actual `wrangler deploy` runs only when the repository
+# variable CF_WORKERS_DEPLOY == 'true'. Until then the job builds + validates
+# the wrangler config (dry-run) so main stays green, but does NOT publish — set
+# the variable AND a Workers-scoped CLOUDFLARE_API_TOKEN to go live.
+
 on:
   push:
     branches:
@@ -14,8 +23,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
-    name: Build doc site
+  build-deploy:
+    name: Build & deploy doc site (Cloudflare Workers)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -35,76 +44,35 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build doc site
+      - name: Build doc site (emits doc/dist/_worker.js via the CF adapter)
         run: pnpm build
 
       - name: Generate doc history
         run: pnpm --filter doc gen:doc-history
 
-      - name: Stage deploy directory
-        run: bash scripts/stage-deploy.sh
+      - name: Write .assetsignore (exclude worker entry from public assets)
+        run: printf '%s\n' '_worker.js' '_zfb_inner.mjs' > doc/dist/.assetsignore
 
-      - name: Upload deploy artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: deploy
-          path: deploy/
-          retention-days: 1
-          if-no-files-found: error
+      - name: Validate wrangler config (dry-run, no credentials needed)
+        run: pnpm exec wrangler deploy --dry-run
 
-  deploy:
-    name: Deploy to Cloudflare Pages
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Download deploy artifact
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
-        with:
-          name: deploy
-          path: deploy/
-
-      - name: Install wrangler
-        run: npm install -g wrangler@4
-
-      - name: Ensure Cloudflare Pages project exists
+      - name: Deploy to Cloudflare Workers (production)
+        if: vars.CF_WORKERS_DEPLOY == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          # Idempotent: create on first run, no-op on subsequent runs.
-          # wrangler@4 no longer auto-creates the project on `pages deploy`.
-          out=$(wrangler pages project create zudo-design-token-panel \
-            --production-branch=main 2>&1) && rc=0 || rc=$?
-          echo "$out"
-          if [ "$rc" -eq 0 ]; then
-            echo "Project created."
-          elif echo "$out" | grep -qE "already exists|8000077|duplicate"; then
-            echo "Project already exists — continuing."
-          else
-            echo "Project create failed with unexpected error."
-            exit "$rc"
-          fi
-
-      - name: Deploy to Cloudflare Pages (production)
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          for attempt in 1 2 3; do
-            echo "Deploy attempt $attempt/3..."
-            if wrangler pages deploy deploy \
-              --project-name=zudo-design-token-panel \
-              --branch=main \
-              --commit-hash="${GITHUB_SHA}" \
-              --commit-message="Production deploy: ${GITHUB_SHA}"; then
-              echo "Deploy succeeded on attempt $attempt"
-              exit 0
-            fi
-            if [ "$attempt" -lt 3 ]; then
-              echo "Deploy failed, retrying in 150 seconds..."
-              sleep 150
-            fi
+          set -o pipefail
+          n=0
+          until [ "$n" -ge 3 ]; do
+            pnpm exec wrangler deploy 2>&1 | tee deploy.log && break
+            n=$((n + 1))
+            echo "wrangler deploy failed (attempt $n/3); retrying in 30s..."
+            sleep 30
           done
-          echo "Deploy failed after 3 attempts"
-          exit 1
+          [ "$n" -lt 3 ]
+
+      - name: Go-live gate notice
+        if: vars.CF_WORKERS_DEPLOY != 'true'
+        run: |
+          echo "::notice::Skipping production deploy — repository variable CF_WORKERS_DEPLOY is not 'true'. Build + wrangler dry-run ran (config validated); the site was NOT published. Set CF_WORKERS_DEPLOY=true and a Workers-scoped CLOUDFLARE_API_TOKEN to go live."

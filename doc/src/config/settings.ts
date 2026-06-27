@@ -44,7 +44,7 @@ export const settings = {
   noindex: false as boolean,
   editUrl: false as string | false,
   githubUrl: false as string | false,
-  siteUrl: "https://zudo-design-token-panel.pages.dev" as string,
+  siteUrl: "https://zudo-design-token-panel.takazudomodular.com" as string,
   metaTags: {
     description: true,
     keywords: false,
