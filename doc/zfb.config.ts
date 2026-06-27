@@ -28,4 +28,11 @@ export default defineConfig({
 
   // ── Preset-owned fields (content collections, plugins, markdown, …) ────────
   ...zudoDocPreset({ settings, buildDocsSchema, directiveVocabulary }),
+
+  // Cloudflare adapter — wraps the SSR bundle into `dist/_worker.js` (the
+  // explicit main entry for the Workers static-assets deploy) plus a sidecar
+  // `dist/_zfb_inner.mjs`. Required so `zfb build` emits a worker for the
+  // Cloudflare Workers deploy (see wrangler.toml + .github/workflows). Placed
+  // after the preset spread so it wins regardless of any preset default.
+  adapter: "@takazudo/zfb-adapter-cloudflare",
 });

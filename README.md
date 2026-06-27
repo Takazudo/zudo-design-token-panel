@@ -13,7 +13,7 @@ those tweaks back into the source CSS files on disk.
 The panel is a Preact island that mounts inside a host web app. The bin is a
 small local server that watches edits from the panel and persists them. It is
 designed to plug into modern host frameworks: Astro, Vite + React, Next.js,
-zfb, and zfb + Tailwind v4 — see the [Examples](https://zudo-design-token-panel.pages.dev/docs/getting-started/examples/)
+zfb, and zfb + Tailwind v4 — see the [Examples](https://zudo-design-token-panel.takazudomodular.com/docs/getting-started/examples/)
 doc page for live demos and source links.
 
 ## Status
@@ -63,8 +63,8 @@ pnpm dev
 The root `dev` script delegates to `pnpm --filter doc dev`, so the site is
 served from the `doc` workspace directly.
 
-The deployed doc site lives at `https://zudo-design-token-panel.pages.dev/`, served
-at the root of its Cloudflare Pages project.
+The deployed doc site lives at `https://zudo-design-token-panel.takazudomodular.com/`,
+served at the root of its Cloudflare Workers (static assets) deployment.
 
 ## Getting started
 
@@ -88,7 +88,7 @@ pnpm dev
 The panel package lives in this repo under `packages/zudo-design-token-panel/`.
 The five example apps (Astro, Vite + React, Next.js, zfb, zfb + Tailwind v4)
 have moved out of this monorepo into dedicated sibling repos — see the
-[Examples](https://zudo-design-token-panel.pages.dev/docs/getting-started/examples/)
+[Examples](https://zudo-design-token-panel.takazudomodular.com/docs/getting-started/examples/)
 doc page for live demos and source links to each external repo. The root
 `pnpm build`, `pnpm test`, `pnpm typecheck`, and `pnpm lint` scripts fan out
 across the remaining workspaces (the panel package and the doc site) via
