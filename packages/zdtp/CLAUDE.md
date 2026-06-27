@@ -140,7 +140,7 @@ Start the doc site dev server:
 
 ```sh
 pnpm --filter doc dev
-# URL: http://localhost:4321/pj/zudo-design-token-panel/docs/internal/hostile-host/
+# URL: http://localhost:4321/docs/internal/hostile-host/
 ```
 
 ### What it covers

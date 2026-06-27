@@ -21,13 +21,10 @@ export default defineConfig({
   port: 4321,
   tailwind: { enabled: true },
   // Public URL prefix for <link rel="stylesheet"> and <script> tags.
+  // The site is served at the domain root, so base is "/" (no prefix) and
+  // copyPublicWithBase keeps its default — public/ assets land at the dist
+  // root, matching the root deploy.
   base: settings.base,
-  // Stage-deploy.sh wraps the entire dist/ tree into the base subdir
-  // (cp -a dist/. deploy/pj/zudo-design-token-panel/). If public files
-  // were copied WITH the base prefix they would land at a double-nested
-  // path (deploy/pj/.../pj/.../img). Copy them flat so they arrive at
-  // dist/ root and stage-deploy.sh wraps them into the correct position.
-  copyPublicWithBase: false,
 
   // ── Preset-owned fields (content collections, plugins, markdown, …) ────────
   ...zudoDocPreset({ settings, buildDocsSchema, directiveVocabulary }),

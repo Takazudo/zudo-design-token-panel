@@ -1,10 +1,7 @@
-# Cloudflare Pages root convenience redirect.
-# Canonical URL is takazudomodular.com/pj/zudo-design-token-panel/ (proxied
-# via the takazudomodular site). The *.pages.dev origin only serves the
-# subpath; redirect bare root to the base path so direct visits work.
-/  /pj/zudo-design-token-panel/  302
+# The doc site is served at the domain root, so no root→base redirect is
+# needed. Only the renamed-page 301s remain.
 # three-frameworks was renamed to four-frameworks, then to frameworks-comparison
-/pj/zudo-design-token-panel/docs/getting-started/three-frameworks  /pj/zudo-design-token-panel/docs/getting-started/frameworks-comparison  301
-/pj/zudo-design-token-panel/docs/getting-started/three-frameworks/  /pj/zudo-design-token-panel/docs/getting-started/frameworks-comparison/  301
-/pj/zudo-design-token-panel/docs/getting-started/four-frameworks  /pj/zudo-design-token-panel/docs/getting-started/frameworks-comparison  301
-/pj/zudo-design-token-panel/docs/getting-started/four-frameworks/  /pj/zudo-design-token-panel/docs/getting-started/frameworks-comparison/  301
+/docs/getting-started/three-frameworks  /docs/getting-started/frameworks-comparison  301
+/docs/getting-started/three-frameworks/  /docs/getting-started/frameworks-comparison/  301
+/docs/getting-started/four-frameworks  /docs/getting-started/frameworks-comparison  301
+/docs/getting-started/four-frameworks/  /docs/getting-started/frameworks-comparison/  301

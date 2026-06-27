@@ -89,7 +89,7 @@ jobs:
               --commit-hash="${GITHUB_SHA}" \
               --commit-message="Named preview ${REF_NAME}: ${GITHUB_SHA}"; then
               echo "Deploy succeeded on attempt $attempt"
-              echo "deploy_url=https://${DEPLOY_BRANCH}.zudo-design-token-panel.pages.dev/pj/zudo-design-token-panel/" >> "$GITHUB_OUTPUT"
+              echo "deploy_url=https://${DEPLOY_BRANCH}.zudo-design-token-panel.pages.dev/" >> "$GITHUB_OUTPUT"
               exit 0
             fi
             if [ "$attempt" -lt 3 ]; then
