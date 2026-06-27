@@ -8,12 +8,14 @@
     "build": "zfb build",
     "preview": "zfb preview",
     "check": "zfb check",
+    "typecheck": "zfb check",
     "check:html": "html-validate \"dist/**/*.html\"",
+    "check:asset-prefix": "bash ../scripts/check-deploy-paths.sh",
     "gen:z-index": "gen-z-index",
     "check:z-index": "gen-z-index --check",
     "setup:doc-skill": "bash scripts/setup-doc-skill.sh",
     "setup:doc-skill-silent": "bash scripts/setup-doc-skill.sh --silent",
-    "b4push": "pnpm check && pnpm build"
+    "b4push": "bash scripts/run-b4push.sh"
   },
   "dependencies": {
     "@takazudo/zfb": "0.1.0-next.68",

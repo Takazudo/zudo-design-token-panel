@@ -9,6 +9,9 @@ set -euo pipefail
 #   3. HTML validation (html-validate dist/**/*.html)
 #   4. Manual interactive smoke (operator-driven)
 #
+# Cross-workspace asset-prefix check is a separate gate at repo root (scripts/check-deploy-paths.sh).
+# Run it locally via: pnpm check:asset-prefix
+#
 # Env overrides for non-interactive use:
 #   B4PUSH_SKIP_HTML_VALIDATE=1  — skip HTML validation (step 3)
 #   B4PUSH_SKIP_MANUAL_SMOKE=1   — skip the manual interactive smoke
@@ -92,6 +95,9 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 if [ ${#FAILURES[@]} -eq 0 ]; then
   echo "✅ All $TOTAL_STEPS checks passed (or skipped). Safe to push."
+  echo ""
+  echo "  Tip: run 'pnpm check:asset-prefix' to audit asset-prefix escapes"
+  echo "  (cross-workspace gate; run separately before pushing)"
   exit 0
 else
   echo "❌ ${#FAILURES[@]} check(s) failed:"
