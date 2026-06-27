@@ -1,5 +1,10 @@
-import type { CollectionKey } from "astro:content";
 import { settings } from "./settings";
+import type { LocaleConfig } from "./settings-types";
+
+// Collection name string used by zfb's content engine (`getCollection(...)`).
+// Kept as a structural string-literal alias so callers don't have to redeclare
+// it; it's a structural type so the underlying engine is interchangeable.
+type CollectionKey = string;
 
 /** Default locale code, served from docsDir. */
 export const defaultLocale = settings.defaultLocale;
@@ -11,11 +16,9 @@ export const locales = [
 ] as const;
 export type Locale = (typeof locales)[number];
 
-type LocaleKey = keyof typeof settings.locales;
-
-/** Safely look up a locale in settings.locales. */
-function getLocaleConfig(locale: string) {
-  return (settings.locales as Record<string, (typeof settings.locales)[LocaleKey]>)[locale];
+/** Safely look up a locale in settings.locales by string key. */
+export function getLocaleConfig(locale: string): LocaleConfig | undefined {
+  return (settings.locales as Record<string, LocaleConfig | undefined>)[locale];
 }
 
 /** Get the content directory for a locale. */
@@ -68,7 +71,12 @@ const translations: Record<string, Record<string, string>> = {
     "toc.title": "On this page",
     "docs.browseAll": "Browse all documentation sections.",
     "search.label": "Search",
+    "search.placeholder": "Type to search...",
+    "search.shortcutHint": "to open search from anywhere",
     "search.resultCount": "{count} results",
+    "search.unavailable": "Search unavailable",
+    "search.loadingIndex": "Loading search index…",
+    "search.noResults": "No results found.",
     "code.copy": "Copy code",
     "code.copied": "Copied!",
     "code.wrapToggle": "Toggle word wrap",
@@ -126,7 +134,12 @@ const translations: Record<string, Record<string, string>> = {
     "toc.title": "目次",
     "docs.browseAll": "すべてのドキュメントセクションを閲覧",
     "search.label": "検索",
+    "search.placeholder": "検索したい単語を入力",
+    "search.shortcutHint": "いつでも検索バーを開ける",
     "search.resultCount": "{count} 件",
+    "search.unavailable": "検索を利用できません",
+    "search.loadingIndex": "検索インデックスを読み込み中…",
+    "search.noResults": "検索結果が見つかりませんでした。",
     "code.copy": "コードをコピー",
     "code.copied": "コピーしました！",
     "code.wrapToggle": "折り返し切替",
@@ -184,7 +197,12 @@ const translations: Record<string, Record<string, string>> = {
     "toc.title": "Auf dieser Seite",
     "docs.browseAll": "Alle Dokumentationsabschnitte durchsuchen.",
     "search.label": "Suche",
+    "search.placeholder": "Suchbegriff eingeben...",
+    "search.shortcutHint": "Suche von überall öffnen",
     "search.resultCount": "{count} Ergebnisse",
+    "search.unavailable": "Suche nicht verfügbar",
+    "search.loadingIndex": "Suchindex wird geladen…",
+    "search.noResults": "Keine Ergebnisse gefunden.",
     "code.copy": "Code kopieren",
     "code.copied": "Kopiert!",
     "code.wrapToggle": "Zeilenumbruch umschalten",

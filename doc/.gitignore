@@ -1,7 +1,9 @@
 # Build output
 node_modules
 dist
-.astro
+.zfb
+# transient zfb bundle artifact (large bundle.mjs + map written during `zfb build`)
+.zfb-build
 
 # macOS
 .DS_Store
@@ -19,3 +21,11 @@ pnpm-debug.log*
 
 # Cloudflare Wrangler
 .wrangler/
+
+# zudo-doc build artifact (routes-src/ staged here at build time)
+.zudo-doc/
+
+# Generated doc-lookup skill
+.claude/skills/zudo-design-token-panel-wisdom/SKILL.md
+.claude/skills/zudo-design-token-panel-wisdom/docs
+.claude/skills/zudo-design-token-panel-wisdom/docs-ja
