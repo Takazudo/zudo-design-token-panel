@@ -191,10 +191,10 @@ function buildSemanticTier(): TierConfig {
 }
 
 const COLOR_EXTRAS: ColorClusterExtras = {
-  // Customize these values to match your project name to avoid localStorage
-  // collisions when multiple zudo-doc projects run in the same browser.
-  id: "my-doc",
-  label: "My Doc",
+  // Scoped to zdtp-doc to avoid localStorage collisions when multiple
+  // zudo-doc projects run in the same browser.
+  id: "zdtp-doc",
+  label: "Zdtp Doc",
   baseRoles: {
     background: "--zd-bg",
     foreground: "--zd-fg",
@@ -274,15 +274,15 @@ const SIZE_TAB: TabConfig = {
 };
 
 export const designTokenPanelConfig: PanelConfig = {
-  // Customize these values to match your project name to avoid localStorage
-  // collisions when multiple zudo-doc projects run in the same browser.
-  storagePrefix: "my-doc-tweak",
-  consoleNamespace: "myDoc",
-  modalClassPrefix: "my-doc-design-token-panel-modal",
+  // Scoped to zdtp-doc to avoid localStorage collisions when multiple
+  // zudo-doc projects run in the same browser.
+  storagePrefix: "zdtp-doc-tweak",
+  consoleNamespace: "zdtpDoc",
+  modalClassPrefix: "zdtp-doc-design-token-panel-modal",
   // Must match DESIGN_TOKEN_SCHEMA in @takazudo/zudo-doc/theme so that
   // exported JSON files remain importable across panel versions.
   schemaId: DESIGN_TOKEN_SCHEMA,
-  exportFilenameBase: "my-doc-design-tokens",
+  exportFilenameBase: "zdtp-doc-design-tokens",
   tabs: [COLOR_TAB, FONT_TAB, SPACING_TAB, SIZE_TAB],
   colorPresets: {},
 };
