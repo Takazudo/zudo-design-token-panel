@@ -153,6 +153,17 @@ declare module "zfb/config" {
      */
     trailingSlash?: boolean;
     /**
+     * Whether `copy_public_dir` copies `public/` under the `base` sub-path
+     * segment (`true`, default) or flat to the `dist/` root (`false`).
+     *
+     * Set `false` when the deploy pipeline relocates the entire `dist/` tree
+     * into the base segment itself (e.g. `cp -a dist/. deploy-root/pj/site/`),
+     * so putting files under `<outDir>/<base>/...` would produce a
+     * double-nested path. Mirrors `Config::copy_public_with_base` in
+     * crates/zfb/src/config.rs (added in next.68).
+     */
+    copyPublicWithBase?: boolean;
+    /**
      * Markdown / MDX pipeline options. Mirrors `Config::markdown` →
      * `MarkdownConfig` in crates/zfb/src/config.rs. zfb next.12 moved the
      * former-Core features under `markdown.features` and next.13 ships the
