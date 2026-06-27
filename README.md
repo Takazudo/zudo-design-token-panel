@@ -13,7 +13,7 @@ those tweaks back into the source CSS files on disk.
 The panel is a Preact island that mounts inside a host web app. The bin is a
 small local server that watches edits from the panel and persists them. It is
 designed to plug into modern host frameworks: Astro, Vite + React, Next.js,
-zfb, and zfb + Tailwind v4 — see the [Examples](https://takazudomodular.com/pj/zudo-design-token-panel/getting-started/examples/)
+zfb, and zfb + Tailwind v4 — see the [Examples](https://zudo-design-token-panel.pages.dev/docs/getting-started/examples/)
 doc page for live demos and source links.
 
 ## Status
@@ -63,8 +63,8 @@ pnpm dev
 The root `dev` script delegates to `pnpm --filter doc dev`, so the site is
 served from the `doc` workspace directly.
 
-The deployed doc site lives at `https://takazudomodular.com/pj/zudo-design-token-panel/` on the
-public zudo doc-site host (path: `/pj/zudo-design-token-panel/`).
+The deployed doc site lives at `https://zudo-design-token-panel.pages.dev/`, served
+at the root of its Cloudflare Pages project.
 
 ## Getting started
 
@@ -88,22 +88,23 @@ pnpm dev
 The panel package lives in this repo under `packages/zudo-design-token-panel/`.
 The five example apps (Astro, Vite + React, Next.js, zfb, zfb + Tailwind v4)
 have moved out of this monorepo into dedicated sibling repos — see the
-[Examples](https://takazudomodular.com/pj/zudo-design-token-panel/getting-started/examples/)
+[Examples](https://zudo-design-token-panel.pages.dev/docs/getting-started/examples/)
 doc page for live demos and source links to each external repo. The root
 `pnpm build`, `pnpm test`, `pnpm typecheck`, and `pnpm lint` scripts fan out
 across the remaining workspaces (the panel package and the doc site) via
 `pnpm -r`.
 
-## Verifying deploy sub-paths
+## Verifying the deploy output
 
-The doc workspace is hosted at:
+The doc workspace is served at the domain root:
 
-| Workspace | Deploy sub-path                    | Build output |
-| --------- | ---------------------------------- | ------------ |
-| `doc`     | `/pj/zudo-design-token-panel/`     | `doc/dist`   |
+| Workspace | Deploy root | Build output |
+| --------- | ----------- | ------------ |
+| `doc`     | `/`         | `doc/dist`   |
 
-To verify that no emitted asset, link, script, or inlined string reference
-escapes the doc workspace's sub-path, run:
+Because the site lives at the root, there is no sub-path for an asset
+reference to escape — root-relative URLs are correct by construction. What
+still matters is information disclosure, so run:
 
 ```sh
 pnpm check:deploy-paths
@@ -113,28 +114,14 @@ The script (`scripts/check-deploy-paths.sh`) builds the doc workspace (plus
 the `@takazudo/zudo-design-token-panel` package as a precondition) and then
 greps the bundle for:
 
-- HTML attributes (`href`, `src`, `srcset`, `poster`, `<link rel="manifest">`,
-  Open Graph and Twitter Card `<meta content>`, …) pointing to a root-relative
-  path outside the workspace prefix.
-- CSS `url(/...)` references outside the prefix.
-- Embedded JS / JSON / XML literals that name an asset root such as
-  `/_astro/`, `/assets/`, or `/pagefind/` without the workspace prefix in
-  front. This catches bare leaks like `/_astro/foo.js` appearing inside the
-  doc bundle, where the correct form is
-  `/pj/zudo-design-token-panel/_astro/foo.js`.
-- Manifest, sitemap, feed, and pagefind shard outputs (`*.webmanifest`,
-  `manifest.json`, `sitemap*.xml`, `feed*.xml`, `pagefind-*.json`, …).
 - Source-map information disclosure: a `*.map` file embedding an absolute
   build-host path (`/home/...`, `/Users/...`, `/runner/...`, …) or this
   worktree's root.
-- Trailing-slash inconsistency on internal `<a>` links — flags any base URL
-  that appears in BOTH the trailing-slash form and the non-trailing form.
 
-The script exits non-zero on any escape so it can gate CI or pre-push. It
-relies on GNU grep (PCRE with variable-width lookbehind, plus the
-`--include` / `--exclude` flags) and refuses to run otherwise. On macOS,
-install with `brew install grep` and put gnubin first on PATH, or alias
-`grep=ggrep`.
+The script exits non-zero on any leak so it can gate CI or pre-push. It
+relies on GNU grep (PCRE plus the `--include` flags) and refuses to run
+otherwise. On macOS, install with `brew install grep` and put gnubin first
+on PATH, or alias `grep=ggrep`.
 
 ## Contributing
 

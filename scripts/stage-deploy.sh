@@ -1,25 +1,19 @@
 #!/usr/bin/env bash
-# Stage the doc site build into a Cloudflare Pages deploy directory tree
-# that mirrors the live URL structure.
+# Stage the doc site build into a Cloudflare Pages deploy directory tree.
 #
-# The doc site is built with zfb `base: "/pj/zudo-design-token-panel/"`,
-# which means all asset URLs and links inside the build output reference
-# `/pj/zudo-design-token-panel/...` — but zfb emits files to `doc/dist/`
-# at the flat root (with `copyPublicWithBase: false` so public/ assets also
-# land flat). Deploying `dist/` as-is to a *.pages.dev origin would leave
-# every asset URL 404'ing.
+# The doc site is built with zfb `base: "/"`, so it is served at the domain
+# root and every asset URL / link inside the build output is root-relative.
+# zfb emits files (including public/ assets and _redirects) to `doc/dist/` at
+# the root, which is exactly the deploy layout — so staging is a plain copy
+# of the build output into a clean `deploy/` tree:
 #
-# This script wraps the build output into a subdirectory matching the deploy
-# base path so that:
-#
-#   - https://<project>.pages.dev/pj/zudo-design-token-panel/ → doc site
+#   - https://<project>.pages.dev/ → doc site
 
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC_DIR="${1:-${ROOT_DIR}/doc/dist}"
 DEST_DIR="${2:-${ROOT_DIR}/deploy}"
-BASE_PATH="${BASE_PATH:-pj/zudo-design-token-panel}"
 
 if [ ! -d "${SRC_DIR}" ]; then
   echo "stage-deploy: source directory not found: ${SRC_DIR}" >&2
@@ -27,19 +21,12 @@ if [ ! -d "${SRC_DIR}" ]; then
 fi
 
 rm -rf "${DEST_DIR}"
-mkdir -p "${DEST_DIR}/${BASE_PATH}"
+mkdir -p "${DEST_DIR}"
 
-# Copy the entire build output under the base path subdirectory.
-# Use cp -a to preserve symlinks / timestamps.
-(cd "${SRC_DIR}" && cp -a . "${DEST_DIR}/${BASE_PATH}/")
+# Copy the entire build output to the deploy root.
+# Use cp -a to preserve symlinks / timestamps. _redirects already lives at
+# dist/_redirects, so it lands at the deploy root where Cloudflare Pages reads it.
+(cd "${SRC_DIR}" && cp -a . "${DEST_DIR}/")
 
-# _redirects must live at the deploy root for Cloudflare Pages to read it.
-# zfb copies public/ flat to dist/ root (copyPublicWithBase: false), so
-# _redirects lands at dist/_redirects and wraps into BASE_PATH here; move
-# it back up to the deploy root.
-if [ -f "${DEST_DIR}/${BASE_PATH}/_redirects" ]; then
-  mv "${DEST_DIR}/${BASE_PATH}/_redirects" "${DEST_DIR}/_redirects"
-fi
-
-echo "stage-deploy: staged ${SRC_DIR} → ${DEST_DIR}/${BASE_PATH}/"
+echo "stage-deploy: staged ${SRC_DIR} → ${DEST_DIR}/"
 echo "stage-deploy: done. Deploy tree: ${DEST_DIR}/"
