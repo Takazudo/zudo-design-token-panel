@@ -67,6 +67,14 @@ jobs:
           SLUG=$(echo "$GITHUB_REF_NAME_VAL" \
             | tr '[:upper:]' '[:lower:]' \
             | sed 's/[^a-z0-9]/-/g; s/-\{2,\}/-/g; s/^-//; s/-$//')
+          # The preview host's first DNS label is "<slug>-zudo-design-token-panel"
+          # (worker name = 23 chars). A DNS label maxes at 63, so the slug must be
+          # <= 63 - 23 - 1 = 39 chars. Clamp longer slugs and append a short hash
+          # of the full ref so distinct long branches keep distinct aliases.
+          if [ "${#SLUG}" -gt 39 ]; then
+            HASH=$(printf '%s' "$GITHUB_REF_NAME_VAL" | sha1sum | cut -c1-6)
+            SLUG="$(printf '%s' "$SLUG" | cut -c1-30 | sed 's/-$//')-${HASH}"
+          fi
           echo "slug=$SLUG" >> "$GITHUB_OUTPUT"
           echo "Branch slug: $SLUG"
 
