@@ -54,6 +54,10 @@ export function collectMdFiles(
     for (const entry of entries) {
       const fullPath = join(currentDir, entry.name);
       if (entry.isDirectory()) {
+        // Skip `_`-prefixed dirs to match the Content Collections convention
+        // (and zfb's routing): docs under them are not built as pages, so
+        // indexing them would yield search results whose links 404.
+        if (entry.name.startsWith("_")) continue;
         walk(fullPath, baseDir);
       } else if (/\.mdx?$/.test(entry.name) && !entry.name.startsWith("_")) {
         const rel = relative(baseDir, fullPath)
@@ -68,22 +72,12 @@ export function collectMdFiles(
   return results;
 }
 
-/** Compute a URL from a slug and locale. When absolute is true and siteUrl is configured, returns a full URL.
- *
- * `siteUrl` may be either origin-only (e.g. "https://example.com") or origin + base
- * (e.g. "https://example.com/pj/zudo-design-token-panel/"). Detect the latter and avoid duplicating the
- * base segment when concatenating with `path` (which already includes `base`).
- */
+/** Compute a URL from a slug and locale. When absolute is true and siteUrl is configured, returns a full URL. */
 export function slugToUrl(slug: string, locale: string | null, absolute = false): string {
   const base = settings.base.replace(/\/$/, "");
   const path = locale ? `${base}/${locale}/docs/${slug}` : `${base}/docs/${slug}`;
   if (absolute && settings.siteUrl) {
-    const siteUrl = settings.siteUrl.replace(/\/$/, "");
-    if (base && (siteUrl === base || siteUrl.endsWith(base))) {
-      // siteUrl already contains base; strip the duplicated prefix from path.
-      return `${siteUrl}${path.slice(base.length)}`;
-    }
-    return `${siteUrl}${path}`;
+    return `${settings.siteUrl.replace(/\/$/, "")}${path}`;
   }
   return path;
 }

@@ -7,18 +7,38 @@ set -euo pipefail
 # the user-scope skills directory (~/.claude/skills/).
 # ────────────────────────────────────────────────────────
 
+# Accept --silent (alias -y) for parity with the consuming-site convention:
+# scaffolded sites expose `setup:doc-skill-silent` = `bash scripts/setup-doc-skill.sh
+# --silent`. This script is already non-interactive (the skill name is deterministic
+# — see below), so the flag is a no-op here; it is consumed only so it is never
+# mistaken for the positional skill-name override (`$1`).
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --silent|-y) shift ;;
+    --) shift; break ;;
+    -*) echo "Error: unknown flag '$1'" >&2; exit 1 ;;
+    *) break ;;
+  esac
+done
+
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Read project name from package.json
 PROJECT_NAME=$(node -e "console.log(require('$ROOT_DIR/package.json').name || 'my-project')")
 DEFAULT_SKILL_NAME="${PROJECT_NAME}-wisdom"
 
-# Prompt for skill name
 echo ""
 echo "=== zudo-doc Skill Setup ==="
 echo ""
-read -rp "Skill name [$DEFAULT_SKILL_NAME]: " SKILL_NAME
-SKILL_NAME="${SKILL_NAME:-$DEFAULT_SKILL_NAME}"
+
+# Skill name is DETERMINISTIC: always `<projectName>-wisdom`. The scaffolded
+# .gitignore (emitted by create-zudo-doc) hard-codes this exact name, so the
+# generated skill directory must match it — an interactive prompt would let the
+# name drift from the gitignore entry and leave the skill showing as untracked
+# (zudolab/zudo-doc#2173). An explicit override is still allowed via the first
+# CLI arg or the SKILL_NAME env var (consumers who override must also update
+# their .gitignore), but never via an interactive prompt.
+SKILL_NAME="${1:-${SKILL_NAME:-$DEFAULT_SKILL_NAME}}"
 
 # Validate skill name (allow only alphanumeric, hyphens, underscores)
 if [[ ! "$SKILL_NAME" =~ ^[a-zA-Z0-9_-]+$ ]]; then
@@ -54,16 +74,16 @@ ensure_symlink() {
 mkdir -p "$SKILL_DIR"
 
 # Create symlink to docs directory inside the skill
-ensure_symlink "$SKILL_DIR/docs" "$REPO_ROOT/src/content/docs"
-echo "  Created docs symlink -> $REPO_ROOT/src/content/docs"
+ensure_symlink "$SKILL_DIR/docs" "$REPO_ROOT/doc/src/content/docs"
+echo "  Created docs symlink -> $REPO_ROOT/doc/src/content/docs"
 
 # Check if Japanese docs exist and create symlink
 DOCS_JA_DIR="$ROOT_DIR/src/content/docs-ja"
 HAS_JA=""
 if [ -d "$DOCS_JA_DIR" ]; then
   HAS_JA="true"
-  ensure_symlink "$SKILL_DIR/docs-ja" "$REPO_ROOT/src/content/docs-ja"
-  echo "  Created docs-ja symlink -> $REPO_ROOT/src/content/docs-ja"
+  ensure_symlink "$SKILL_DIR/docs-ja" "$REPO_ROOT/doc/src/content/docs-ja"
+  echo "  Created docs-ja symlink -> $REPO_ROOT/doc/src/content/docs-ja"
 fi
 
 # Discover top-level doc categories dynamically

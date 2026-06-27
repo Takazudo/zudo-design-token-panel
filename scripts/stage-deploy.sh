@@ -2,11 +2,12 @@
 # Stage the doc site build into a Cloudflare Pages deploy directory tree
 # that mirrors the live URL structure.
 #
-# The doc site is built with Astro `base: "/pj/zudo-design-token-panel/"`,
+# The doc site is built with zfb `base: "/pj/zudo-design-token-panel/"`,
 # which means all asset URLs and links inside the build output reference
-# `/pj/zudo-design-token-panel/...` — but Astro emits files to `doc/dist/`
-# at the flat root. Deploying `dist/` as-is to a *.pages.dev origin would
-# leave every asset URL 404'ing.
+# `/pj/zudo-design-token-panel/...` — but zfb emits files to `doc/dist/`
+# at the flat root (with `copyPublicWithBase: false` so public/ assets also
+# land flat). Deploying `dist/` as-is to a *.pages.dev origin would leave
+# every asset URL 404'ing.
 #
 # This script wraps the build output into a subdirectory matching the deploy
 # base path so that:
@@ -33,8 +34,9 @@ mkdir -p "${DEST_DIR}/${BASE_PATH}"
 (cd "${SRC_DIR}" && cp -a . "${DEST_DIR}/${BASE_PATH}/")
 
 # _redirects must live at the deploy root for Cloudflare Pages to read it.
-# Astro placed it under the base path because public/ is copied into outDir,
-# so move it back up.
+# zfb copies public/ flat to dist/ root (copyPublicWithBase: false), so
+# _redirects lands at dist/_redirects and wraps into BASE_PATH here; move
+# it back up to the deploy root.
 if [ -f "${DEST_DIR}/${BASE_PATH}/_redirects" ]; then
   mv "${DEST_DIR}/${BASE_PATH}/_redirects" "${DEST_DIR}/_redirects"
 fi

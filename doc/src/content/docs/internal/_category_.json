@@ -1,6 +1,0 @@
-{
-  "label": "Internal",
-  "position": 999,
-  "description": "Internal harness pages — not indexed, not in sidebar",
-  "noPage": true
-}
