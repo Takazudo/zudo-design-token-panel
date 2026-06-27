@@ -22,6 +22,12 @@ export default defineConfig({
   tailwind: { enabled: true },
   // Public URL prefix for <link rel="stylesheet"> and <script> tags.
   base: settings.base,
+  // Stage-deploy.sh wraps the entire dist/ tree into the base subdir
+  // (cp -a dist/. deploy/pj/zudo-design-token-panel/). If public files
+  // were copied WITH the base prefix they would land at a double-nested
+  // path (deploy/pj/.../pj/.../img). Copy them flat so they arrive at
+  // dist/ root and stage-deploy.sh wraps them into the correct position.
+  copyPublicWithBase: false,
 
   // ── Preset-owned fields (content collections, plugins, markdown, …) ────────
   ...zudoDocPreset({ settings, buildDocsSchema, directiveVocabulary }),

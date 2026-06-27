@@ -12,8 +12,8 @@
 #      that does not start with the workspace prefix.
 #   2. CSS url(/...) references outside the prefix.
 #   3. Embedded JS / JSON / XML string literals that name an asset root
-#      ("/_astro/", "/assets/", "/pagefind/", …) without the workspace prefix
-#      in front.
+#      ("/assets/", "/pagefind/", …) without the workspace prefix in front.
+#      (zfb emits assets to /assets/; the former /_astro/ Astro dir is gone)
 #   4. Source-map information disclosure: a *.map file containing an absolute
 #      build-host path or this repo's worktree root.
 #   5. Trailing-slash inconsistency on internal <a> links (mix of
@@ -199,16 +199,18 @@ audit_workspace() {
   #       whitespace, '>' for HTML attrs, or a backslash for
   #       JSON-escaped-string contexts). This prevents matching against inner
   #       path segments like the "/static/" inside a perfectly correct
-  #       "/pj/zudo-design-token-panel/_astro/static/foo.js".
+  #       "/pj/zudo-design-token-panel/assets/static/foo.js".
   #
   #   (b) The match must end in a real file extension. Bare framework
-  #       sentinels like "/_astro/" are inlined into runtimes for feature
+  #       sentinels like "/assets/" are inlined into runtimes for feature
   #       detection; they are NOT deployment URLs. Requiring a "*.ext" tail
   #       filters them out.
   #
   # We then extract just the matched URLs (-oh), uniq them, and drop any
   # whose value (after the boundary char) starts with the workspace prefix
   # — that would be a correct, prefix-respecting reference.
+  # Note: zfb emits assets to /assets/ (not /_astro/ as Astro did); both
+  # are listed in asset_roots to handle transition-period mixed builds.
   local asset_roots='_astro|assets|pagefind'
   local asset_exts='js|mjs|cjs|css|map|json|wasm|woff2?|ttf|otf|eot|png|jpe?g|gif|svg|webp|avif|ico|mp4|webm|mp3|ogg|wav|pdf|xml|html?'
   local boundary="[\"'\\\`(,= >\\\\]"
@@ -229,7 +231,7 @@ audit_workspace() {
       | grep -Pv "^${prefix_no_trail}/" \
       | sort -u || true)
   fi
-  report_check "Embedded asset-root literals (/_astro/, /assets/, …) under $prefix" "$escapes" ws_fail
+  report_check "Embedded asset-root literals (/assets/, /pagefind/, …) under $prefix" "$escapes" ws_fail
 
   # ── #5 Manifest / sitemap / feed / pagefind ────────────────────
   # Any "/..." string (or url-style value) inside these structured files
