@@ -154,10 +154,10 @@ export interface PanelConfig {
 | `schemaId` | `string` | yes | Emitted as `$schema` on exports; required on import. |
 | `exportFilenameBase` | `string` | yes | Saves as `${exportFilenameBase}.json`. |
 | `toggleEvent` | `string` | no | Toggle-event name for this instance. Default: `toggle-${storagePrefix}` (non-default instances); the default instance uses `toggle-design-token-panel`. |
-| `tabs` | [`TabConfig[]`](/docs/reference/token-manifest/) | yes | Tab strip definition. The Color tab reads its data from the tier model via `colorExtras` + `TierItem[]`. |
-| `colorPresets` | `Record<string, ColorScheme>` | no | Host-supplied scheme presets — see [Color cluster](/docs/reference/color-cluster/#host-supplied-scheme-presets). |
-| `applyEndpoint` | `string` | no | Apply POST target — see [Apply pipeline](/docs/reference/apply-pipeline/). |
-| `applyRouting` | `Record<string, string>` | no | Apply routing map — see [Apply pipeline](/docs/reference/apply-pipeline/). |
+| `tabs` | [`TabConfig[]`](/docs/reference/token-manifest) | yes | Tab strip definition. The Color tab reads its data from the tier model via `colorExtras` + `TierItem[]`. |
+| `colorPresets` | `Record<string, ColorScheme>` | no | Host-supplied scheme presets — see [Color cluster](/docs/reference/color-cluster#host-supplied-scheme-presets). |
+| `applyEndpoint` | `string` | no | Apply POST target — see [Apply pipeline](/docs/reference/apply-pipeline). |
+| `applyRouting` | `Record<string, string>` | no | Apply routing map — see [Apply pipeline](/docs/reference/apply-pipeline). |
 | `applySink` | `ApplySink` | no | Optional CSS-var write target. Not JSON-serializable. See below. |
 | `legacyIdRenameMap` | `Record<string, string \| null>` | no | Migration map for persisted id renames and drops. |
 
@@ -428,6 +428,6 @@ setPanelColorPresets({
 });
 ```
 
-Lazy preset attachment. Hosts that don't want to ship the preset library inline in the SSR config blob can call this AFTER `configurePanel` from a deferred dynamic import. Same merge rules as `PanelConfig.colorPresets` — see [Color cluster](/docs/reference/color-cluster/#host-supplied-scheme-presets) for the full merge contract.
+Lazy preset attachment. Hosts that don't want to ship the preset library inline in the SSR config blob can call this AFTER `configurePanel` from a deferred dynamic import. Same merge rules as `PanelConfig.colorPresets` — see [Color cluster](/docs/reference/color-cluster#host-supplied-scheme-presets) for the full merge contract.
 
 The trailing call wins on conflict (no throw, unlike `configurePanel`); a host that pre-calls `setPanelColorPresets` before `configurePanel` is serviced via a holding slot inside the panel-config module.
