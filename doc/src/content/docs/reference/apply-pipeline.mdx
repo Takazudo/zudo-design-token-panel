@@ -1,0 +1,218 @@
+---
+title: Apply pipeline
+sidebar_position: 5
+description: How the tier resolver turns TabOverrides into CSS-var writes, the v2 export schema, applyEndpoint + applyRouting, request/response envelopes, and atomicity guarantees.
+---
+
+The apply pipeline turns the panel's in-memory override state into CSS writes and (when the host wires an endpoint) into source-file rewrites on disk. There are two distinct paths:
+
+1. **`:root` inline style** — applied client-side, immediately, on every user tweak.
+2. **Apply-to-disk** — triggered by the Apply button; POSTs a diff to the host's dev endpoint which routes it to the bin server.
+
+## State → tier resolver → CSS emission
+
+### `TabOverrides` shape
+
+The panel's persisted state for each tab is a two-level nested map:
+
+```ts
+type TabOverrides = Readonly<Record<string, Readonly<Record<string, string>>>>;
+// tierId → itemId → overrideValue
+```
+
+Example:
+
+```ts
+const overrides: TabOverrides = {
+  raw:      { 'ease-in': 'cubic-bezier(0.42, 0, 1, 1)' },
+  semantic: { 'tab-open': 'ease-in' }, // reference tier — value is a raw-tier item id
+};
+```
+
+### `resolveTierItemValue`
+
+The core resolver (`resolveTierItemValue`) determines the effective CSS value for a single item:
+
+- **Literal tier** (no `referencesTier`): returns the override string, or `pill.customDefault` when a pill is present and no override is active, or `item.default` as the final fallback.
+- **Reference tier** (`referencesTier` is set): the override is interpreted as the id of an item in the named tier. Returns `{ kind: 'ref', targetCssVar }` pointing at that item's `cssVar`.
+
+### `emitTierItemCssValue`
+
+Converts a `ResolvedTierItem` to the final string written to the CSS custom property:
+
+- Literal → value string as-is (e.g. `1.25rem`).
+- Ref → `var(--targetCssVar)` (e.g. `var(--myapp-easing-ease-in)`).
+
+### Cross-tier reference example
+
+Given a two-tier easing tab (raw + semantic):
+
+```
+semantic.tab-open override = 'ease-in'
+  → looks up 'ease-in' in raw tier
+  → raw tier item ease-in has cssVar '--myapp-easing-ease-in'
+  → emits --myapp-transition-tab-open: var(--myapp-easing-ease-in)
+```
+
+Only the raw tier item's cssVar is written to `:root` directly. The semantic tier item always emits `var(...)` — it never writes a raw CSS value.
+
+### `:root` inline style write
+
+The panel writes overrides to `document.documentElement.style.setProperty(cssVar, value)` on every user change. When no override is active for an item, the inline property is removed (so the stylesheet default wins).
+
+The Color tab's palette, base-role, and semantic slots are written by the same mechanism — palette items directly, semantic items via `var(--palette-cssVar)`.
+
+## Export schema (v2)
+
+The panel exports and imports overrides as a JSON envelope with a `$schema` field for version identification:
+
+```json
+{
+  "$schema": "zudo-design-tokens/v2",
+  "--myapp-spacing-md": "1.5rem",
+  "--myapp-easing-ease-in": "cubic-bezier(0.42, 0, 1, 1)"
+}
+```
+
+The top-level keys (after `$schema`) are the CSS custom property names of every active override. The values are CSS strings. On import, the panel validates the `$schema` field against `PanelConfig.schemaId`; a mismatch is rejected with an error.
+
+<Note title="Flat cssVar-keyed shape">
+The v2 export format is a flat map of cssVar → CSS string. Reference-tier items are expanded to their emitted `var(...)` value at export time — the exported file contains only the CSS values the user would see in `:root`, not the intermediate item ids.
+</Note>
+
+## Apply-to-disk
+
+### `applyEndpoint`
+
+When `PanelConfig.applyEndpoint` is set, the Apply button is enabled. Clicking it POSTs the active override diff to this URL.
+
+When `applyEndpoint` is `undefined`, the Apply button stays disabled with a tooltip — hosts that use export/import only can omit this field.
+
+### `applyRouting`
+
+```ts
+applyRouting: {
+  'myapp-spacing': 'src/styles/spacing.css',
+  'myapp-color':   'src/styles/color.css',
+}
+```
+
+A map of CSS-var prefix family (without leading `--` and trailing `-`) to the repo-relative source file the bin server rewrites. Each token in the POST diff is routed to a file based on its prefix. Tokens with prefixes not in the map are rejected by the bin with `"Unsupported cssVar prefix"`.
+
+Apply is gated on `applyEndpoint` AND a non-empty `applyRouting` map. When either is missing, the Apply modal still mounts for diff preview but the action button remains disabled.
+
+### Per-tier independence
+
+The bin server processes each tier's tokens independently against the `applyRouting` map. A reference-tier item's override (which resolves to `var(--raw-cssVar)`) is NOT in the diff payload — only the raw-tier values that map to concrete CSS strings are sent. Semantic tokens pointing at raw tokens do not appear in the POST body.
+
+## Request & response envelopes
+
+### Request
+
+```
+POST <applyEndpoint>
+Content-Type: application/json
+
+{
+  "tokens": {
+    "--myapp-spacing-md": "1.5rem",
+    "--myapp-color-bg": "#0f172a"
+  }
+}
+```
+
+`tokens` is a flat object: CSS custom property name (must start with `--`) → CSS string value.
+
+### Response 200 (success)
+
+```json
+{
+  "ok": true,
+  "updated": [
+    {
+      "file": "src/styles/spacing.css",
+      "changed": ["--myapp-spacing-md"],
+      "unchanged": [],
+      "unknown": []
+    }
+  ],
+  "unknownCssVars": [],
+  "unchangedCssVars": []
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `ok: true` | Marks success. |
+| `updated[]` | Per-file results. `changed[]` = rewritten; `unchanged[]` = found but not in diff; `unknown[]` = in diff but not in the file's `:root` block. |
+| `unknownCssVars` | Flattened across all files for UI feedback. |
+| `unchangedCssVars` | Flattened across all files for UI feedback. |
+
+### Response 400 (bad request)
+
+```json
+{ "ok": false, "error": "<message>", "rejected": ["--invalid-token"] }
+```
+
+Returned for malformed JSON, missing / empty `tokens`, invalid token names, or prefixes not in the routing map. `rejected` is optional.
+
+### Response 403 (Forbidden)
+
+```json
+{ "ok": false, "error": "Origin not allowed" }
+```
+
+The bin rejects cross-origin requests.
+
+### Response 409 (Conflict)
+
+```json
+{ "ok": false, "error": "No top-level :root { ... } block in <file>" }
+```
+
+The target CSS file has no `:root` block.
+
+### Response 500 (Internal server error)
+
+```json
+{
+  "ok": false,
+  "error": "<message>",
+  "failedFile": "<relativePath>",
+  "restoreFailures": ["<file1>"]
+}
+```
+
+Returned when a file write fails. `restoreFailures` is populated when the rollback also fails.
+
+## Atomic write contract
+
+The bin keeps each file's original content in memory. If any write fails, every file written so far is restored from the in-memory original. Three terminal states are possible:
+
+1. **Full success.** All routed files updated. Response 200.
+2. **Clean rollback.** A write fails partway through; all previously-written files are restored. Response 500 with `failedFile`.
+3. **Inconsistent disk state.** A write fails AND the rollback also fails. Response 500 with `failedFile` AND `restoreFailures[]`.
+
+<Warning title="Inspect on `restoreFailures`">
+A non-empty `restoreFailures[]` array means at least one file was rewritten and could not be restored. Inspect the listed files manually before retrying.
+</Warning>
+
+## Validation rules
+
+### Token name rules
+
+- Must start with `--`.
+- No spaces, slashes, or special characters.
+- Must match a prefix family in `applyRouting`.
+
+### Path safety
+
+- Each routing target is resolved to an absolute path.
+- The resolved path must sit within the bin's `writeRoot`.
+- Path-escape attempts (`../../etc/passwd`) are rejected.
+
+## Cross-references
+
+- [`PanelConfig.applyEndpoint` and `applyRouting`](/docs/reference/configure-panel/#panelconfig-interface) — endpoint and routing slots.
+- [Token tiers](/docs/reference/token-manifest/) — defines the `TabConfig` / `TierConfig` / `TierItem` shapes whose `cssVar` names appear in the diff.
+- [Color cluster](/docs/reference/color-cluster/) — defines the Color-tab CSS-var names that can appear in the diff.

@@ -1,0 +1,142 @@
+---
+title: "Hostile-host harness"
+description: "Integration test page: verifies Wave 2 panel-hardening CSS isolation under a deliberately aggressive host stylesheet. Internal only — not indexed."
+unlisted: true
+search_exclude: true
+hide_toc: false
+---
+
+This page is an **internal verification harness** for the Panel Hardening epic (issues #145–#154). It documents the hostile-host test scenario and serves as the URL target for a /verify-ui screenshot dispatch by the manager.
+
+## What is a hostile host?
+
+A hostile host is an application whose global CSS aggressively resets or overrides semantic HTML element styles. Examples include Tailwind CSS preflight, CSS resets (normalize.css, ress, etc.), and hand-rolled resets that use `all: revert` or tag-level selectors.
+
+The panel must render correctly inside any host environment — its markup may not rely on browser default styles that the host has stripped away.
+
+## Hostile CSS injected on this page
+
+The following stylesheet simulates the most aggressive host overrides we expect to encounter. It is injected via a `<style>` element **before** the panel mounts so every panel element renders under these constraints.
+
+```css
+h1, h2, h3, h4, h5, h6 { font-size: 4rem !important; margin: 2rem 0 !important; color: red !important; }
+button { all: revert !important; background: hotpink !important; padding: 2rem !important; font-size: 2rem !important; }
+p, ul, li, section, header, article, aside, nav { margin: 3rem !important; padding: 2rem !important; }
+code, pre { font-family: "Comic Sans MS" !important; background: yellow !important; }
+details, summary { font-size: 3rem !important; list-style: square !important; }
+svg, path { fill: hotpink !important; stroke: lime !important; transform: scale(2) !important; }
+* { box-shadow: inset 0 0 0 2px lime !important; }
+```
+
+## Running the harness locally
+
+### Step 1 — Start an example app
+
+The example apps now live in dedicated sibling repos under `$HOME/repos/zdtp-ex/`. Clone the one you want to use before running its dev command:
+
+- [`zudo-design-token-panel-example-astro`](https://github.com/Takazudo/zudo-design-token-panel-example-astro)
+- [`zudo-design-token-panel-example-vite-react`](https://github.com/Takazudo/zudo-design-token-panel-example-vite-react)
+- [`zudo-design-token-panel-example-nextjs`](https://github.com/Takazudo/zudo-design-token-panel-example-nextjs)
+- [`zudo-design-token-panel-example-zfb`](https://github.com/Takazudo/zudo-design-token-panel-example-zfb)
+- [`zudo-design-token-panel-example-zfb-tailwind`](https://github.com/Takazudo/zudo-design-token-panel-example-zfb-tailwind)
+
+Any of the following mounts the full panel:
+
+```sh
+# Astro example (recommended — closest to the harness scenario)
+cd $HOME/repos/zdtp-ex/zudo-design-token-panel-example-astro && pnpm dev
+# URL: http://localhost:44324
+
+# Vite + React
+cd $HOME/repos/zdtp-ex/zudo-design-token-panel-example-vite-react && pnpm dev
+
+# Next.js
+cd $HOME/repos/zdtp-ex/zudo-design-token-panel-example-nextjs && pnpm dev
+
+# zfb (Preact)
+cd $HOME/repos/zdtp-ex/zudo-design-token-panel-example-zfb && pnpm dev
+
+# zfb + Tailwind v4
+cd $HOME/repos/zdtp-ex/zudo-design-token-panel-example-zfb-tailwind && pnpm dev
+```
+
+### Step 2 — Inject the hostile stylesheet
+
+Open DevTools console in the running example app and paste:
+
+```js
+const s = document.createElement('style');
+s.textContent = `
+  h1, h2, h3, h4, h5, h6 { font-size: 4rem !important; margin: 2rem 0 !important; color: red !important; }
+  button { all: revert !important; background: hotpink !important; padding: 2rem !important; font-size: 2rem !important; }
+  p, ul, li, section, header, article, aside, nav { margin: 3rem !important; padding: 2rem !important; }
+  code, pre { font-family: "Comic Sans MS" !important; background: yellow !important; }
+  details, summary { font-size: 3rem !important; list-style: square !important; }
+  svg, path { fill: hotpink !important; stroke: lime !important; transform: scale(2) !important; }
+  * { box-shadow: inset 0 0 0 2px lime !important; }
+`;
+document.head.prepend(s);
+```
+
+### Step 3 — Open the panel and exercise every tab
+
+```js
+// Astro example:
+window.astro.toggleDesignPanel();
+
+// zfb examples:
+window.zfb.toggleDesignPanel();
+```
+
+Exercise every tab (Spacing, Typography, Size, Colour, etc.) and open every modal (Export, Import JSON, Apply). Confirm:
+
+- No element inside `.tokenpanel-shell` or modal overlays appears broken, stretched, or uses the hostile colours.
+- Buttons and interactive controls render at normal size (they are `div[role=button]`, not native `button`).
+- Headings inside the panel (tier section labels) render at normal size (they are `div[role=heading]`, not `h3`/`h4`).
+- The JSON preview areas (export modal, apply modal) may show `pre` bleed — see Static-grep findings below.
+- SVG icons do not paint hotpink/lime (they are scoped by the `:where(.tokenpanel-shell) svg` reset).
+
+### Step 4 — Capture screenshots
+
+Use `/verify-ui` or `/headless-browser` from the manager session to capture screenshots of:
+
+1. Panel closed — host page with lime-outline hostile CSS active.
+2. Panel open on the first tab.
+3. Export modal open.
+4. Apply modal open (success state).
+
+Flag any element that visually bleeds through the hostile overrides.
+
+## Static-grep findings (Wave 2 completion check)
+
+Grepped command:
+
+```sh
+grep -rn -E '<(h[1-6]|p|ul|li|section|header|article|aside|nav|code|pre|details|summary|button)[ >]' \
+  packages/zdtp/src --include='*.tsx' --exclude-dir='__tests__'
+```
+
+### Results
+
+| File | Line | Tag | Judgment |
+| --- | --- | --- | --- |
+| src/export-modal.tsx | 202 | `<pre>` | **Regression — missed swap.** Renders the exported JSON blob inside a native `<pre>`. Host `pre` resets (Comic Sans, yellow background) will bleed into the export modal. Needs replacement with `<div role="none" className="tokenpanel-export-modal__json">` styled with `white-space: pre; font-family: monospace;`. |
+| src/apply-modal.tsx | 766 | `<pre>` | **Regression — missed swap.** Renders the pre-apply JSON snapshot inside a native `<pre>` in the apply-success view. Same bleed risk as above. Same fix recipe. |
+| src/controls/role-button.tsx | 8 | `button` in comment | False positive — comment text `// <button> is blocked...`. Not a real element. |
+| src/tabs/__tests__/tabs-semantic-replacement.test.tsx | 13, 403 | various | False positive — test file comments and test description strings. Not production markup. |
+
+### Summary
+
+Wave 2 is **mostly complete**: headings, lists, buttons, sectioning elements, and disclosure elements are all replaced in production markup. **Two regressions remain**: `<pre>` in the export modal (line 202) and `<pre>` in the apply modal success view (line 766). Both are code/preformatted display elements that will inherit hostile `pre` overrides (font-family, background). These should be tracked as a follow-up fix sub-issue.
+
+### Recommended follow-up
+
+Open a new sub-issue against epic #145:
+
+- File: src/export-modal.tsx:202 — replace `<pre>` with a styled `<div>` carrying `white-space: pre` + `font-family: monospace` in CSS.
+- File: src/apply-modal.tsx:766 — same replacement.
+- Neither fix should change visual output when no hostile CSS is present.
+
+## A11y note
+
+Keyboard accessibility under the hostile host **cannot be verified by static analysis**. The hostile CSS (`button { all: revert !important }`) would only affect native `<button>` elements — and static grep confirms none remain in production markup. However focus-ring and keyboard-nav behaviour must be validated in a real browser with hostile CSS active. Flag as a follow-up for the manager's `/verify-ui` dispatch.
