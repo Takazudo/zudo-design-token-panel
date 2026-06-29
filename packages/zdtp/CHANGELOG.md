@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- **Owner-only autoload.** A new `${storagePrefix}:autoload` `localStorage` flag lets the site owner load the panel in their own browser without touching general visitors. When the flag is set, the panel bundle loads eagerly on every page visit and mounts CLOSED — the **Alt+click element-path inspector** is armed immediately even while the panel UI stays hidden. General visitors (no flag) receive zero panel JS.
+
+  New package-root exports: `enableAutoload()`, `disableAutoload()`, `shouldAutoload()`. The Astro host-adapter also installs `window[consoleNamespace].enableAutoload()` and `window[consoleNamespace].disableAutoload()` on the console API surface.
+
+  The existing on-demand flow (`showDesignPanel()` / `hideDesignPanel()` / `toggleDesignPanel()`) is unchanged. Owner-autoload is an opt-in layer on top of it, not a replacement.
+
+  **Auto-remember:** any action that opens the panel also writes `${storagePrefix}:autoload = '1'`. Once an owner opens the panel, subsequent page loads reload it automatically without another explicit `enableAutoload()` call.
+
+  **Lazy-load gate updated from 2 to 4 signals:** the host-adapter gate now fires on `wasVisible() || hasPersistedOverrides() || shouldAutoload() || loadElementPathEnabled()`. The last two signals are new; the previous two-signal behavior is a strict subset of the new gate, so existing consumers see no change.
+
+  ([#419](https://github.com/Takazudo/zudo-design-token-panel/issues/419), [#420](https://github.com/Takazudo/zudo-design-token-panel/issues/420), [#421](https://github.com/Takazudo/zudo-design-token-panel/issues/421), [#422](https://github.com/Takazudo/zudo-design-token-panel/issues/422), [#423](https://github.com/Takazudo/zudo-design-token-panel/issues/423))
+
 ## 0.4.1
 
 ### Fixed

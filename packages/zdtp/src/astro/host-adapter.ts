@@ -58,7 +58,9 @@ import {
   type PanelConfig,
   type PanelInstanceHandle,
 } from '../config/panel-config';
-import { ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP } from '../state/tweak-state';
+import { ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP, getOpenKey } from '../state/tweak-state';
+import { shouldAutoload, setAutoload, clearAutoload } from '../state/autoload-state';
+import { loadElementPathEnabled, saveElementPathEnabled } from '../element-path/element-path-state';
 
 interface DesignTokenPanelAdapterState {
   /** Per-`storagePrefix` bind flag — re-runs of the script are no-ops. */
@@ -71,6 +73,8 @@ interface ConsoleApiSurface {
   showDesignPanel?: () => Promise<void>;
   hideDesignPanel?: () => Promise<void>;
   toggleDesignPanel?: () => Promise<void>;
+  enableAutoload?: () => Promise<void>;
+  disableAutoload?: () => Promise<void>;
   // Allow co-existence with other helpers a host may install on the same
   // namespace (e.g. `window.<ns>.someOtherDebugHelper()`).
   [extra: string]: unknown;
@@ -243,9 +247,13 @@ function installConsoleApi(
   namespace: string,
   state: DesignTokenPanelAdapterState,
   handle: PanelInstanceHandle,
+  cfg: PanelConfig,
 ): void {
   const existing = (win[namespace] as ConsoleApiSurface | undefined) ?? {};
   existing.showDesignPanel = async () => {
+    // Auto-remember: showing the panel arms autoload so future page loads
+    // reload it automatically (owner-mode semantics).
+    setAutoload(cfg, true);
     await loadPanelModule(state);
     handle.open();
   };
@@ -255,7 +263,56 @@ function installConsoleApi(
   };
   existing.toggleDesignPanel = async () => {
     await loadPanelModule(state);
+    // Snapshot the current open state BEFORE toggling so we know the
+    // post-toggle outcome. Auto-remember: arm autoload only when toggle
+    // results in the panel being open.
+    let willBeOpen = false;
+    try {
+      willBeOpen = window.localStorage.getItem(getOpenKey(cfg)) !== '1';
+    } catch {
+      /* storage unavailable — skip auto-remember for this toggle */
+    }
     handle.toggle();
+    if (willBeOpen) {
+      setAutoload(cfg, true);
+    }
+  };
+  existing.enableAutoload = async () => {
+    // Delegate to the module's cfg-aware implementation — the single source of
+    // the owner-mode contract. It sets `:autoload`, arms element-path for THIS
+    // instance, and mounts the shell CLOSED. We must `await` the load first so
+    // the lifecycle hooks are installed before it drives the mount.
+    const mod = await loadPanelModule(state);
+    mod.enableAutoload(cfg);
+  };
+  existing.disableAutoload = async () => {
+    // If the panel module was already loaded, delegate to its cfg-aware
+    // disableAutoload: it clears every owner-mode key for THIS instance AND
+    // fully UNMOUNTS the shell, tearing down the live Alt+click inspector
+    // immediately. (Closing alone would leave the inspector armed until the
+    // next reload, because clearing localStorage does not update the mounted
+    // ElementPathOrchestrator's React state.)
+    if (state.modulePromise !== null) {
+      const mod = await loadPanelModule(state);
+      mod.disableAutoload(cfg);
+      return;
+    }
+    // Module never loaded: clear the persisted owner-mode keys for THIS instance
+    // directly, without pulling the bundle just to tear nothing down.
+    clearAutoload(cfg);
+    saveElementPathEnabled(false, cfg);
+    // Clear :visible flag (mirrors setStoredVisibility(cfg, false) in index.tsx).
+    try {
+      window.localStorage.setItem(storageKey_visible(cfg), '0');
+    } catch {
+      /* storage unavailable — degrade silently */
+    }
+    // Clear the open-state key so a future load does not re-open the panel.
+    try {
+      window.localStorage.removeItem(getOpenKey(cfg));
+    } catch {
+      /* storage unavailable — degrade silently */
+    }
   };
   win[namespace] = existing;
 }
@@ -294,18 +351,25 @@ function installConsoleApi(
   // 2. Install console API every time — `bound` only gates the lazy-load
   //    probes, since the console handlers are idempotent (re-assigning the
   //    same closures is a no-op semantically). Bind to this instance's handle.
-  installConsoleApi(win, cfg.consoleNamespace, state, handle);
+  installConsoleApi(win, cfg.consoleNamespace, state, handle, cfg);
 
   if (state.bound) return;
   state.bound = true;
 
   // 3. Lazy-load gate — eagerly load the panel module when the user had it
-  //    open last session OR has persisted token overrides. Either signal
-  //    means the panel must boot before first paint to avoid an FOUT.
+  //    open last session OR has persisted token overrides OR the owner-
+  //    autoload flag is set OR the element-path inspector is enabled. Any
+  //    signal means the panel must boot before first paint to avoid an FOUT
+  //    or a broken element-path inspector (which needs the Preact shell).
   const visibleKey = storageKey_visible(cfg);
   const stateV2Key = storageKey_stateV2(cfg);
   const stateV3Key = storageKey_stateV3(cfg);
-  if (wasVisible(visibleKey) || hasPersistedOverrides(stateV2Key, stateV3Key)) {
+  if (
+    wasVisible(visibleKey) ||
+    hasPersistedOverrides(stateV2Key, stateV3Key) ||
+    shouldAutoload(cfg) ||
+    loadElementPathEnabled(cfg)
+  ) {
     void loadPanelModule(state);
   }
 })();

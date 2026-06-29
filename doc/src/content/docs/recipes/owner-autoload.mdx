@@ -1,0 +1,154 @@
+---
+title: Load the panel only for you (the site owner)
+description: Use owner-autoload to load the design-token panel only in your own browser, keeping general visitors completely free of panel JS.
+sidebar_position: 8
+---
+
+You are deploying a public site and want the design-token panel available
+to **yourself** as the developer — without loading any panel JavaScript for
+general visitors. The owner-autoload feature is the answer:
+
+- **General visitors:** zero bundle cost. The panel JS is never fetched.
+  No JavaScript, no CSS, no DOM element.
+- **You (the owner):** the panel bundle loads eagerly on every page visit,
+  mounts CLOSED, and arms the **Alt+click element-path inspector** so you
+  can click any element to copy its selector — even without opening the
+  panel UI.
+
+Opt-in is explicit and per-browser: run `window.<ns>.enableAutoload()` once
+in DevTools on your personal machine. The flag is stored in `localStorage`
+so it survives page reloads, soft navigations, and browser restarts — and
+only lives in your browser, not on the server or in the build.
+
+For the storage-key derivation and the full gate contract, see
+[PORTABLE-CONTRACT.md §6.2](https://github.com/Takazudo/zudo-design-token-panel/blob/main/packages/zdtp/PORTABLE-CONTRACT.md).
+
+## How it works
+
+The host adapter checks four signals in `localStorage` on every page load.
+When **none** is set — the common case for first-time visitors on a public
+site — no bundle is fetched. The owner-autoload signal is one of the four:
+
+| Signal | Meaning |
+|--------|---------|
+| `${storagePrefix}:visible` | Panel was open on the last visit |
+| `${storagePrefix}-state-v3` | User has saved token overrides |
+| `${storagePrefix}:autoload` | Owner-autoload flag — **you** are in owner mode |
+| `${storagePrefix}-elpath-enabled` | Element-path inspector is enabled |
+
+`enableAutoload()` writes the `:autoload` flag and arms the element-path
+inspector. `disableAutoload()` clears all four owner-mode keys and unmounts
+the panel.
+
+## Opt in (run this once in DevTools)
+
+Open DevTools on any page of your site and run:
+
+```js
+window.myapp.enableAutoload();
+// Replace 'myapp' with your PanelConfig.consoleNamespace value.
+```
+
+From that point on, every page load in that browser will:
+
+1. Fetch the panel bundle eagerly (same path as when you have saved overrides).
+2. Mount the Preact shell CLOSED — the panel UI stays out of sight.
+3. Arm the Alt+click element-path inspector — hover over any element and
+   click to copy a detailed selector block to the clipboard.
+4. Leave the `window.myapp.{show,hide,toggle}DesignPanel()` console helpers
+   available, just as always.
+
+## Opt out
+
+To stop loading the panel in your browser:
+
+```js
+window.myapp.disableAutoload();
+```
+
+This clears the `:autoload` flag, the `:visible` flag, the element-path
+enabled key, and the open-state key, then unmounts the Preact shell. The
+next page load will be panel-free again.
+
+## Auto-remember: the first open arms autoload
+
+Opening the panel by any means — `showDesignPanel()`, `toggleDesignPanel()`,
+or the panel header's close/re-open button — **automatically sets the
+`:autoload` flag**. You do not need to call `enableAutoload()` explicitly
+if you have already opened the panel. The flag is set on first open and
+persists across page loads.
+
+## The footgun: visible open-triggers become public opt-ins
+
+Because any open action arms `:autoload`, a UI trigger that is visible to
+general visitors becomes a de-facto opt-in for anyone who clicks it.
+
+<Warning>
+**Do not add a visible "open panel" button or keyboard shortcut** on a
+public site unless you gate it behind authentication. Every general visitor
+who happens to click it will set `:autoload` in their browser, and the
+panel bundle will load for them on every subsequent page visit.
+</Warning>
+
+On a fully public site:
+
+- Omit or hide any open-panel affordance from the production build.
+- Use `enableAutoload()` from DevTools as your deliberate opt-in.
+- Let the panel's own Alt+click inspector surface the element-path feature
+  without forcing the panel UI open.
+
+## Worked example — a safe owner-only loader
+
+Below is the pattern this documentation site itself uses (#422): a tiny
+always-present `<script>` block that checks localStorage and dynamically
+imports the panel **only when the owner flag is already set**. The panel is
+never imported on first visit, and the flag is set only via the DevTools
+console call above.
+
+```html
+<!-- Your page layout — runs on every page, before </body> -->
+<script>
+  // Tiny stub — the full panel bundle is imported only when :autoload is set.
+  // Replace storagePrefix with your PanelConfig.storagePrefix value.
+  const storagePrefix = 'myapp-design-token-panel';
+  const autoloadKey   = `${storagePrefix}:autoload`;
+
+  if (window.localStorage?.getItem(autoloadKey) === '1') {
+    // Owner mode: load the panel module. The module's own bootstrap logic
+    // reads the four gate signals, finds :autoload='1', and re-applies the
+    // full owner-mode state (CLOSED mount + element-path armed).
+    void import('@takazudo/zdtp');
+  }
+</script>
+```
+
+For an **Astro site** using the `<DesignTokenPanelHost>` component, this
+stub is unnecessary — the host adapter already handles the lazy-load gate
+including the `:autoload` signal. This pattern applies to non-Astro hosts
+or custom wiring where you want explicit control over the import trigger.
+
+<Tip>
+If you are on an Astro site with `<DesignTokenPanelHost>`, just run
+`window.myapp.enableAutoload()` once in DevTools. The adapter handles
+the rest on every subsequent page load automatically.
+</Tip>
+
+## Summary
+
+| Step | Action |
+|------|--------|
+| Opt in | `window.myapp.enableAutoload()` in DevTools (once) |
+| Opt out | `window.myapp.disableAutoload()` in DevTools |
+| General visitors | Zero cost — no bundle, no CSS, no DOM |
+| You (after opt-in) | Bundle loads eagerly, panel mounts CLOSED, Alt+click armed |
+| First open | Automatically arms autoload so future pages re-load it |
+
+## Related
+
+- [PORTABLE-CONTRACT.md §6.2](https://github.com/Takazudo/zudo-design-token-panel/blob/main/packages/zdtp/PORTABLE-CONTRACT.md) — lazy-load
+  gate specification (4-signal contract) and the full `enableAutoload` /
+  `disableAutoload` API contract.
+- [Storage-key reference](/docs/reference/configure-panel) — `storagePrefix`
+  and the colon-separated `${storagePrefix}:autoload` key derivation.
+- [Lazy color presets](/docs/recipes/lazy-color-presets) — another
+  pattern that keeps general-visitor page loads lean.

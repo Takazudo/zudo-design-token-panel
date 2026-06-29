@@ -4,4 +4,35 @@ description: "@takazudo/zdtp をホストアプリに組み込むための実践
 sidebar_position: 30
 ---
 
-> このページは現在英語のみです。後ほど翻訳予定です。英語版を参照してください: [Recipes](/docs/recipes)
+`@takazudo/zdtp` の現在のエクスポートに対して、よくある組み込み作業をそのまま
+コピーして使える小さなレシピ集です。各レシピは独立しています——いま自分が
+やろうとしていることに合うシナリオから始め、API の全体像が必要になったら
+[リファレンスページ](../reference/configure-panel.mdx)へのクロスリンクを
+たどってください。
+
+## どのレシピを使うか
+
+- 新規プロジェクト向けに、新しいパレットとセマンティックテーブルを一から組む →
+  [カスタムカラークラスター](/docs/recipes/custom-color-cluster)。
+- トークンタブの追加・削除、カスタムグループ ID の命名、グループ順の制御 →
+  [カスタムトークンマニフェスト](./custom-token-manifest.mdx)。
+- 2 つ目の Color タブを追加する、あるいは設けない →
+  [セカンダリクラスター: 設定または無効化](/docs/recipes/secondary-cluster-or-disable)。
+- apply-to-disk パイプラインを Astro 以外の開発スクリプトに組み込む →
+  [Apply パイプライン設定](/docs/recipes/apply-pipeline-setup)。
+- 大きなプリセットライブラリを SSR の設定ブロブから切り出して遅延読み込みする →
+  [遅延カラープリセット](/docs/recipes/lazy-color-presets)。
+- `referencesTier` を使って、ロー＋セマンティックの 2 階層トークンシステムを
+  構築する → [マルチ階層トークン](./multi-tier-tokens.mdx)。
+- OKLCH カラーグループと WCAG コントラストチェックを備えたスタンドアロンの
+  パレットタブを追加する（`colorExtras` なし）→
+  [グループ化パレットタブ](./grouped-palette-tab.mdx)。
+- パネルを自分のブラウザだけに読み込み、一般訪問者にはパネルの JS を一切持ち込まず、
+  すべてのページで Alt+クリックの要素パスインスペクターを有効化する →
+  [自分（サイトオーナー）だけにパネルを読み込む（owner-autoload）](./owner-autoload.mdx)。
+
+<Tip>
+これらのページに載っているスニペットはすべて、パッケージの現在の公開エクスポートに
+対してコンパイルが通ります。もしどれかがずれていたら、Issue を立ててください——
+レシピは契約に対する「これはまだ動くか」を確かめる正規のスモークテストです。
+</Tip>

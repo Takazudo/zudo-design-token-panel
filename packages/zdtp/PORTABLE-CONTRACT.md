@@ -248,12 +248,13 @@ derives the keys at runtime from this single base.
 | `open`      | `${storagePrefix}-open`     | panel                | Mirror of the panel's `open` boolean state (so the next mount opens directly into the user's last state without a post-render toggle dispatch).              |
 | `position`  | `${storagePrefix}-position` | panel                | Drag position (`{ top, right }`) so the panel reappears where the user left it.                                                                              |
 | `visible`   | `${storagePrefix}:visible`  | adapter              | Adapter-level visibility-intent flag, owned by the lazy-load gate (§6).                                                                                      |
+| `autoload`  | `${storagePrefix}:autoload` | autoload-state       | Owner-mode autoload flag. `'1'` means "load the panel bundle eagerly and mount CLOSED on every page load." Managed by `enableAutoload()` / `disableAutoload()`. See §6.2. |
 
-**Constraint — colon, not dash, for `visible`.** The `visible` key uses a
-`:` separator, every other derived key uses `-`. This is a historical artifact
-preserved for storage-key continuity: a key rename would silently lose users'
-visibility intent on first load. The derivation MUST emit the colon literally;
-do not "fix" it during refactors.
+**Constraint — colon, not dash, for `visible` and `autoload`.** Both adapter-
+level flags use a `:` separator; every other derived key uses `-`. The colon
+form is a historical artifact for `visible`, preserved for storage-key
+continuity; `autoload` follows the same colon convention to pair with it.
+The derivation MUST emit the colon literally; do not "fix" it during refactors.
 
 **Storage-key derivation is literal.** With `storagePrefix: "myapp-design-token-panel"`,
 the derivation produces:
@@ -265,6 +266,7 @@ myapp-design-token-panel-state
 myapp-design-token-panel-open
 myapp-design-token-panel-position
 myapp-design-token-panel:visible
+myapp-design-token-panel:autoload
 ```
 
 Unit tests in the package verify these derivations with literal-equality
@@ -774,16 +776,81 @@ This is the reason the JSON-serializable constraint in §4.2 is non-negotiable.
 
 ### 6.2 Lazy-load gate
 
+The host adapter fires one eager `loadPanelModule()` call when any of four
+signals is present in `localStorage` at page load:
+
 ```ts
-if (wasVisible() || hasPersistedOverrides()) {
+if (
+  wasVisible()            ||   // panel was open last visit
+  hasPersistedOverrides() ||   // user has saved token tweaks
+  shouldAutoload()        ||   // owner-autoload flag set (NEW)
+  loadElementPathEnabled()     // element-path inspector enabled (NEW)
+) {
   void loadPanelModule();
 }
 ```
 
-- `wasVisible()` reads `${storagePrefix}:visible` (colon-form key from §2).
-- `hasPersistedOverrides()` probes `${storagePrefix}-state-v3`. Returns `true`
-  when the user has any saved tweaks — overrides MUST be re-applied to `:root`
-  even when the panel itself stays hidden, otherwise hard-nav produces a FOUT.
+- `wasVisible()` — reads `${storagePrefix}:visible` (colon-form key, §2).
+  Returns `true` when the panel was open before the last navigation.
+- `hasPersistedOverrides()` — probes `${storagePrefix}-state-v3` (dash-form,
+  §2). Returns `true` when the user has any saved tweaks. Overrides MUST be
+  re-applied to `:root` even when the panel stays hidden, otherwise hard-nav
+  produces a FOUT.
+- `shouldAutoload()` — reads `${storagePrefix}:autoload` (colon-form, §2).
+  Returns `true` when the owner-autoload flag is set. This is the owner-mode
+  signal: the panel bundle fetches eagerly and mounts CLOSED so the element-
+  path inspector is armed even though the panel UI is hidden. General visitors
+  (no flag) pay zero bundle cost.
+- `loadElementPathEnabled()` — reads the element-path inspector's persistence
+  key. Returns `true` when the inspector was left enabled. Ensures the Preact
+  shell is mounted (the inspector runs inside it) even when the panel UI is
+  hidden and no token overrides are persisted.
+
+When none of the four signals is present — the common case for first-time
+visitors and general site visitors on a public site with owner-autoload — the
+panel bundle is NOT fetched and the page is completely free of panel JS.
+
+#### Storage-key table for §6.2 signals
+
+| Signal | Key derivation | Owner |
+|--------|---------------|-------|
+| `wasVisible` | `${storagePrefix}:visible` | adapter |
+| `hasPersistedOverrides` | `${storagePrefix}-state-v3` (falls back to `-state-v2`) | tweak-state |
+| `shouldAutoload` | `${storagePrefix}:autoload` | autoload-state |
+| `loadElementPathEnabled` | `${storagePrefix}-elpath-enabled` | element-path-state |
+
+#### Owner-autoload `enableAutoload` / `disableAutoload` contract
+
+`enableAutoload()` (exported from the package root; also wired on
+`window[consoleNamespace]` by the Astro host adapter):
+
+1. Sets `${storagePrefix}:autoload = '1'`.
+2. Sets `${storagePrefix}-elpath-enabled = '1'` once (arms the Alt+click
+   element-path inspector).
+3. Loads the panel bundle (if not already loaded).
+4. Mounts the Preact shell CLOSED so the element-path inspector is active
+   without opening the panel UI.
+
+`disableAutoload()`:
+
+1. Clears `${storagePrefix}:autoload` (removes the key).
+2. Sets `${storagePrefix}:visible` to `'0'`.
+3. Sets `${storagePrefix}-elpath-enabled` to `'0'`.
+4. Removes the open-state key (`${storagePrefix}-open`).
+5. Unmounts the Preact shell (drives effect cleanups, removes root).
+
+#### Auto-remember on open
+
+Any action that shows the panel (`showDesignPanel()`, `toggleDesignPanel()`,
+or the panel's header button) MUST also write
+`${storagePrefix}:autoload = '1'`. This ensures that once the owner has
+opened the panel on any page, subsequent visits to the same site reload it
+automatically without a second explicit `enableAutoload()` call.
+
+**Consequence for public-site owners:** any open trigger (a visible button, a
+keyboard shortcut, etc.) becomes a de-facto owner-mode opt-in for anyone who
+uses it. Gate or omit such triggers on public sites; rely on the console
+`enableAutoload()` call as the owner's deliberate opt-in.
 
 ### 6.3 Astro view-transition lifecycle
 
@@ -791,14 +858,16 @@ The adapter's existing `astro:before-swap` and `astro:page-load` listeners
 stay. They are Astro-specific and only register when `document` is available:
 
 - `astro:before-swap` → unmount the Preact tree, remove the host node, snapshot/restore visibility intent.
-- `astro:page-load` → re-apply persisted overrides + re-materialise the shell when either gate probe is true.
+- `astro:page-load` → re-apply persisted overrides + re-materialise the shell when any of the four gate signals (§6.2) is true.
 
 ### 6.4 Console API
 
 ```ts
-window[consoleNamespace].showDesignPanel  = () => Promise<void>;
-window[consoleNamespace].hideDesignPanel  = () => Promise<void>;
+window[consoleNamespace].showDesignPanel   = () => Promise<void>;
+window[consoleNamespace].hideDesignPanel   = () => Promise<void>;
 window[consoleNamespace].toggleDesignPanel = () => Promise<void>;
+window[consoleNamespace].enableAutoload    = () => Promise<void>;  // owner-autoload opt-in
+window[consoleNamespace].disableAutoload   = () => Promise<void>;  // owner-autoload teardown
 ```
 
 ---
@@ -1045,7 +1114,7 @@ Cross-reference table — what each section pins down.
 | Apply pipeline request / response envelopes                                                 | §5.1          |
 | Reference-implementation algorithm + native-implementation guidance                         | §5.2, §5.3    |
 | Routing config single-source                                                                | §5.4          |
-| Astro `<DesignTokenPanelHost>` prop, lazy-load gate, console API                           | §6            |
+| Astro `<DesignTokenPanelHost>` prop, lazy-load gate (4-signal), owner-autoload, console API | §6            |
 | `--tokentweak-*` namespace and Tailwind-free CSS contract                                   | §7.1          |
 | Modal class prefix and `data-design-token-panel-modal` selector contract                    | §7.3          |
 | Self-contained panel chrome palette (no host theme reads)                                  | §7.4          |
