@@ -107,7 +107,9 @@ export const settings = {
     { label: "Claude", path: "/docs/claude", categoryMatch: "claude" },
   ] satisfies HeaderNavItem[] as HeaderNavItem[],
   headerRightItems: [
-    { type: "trigger", trigger: "design-token-panel" },
+    // design-token-panel trigger removed: panel is owner-only (opt-in via
+    // window.zdtpDoc.enableAutoload() in the console). General visitors must
+    // have no UI path that could accidentally arm the autoload flag.
     { type: "component", component: "version-switcher" },
     { type: "component", component: "github-link" },
     { type: "component", component: "theme-toggle" },

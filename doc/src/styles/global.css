@@ -368,7 +368,9 @@ body {
   outline: 2px solid color-mix(in oklch, var(--color-warning) 90%, transparent);
 }
 
-@import "@takazudo/zdtp/styles.css";
+/* @takazudo/zdtp/styles.css removed: the panel is owner-only (loaded via
+ * dynamic import). The package self-injects its <style> on first mount, so
+ * general visitors never download the panel CSS. */
 /* ========================================
  * Doc History Diff Viewer (side-by-side)
  * ======================================== */

@@ -36,13 +36,13 @@ import { AiChatModal } from "@takazudo/zudo-doc/ai-chat-modal";
 import { ImageEnlarge, ImageEnlargeSsrFallback } from "@takazudo/zudo-doc/image-enlarge";
 import { MermaidEnlarge, MermaidEnlargeSsrFallback } from "@takazudo/zudo-doc/mermaid-enlarge";
 
-import DesignTokenPanelBootstrap from "@/components/design-token-panel-bootstrap";
+import ZdtpOwnerStub from "@/components/zdtp-owner-stub";
 
 // AiChatModal, ImageEnlarge, MermaidEnlarge pin displayName internally in the
 // package. Optional feature islands that still need explicit call-site pinning
 // inject their displayName assignment at the slot below only when selected.
 
-(DesignTokenPanelBootstrap as { displayName?: string }).displayName = "DesignTokenPanelBootstrap";
+(ZdtpOwnerStub as { displayName?: string }).displayName = "ZdtpOwnerStub";
 
 /**
  * Default sr-only label rendered as the AiChatModal SSR fallback. This
@@ -162,16 +162,14 @@ export function BodyEndIslands({
       {imageEnlarge}
       {mermaidEnlarge}
 
-      {/* zdtp panel bootstrap: hydrates on load so configurePanel() runs early
-          and the toggle-design-token-panel listener is live before the user
-          clicks the header trigger. The inline script is the pre-hydration
-          shim that queues the first click (zudolab/zudo-doc#1627 Part B). */}
-      <script
-        dangerouslySetInnerHTML={{ __html: "(function(){\nif(window.__zdtpToggleShimInstalled)return;\nwindow.__zdtpToggleShimInstalled=true;\nvar pending=false;\nfunction shim(){pending=true;}\nwindow.addEventListener('toggle-design-token-panel',shim);\nwindow.__zdtpReadyClicks=function(){\nwindow.removeEventListener('toggle-design-token-panel',shim);\ndelete window.__zdtpReadyClicks;\nif(pending){pending=false;window.dispatchEvent(new CustomEvent('toggle-design-token-panel'));}\n};\n})();" }}
-      />
+      {/* zdtp owner stub: ships to all visitors but loads the heavy panel bundle
+          only for the opted-in owner (localStorage zdtp-doc-tweak:autoload==='1').
+          Also installs window.zdtpDoc.enableAutoload/disableAutoload for console
+          opt-in/opt-out. No header trigger button — general visitors have no UI
+          path into the panel. */}
       {Island({
         when: "load",
-        children: <DesignTokenPanelBootstrap />,
+        children: <ZdtpOwnerStub />,
       }) as unknown as VNode}
     </>
   );
