@@ -1,3 +1,4 @@
+import path from 'path';
 import { defineConfig, mergeConfig } from 'vitest/config';
 import { playwright } from '@vitest/browser-playwright';
 import viteConfig from './vite.config';
@@ -18,6 +19,15 @@ import viteConfig from './vite.config';
 export default mergeConfig(
   viteConfig,
   defineConfig({
+    resolve: {
+      alias: {
+        // Map the package self-reference used by host-adapter.ts's
+        // `import('@takazudo/zdtp')` (loadPanelModule) to the source entry so
+        // tests don't need a compiled dist/ in the worktree. The alias is
+        // test-only: vitest.config.ts is not read by `vite build`.
+        '@takazudo/zdtp': path.resolve(__dirname, 'src/index.tsx'),
+      },
+    },
     test: {
       globals: true,
       projects: [

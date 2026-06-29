@@ -58,7 +58,9 @@ import {
   type PanelConfig,
   type PanelInstanceHandle,
 } from '../config/panel-config';
-import { ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP } from '../state/tweak-state';
+import { ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP, getOpenKey } from '../state/tweak-state';
+import { shouldAutoload, setAutoload, clearAutoload } from '../state/autoload-state';
+import { loadElementPathEnabled, saveElementPathEnabled } from '../element-path/element-path-state';
 
 interface DesignTokenPanelAdapterState {
   /** Per-`storagePrefix` bind flag — re-runs of the script are no-ops. */
@@ -71,6 +73,8 @@ interface ConsoleApiSurface {
   showDesignPanel?: () => Promise<void>;
   hideDesignPanel?: () => Promise<void>;
   toggleDesignPanel?: () => Promise<void>;
+  enableAutoload?: () => Promise<void>;
+  disableAutoload?: () => Promise<void>;
   // Allow co-existence with other helpers a host may install on the same
   // namespace (e.g. `window.<ns>.someOtherDebugHelper()`).
   [extra: string]: unknown;
@@ -243,9 +247,13 @@ function installConsoleApi(
   namespace: string,
   state: DesignTokenPanelAdapterState,
   handle: PanelInstanceHandle,
+  cfg: PanelConfig,
 ): void {
   const existing = (win[namespace] as ConsoleApiSurface | undefined) ?? {};
   existing.showDesignPanel = async () => {
+    // Auto-remember: showing the panel arms autoload so future page loads
+    // reload it automatically (owner-mode semantics).
+    setAutoload(cfg, true);
     await loadPanelModule(state);
     handle.open();
   };
@@ -255,7 +263,48 @@ function installConsoleApi(
   };
   existing.toggleDesignPanel = async () => {
     await loadPanelModule(state);
+    // Snapshot the current open state BEFORE toggling so we know the
+    // post-toggle outcome. Auto-remember: arm autoload only when toggle
+    // results in the panel being open.
+    let willBeOpen = false;
+    try {
+      willBeOpen = window.localStorage.getItem(getOpenKey(cfg)) !== '1';
+    } catch {
+      /* storage unavailable — skip auto-remember for this toggle */
+    }
     handle.toggle();
+    if (willBeOpen) {
+      setAutoload(cfg, true);
+    }
+  };
+  existing.enableAutoload = async () => {
+    setAutoload(cfg, true);
+    saveElementPathEnabled(true);
+    // Order matters: await module load so lifecycle hooks are installed,
+    // THEN drive the panel to a CLOSED mount via handle.close().
+    await loadPanelModule(state);
+    handle.close();
+  };
+  existing.disableAutoload = async () => {
+    clearAutoload(cfg);
+    saveElementPathEnabled(false);
+    // Clear :visible flag (mirrors setStoredVisibility(cfg, false) in index.tsx).
+    try {
+      window.localStorage.setItem(storageKey_visible(cfg), '0');
+    } catch {
+      /* storage unavailable — degrade silently */
+    }
+    // Clear the open-state key so a future load does not re-open the panel.
+    try {
+      window.localStorage.removeItem(getOpenKey(cfg));
+    } catch {
+      /* storage unavailable — degrade silently */
+    }
+    // Hide the panel UI if the module was already loaded (no-op otherwise).
+    if (state.modulePromise !== null) {
+      await loadPanelModule(state);
+      handle.close();
+    }
   };
   win[namespace] = existing;
 }
@@ -294,18 +343,25 @@ function installConsoleApi(
   // 2. Install console API every time — `bound` only gates the lazy-load
   //    probes, since the console handlers are idempotent (re-assigning the
   //    same closures is a no-op semantically). Bind to this instance's handle.
-  installConsoleApi(win, cfg.consoleNamespace, state, handle);
+  installConsoleApi(win, cfg.consoleNamespace, state, handle, cfg);
 
   if (state.bound) return;
   state.bound = true;
 
   // 3. Lazy-load gate — eagerly load the panel module when the user had it
-  //    open last session OR has persisted token overrides. Either signal
-  //    means the panel must boot before first paint to avoid an FOUT.
+  //    open last session OR has persisted token overrides OR the owner-
+  //    autoload flag is set OR the element-path inspector is enabled. Any
+  //    signal means the panel must boot before first paint to avoid an FOUT
+  //    or a broken element-path inspector (which needs the Preact shell).
   const visibleKey = storageKey_visible(cfg);
   const stateV2Key = storageKey_stateV2(cfg);
   const stateV3Key = storageKey_stateV3(cfg);
-  if (wasVisible(visibleKey) || hasPersistedOverrides(stateV2Key, stateV3Key)) {
+  if (
+    wasVisible(visibleKey) ||
+    hasPersistedOverrides(stateV2Key, stateV3Key) ||
+    shouldAutoload(cfg) ||
+    loadElementPathEnabled()
+  ) {
     void loadPanelModule(state);
   }
 })();
