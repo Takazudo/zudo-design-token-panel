@@ -530,8 +530,8 @@ const handle = configurePanel({
 The Astro entry point (`<DesignTokenPanelHost>`) handles mounting for you. Internally:
 
 - The console API (`showDesignPanel` etc.) is **always installed eagerly**, even when the panel module has not loaded — calling them is what triggers the lazy import for cold-start users.
-- The panel module is **dynamically imported on first need**: either when the user calls a console helper, OR when first-paint detects either a `${storagePrefix}:visible` flag set to `1` or any `${storagePrefix}-state-v2` payload in `localStorage`.
-- This gating keeps the panel out of the initial JS bundle for first-time visitors while still re-applying overrides on hard reload for users who have tweaked things.
+- The panel module is **dynamically imported on first need**: when the user calls a console helper, OR when first-paint detects any of four gate signals in `localStorage` — `${storagePrefix}:visible` set to `1`, persisted overrides (`${storagePrefix}-state-v3`), the owner-autoload flag (`${storagePrefix}:autoload` set to `1`), or the element-path inspector enabled.
+- This gating keeps the panel out of the initial JS bundle for first-time visitors while still re-applying overrides on hard reload for users who have tweaked things. **General visitors** (none of the four signals set) pay zero bundle cost.
 
 For a Vite-only / non-Astro host, mount it yourself by importing the adapter module after `configurePanel(...)`. See §11.5.
 
@@ -891,6 +891,7 @@ Behaviour notes:
 | `open`      | `${storagePrefix}-open`     | Mirror of the panel's `open` boolean (synchronous mount-time read — preserves user intent across reloads, fixes #1549). |
 | `position`  | `${storagePrefix}-position` | Drag position `{ top, right }` so the panel reappears where the user left it.                                           |
 | `visible`   | `${storagePrefix}:visible`  | Adapter-level visibility-intent flag, owned by the lazy-load gate.                                                      |
+| `autoload`  | `${storagePrefix}:autoload` | Owner-mode autoload flag. When `'1'`, the panel bundle fetches eagerly on every page load and mounts CLOSED so the Alt+click element-path inspector is armed without opening the panel UI. Set by `enableAutoload()` and cleared by `disableAutoload()`. See §10.1. |
 
 For example, with `storagePrefix: 'myapp-design-token-panel'`:
 
@@ -901,11 +902,12 @@ myapp-design-token-panel-state
 myapp-design-token-panel-open
 myapp-design-token-panel-position
 myapp-design-token-panel:visible
+myapp-design-token-panel:autoload
 ```
 
-### Note: colon vs dash on the `visible` key
+### Note: colon vs dash — `visible` and `autoload`
 
-The `visible` key uses a literal `:` separator, not `-`. Every other derived key uses `-`. This is intentional — see [`PORTABLE-CONTRACT.md`](./PORTABLE-CONTRACT.md) §2 for the historical reason. Don't try to "normalize" it; the unit tests assert this specific shape.
+The `visible` and `autoload` keys use a literal `:` separator, not `-`. Every other derived key uses `-`. The colon form is intentional for these adapter-level flags — see [`PORTABLE-CONTRACT.md`](./PORTABLE-CONTRACT.md) §2 for the historical reason. Don't try to "normalize" them; the unit tests assert this specific shape.
 
 ### Scheme changes and the global tweak model
 
@@ -924,23 +926,69 @@ Two consequences worth knowing as a host integrator:
 
 ## 10. Console API contract
 
-Once `configurePanel` has run, the package installs three async helpers on the global `window[consoleNamespace]` object:
+Once `configurePanel` has run, the package installs async helpers on the global `window[consoleNamespace]` object:
 
 ```ts
-window.myapp.showDesignPanel(); // open the panel
-window.myapp.hideDesignPanel(); // close the panel
-window.myapp.toggleDesignPanel(); // toggle
+window.myapp.showDesignPanel();   // open the panel (lazy-loads the bundle on first call)
+window.myapp.hideDesignPanel();   // close the panel
+window.myapp.toggleDesignPanel(); // toggle open/closed
+
+// Owner-autoload (see §10.1)
+window.myapp.enableAutoload();  // arm owner-mode; panel loads CLOSED with Alt+click ready
+window.myapp.disableAutoload(); // disarm owner-mode; unmounts the panel
 ```
 
-All three are **async** — the first call lazy-imports the panel module. Subsequent calls share the memoised module promise and resolve synchronously after the first import completes.
+All helpers are **async** — the first call lazy-imports the panel module. Subsequent calls share the memoised module promise and resolve synchronously after the first import completes.
+
+### Backward-compatible: the on-demand flow is unchanged
+
+The pre-existing on-demand usage — calling `window.<consoleNamespace>.showDesignPanel()` / `hideDesignPanel()` / `toggleDesignPanel()` to lazy-import and initialize the panel — is **unchanged and fully supported**. Owner-autoload (§10.1) is an opt-in layered on top, not a replacement. If you never call `enableAutoload()`, the panel behaves exactly as it always did: nothing loads for any visitor until the first console call.
 
 ### Co-existing helpers on the same namespace
 
-The adapter **merges** its three helpers into any existing object at `window[namespace]` rather than overwriting the namespace wholesale. This means a host can share a namespace between multiple dev tools (e.g. `window.myapp.ogpDebug.show()` from a separate package, alongside `window.myapp.showDesignPanel()` from this one) without collisions.
+The adapter **merges** its helpers into any existing object at `window[namespace]` rather than overwriting the namespace wholesale. This means a host can share a namespace between multiple dev tools (e.g. `window.myapp.ogpDebug.show()` from a separate package, alongside `window.myapp.showDesignPanel()` from this one) without collisions.
 
 ### Default
 
 There is no default `consoleNamespace` exposed to consumers — the field is required on `PanelConfig`. Pick a short, unambiguous string (typically your app's slug).
+
+---
+
+### 10.1 Owner-autoload — loading the panel only for you
+
+**Use case:** you are deploying a public site and want the design-token panel available to yourself (the site owner) without loading any panel JS for general visitors. Once armed, every page load fetches the bundle eagerly and mounts the panel CLOSED — the Alt+click element-path inspector is ready immediately, and you can open the panel UI at any time.
+
+#### API surface
+
+Both the Astro host-adapter (`window[consoleNamespace].*`) and the package-root exports expose the same interface:
+
+| Call | Effect |
+|------|--------|
+| `window.myapp.enableAutoload()` | Sets `${storagePrefix}:autoload` to `'1'`, arms the element-path inspector (`-elpath-enabled`), loads the panel bundle, mounts CLOSED. |
+| `window.myapp.disableAutoload()` | Clears `:autoload`, `:visible`, `-elpath-enabled`, and the open-state key; unmounts the panel. |
+| `enableAutoload()` (package-root export) | Same as the console form — for non-Astro hosts. |
+| `disableAutoload()` (package-root export) | Same as the console form — for non-Astro hosts. |
+| `shouldAutoload()` (package-root export) | Returns `true` iff the flag is currently set. |
+
+#### The `${storagePrefix}:autoload` flag
+
+Stored in `localStorage` as `'1'` when armed, removed or `'0'` otherwise. The host-adapter's lazy-load gate reads this flag on every page load — when it is `'1'`, the panel bundle loads eagerly (the same as when the panel was previously visible or overrides are persisted). **General visitors** who have never called `enableAutoload()` have no flag and pay zero bundle cost.
+
+#### Auto-remember on open
+
+Opening the panel by any means — `showDesignPanel()`, `toggleDesignPanel()`, or clicking the panel's own header close button to re-open it — **automatically sets the `:autoload` flag**. This means once you open the panel you will be in owner-mode on subsequent page loads without calling `enableAutoload()` explicitly.
+
+#### Element-path coupling
+
+`enableAutoload()` arms the Alt+click element-path inspector by writing `-elpath-enabled = '1'`. The inspector runs inside the Preact shell; mounting the shell CLOSED (rather than unmounted) keeps the inspector functional even while the panel UI is hidden. You can still turn the inspector off via the in-panel toggle — `disableAutoload()` clears it as part of full teardown.
+
+#### Auto-remember footgun
+
+Because **any open trigger sets `:autoload`**, a visible "open panel" button, keyboard shortcut, or similar affordance on your site becomes a de-facto owner-mode opt-in for anyone who clicks it. On an owner-only public site:
+
+- Gate or omit such triggers (hide them behind a login check, remove them from the production build, etc.).
+- Rely on the console `enableAutoload()` call as the owner's explicit opt-in.
+- See the [Load the panel only for you](/docs/recipes/owner-autoload) recipe for a safe worked example.
 
 ---
 
