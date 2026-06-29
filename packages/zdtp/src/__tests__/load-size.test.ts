@@ -56,6 +56,15 @@ describe('defaultSize', () => {
     expect(size.width).toBe(1200);
     expect(size.height).toBe(800);
   });
+
+  it('clamps up to the MIN_PANEL floor on a phone-width viewport (375×667)', () => {
+    // 0.8 * 375 = 300, below MIN_PANEL_WIDTH (320) — the panel stays usable
+    // and draggable/resizable at this width since narrow mode was removed.
+    setViewport(375, 667);
+    const size = defaultSize();
+    expect(size.width).toBe(MIN_PANEL_WIDTH);
+    expect(size.height).toBeCloseTo(0.8 * 667); // 533.6, above MIN_PANEL_HEIGHT
+  });
 });
 
 describe('loadSize', () => {
