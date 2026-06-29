@@ -50,7 +50,6 @@ import { clampHueForPersist, type Channel } from '../../utils/palette-curve';
 import { PaletteChart } from '../../components/palette-chart';
 import { ColorField } from '../../components/color-picker/color-field';
 import PaletteReadout from './palette-readout';
-import './palette-edit-view.css';
 
 // ---------------------------------------------------------------------------
 // Props

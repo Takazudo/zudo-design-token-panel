@@ -14,6 +14,10 @@
  *   F. The panel CSS sources do NOT read host `--color-*` or `--font-mono`
  *      — the panel ships a self-contained dark palette in panel-tokens.css
  *      and host theme changes must not bleed into the panel chrome.
+ *   G. The panel's two CSS delivery paths (the `dist/zdtp.css` / `./styles`
+ *      export and the self-injected `<style>` string) cannot diverge: all
+ *      component CSS flows through a single `panel.css` `@import` aggregate,
+ *      with no side-effect `.css` imports outside `index.tsx` (guards #413).
  *
  * Historical Invariants A, B (no `group:` / `advancedTiers:` in example
  * manifests) are now enforced by TypeScript at panel-package compile time
@@ -138,5 +142,81 @@ describe('Invariant F — panel CSS does not read host theme vars', () => {
 
   it('panel-tokens.css declares the baked-in dark --tokentweak-color-fg', () => {
     expect(panelTokens).toMatch(/--tokentweak-color-fg\s*:\s*#b8b8b8/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// G. The two CSS delivery paths cannot diverge.
+//
+//    The package ships its CSS two ways from ONE source (src/index.tsx):
+//      - `import './styles/panel.css'`        → aggregated into dist/zdtp.css
+//                                                (the `./styles` export)
+//      - `import css from './styles/panel.css?inline'` → the string the panel
+//                                                self-injects as a <style> at
+//                                                runtime (the lazy, no-import
+//                                                delivery path since #219)
+//    Both read the SAME panel.css, so a rule is in both paths IFF it is part of
+//    panel.css's `@import` graph. A component that side-effect-imports its own
+//    `.css` (e.g. `import './foo.css'` in foo.tsx) lands ONLY in dist/zdtp.css
+//    — Vite aggregates side-effect CSS into the emitted stylesheet but does NOT
+//    add it to the `?inline` string of panel.css. That is exactly the #413 bug:
+//    palette-edit-view.css / palette-chart.css rendered for `./styles` consumers
+//    but were missing from the self-injected stylesheet.
+//
+//    Two static guards keep the paths in sync:
+//      G1 — no source file except index.tsx may import a `.css` (side-effect or
+//           `?inline`); every component stylesheet must flow through panel.css.
+//      G2 — panel.css must `@import` every other `.css` file under src/, so the
+//           single aggregate is complete.
+// ---------------------------------------------------------------------------
+
+describe('Invariant G — CSS self-inject and ./styles paths stay in sync', () => {
+  const SRC_DIR = path.resolve(__dirname, '..');
+  const STYLES_DIR = path.resolve(SRC_DIR, 'styles');
+  const PANEL_CSS = path.join(STYLES_DIR, 'panel.css');
+
+  /** Recursively collect files under `dir` matching `pred`, skipping __tests__. */
+  function walk(dir: string, pred: (name: string) => boolean): string[] {
+    const out: string[] = [];
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (e.isDirectory()) {
+        if (e.name === '__tests__') continue;
+        out.push(...walk(path.join(dir, e.name), pred));
+      } else if (e.isFile() && pred(e.name)) {
+        out.push(path.join(dir, e.name));
+      }
+    }
+    return out;
+  }
+
+  const isSource = (name: string) =>
+    (name.endsWith('.ts') || name.endsWith('.tsx')) &&
+    !name.endsWith('.test.ts') &&
+    !name.endsWith('.test.tsx') &&
+    !name.endsWith('.d.ts');
+
+  // Matches both `import './foo.css'` and `import x from './foo.css?inline'`.
+  const CSS_IMPORT = /\bimport\b[^\n]*['"][^'"]+\.css(?:\?[^'"]*)?['"]/;
+
+  it('only src/index.tsx imports a .css file (everything else flows through panel.css)', () => {
+    const offenders = walk(SRC_DIR, isSource)
+      .filter((file) => CSS_IMPORT.test(fs.readFileSync(file, 'utf8')))
+      .map((file) => path.relative(SRC_DIR, file))
+      .filter((rel) => rel !== 'index.tsx');
+    expect(offenders).toEqual([]);
+  });
+
+  it('panel.css @imports every other .css file under src/ (complete aggregate)', () => {
+    const panelCss = fs.readFileSync(PANEL_CSS, 'utf8');
+    const importTargets = [...panelCss.matchAll(/@import\s+['"]([^'"]+)['"]/g)].map((m) =>
+      path.resolve(STYLES_DIR, m[1]),
+    );
+    const everyOtherCss = walk(SRC_DIR, (name) => name.endsWith('.css')).filter(
+      (file) => file !== PANEL_CSS,
+    );
+    const missing = everyOtherCss
+      .filter((file) => !importTargets.includes(file))
+      .map((file) => path.relative(SRC_DIR, file));
+    expect(missing).toEqual([]);
   });
 });

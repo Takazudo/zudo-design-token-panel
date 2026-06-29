@@ -16,7 +16,6 @@ import {
   type Channel,
 } from '../../utils/palette-curve';
 import { oklchaToHex, type Oklcha } from '../../utils/color-oklch';
-import './palette-chart.css';
 
 /**
  * PaletteChart — controlled, presentational OKLCH L/C/H curve editor.
