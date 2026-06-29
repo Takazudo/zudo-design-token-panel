@@ -278,16 +278,29 @@ function installConsoleApi(
     }
   };
   existing.enableAutoload = async () => {
-    setAutoload(cfg, true);
-    saveElementPathEnabled(true);
-    // Order matters: await module load so lifecycle hooks are installed,
-    // THEN drive the panel to a CLOSED mount via handle.close().
-    await loadPanelModule(state);
-    handle.close();
+    // Delegate to the module's cfg-aware implementation — the single source of
+    // the owner-mode contract. It sets `:autoload`, arms element-path for THIS
+    // instance, and mounts the shell CLOSED. We must `await` the load first so
+    // the lifecycle hooks are installed before it drives the mount.
+    const mod = await loadPanelModule(state);
+    mod.enableAutoload(cfg);
   };
   existing.disableAutoload = async () => {
+    // If the panel module was already loaded, delegate to its cfg-aware
+    // disableAutoload: it clears every owner-mode key for THIS instance AND
+    // fully UNMOUNTS the shell, tearing down the live Alt+click inspector
+    // immediately. (Closing alone would leave the inspector armed until the
+    // next reload, because clearing localStorage does not update the mounted
+    // ElementPathOrchestrator's React state.)
+    if (state.modulePromise !== null) {
+      const mod = await loadPanelModule(state);
+      mod.disableAutoload(cfg);
+      return;
+    }
+    // Module never loaded: clear the persisted owner-mode keys for THIS instance
+    // directly, without pulling the bundle just to tear nothing down.
     clearAutoload(cfg);
-    saveElementPathEnabled(false);
+    saveElementPathEnabled(false, cfg);
     // Clear :visible flag (mirrors setStoredVisibility(cfg, false) in index.tsx).
     try {
       window.localStorage.setItem(storageKey_visible(cfg), '0');
@@ -299,11 +312,6 @@ function installConsoleApi(
       window.localStorage.removeItem(getOpenKey(cfg));
     } catch {
       /* storage unavailable — degrade silently */
-    }
-    // Hide the panel UI if the module was already loaded (no-op otherwise).
-    if (state.modulePromise !== null) {
-      await loadPanelModule(state);
-      handle.close();
     }
   };
   win[namespace] = existing;
@@ -360,7 +368,7 @@ function installConsoleApi(
     wasVisible(visibleKey) ||
     hasPersistedOverrides(stateV2Key, stateV3Key) ||
     shouldAutoload(cfg) ||
-    loadElementPathEnabled()
+    loadElementPathEnabled(cfg)
   ) {
     void loadPanelModule(state);
   }

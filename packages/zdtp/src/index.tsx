@@ -442,39 +442,43 @@ export function toggleDesignPanel(): void {
 }
 
 /**
- * Arm the owner-autoload flag for the default panel instance.
+ * Arm the owner-autoload flag for a panel instance (defaults to the active
+ * default instance).
  *
  * For non-Astro hosts (e.g. the doc site bootstrapped via `@takazudo/zudo-doc`)
- * that cannot use the Astro console adapter (S2). Mirrors the S2 contract from
+ * that cannot use the Astro console adapter (S2); the adapter also delegates its
+ * per-namespace `enableAutoload` here with the captured `cfg` so it targets the
+ * right instance on multi-instance pages. Mirrors the S2 contract from
  * `autoload-state.ts §enableAutoload()`:
  *   1. Sets `:autoload = '1'`.
  *   2. Sets `-elpath-enabled = '1'` to arm the alt+click inspector.
  *   3. Mounts the Preact shell CLOSED (element-path inspector activates without
  *      opening the panel UI).
  */
-export function enableAutoload(): void {
-  const cfg = getPanelConfig();
+export function enableAutoload(cfg: PanelConfig = getPanelConfig()): void {
   setAutoload(cfg, true);
-  saveElementPathEnabled(true);
+  saveElementPathEnabled(true, cfg);
   hideInstance(cfg);
 }
 
 /**
- * Disarm the owner-autoload flag for the default panel instance and fully tear
- * down the owner-mode state.
+ * Disarm the owner-autoload flag for a panel instance (defaults to the active
+ * default instance) and fully tear down the owner-mode state.
  *
- * Mirrors the S2 contract from `autoload-state.ts §disableAutoload()`:
+ * The Astro host adapter delegates its per-namespace `disableAutoload` here with
+ * the captured `cfg`, so the live Alt+click inspector is unmounted immediately
+ * (not merely closed) and the right instance is targeted on multi-instance
+ * pages. Mirrors the S2 contract from `autoload-state.ts §disableAutoload()`:
  *   1. Clears `:autoload`.
  *   2. Clears `:visible` (sets to `'0'`).
  *   3. Clears `-elpath-enabled` (sets to `'0'`).
  *   4. Removes the open-state key so the next mount starts closed.
  *   5. Unmounts the Preact shell (drives effect cleanups, removes root).
  */
-export function disableAutoload(): void {
-  const cfg = getPanelConfig();
+export function disableAutoload(cfg: PanelConfig = getPanelConfig()): void {
   clearAutoload(cfg);
   setStoredVisibility(cfg, false);
-  saveElementPathEnabled(false);
+  saveElementPathEnabled(false, cfg);
   seedOpenStateBeforeMount(cfg, false);
   unmountInstance(cfg);
 }
@@ -564,7 +568,7 @@ function reapplyFromStorage(): void {
   reapplyPersistedOverrides();
   if (wasVisible(cfg)) {
     showInstance(cfg);
-  } else if (hasPersistedOverrides(cfg) || loadElementPathEnabled() || _shouldAutoload(cfg)) {
+  } else if (hasPersistedOverrides(cfg) || loadElementPathEnabled(cfg) || _shouldAutoload(cfg)) {
     // Gate #2 — per autoload-state.ts contract: owner-mode page loads mount
     // the Preact shell CLOSED so the element-path inspector is available even
     // while the panel UI is hidden.
