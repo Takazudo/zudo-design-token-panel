@@ -20,6 +20,7 @@
 import type { ComponentChildren } from "preact";
 import { createMdxComponents as createMdxComponentsBase } from "@takazudo/zudo-doc/mdx-components";
 import { HtmlPreviewWrapper, type HtmlPreviewWrapperProps } from "@takazudo/zudo-doc/html-preview-wrapper";
+import type { FactoryComponent, FactoryComponents } from "@takazudo/zudo-doc/factory-context";
 import { defaultLocale, type Locale } from "@/config/i18n";
 import { settings } from "@/config/settings";
 import { CategoryNavWrapper } from "./lib/_category-nav";
@@ -56,6 +57,50 @@ function IslandWrapper(props: {
 }
 
 /**
+ * The locale-bound nav wrappers, shaped as the chrome `components` allowlist
+ * (`FactoryComponents`). These are the SAME wrappers passed as `navData` to the
+ * package MDX factory below; exporting them here lets `pages/lib/_chrome.ts`
+ * seed `ChromeContext.components` so the v2 page-chrome renderer reuses the
+ * host's project-bound nav wrappers (which read the host content collections)
+ * instead of rebuilding the package-default wrappers — keeping MDX/nav output
+ * byte-identical to the v1 baseline.
+ */
+export const mdxNavComponents: FactoryComponents = {
+  CategoryNav: CategoryNavWrapper as unknown as FactoryComponent,
+  CategoryTreeNav: CategoryTreeNavWrapper as unknown as FactoryComponent,
+  SiteTreeNav: SiteTreeNavWrapper as unknown as FactoryComponent,
+};
+
+/**
+ * Host MDX content-component overrides + showcase stubs, shaped as the chrome
+ * `hostBindings.mdxExtras` bag. The v2 renderer merges this over the package
+ * defaults (Details / HtmlPreview / Island / PresetGenerator), so passing the
+ * host's exact extras keeps MDX content rendering identical to v1 AND supplies
+ * the showcase-only tags (SmartBreak / Avatar / Button / Card / MyComponent /
+ * PageLayout) the package defaults do not carry.
+ */
+export const mdxExtras: Record<string, FactoryComponent> = {
+  HtmlPreview: HtmlPreviewWithGlobalConfig as unknown as FactoryComponent,
+  Details: DetailsWrapper as unknown as FactoryComponent,
+  // SmartBreak: corpus tag with no visual rendering — render nothing.
+  SmartBreak: MdxStub as unknown as FactoryComponent,
+  // Island: pass children through so server-renderable content nested
+  // inside <Island> appears in SSR HTML. See IslandWrapper comment above.
+  Island: IslandWrapper as unknown as FactoryComponent,
+  // PresetGenerator: SSR fallback shell that renders the 8 section headings;
+  // the interactive form hydrates client-side via the SSR-skip placeholder
+  // inside PresetGeneratorFallback (see pages/lib/_preset-generator.tsx).
+  PresetGenerator: PresetGeneratorFallback as unknown as FactoryComponent,
+  // Pure showcase placeholders — appear only inside MDX prose as
+  // illustrative examples, never implemented as real components.
+  Avatar: MdxStub as unknown as FactoryComponent,
+  Button: MdxStub as unknown as FactoryComponent,
+  Card: MdxStub as unknown as FactoryComponent,
+  MyComponent: MdxStub as unknown as FactoryComponent,
+  PageLayout: MdxStub as unknown as FactoryComponent,
+};
+
+/**
  * Build a locale-aware MDX components map for the given locale.
  *
  * Delegates the package-resident components to the `@takazudo/zudo-doc`
@@ -76,26 +121,7 @@ export function createMdxComponents(lang: Locale | string = defaultLocale) {
       CategoryTreeNav: CategoryTreeNavWrapper as unknown as (props: Record<string, unknown>) => unknown,
       SiteTreeNav: SiteTreeNavWrapper as unknown as (props: Record<string, unknown>) => unknown,
     },
-    extras: {
-      HtmlPreview: HtmlPreviewWithGlobalConfig,
-      Details: DetailsWrapper,
-      // SmartBreak: corpus tag with no visual rendering — render nothing.
-      SmartBreak: MdxStub,
-      // Island: pass children through so server-renderable content nested
-      // inside <Island> appears in SSR HTML. See IslandWrapper comment above.
-      Island: IslandWrapper,
-      // PresetGenerator: SSR fallback shell that renders the 8 section headings;
-      // the interactive form hydrates client-side via the SSR-skip placeholder
-      // inside PresetGeneratorFallback (see pages/lib/_preset-generator.tsx).
-      PresetGenerator: PresetGeneratorFallback,
-      // Pure showcase placeholders — appear only inside MDX prose as
-      // illustrative examples, never implemented as real components.
-      Avatar: MdxStub,
-      Button: MdxStub,
-      Card: MdxStub,
-      MyComponent: MdxStub,
-      PageLayout: MdxStub,
-    },
+    extras: mdxExtras as unknown as Record<string, (props: Record<string, unknown>) => unknown>,
   });
 }
 
