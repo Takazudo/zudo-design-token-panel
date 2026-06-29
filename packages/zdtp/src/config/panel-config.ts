@@ -714,6 +714,17 @@ export function storageKey_visible(cfg: PanelConfig): string {
   return `${cfg.storagePrefix}:visible`;
 }
 
+/**
+ * Adapter-level owner-autoload intent flag, paired with `:visible`.
+ *
+ * Marks this browser as the site-owner device so the host-adapter eagerly
+ * loads the bundle on every subsequent visit. Uses the same `:` separator as
+ * `:visible` (distinct from the `-` separator on all other derived keys).
+ */
+export function storageKey_autoload(cfg: PanelConfig): string {
+  return `${cfg.storagePrefix}:autoload`;
+}
+
 /** DOM id of the root element the Preact panel tree mounts into. */
 export function panelRootId(cfg: PanelConfig): string {
   return `${cfg.storagePrefix}-root`;
