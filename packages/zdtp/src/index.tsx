@@ -67,7 +67,12 @@ import {
   toggleEventName,
   type PanelConfig,
 } from './config/panel-config';
-import { loadElementPathEnabled } from './element-path/element-path-state';
+import { loadElementPathEnabled, saveElementPathEnabled } from './element-path/element-path-state';
+import {
+  shouldAutoload as _shouldAutoload,
+  setAutoload,
+  clearAutoload,
+} from './state/autoload-state';
 
 // ---------------------------------------------------------------------------
 // Public DOM contract (kept in sync with astro/host-adapter.ts)
@@ -376,6 +381,9 @@ function showInstance(cfg: PanelConfig): void {
   seedOpenStateBeforeMount(cfg, true);
   ensureMounted(cfg);
   setStoredVisibility(cfg, true);
+  // Auto-remember: any action that shows the panel arms the owner-autoload flag
+  // so subsequent page loads reload it automatically (contract from autoload-state.ts).
+  setAutoload(cfg, true);
   // Fresh mount: panel.tsx's mount-effect picks up OPEN_KEY="1" and renders
   // open — no listener race because the listener doesn't run yet anyway.
   if (isFreshMount) return;
@@ -413,6 +421,9 @@ function toggleInstance(cfg: PanelConfig): void {
   seedOpenStateBeforeMount(cfg, willBeOpen);
   ensureMounted(cfg);
   setStoredVisibility(cfg, willBeOpen);
+  // Auto-remember: opening via toggle arms autoload so the panel reloads on
+  // the next page visit (contract from autoload-state.ts).
+  if (willBeOpen) setAutoload(cfg, true);
   // Fresh mount: seed already drove the mount-effect to the desired state.
   if (isFreshMount) return;
   notifyPanelOpenChanged(cfg);
@@ -428,6 +439,59 @@ export function hideDesignTokenPanel(): void {
 
 export function toggleDesignPanel(): void {
   toggleInstance(getPanelConfig());
+}
+
+/**
+ * Arm the owner-autoload flag for the default panel instance.
+ *
+ * For non-Astro hosts (e.g. the doc site bootstrapped via `@takazudo/zudo-doc`)
+ * that cannot use the Astro console adapter (S2). Mirrors the S2 contract from
+ * `autoload-state.ts §enableAutoload()`:
+ *   1. Sets `:autoload = '1'`.
+ *   2. Sets `-elpath-enabled = '1'` to arm the alt+click inspector.
+ *   3. Mounts the Preact shell CLOSED (element-path inspector activates without
+ *      opening the panel UI).
+ */
+export function enableAutoload(): void {
+  const cfg = getPanelConfig();
+  setAutoload(cfg, true);
+  saveElementPathEnabled(true);
+  hideInstance(cfg);
+}
+
+/**
+ * Disarm the owner-autoload flag for the default panel instance and fully tear
+ * down the owner-mode state.
+ *
+ * Mirrors the S2 contract from `autoload-state.ts §disableAutoload()`:
+ *   1. Clears `:autoload`.
+ *   2. Clears `:visible` (sets to `'0'`).
+ *   3. Clears `-elpath-enabled` (sets to `'0'`).
+ *   4. Removes the open-state key so the next mount starts closed.
+ *   5. Unmounts the Preact shell (drives effect cleanups, removes root).
+ */
+export function disableAutoload(): void {
+  const cfg = getPanelConfig();
+  clearAutoload(cfg);
+  setStoredVisibility(cfg, false);
+  saveElementPathEnabled(false);
+  seedOpenStateBeforeMount(cfg, false);
+  unmountInstance(cfg);
+}
+
+/**
+ * Return `true` iff the default panel instance has the owner-autoload flag set.
+ * Thin wrapper over `shouldAutoload(cfg)` from `./state/autoload-state` that
+ * reads the default instance's config so non-Astro hosts do not need to import
+ * from the internal sub-path.
+ */
+export function shouldAutoload(): boolean {
+  return _shouldAutoload(getPanelConfig());
+}
+
+/** Test-only: invoke `reapplyFromStorage` with the current active config. */
+export function __reapplyFromStorageForTests(): void {
+  reapplyFromStorage();
 }
 
 /**
@@ -500,7 +564,10 @@ function reapplyFromStorage(): void {
   reapplyPersistedOverrides();
   if (wasVisible(cfg)) {
     showInstance(cfg);
-  } else if (hasPersistedOverrides(cfg) || loadElementPathEnabled()) {
+  } else if (hasPersistedOverrides(cfg) || loadElementPathEnabled() || _shouldAutoload(cfg)) {
+    // Gate #2 — per autoload-state.ts contract: owner-mode page loads mount
+    // the Preact shell CLOSED so the element-path inspector is available even
+    // while the panel UI is hidden.
     hideInstance(cfg);
   }
 }
@@ -554,6 +621,10 @@ function handleExternalToggleEvent(cfg: PanelConfig): void {
   const willBeOpen = isFreshMount ? true : !isPanelCurrentlyOpen(cfg);
   seedOpenStateBeforeMount(cfg, willBeOpen);
   ensureMounted(cfg);
+  // Auto-remember: the header button / window event opens the panel → arm
+  // autoload so the panel reloads automatically on the next page visit
+  // (contract from autoload-state.ts).
+  if (willBeOpen) setAutoload(cfg, true);
   // Fresh mount: the seed has already driven the mount-effect to the desired
   // state; no in-component listener exists to notify yet. The sync event
   // would harmlessly land in the void.
