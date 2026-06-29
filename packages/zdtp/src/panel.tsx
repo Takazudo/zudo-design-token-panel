@@ -62,32 +62,20 @@ const DEFAULT_TAB_ID: ReservedTabId = 'color';
 
 // --- Panel sizing ---
 
-/** Below this width the panel switches to narrow mode (non-draggable, centered, capped width). */
-const NARROW_BREAKPOINT = 900;
-
-function computePanelSize(
-  viewportW: number,
-  _viewportH: number,
-  storedSize: PanelSize,
-): {
-  width: number | string;
-  height: number | string;
-  narrow: boolean;
+/**
+ * The panel is always draggable, movable, and resizable — on any viewport
+ * width. `loadSize` / `defaultSize` already clamp the stored size to the
+ * viewport (down to MIN_PANEL_WIDTH/HEIGHT), and `clampPosition` keeps a
+ * visible slice on-screen, so a fixed-px panel stays usable on narrow windows
+ * without a separate centered/locked layout.
+ */
+function computePanelSize(storedSize: PanelSize): {
+  width: number;
+  height: number;
 } {
-  const narrow = viewportW < NARROW_BREAKPOINT;
-  if (narrow) {
-    return {
-      width: `min(calc(100vw - 16px), 500px)`,
-      height: `min(800px, calc(100vh - 32px))`,
-      narrow,
-    };
-  }
-  // Wide mode: fixed px sourced from user-resizable state. `loadSize` /
-  // `defaultSize` already clamp to viewport, so we can trust the values here.
   return {
     width: storedSize.width,
     height: storedSize.height,
-    narrow,
   };
 }
 
@@ -161,7 +149,6 @@ export default function DesignTokenTweakPanel({
   const [position, setPosition] = useState<PanelPosition>(DEFAULT_POSITION);
   const [size, setSize] = useState<PanelSize>(defaultSize);
   const [density, setDensity] = useState<PanelDensity>(DEFAULT_DENSITY);
-  const [isNarrow, setIsNarrow] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   // tabRefs is now keyed by string to support host-supplied tab ids.
   const tabRefs = useRef<Record<string, HTMLDivElement | null>>({
@@ -197,8 +184,6 @@ export default function DesignTokenTweakPanel({
     setSize(loadedSize);
     sizeRef.current = loadedSize;
     setDensity(loadDensity(instanceConfig));
-    // Initial narrow-check
-    setIsNarrow(window.innerWidth < NARROW_BREAKPOINT);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -343,8 +328,6 @@ export default function DesignTokenTweakPanel({
 
   // Drag handler for panel header (stable — reads position from ref)
   const handleDragStart = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    // Drag disabled on narrow viewports.
-    if (window.innerWidth < NARROW_BREAKPOINT) return;
     // Skip if target is a button (or role=button/tab div), select, or inside one
     const target = e.target as HTMLElement;
     if (target.closest("button, select, option, [role='tab'], [role='button']")) return;
@@ -398,9 +381,6 @@ export default function DesignTokenTweakPanel({
   // re-renders of the whole panel) and commits the final value to React
   // state + localStorage on mouseup.
   const handleResizeStart = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    // Resize disabled on narrow viewports — the panel is centered and the
-    // grip is hidden anyway, but guard defensively.
-    if (window.innerWidth < NARROW_BREAKPOINT) return;
     e.preventDefault();
     e.stopPropagation();
     const startX = e.clientX;
@@ -460,10 +440,10 @@ export default function DesignTokenTweakPanel({
     };
   }, []);
 
-  // Re-clamp position + size on window resize, update narrow-mode flag
+  // Re-clamp position + size on window resize so a viewport shrink keeps the
+  // panel within bounds.
   useEffect(() => {
     function handleResize() {
-      setIsNarrow(window.innerWidth < NARROW_BREAKPOINT);
       // Re-clamp size first — a viewport shrink might force a smaller panel,
       // and the new dimensions feed into the position clamp below.
       setSize((prev) => {
@@ -566,27 +546,9 @@ export default function DesignTokenTweakPanel({
       <ElementPathOrchestrator>
       <TooltipProvider>
       {open && (() => {
-        const {
-          width: panelW,
-          height: panelH,
-          narrow,
-        } = computePanelSize(
-          typeof window !== 'undefined' ? window.innerWidth : 1024,
-          typeof window !== 'undefined' ? window.innerHeight : 768,
-          size,
-        );
+        const { width: panelW, height: panelH } = computePanelSize(size);
 
-        // In narrow mode, ignore saved position — center safely near the top.
-        const panelPos =
-          narrow || isNarrow
-            ? {
-                position: 'fixed' as const,
-                top: 16,
-                left: '50%',
-                transform: 'translateX(-50%)',
-                right: 'auto' as const,
-              }
-            : { position: 'fixed' as const, top: position.top, left: position.left };
+        const panelPos = { position: 'fixed' as const, top: position.top, left: position.left };
 
         return (
           <>
@@ -604,10 +566,10 @@ export default function DesignTokenTweakPanel({
           ['--tokenpanel-grid-min' as string]: densityToGridMin(density),
         }}
       >
-        {/* Header row (expert/reset) — draggable on desktop only */}
+        {/* Header row (expert/reset) — drag to move the panel */}
         <div
           className="tokenpanel-header"
-          style={{ cursor: narrow || isNarrow ? 'default' : 'move' }}
+          style={{ cursor: 'move' }}
           onMouseDown={handleDragStart}
         >
           <span className="tokenpanel-title">Design Tokens</span>
@@ -837,22 +799,18 @@ export default function DesignTokenTweakPanel({
           })}
         </div>
 
-        {/* Bottom-right resize grip. Hidden in narrow (centered) mode where
-            the panel is sized by CSS expressions and dragging would conflict
-            with the touch-first layout.
+        {/* Bottom-right resize grip — available on every viewport width.
 
             ARIA: `role="separator"` would imply a 1D resizer between two
             regions; this grip resizes the panel on both axes, which has no
             standard role. We keep just `aria-label` for SR users — keyboard
             resize is intentionally out of scope. */}
-        {!(narrow || isNarrow) && (
-          <div
-            className="tokenpanel-resize-handle"
-            onMouseDown={handleResizeStart}
-            aria-label="Resize panel"
-            title="Drag to resize"
-          />
-        )}
+        <div
+          className="tokenpanel-resize-handle"
+          onMouseDown={handleResizeStart}
+          aria-label="Resize panel"
+          title="Drag to resize"
+        />
       </div>
 
       {showExport && state && (

@@ -67,6 +67,7 @@ import {
   toggleEventName,
   type PanelConfig,
 } from './config/panel-config';
+import { loadElementPathEnabled } from './element-path/element-path-state';
 
 // ---------------------------------------------------------------------------
 // Public DOM contract (kept in sync with astro/host-adapter.ts)
@@ -482,8 +483,12 @@ function unmountForSwap(): void {
 
 /**
  * Re-materialise the shell on a page load when either (a) the user had the
- * panel visible before navigation, or (b) overrides are persisted and need
- * reapplying even while the panel stays hidden.
+ * panel visible before navigation, (b) overrides are persisted and need
+ * reapplying even while the panel stays hidden, or (c) the Element Path Copy
+ * inspector is enabled — its Alt+click "copy selector" gesture must work even
+ * when the panel is closed, and the inspector overlay only runs while the
+ * Preact shell (and its ElementPathOrchestrator) is mounted. Cases (b) and (c)
+ * mount the shell CLOSED via `hideInstance`.
  *
  * Overrides are applied to `:root` first (cheap, no Preact render) so the
  * post-swap paint uses the persisted values immediately instead of waiting
@@ -495,7 +500,7 @@ function reapplyFromStorage(): void {
   reapplyPersistedOverrides();
   if (wasVisible(cfg)) {
     showInstance(cfg);
-  } else if (hasPersistedOverrides(cfg)) {
+  } else if (hasPersistedOverrides(cfg) || loadElementPathEnabled()) {
     hideInstance(cfg);
   }
 }

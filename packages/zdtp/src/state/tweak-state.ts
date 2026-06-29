@@ -233,14 +233,17 @@ export const DEFAULT_SIZE: PanelSize = { width: 1024 * 0.8, height: 768 * 0.8 };
 /**
  * Compute the first-open panel size in px. Mirrors the historical CSS
  * `min(1200, 0.8 * vw)` × `min(800, 0.8 * vh)` rule so existing users
- * experience the same default size after this PR ships.
+ * experience the same default size, then clamps through `clampSize` so the
+ * result respects the MIN_PANEL_* floor and the viewport cap. The floor only
+ * bites on phone-width viewports (e.g. 375px → 0.8*375 = 300, raised to the
+ * 320 min); on normal viewports the clamp is a no-op.
  */
 export function defaultSize(): PanelSize {
   if (typeof window === 'undefined') return DEFAULT_SIZE;
-  return {
-    width: Math.min(1200, 0.8 * window.innerWidth),
-    height: Math.min(800, 0.8 * window.innerHeight),
-  };
+  return clampSize(
+    Math.min(1200, 0.8 * window.innerWidth),
+    Math.min(800, 0.8 * window.innerHeight),
+  );
 }
 
 /** Margin kept around the panel when clamping size against the viewport. */
