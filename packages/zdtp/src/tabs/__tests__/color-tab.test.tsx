@@ -36,6 +36,7 @@ import ColorTab from '../color-tab';
 import { TooltipProvider } from '../../controls/tooltip';
 import type { TabConfig } from '../../tokens/tier-model';
 import type { ColorTweakState } from '../../state/tweak-state';
+import type { PersistColor, PersistSecondary } from '../../state/persist';
 import {
   installFixturePanelConfig,
   FIXTURE_CLUSTER,
@@ -160,6 +161,8 @@ function renderColorTab(
     colorState?: ColorTweakState;
     secondaryTab?: TabConfig | null;
     secondaryState?: ColorTweakState | null;
+    persistColor?: PersistColor;
+    persistSecondary?: PersistSecondary;
   } = {},
 ): void {
   const {
@@ -167,6 +170,8 @@ function renderColorTab(
     colorState = makeColorState(),
     secondaryTab = null,
     secondaryState = null,
+    persistColor = noop,
+    persistSecondary = noop,
   } = opts;
   act(() => {
     render(
@@ -175,10 +180,10 @@ function renderColorTab(
           <ColorTab
             tab={tab}
             state={colorState}
-            persistColor={noop}
+            persistColor={persistColor}
             secondaryTab={secondaryTab}
             secondaryState={secondaryState}
-            persistSecondary={noop}
+            persistSecondary={persistSecondary}
           />
         </HighlightContext.Provider>
       </TooltipProvider>,
@@ -716,5 +721,227 @@ describe('S4 — no native title attribute on tooltip triggers', () => {
 
     const trigger = container.querySelector('.tokenpanel-palette-trigger') as HTMLElement;
     expect(trigger.getAttribute('aria-label')).toBeTruthy();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #436 — palette tier `type.format: 'oklch'` routes swatch edits through the
+// lossless OKLCH editor, while every cluster feature still renders. Semantic /
+// base rows stay index-based (they reference palette slots, so they inherit
+// OKLCH transitively) and are NOT converted to direct color editors.
+// ---------------------------------------------------------------------------
+
+/** Primary color tab whose palette tier items declare format:'oklch'. */
+const OKLCH_PRIMARY_TAB: TabConfig = {
+  ...PRIMARY_COLOR_TAB,
+  tiers: [
+    {
+      id: 'palette',
+      label: 'Palette',
+      items: Array.from({ length: PALETTE_SIZE }, (_, i) => ({
+        id: `fixture-p${i}`,
+        cssVar: `--fixture-p${i}`,
+        label: `Palette ${i}`,
+        default: 'oklch(0.5 0.1 250)',
+        type: { kind: 'color' as const, format: 'oklch' as const },
+      })),
+    },
+    // Semantic tier is unchanged — it references the palette tier.
+    PRIMARY_COLOR_TAB.tiers[1],
+  ],
+};
+
+/** Secondary color tab whose palette tier items declare format:'oklch'. */
+const OKLCH_SECONDARY_TAB: TabConfig = {
+  ...SECONDARY_TAB,
+  tiers: [
+    {
+      id: 'palette',
+      label: 'Palette',
+      items: [
+        { id: 'sec-p0', cssVar: '--sec-p0', label: 'sec-p0', default: 'oklch(0.5 0.1 250)', type: { kind: 'color' as const, format: 'oklch' as const } },
+        { id: 'sec-p1', cssVar: '--sec-p1', label: 'sec-p1', default: 'oklch(0.7 0.05 120)', type: { kind: 'color' as const, format: 'oklch' as const } },
+      ],
+    },
+    SECONDARY_TAB.tiers[1],
+  ],
+};
+
+function makeOklchColorState(): ColorTweakState {
+  return {
+    ...makeColorState(),
+    palette: ['oklch(0.5 0.1 250)', 'oklch(0.6 0.12 200)', 'oklch(0.7 0.08 120)'],
+  };
+}
+
+function makeOklchSecondaryState(): ColorTweakState {
+  return {
+    ...makeSecondaryState(),
+    palette: ['oklch(0.5 0.1 250)', 'oklch(0.7 0.05 120)'],
+  };
+}
+
+/** Click the first palette swatch button within a section to open its picker. */
+function openFirstSwatch(section: HTMLElement): void {
+  const btn = section.querySelector('.tokenpanel-color-swatch-button') as HTMLElement;
+  expect(btn).not.toBeNull();
+  act(() => btn.click());
+}
+
+/**
+ * Nudge the first slider in the open picker with a keyboard arrow. The slider's
+ * pointer path is inert in jsdom; the keydown path commits directly, so this is
+ * the deterministic way to drive a swatch edit through to onChange.
+ */
+function fireFirstPickerSliderArrow(key = 'ArrowUp'): void {
+  const slider = container.querySelector('[role="dialog"] [role="slider"]') as HTMLElement;
+  if (!slider) throw new Error('no slider in open picker');
+  act(() => {
+    slider.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+  });
+}
+
+describe('ColorTab — palette format:"oklch" routing (#436)', () => {
+  beforeEach(() => {
+    // Pin the in-picker display mode so the OKLCH (L/C/H) sliders render
+    // deterministically rather than a persisted HSL mode from another run.
+    localStorage.setItem('tokenpanel.colorPicker.mode', 'oklch');
+  });
+  afterEach(() => {
+    localStorage.removeItem('tokenpanel.colorPicker.mode');
+  });
+
+  it('clicking an oklch palette swatch opens the OKLCH color picker', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx, { tab: OKLCH_PRIMARY_TAB, colorState: makeOklchColorState() });
+
+    const grid = container.querySelector('.tokenpanel-color-palette-grid') as HTMLElement;
+    openFirstSwatch(grid);
+
+    expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+    // OKLCH editor → Lightness/Chroma/Hue sliders are present.
+    expect(
+      container.querySelector('[role="slider"][aria-label="Lightness"]'),
+    ).not.toBeNull();
+  });
+
+  it('editing an oklch palette swatch persists an oklch(...) string, not hex', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    const persistColor = vi.fn();
+    renderColorTab(ctx, {
+      tab: OKLCH_PRIMARY_TAB,
+      colorState: makeOklchColorState(),
+      persistColor,
+    });
+
+    const grid = container.querySelector('.tokenpanel-color-palette-grid') as HTMLElement;
+    openFirstSwatch(grid);
+    fireFirstPickerSliderArrow();
+
+    expect(persistColor).toHaveBeenCalled();
+    const updater = persistColor.mock.calls.at(-1)![0] as (
+      prev: ColorTweakState,
+    ) => ColorTweakState;
+    const result = updater(makeOklchColorState());
+    expect(result.palette[0]).toMatch(/^oklch\(/);
+    expect(/^#[0-9a-fA-F]{6,8}$/.test(result.palette[0])).toBe(false);
+  });
+
+  it('with no format, editing a palette swatch persists a hex string (backward compatible)', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    const persistColor = vi.fn();
+    // Default PRIMARY_COLOR_TAB has no `format` on its palette items.
+    renderColorTab(ctx, { persistColor });
+
+    const grid = container.querySelector('.tokenpanel-color-palette-grid') as HTMLElement;
+    openFirstSwatch(grid);
+    fireFirstPickerSliderArrow();
+
+    expect(persistColor).toHaveBeenCalled();
+    const updater = persistColor.mock.calls.at(-1)![0] as (
+      prev: ColorTweakState,
+    ) => ColorTweakState;
+    const result = updater(makeColorState());
+    expect(/^#[0-9a-fA-F]{6,8}$/.test(result.palette[0])).toBe(true);
+    expect(result.palette[0].startsWith('oklch(')).toBe(false);
+  });
+
+  it('renders every cluster feature with an oklch palette (preset dropdown, Base, Semantic, secondary)', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx, {
+      tab: OKLCH_PRIMARY_TAB,
+      colorState: makeOklchColorState(),
+      secondaryTab: OKLCH_SECONDARY_TAB,
+      secondaryState: makeOklchSecondaryState(),
+    });
+
+    // "Scheme…" preset dropdown.
+    expect(container.querySelector('.tokenpanel-color-preset-select')).not.toBeNull();
+    // Base (bg/fg) + Semantic (accent/muted) stay index-based PaletteSelectors.
+    const baseGrids = container.querySelectorAll('.tokenpanel-color-base-grid');
+    expect(baseGrids.length).toBeGreaterThanOrEqual(2);
+    expect(
+      (baseGrids[0] as HTMLElement).querySelectorAll('.tokenpanel-palette-selector').length,
+    ).toBe(2);
+    expect(
+      (baseGrids[1] as HTMLElement).querySelectorAll('.tokenpanel-palette-selector').length,
+    ).toBe(2);
+    // Secondary cluster sections render.
+    expect(
+      container.querySelector('[data-testid="tokenpanel-secondary-palette-section"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="tokenpanel-secondary-semantic-section"]'),
+    ).not.toBeNull();
+  });
+
+  it('secondary oklch palette swatch persists an oklch(...) string', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    const persistSecondary = vi.fn();
+    renderColorTab(ctx, {
+      tab: OKLCH_PRIMARY_TAB,
+      colorState: makeOklchColorState(),
+      secondaryTab: OKLCH_SECONDARY_TAB,
+      secondaryState: makeOklchSecondaryState(),
+      persistSecondary,
+    });
+
+    const secSection = container.querySelector(
+      '[data-testid="tokenpanel-secondary-palette-section"]',
+    ) as HTMLElement;
+    openFirstSwatch(secSection);
+    fireFirstPickerSliderArrow();
+
+    expect(persistSecondary).toHaveBeenCalled();
+    const updater = persistSecondary.mock.calls.at(-1)![0] as (
+      prev: ColorTweakState | undefined,
+    ) => ColorTweakState | undefined;
+    const result = updater(makeOklchSecondaryState());
+    expect(result).not.toBeUndefined();
+    expect(result!.palette[0]).toMatch(/^oklch\(/);
+  });
+
+  it('secondary palette stays hex when its tier declares no format', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    const persistSecondary = vi.fn();
+    renderColorTab(ctx, {
+      secondaryTab: SECONDARY_TAB, // no format on palette items
+      secondaryState: makeSecondaryState(),
+      persistSecondary,
+    });
+
+    const secSection = container.querySelector(
+      '[data-testid="tokenpanel-secondary-palette-section"]',
+    ) as HTMLElement;
+    openFirstSwatch(secSection);
+    fireFirstPickerSliderArrow();
+
+    expect(persistSecondary).toHaveBeenCalled();
+    const updater = persistSecondary.mock.calls.at(-1)![0] as (
+      prev: ColorTweakState | undefined,
+    ) => ColorTweakState | undefined;
+    const result = updater(makeSecondaryState());
+    expect(result).not.toBeUndefined();
+    expect(/^#[0-9a-fA-F]{6,8}$/.test(result!.palette[0])).toBe(true);
   });
 });

@@ -11,10 +11,13 @@
  *
  * Acceptance criterion (rejection-fix): every Base / Semantic Tokens row is
  * a `PaletteSelector` — the only way to edit those values is to pick a
- * palette index (p0–p15) or one of the `bg`/`fg` extras. The 16 Palette
- * swatches themselves are the only inputs that edit a hex via the HSL
- * popover. No raw-color inputs (rgb / hex text field / lab) are
- * exposed for Base or Semantic rows.
+ * palette index (p0–p15) or one of the `bg`/`fg` extras. The Palette
+ * swatches themselves are the only inputs that edit a color directly — a
+ * hex by default, or an `oklch(...)` string when the palette tier declares
+ * `type.format: 'oklch'` — via the color-picker popover. No raw-color
+ * inputs (rgb / hex text field / lab) are exposed for Base or Semantic rows;
+ * those rows reference palette slots, so they inherit OKLCH transitively the
+ * moment the palette holds `oklch()` values.
  *
  * Shiki integration is out of scope — the `shikiTheme` field stays on
  * state + persist + serde for envelope round-tripping with upstream
@@ -35,6 +38,7 @@
 import { memo, useState, useEffect, useCallback, useMemo, useRef } from 'preact/compat';
 import type { ColorScheme } from '../config/color-schemes';
 import ColorPicker from '../components/color-picker';
+import type { ColorPickerValueFormat } from '../components/color-picker/color-picker';
 import {
   type ColorTweakState,
   applyShikiTheme,
@@ -43,7 +47,7 @@ import {
 } from '../state/tweak-state';
 import { getPanelConfig } from '../config/panel-config';
 import { resolveColorClusterFromTab } from '../config/cluster-config';
-import type { TabConfig } from '../tokens/tier-model';
+import type { TabConfig, TierConfig } from '../tokens/tier-model';
 import type { PersistColor, PersistSecondary } from '../state/persist';
 import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
 import { useTooltip } from '../controls/tooltip';
@@ -135,16 +139,49 @@ function getFixedPopoverStyle(
   return style;
 }
 
+// --- Palette format resolution ---
+
+/**
+ * Find the palette tier in a color tab: the first non-reference tier whose
+ * items are color-kind. Mirrors the palette-tier detection in
+ * `resolveColorClusterFromTab`, so the format lookup keys off the SAME tier the
+ * cluster was flattened from. `resolveColorClusterFromTab` drops the per-item
+ * `type.format`, so the swatch grid must recover it from the tier here.
+ */
+function findPaletteTier(tab: TabConfig): TierConfig | undefined {
+  return tab.tiers.find(
+    (t) => !t.referencesTier && t.items.length > 0 && t.items[0].type.kind === 'color',
+  );
+}
+
+/**
+ * Resolve the ColorPicker value format for the palette slot at `index`.
+ * Returns `'oklch'` when the palette tier item declares
+ * `type.format: 'oklch'`, otherwise `'hex'` (the back-compatible default —
+ * `format` is optional, added 0.3.3).
+ */
+function resolvePaletteFormat(
+  paletteTier: TierConfig | undefined,
+  index: number,
+): ColorPickerValueFormat {
+  const item = paletteTier?.items[index];
+  if (item && item.type.kind === 'color' && item.type.format === 'oklch') {
+    return 'oklch';
+  }
+  return 'hex';
+}
+
 // --- UI Components ---
 
 /**
- * Single palette swatch with HSL popover.
+ * Single palette swatch with color-picker popover.
  *
- * `onChange` is `(index, hex)` — the swatch passes its own palette `index`
+ * `onChange` is `(index, value)` — the swatch passes its own palette `index`
  * back so the parent can use a single stable handler across every cell,
- * keeping React.memo effective. The same component is reused by both the
- * primary and secondary palettes because the `onChange` shape is
- * parameterised on the parent's per-cluster handler.
+ * keeping React.memo effective. `value` is a hex string by default, or an
+ * `oklch(...)` string when `valueFormat` is `'oklch'`. The same component is
+ * reused by both the primary and secondary palettes because the `onChange`
+ * shape is parameterised on the parent's per-cluster handler.
  */
 const ColorSwatch = memo(function ColorSwatch({
   color,
@@ -152,21 +189,26 @@ const ColorSwatch = memo(function ColorSwatch({
   index,
   label,
   cssVar,
+  valueFormat = 'hex',
 }: {
   color: string;
-  onChange: (index: number, hex: string) => void;
+  onChange: (index: number, value: string) => void;
   index: number;
   label: string;
   /** CSS custom property name (e.g. `--zd-p3`) used to wire the eye toggle.
    *  When present, a HighlightToggleButton appears in the swatch label row. */
   cssVar?: string;
+  /** Output format for the swatch's ColorPicker. `'oklch'` routes the edit
+   *  through the lossless OKLCH editor (emits `oklch(...)`); `'hex'` (default)
+   *  keeps the native hex behavior. */
+  valueFormat?: ColorPickerValueFormat;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const buttonRef = useRef<HTMLDivElement>(null);
   const handleClose = useCallback(() => setIsOpen(false), []);
-  const handleHexChange = useCallback(
-    (hex: string) => {
-      onChange(index, hex);
+  const handleColorChange = useCallback(
+    (value: string) => {
+      onChange(index, value);
     },
     [onChange, index],
   );
@@ -194,7 +236,9 @@ const ColorSwatch = memo(function ColorSwatch({
       {isOpen && (
         <ColorPicker
           color={color}
-          onChange={handleHexChange}
+          onChange={handleColorChange}
+          valueFormat={valueFormat}
+          label={label}
           onClose={handleClose}
           anchorRef={buttonRef}
         />
@@ -472,11 +516,20 @@ export default function ColorTab({
     [secondaryCluster],
   );
 
+  // The palette tier carries the per-slot `type.format` that
+  // `resolveColorClusterFromTab` flattens away — recover it here so the swatch
+  // grid can route oklch-format slots through the lossless OKLCH editor.
+  const paletteTier = useMemo(() => findPaletteTier(tab), [tab]);
+  const secondaryPaletteTier = useMemo(
+    () => (secondaryTab ? findPaletteTier(secondaryTab) : undefined),
+    [secondaryTab],
+  );
+
   const handlePaletteChange = useCallback(
-    (index: number, hex: string) => {
+    (index: number, value: string) => {
       persistColor((prev) => ({
         ...prev,
-        palette: prev.palette.map((c, i) => (i === index ? hex : c)),
+        palette: prev.palette.map((c, i) => (i === index ? value : c)),
       }));
     },
     [persistColor],
@@ -488,12 +541,12 @@ export default function ColorTab({
   // `secondaryState` would force a fresh callback identity on every state
   // change, defeating the React.memo wrapping further down the tree.
   const handleSecondaryPaletteChange = useCallback(
-    (index: number, hex: string) => {
+    (index: number, value: string) => {
       persistSecondary((prev) => {
         if (!prev) return prev;
         return {
           ...prev,
-          palette: prev.palette.map((c, i) => (i === index ? hex : c)),
+          palette: prev.palette.map((c, i) => (i === index ? value : c)),
         };
       });
     },
@@ -602,15 +655,17 @@ export default function ColorTab({
         </div>
         <div className="tokenpanel-color-palette-grid">
           {state.palette.map((color, i) => (
-            // ColorSwatch passes `i` back via its (index, hex) onChange so we
+            // ColorSwatch passes `i` back via its (index, value) onChange so we
             // hand `handlePaletteChange` directly — no inline arrow, memo
-            // stays effective.
+            // stays effective. `valueFormat` routes oklch-format slots through
+            // the lossless OKLCH editor; absent/`'hex'` slots stay hex.
             <ColorSwatch
               key={i}
               color={color}
               index={i}
               label={resolvePaletteCssVar(safeCluster, i)}
               cssVar={resolvePaletteCssVar(safeCluster, i)}
+              valueFormat={resolvePaletteFormat(paletteTier, i)}
               onChange={handlePaletteChange}
             />
           ))}
@@ -709,6 +764,7 @@ export default function ColorTab({
                     index={i}
                     label={resolvePaletteCssVar(secondaryCluster, i)}
                     cssVar={resolvePaletteCssVar(secondaryCluster, i)}
+                    valueFormat={resolvePaletteFormat(secondaryPaletteTier, i)}
                     onChange={handleSecondaryPaletteChange}
                   />
                 ))}
