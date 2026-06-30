@@ -227,3 +227,37 @@ describe('persist → hydrate round-trip preserves oklch() byte-for-byte', () =>
     expect(result!.color.palette[15]).toBe('oklch(0.70 0.37 30)');
   });
 });
+
+describe('initColorFromSchemeData — non-oklch entries are sanitised (regression)', () => {
+  it('normalises an invalid non-color palette entry to a safe #000000 instead of leaking it', () => {
+    // The bundled `Default Dark` scheme carries a stray non-color slot — `"18"` at
+    // index 9, referenced by `background: 9`. Preserving palette entries verbatim
+    // for the OKLCH feature must NOT regress this: an unparseable string has to be
+    // sanitised (cssColorToHex → '#000000') rather than written to a CSS custom
+    // property as the literal `18`.
+    const cluster = getActivePrimaryCluster();
+    const mixed = [...oklchPalette];
+    mixed[9] = '18';
+    const state = initColorFromSchemeData(
+      makeOklchScheme({ palette: mixed as ColorScheme['palette'] }),
+      cluster,
+    );
+
+    expect(state.palette[9]).toBe('#000000');
+    // …while the real oklch entries alongside it are still preserved raw.
+    expect(state.palette[0]).toBe(oklchPalette[0]);
+    expect(state.palette[15]).toBe(oklchPalette[15]);
+  });
+
+  it('canonicalises a valid shorthand hex entry rather than dropping it', () => {
+    const cluster = getActivePrimaryCluster();
+    const mixed = [...oklchPalette];
+    mixed[2] = '#abc';
+    const state = initColorFromSchemeData(
+      makeOklchScheme({ palette: mixed as ColorScheme['palette'] }),
+      cluster,
+    );
+
+    expect(state.palette[2]).toBe('#aabbcc');
+  });
+});

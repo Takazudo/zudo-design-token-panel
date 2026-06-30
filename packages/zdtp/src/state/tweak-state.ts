@@ -863,18 +863,31 @@ export function initColorFromScheme(
   return initColorFromSchemeData(scheme, cluster);
 }
 
+/**
+ * Seed-time palette sanitiser. Raw `oklch(...)` values are preserved verbatim so
+ * wide-gamut chroma survives (and they never touch the canvas → no '#000000'
+ * under jsdom / engines whose 2D canvas can't parse oklch). Every NON-oklch entry
+ * goes through cssColorToHex() — the exact pre-OKLCH behaviour — which
+ * canonicalises valid hex/rgb and, crucially, turns an unparseable string into a
+ * safe '#000000' rather than leaking it into a CSS custom property. Without this,
+ * a bundled scheme's stray non-color entry (e.g. `Default Dark`'s slot-9 `"18"`,
+ * referenced by `background: 9`) would reach the apply path verbatim.
+ */
+function normalizeSchemePaletteEntry(value: string): string {
+  return cssToOklcha(value) ? value : cssColorToHex(value);
+}
+
 export function initColorFromSchemeData(
   scheme: ColorScheme,
   cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
 ): ColorTweakState {
-  // Store each seeded palette entry VERBATIM — hex OR raw `oklch(...)`. The
-  // string is self-describing and the apply path writes it straight to a CSS
-  // custom property (browsers parse oklch natively), so we must NOT clip to
-  // sRGB hex here. Eagerly normalising via cssColorToHex() would discard
-  // wide-gamut chroma and, worse, collapse every entry to '#000000' under
-  // jsdom / engines whose canvas can't parse oklch. sRGB clamping belongs only
-  // at a true hex-conversion boundary (native <input type="color">, hex box).
-  const palette = [...scheme.palette];
+  // Preserve raw `oklch(...)` losslessly (wide-gamut chroma survives; never
+  // collapses to '#000000' under jsdom). Every other entry is sanitised through
+  // cssColorToHex() exactly as before this OKLCH work — canonicalises valid
+  // hex/rgb and turns invalid bundled-scheme strings (e.g. Default Dark's "18")
+  // into a safe '#000000' instead of leaking them to apply. sRGB clamping for
+  // oklch still happens only at a true hex-conversion boundary.
+  const palette = scheme.palette.map(normalizeSchemePaletteEntry);
   const semanticMappings: Record<string, number | 'bg' | 'fg'> = {};
   for (const [key, defaultVal] of Object.entries(cluster.semanticDefaults)) {
     const schemeVal = scheme.semantic?.[key as keyof typeof scheme.semantic];
