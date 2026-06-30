@@ -49,6 +49,7 @@ import { settings } from "@/config/settings";
 import { defaultLocale, translations } from "@/config/i18n";
 import { tagVocabulary } from "@/config/tag-vocabulary";
 import { colorSchemes } from "@/config/color-schemes";
+import sidebars from "@/config/sidebars";
 import { frontmatterRenderers } from "@/config/frontmatter-preview-renderers";
 import { collectTags } from "@/utils/tags";
 import { toRouteSlug } from "@/utils/slug";
@@ -130,6 +131,11 @@ const hostBindings: ChromeHostBindings = {
     buildFrontmatterPreviewEntries as ChromeHostBindings["buildFrontmatterPreviewEntries"],
   tagVocabulary,
   loadTagsForLocale: loadTagsForLocale as ChromeHostBindings["loadTagsForLocale"],
+  // Host sidebar section config (doc/src/config/sidebars.ts). v1 plumbed this in
+  // via @/utils/sidebar → buildSidebarForSection; v2 reads it off this binding.
+  // Empty today (filesystem auto-gen), but wiring it preserves the capability so
+  // future sidebars.ts entries are honored instead of silently ignored.
+  sidebarsConfig: sidebars as ChromeHostBindings["sidebarsConfig"],
   mdxExtras,
 };
 
