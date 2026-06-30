@@ -6,7 +6,8 @@
  * Consumes the `TweakState` shape directly:
  *
  * Color tokens:
- *   - `state.color.palette: string[]` — palette hex values
+ *   - `state.color.palette: string[]` — palette color values (hex, or
+ *     `oklch(...)` when the palette tier declares `type.format: 'oklch'`)
  *   - `state.color.semanticMappings: Record<string, number | 'bg' | 'fg'>` —
  *     semantic-token → palette-index map
  *   - `state.color.background` / `foreground` — palette indices used when a
@@ -27,7 +28,8 @@
  * Specifically:
  *
  *   - Palette slots (resolved via `resolvePaletteCssVar(cluster, i)`) —
- *     EMITTED as hex values.
+ *     EMITTED as the stored color value (hex, or `oklch(...)` for
+ *     oklch-format palettes).
  *   - Semantic tokens (`cluster.semanticCssNames` entries) — EMITTED as
  *     `var(--<paletteSlotName>)` so the rewrite preserves the indirection
  *     that the hand-authored CSS relies on.
