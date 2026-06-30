@@ -2,6 +2,9 @@ import { defineConfig } from "zfb/config";
 import { zudoDocPreset } from "@takazudo/zudo-doc/preset";
 import { settings } from "./src/config/settings";
 import { buildDocsSchema } from "./src/config/docs-schema";
+import { translations } from "./src/config/i18n";
+import { colorSchemes } from "./src/config/color-schemes";
+import { tagVocabulary } from "./src/config/tag-vocabulary";
 
 const directiveVocabulary = {
   note: "Note",
@@ -27,7 +30,7 @@ export default defineConfig({
   base: settings.base,
 
   // ── Preset-owned fields (content collections, plugins, markdown, …) ────────
-  ...zudoDocPreset({ settings, buildDocsSchema, directiveVocabulary }),
+  ...zudoDocPreset({ settings, buildDocsSchema, directiveVocabulary, translations, colorSchemes, tagVocabulary }),
 
   // Cloudflare adapter — wraps the SSR bundle into `dist/_worker.js` (the
   // explicit main entry for the Workers static-assets deploy) plus a sidecar

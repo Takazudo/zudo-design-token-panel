@@ -7,7 +7,7 @@ import { createNavSourceDocs } from "@takazudo/zudo-doc/nav-source-docs";
 export type { NavSourceDocs, NavSourceOptions } from "@takazudo/zudo-doc/nav-source-docs";
 import { defaultLocale, getLocaleConfig } from "@/config/i18n";
 import { settings } from "@/config/settings";
-import { loadCategoryMeta, isNavVisible } from "@/utils/docs";
+import { isNavVisible } from "@/utils/docs";
 import { isDefaultLocaleOnlyPath } from "@/utils/base";
 import { stableDocs } from "./_nav-source-cache";
 
@@ -18,11 +18,9 @@ const {
   stableMergeCategoryMeta,
   stableNavDocs,
 } = createNavSourceDocs({
+  settings,
   defaultLocale,
-  docsDir: settings.docsDir,
-  getVersions: () => settings.versions,
   getLocaleConfig,
-  loadCategoryMeta,
   isNavVisible,
   isDefaultLocaleOnlyPath,
   stableDocs,
