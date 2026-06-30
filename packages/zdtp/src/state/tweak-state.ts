@@ -71,6 +71,7 @@ import {
   emitTierItemCssValue,
   resolveTierItemValue,
 } from '../apply/tier-resolver';
+import { cssToOklcha, type Oklcha } from '../utils/color-oklch';
 
 // Re-export the cluster types under their historical names so existing call
 // sites (build-apply-overrides.ts, apply-modal.tsx, tests) keep compiling.
@@ -709,9 +710,44 @@ export function setCssVar(name: string, value: string) {
 }
 
 /**
+ * Compare two canonical `Oklcha` values for equality within a per-channel
+ * epsilon. Alpha is INCLUDED so two entries with the same L/C/H but different
+ * alpha are treated as distinct. Hue uses a CIRCULAR delta so 359.999° and
+ * 0.001° are recognised as adjacent.
+ *
+ * Epsilons (against `cssToOklcha`'s internal scale — l/a on 0–100, c native,
+ * h in degrees): l ≤ 1e-3, c ≤ 1e-5, h ≤ 1e-3°, a ≤ 1e-3. These only absorb
+ * serialization/float noise — genuinely different colors differ by far more.
+ */
+function oklchaApproxEqual(a: Oklcha, b: Oklcha): boolean {
+  let dh = Math.abs(a.h - b.h) % 360;
+  if (dh > 180) dh = 360 - dh;
+  return (
+    Math.abs(a.l - b.l) <= 1e-3 &&
+    Math.abs(a.c - b.c) <= 1e-5 &&
+    dh <= 1e-3 &&
+    Math.abs(a.a - b.a) <= 1e-3
+  );
+}
+
+/**
  * Resolve a `ColorRef` to a palette index. If it's already a number, use it.
  * If it's a string, find an exact palette match or the nearest color by RGB
  * distance. `fallback` is returned only when `ref` is undefined.
+ *
+ * Match order (format-tolerant + alpha-aware):
+ *  (a) exact raw-string match — preserves byte-for-byte `oklch()`/hex refs
+ *      without any lossy normalization (palette refs are usually canonical);
+ *  (b) OKLCH-aware match — when the ref AND a palette entry both parse as CSS
+ *      Color 4 `oklch()`, compare canonical `cssToOklcha` forms with a
+ *      per-channel epsilon (alpha included). This keeps a wide-gamut oklch ref
+ *      from collapsing to '#000000' under the hex path (jsdom / engines whose
+ *      canvas can't parse oklch) and keeps a same-L/C/H-different-alpha ref
+ *      bound to the correct slot;
+ *  (c) hex fallback — normalize ref + palette to canonical hex for an exact
+ *      match, else nearest color by base-RGB distance. This is the path for
+ *      genuine hex/rgb refs; the nearest-distance step intentionally drops
+ *      alpha, so the exact matches above must run first when alpha matters.
  */
 export function colorRefToIndex(
   ref: ColorRef | undefined,
@@ -720,18 +756,20 @@ export function colorRefToIndex(
 ): number {
   if (ref === undefined) return fallback;
   if (typeof ref === 'number') return ref;
-  // Normalize the ref and every palette entry to a canonical hex form before
-  // exact-match lookup. Without this, equivalent notations miss each other
-  // (e.g. ref `rgba(255,0,0,0.5)` vs palette `#ff000080`) and fall through to
-  // the distance fallback below, which intentionally ignores alpha — that
-  // would silently bind to the wrong slot when the palette holds multiple
-  // entries with the same RGB but different alpha.
-  const refHex = cssColorToHex(ref);
-  const normalized: string[] = palette.map((p) => cssColorToHex(p));
-  // First try the raw string for backwards compatibility (palette refs are
-  // usually already canonical), then the normalized form.
+  // (a) Exact raw-string match first.
   const rawIdx = palette.indexOf(ref);
   if (rawIdx >= 0) return rawIdx;
+  // (b) OKLCH-aware match — only when both sides parse as oklch().
+  const refOklch = cssToOklcha(ref);
+  if (refOklch) {
+    for (let i = 0; i < palette.length; i++) {
+      const pOklch = cssToOklcha(palette[i]);
+      if (pOklch && oklchaApproxEqual(refOklch, pOklch)) return i;
+    }
+  }
+  // (c) Hex fallback for genuine hex/rgb refs.
+  const refHex = cssColorToHex(ref);
+  const normalized: string[] = palette.map((p) => cssColorToHex(p));
   const normIdx = normalized.indexOf(refHex);
   if (normIdx >= 0) return normIdx;
   // No exact match — find nearest palette color by RGB distance.
@@ -829,7 +867,14 @@ export function initColorFromSchemeData(
   scheme: ColorScheme,
   cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
 ): ColorTweakState {
-  const palette = scheme.palette.map((c) => cssColorToHex(c));
+  // Store each seeded palette entry VERBATIM — hex OR raw `oklch(...)`. The
+  // string is self-describing and the apply path writes it straight to a CSS
+  // custom property (browsers parse oklch natively), so we must NOT clip to
+  // sRGB hex here. Eagerly normalising via cssColorToHex() would discard
+  // wide-gamut chroma and, worse, collapse every entry to '#000000' under
+  // jsdom / engines whose canvas can't parse oklch. sRGB clamping belongs only
+  // at a true hex-conversion boundary (native <input type="color">, hex box).
+  const palette = [...scheme.palette];
   const semanticMappings: Record<string, number | 'bg' | 'fg'> = {};
   for (const [key, defaultVal] of Object.entries(cluster.semanticDefaults)) {
     const schemeVal = scheme.semantic?.[key as keyof typeof scheme.semantic];
