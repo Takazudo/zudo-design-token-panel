@@ -238,7 +238,8 @@ export interface DesignTokenJson {
  *
  * For token tiers (spacing/font/size raw): values are CSS length/value strings.
  * For reference tiers (font semantic, etc.): values are `var(--tier1-cssvar)` strings.
- * For color palette: values are hex color strings.
+ * For color palette: values are color strings — hex, or `oklch(...)` when the
+ * palette tier declares `type.format: 'oklch'`.
  * For color semantic: values are palette-index integers.
  */
 export type V2TierMap = Record<string, string | number>;
