@@ -39,6 +39,7 @@ import { memo, useState, useEffect, useCallback, useMemo, useRef, useId } from '
 import type { ColorScheme } from '../config/color-schemes';
 import { pushDismissLayer } from '../controls/dismiss-layer';
 import ColorPicker from '../components/color-picker';
+import { Z } from '../styles/z-index-tokens';
 import type { ColorPickerValueFormat } from '../components/color-picker/color-picker';
 import {
   type ColorTweakState,
@@ -130,7 +131,7 @@ function getFixedPopoverStyle(
   estH: number,
   extraStyle?: React.CSSProperties,
 ): React.CSSProperties {
-  if (!anchor) return { position: 'fixed', zIndex: 70, ...extraStyle };
+  if (!anchor) return { position: 'fixed', zIndex: Z.colorPicker, ...extraStyle };
   const rect = anchor.getBoundingClientRect();
   const gap = 4;
   const pad = 8;
@@ -143,7 +144,7 @@ function getFixedPopoverStyle(
   const style: React.CSSProperties = {
     position: 'fixed',
     left,
-    zIndex: 70,
+    zIndex: Z.colorPicker,
     ...extraStyle,
   };
   if (flipAbove) {

@@ -20,9 +20,9 @@
  */
 
 import type { JSX } from 'preact';
+import { Z } from '../styles/z-index-tokens';
 
-/** Toast sits above everything the panel renders — one above the element box (2147483000). */
-const TOAST_Z_INDEX = 2147483001;
+const TOAST_Z_INDEX = Z.toast;
 
 export interface ElementPathToastProps {
   /** Toast body; null hides the toast. */

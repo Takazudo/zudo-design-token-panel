@@ -19,6 +19,7 @@ import type { JSX } from 'preact';
 import { RoleButton } from '../controls/role-button';
 import { ColorPicker, getFixedPopoverStyle, usePopoverClose } from '../components/color-picker/index';
 import { HighlightContext } from './highlight-toggle-button';
+import { Z } from '../styles/z-index-tokens';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -86,7 +87,7 @@ export function HighlightSettingsPopover({
       role="dialog"
       aria-label="Highlight outline settings"
       className="tokenpanel-highlight-settings-popover"
-      style={{ ...popoverStyle, zIndex: 65 }}
+      style={{ ...popoverStyle, zIndex: Z.settingsPopover }}
     >
       {/* Header */}
       <div className="tokenpanel-highlight-settings-header">
