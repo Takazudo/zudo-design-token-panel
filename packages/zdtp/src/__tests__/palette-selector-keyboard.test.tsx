@@ -27,6 +27,7 @@ import { __resetPanelConfigForTests } from '../config/panel-config';
 import { installFixturePanelConfig, FIXTURE_TABS } from './_test-helpers';
 import { __resetDismissLayersForTests } from '../controls/dismiss-layer';
 import type { ColorTweakState } from '../state/tweak-state';
+import type { PersistColor } from '../state/persist';
 import type { TabConfig } from '../tokens/tier-model';
 
 const COLOR_TAB = FIXTURE_TABS.find((t) => t.id === 'color') as TabConfig;
@@ -64,7 +65,7 @@ function renderColorTab(): void {
           <ColorTab
             tab={COLOR_TAB}
             state={makeColorState()}
-            persistColor={persistColor}
+            persistColor={persistColor as unknown as PersistColor}
             secondaryTab={null}
             secondaryState={null}
             persistSecondary={vi.fn()}

@@ -141,7 +141,9 @@ describe('ApplyModal success view — onApplied runs once per dismissal route', 
     // The success-phase primary button is "Done".
     const done = primaryButton();
     expect(done.textContent).toContain('Done');
-    act(() => done.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    act(() => {
+      done.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
     expect(onApplied).toHaveBeenCalledOnce();
   });
 
@@ -149,7 +151,9 @@ describe('ApplyModal success view — onApplied runs once per dismissal route', 
     const onApplied = vi.fn();
     await renderAndSucceed(vi.fn(), onApplied);
     const closeBtn = container.querySelector('[aria-label="Close apply modal"]') as HTMLElement;
-    act(() => closeBtn.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    act(() => {
+      closeBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
     expect(onApplied).toHaveBeenCalledOnce();
   });
 
@@ -170,7 +174,9 @@ describe('ApplyModal success view — onApplied runs once per dismissal route', 
     // The observable end of the Escape path is the dialog's native `close`
     // event — the single choke point every dismissal funnels through.
     const d = dialogEl();
-    act(() => d.dispatchEvent(new Event('close')));
+    act(() => {
+      d.dispatchEvent(new Event('close'));
+    });
     expect(onApplied).toHaveBeenCalledOnce();
   });
 
@@ -178,8 +184,12 @@ describe('ApplyModal success view — onApplied runs once per dismissal route', 
     const onApplied = vi.fn();
     await renderAndSucceed(vi.fn(), onApplied);
     const d = dialogEl();
-    act(() => primaryButton().dispatchEvent(new MouseEvent('click', { bubbles: true }))); // Done
-    act(() => d.dispatchEvent(new Event('close'))); // redundant close
+    act(() => {
+      primaryButton().dispatchEvent(new MouseEvent('click', { bubbles: true })); // Done
+    });
+    act(() => {
+      d.dispatchEvent(new Event('close')); // redundant close
+    });
     expect(onApplied).toHaveBeenCalledOnce();
   });
 });
@@ -189,11 +199,10 @@ describe('ApplyModal success view — onApplied runs once per dismissal route', 
 // ---------------------------------------------------------------------------
 
 describe('ApplyModal applying phase — cannot be dismissed mid-fetch', () => {
-  let resolveFetch: ((r: Response) => void) | null = null;
-
   beforeEach(() => {
+    // A fetch that never resolves — keeps the modal pinned in 'applying'.
     globalThis.fetch = vi.fn(
-      () => new Promise<Response>((res) => (resolveFetch = res)),
+      () => new Promise<Response>(() => {}),
     ) as unknown as typeof fetch;
   });
 
@@ -220,7 +229,9 @@ describe('ApplyModal applying phase — cannot be dismissed mid-fetch', () => {
     await renderAndStartApplying(vi.fn());
     const d = dialogEl();
     const cancelEvent = new Event('cancel', { cancelable: true });
-    act(() => d.dispatchEvent(cancelEvent));
+    act(() => {
+      d.dispatchEvent(cancelEvent);
+    });
     expect(cancelEvent.defaultPrevented).toBe(true);
   });
 
@@ -228,7 +239,9 @@ describe('ApplyModal applying phase — cannot be dismissed mid-fetch', () => {
     const onClose = vi.fn();
     await renderAndStartApplying(onClose);
     const closeBtn = container.querySelector('[aria-label="Close apply modal"]') as HTMLElement;
-    act(() => closeBtn.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    act(() => {
+      closeBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
     expect(onClose).not.toHaveBeenCalled();
     expect(container.textContent).toContain('Applying');
   });
