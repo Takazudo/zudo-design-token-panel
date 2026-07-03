@@ -1632,7 +1632,7 @@ function hydrateV2OrV3Object(
 ): TweakState | null {
   if (!obj.color || !isValidColorShape(obj.color, cluster.paletteSize)) return null;
 
-  const defaults = colorDefaults ?? tryInitColorFromScheme(cluster);
+  const defaults = colorDefaults ?? tryInitColorFromScheme(cluster, cfg);
   const typographySlice = obj.typography !== undefined ? obj.typography : obj.font;
   // Rename map sourced from THIS instance's panel config. Defaults to an
   // empty map (no renaming) so hosts whose manifest ids are stable are
@@ -1763,7 +1763,7 @@ export function loadPersistedState(
   if (rawV1 !== null) {
     const parsed = safeParse(rawV1);
     if (parsed && typeof parsed === 'object' && isValidColorShape(parsed, cluster.paletteSize)) {
-      const defaults = colorDefaults ?? tryInitColorFromScheme(cluster);
+      const defaults = colorDefaults ?? tryInitColorFromScheme(cluster, cfg);
       // Backfill shikiTheme like the legacy loader did.
       const partial = parsed as Partial<ColorTweakState>;
       if (!partial.shikiTheme) {

@@ -1089,51 +1089,14 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
     }
   }
 
-  // F4: Palette cssVar 0-based contiguity check.
-  // When the tab has colorExtras, find the palette tier (first tier with
-  // kind:'color' items and no referencesTier) and verify that each item's
-  // cssVar matches the template derived from the first item at its expected
-  // 0-based index. A mismatch means the host used 1-based or non-numbered
-  // cssVars, which causes palette writes to land on the wrong variables.
+  // colorExtras validation block (covers F8 deep validation + F4 palette
+  // cssVar contiguity check). Both checks only apply when colorExtras is
+  // present; a single guard is clearer than two separate if-blocks.
   if (tab.colorExtras !== undefined) {
-    const tiers = tab.tiers as unknown as Array<Record<string, unknown>>;
-    const paletteTier = tiers.find((t) => {
-      if (t.referencesTier !== undefined) return false;
-      const items = t.items;
-      if (!Array.isArray(items) || items.length === 0) return false;
-      const first = items[0];
-      if (first === null || typeof first !== 'object' || Array.isArray(first)) return false;
-      const typeObj = (first as Record<string, unknown>).type;
-      if (typeObj === null || typeof typeObj !== 'object' || Array.isArray(typeObj)) return false;
-      return (typeObj as Record<string, unknown>).kind === 'color';
-    });
-    if (paletteTier) {
-      const paletteTierId = paletteTier.id as string;
-      const paletteItems = paletteTier.items as Array<Record<string, unknown>>;
-      const firstCssVar = paletteItems[0]?.cssVar as string | undefined;
-      if (firstCssVar !== undefined) {
-        const derivedTemplate = firstCssVar.replace(/\d+$/, '{n}');
-        for (let i = 0; i < paletteItems.length; i++) {
-          const item = paletteItems[i];
-          const expectedCssVar = derivedTemplate.replace('{n}', String(i));
-          if (item.cssVar !== expectedCssVar) {
-            throw new Error(
-              `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${paletteTierId}"].items[${i}].cssVar` +
-                ` is ${JSON.stringify(item.cssVar)} but expected ${JSON.stringify(expectedCssVar)}` +
-                ` — palette item cssVars must share one prefix and be numbered 0..n-1 in tier order` +
-                ` (template derived from first item: ${JSON.stringify(derivedTemplate)})`,
-            );
-          }
-        }
-      }
-    }
-  }
-
-  // F8: colorExtras deep validation.
-  // assertValidPanelConfig surfaces a single clear error at the trust boundary.
-  // Without this block, a color tab missing panelSettings causes a cryptic
-  // TypeError deep in getActiveSchemeName at panel-open time.
-  if (tab.colorExtras !== undefined) {
+    // F8: Validate the colorExtras shape before any downstream code
+    // (e.g. getActiveSchemeName) touches its fields and produces cryptic
+    // TypeErrors. The validator's contract is "one clear error at configure
+    // time rather than a crash deep in state initialisation".
     const extras = tab.colorExtras as Record<string, unknown>;
     if (extras === null || typeof extras !== 'object' || Array.isArray(extras)) {
       throw new Error(
@@ -1197,6 +1160,44 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
         throw new Error(
           `[design-token-panel] PanelConfig.tabs["${tabId}"].colorExtras.panelSettings.colorMode.defaultMode must be "light" or "dark" (got ${JSON.stringify(cm.defaultMode)})`,
         );
+      }
+    }
+
+    // F4: Palette cssVar 0-based contiguity check.
+    // Find the palette tier (first tier with kind:'color' items and no
+    // referencesTier) and verify that each item's cssVar matches the template
+    // derived from the first item at its expected 0-based index. A mismatch
+    // means the host used 1-based or non-numbered cssVars, which causes
+    // palette writes to land on the wrong variables at runtime.
+    const tiers = tab.tiers as unknown as Array<Record<string, unknown>>;
+    const paletteTier = tiers.find((t) => {
+      if (t.referencesTier !== undefined) return false;
+      const items = t.items;
+      if (!Array.isArray(items) || items.length === 0) return false;
+      const first = items[0];
+      if (first === null || typeof first !== 'object' || Array.isArray(first)) return false;
+      const typeObj = (first as Record<string, unknown>).type;
+      if (typeObj === null || typeof typeObj !== 'object' || Array.isArray(typeObj)) return false;
+      return (typeObj as Record<string, unknown>).kind === 'color';
+    });
+    if (paletteTier) {
+      const paletteTierId = paletteTier.id as string;
+      const paletteItems = paletteTier.items as Array<Record<string, unknown>>;
+      const firstCssVar = paletteItems[0]?.cssVar as string | undefined;
+      if (firstCssVar !== undefined) {
+        const derivedTemplate = firstCssVar.replace(/\d+$/, '{n}');
+        for (let i = 0; i < paletteItems.length; i++) {
+          const item = paletteItems[i];
+          const expectedCssVar = derivedTemplate.replace('{n}', String(i));
+          if (item.cssVar !== expectedCssVar) {
+            throw new Error(
+              `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${paletteTierId}"].items[${i}].cssVar` +
+                ` is ${JSON.stringify(item.cssVar)} but expected ${JSON.stringify(expectedCssVar)}` +
+                ` — palette item cssVars must share one prefix and be numbered 0..n-1 in tier order` +
+                ` (template derived from first item: ${JSON.stringify(derivedTemplate)})`,
+            );
+          }
+        }
       }
     }
   }
