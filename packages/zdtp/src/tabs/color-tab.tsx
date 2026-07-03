@@ -125,6 +125,9 @@ function usePopoverClose(
  * className in panel.css — the inline style is reserved for values that
  * literally cannot be expressed in CSS today (per-anchor-rect coordinates).
  */
+// Z.colorPicker is reused here for the palette-options listbox popover —
+// a different element from the OklchPicker card (color-picker.css), but at the
+// same tier in the stacking order. Both need to sit above the panel shell.
 function getFixedPopoverStyle(
   anchor: HTMLElement | null,
   estW: number,
