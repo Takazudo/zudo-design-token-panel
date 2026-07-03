@@ -712,4 +712,168 @@ describe('panel-config — assertValidPanelConfig host-tabs validation', () => {
       assertValidPanelConfig(makeBaseConfig({ tabs: [tabMixedKinds] })),
     ).toThrow(/mixed item kinds/);
   });
+
+  // F4: palette cssVar 0-based contiguity check (issue #440) ----------------
+
+  /**
+   * Build a minimal color tab with 4 explicit palette cssVars.
+   * `cssvars` supplies the per-slot names; colorExtras is always valid here.
+   */
+  function makeColorTab(cssVars: string[]): TabConfig {
+    return {
+      id: 'color',
+      label: 'Color',
+      colorExtras: {
+        id: 'test',
+        defaultShikiTheme: 'dracula',
+        baseRoles: {},
+        baseDefaults: {},
+        colorSchemes: {},
+        panelSettings: { colorScheme: 'default', colorMode: false },
+      },
+      tiers: [
+        {
+          id: 'palette',
+          label: 'Palette',
+          items: cssVars.map((cssVar, i) => ({
+            id: `p${i}`,
+            cssVar,
+            label: `Palette ${i}`,
+            default: '#000000',
+            type: { kind: 'color' as const },
+          })),
+        },
+      ],
+    };
+  }
+
+  it('F4: accepts a valid 0-based palette (--pal-0 … --pal-3)', () => {
+    const tab = makeColorTab(['--pal-0', '--pal-1', '--pal-2', '--pal-3']);
+    expect(() => assertValidPanelConfig(makeBaseConfig({ tabs: [tab] }))).not.toThrow();
+  });
+
+  it('F4: rejects a 1-based palette (--pal-1 … --pal-4) with a clear error naming the offending item', () => {
+    // Host that numbered palette slots 1..4 instead of 0..3.
+    const tab = makeColorTab(['--pal-1', '--pal-2', '--pal-3', '--pal-4']);
+    expect(() => assertValidPanelConfig(makeBaseConfig({ tabs: [tab] }))).toThrow(
+      /palette item cssVars must share one prefix and be numbered 0\.\.n-1/,
+    );
+  });
+
+  it('F4: rejects non-numbered palette cssVars (all slots collapse to same name)', () => {
+    // All items share the same cssVar — template derives "--brand-red{n}" with
+    // no digit, so index 1..n all map to the same derived name and fail.
+    const tab = makeColorTab(['--brand-red', '--brand-blue', '--brand-green']);
+    expect(() => assertValidPanelConfig(makeBaseConfig({ tabs: [tab] }))).toThrow(
+      /palette item cssVars must share one prefix and be numbered 0\.\.n-1/,
+    );
+  });
+
+  // F8: colorExtras deep validation (issue #440) ----------------------------
+
+  function makeColorExtrasTab(overrides: Record<string, unknown> = {}): TabConfig {
+    return {
+      id: 'color',
+      label: 'Color',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      colorExtras: {
+        id: 'test',
+        defaultShikiTheme: 'dracula',
+        baseRoles: {},
+        baseDefaults: {},
+        colorSchemes: {},
+        panelSettings: { colorScheme: 'default', colorMode: false },
+        ...overrides,
+      } as any,
+      tiers: [],
+    };
+  }
+
+  it('F8: accepts a fully-valid colorExtras', () => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [makeColorExtrasTab()] })),
+    ).not.toThrow();
+  });
+
+  it('F8: rejects colorExtras missing panelSettings', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({ tabs: [makeColorExtrasTab({ panelSettings: undefined })] }),
+      ),
+    ).toThrow(/panelSettings must be a plain object/);
+  });
+
+  it('F8: rejects colorExtras with panelSettings missing colorScheme', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          tabs: [
+            makeColorExtrasTab({
+              panelSettings: { colorMode: false },
+            }),
+          ],
+        }),
+      ),
+    ).toThrow(/panelSettings\.colorScheme must be a non-empty string/);
+  });
+
+  it('F8: rejects colorExtras with missing id', () => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [makeColorExtrasTab({ id: '' })] })),
+    ).toThrow(/colorExtras\.id must be a non-empty string/);
+  });
+
+  it('F8: rejects colorExtras with missing defaultShikiTheme', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({ tabs: [makeColorExtrasTab({ defaultShikiTheme: '' })] }),
+      ),
+    ).toThrow(/colorExtras\.defaultShikiTheme must be a non-empty string/);
+  });
+
+  it('F8: rejects colorExtras where colorSchemes is not an object', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({ tabs: [makeColorExtrasTab({ colorSchemes: 'invalid' })] }),
+      ),
+    ).toThrow(/colorExtras\.colorSchemes must be a plain object/);
+  });
+
+  it('F8: rejects colorExtras with colorMode that has invalid defaultMode', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          tabs: [
+            makeColorExtrasTab({
+              panelSettings: {
+                colorScheme: 'default',
+                colorMode: { defaultMode: 'system', lightScheme: 'light', darkScheme: 'dark' },
+              },
+            }),
+          ],
+        }),
+      ),
+    ).toThrow(/defaultMode must be "light" or "dark"/);
+  });
+
+  it('F8: accepts colorExtras with a valid colorMode object', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          tabs: [
+            makeColorExtrasTab({
+              panelSettings: {
+                colorScheme: 'default',
+                colorMode: {
+                  defaultMode: 'light',
+                  lightScheme: 'light-scheme',
+                  darkScheme: 'dark-scheme',
+                },
+              },
+            }),
+          ],
+        }),
+      ),
+    ).not.toThrow();
+  });
 });

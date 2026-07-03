@@ -279,6 +279,15 @@ export const RECONFIGURE_RULE = 'reject-with-error' as const;
  */
 interface PanelInstanceRecord {
   config: PanelConfig;
+  /**
+   * The config AS SUPPLIED by the host, before any runtime merges (e.g.
+   * before `setPanelColorPresets` merges presets into `config`). Used
+   * exclusively for the idempotency guard in `configurePanel` so that
+   * a view-transition re-call with the original inline config still passes
+   * even after `setPanelColorPresets` mutated `config`. Never modified
+   * after construction.
+   */
+  suppliedConfig: PanelConfig;
   pendingColorPresets: Record<string, ColorScheme> | null;
   /**
    * Post-configure hooks — callbacks registered by src/index.tsx that must run
@@ -484,7 +493,19 @@ export function configurePanel(config: PanelConfig): PanelInstanceHandle {
   const prefix = config.storagePrefix;
   const existing = registry.instances.get(prefix);
   if (existing) {
-    if (structuralEqual(existing.config, config)) {
+    // Compare the AS-SUPPLIED config (pre-runtime-merge) against the incoming
+    // config, excluding `applySink` from both sides. This fixes two problems:
+    //   1. `setPanelColorPresets` merges colorPresets into `record.config` after
+    //      configure, so a view-transition re-call with the original inline config
+    //      (no colorPresets) would never equal the mutated stored config — causing a
+    //      spurious throw. Using `suppliedConfig` (frozen at configure time)
+    //      keeps the guard stable regardless of later preset mutations.
+    //   2. `applySink` is function-typed and fails structuralEqual when the host
+    //      supplies a fresh closure on each re-call. Stripping it from both sides
+    //      lets function-typed sinks pass the idempotency check by content
+    //      (the function itself is not compared).
+    const withoutSink = (c: PanelConfig) => ({ ...c, applySink: undefined });
+    if (structuralEqual(withoutSink(existing.suppliedConfig), withoutSink(config))) {
       // Idempotent re-call for this prefix — keep the installed config and the
       // stable handle, just re-point the default to this prefix (Astro
       // view-transition reruns re-assert "this is the active instance").
@@ -514,6 +535,10 @@ export function configurePanel(config: PanelConfig): PanelInstanceHandle {
   if (isFirstInstance) registry.pendingPostConfigureHooks.length = 0;
   const record: PanelInstanceRecord = {
     config: installedConfig,
+    // Snapshot the as-supplied config before any runtime merges. Used by the
+    // idempotency guard so view-transition re-calls with the original inline
+    // config keep passing even after setPanelColorPresets mutates `config`.
+    suppliedConfig: { ...config },
     pendingColorPresets: null,
     postConfigureHooks: adoptedHooks,
     handle: makeHandle(prefix),
@@ -1059,6 +1084,118 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
       ) {
         throw new Error(
           `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].referencesTier: referencing tier has kind "${referencingKind}" but referenced tier "${refId}" has kind "${referencedKind}" (cross-kind reference is only allowed when the referencing tier has kind "text")`,
+        );
+      }
+    }
+  }
+
+  // F4: Palette cssVar 0-based contiguity check.
+  // When the tab has colorExtras, find the palette tier (first tier with
+  // kind:'color' items and no referencesTier) and verify that each item's
+  // cssVar matches the template derived from the first item at its expected
+  // 0-based index. A mismatch means the host used 1-based or non-numbered
+  // cssVars, which causes palette writes to land on the wrong variables.
+  if (tab.colorExtras !== undefined) {
+    const tiers = tab.tiers as unknown as Array<Record<string, unknown>>;
+    const paletteTier = tiers.find((t) => {
+      if (t.referencesTier !== undefined) return false;
+      const items = t.items;
+      if (!Array.isArray(items) || items.length === 0) return false;
+      const first = items[0];
+      if (first === null || typeof first !== 'object' || Array.isArray(first)) return false;
+      const typeObj = (first as Record<string, unknown>).type;
+      if (typeObj === null || typeof typeObj !== 'object' || Array.isArray(typeObj)) return false;
+      return (typeObj as Record<string, unknown>).kind === 'color';
+    });
+    if (paletteTier) {
+      const paletteTierId = paletteTier.id as string;
+      const paletteItems = paletteTier.items as Array<Record<string, unknown>>;
+      const firstCssVar = paletteItems[0]?.cssVar as string | undefined;
+      if (firstCssVar !== undefined) {
+        const derivedTemplate = firstCssVar.replace(/\d+$/, '{n}');
+        for (let i = 0; i < paletteItems.length; i++) {
+          const item = paletteItems[i];
+          const expectedCssVar = derivedTemplate.replace('{n}', String(i));
+          if (item.cssVar !== expectedCssVar) {
+            throw new Error(
+              `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${paletteTierId}"].items[${i}].cssVar` +
+                ` is ${JSON.stringify(item.cssVar)} but expected ${JSON.stringify(expectedCssVar)}` +
+                ` — palette item cssVars must share one prefix and be numbered 0..n-1 in tier order` +
+                ` (template derived from first item: ${JSON.stringify(derivedTemplate)})`,
+            );
+          }
+        }
+      }
+    }
+  }
+
+  // F8: colorExtras deep validation.
+  // assertValidPanelConfig surfaces a single clear error at the trust boundary.
+  // Without this block, a color tab missing panelSettings causes a cryptic
+  // TypeError deep in getActiveSchemeName at panel-open time.
+  if (tab.colorExtras !== undefined) {
+    const extras = tab.colorExtras as Record<string, unknown>;
+    if (extras === null || typeof extras !== 'object' || Array.isArray(extras)) {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["${tabId}"].colorExtras must be a plain object`,
+      );
+    }
+    for (const key of ['id', 'defaultShikiTheme'] as const) {
+      if (typeof extras[key] !== 'string' || (extras[key] as string).length === 0) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].colorExtras.${key} must be a non-empty string (got ${typeof extras[key]})`,
+        );
+      }
+    }
+    for (const key of ['colorSchemes', 'baseRoles', 'baseDefaults'] as const) {
+      if (
+        extras[key] === undefined ||
+        extras[key] === null ||
+        typeof extras[key] !== 'object' ||
+        Array.isArray(extras[key])
+      ) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].colorExtras.${key} must be a plain object`,
+        );
+      }
+    }
+    if (
+      extras.panelSettings === undefined ||
+      extras.panelSettings === null ||
+      typeof extras.panelSettings !== 'object' ||
+      Array.isArray(extras.panelSettings)
+    ) {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["${tabId}"].colorExtras.panelSettings must be a plain object`,
+      );
+    }
+    const ps = extras.panelSettings as Record<string, unknown>;
+    if (typeof ps.colorScheme !== 'string' || (ps.colorScheme as string).length === 0) {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["${tabId}"].colorExtras.panelSettings.colorScheme must be a non-empty string`,
+      );
+    }
+    if (ps.colorMode !== false) {
+      if (
+        ps.colorMode === null ||
+        typeof ps.colorMode !== 'object' ||
+        Array.isArray(ps.colorMode)
+      ) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].colorExtras.panelSettings.colorMode must be false or a plain object`,
+        );
+      }
+      const cm = ps.colorMode as Record<string, unknown>;
+      for (const key of ['lightScheme', 'darkScheme'] as const) {
+        if (typeof cm[key] !== 'string' || (cm[key] as string).length === 0) {
+          throw new Error(
+            `[design-token-panel] PanelConfig.tabs["${tabId}"].colorExtras.panelSettings.colorMode.${key} must be a non-empty string`,
+          );
+        }
+      }
+      if (cm.defaultMode !== 'light' && cm.defaultMode !== 'dark') {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].colorExtras.panelSettings.colorMode.defaultMode must be "light" or "dark" (got ${JSON.stringify(cm.defaultMode)})`,
         );
       }
     }

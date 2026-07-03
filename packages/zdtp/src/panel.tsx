@@ -95,7 +95,7 @@ function computePanelSize(storedSize: PanelSize): {
  */
 function freshTweakState(cfg?: PanelConfig): TweakState {
   return {
-    color: initColorFromScheme(getActivePrimaryCluster(cfg)),
+    color: initColorFromScheme(getActivePrimaryCluster(cfg), cfg),
     spacing: emptyOverrides(),
     typography: emptyOverrides(),
     size: emptyOverrides(),
@@ -292,7 +292,7 @@ export default function DesignTokenTweakPanel({
         prev
           ? {
               ...prev,
-              color: initColorFromScheme(getActivePrimaryCluster(instanceConfig)),
+              color: initColorFromScheme(getActivePrimaryCluster(instanceConfig), instanceConfig),
               secondary: initSecondaryFromConfig(instanceConfig),
             }
           : freshTweakState(instanceConfig),
@@ -817,7 +817,7 @@ export default function DesignTokenTweakPanel({
         <ExportModal
           onClose={() => setShowExport(false)}
           state={state}
-          colorDefaults={initColorFromScheme(getActivePrimaryCluster(instanceConfig))}
+          colorDefaults={initColorFromScheme(getActivePrimaryCluster(instanceConfig), instanceConfig)}
           instanceConfig={instanceConfig}
         />
       )}
@@ -826,7 +826,7 @@ export default function DesignTokenTweakPanel({
         <ImportModal
           onClose={() => setShowImport(false)}
           onLoad={handleLoadFromJson}
-          colorDefaults={initColorFromScheme(getActivePrimaryCluster(instanceConfig))}
+          colorDefaults={initColorFromScheme(getActivePrimaryCluster(instanceConfig), instanceConfig)}
           instanceConfig={instanceConfig}
         />
       )}
@@ -836,7 +836,7 @@ export default function DesignTokenTweakPanel({
           state={state}
           open={showApply}
           onClose={() => setShowApply(false)}
-          colorDefaults={initColorFromScheme(getActivePrimaryCluster(instanceConfig))}
+          colorDefaults={initColorFromScheme(getActivePrimaryCluster(instanceConfig), instanceConfig)}
           onApplied={handleApplied}
           instanceConfig={instanceConfig}
         />

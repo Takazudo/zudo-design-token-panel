@@ -100,6 +100,54 @@ describe('setPanelColorPresets — lazy attach (M-12)', () => {
   });
 });
 
+describe('setPanelColorPresets + configurePanel re-init guard — F1 regression (issue #440)', () => {
+  it('configure → setPresets → re-configure with structurally-equal BASE does not throw', () => {
+    // Astro view-transition recipe: configure once, lazily attach presets,
+    // then the host-adapter re-executes on the next navigation and calls
+    // configurePanel again with a freshly-JSON-parsed (but identical) config.
+    configurePanel(BASE);
+    setPanelColorPresets({ vivid: BASELINE_SCHEME() });
+
+    // Simulate the re-run with a fresh JSON-parse round-trip.
+    const reparsed = JSON.parse(JSON.stringify(BASE)) as PanelConfig;
+    expect(() => configurePanel(reparsed)).not.toThrow();
+  });
+
+  it('configure → setPresets → re-configure with structurally-equal BASE: presets survive', () => {
+    configurePanel(BASE);
+    setPanelColorPresets({ vivid: BASELINE_SCHEME() });
+
+    const reparsed = JSON.parse(JSON.stringify(BASE)) as PanelConfig;
+    configurePanel(reparsed);
+
+    // The preset must survive the re-call — it belongs to the STORED config,
+    // not the freshly-supplied one, so it must not be blown away.
+    const cfg = getPanelConfig();
+    expect(cfg.colorPresets).toEqual({ vivid: BASELINE_SCHEME() });
+  });
+
+  it('park-before-configure order: setPresets → configure → re-configure with equal BASE does not throw', () => {
+    // "Park" order: presets arrive BEFORE configurePanel (the lazy-import
+    // completes before the inline config is evaluated).
+    setPanelColorPresets({ vivid: BASELINE_SCHEME() });
+    configurePanel(BASE);
+
+    const reparsed = JSON.parse(JSON.stringify(BASE)) as PanelConfig;
+    expect(() => configurePanel(reparsed)).not.toThrow();
+  });
+
+  it('park-before-configure order: presets survive the re-configure call', () => {
+    setPanelColorPresets({ vivid: BASELINE_SCHEME() });
+    configurePanel(BASE);
+
+    const reparsed = JSON.parse(JSON.stringify(BASE)) as PanelConfig;
+    configurePanel(reparsed);
+
+    const cfg = getPanelConfig();
+    expect(cfg.colorPresets).toEqual({ vivid: BASELINE_SCHEME() });
+  });
+});
+
 describe('assertValidPanelConfig — trust-boundary validator (P1-11)', () => {
   it('rejects null / non-object inputs', () => {
     expect(() => assertValidPanelConfig(null)).toThrow(/non-null object/);

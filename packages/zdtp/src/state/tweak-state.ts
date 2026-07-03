@@ -846,9 +846,16 @@ export function getActiveSchemeName(
  * no schemes should not call this directly — they use
  * `initSecondaryDefaults(cluster)` instead because there is no scheme to
  * seed from.
+ *
+ * @param cfg - The panel instance config. When provided and the config has
+ *   `applySink`, the host's `data-theme` attribute is ignored and the scheme
+ *   seed comes from `cluster.panelSettings.colorScheme` instead (sink-instance
+ *   guard). Omitting it silently falls through to reading `data-theme`, which
+ *   is the correct behavior for non-sink instances but wrong for sinks.
  */
 export function initColorFromScheme(
   cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
+  cfg?: PanelConfig,
 ): ColorTweakState {
   const schemes = cluster.colorSchemes;
   // No schemes → fall back to the deterministic neutral seed. This keeps the
@@ -858,7 +865,9 @@ export function initColorFromScheme(
   if (Object.keys(schemes).length === 0) {
     return initSecondaryDefaults(cluster);
   }
-  const schemeName = getActiveSchemeName(cluster);
+  // Pass cfg so getActiveSchemeName can detect sink instances and avoid reading
+  // the host document's data-theme (which belongs to the host, not this panel).
+  const schemeName = getActiveSchemeName(cluster, cfg);
   const scheme = schemes[schemeName] ?? Object.values(schemes)[0];
   return initColorFromSchemeData(scheme, cluster);
 }
@@ -1855,9 +1864,9 @@ function safeParse(raw: string): unknown {
  * `initColorFromScheme` wrapper that survives JSDOM / node environments where
  * `document` may not be fully scheme-aware. Used as a last-resort default.
  */
-function tryInitColorFromScheme(cluster: ColorClusterDataConfig): ColorTweakState {
+function tryInitColorFromScheme(cluster: ColorClusterDataConfig, cfg?: PanelConfig): ColorTweakState {
   try {
-    return initColorFromScheme(cluster);
+    return initColorFromScheme(cluster, cfg);
   } catch {
     // Fallback: a minimal black/white palette so migration stays deterministic.
     const palette = Array.from({ length: cluster.paletteSize }, (_, i) =>
