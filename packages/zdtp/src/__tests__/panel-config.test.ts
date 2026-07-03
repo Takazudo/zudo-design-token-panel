@@ -760,13 +760,32 @@ describe('panel-config — assertValidPanelConfig host-tabs validation', () => {
     );
   });
 
-  it('F4: rejects non-numbered palette cssVars (all slots collapse to same name)', () => {
-    // All items share the same cssVar — template derives "--brand-red{n}" with
-    // no digit, so index 1..n all map to the same derived name and fail.
+  it('F4: rejects a palette where the first cssVar has no trailing digit (mixed names)', () => {
+    // When firstCssVar has no trailing digits, the template stays unchanged (no
+    // {n} placeholder is inserted). The validator detects this and rejects the
+    // multi-slot palette via the explicit no-trailing-digit guard.
     const tab = makeColorTab(['--brand-red', '--brand-blue', '--brand-green']);
     expect(() => assertValidPanelConfig(makeBaseConfig({ tabs: [tab] }))).toThrow(
       /palette item cssVars must share one prefix and be numbered 0\.\.n-1/,
     );
+  });
+
+  it('F4: rejects a palette where ALL items share the same non-numbered cssVar (false-negative guard)', () => {
+    // Without the explicit {n}-presence guard, a uniform non-indexed palette
+    // (same cssVar repeated) would pass silently: expectedCssVar === item.cssVar
+    // for every slot because the template has no {n} to substitute. The guard
+    // must explicitly reject any multi-item palette whose first cssVar lacks
+    // a trailing digit.
+    const tab = makeColorTab(['--brand-color', '--brand-color', '--brand-color']);
+    expect(() => assertValidPanelConfig(makeBaseConfig({ tabs: [tab] }))).toThrow(
+      /has no trailing digit/,
+    );
+  });
+
+  it('F4: accepts a single-slot palette with a non-numbered cssVar', () => {
+    // A 1-item palette requires no index, so a bare cssVar is valid.
+    const tab = makeColorTab(['--brand-accent']);
+    expect(() => assertValidPanelConfig(makeBaseConfig({ tabs: [tab] }))).not.toThrow();
   });
 
   // F8: colorExtras deep validation (issue #440) ----------------------------

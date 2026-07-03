@@ -1186,16 +1186,34 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
       const firstCssVar = paletteItems[0]?.cssVar as string | undefined;
       if (firstCssVar !== undefined) {
         const derivedTemplate = firstCssVar.replace(/\d+$/, '{n}');
-        for (let i = 0; i < paletteItems.length; i++) {
-          const item = paletteItems[i];
-          const expectedCssVar = derivedTemplate.replace('{n}', String(i));
-          if (item.cssVar !== expectedCssVar) {
+        // When the first cssVar has no trailing digits (e.g. "--brand-color"),
+        // `replace(/\d+$/, '{n}')` leaves the string unchanged — no `{n}` is
+        // ever inserted. In that case, `derivedTemplate.replace('{n}', i)` is
+        // a no-op for every slot, so ALL slots would produce the same
+        // expectedCssVar and a uniform non-numbered palette would pass silently.
+        // Guard explicitly: a non-numbered cssVar is only valid for a single-slot
+        // palette; any multi-item palette missing trailing digits is rejected.
+        if (!derivedTemplate.includes('{n}')) {
+          if (paletteItems.length > 1) {
             throw new Error(
-              `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${paletteTierId}"].items[${i}].cssVar` +
-                ` is ${JSON.stringify(item.cssVar)} but expected ${JSON.stringify(expectedCssVar)}` +
-                ` — palette item cssVars must share one prefix and be numbered 0..n-1 in tier order` +
-                ` (template derived from first item: ${JSON.stringify(derivedTemplate)})`,
+              `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${paletteTierId}"].items[0].cssVar` +
+                ` ${JSON.stringify(firstCssVar)} has no trailing digit — palette item cssVars must share` +
+                ` one prefix and be numbered 0..n-1 in tier order (e.g. "--pal-0" … "--pal-15")`,
             );
+          }
+          // Single-slot palette with a non-numbered cssVar is valid — nothing to check.
+        } else {
+          for (let i = 0; i < paletteItems.length; i++) {
+            const item = paletteItems[i];
+            const expectedCssVar = derivedTemplate.replace('{n}', String(i));
+            if (item.cssVar !== expectedCssVar) {
+              throw new Error(
+                `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${paletteTierId}"].items[${i}].cssVar` +
+                  ` is ${JSON.stringify(item.cssVar)} but expected ${JSON.stringify(expectedCssVar)}` +
+                  ` — palette item cssVars must share one prefix and be numbered 0..n-1 in tier order` +
+                  ` (template derived from first item: ${JSON.stringify(derivedTemplate)})`,
+              );
+            }
           }
         }
       }
