@@ -1430,8 +1430,11 @@ describe('type detection — percentage value classified as length (F27)', () =>
     injectStyle(':root { --w: 50%; }');
     injectStyle('.fx-pct-width { width: var(--w); }');
     const el = createElement({ className: 'fx-pct-width' });
-    // No explicit kind: auto-detect should classify 50% as 'length'
-    const { elements, warnings } = findElementsUsingToken('--w');
+    // No explicit kind: auto-detect should classify 50% as 'length'.
+    // width/height computed values are USED values snapped to 1/64px, so the
+    // equality-mode sentinel never round-trips — differential mode is required
+    // for width/height consumers.
+    const { elements, warnings } = findElementsUsingToken('--w', { mode: 'differential' });
     expect(warnings.filter((w) => w.includes('auto-detection')).length).toBe(0);
     expect(elements).toContain(el);
   });
@@ -1440,7 +1443,8 @@ describe('type detection — percentage value classified as length (F27)', () =>
     injectStyle(':root { --full: 100%; }');
     injectStyle('.fx-full { height: var(--full); }');
     const el = createElement({ className: 'fx-full' });
-    const { elements } = findElementsUsingToken('--full');
+    // height is a used value (1/64px snapping) — see width note above.
+    const { elements } = findElementsUsingToken('--full', { mode: 'differential' });
     expect(elements).toContain(el);
   });
 
