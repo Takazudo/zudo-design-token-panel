@@ -432,14 +432,28 @@ function serializeColorV2(
   }
 
   // Semantic tier — cssVar-keyed palette-index integers.
+  // 'bg' and 'fg' are legacy alias values admitted by v1 deserialize; resolve
+  // them to their concrete palette index (mirroring resolveMappingIndex in
+  // build-apply-overrides.ts) so they survive round-trips through the v2 format,
+  // which only admits numbers on deserialize (F29 fix).
   const semantic: Record<string, number> = {};
   let semanticWrote = false;
   for (const [key, cssName] of Object.entries(cluster.semanticCssNames)) {
     const cur = color.semanticMappings[key];
-    if (cur === undefined || typeof cur !== 'number') continue;
+    if (cur === undefined) continue;
+    const resolvedCur: number =
+      typeof cur === 'number' ? cur : cur === 'bg' ? color.background : color.foreground;
     const baselineVal = baseline?.semanticMappings[key];
-    if (full || baselineVal === undefined || cur !== baselineVal) {
-      semantic[cssName] = cur;
+    const resolvedBaseline: number | undefined =
+      baselineVal === undefined
+        ? undefined
+        : typeof baselineVal === 'number'
+          ? baselineVal
+          : baselineVal === 'bg'
+            ? (baseline?.background ?? 0)
+            : (baseline?.foreground ?? 1);
+    if (full || resolvedBaseline === undefined || resolvedCur !== resolvedBaseline) {
+      semantic[cssName] = resolvedCur;
       semanticWrote = true;
     }
   }
