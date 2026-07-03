@@ -43,6 +43,7 @@ import {
   type TweakState,
 } from './state/tweak-state';
 import { serialize } from './utils/design-token-serde';
+import { useDialogBackdropClose } from './controls/use-dialog-backdrop-close';
 
 const COPY_REVERT_MS = 2000;
 
@@ -244,6 +245,13 @@ export function ApplyModal(props: ApplyModalProps) {
 
   const [phase, setPhase] = useState<Phase>(INITIAL_PHASE);
   const [copyLabel, setCopyLabel] = useState<CopyLabel>('Copy pre-apply state to clipboard');
+  // Mirror `phase` into a ref so the dialog's native `close`-event listener and
+  // the dismissal guards read the current phase without stale-closure risk.
+  const phaseRef = useRef<Phase>(phase);
+  phaseRef.current = phase;
+  // Guards onApplied to exactly one invocation per successful apply, no matter
+  // how the success view is dismissed (Done / Escape / backdrop / ×) — F13.
+  const appliedFiredRef = useRef(false);
 
   // Drive the native dialog from the `open` prop.
   useEffect(() => {
@@ -275,6 +283,7 @@ export function ApplyModal(props: ApplyModalProps) {
     if (!open) return;
     setPhase(INITIAL_PHASE);
     setCopyLabel('Copy pre-apply state to clipboard');
+    appliedFiredRef.current = false;
   }, [open]);
 
   // Revert the copy label after COPY_REVERT_MS.
@@ -409,7 +418,8 @@ export function ApplyModal(props: ApplyModalProps) {
   }
 
   function handleDone() {
-    onApplied();
+    // Route through the shared close path so onApplied fires exactly once, from
+    // handleClose — the same choke point as Escape / backdrop / × (F13).
     requestClose();
   }
 
@@ -417,36 +427,42 @@ export function ApplyModal(props: ApplyModalProps) {
     setPhase(INITIAL_PHASE);
   }
 
+  // The native <dialog> `close` event is the single choke point for EVERY
+  // dismissal — Escape, backdrop click, the × button, the Close/Done buttons,
+  // and programmatic close. Running the success cleanup contract (onApplied)
+  // here guarantees it can never be skipped by a non-Done dismissal (F13).
   function handleClose() {
+    if (phaseRef.current.kind === 'success' && !appliedFiredRef.current) {
+      appliedFiredRef.current = true;
+      onApplied();
+    }
     onClose();
   }
 
   function requestClose() {
+    // Never dismiss mid-fetch: the parent unmounts the modal on close, so an
+    // in-flight apply would resolve into a no-op setPhase and neither the
+    // success view nor onApplied would ever run (F13). Escape is blocked
+    // separately via onCancel.
+    if (phaseRef.current.kind === 'applying') return;
     const dialog = dialogRef.current;
-    if (!dialog) {
-      onClose();
-      return;
-    }
-    if (typeof dialog.close === 'function') {
+    if (dialog && typeof dialog.close === 'function') {
+      // Native path: close() fires the 'close' event → handleClose runs the
+      // success/onApplied contract. Real browsers always take this branch.
       dialog.close();
     } else {
-      dialog.removeAttribute('open');
-      onClose();
+      // Fallback (no native <dialog>.close, e.g. jsdom): no 'close' event is
+      // emitted, so route through handleClose directly so the same
+      // success/onApplied contract runs exactly once regardless of environment.
+      dialog?.removeAttribute('open');
+      handleClose();
     }
   }
 
-  function handleBackdropClick(event: React.MouseEvent<HTMLDialogElement>) {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    const rect = dialog.getBoundingClientRect();
-    if (
-      event.clientX < rect.left ||
-      event.clientX > rect.right ||
-      event.clientY < rect.top ||
-      event.clientY > rect.bottom
-    ) {
-      requestClose();
-    }
+  function handleCancel(event: Event) {
+    // Block the native-dialog Escape → cancel → close while applying so the
+    // in-flight apply can't be torn down mid-fetch (F13).
+    if (phaseRef.current.kind === 'applying') event.preventDefault();
   }
 
   // Primary-button label changes to reflect what files the apply will edit
@@ -468,6 +484,11 @@ export function ApplyModal(props: ApplyModalProps) {
         ? `Apply to ${routingFiles}`
         : 'Apply (host not configured)';
 
+  // Gesture-aware backdrop close (F14): a drag that starts inside the dialog
+  // (selecting the preview / revert JSON) and ends on the backdrop must NOT
+  // dismiss. requestClose already no-ops while applying.
+  const backdropHandlers = useDialogBackdropClose(dialogRef, requestClose);
+
   return (
     <dialog
       ref={dialogRef}
@@ -476,7 +497,9 @@ export function ApplyModal(props: ApplyModalProps) {
       data-design-token-panel-modal-variant="apply"
       aria-labelledby={titleId}
       onClose={handleClose}
-      onClick={handleBackdropClick}
+      onCancel={handleCancel}
+      onMouseDown={backdropHandlers.onMouseDown}
+      onClick={backdropHandlers.onClick}
     >
       <div className={cls.header}>
         <div id={titleId} role="heading" aria-level={2} className={cls.title}>

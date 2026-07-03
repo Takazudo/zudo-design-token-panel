@@ -226,6 +226,12 @@ export default function DesignTokenTweakPanel({
     if (!open) return;
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key !== 'Escape') return;
+      // A layered popover (ColorPicker / HighlightSettingsPopover /
+      // PaletteSelector listbox) consumed this Escape via the shared
+      // dismiss-layer stack, which runs in the capture phase and marks the
+      // event handled. The panel is the base surface — stand down so one
+      // press never closes both the popover and the panel (F10).
+      if (e.defaultPrevented) return;
       // If any modal is open, let the native <dialog> handle Escape.
       if (showExport || showImport || showApply) return;
       e.preventDefault();

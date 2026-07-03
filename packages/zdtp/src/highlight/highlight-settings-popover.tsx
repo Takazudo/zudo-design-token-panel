@@ -54,7 +54,9 @@ export function HighlightSettingsPopover({
   // Must be declared here (before any early return) to satisfy Rules of Hooks.
   const colorPickerAnchorRef = useRef<HTMLDivElement | null>(null);
 
-  usePopoverClose(containerRef, onClose);
+  // Pass the gear button (anchorRef) so clicking it toggles the popover shut
+  // instead of the outside-close racing the gear's click-to-toggle (F11).
+  usePopoverClose(containerRef, onClose, anchorRef);
 
   // Graceful null guard: no context = no popover.
   if (!ctx) return null;

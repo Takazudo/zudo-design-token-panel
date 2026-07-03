@@ -22,6 +22,7 @@
  */
 
 import { useEffect, useRef, useState, useId } from 'preact/compat';
+import { useDialogBackdropClose } from './controls/use-dialog-backdrop-close';
 import {
   DesignTokenSchemaError,
   deserialize,
@@ -88,19 +89,12 @@ export function ImportModal({ onClose, onLoad, colorDefaults, instanceConfig }: 
     return () => dialog.removeEventListener('close', handleClose);
   }, [onClose]);
 
-  function handleBackdropClick(e: React.MouseEvent<HTMLDialogElement>) {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    const rect = dialog.getBoundingClientRect();
-    if (
-      e.clientX < rect.left ||
-      e.clientX > rect.right ||
-      e.clientY < rect.top ||
-      e.clientY > rect.bottom
-    ) {
-      dialog.close();
-    }
-  }
+  // Gesture-aware backdrop close (F14): a selection drag that starts inside the
+  // dialog (e.g. over the textarea) and ends on the backdrop must NOT dismiss —
+  // otherwise the user's unsaved pasted JSON is destroyed with the unmount.
+  const backdropHandlers = useDialogBackdropClose(dialogRef, () => {
+    dialogRef.current?.close();
+  });
 
   function handleLoad() {
     setNote(null);
@@ -222,7 +216,8 @@ export function ImportModal({ onClose, onLoad, colorDefaults, instanceConfig }: 
   return (
     <dialog
       ref={dialogRef}
-      onClick={handleBackdropClick}
+      onMouseDown={backdropHandlers.onMouseDown}
+      onClick={backdropHandlers.onClick}
       aria-labelledby={titleId}
       className={`${modalClass(cfg, '')} ${modalClass(cfg, '--import')}`}
       data-design-token-panel-modal=""

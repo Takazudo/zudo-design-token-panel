@@ -35,8 +35,9 @@
  * in the panel.
  */
 
-import { memo, useState, useEffect, useCallback, useMemo, useRef } from 'preact/compat';
+import { memo, useState, useEffect, useCallback, useMemo, useRef, useId } from 'preact/compat';
 import type { ColorScheme } from '../config/color-schemes';
+import { pushDismissLayer } from '../controls/dismiss-layer';
 import ColorPicker from '../components/color-picker';
 import type { ColorPickerValueFormat } from '../components/color-picker/color-picker';
 import {
@@ -66,12 +67,26 @@ import { useTooltip } from '../controls/tooltip';
 
 // --- Shared popover helpers (Color-tab scoped) ---
 
-/** Close popover on outside click, Escape, or ancestor scroll */
+/**
+ * Close popover on outside click, Escape, or ancestor scroll.
+ *
+ * Escape is arbitrated by the shared dismiss-layer stack (F10): only the
+ * topmost open layer consumes a single Escape, so dismissing this listbox never
+ * also tears down the panel underneath. `onEscape` (when given) lets the caller
+ * restore focus to the trigger on Escape — a keyboard-only concern that the
+ * outside-click / scroll paths deliberately do not trigger.
+ */
 function usePopoverClose(
   containerRef: React.RefObject<HTMLElement | null>,
   onClose: () => void,
   isOpen: boolean,
+  onEscape?: () => void,
 ) {
+  // Keep the latest Escape handler in a ref so the once-per-open stack layer
+  // always calls the current closure.
+  const onEscapeRef = useRef<() => void>(onEscape ?? onClose);
+  onEscapeRef.current = onEscape ?? onClose;
+
   useEffect(() => {
     if (!isOpen) return;
     function handleClick(e: MouseEvent) {
@@ -79,14 +94,14 @@ function usePopoverClose(
         onClose();
       }
     }
-    function handleEscape(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
     document.addEventListener('mousedown', handleClick);
-    document.addEventListener('keydown', handleEscape);
+    const removeLayer = pushDismissLayer({
+      onEscape: () => onEscapeRef.current(),
+      getElement: () => containerRef.current,
+    });
     return () => {
       document.removeEventListener('mousedown', handleClick);
-      document.removeEventListener('keydown', handleEscape);
+      removeLayer();
     };
   }, [isOpen, onClose, containerRef]);
 
@@ -300,8 +315,14 @@ const PaletteSelector = memo(function PaletteSelector({
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
+  const listboxRef = useRef<HTMLDivElement>(null);
   const handleClose = useCallback(() => setIsOpen(false), []);
   const handleToggle = useCallback(() => setIsOpen((prev) => !prev), []);
+  // Restore focus to the trigger when the listbox is dismissed by keyboard (F12).
+  const closeAndFocusTrigger = useCallback(() => {
+    setIsOpen(false);
+    buttonRef.current?.focus();
+  }, []);
 
   const resolvedColor =
     value === 'bg'
@@ -312,13 +333,68 @@ const PaletteSelector = memo(function PaletteSelector({
 
   const valueLabel = value === 'bg' ? 'bg' : value === 'fg' ? 'fg' : `p${value}`;
 
-  usePopoverClose(containerRef, handleClose, isOpen);
+  // Escape returns focus to the trigger (F12); outside-click / scroll do not.
+  usePopoverClose(containerRef, handleClose, isOpen, closeAndFocusTrigger);
 
   const tooltipProps = useTooltip(`${label}: ${valueLabel}`);
+
+  // --- Container-owned keyboard navigation (listbox policy, F12) -------------
+  // The role="option" children stay click-only and unfocusable; THIS container
+  // owns arrow / Home / End / Enter / Space, tracking a roving active option via
+  // aria-activedescendant. Options render as extras (bg/fg) first, then the
+  // palette grid — treated here as one flat, linearly-navigable sequence.
+  const optionValues = useMemo<(number | 'bg' | 'fg')[]>(
+    () => [...(extraOptions ?? []), ...palette.map((_, i) => i)],
+    [extraOptions, palette],
+  );
+  const extrasCount = extraOptions?.length ?? 0;
+  const baseId = useId();
+  const optionId = (val: number | 'bg' | 'fg') => `${baseId}-opt-${val}`;
+  const [activeIndex, setActiveIndex] = useState(0);
+  const activeValue = optionValues[activeIndex];
+
+  // On open, focus the listbox (so it owns keyboard nav) and seed the active
+  // option to the currently-selected value.
+  useEffect(() => {
+    if (!isOpen) return;
+    const selIdx = optionValues.findIndex((v) => v === value);
+    setActiveIndex(selIdx >= 0 ? selIdx : 0);
+    listboxRef.current?.focus();
+    // Seed only on the open transition — deliberately not re-run on value /
+    // option changes while already open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   function select(val: number | 'bg' | 'fg') {
     onChange(idKey, val);
     setIsOpen(false);
+  }
+
+  function handleListboxKeyDown(e: KeyboardEvent) {
+    const count = optionValues.length;
+    if (count === 0) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      setActiveIndex((i) => Math.min(count - 1, i + 1));
+    } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+      e.preventDefault();
+      setActiveIndex((i) => Math.max(0, i - 1));
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      setActiveIndex(0);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      setActiveIndex(count - 1);
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      const val = optionValues[activeIndex];
+      if (val !== undefined) {
+        select(val);
+        buttonRef.current?.focus();
+      }
+    }
+    // Escape is handled by the shared dismiss-layer stack (see usePopoverClose):
+    // it closes this listbox and restores focus to the trigger.
   }
 
   return (
@@ -332,6 +408,11 @@ const PaletteSelector = memo(function PaletteSelector({
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             handleToggle();
+          } else if (e.key === 'ArrowDown') {
+            // Open (never toggle shut) and let the open effect move focus into
+            // the listbox so arrow keys navigate options (F12).
+            e.preventDefault();
+            if (!isOpen) setIsOpen(true);
           }
         }}
         className="tokenpanel-palette-trigger"
@@ -364,29 +445,37 @@ const PaletteSelector = memo(function PaletteSelector({
 
       {isOpen && (
         <div
+          ref={listboxRef}
           role="listbox"
+          tabIndex={0}
           aria-label={`${label} color options`}
+          aria-activedescendant={activeValue !== undefined ? optionId(activeValue) : undefined}
+          onKeyDown={handleListboxKeyDown}
           className="tokenpanel-palette-options"
           style={getFixedPopoverStyle(buttonRef.current, 440, extraOptions ? 160 : 120)}
         >
           {/* Extra options (bg/fg) */}
           {extraOptions && extraOptions.length > 0 && (
             <div className="tokenpanel-palette-options-extras">
-              {extraOptions.map((opt) => {
+              {extraOptions.map((opt, extraIdx) => {
                 const optColor =
                   opt === 'bg' ? (background ?? '#000000') : (foreground ?? '#ffffff');
                 const isSelected = value === opt;
+                const isActive = activeIndex === extraIdx;
                 return (
                   <div
                     key={opt}
+                    id={optionId(opt)}
                     role="option"
                     aria-selected={isSelected}
                     onClick={() => select(opt)}
-                    className={
-                      isSelected
-                        ? 'tokenpanel-palette-extra-option is-selected'
-                        : 'tokenpanel-palette-extra-option'
-                    }
+                    className={[
+                      'tokenpanel-palette-extra-option',
+                      isSelected ? 'is-selected' : '',
+                      isActive ? 'is-active' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
                   >
                     <div
                       className="tokenpanel-palette-extra-color"
@@ -402,20 +491,24 @@ const PaletteSelector = memo(function PaletteSelector({
           <div className="tokenpanel-palette-options-grid">
             {palette.map((color, i) => {
               const isSelected = value === i;
+              const isActive = activeIndex === extrasCount + i;
               const cssVar = resolvePaletteCssVar(i);
               return (
                 <div
                   key={i}
+                  id={optionId(i)}
                   role="option"
                   aria-selected={isSelected}
                   aria-label={`${cssVar}: ${color}`}
                   onClick={() => select(i)}
                   title={`${cssVar}: ${color}`}
-                  className={
-                    isSelected
-                      ? 'tokenpanel-palette-option-button is-selected'
-                      : 'tokenpanel-palette-option-button'
-                  }
+                  className={[
+                    'tokenpanel-palette-option-button',
+                    isSelected ? 'is-selected' : '',
+                    isActive ? 'is-active' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
                   style={{ backgroundColor: color }}
                 />
               );

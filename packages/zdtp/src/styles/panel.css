@@ -615,6 +615,12 @@
 .tokenpanel-palette-extra-option.is-selected {
   background-color: rgb(from var(--tokentweak-color-accent) r g b / 0.2);
 }
+/* Roving keyboard highlight (aria-activedescendant target) — F12. Distinct
+ * from is-selected so keyboard focus is visible independent of the chosen value. */
+.tokenpanel-palette-extra-option.is-active {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 1px;
+}
 
 .tokenpanel-palette-extra-color {
   width: 1.75rem;
@@ -647,6 +653,11 @@
 }
 .tokenpanel-palette-option-button.is-selected {
   box-shadow: 0 0 0 2px var(--tokentweak-color-accent);
+}
+/* Roving keyboard highlight (aria-activedescendant target) — F12. */
+.tokenpanel-palette-option-button.is-active {
+  outline: 2px solid var(--tokentweak-color-fg);
+  outline-offset: 1px;
 }
 
 /* ===========================================================================

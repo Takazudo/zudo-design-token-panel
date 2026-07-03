@@ -22,6 +22,7 @@
  */
 
 import { useState, useEffect, useMemo, useRef, useId } from 'preact/compat';
+import { useDialogBackdropClose } from './controls/use-dialog-backdrop-close';
 import { serialize } from './utils/design-token-serde';
 import {
   type ColorTweakState,
@@ -127,19 +128,12 @@ export function ExportModal({ onClose, state, colorDefaults, instanceConfig }: E
     };
   }, []);
 
-  function handleBackdropClick(e: React.MouseEvent<HTMLDialogElement>) {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    const rect = dialog.getBoundingClientRect();
-    if (
-      e.clientX < rect.left ||
-      e.clientX > rect.right ||
-      e.clientY < rect.top ||
-      e.clientY > rect.bottom
-    ) {
-      dialog.close();
-    }
-  }
+  // Gesture-aware backdrop close (F14): only a press+release that BOTH land on
+  // the backdrop dismiss the modal, so selecting the exported JSON with a drag
+  // that ends outside the dialog no longer closes it.
+  const backdropHandlers = useDialogBackdropClose(dialogRef, () => {
+    dialogRef.current?.close();
+  });
 
   async function handleCopy() {
     let ok = false;
@@ -196,7 +190,8 @@ export function ExportModal({ onClose, state, colorDefaults, instanceConfig }: E
   return (
     <dialog
       ref={dialogRef}
-      onClick={handleBackdropClick}
+      onMouseDown={backdropHandlers.onMouseDown}
+      onClick={backdropHandlers.onClick}
       aria-labelledby={titleId}
       className={`${modalClass(cfg, '')} ${modalClass(cfg, '--export')}`}
       data-design-token-panel-modal=""
