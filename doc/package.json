@@ -10,6 +10,7 @@
     "check": "zfb check",
     "typecheck": "zfb check",
     "check:html": "html-validate \"dist/**/*.html\"",
+    "check:links": "linkinator ./dist --recurse --skip '^https?://'",
     "check:asset-prefix": "bash ../scripts/check-deploy-paths.sh",
     "gen:z-index": "gen-z-index",
     "check:z-index": "gen-z-index --check",
@@ -45,6 +46,7 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.2.0",
     "html-validate": "^10.0.0",
+    "linkinator": "^6.0.0",
     "pagefind": "^1.4.0"
   }
 }
