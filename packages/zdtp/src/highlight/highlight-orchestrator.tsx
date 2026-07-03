@@ -199,12 +199,19 @@ export function HighlightOrchestrator({ children }: { children: ComponentChildre
         for (const mutation of mutations) {
           for (const node of mutation.addedNodes) {
             if (isStylesheetNode(node)) {
+              // Clear the cache so stale entries (holding detached Element refs)
+              // are not returned on the next re-probe. Version-stamped keys make
+              // old entries unreachable anyway, but clearing prevents the Map from
+              // growing unboundedly in HMR / styled-components hosts that inject
+              // many <style> nodes over time (F26).
+              matchCacheRef.current.clear();
               setStylesheetVersion((v) => v + 1);
               return;
             }
           }
           for (const node of mutation.removedNodes) {
             if (isStylesheetNode(node)) {
+              matchCacheRef.current.clear();
               setStylesheetVersion((v) => v + 1);
               return;
             }
@@ -219,9 +226,11 @@ export function HighlightOrchestrator({ children }: { children: ComponentChildre
     function handleAfterSwap() {
       // Re-attach observer to the new head after Astro swaps the page.
       attachObserver();
-      // Bump version to invalidate the per-cssVar element cache — Astro view
-      // transitions replace document.body, so every previously matched Element
-      // reference is now detached.
+      // Astro view transitions replace document.body, so every previously matched
+      // Element reference is now detached. Clear the cache to release those
+      // references and avoid drawing stale overlays (F26).
+      matchCacheRef.current.clear();
+      // Bump version to cause a cache miss on the next re-probe.
       setStylesheetVersion((v) => v + 1);
     }
     if (typeof window !== 'undefined') {
@@ -267,31 +276,39 @@ export function HighlightOrchestrator({ children }: { children: ComponentChildre
     function lookupOrProbe(cssVar: string): CacheEntry {
       const key: CacheKey = `${cssVar}|${stylesheetVersion}|${themeVersion}`;
       const cached = matchCacheRef.current.get(key);
-      if (cached) return cached;
+      if (cached) {
+        // F26: Evict the entry if any element has been detached from the DOM
+        // since it was cached (e.g. SPA re-render without a version bump).
+        // Re-probe so we don't pass disconnected Elements to HighlightOverlay,
+        // which would draw a 0×0 ring at the viewport origin.
+        if (cached.elements.every((el) => el.isConnected)) {
+          return cached;
+        }
+        matchCacheRef.current.delete(key);
+      }
 
       const tierKind = cssVarKindIndex.get(cssVar);
       const kind = tierKindToProbeKind(tierKind);
       const kindOpt = kind ? { kind } : {};
 
-      // Always run equality probe first.
-      const eqResult = findElementsUsingToken(cssVar, kindOpt);
-
-      // Run differential only for kinds where calc()/min()/max()/clamp()/color-mix()
-      // are grammatically applicable (color, length, number, and the auto-detect path).
-      // String-only kinds (text, easing, etc.) gain nothing from differential mode.
       let elements: Element[];
       let warnings: string[];
+
       if (isDifferentialEligible(tierKind)) {
+        // F31 (option a): Skip the separate equality pass for differential-eligible
+        // kinds. Differential's A/B comparison already detects direct consumers —
+        // any element whose computed longhand equals sentinelA in phase A will
+        // produce a different value in phase B (where sentinelB ≠ sentinelA).
+        // This reduces the DOM walk from 3 (equality + differential A + B) to 2
+        // (differential A + B), halving the style-recalculation cost for the most
+        // common token kinds (color, length, number, auto-detect).
         const diffResult = findElementsUsingToken(cssVar, { ...kindOpt, mode: 'differential' });
-        // Union element sets (Set semantics — an element matching both probes appears once).
-        const elementSet = new Set<Element>(eqResult.elements);
-        for (const el of diffResult.elements) elementSet.add(el);
-        elements = Array.from(elementSet);
-        // Union warnings (dedupe identical strings — e.g. duplicate cross-origin warnings).
-        const warnSet = new Set<string>(eqResult.warnings);
-        for (const w of diffResult.warnings) warnSet.add(w);
-        warnings = Array.from(warnSet);
+        elements = diffResult.elements;
+        warnings = diffResult.warnings;
       } else {
+        // String-only kinds (text, cursor, content, mask-image): differential mode
+        // is not applicable. Run a single equality probe.
+        const eqResult = findElementsUsingToken(cssVar, kindOpt);
         elements = eqResult.elements;
         warnings = eqResult.warnings;
       }

@@ -126,6 +126,18 @@ export function HighlightOverlay({ items }: HighlightOverlayProps): JSX.Element 
       for (let i = 0; i < visibleItems.length; i++) {
         const divEl = overlayRefs.current[i];
         if (!divEl) continue;
+        // F26: Hide overlay when element is disconnected from the DOM.
+        // In browsers, getBoundingClientRect() on a disconnected element returns
+        // a 0×0 rect at the viewport origin, which would draw a phantom ring.
+        // Setting display:none hides the overlay ring immediately; the
+        // orchestrator evicts and re-probes on the next invalidation, removing
+        // the stale item from the items list. Mirrors the isConnected guard in
+        // inspector-overlay.tsx.
+        if (!visibleItems[i].element.isConnected) {
+          divEl.style.display = 'none';
+          continue;
+        }
+        divEl.style.display = '';
         const rect = visibleItems[i].element.getBoundingClientRect();
         applyStyle(divEl, buildOverlayStyle(rect, visibleItems[i].slot));
       }

@@ -331,8 +331,14 @@ const FUNCTIONAL_COLOR_RE = /^(rgb|rgba|hsl|hsla|color|oklch|hwb|lab|lch)\(/i;
 /** Hex color. */
 const HEX_COLOR_RE = /^#/;
 
-/** CSS length — numeric followed by a length unit. */
-const LENGTH_RE = /^-?\d+(\.\d+)?(px|rem|em|vh|vw|vmin|vmax|pt|pc|in|cm|mm|ex|ch|fr)%?$/;
+/**
+ * CSS length — numeric followed by a length unit OR bare percentage.
+ * Allows leading-dot numbers (.5rem) mirroring TIME_RE.
+ * The `%` is listed as a unit alternative so `50%` matches as length.
+ * Previous pattern had `%?` as an optional suffix AFTER a required unit,
+ * which matched the nonsensical `10px%` but not the valid `50%`.
+ */
+const LENGTH_RE = /^-?(?:\d+\.?\d*|\.\d+)(px|rem|em|vh|vw|vmin|vmax|pt|pc|in|cm|mm|ex|ch|fr|%)$/;
 
 /** Bare unitless number (including floating point). */
 const BARE_NUMBER_RE = /^-?\d+(\.\d+)?$/;
