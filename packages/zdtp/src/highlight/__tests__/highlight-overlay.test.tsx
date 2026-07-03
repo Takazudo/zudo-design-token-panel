@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
 import { HighlightOverlay, type HighlightOverlayItem } from '../highlight-overlay';
+import { Z } from '../../styles/z-index-tokens';
 
 // ---------------------------------------------------------------------------
 // Manual RAF queue — deterministic single-tick advance
@@ -142,7 +143,7 @@ describe('HighlightOverlay', () => {
     expect(overlay.style.position).toBe('fixed');
   });
 
-  it('applies z-index 49', () => {
+  it('applies the overlay z-index token', () => {
     const item = makeItem({ top: 0, left: 0, width: 50, height: 50 }, '#00ff00', 1);
 
     act(() => {
@@ -150,7 +151,7 @@ describe('HighlightOverlay', () => {
     });
 
     const overlay = container.querySelector('.tokenpanel-highlight-overlay') as HTMLElement;
-    expect(overlay.style.zIndex).toBe('49');
+    expect(overlay.style.zIndex).toBe(String(Z.overlay));
   });
 
   it('sets outline using slot color and outlineWidth', () => {
