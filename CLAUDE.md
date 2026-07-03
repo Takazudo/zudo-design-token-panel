@@ -28,7 +28,7 @@ The panel is embedded inside a host app. Any semantic HTML element whose default
 <div role="heading" aria-level={3} className="tokenpanel-tab-section-heading">{tier.label}</div>
 ```
 
-See `packages/zudo-design-token-panel/CLAUDE.md` for the full rule, exceptions, and SVG reset recipe.
+See `packages/zdtp/CLAUDE.md` for the full rule, exceptions, and SVG reset recipe.
 
 ## Worktree push policy (enforced)
 

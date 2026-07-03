@@ -31,13 +31,14 @@ The bundled stylesheets declare every panel-chrome variable under a panel-privat
 - `panel.css` — chrome layout / typography / controls.
 - `panel-tokens.css` — the `--tokentweak-*` declarations.
 
-Both ship from the package, combined into a single `dist/zdtp.css` by the Vite library build. Vite library mode strips the source `import './styles/panel.css'` from the emitted JS, so the consumer MUST import the combined stylesheet exactly once on their static module graph (typically next to where they mount `<DesignTokenPanelHost>`):
+Both ship from the package, combined into a single `dist/zdtp.css` by the Vite library build. The CSS is also embedded as a string in `dist/index.js` via a `?inline` import and is **automatically injected** as a `<style>` element when the panel first mounts — consumers do not need to import the stylesheet manually.
+
+The `./styles` sub-export (alias `./styles.css`) resolves to `dist/zdtp.css` and remains available as an optional explicit import for consumers who want the CSS in their own pipeline (SSR hydration, PostCSS, bundler deduplication):
 
 ```ts
+// Optional — only needed to pull CSS into your own pipeline
 import '@takazudo/zdtp/styles';
 ```
-
-The `./styles` sub-export (alias `./styles.css`) resolves to `dist/zdtp.css`. Skipping this import leaves the panel JS fully functional but every chrome rule missing — `.tokenpanel-shell` renders with the host page's transparent background and default font, so the panel appears invisible.
 
 <Warning title="No Tailwind dependency">
 The package MUST build and run without Tailwind in the consumer. The panel JSX uses hand-authored CSS classes backed by `--tokentweak-*` vars exclusively.

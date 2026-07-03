@@ -8,7 +8,7 @@
  *
  * Issue #175 (Wave 2 of the OKLCH Picker epic, issue #174-base).
  *
- * Design rules (see packages/zudo-design-token-panel/CLAUDE.md):
+ * Design rules (see packages/zdtp/CLAUDE.md):
  *   - All interactive elements use <div role="button" tabIndex={0}> with
  *     explicit Enter/Space onKeyDown handlers. Native button and heading tags
  *     are not used (hostile-host policy).

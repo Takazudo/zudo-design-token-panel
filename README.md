@@ -31,7 +31,7 @@ replaces the former `tokens` + `colorCluster` fields on `PanelConfig` with a
 fully data-driven `tabs` array (`TabConfig` / `TierConfig` / `TierItem`).
 Semantic tokens can reference base tokens via `TierConfig.referencesTier`,
 and the apply pipeline emits `var(--base-cssvar)` for ref-tier items.
-See `packages/zudo-design-token-panel/PORTABLE-CONTRACT.md` §3 and the package
+See `packages/zdtp/PORTABLE-CONTRACT.md` §3 and the package
 `CHANGELOG.md` for details.
 
 ## Repository layout
@@ -39,8 +39,8 @@ See `packages/zudo-design-token-panel/PORTABLE-CONTRACT.md` §3 and the package
 ```
 zdtp/
 ├── packages/                       # workspace packages
-│   └── zudo-design-token-panel/    # panel + bin
-│                                   #   npm: @takazudo/zudo-design-token-panel
+│   └── zdtp/                       # panel + bin
+│                                   #   npm: @takazudo/zdtp
 ├── doc/                            # public doc site (zudo-doc framework)
 └── LICENSE                         # MIT
 ```
@@ -85,7 +85,7 @@ Run the doc dev server:
 pnpm dev
 ```
 
-The panel package lives in this repo under `packages/zudo-design-token-panel/`.
+The panel package lives in this repo under `packages/zdtp/`.
 The five example apps (Astro, Vite + React, Next.js, zfb, zfb + Tailwind v4)
 have moved out of this monorepo into dedicated sibling repos — see the
 [Examples](https://zudo-design-token-panel.takazudomodular.com/docs/getting-started/examples/)
