@@ -137,7 +137,10 @@ function oklchSliderConfigs(): SliderConfig[] {
       label: 'H',
       ariaLabel: 'Hue',
       min: 0,
-      max: 360,
+      // Clamp to 359: hue ∈ [0, 360) — committing max=360 round-trips to 0
+      // because parseAngleToDeg normalises ((360 % 360) + 360) % 360 = 0,
+      // snapping the slider thumb to the far left (F30 fix).
+      max: 359,
       step: 1,
       format: (v) => `${Math.round(v)}°`,
     },

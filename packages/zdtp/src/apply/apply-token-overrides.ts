@@ -262,7 +262,9 @@ function replaceOne(content: string, cssVarName: string, newValue: string): Sing
   //   1: the `--name:` prefix
   //   2: whitespace between `:` and the value
   //   3: the value, non-greedy so it stops at the first `;`
-  const re = new RegExp('(--' + escaped + ':)(\\s*)([\\s\\S]+?);');
+  // The lookbehind (?<![\w-]) prevents a suffix match: searching for `--foo`
+  // must not rewrite `--x--foo` when its tail matches (F25 suffix-collision fix).
+  const re = new RegExp('(?<![\\w-])(--' + escaped + ':)(\\s*)([\\s\\S]+?);');
   const masked = maskComments(content);
   const match = re.exec(masked);
   if (!match) return { content, status: 'unknown' };
