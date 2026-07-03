@@ -263,17 +263,22 @@ function installConsoleApi(
   };
   existing.toggleDesignPanel = async () => {
     await loadPanelModule(state);
-    // Snapshot the current open state BEFORE toggling so we know the
-    // post-toggle outcome. Auto-remember: arm autoload only when toggle
-    // results in the panel being open.
-    let willBeOpen = false;
+    handle.toggle();
+    // Read the post-toggle OPEN_KEY to determine whether the panel is now
+    // open. Pre-toggle prediction was broken for the fresh-mount case: with
+    // OPEN_KEY='1' and no mounted root (SPA-nav zombie state, or a
+    // handle.destroy() + re-configure cycle that left OPEN_KEY behind),
+    // `getOpenKey() !== '1'` evaluated false (predicted close) even though
+    // toggleInstance correctly opens on a fresh mount. Reading post-toggle
+    // avoids the race entirely: toggleInstance has already written the
+    // correct value by the time we reach this line.
+    let isNowOpen = false;
     try {
-      willBeOpen = window.localStorage.getItem(getOpenKey(cfg)) !== '1';
+      isNowOpen = window.localStorage.getItem(getOpenKey(cfg)) === '1';
     } catch {
       /* storage unavailable — skip auto-remember for this toggle */
     }
-    handle.toggle();
-    if (willBeOpen) {
+    if (isNowOpen) {
       setAutoload(cfg, true);
     }
   };

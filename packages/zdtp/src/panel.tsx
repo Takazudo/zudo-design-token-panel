@@ -177,12 +177,17 @@ export default function DesignTokenTweakPanel({
     } catch {
       /* ignore */
     }
-    const loaded = loadPosition(instanceConfig);
-    setPosition(loaded);
-    positionRef.current = loaded;
     const loadedSize = loadSize(instanceConfig);
     setSize(loadedSize);
     sizeRef.current = loadedSize;
+    const loaded = loadPosition(instanceConfig);
+    // Clamp against current viewport so a position saved on a 4K monitor
+    // (e.g. left:3000) doesn't restore fully off-screen on a 1080p laptop.
+    // loadSize was already clamped; use its result for the position clamp so
+    // both agree on panel dimensions.
+    const clampedPos = clampPosition(loaded.top, loaded.left, loadedSize.width, loadedSize.height);
+    setPosition(clampedPos);
+    positionRef.current = clampedPos;
     setDensity(loadDensity(instanceConfig));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -448,27 +453,62 @@ export default function DesignTokenTweakPanel({
 
   // Re-clamp position + size on window resize so a viewport shrink keeps the
   // panel within bounds.
+  //
+  // Design notes:
+  // (a) Reads current values from sizeRef / positionRef — NOT from setState
+  //     updaters — so the function is called after each debounce tick with
+  //     the latest committed values without placing side effects (localStorage
+  //     writes) inside updaters (which React / Preact may call multiple times).
+  // (b) Uses the freshly clamped size as input to clampPosition, NOT the DOM's
+  //     offsetWidth/Height — those reflect the pre-clamp frame and can differ.
+  // (c) Only calls setSize / setPosition / save* when the value actually
+  //     changed, avoiding spurious re-renders and localStorage writes on
+  //     every resize event.
+  // (d) Trailing 150 ms debounce — resize fires at ~60 fps; without debouncing
+  //     every pixel of window drag issues a localStorage write.
   useEffect(() => {
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
     function handleResize() {
-      // Re-clamp size first — a viewport shrink might force a smaller panel,
-      // and the new dimensions feed into the position clamp below.
-      setSize((prev) => {
-        const clamped = clampSize(prev.width, prev.height);
-        if (clamped.width !== prev.width || clamped.height !== prev.height) {
-          saveSize(clamped, instanceConfig);
+      if (debounceTimer !== null) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null;
+
+        // Re-clamp size first — a viewport shrink might force a smaller panel,
+        // and the new dimensions feed into the position clamp below.
+        const currentSize = sizeRef.current;
+        const clampedSize = clampSize(currentSize.width, currentSize.height);
+        const sizeDirty =
+          clampedSize.width !== currentSize.width || clampedSize.height !== currentSize.height;
+        if (sizeDirty) {
+          setSize(clampedSize);
+          sizeRef.current = clampedSize;
+          saveSize(clampedSize, instanceConfig);
         }
-        return clamped;
-      });
-      const panelWidth = panelRef.current?.offsetWidth ?? 600;
-      const panelHeight = panelRef.current?.offsetHeight ?? 600;
-      setPosition((prev) => {
-        const clamped = clampPosition(prev.top, prev.left, panelWidth, panelHeight);
-        savePosition(clamped, instanceConfig);
-        return clamped;
-      });
+
+        // Re-clamp position against the (potentially) new clamped size.
+        const currentPos = positionRef.current;
+        const clampedPos = clampPosition(
+          currentPos.top,
+          currentPos.left,
+          clampedSize.width,
+          clampedSize.height,
+        );
+        const posDirty =
+          clampedPos.top !== currentPos.top || clampedPos.left !== currentPos.left;
+        if (posDirty) {
+          setPosition(clampedPos);
+          positionRef.current = clampedPos;
+          savePosition(clampedPos, instanceConfig);
+        }
+      }, 150);
     }
+
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (debounceTimer !== null) clearTimeout(debounceTimer);
+    };
   }, [instanceConfig]);
 
   const handleLoadFromJson = useCallback(

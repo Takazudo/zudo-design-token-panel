@@ -106,13 +106,6 @@ export function usePersist(setState: SetState<TweakState>, cfg?: PanelConfig) {
     [persist],
   );
 
-  const persistPanelPosition = useCallback(
-    (updater: (prev: TweakState['panelPosition']) => TweakState['panelPosition']) => {
-      persist((prev) => ({ ...prev, panelPosition: updater(prev.panelPosition) }));
-    },
-    [persist],
-  );
-
   /**
    * Optional secondary slice — absent until a host opts in. Passing
    * `undefined` from the updater unsets the slice so envelopes stay small
@@ -145,7 +138,6 @@ export function usePersist(setState: SetState<TweakState>, cfg?: PanelConfig) {
     // envelope ever aligns with upstream's shape.
     persistFont: persistTypography,
     persistSize,
-    persistPanelPosition,
     persistSecondary,
   };
 }
@@ -158,5 +150,4 @@ export type PersistTypography = ReturnType<typeof usePersist>['persistTypography
 /** Upstream alias for `PersistTypography`. See `persistFont` above. */
 export type PersistFont = PersistTypography;
 export type PersistSize = ReturnType<typeof usePersist>['persistSize'];
-export type PersistPanelPosition = ReturnType<typeof usePersist>['persistPanelPosition'];
 export type PersistSecondary = ReturnType<typeof usePersist>['persistSecondary'];

@@ -415,9 +415,14 @@ function hideInstance(cfg: PanelConfig): void {
 /** Toggle ONE instance's panel. See `showInstance` for the per-instance keying. */
 function toggleInstance(cfg: PanelConfig): void {
   if (typeof window === 'undefined') return;
-  // Snapshot intent *before* the seed flips `OPEN_KEY`.
-  const willBeOpen = !isPanelCurrentlyOpen(cfg);
   const isFreshMount = !findRoot(cfg);
+  // When the panel root is absent (fresh mount, or SPA-nav zombie state where
+  // `unmountForSwap` removed the root but left `OPEN_KEY='1'` behind), the
+  // user's intent on this toggle is unambiguously "open" — deriving direction
+  // from a possibly-stale `OPEN_KEY` would mount the panel CLOSED and require
+  // a second click. Mirrors handleExternalToggleEvent's fresh-mount guard.
+  // Snapshot intent *before* the seed flips `OPEN_KEY`.
+  const willBeOpen = isFreshMount ? true : !isPanelCurrentlyOpen(cfg);
   seedOpenStateBeforeMount(cfg, willBeOpen);
   ensureMounted(cfg);
   setStoredVisibility(cfg, willBeOpen);
