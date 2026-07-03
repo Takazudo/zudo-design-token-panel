@@ -4,7 +4,7 @@ description: Side-by-side wiring for Astro, Vite + React, Next.js, zfb, and zfb 
 sidebar_position: 4
 ---
 
-The panel's public surface is a single `configurePanel({...})` call plus a Preact-rendered shell, so the wiring shape is the same across hosts. The only differences are *who* calls `configurePanel`, *where* the styles import lives, *how* the host interacts with view-transitions, and *how* the apply proxy is registered.
+The panel's public surface is a single `configurePanel({...})` call plus a Preact-rendered shell, so the wiring shape is the same across hosts. The only differences are *who* calls `configurePanel`, *how* the host interacts with view-transitions, and *how* the apply proxy is registered. The styles import is not a differentiator — the panel self-injects its stylesheet on first mount (no consumer CSS import required in any framework).
 
 This page is the side-by-side overview. For full code, see the [Examples](/docs/getting-started/examples) page — each framework's live demo and source repo are linked there.
 
@@ -16,7 +16,7 @@ This page is the side-by-side overview. For full code, see the [Examples](/docs/
 | Define `PanelConfig` | one TS file, host-side | same | same | same | same |
 | Mount the host | `<DesignTokenPanelHost>` in layout | call `configurePanel(...)` from entry | call `configurePanel(...)` from a `'use client'` module | call `configurePanel(...)` from a `"use client"` island | same as zfb |
 | Side-effect script | `void import('.../astro/host-adapter')` next to the host | not required | not required | `void import('.../astro/host-adapter')` in a `"use client"` island | same as zfb |
-| Styles import | once on the static graph | once on the static graph | once on the static graph | once on the static graph | once on the static graph; tokens also registered via `@theme` block |
+| Styles import | not required (self-injected) | not required (self-injected) | not required (self-injected) | not required (self-injected) | not required (self-injected); tokens also registered via `@theme` block |
 | Tailwind integration | n/a | n/a | n/a | n/a | tokens registered into Tailwind namespaces via `@theme`; utility classes like `text-body` and `p-hsp-md` resolve to panel custom properties |
 | View-transition lifecycle | wired automatically by the host adapter when `<ClientRouter />` is present | n/a | n/a | n/a | n/a |
 | Apply proxy (dev) | Vite dev server proxy config | Vite dev server proxy config | Next.js `rewrites` | zfb plugin's `devMiddleware` hook | same as zfb |

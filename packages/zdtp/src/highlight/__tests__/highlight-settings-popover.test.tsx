@@ -10,7 +10,7 @@
  * - The ColorPicker positioning (useLayoutEffect + getBoundingClientRect)
  *   is stubbed to avoid jsdom layout issues.
  *
- * See also: packages/zudo-design-token-panel/CLAUDE.md for hostile-host policy.
+ * See also: packages/zdtp/CLAUDE.md for hostile-host policy.
  */
 
 // jsdom does not polyfill PointerEvent. Provide a minimal shim (mirrors color-picker.test.tsx).

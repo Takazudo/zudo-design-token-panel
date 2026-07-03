@@ -10,7 +10,7 @@
  *   D. The panel source (tabs/ + components/color-picker/) contains no
  *      `<h4`, `<details`, `<summary`, `<button`, or `<table` elements.
  *      Enforces the hostile-host policy in
- *      packages/zudo-design-token-panel/CLAUDE.md.
+ *      packages/zdtp/CLAUDE.md.
  *   F. The panel CSS sources do NOT read host `--color-*` or `--font-mono`
  *      — the panel ships a self-contained dark palette in panel-tokens.css
  *      and host theme changes must not bleed into the panel chrome.
@@ -29,7 +29,7 @@
  * exercised in that repo's CI.
  *
  * Browser-based cascade testing is deferred — see procedure in
- * packages/zudo-design-token-panel/CLAUDE.md.
+ * packages/zdtp/CLAUDE.md.
  */
 
 import * as fs from 'node:fs';
