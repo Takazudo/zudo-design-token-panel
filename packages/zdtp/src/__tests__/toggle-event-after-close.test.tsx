@@ -72,6 +72,30 @@ describe('design-token-panel — toggle event after close', () => {
     localStorage.clear();
   });
 
+  it('F6: mounts panel OPEN when OPEN_KEY="1" but root is absent (fresh-mount parity with handleExternalToggleEvent)', async () => {
+    // Reproduce the zombie-key scenario: OPEN_KEY='1' was left behind by a
+    // previous session (e.g. a handle.destroy() that never cleared OPEN_KEY, or
+    // an SPA nav that unmounted the root without clearing it). No panel root
+    // exists at call time — this is a fresh mount.
+    //
+    // Pre-fix (toggleInstance): computed willBeOpen = !isPanelCurrentlyOpen() =
+    // !true = false (predicted close) → mounted CLOSED → required a second click.
+    //
+    // Post-fix: isFreshMount=true → willBeOpen=true unconditionally → mounts OPEN.
+    localStorage.setItem(getOpenKey(), '1');
+
+    await import('../index');
+    const { toggleDesignPanel } = await import('../index');
+    toggleDesignPanel();
+    await waitForEffectFlush();
+
+    const root = document.getElementById(PANEL_ROOT_ID);
+    expect(root, 'panel root should be mounted').not.toBeNull();
+    // Panel is open — OPEN_KEY still '1' and content visible.
+    expect(localStorage.getItem(getOpenKey())).toBe('1');
+    expect(root!.textContent ?? '').toContain(OPEN_PANEL_HEADER_TEXT);
+  });
+
   it('re-opens with one click after the in-panel close button hides the panel', async () => {
     // Force module init to run with our clean slate.
     await import('../index');

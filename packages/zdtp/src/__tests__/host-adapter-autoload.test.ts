@@ -253,13 +253,16 @@ describe('host-adapter owner-autoload wiring (S2 #419)', () => {
       expect(localStorage.getItem(AUTOLOAD_KEY)).toBe('1');
     });
 
-    it('toggleDesignPanel() does NOT set :autoload when panel closes (OPEN_KEY = "1" → will close)', async () => {
-      // Panel is currently open — OPEN_KEY = '1'.
+    it('toggleDesignPanel() DOES set :autoload when OPEN_KEY="1" but panel root absent (fresh mount → opens)', async () => {
+      // OPEN_KEY='1' with no mounted root — zombie state left by a
+      // handle.destroy() + re-configure cycle or an SPA nav that cleared the
+      // DOM but left OPEN_KEY behind. The old code incorrectly treated
+      // OPEN_KEY='1' as "currently open" and predicted a close. The fix:
+      // fresh mount (no root) always opens, so autoload MUST be armed here.
       localStorage.setItem(OPEN_KEY, '1');
       await bootstrapAdapter();
       await api().toggleDesignPanel();
-      // autoload key must not be armed on a close-toggle.
-      expect(localStorage.getItem(AUTOLOAD_KEY)).not.toBe('1');
+      expect(localStorage.getItem(AUTOLOAD_KEY)).toBe('1');
     });
   });
 

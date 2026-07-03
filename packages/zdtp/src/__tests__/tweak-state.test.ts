@@ -11,8 +11,9 @@ import {
   loadPersistedState,
 } from '../state/tweak-state';
 import type { ColorScheme } from '../config/color-schemes';
+import type { ColorClusterDataConfig } from '../config/cluster-config';
 import { __resetPanelConfigForTests } from '../config/panel-config';
-import { installFixturePanelConfig } from './_test-helpers';
+import { installFixturePanelConfig, FIXTURE_CLUSTER } from './_test-helpers';
 
 /**
  * v1→v3 and v2→v3 migration tests.
@@ -333,6 +334,70 @@ describe('loadPersistedState — v1→v3 and v2→v3 migrations', () => {
     // v3 was written, v2 removed
     expect(storage.entries[STORAGE_KEY_V3]).toBeDefined();
     expect(storage.entries[STORAGE_KEY_V2]).toBeUndefined();
+  });
+
+  it('F5: palette-size change preserves non-color slices and rewrites the stale v3 key', () => {
+    // Simulate a host that shipped with paletteSize=16 (user has spacing overrides),
+    // then reconfigured to paletteSize=17. The v3 envelope has a 16-slot palette;
+    // the active cluster now expects 17 slots.
+    //
+    // Pre-fix: hydrateV2OrV3Object returned null (isValidColorShape failed),
+    // the spacing override was discarded, and the stale v3 key was left on disk.
+    // Post-fix: color falls back to defaults.palette; spacing/typography/size/tabs
+    // survive; v3 is rewritten to drop the stale palette.
+    const palette16: string[] = Array.from({ length: 16 }, (_, i) =>
+      `#${i.toString(16).padStart(2, '0').repeat(3)}`,
+    );
+    const palette17: string[] = Array.from({ length: 17 }, (_, i) =>
+      `#${i.toString(16).padStart(2, '0').repeat(3)}`,
+    );
+
+    const cluster17: ColorClusterDataConfig = {
+      ...FIXTURE_CLUSTER,
+      paletteSize: 17,
+    };
+
+    const defaults17: ColorTweakState = {
+      ...defaults,
+      palette: palette17,
+    };
+
+    const v3 = {
+      color: {
+        palette: palette16, // old 16-slot palette — mismatches cluster17.paletteSize=17
+        background: 3,
+        foreground: 12,
+        cursor: 6,
+        selectionBg: 0,
+        selectionFg: 15,
+        semanticMappings: { accent: 6, muted: 8, active: 14 },
+        shikiTheme: 'dracula',
+      },
+      spacing: { 'hsp-md': '88px' },
+      size: { 'radius-lg': '4px' },
+    };
+
+    const storage = makeStorage({ [STORAGE_KEY_V3]: JSON.stringify(v3) });
+
+    const result = loadPersistedState(storage, defaults17, cluster17);
+
+    // Must NOT return null — the palette mismatch does NOT discard the envelope.
+    expect(result).not.toBeNull();
+
+    // Non-color slices must survive.
+    expect(result!.spacing['hsp-md']).toBe('88px');
+    expect(result!.size['radius-lg']).toBe('4px');
+
+    // Color slice falls back to defaults when palette size mismatches.
+    expect(result!.color.palette).toEqual(palette17);
+
+    // v3 key must have been rewritten (stale 16-slot palette gone).
+    expect(storage.entries[STORAGE_KEY_V3]).toBeDefined();
+    const persisted = JSON.parse(storage.entries[STORAGE_KEY_V3]);
+    // Rewritten envelope carries the 17-slot default palette.
+    expect(persisted.color.palette).toHaveLength(17);
+    // Spacing preserved in the rewritten key too.
+    expect(persisted.spacing?.['hsp-md']).toBe('88px');
   });
 });
 

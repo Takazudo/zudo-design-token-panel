@@ -245,6 +245,28 @@ describe('deserialize — v2 format', () => {
     expect(unknownTokens.sort()).toEqual(['--radius-imaginary', '--spacing-nope'].sort());
   });
 
+  it('F28: v2 import sanitizes garbage palette entry "18" → "#000000" (same as seed-time sanitizer, commit 8d54e07)', () => {
+    // Regression guard for F28: the v2 color.palette block is cssVar-keyed;
+    // a garbage string value like "18" must be sanitized to '#000000' by
+    // normalizeSchemePaletteEntry rather than leaking into a CSS custom property.
+    const payload = {
+      $schema: SCHEMA_V2,
+      exportedAt: new Date().toISOString(),
+      tabs: {
+        color: {
+          palette: {
+            '--fixture-p3': '18', // garbage entry — same as Default Dark's slot-9
+          },
+        },
+      },
+    };
+    const { state } = deserialize(payload, { colorDefaults: COLOR_BASELINE });
+    // Garbage entry is canonicalized to safe '#000000'.
+    expect(state.color.palette[3]).toBe('#000000');
+    // Other palette slots unchanged from baseline.
+    expect(state.color.palette[0]).toBe(COLOR_BASELINE.palette[0]);
+  });
+
   it('throws schema-mismatch for unknown $schema values', () => {
     expect(() =>
       deserialize(
@@ -472,6 +494,25 @@ describe('deserialize — v1 format (one-way migration)', () => {
         { colorDefaults: COLOR_BASELINE },
       ),
     ).toThrowError(DesignTokenSchemaError);
+  });
+
+  it('F28: v1 import sanitizes garbage palette entry "18" → "#000000" (same as seed-time sanitizer, commit 8d54e07)', () => {
+    // Regression guard for F28: imported palette values must pass through
+    // normalizeSchemePaletteEntry so a stray non-color string like "18"
+    // (the exact entry that triggered the seed-time fix in 8d54e07) becomes
+    // '#000000' instead of leaking verbatim into a CSS custom property.
+    const rawPalette: string[] = [...PALETTE_BASELINE];
+    rawPalette[3] = '18'; // stray non-color string at index 3
+    const payload = {
+      $schema: SCHEMA_V1,
+      exportedAt: new Date().toISOString(),
+      color: { palette: rawPalette },
+    };
+    const { state } = deserialize(payload, { colorDefaults: COLOR_BASELINE });
+    // Valid entries pass through unchanged.
+    expect(state.color.palette[0]).toBe(PALETTE_BASELINE[0]);
+    // Garbage entry is canonicalized to safe '#000000'.
+    expect(state.color.palette[3]).toBe('#000000');
   });
 });
 
