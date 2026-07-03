@@ -15,7 +15,7 @@ import { defineConfig } from 'vite';
  *    of-truth control over the .d.ts shape).
  *
  *    The `dist/bin/server.js` chunk is the executable invoked via the
- *    `design-token-panel-server` bin field. It receives a
+ *    `zdtp-server` bin field. It receives a
  *    `#!/usr/bin/env node` shebang via Rollup's `output.banner` (only that
  *    chunk; the panel/astro/server entries stay shebang-free). `pnpm build`
  *    follows up with `chmod +x dist/bin/server.js` so the file is directly
@@ -70,6 +70,10 @@ export default defineConfig({
         testing: 'src/testing.ts',
       },
       formats: ['es'],
+      // Explicit cssFileName so the exports map contract ("./styles": "./dist/zdtp.css")
+      // is stated here rather than relying on Vite's implicit scope-stripping of the
+      // package name. A future rename or Vite default change won't silently diverge.
+      cssFileName: 'zdtp',
     },
     rollupOptions: {
       external: [
