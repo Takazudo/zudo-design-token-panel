@@ -322,9 +322,9 @@ export type PanelDensity = 0 | 1 | 2;
 export const DEFAULT_DENSITY: PanelDensity = 1;
 
 export function densityToGridMin(density: PanelDensity): string {
-  if (density === 0) return '12rem';
+  if (density === 0) return '192px';
   if (density === 2) return '100%';
-  return '18rem';
+  return '288px';
 }
 
 export function loadDensity(cfg?: PanelConfig): PanelDensity {

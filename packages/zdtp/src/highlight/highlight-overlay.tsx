@@ -25,6 +25,7 @@
 
 import { useEffect, useRef } from 'preact/hooks';
 import type { JSX } from 'preact';
+import { Z } from '../styles/z-index-tokens';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -56,8 +57,7 @@ export interface HighlightOverlayProps {
 /** Cap to avoid runaway DOM cost with huge item lists. */
 const MAX_ITEMS = 200;
 
-/** Below panel shell (z-index 50) and resize grip (60), above host content. */
-const OVERLAY_Z_INDEX = 49;
+const OVERLAY_Z_INDEX = Z.overlay;
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -39,6 +39,7 @@ import { memo, useState, useEffect, useCallback, useMemo, useRef, useId } from '
 import type { ColorScheme } from '../config/color-schemes';
 import { pushDismissLayer } from '../controls/dismiss-layer';
 import ColorPicker from '../components/color-picker';
+import { Z } from '../styles/z-index-tokens';
 import type { ColorPickerValueFormat } from '../components/color-picker/color-picker';
 import {
   type ColorTweakState,
@@ -124,13 +125,16 @@ function usePopoverClose(
  * className in panel.css — the inline style is reserved for values that
  * literally cannot be expressed in CSS today (per-anchor-rect coordinates).
  */
+// Z.colorPicker is reused here for the palette-options listbox popover —
+// a different element from the OklchPicker card (color-picker.css), but at the
+// same tier in the stacking order. Both need to sit above the panel shell.
 function getFixedPopoverStyle(
   anchor: HTMLElement | null,
   estW: number,
   estH: number,
   extraStyle?: React.CSSProperties,
 ): React.CSSProperties {
-  if (!anchor) return { position: 'fixed', zIndex: 70, ...extraStyle };
+  if (!anchor) return { position: 'fixed', zIndex: Z.colorPicker, ...extraStyle };
   const rect = anchor.getBoundingClientRect();
   const gap = 4;
   const pad = 8;
@@ -143,7 +147,7 @@ function getFixedPopoverStyle(
   const style: React.CSSProperties = {
     position: 'fixed',
     left,
-    zIndex: 70,
+    zIndex: Z.colorPicker,
     ...extraStyle,
   };
   if (flipAbove) {

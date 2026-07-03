@@ -25,14 +25,13 @@ import { PANEL_EXCLUSION_SELECTOR } from '../highlight/find-elements';
 import { buildSummary, buildElementPathString } from './build-element-path';
 import { copyToClipboard } from '../utils/copy-to-clipboard';
 import { ElementPathToast } from './element-path-toast';
+import { Z } from '../styles/z-index-tokens';
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-/** Above the highlight overlay (49) and panel shell (50); below modals. The
- *  toast renders one level above this (TOAST_Z_INDEX in element-path-toast.tsx). */
-const BOX_Z_INDEX = 2147483000;
+const BOX_Z_INDEX = Z.inspectorBox;
 /** Auto-dismiss delay for the copy toast (ms). */
 const TOAST_DURATION = 2200;
 /** Gap between the element box and its label tag (px). */
