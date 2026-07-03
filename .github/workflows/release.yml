@@ -19,9 +19,10 @@
 # dist-tag mutation is kept OUT of this publish job so a prune hiccup can never
 # mark a successful release as failed.
 #
-# The pre-publish test gate lives upstream in ci.yml / pr-checks.yml (the panel's
-# test suite needs Playwright Chromium for browser tests). `prepublishOnly` here
-# runs `pnpm build` only — it freshens dist/ but does not re-run browser tests.
+# The pre-publish test gate lives upstream in ci.yml (the panel's test suite
+# needs Playwright Chromium for browser tests; ci.yml runs on every PR and
+# every push to main). `prepublishOnly` here runs `pnpm build` only — it
+# freshens dist/ but does not re-run browser tests.
 #
 # Action SHAs are pinned to immutable commits (OpenSSF best practice); the
 # trailing comment names the release for human readability.
@@ -72,9 +73,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Build package
-        run: pnpm --filter @takazudo/zdtp build
 
       - name: Determine dist-tag
         shell: bash
