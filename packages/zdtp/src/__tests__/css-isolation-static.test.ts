@@ -167,7 +167,7 @@ describe('Invariant L — z-index tokens declared in panel-tokens.css', () => {
 
   for (const varName of expectedVars) {
     it(`declares ${varName}`, () => {
-      expect(panelTokens).toMatch(new RegExp(varName.replace(/-/g, '-') + '\\s*:'));
+      expect(panelTokens).toMatch(new RegExp(varName + '\\s*:'));
     });
   }
 });
