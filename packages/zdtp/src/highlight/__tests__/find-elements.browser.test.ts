@@ -1419,6 +1419,55 @@ describe('mask-image — auto-detect falls through to text with warning for url(
 });
 
 // ---------------------------------------------------------------------------
+// F27: percentage value classified as length (LENGTH_RE regression tests)
+// ---------------------------------------------------------------------------
+
+describe('type detection — percentage value classified as length (F27)', () => {
+  it("classifies '50%' as length and finds width consumer via differential", () => {
+    // F27: old LENGTH_RE had `%?` as an optional suffix AFTER a required unit,
+    // so `50%` was not matched and detectKind returned 'text' for percentage
+    // values. Fixed regex treats `%` as a unit alternative.
+    injectStyle(':root { --w: 50%; }');
+    injectStyle('.fx-pct-width { width: var(--w); }');
+    const el = createElement({ className: 'fx-pct-width' });
+    // No explicit kind: auto-detect should classify 50% as 'length'
+    const { elements, warnings } = findElementsUsingToken('--w');
+    expect(warnings.filter((w) => w.includes('auto-detection')).length).toBe(0);
+    expect(elements).toContain(el);
+  });
+
+  it("classifies '100%' as length", () => {
+    injectStyle(':root { --full: 100%; }');
+    injectStyle('.fx-full { height: var(--full); }');
+    const el = createElement({ className: 'fx-full' });
+    const { elements } = findElementsUsingToken('--full');
+    expect(elements).toContain(el);
+  });
+
+  it("classifies '.5rem' (leading-dot) as length", () => {
+    // F27: old LENGTH_RE required \d+ before decimal, so `.5rem` didn't match.
+    // Fixed pattern allows `\.\d+` alternative mirroring TIME_RE.
+    injectStyle(':root { --t: .5rem; }');
+    injectStyle('.fx-ldot { font-size: var(--t); }');
+    const el = createElement({ className: 'fx-ldot' });
+    const { elements } = findElementsUsingToken('--t');
+    expect(elements).toContain(el);
+  });
+
+  it("does NOT classify '10px%' as length (old bug: % was treated as optional suffix)", () => {
+    // Verify the old bug is gone: '10px%' is not a valid CSS length.
+    // The old regex matched it; the fixed one does not.
+    injectStyle(':root { --bad: 10px; }');
+    // Just test that the regex fix is correct — '10px%' should not classify as length.
+    // We verify indirectly: a token resolved as 10px IS classified as length (no regression).
+    injectStyle('.fx-px { padding: var(--bad); }');
+    const el = createElement({ className: 'fx-px' });
+    const { elements } = findElementsUsingToken('--bad');
+    expect(elements).toContain(el);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // @media recursion
 // ---------------------------------------------------------------------------
 

@@ -202,7 +202,9 @@ describe('HighlightOverlay', () => {
 
   it('RAF tick updates overlay position when element rect changes (simulates scroll)', async () => {
     let top = 10;
+    // Element must be connected (isConnected === true) for the RAF tick to update it.
     const el = document.createElement('div');
+    document.body.appendChild(el);
     el.getBoundingClientRect = () =>
       ({
         top,
@@ -234,11 +236,14 @@ describe('HighlightOverlay', () => {
     });
 
     expect(overlay.style.top).toBe('200px');
+    el.remove();
   });
 
   it('RAF tick updates overlay position when element rect changes (simulates resize)', async () => {
     let width = 100;
+    // Element must be connected (isConnected === true) for the RAF tick to update it.
     const el = document.createElement('div');
+    document.body.appendChild(el);
     el.getBoundingClientRect = () =>
       ({
         top: 0,
@@ -269,6 +274,7 @@ describe('HighlightOverlay', () => {
     });
 
     expect(overlay.style.width).toBe('300px');
+    el.remove();
   });
 
   it('warns once and renders only 200 items when given more than 200', () => {
@@ -328,5 +334,41 @@ describe('HighlightOverlay', () => {
 
     const overlay = container.querySelector('.tokenpanel-highlight-overlay') as HTMLElement;
     expect(overlay.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  // F26: RAF tick must NOT call getBoundingClientRect on disconnected elements
+  // and must hide the overlay div to prevent a phantom ring at the viewport origin.
+  it('RAF tick hides overlay div and skips getBoundingClientRect for disconnected elements', () => {
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+
+    const rectSpy = vi.spyOn(el, 'getBoundingClientRect').mockReturnValue({
+      top: 10, left: 20, width: 100, height: 50,
+      right: 120, bottom: 60, x: 20, y: 10,
+      toJSON: () => ({}),
+    } as DOMRect);
+
+    const item: HighlightOverlayItem = { element: el, slot: { color: '#ff0000', outlineWidth: 2 } };
+
+    act(() => {
+      render(<HighlightOverlay items={[item]} />, container);
+    });
+
+    // Flush one tick while element is connected — getBoundingClientRect IS called.
+    act(() => { flushRaf(); });
+    const callsWhileConnected = rectSpy.mock.calls.length;
+    expect(callsWhileConnected).toBeGreaterThanOrEqual(1);
+
+    // Disconnect the element from the DOM.
+    el.remove();
+    expect(el.isConnected).toBe(false);
+
+    // Flush another tick — getBoundingClientRect must NOT be called again.
+    act(() => { flushRaf(); });
+    expect(rectSpy.mock.calls.length).toBe(callsWhileConnected);
+
+    // The overlay div must be hidden (display: none) to prevent the phantom ring.
+    const overlayDiv = container.querySelector('.tokenpanel-highlight-overlay') as HTMLElement;
+    expect(overlayDiv.style.display).toBe('none');
   });
 });
