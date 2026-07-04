@@ -28,7 +28,7 @@
   flex: 1 1 0;
   height: 30px;
   border-radius: var(--radius-tokentweak);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgb(from var(--tokentweak-color-fg) r g b / 0.08);
   outline: 0 solid transparent;
   cursor: pointer;
   transition: outline-width 0.08s ease;
@@ -56,6 +56,7 @@
   inset: auto 0 2px 0;
   text-align: center;
   font-size: 9px;
+  /* on-swatch overlay: dark text + light halo, readable against any swatch color */
   color: rgba(0, 0, 0, 0.55);
   text-shadow: 0 0 2px rgba(255, 255, 255, 0.4);
   pointer-events: none;
@@ -148,7 +149,7 @@
   width: 40px;
   height: 40px;
   border-radius: var(--radius-tokentweak);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgb(from var(--tokentweak-color-fg) r g b / 0.12);
 }
 
 .tokenpanel-palette-readout-rows {
