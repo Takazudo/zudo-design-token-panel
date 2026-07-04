@@ -37,66 +37,90 @@ import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // ---------------------------------------------------------------------------
-// D. Panel source — no <h4, <details, <summary, <button, or <table elements
-//    in tabs/ or components/color-picker/. The hostile-host policy in the
-//    package CLAUDE.md forbids these tags anywhere the panel renders into
-//    the host DOM.
+// D. Panel source — no blocked semantic elements across ALL panel TSX files
+//    (panel.tsx, apply/export/import modals, tabs/, components/, controls/,
+//    element-path/, highlight/). The hostile-host policy in packages/zdtp/CLAUDE.md
+//    forbids these tags anywhere the panel renders into the host DOM.
+//
+//    The previous implementation only walked tabs/ + components/color-picker/;
+//    the known regression site (export/apply modals with <pre>) was unscanned.
+//    This version walks all of src/**/*.tsx except __tests__/, astro/, server/,
+//    bin/ and strips TSX comments before grepping so comment-only occurrences
+//    do not produce false positives.
 // ---------------------------------------------------------------------------
 
 describe('Invariant D — panel source has no blocked semantic elements', () => {
-  const TABS_DIR = path.resolve(__dirname, '../tabs');
-  const COLOR_PICKER_DIR = path.resolve(__dirname, '../components/color-picker');
+  const SRC_DIR = path.resolve(__dirname, '..');
+  /** Directories that do NOT render into the host DOM (exclude from scan). */
+  const SKIP_DIRS = new Set(['__tests__', 'astro', 'server', 'bin']);
 
-  /**
-   * Collect source files from a directory, excluding test files and __tests__ subdirs.
-   * Filters .tsx / .ts files at the top level only — recursion is not needed since
-   * the directories under test are flat (apart from __tests__).
-   */
-  function readPanelSources(dir: string): string[] {
-    return fs
-      .readdirSync(dir, { withFileTypes: true })
-      .filter(
-        (e) =>
-          e.isFile() &&
-          (e.name.endsWith('.tsx') || e.name.endsWith('.ts')) &&
-          !e.name.startsWith('__'),
-      )
-      .map((e) => fs.readFileSync(path.join(dir, e.name), 'utf8'));
+  /** Strip single-line and block comments so comment-only occurrences are not flagged. */
+  function stripTsxComments(source: string): string {
+    return source
+      .replace(/\/\*[\s\S]*?\*\//g, '') // block comments (incl. JSDoc + JSX {/* */})
+      .replace(/\/\/.*$/gm, '');         // single-line comments
   }
 
-  function findPanelSources(): string[] {
-    return [...readPanelSources(TABS_DIR), ...readPanelSources(COLOR_PICKER_DIR)];
+  /** Recursively collect all .tsx source files under `dir`, skipping SKIP_DIRS and test files. */
+  function findPanelSources(): Array<{ file: string; content: string }> {
+    const results: Array<{ file: string; content: string }> = [];
+
+    function walk(dir: string): void {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (entry.isDirectory()) {
+          if (SKIP_DIRS.has(entry.name)) continue;
+          walk(path.join(dir, entry.name));
+        } else if (
+          entry.isFile() &&
+          entry.name.endsWith('.tsx') &&
+          !entry.name.includes('.test.')
+        ) {
+          const fullPath = path.join(dir, entry.name);
+          results.push({
+            file: path.relative(SRC_DIR, fullPath),
+            content: stripTsxComments(fs.readFileSync(fullPath, 'utf8')),
+          });
+        }
+      }
+    }
+
+    walk(SRC_DIR);
+    return results;
   }
 
-  it('no <h4 element in any panel source', () => {
-    for (const source of findPanelSources()) {
-      expect(source).not.toMatch(/<h4[\s/>]/);
-    }
-  });
+  // Full blocked-element list from packages/zdtp/CLAUDE.md § "Blocked elements".
+  // These tags are subject to aggressive global resets in host CSS and must
+  // never appear in panel markup. The loop below generates one it() per tag,
+  // mirroring the BANNED_TAGS pattern in palette-tab.browser.test.tsx.
+  const BLOCKED_TAGS = [
+    // Headings
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    // Text / prose
+    'p', 'blockquote', 'pre', 'code', 'em', 'strong', 'address',
+    // Lists
+    'ul', 'ol', 'li',
+    // Tabular
+    'table', 'thead', 'tbody', 'tr', 'th', 'td',
+    // Links
+    'a',
+    // Sectioning
+    'article', 'aside', 'main', 'nav', 'header', 'footer', 'section', 'figure', 'figcaption',
+    // Misc
+    'hr', 'details', 'summary',
+    // Interactive — Chrome-button policy: use div[role="button"] instead
+    'button',
+  ] as const;
 
-  it('no <details element in any panel source', () => {
-    for (const source of findPanelSources()) {
-      expect(source).not.toMatch(/<details[\s/>]/);
-    }
-  });
-
-  it('no <summary element in any panel source', () => {
-    for (const source of findPanelSources()) {
-      expect(source).not.toMatch(/<summary[\s/>]/);
-    }
-  });
-
-  it('no <button element in any panel source (hostile-host policy)', () => {
-    for (const source of findPanelSources()) {
-      expect(source).not.toMatch(/<button[\s/>]/);
-    }
-  });
-
-  it('no <table element in any panel source (hostile-host policy)', () => {
-    for (const source of findPanelSources()) {
-      expect(source).not.toMatch(/<table[\s/>]/);
-    }
-  });
+  for (const tag of BLOCKED_TAGS) {
+    it(`no <${tag} element in any panel source`, () => {
+      const sources = findPanelSources();
+      for (const { file, content } of sources) {
+        expect(content, `Found <${tag} in ${file}`).not.toMatch(
+          new RegExp(`<${tag}[\\s/>]`),
+        );
+      }
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------
