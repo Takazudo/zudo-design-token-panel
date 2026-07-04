@@ -7,10 +7,13 @@
  * example repo's CI on a panel SHA bump).
  *
  * Invariants under test:
- *   D. The panel source (tabs/ + components/color-picker/) contains no
- *      `<h4`, `<details`, `<summary`, `<button`, or `<table` elements.
- *      Enforces the hostile-host policy in
- *      packages/zdtp/CLAUDE.md.
+ *   D. All panel TSX source files (panel.tsx, apply/export/import modals,
+ *      tabs/, components/, controls/, element-path/, highlight/) contain no
+ *      blocked semantic elements from the full list in packages/zdtp/CLAUDE.md
+ *      (h1–h6, p, blockquote, pre, code, em, strong, address, ul, ol, li,
+ *      table, thead, tbody, tr, th, td, a, article, aside, main, nav, header,
+ *      footer, section, figure, figcaption, hr, details, summary, button).
+ *      Enforces the hostile-host policy in packages/zdtp/CLAUDE.md.
  *   F. The panel CSS sources do NOT read host `--color-*` or `--font-mono`
  *      — the panel ships a self-contained dark palette in panel-tokens.css
  *      and host theme changes must not bleed into the panel chrome.

@@ -497,13 +497,16 @@ describe('PaletteTab browser — chart drag interaction', () => {
     // The drag gesture fires onChangeStart → handleChartChange (per move) →
     // onChangeEnd → handleChangeEnd. Since no onCommitBatch is wired, the
     // fallback per-item onChange path fires. The accumulated transient value
-    // is emitted as an oklch() CSS string.
+    // is emitted as an oklch() CSS string via oklchaToCss.
     expect(changes.length).toBeGreaterThan(0);
-    const [tierId, , newValue] = changes[changes.length - 1];
-    expect(tierId).toBe('warm'); // first active tier
+    const [tierId, itemId, newValue] = changes[changes.length - 1];
+    expect(tierId).toBe('warm');      // first active tier
+    expect(itemId).toBe('warm-1');    // first node in the warm tier (DOM order matches fixture order)
     expect(newValue).toMatch(/^oklch\(/); // emitted as oklch() string via oklchaToCss
-    // The drag moved the node, so the committed value differs from the initial default.
-    expect(newValue).not.toBe(PALETTE_TAB.tiers[0].items[0].default);
+    // Note: we do not compare newValue to the fixture default ('oklch(80% 0.12 50)') because
+    // oklchaToCss() produces a structurally different format ('oklch(0.8000 0.1200 50.00)')
+    // — the strings always differ regardless of whether the value changed. The above
+    // assertions (onChange fired, correct tier+item, valid format) are the meaningful ones.
 
     // The component must still be mounted after the gesture.
     expect(container.querySelector('[data-testid="palette-tab"]')).not.toBeNull();
