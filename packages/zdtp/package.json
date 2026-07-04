@@ -89,6 +89,8 @@
     "test:browser": "vitest run --project browser",
     "test:unit:watch": "vitest --project node",
     "test:watch": "vitest",
+    "test:vrt": "playwright test",
+    "test:vrt:update": "playwright test --update-snapshots",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src"
   },
