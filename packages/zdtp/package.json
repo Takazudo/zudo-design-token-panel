@@ -85,6 +85,9 @@
     "// prepublishOnly": "build-only gate. The full test suite needs Playwright Chromium (browser tests) and is run upstream in ci.yml on every PR and main push, not at publish time.",
     "prepublishOnly": "pnpm build",
     "test": "vitest run",
+    "test:unit": "vitest run --project node",
+    "test:browser": "vitest run --project browser",
+    "test:unit:watch": "vitest --project node",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src"
