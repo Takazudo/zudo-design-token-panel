@@ -58,6 +58,7 @@ import {
 import {
   __setPanelLifecycleHooks,
   DEFAULT_TOGGLE_EVENT,
+  getAllPanelConfigs,
   getPanelConfig,
   getPanelConfigByPrefix,
   openStateChangedEventName,
@@ -542,16 +543,26 @@ export function reapplyPersistedOverrides(): void {
  * reflects the user's last state, not an artefact of the unmount path.
  */
 function unmountForSwap(): void {
-  // Astro page-swap is a default-instance (single-panel) concern — the astro
-  // fallback / lifecycle adapter is a global, document-level channel. Resolve
-  // the active instance at call time.
-  const cfg = getPanelConfig();
-  const root = findRoot(cfg);
-  if (!root) return;
-  const shouldRestore = wasVisible(cfg);
-  render(null, root);
-  root.remove();
-  if (shouldRestore) setStoredVisibility(cfg, true);
+  // Loop ALL registered instances so non-default panels are also properly
+  // unmounted via render(null) — this drives their useEffect cleanups, which
+  // removes their per-instance window/document listeners (open-state sync,
+  // color-scheme-changed, resize, keydown ESC). Without this, Astro's body
+  // swap orphans non-default roots and each soft navigation leaks another set
+  // of listeners for every non-default panel.
+  //
+  // Fall back to [getPanelConfig()] when no instance is configured yet — the
+  // pre-configure bootstrap path where the module imported but configurePanel
+  // has not fired (the default instance is bound eagerly at module init).
+  const cfgs = getAllPanelConfigs();
+  const targets = cfgs.length > 0 ? cfgs : [getPanelConfig()];
+  for (const cfg of targets) {
+    const root = findRoot(cfg);
+    if (!root) continue;
+    const shouldRestore = wasVisible(cfg);
+    render(null, root);
+    root.remove();
+    if (shouldRestore) setStoredVisibility(cfg, true);
+  }
 }
 
 /**
@@ -569,15 +580,27 @@ function unmountForSwap(): void {
  * same way the adapter's module-init path kills it on hard-nav.
  */
 function reapplyFromStorage(): void {
-  const cfg = getPanelConfig();
+  // Apply persisted token overrides to :root for the default instance first
+  // (kills the FOUT on soft-nav before any Preact render).
   reapplyPersistedOverrides();
-  if (wasVisible(cfg)) {
-    showInstance(cfg);
-  } else if (hasPersistedOverrides(cfg) || loadElementPathEnabled(cfg) || _shouldAutoload(cfg)) {
-    // Gate #2 — per autoload-state.ts contract: owner-mode page loads mount
-    // the Preact shell CLOSED so the element-path inspector is available even
-    // while the panel UI is hidden.
-    hideInstance(cfg);
+  // Loop ALL registered instances so non-default panels are also re-materialised
+  // after an Astro body swap. Without this, only the default instance mounts /
+  // shows; every other instance silently vanishes after soft navigation and
+  // requires the user to re-toggle it manually.
+  //
+  // Fall back to [getPanelConfig()] when no instance is configured yet — the
+  // pre-configure bootstrap path (mirrors the fallback in unmountForSwap).
+  const cfgs = getAllPanelConfigs();
+  const targets = cfgs.length > 0 ? cfgs : [getPanelConfig()];
+  for (const cfg of targets) {
+    if (wasVisible(cfg)) {
+      showInstance(cfg);
+    } else if (hasPersistedOverrides(cfg) || loadElementPathEnabled(cfg) || _shouldAutoload(cfg)) {
+      // Gate #2 — per autoload-state.ts contract: owner-mode page loads mount
+      // the Preact shell CLOSED so the element-path inspector is available even
+      // while the panel UI is hidden.
+      hideInstance(cfg);
+    }
   }
 }
 

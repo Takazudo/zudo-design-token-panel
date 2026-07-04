@@ -617,6 +617,20 @@ export function getPanelConfig(): PanelConfig {
 }
 
 /**
+ * Return the configs of ALL registered panel instances, in registration order.
+ * Returns an empty array when no instance has been configured yet.
+ *
+ * Used by the Astro lifecycle handlers (unmountForSwap / reapplyFromStorage)
+ * to loop every mounted instance rather than only the default one. Without
+ * this, non-default panels have their DOM roots removed by Astro's body swap
+ * WITHOUT `render(null, root)` being called, so their useEffect cleanups never
+ * fire and window/document listeners accumulate per soft navigation.
+ */
+export function getAllPanelConfigs(): PanelConfig[] {
+  return [...getRegistry().instances.values()].map((r) => r.config);
+}
+
+/**
  * Resolve the registered config for a SPECIFIC instance by its `storagePrefix`
  * (=== `instanceId`), or `null` when no such instance is registered.
  *
