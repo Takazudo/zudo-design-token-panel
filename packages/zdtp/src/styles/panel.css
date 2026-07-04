@@ -755,8 +755,8 @@
   opacity: 0.6;
 }
 .tokenpanel-row-number-input--invalid {
-  border-color: #e05252;
-  color: #e05252;
+  border-color: var(--tokentweak-color-danger);
+  color: var(--tokentweak-color-danger);
 }
 
 .tokenpanel-row-unit {
@@ -1307,7 +1307,7 @@ select.tokenpanel-tier-ref-select:focus-visible {
 
 .tokenpanel-highlight-settings-outline-input {
   width: 44px;
-  background: #222;
+  background: var(--tokentweak-color-bg);
   border: 1px solid var(--tokentweak-color-muted);
   border-radius: 3px;
   color: var(--tokentweak-color-fg);
@@ -1339,7 +1339,7 @@ select.tokenpanel-tier-ref-select:focus-visible {
 }
 
 .tokenpanel-highlight-settings-row:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgb(from var(--tokentweak-color-fg) r g b / 0.03);
 }
 
 .tokenpanel-highlight-settings-num {
@@ -1387,7 +1387,7 @@ select.tokenpanel-tier-ref-select:focus-visible {
 
 .tokenpanel-highlight-settings-reset-btn {
   padding: 6px 12px;
-  background: #333;
+  background: var(--tokentweak-color-code-bg);
   border: 1px solid var(--tokentweak-color-muted);
   border-radius: 3px;
   cursor: pointer;
@@ -1397,7 +1397,7 @@ select.tokenpanel-tier-ref-select:focus-visible {
 }
 
 .tokenpanel-highlight-settings-reset-btn:hover {
-  background: #404040;
+  background: rgb(from var(--tokentweak-color-fg) r g b / 0.08);
 }
 
 .tokenpanel-highlight-settings-reset-btn:focus-visible {
@@ -1562,4 +1562,121 @@ html.tokenpanel-elpath-inspecting * {
 }
 .tokenpanel-elpath-toast.is-error svg {
   stroke: var(--tokentweak-color-danger, #da6871);
+}
+
+/* ===========================================================================
+ * F19 — :focus-visible for native form controls (#450)
+ *
+ * Host global resets (`*:focus { outline: none }`) strip the UA focus ring
+ * from native form controls. The panel's own class-level :focus-visible rule
+ * overrides such a reset on specificity (class beats *), keeping controls
+ * focus-visible regardless of host stylesheet order. Matches the recipe
+ * already used by select.tokenpanel-tier-ref-select:focus-visible at line 1091.
+ * ========================================================================= */
+
+.tokenpanel-row-number-input:focus-visible,
+.tokenpanel-row-text-input:focus-visible,
+.tokenpanel-row-select:focus-visible,
+.tokenpanel-color-preset-select:focus-visible,
+.tokenpanel-density-slider:focus-visible,
+.tokenpanel-pill-toggle-checkbox:focus-visible,
+.tokenpanel-highlight-settings-outline-input:focus-visible,
+[data-design-token-panel-modal] [class*='__textarea']:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+}
+
+/* ===========================================================================
+ * F22 — ≥24×24 hit areas for icon buttons and resize grip (#450)
+ *
+ * Visual sizes stay as-is; interactive area is expanded via a pseudo-element
+ * so touch targets meet the WCAG 2.2 AA 24×24 floor without reflowing layout.
+ * The ::after expands pointer events to the parent div (no pointer-events on
+ * the pseudo-element itself needed — the parent intercepts them).
+ * ========================================================================= */
+
+/* Close button (16×16 SVG) → 24×24 target (16 + 2×4 = 24). */
+.tokenpanel-close-btn {
+  position: relative;
+}
+.tokenpanel-close-btn::after {
+  content: '';
+  position: absolute;
+  inset: -4px; /* 24px hit area floor (WCAG 2.2 AA) */
+}
+
+/* Gear button (14×14 SVG) → 24×24 target (14 + 2×5 = 24). */
+.tokenpanel-gear-btn {
+  position: relative;
+}
+.tokenpanel-gear-btn::after {
+  content: '';
+  position: absolute;
+  inset: -5px; /* 24px hit area floor (WCAG 2.2 AA) */
+}
+
+/* Element-path toggle (16×16 SVG) → 24×24 target. */
+.tokenpanel-elpath-toggle {
+  position: relative;
+}
+.tokenpanel-elpath-toggle::after {
+  content: '';
+  position: absolute;
+  inset: -4px; /* 24px hit area floor (WCAG 2.2 AA) */
+}
+
+/* Highlight eye toggle (16×16) → 24×24 target. */
+.tokenpanel-highlight-toggle {
+  position: relative;
+}
+.tokenpanel-highlight-toggle::after {
+  content: '';
+  position: absolute;
+  inset: -4px; /* 24px hit area floor (WCAG 2.2 AA) */
+}
+
+/* Resize grip (16×16 visual) — pseudo-element expands the hit area to 24×24.
+   The parent is position:absolute, so ::after is contained by it. */
+.tokenpanel-resize-handle {
+  overflow: visible;
+}
+.tokenpanel-resize-handle::after {
+  content: '';
+  position: absolute;
+  inset: -4px; /* 24px hit area floor (WCAG 2.2 AA) */
+  cursor: nwse-resize;
+}
+
+/* ===========================================================================
+ * F23 — prefers-reduced-motion (#450)
+ *
+ * The spinner rotation and tooltip translateY motion are suppressed for users
+ * who prefer reduced motion. The spinner becomes an opacity pulse (keeps a
+ * functional loading indicator without continuous rotation). The tooltip
+ * becomes a pure fade (removes spatial motion). Other transitions (color,
+ * border-color, 120–150ms) are in the "safe" category per the
+ * prefers-reduced-motion article and are left as-is.
+ * ========================================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  /* Replace continuous rotation with an opacity pulse — loading is still
+     communicated but without vestibular-triggering spin. */
+  [data-design-token-panel-modal] [class*='__spinner'] {
+    animation: design-token-panel-modal-pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes design-token-panel-modal-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Remove translateY so the tooltip is a pure fade with no spatial motion. */
+  .tokenpanel-tooltip {
+    transform: none;
+    transition: opacity 90ms ease;
+  }
+
+  .tokenpanel-tooltip[data-show='true'] {
+    transform: none;
+  }
 }
