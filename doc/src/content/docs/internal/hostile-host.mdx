@@ -8,6 +8,73 @@ hide_toc: false
 
 This page is an **internal verification harness** for the Panel Hardening epic (issues #145–#154). It documents the hostile-host test scenario and serves as the URL target for a /verify-ui screenshot dispatch by the manager.
 
+## Level-5 automated gate (F33 + F24)
+
+The panel's hostile-host CSS isolation is now backed by an automated **browser-mode** test that runs in CI on every PR via Playwright Chromium:
+
+```
+packages/zdtp/src/__tests__/hostile-host-isolation.browser.test.tsx
+```
+
+This converts the manual DevTools harness below into a deterministic regression gate. The test injects the hostile CSS **before** the panel CSS (real deployment order) and asserts key computed styles survive.
+
+### Automated hostile CSS fixture
+
+The hostile fixture used in the gate covers the acceptance-criteria scenarios:
+
+```css
+h1, h2, h3, h4, h5, h6 {
+  font-size: 4rem !important;
+  margin: 2rem 0 !important;
+  color: red !important;
+}
+p, ul, li, table {
+  margin: 3rem !important;
+  padding: 2rem !important;
+  color: red !important;
+}
+* { box-sizing: content-box; }
+svg { fill: red !important; }
+html { font-size: 20px; }
+:focus { outline: none; }
+```
+
+### What the gate asserts
+
+| Assertion | Hostile rule countered |
+|---|---|
+| `box-sizing: border-box` on shell descendants | `* { box-sizing: content-box }` |
+| Tab-section heading `font-size: 13px` | `h1-h6 { font-size: 4rem !important }` + root 20px |
+| Tab-section heading `margin: 0px` | `h1-h6 { margin: 2rem 0 !important }` |
+| SVG `fill` inside shell is not red | `svg { fill: red !important }` |
+| `role=button` div background: transparent | `button { … }` (doesn't apply to divs) |
+| Panel shell `position:fixed` at expected viewport coords | transform-ancestor on the page (F24) |
+
+### SVG fill defensive reset — why `!important` is required
+
+The scoped SVG reset in `panel.css` uses `fill: currentColor !important`:
+
+```css
+:where(.tokenpanel-shell) svg {
+  fill: currentColor !important;
+}
+```
+
+A hostile `svg { fill: red !important }` is a same-origin `!important` declaration at specificity `0-0-1`. The panel's rule (also `!important`, also `0-0-1`) wins because **the panel CSS is injected at runtime AFTER host CSS** — at equal specificity and both `!important`, the later cascade position wins. Removing the `!important` from the panel rule would allow the hostile rule to win regardless of cascade order.
+
+### Transform-ancestor note (F24)
+
+A common position:fixed trap: CSS `transform`, `filter`, `perspective`, `backdrop-filter`, `will-change: transform/filter`, `contain: paint/layout/strict`, or `content-visibility: auto/hidden` on any ancestor of a `position:fixed` element causes the element to resolve against that ancestor instead of the viewport.
+
+The panel appends its root div directly to `document.body` in `ensureMounted()` (index.tsx). This means the panel root is a **sibling** of host page content elements that carry transforms, not a descendant. A sibling's transform does not create a containing block for its sibling's `position:fixed` descendants. The automated gate verifies this with two complementary cases: sibling (protected) and inner-descendant (trapped — confirms the trap is real).
+
+**Known limitation:** if `body` or `html` itself carries a transform (e.g. `html { filter: invert(1) }` dark-mode hacks, `body { transform: translateZ(0) }` from page-transition libraries), ALL `position:fixed` elements inside body are trapped — including the panel. This cannot be fixed without changing the panel's containing-block strategy. To reproduce, paste in DevTools:
+
+```js
+document.body.style.transform = 'translateZ(0)';
+// Then open the panel — it positions relative to body, not the viewport.
+```
+
 ## What is a hostile host?
 
 A hostile host is an application whose global CSS aggressively resets or overrides semantic HTML element styles. Examples include Tailwind CSS preflight, CSS resets (normalize.css, ress, etc.), and hand-rolled resets that use `all: revert` or tag-level selectors.

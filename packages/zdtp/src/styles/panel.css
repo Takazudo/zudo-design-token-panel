@@ -1253,14 +1253,22 @@ select.tokenpanel-tier-ref-select:focus-visible {
 }
 
 :where(.tokenpanel-shell) svg {
-  fill: currentColor;
+  /* !important beats a hostile `svg { fill: red !important }` at the same
+   * specificity (0-0-1) because the panel CSS is injected AFTER host CSS at
+   * runtime, so a later !important at equal specificity wins the cascade.
+   * Without !important the hostile rule cannot be overridden regardless of
+   * cascade order. See packages/zdtp/CLAUDE.md §SVG defensive reset. */
+  fill: currentColor !important;
   pointer-events: none;
   display: inline-block;
   overflow: visible;
 }
 
 :where(.tokenpanel-shell) .tokenpanel-highlight-toggle svg {
-  fill: none;
+  /* Higher specificity (0-1-1 via .tokenpanel-highlight-toggle) than the base
+   * reset above (0-0-1). !important required here too: when the base rule is
+   * !important, a non-!important override cannot win regardless of specificity. */
+  fill: none !important;
   stroke: currentColor;
 }
 
@@ -1465,7 +1473,11 @@ select.tokenpanel-tier-ref-select:focus-visible {
   color: var(--tokentweak-color-accent);
 }
 :where(.tokenpanel-shell) .tokenpanel-elpath-toggle svg {
-  fill: none;
+  /* !important required — same reason as .tokenpanel-highlight-toggle svg above:
+   * the base :where(.tokenpanel-shell) svg { fill: currentColor !important } rule
+   * must be overridden for outline-only (stroke-drawn) icons. Higher specificity
+   * alone (0-1-1) cannot beat a !important declaration at lower specificity. */
+  fill: none !important;
   stroke: currentColor;
 }
 
@@ -1550,13 +1562,15 @@ html.tokenpanel-elpath-inspecting * {
 }
 .tokenpanel-elpath-toast svg {
   flex-shrink: 0;
-  fill: none;
-  stroke: var(--tokentweak-color-success, #93bb77);
-  pointer-events: none;
   /* The toast renders in the #tokenpanel-elpath-mount portal (outside
    * .tokenpanel-shell), so the shell-scoped defensive SVG reset never reaches
-   * it. Restate display/overflow here so a hostile host `svg { … }` rule cannot
-   * distort the icon. */
+   * it. !important is required to beat a hostile `svg { fill: red !important }`:
+   * specificity 0-1-1 (.tokenpanel-elpath-toast svg) beats 0-0-1 (svg) so
+   * without !important the normal rule would win over the hostile normal, but
+   * the hostile !important beats any normal rule regardless of specificity. */
+  fill: none !important;
+  stroke: var(--tokentweak-color-success, #93bb77);
+  pointer-events: none;
   display: inline-block;
   overflow: visible;
 }
