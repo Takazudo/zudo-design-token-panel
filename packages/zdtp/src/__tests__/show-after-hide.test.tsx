@@ -30,16 +30,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getOpenKey } from '../state/tweak-state';
 import { __resetPanelConfigForTests, getPanelConfig, panelRootId } from '../config/panel-config';
+import { flushEffects } from './_test-helpers';
 
 const PANEL_ROOT_ID = panelRootId(getPanelConfig());
 const OPEN_PANEL_HEADER_TEXT = 'Design Tokens';
-
-async function waitForEffectFlush(): Promise<void> {
-  await new Promise<void>((resolve) =>
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-  );
-  await new Promise<void>((resolve) => setTimeout(resolve, 50));
-}
 
 describe('design-token-panel — programmatic show after hide', () => {
   beforeEach(() => {
@@ -61,7 +55,7 @@ describe('design-token-panel — programmatic show after hide', () => {
 
     // --- Initial show: fresh mount ---
     showDesignTokenPanel();
-    await waitForEffectFlush();
+    await flushEffects();
 
     const root = document.getElementById(PANEL_ROOT_ID);
     expect(root, 'panel root should mount on first show').not.toBeNull();
@@ -71,7 +65,7 @@ describe('design-token-panel — programmatic show after hide', () => {
     // --- Three full hide → show cycles against the already-mounted panel ---
     for (let cycle = 1; cycle <= 3; cycle++) {
       hideDesignTokenPanel();
-      await waitForEffectFlush();
+      await flushEffects();
       expect(
         localStorage.getItem(getOpenKey()),
         `cycle ${cycle}: OPEN_KEY removed after hide`,
@@ -81,7 +75,7 @@ describe('design-token-panel — programmatic show after hide', () => {
       );
 
       showDesignTokenPanel();
-      await waitForEffectFlush();
+      await flushEffects();
       expect(localStorage.getItem(getOpenKey()), `cycle ${cycle}: OPEN_KEY back to "1"`).toBe('1');
       expect(
         root!.textContent ?? '',

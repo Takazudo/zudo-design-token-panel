@@ -41,6 +41,7 @@ import {
   type PanelConfig,
 } from '../config/panel-config';
 import { getOpenKey } from '../state/tweak-state';
+import { flushEffects } from './_test-helpers';
 
 const CFG: PanelConfig = {
   storagePrefix: 'test-hdal',
@@ -109,18 +110,6 @@ type ConsoleApiSurface = {
 };
 function api(): ConsoleApiSurface {
   return (window as unknown as Record<string, unknown>)[CFG.consoleNamespace] as ConsoleApiSurface;
-}
-
-/**
- * Wait for Preact effects to flush. The panel module (src/index.tsx) may mount
- * the Preact shell when certain signals are set. Waiting ensures any DOM/storage
- * side effects triggered by the panel's mount effect complete before assertions.
- */
-async function waitForEffects(): Promise<void> {
-  await new Promise<void>((resolve) =>
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-  );
-  await new Promise<void>((resolve) => setTimeout(resolve, 50));
 }
 
 describe('host-adapter owner-autoload wiring (S2 #419)', () => {
@@ -221,7 +210,7 @@ describe('host-adapter owner-autoload wiring (S2 #419)', () => {
     it('sets :visible to "0"', async () => {
       localStorage.setItem(VISIBLE_KEY, '1');
       await bootstrapAdapter();
-      await waitForEffects(); // let panel module mount/show if gate fired
+      await flushEffects(); // let panel module mount/show if gate fired
       await api().disableAutoload();
       expect(localStorage.getItem(VISIBLE_KEY)).toBe('0');
     });

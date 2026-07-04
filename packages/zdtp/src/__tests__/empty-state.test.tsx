@@ -23,19 +23,10 @@ import {
   storageKey_visible,
 } from '../config/panel-config';
 import type { TabConfig } from '../tokens/tier-model';
+import { flushEffects } from './_test-helpers';
 
 const STORAGE_KEY_VISIBLE = storageKey_visible(DEFAULT_PANEL_CONFIG);
 const PANEL_ROOT_ID = panelRootId(DEFAULT_PANEL_CONFIG);
-
-/**
- * Wait for Preact to flush effects.
- */
-async function waitForEffectFlush(): Promise<void> {
-  await new Promise<void>((resolve) =>
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-  );
-  await new Promise<void>((resolve) => setTimeout(resolve, 50));
-}
 
 const SPACING_TAB_WITH_ITEMS: TabConfig = {
   id: 'spacing',
@@ -88,7 +79,7 @@ describe('design-token-panel tab dispatch', () => {
     localStorage.setItem(STORAGE_KEY_VISIBLE, '1');
     const { showDesignTokenPanel } = await import('../index');
     showDesignTokenPanel();
-    await waitForEffectFlush();
+    await flushEffects();
 
     const root = document.getElementById(PANEL_ROOT_ID);
     expect(root).not.toBeNull();

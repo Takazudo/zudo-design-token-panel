@@ -18,15 +18,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { __resetPanelConfigForTests, storageKey_visible } from '../config/panel-config';
 import { getStorageKeyV3 } from '../state/tweak-state';
-import { FIXTURE_PANEL_CONFIG, installFixturePanelConfig } from './_test-helpers';
-
-/** Wait for Preact to flush effects + the scheme-change handler. */
-async function waitForEffectFlush(): Promise<void> {
-  await new Promise<void>((resolve) =>
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-  );
-  await new Promise<void>((resolve) => setTimeout(resolve, 50));
-}
+import { FIXTURE_PANEL_CONFIG, installFixturePanelConfig, flushEffects } from './_test-helpers';
 
 /** A valid 16-slot color slice for the fixture cluster (paletteSize = 16). */
 const palette16 = Array.from(
@@ -78,7 +70,7 @@ describe('color-scheme-changed preserves non-color tweaks (#347)', () => {
     localStorage.setItem(storageKey_visible(FIXTURE_PANEL_CONFIG), '1');
     const { showDesignTokenPanel } = await import('../index');
     showDesignTokenPanel();
-    await waitForEffectFlush();
+    await flushEffects();
 
     // Sanity: both the spacing override and a color palette var are applied.
     expect(readVar('--zd-spacing-hgap-md')).toBe('24px');
@@ -86,7 +78,7 @@ describe('color-scheme-changed preserves non-color tweaks (#347)', () => {
 
     // Host toggles light/dark.
     window.dispatchEvent(new Event('color-scheme-changed'));
-    await waitForEffectFlush();
+    await flushEffects();
 
     // Color cluster vars are cleared so the new scheme's stylesheet shows
     // through...
