@@ -22,6 +22,7 @@ import {
   storageKey_visible,
 } from '../config/panel-config';
 import { getOpenKey } from '../state/tweak-state';
+import { flushEffects } from './_test-helpers';
 
 // ---------------------------------------------------------------------------
 // Derived constants from the default config (evaluated once at file load).
@@ -40,14 +41,6 @@ const OPEN_PANEL_HEADER_TEXT = 'Design Tokens';
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-async function waitForEffectFlush(): Promise<void> {
-  await new Promise<void>((resolve) =>
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-  );
-  // One macrotask tick after the rAFs to let any setTimeout(0) fallbacks run.
-  await new Promise<void>((resolve) => setTimeout(resolve, 50));
-}
 
 /**
  * Reset module graph, clear the panel-config registry, and fresh-import the
@@ -94,7 +87,7 @@ describe('reapplyFromStorage — autoload flag causes closed mount', () => {
 
     // astro:page-load fires reapplyFromStorage, which should trigger hideInstance.
     document.dispatchEvent(new Event('astro:page-load'));
-    await waitForEffectFlush();
+    await flushEffects();
 
     const root = document.getElementById(PANEL_ROOT_ID);
     expect(root).not.toBeNull();
@@ -107,7 +100,7 @@ describe('reapplyFromStorage — autoload flag causes closed mount', () => {
 
     await freshImport();
     document.dispatchEvent(new Event('astro:page-load'));
-    await waitForEffectFlush();
+    await flushEffects();
 
     expect(document.getElementById(PANEL_ROOT_ID)).toBeNull();
   });
@@ -166,7 +159,7 @@ describe('enableAutoload()', () => {
     const root = document.getElementById(PANEL_ROOT_ID);
     expect(root).not.toBeNull();
 
-    await waitForEffectFlush();
+    await flushEffects();
     expect(root!.textContent ?? '').not.toContain(OPEN_PANEL_HEADER_TEXT);
   });
 });
@@ -240,7 +233,7 @@ describe('custom storagePrefix — autoload flag causes closed mount', () => {
     const root = document.getElementById(customRootId);
     expect(root).not.toBeNull();
 
-    await waitForEffectFlush();
+    await flushEffects();
     expect(root!.textContent ?? '').not.toContain(OPEN_PANEL_HEADER_TEXT);
   });
 });

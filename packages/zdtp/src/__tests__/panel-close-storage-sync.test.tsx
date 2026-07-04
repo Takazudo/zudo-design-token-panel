@@ -33,24 +33,12 @@ import {
   panelRootId,
   storageKey_visible,
 } from '../config/panel-config';
+import { flushEffects } from './_test-helpers';
 
 const STORAGE_KEY_VISIBLE = storageKey_visible(getPanelConfig());
 const PANEL_ROOT_ID = panelRootId(getPanelConfig());
 const OPEN_PANEL_HEADER_TEXT = 'Design Tokens';
 const TOGGLE_EVENT = 'toggle-design-token-panel';
-
-/**
- * Wait until Preact has flushed pending effects. Preact uses
- * requestAnimationFrame to flush effects (with a setTimeout(35) fallback
- * inside w), so we wait long enough for either path to fire and then yield
- * to any further microtasks.
- */
-async function waitForEffectFlush(): Promise<void> {
-  await new Promise<void>((resolve) =>
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-  );
-  await new Promise<void>((resolve) => setTimeout(resolve, 50));
-}
 
 describe('panel close — storage sync', () => {
   beforeEach(() => {
@@ -72,7 +60,7 @@ describe('panel close — storage sync', () => {
 
     // Open the panel via toggle event.
     window.dispatchEvent(new CustomEvent(TOGGLE_EVENT));
-    await waitForEffectFlush();
+    await flushEffects();
 
     const root = document.getElementById(PANEL_ROOT_ID);
     expect(root, 'panel root mounts').not.toBeNull();
@@ -84,7 +72,7 @@ describe('panel close — storage sync', () => {
     const closeBtn = root!.querySelector<HTMLElement>('.tokenpanel-close-btn');
     expect(closeBtn, 'close button renders while panel is open').not.toBeNull();
     closeBtn!.click();
-    await waitForEffectFlush();
+    await flushEffects();
 
     // Panel content should be gone.
     expect(root!.textContent ?? '').not.toContain(OPEN_PANEL_HEADER_TEXT);
@@ -117,7 +105,7 @@ describe('panel close — storage sync', () => {
 
     // Open the panel.
     window.dispatchEvent(new CustomEvent(TOGGLE_EVENT));
-    await waitForEffectFlush();
+    await flushEffects();
 
     const root = document.getElementById(PANEL_ROOT_ID);
     expect(root!.textContent ?? '').toContain(OPEN_PANEL_HEADER_TEXT);
@@ -126,12 +114,12 @@ describe('panel close — storage sync', () => {
     const exportBtn = root!.querySelector<HTMLElement>('.tokenpanel-action-link');
     expect(exportBtn, 'Export button should render').not.toBeNull();
     exportBtn!.click();
-    await waitForEffectFlush();
+    await flushEffects();
 
     // Now dispatch ESC. With showExport=true, the panel's ESC handler must
     // stand down and let the native <dialog> handle it first.
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    await waitForEffectFlush();
+    await flushEffects();
 
     // Panel must still be open — the ESC handler should have returned early
     // due to the modal-priority guard.
@@ -152,7 +140,7 @@ describe('panel close — storage sync', () => {
 
     // Open via toggle event.
     window.dispatchEvent(new CustomEvent(TOGGLE_EVENT));
-    await waitForEffectFlush();
+    await flushEffects();
 
     const root = document.getElementById(PANEL_ROOT_ID);
     expect(root!.textContent ?? '').toContain(OPEN_PANEL_HEADER_TEXT);
@@ -161,7 +149,7 @@ describe('panel close — storage sync', () => {
 
     // Dispatch ESC on the document.
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    await waitForEffectFlush();
+    await flushEffects();
 
     // Panel should be closed.
     expect(root!.textContent ?? '').not.toContain(OPEN_PANEL_HEADER_TEXT);

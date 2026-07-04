@@ -175,3 +175,21 @@ export function installFixturePanelConfig(overrides: Partial<PanelConfig> = {}):
   __resetPanelConfigForTests();
   configurePanel({ ...FIXTURE_PANEL_CONFIG, ...overrides });
 }
+
+/**
+ * Wait until Preact has flushed pending effects. Preact uses
+ * requestAnimationFrame to flush effects (with a setTimeout(35) fallback
+ * inside its scheduler), so we wait long enough for either path to fire and
+ * then yield to any further macrotasks.
+ *
+ * Wait-ok: the 50ms constant is not an arbitrary guess — it covers Preact's
+ * own rAF + setTimeout(35) effect-flush path. This cannot be expressed as a
+ * condition poll because "all Preact effects done" is not observable from
+ * outside Preact internals without coupling to private scheduler APIs.
+ */
+export async function flushEffects(): Promise<void> {
+  await new Promise<void>((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+  );
+  await new Promise<void>((resolve) => setTimeout(resolve, 50));
+}
