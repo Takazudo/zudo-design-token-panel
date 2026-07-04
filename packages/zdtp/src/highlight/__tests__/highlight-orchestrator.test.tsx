@@ -558,7 +558,6 @@ describe('match cache', () => {
 
     act(() => { ctx!.toggle('--brand'); });
 
-    // After toggle, both equality and differential probes were called (always-union path).
     const callCountAfterToggle = mockFindElements.mock.calls.length;
     expect(callCountAfterToggle).toBeGreaterThanOrEqual(1);
 
@@ -569,6 +568,105 @@ describe('match cache', () => {
     expect(mockFindElements.mock.calls.length).toBe(callCountAfterToggle);
 
     el.remove();
+  });
+
+  // F26: cache entry with a disconnected element is evicted and re-probed
+  it('evicts cache entry and re-probes when a cached element becomes disconnected', () => {
+    const el1 = makeElement();
+    const el2 = makeElement();
+
+    // Initial probe returns el1
+    mockFindElements.mockReturnValue({ elements: [el1], warnings: [] });
+
+    let ctx: HighlightContextValue | null = null;
+    renderOrchestrator((c) => { ctx = c; });
+
+    act(() => { ctx!.toggle('--brand'); });
+    expect(ctx!.matchCounts?.['--brand']).toBe(1);
+
+    const callCountAfterToggle = mockFindElements.mock.calls.length;
+    expect(callCountAfterToggle).toBeGreaterThanOrEqual(1);
+
+    // Disconnect el1 — but do NOT bump stylesheetVersion or themeVersion.
+    // The cache key is unchanged, so a naïve cache hit would return the stale entry.
+    el1.remove();
+    expect(el1.isConnected).toBe(false);
+
+    // Change mock so re-probe returns el2 (only the connected element)
+    mockFindElements.mockReturnValue({ elements: [el2], warnings: [] });
+
+    // Trigger useMemo re-run by changing slot color (no version bump).
+    act(() => { ctx!.setSlot!(0, { color: '#0000ff' }); });
+
+    // The isConnected guard must have evicted the stale entry → re-probe happened.
+    expect(mockFindElements.mock.calls.length).toBeGreaterThan(callCountAfterToggle);
+    // Result should reflect the re-probe (el2, not the detached el1).
+    expect(ctx!.matchCounts?.['--brand']).toBe(1);
+
+    el2.remove();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F26: stylesheet version bump clears the match cache
+// ---------------------------------------------------------------------------
+
+describe('cache clear on stylesheet version bump (F26)', () => {
+  it('stylesheet injection clears the cache so old entries are not returned', async () => {
+    const el1 = makeElement();
+    const el2 = makeElement();
+
+    mockFindElements.mockReturnValue({ elements: [el1], warnings: [] });
+
+    let ctx: HighlightContextValue | null = null;
+    renderOrchestrator((c) => { ctx = c; });
+
+    act(() => { ctx!.toggle('--brand'); });
+    expect(ctx!.matchCounts?.['--brand']).toBe(1);
+
+    // After style injection, probe should use the new mock (fresh probe, not old cache entry).
+    mockFindElements.mockReturnValue({ elements: [el1, el2], warnings: [] });
+
+    const style = document.createElement('style');
+    style.setAttribute('data-test', 'true');
+    style.textContent = ':root { --brand: blue; }';
+
+    await act(async () => {
+      document.head.appendChild(style);
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    // Cache was cleared + version bumped → cache miss → re-probe with new mock
+    expect(ctx!.matchCounts?.['--brand']).toBe(2);
+
+    el1.remove();
+    el2.remove();
+  });
+
+  it('astro:after-swap clears cache and bumps version so re-probe uses fresh results', async () => {
+    const el1 = makeElement();
+    const el2 = makeElement();
+
+    mockFindElements.mockReturnValue({ elements: [el1], warnings: [] });
+
+    let ctx: HighlightContextValue | null = null;
+    renderOrchestrator((c) => { ctx = c; });
+
+    act(() => { ctx!.toggle('--brand'); });
+    expect(ctx!.matchCounts?.['--brand']).toBe(1);
+
+    // After swap, probe should use the new mock (cache cleared + version bumped).
+    mockFindElements.mockReturnValue({ elements: [el1, el2], warnings: [] });
+
+    await act(async () => {
+      window.dispatchEvent(new Event('astro:after-swap'));
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    expect(ctx!.matchCounts?.['--brand']).toBe(2);
+
+    el1.remove();
+    el2.remove();
   });
 });
 
@@ -612,33 +710,52 @@ describe('context value shape', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 11. Always-union: equality + differential probe results
+// 11. Differential-only probe (F31 fix — skip equality pass for eligible kinds)
 // ---------------------------------------------------------------------------
 
-describe('always-union probe (Option A)', () => {
-  it('unions elements from equality and differential probes for auto-detect tokens', () => {
+describe('differential-only probe (F31)', () => {
+  it('calls findElementsUsingToken exactly once in differential mode for auto-detect tokens', () => {
+    // cssVar not in tier config → tierKind = undefined → differential eligible
+    const el = makeElement();
+    mockFindElements.mockReturnValue({ elements: [el], warnings: [] });
+
+    let ctx: HighlightContextValue | null = null;
+    renderOrchestrator((c) => { ctx = c; });
+
+    mockFindElements.mockClear();
+    act(() => { ctx!.toggle('--f31-test'); });
+
+    // F31 acceptance: exactly one findElementsUsingToken call (differential only),
+    // not two calls (equality + differential).
+    expect(mockFindElements).toHaveBeenCalledTimes(1);
+    const call = mockFindElements.mock.calls[0];
+    expect((call[1] as { mode?: string } | undefined)?.mode).toBe('differential');
+
+    el.remove();
+  });
+
+  it('uses differential results only for auto-detect tokens (no union needed)', () => {
     // cssVar not in tier config → tierKind = undefined → differential eligible
     const elA = makeElement();
     const elB = makeElement();
 
-    // equality returns elA; differential returns elB
+    // differential returns both elements
     mockFindElements.mockImplementation((_cssVar: string, options?: { mode?: string }) => {
-      if (!options?.mode || options.mode === 'equality') {
-        return { elements: [elA], warnings: [] };
+      if (options?.mode === 'differential') {
+        return { elements: [elA, elB], warnings: [] };
       }
-      return { elements: [elB], warnings: [] };
+      return { elements: [], warnings: [] };
     });
 
     let ctx: HighlightContextValue | null = null;
     renderOrchestrator((c) => { ctx = c; });
 
-    act(() => { ctx!.toggle('--union-test'); });
+    act(() => { ctx!.toggle('--probe-test'); });
     act(() => { flushRaf(); });
 
-    // matchCounts should be 2 (both elements)
-    expect(ctx!.matchCounts?.['--union-test']).toBe(2);
+    // matchCounts reflects the differential result
+    expect(ctx!.matchCounts?.['--probe-test']).toBe(2);
 
-    // Both elements should be in the overlay
     const mount = document.getElementById('tokenpanel-highlight-mount');
     expect(mount).not.toBeNull();
     const overlays = mount!.querySelectorAll('.tokenpanel-highlight-overlay');
@@ -648,45 +765,19 @@ describe('always-union probe (Option A)', () => {
     elB.remove();
   });
 
-  it('deduplicates an element that appears in both equality and differential results', () => {
-    const elShared = makeElement();
-    const elExtra = makeElement();
-
-    // equality returns [elShared]; differential returns [elShared, elExtra]
-    mockFindElements.mockImplementation((_cssVar: string, options?: { mode?: string }) => {
-      if (!options?.mode || options.mode === 'equality') {
-        return { elements: [elShared], warnings: [] };
-      }
-      return { elements: [elShared, elExtra], warnings: [] };
-    });
-
-    let ctx: HighlightContextValue | null = null;
-    renderOrchestrator((c) => { ctx = c; });
-
-    act(() => { ctx!.toggle('--dedupe-test'); });
-
-    // elShared appears in both; after union dedupe it should count once → total 2
-    expect(ctx!.matchCounts?.['--dedupe-test']).toBe(2);
-
-    elShared.remove();
-    elExtra.remove();
-  });
-
-  it('deduplicates identical warning strings from equality and differential probes', () => {
+  it('warnings from the differential probe are logged without duplication', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const repeated = 'Cross-origin stylesheet skipped: https://cdn.example.com/styles.css';
+    const warning = 'Cross-origin stylesheet skipped: https://cdn.example.com/styles.css';
 
-    // Both probes emit the same cross-origin warning
-    mockFindElements.mockReturnValue({ elements: [], warnings: [repeated] });
+    mockFindElements.mockReturnValue({ elements: [], warnings: [warning] });
 
     let ctx: HighlightContextValue | null = null;
     renderOrchestrator((c) => { ctx = c; });
 
-    act(() => { ctx!.toggle('--warn-dedupe'); });
+    act(() => { ctx!.toggle('--warn-test'); });
 
-    // After union-dedup the warning should be logged exactly once
     const warnCalls = warnSpy.mock.calls.filter((args) =>
-      args.some((a) => typeof a === 'string' && a.includes(repeated)),
+      args.some((a) => typeof a === 'string' && a.includes(warning)),
     );
     expect(warnCalls).toHaveLength(1);
 

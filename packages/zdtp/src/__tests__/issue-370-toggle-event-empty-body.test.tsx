@@ -35,6 +35,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'preact';
 import type { PanelConfig } from '../config/panel-config';
+import { flushEffects } from './_test-helpers';
 
 const REGISTRY_SYMBOL = Symbol.for('@takazudo/zdtp:singleton');
 const DEFAULT_PREFIX = 'zudo-design-token-panel';
@@ -111,13 +112,6 @@ function sizeTab(label: string): PanelConfig['tabs'][number] {
   };
 }
 
-async function waitForEffectFlush(): Promise<void> {
-  await new Promise<void>((resolve) =>
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-  );
-  await new Promise<void>((resolve) => setTimeout(resolve, 50));
-}
-
 beforeEach(() => {
   drainInstanceBindings();
   const w = window as unknown as Record<string, unknown>;
@@ -147,7 +141,7 @@ describe('issue #370 — toggle window event mounts the configured tabs (default
     configurePanel(cfg);
 
     window.dispatchEvent(new CustomEvent('toggle-design-token-panel'));
-    await waitForEffectFlush();
+    await flushEffects();
 
     const root = document.getElementById(panelRootId(cfg));
     expect(root, 'panel mounted on the reserved window event').not.toBeNull();
@@ -166,7 +160,7 @@ describe('issue #370 — toggle window event mounts the configured tabs (default
     configurePanel(cfg);
 
     window.dispatchEvent(new CustomEvent('toggle-color-tweak-panel'));
-    await waitForEffectFlush();
+    await flushEffects();
 
     const root = document.getElementById(panelRootId(cfg));
     expect(root, 'panel mounted on the legacy alias event').not.toBeNull();
@@ -186,7 +180,7 @@ describe('issue #370 — reserved event opens the configured panel for a custom-
 
     // The host dispatches the historical reserved event (not toggle-${prefix}).
     window.dispatchEvent(new CustomEvent('toggle-design-token-panel'));
-    await waitForEffectFlush();
+    await flushEffects();
 
     // The configured (custom-prefix) panel opens with its real body...
     const customRoot = document.getElementById(panelRootId(cfg));
@@ -217,7 +211,7 @@ describe('issue #370 — reserved event opens the configured panel for a custom-
     configurePanel(cfg);
 
     window.dispatchEvent(new CustomEvent('toggle-design-token-panel'));
-    await waitForEffectFlush();
+    await flushEffects();
 
     const customRoot = document.getElementById(panelRootId(cfg));
     expect(customRoot, 'configured panel mounted').not.toBeNull();
@@ -250,7 +244,7 @@ describe('issue #370 — panel tabConfigById tracks instanceConfig (no stale use
     document.body.appendChild(root);
 
     render(<DesignTokenTweakPanel instanceConfig={cfgA} />, root);
-    await waitForEffectFlush();
+    await flushEffects();
     expect(root.textContent ?? '', 'A body rendered').toContain('Alpha Size tier');
 
     // Re-render the SAME component instance with a different config (a prop
@@ -258,7 +252,7 @@ describe('issue #370 — panel tabConfigById tracks instanceConfig (no stale use
     // the new config — a stale useMemo([]) would update the tab strip but leave
     // the body dispatching against the old config.
     render(<DesignTokenTweakPanel instanceConfig={cfgB} />, root);
-    await waitForEffectFlush();
+    await flushEffects();
     const text = root.textContent ?? '';
     expect(text, 'B body now rendered').toContain('Beta Size tier');
     expect(text, 'stale A body gone').not.toContain('Alpha Size tier');

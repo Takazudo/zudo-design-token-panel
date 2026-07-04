@@ -245,6 +245,28 @@ describe('deserialize — v2 format', () => {
     expect(unknownTokens.sort()).toEqual(['--radius-imaginary', '--spacing-nope'].sort());
   });
 
+  it('F28: v2 import sanitizes garbage palette entry "18" → "#000000" (same as seed-time sanitizer, commit 8d54e07)', () => {
+    // Regression guard for F28: the v2 color.palette block is cssVar-keyed;
+    // a garbage string value like "18" must be sanitized to '#000000' by
+    // normalizeSchemePaletteEntry rather than leaking into a CSS custom property.
+    const payload = {
+      $schema: SCHEMA_V2,
+      exportedAt: new Date().toISOString(),
+      tabs: {
+        color: {
+          palette: {
+            '--fixture-p3': '18', // garbage entry — same as Default Dark's slot-9
+          },
+        },
+      },
+    };
+    const { state } = deserialize(payload, { colorDefaults: COLOR_BASELINE });
+    // Garbage entry is canonicalized to safe '#000000'.
+    expect(state.color.palette[3]).toBe('#000000');
+    // Other palette slots unchanged from baseline.
+    expect(state.color.palette[0]).toBe(COLOR_BASELINE.palette[0]);
+  });
+
   it('throws schema-mismatch for unknown $schema values', () => {
     expect(() =>
       deserialize(
@@ -473,6 +495,25 @@ describe('deserialize — v1 format (one-way migration)', () => {
       ),
     ).toThrowError(DesignTokenSchemaError);
   });
+
+  it('F28: v1 import sanitizes garbage palette entry "18" → "#000000" (same as seed-time sanitizer, commit 8d54e07)', () => {
+    // Regression guard for F28: imported palette values must pass through
+    // normalizeSchemePaletteEntry so a stray non-color string like "18"
+    // (the exact entry that triggered the seed-time fix in 8d54e07) becomes
+    // '#000000' instead of leaking verbatim into a CSS custom property.
+    const rawPalette: string[] = [...PALETTE_BASELINE];
+    rawPalette[3] = '18'; // stray non-color string at index 3
+    const payload = {
+      $schema: SCHEMA_V1,
+      exportedAt: new Date().toISOString(),
+      color: { palette: rawPalette },
+    };
+    const { state } = deserialize(payload, { colorDefaults: COLOR_BASELINE });
+    // Valid entries pass through unchanged.
+    expect(state.color.palette[0]).toBe(PALETTE_BASELINE[0]);
+    // Garbage entry is canonicalized to safe '#000000'.
+    expect(state.color.palette[3]).toBe('#000000');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -619,5 +660,82 @@ describe('serialize/deserialize — generic (custom-id) tabs', () => {
 
     const { state } = deserialize(JSON.parse(JSON.stringify(json)), { colorDefaults: COLOR_BASELINE });
     expect(state.tabs).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F29: serialize() must not drop 'bg'/'fg' semantic mappings
+// ---------------------------------------------------------------------------
+
+describe("F29 — serialize() emits 'bg'/'fg' semantic mappings as their resolved palette index", () => {
+  it('emits resolved index in includeDefaults mode when mapping is the string "bg"', () => {
+    // background = 0 in COLOR_BASELINE, so 'bg' resolves to 0.
+    const color = cloneBaseline();
+    (color.semanticMappings as Record<string, number | 'bg' | 'fg'>)['accent'] = 'bg';
+    const json = serialize(makeState({ color }), {
+      colorDefaults: COLOR_BASELINE,
+      includeDefaults: true,
+    });
+    const semMap = json.tabs?.['color']?.['semantic'] as Record<string, number> | undefined;
+    expect(semMap).toBeDefined();
+    // 'bg' resolves to color.background (= 0)
+    expect(semMap!['--fixture-semantic-accent']).toBe(0);
+  });
+
+  it('emits resolved index in includeDefaults mode when mapping is the string "fg"', () => {
+    // foreground = 15 in COLOR_BASELINE, so 'fg' resolves to 15.
+    const color = cloneBaseline();
+    (color.semanticMappings as Record<string, number | 'bg' | 'fg'>)['accent'] = 'fg';
+    const json = serialize(makeState({ color }), {
+      colorDefaults: COLOR_BASELINE,
+      includeDefaults: true,
+    });
+    const semMap = json.tabs?.['color']?.['semantic'] as Record<string, number> | undefined;
+    expect(semMap).toBeDefined();
+    // 'fg' resolves to color.foreground (= 15)
+    expect(semMap!['--fixture-semantic-accent']).toBe(15);
+  });
+
+  it('emits resolved index in diff-only mode when "bg" mapping differs from baseline number', () => {
+    // Baseline accent = 5 (number). State accent = 'bg' (resolves to 0).
+    // 0 !== 5 so it should appear in diff output.
+    const color = cloneBaseline();
+    (color.semanticMappings as Record<string, number | 'bg' | 'fg'>)['accent'] = 'bg';
+    const json = serialize(makeState({ color }), { colorDefaults: COLOR_BASELINE });
+    const semMap = json.tabs?.['color']?.['semantic'] as Record<string, number> | undefined;
+    expect(semMap).toBeDefined();
+    expect(semMap!['--fixture-semantic-accent']).toBe(0);
+  });
+
+  it('round-trip: v1 doc with semantic "bg" → deserialize → serialize(includeDefaults) → deserialize preserves effective index', () => {
+    // Construct a v1 payload with accent mapped to 'bg'.
+    const v1Payload = {
+      $schema: SCHEMA_V1,
+      exportedAt: new Date().toISOString(),
+      color: {
+        palette: COLOR_BASELINE.palette,
+        base: { bg: 0, fg: 15, cursor: 6, 'sel-bg': 0, 'sel-fg': 15 },
+        semantic: { accent: 'bg' }, // 'bg' alias → resolves to index 0
+      },
+    };
+
+    // Step 1: deserialize v1 — accent should be 'bg' in state
+    const { state: step1State } = deserialize(v1Payload, { colorDefaults: COLOR_BASELINE });
+    expect(step1State.color.semanticMappings['accent']).toBe('bg');
+
+    // Step 2: serialize with includeDefaults — should emit the resolved index (0)
+    const v2Json = serialize(step1State, {
+      colorDefaults: COLOR_BASELINE,
+      includeDefaults: true,
+    });
+    const semMap = v2Json.tabs?.['color']?.['semantic'] as Record<string, number> | undefined;
+    expect(semMap?.['--fixture-semantic-accent']).toBe(0);
+
+    // Step 3: deserialize the v2 output — accent should resolve to 0 (number)
+    const { state: step3State } = deserialize(v2Json, { colorDefaults: COLOR_BASELINE });
+    // After the round-trip the mapping is now a number (0), not 'bg'.
+    // Either form that resolves to 0 is acceptable, but the v2 format emits numbers.
+    const resolvedAccent = step3State.color.semanticMappings['accent'];
+    expect(typeof resolvedAccent === 'number' ? resolvedAccent : -1).toBe(0);
   });
 });

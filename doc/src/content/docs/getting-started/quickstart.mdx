@@ -158,8 +158,8 @@ window.myapp.toggleDesignPanel();
 
 You should see a Preact-rendered side panel mount. Drag a slider; the matching `--myapp-*` CSS variable updates on `:root` immediately. Reload the page — the override re-applies before first paint, no FOUT.
 
-<Warning title="Forgot the styles import?">
-  If the panel JS runs but the chrome looks unstyled (transparent background, default page font), you skipped the `import '@takazudo/zdtp/styles';` line. Vite library mode strips the package-internal CSS imports from emitted JS, so the consumer side must pull the bundled stylesheet in explicitly.
+<Warning title="Panel looks unstyled?">
+  The panel self-injects its stylesheet when it first mounts — no `import '@takazudo/zdtp/styles'` is needed. If the chrome is missing (transparent background, default page font), the panel module itself failed to load. Check your bundler configuration and confirm the `preact` peer dependency is installed.
 </Warning>
 
 ## Next step

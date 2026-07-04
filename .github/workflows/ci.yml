@@ -4,10 +4,10 @@ on:
   pull_request:
     branches:
       - main
-      - 'base/initial-port'
-      - 'base/initial-port-*'
-      - 'base/probe-substitution-highlight'
-      - 'base/probe-substitution-highlight-*'
+      - 'base/**'
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -36,14 +36,28 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
       - name: Install Chromium for browser tests
         run: pnpm --filter @takazudo/zdtp exec playwright install --with-deps chromium
 
-      - name: Build
-        run: pnpm build
+      - name: Build panel
+        run: pnpm --filter @takazudo/zdtp build
 
       - name: Test
         run: pnpm test
+
+      - name: Visual regression tests
+        # Runs after "Build panel" (dist/zdtp.css must exist). Uses the same
+        # Chromium already installed for browser tests. Baselines are
+        # linux-keyed so they match this ubuntu-latest runner exactly.
+        # Update flow: pnpm --filter @takazudo/zdtp test:vrt:update locally,
+        # review PNG diff in the PR, then commit the updated baselines.
+        run: pnpm --filter @takazudo/zdtp test:vrt
 
       - name: Typecheck
         run: pnpm typecheck

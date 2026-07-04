@@ -73,7 +73,7 @@
  */
 
 import type { ColorTweakState, TabOverrides, TokenOverrides, TweakState } from '../state/tweak-state';
-import { getActivePrimaryCluster } from '../state/tweak-state';
+import { getActivePrimaryCluster, normalizeSchemePaletteEntry } from '../state/tweak-state';
 import { getPanelConfig, type PanelConfig } from '../config/panel-config';
 import { resolvePaletteCssVar } from '../config/cluster-config';
 import type { TierItem } from '../tokens/tier-model';
@@ -432,14 +432,28 @@ function serializeColorV2(
   }
 
   // Semantic tier — cssVar-keyed palette-index integers.
+  // 'bg' and 'fg' are legacy alias values admitted by v1 deserialize; resolve
+  // them to their concrete palette index (mirroring resolveMappingIndex in
+  // build-apply-overrides.ts) so they survive round-trips through the v2 format,
+  // which only admits numbers on deserialize (F29 fix).
   const semantic: Record<string, number> = {};
   let semanticWrote = false;
   for (const [key, cssName] of Object.entries(cluster.semanticCssNames)) {
     const cur = color.semanticMappings[key];
-    if (cur === undefined || typeof cur !== 'number') continue;
+    if (cur === undefined) continue;
+    const resolvedCur: number =
+      typeof cur === 'number' ? cur : cur === 'bg' ? color.background : color.foreground;
     const baselineVal = baseline?.semanticMappings[key];
-    if (full || baselineVal === undefined || cur !== baselineVal) {
-      semantic[cssName] = cur;
+    const resolvedBaseline: number | undefined =
+      baselineVal === undefined
+        ? undefined
+        : typeof baselineVal === 'number'
+          ? baselineVal
+          : baselineVal === 'bg'
+            ? (baseline?.background ?? 0)
+            : (baseline?.foreground ?? 1);
+    if (full || resolvedBaseline === undefined || resolvedCur !== resolvedBaseline) {
+      semantic[cssName] = resolvedCur;
       semanticWrote = true;
     }
   }
@@ -661,7 +675,11 @@ function deserializeColorV2(
       const cssVar = resolvePaletteCssVar(cluster, i);
       const val = paletteMap[cssVar];
       if (typeof val === 'string') {
-        newPalette[i] = val;
+        // Apply the same seed-time sanitiser (commit 8d54e07): preserve
+        // valid oklch() verbatim and route everything else through
+        // cssColorToHex() so a garbage entry like "18" becomes '#000000'
+        // instead of leaking verbatim into a CSS custom property.
+        newPalette[i] = normalizeSchemePaletteEntry(val);
       }
     }
     palette = newPalette;
@@ -780,7 +798,11 @@ function deserializeColorV1(
   if (Array.isArray(c.palette)) {
     const parsed = c.palette.filter((v): v is string => typeof v === 'string');
     if (parsed.length === baseline.palette.length && parsed.length === c.palette.length) {
-      palette = parsed;
+      // Apply the same seed-time sanitiser (commit 8d54e07): preserve valid
+      // oklch() verbatim and route everything else through cssColorToHex() so
+      // a garbage entry like "18" becomes '#000000' instead of leaking into a
+      // CSS custom property.
+      palette = parsed.map(normalizeSchemePaletteEntry);
     } else if (c.palette.length > 0) {
       const detail =
         parsed.length < c.palette.length

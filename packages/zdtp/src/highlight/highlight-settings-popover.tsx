@@ -19,6 +19,7 @@ import type { JSX } from 'preact';
 import { RoleButton } from '../controls/role-button';
 import { ColorPicker, getFixedPopoverStyle, usePopoverClose } from '../components/color-picker/index';
 import { HighlightContext } from './highlight-toggle-button';
+import { Z } from '../styles/z-index-tokens';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,7 +55,9 @@ export function HighlightSettingsPopover({
   // Must be declared here (before any early return) to satisfy Rules of Hooks.
   const colorPickerAnchorRef = useRef<HTMLDivElement | null>(null);
 
-  usePopoverClose(containerRef, onClose);
+  // Pass the gear button (anchorRef) so clicking it toggles the popover shut
+  // instead of the outside-close racing the gear's click-to-toggle (F11).
+  usePopoverClose(containerRef, onClose, anchorRef);
 
   // Graceful null guard: no context = no popover.
   if (!ctx) return null;
@@ -84,7 +87,7 @@ export function HighlightSettingsPopover({
       role="dialog"
       aria-label="Highlight outline settings"
       className="tokenpanel-highlight-settings-popover"
-      style={{ ...popoverStyle, zIndex: 65 }}
+      style={{ ...popoverStyle, zIndex: Z.settingsPopover }}
     >
       {/* Header */}
       <div className="tokenpanel-highlight-settings-header">

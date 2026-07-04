@@ -113,7 +113,7 @@ into a standalone monorepo. Tracked under
   feature cards layout.
   ([#11](https://github.com/Takazudo/zudo-design-token-panel/pull/11))
 - **`@takazudo/zudo-design-token-panel` package** — ported the Preact-based
-  live design-token tweak panel into `packages/zudo-design-token-panel/`.
+  live design-token tweak panel into `packages/zdtp/`.
   Includes the host-config-driven runtime (`TokenManifest`,
   `ColorClusterConfig`), tests, and the portable contract / README. Renamed
   the secondary cluster identifier from a reference-project name to the

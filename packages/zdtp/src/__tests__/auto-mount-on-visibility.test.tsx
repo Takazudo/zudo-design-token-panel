@@ -40,6 +40,7 @@ import {
   panelRootId,
   storageKey_visible,
 } from '../config/panel-config';
+import { flushEffects } from './_test-helpers';
 
 // Derived under the default config — under the package's documented
 // neutral defaults these MUST match the literals below (see
@@ -59,20 +60,6 @@ if (PANEL_ROOT_ID !== 'zudo-design-token-panel-root') {
 
 /** Tag used in the panel header — see panel.tsx. */
 const OPEN_PANEL_HEADER_TEXT = 'Design Tokens';
-
-/**
- * Wait until Preact has flushed pending effects. Preact uses
- * `requestAnimationFrame` to flush effects (with a `setTimeout(35)` fallback
- * inside `w`), so we wait long enough for either path to fire and then yield
- * to any further microtasks.
- */
-async function waitForEffectFlush(): Promise<void> {
-  await new Promise<void>((resolve) =>
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-  );
-  // One macrotask tick after the rAFs to let any setTimeout(0) fallbacks run.
-  await new Promise<void>((resolve) => setTimeout(resolve, 50));
-}
 
 describe('design-token-panel adapter — auto-mount with visibility flag', () => {
   beforeEach(() => {
@@ -124,7 +111,7 @@ describe('design-token-panel adapter — auto-mount with visibility flag', () =>
     // Tokens" header is the easiest unique sentinel). Without the fix,
     // `panel.tsx` reads OPEN_KEY at mount-time, sees it absent, and stays at
     // `open=false` — which renders `null`, leaving the root empty.
-    await waitForEffectFlush();
+    await flushEffects();
     expect(root!.textContent ?? '').toContain(OPEN_PANEL_HEADER_TEXT);
 
     // Implementation contract: the fix path seeds OPEN_KEY before mount.

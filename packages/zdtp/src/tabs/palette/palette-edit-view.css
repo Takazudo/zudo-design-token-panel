@@ -8,19 +8,19 @@
 .tokenpanel-palette-edit-view {
   display: flex;
   flex-direction: column;
-  gap: 0.875rem;
+  gap: 14px;
 }
 
 .tokenpanel-palette-edit-group {
   display: flex;
   flex-direction: column;
-  gap: 0.375rem;
+  gap: 6px;
 }
 
 /* ── Step swatch row ── */
 .tokenpanel-palette-edit-swatches {
   display: flex;
-  gap: 0.25rem;
+  gap: 4px;
 }
 
 .tokenpanel-palette-edit-swatch {
@@ -28,7 +28,7 @@
   flex: 1 1 0;
   height: 30px;
   border-radius: var(--radius-tokentweak);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgb(from var(--tokentweak-color-fg) r g b / 0.08);
   outline: 0 solid transparent;
   cursor: pointer;
   transition: outline-width 0.08s ease;
@@ -56,6 +56,7 @@
   inset: auto 0 2px 0;
   text-align: center;
   font-size: 9px;
+  /* on-swatch overlay: dark text + light halo, readable against any swatch color */
   color: rgba(0, 0, 0, 0.55);
   text-shadow: 0 0 2px rgba(255, 255, 255, 0.4);
   pointer-events: none;
@@ -63,7 +64,7 @@
 
 /* ── Per-group editor ── */
 .tokenpanel-palette-edit-editor {
-  margin-top: 0.375rem;
+  margin-top: 6px;
   border: 1px solid var(--tokentweak-color-muted);
   border-radius: var(--radius-tokentweak);
   background: var(--tokentweak-color-surface);
@@ -72,8 +73,8 @@
 .tokenpanel-palette-edit-editor-bar {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.625rem;
+  gap: 8px;
+  padding: 8px 10px;
   border-bottom: 1px solid var(--tokentweak-color-muted);
 }
 
@@ -86,11 +87,11 @@
 /* ── Channel toggle (L/C/H) ── */
 .tokenpanel-palette-edit-channels {
   display: flex;
-  gap: 0.1875rem;
+  gap: 3px;
 }
 
 .tokenpanel-palette-edit-channel {
-  padding: 0.25rem 0.5625rem;
+  padding: 4px 9px;
   font-size: 11px;
   font-weight: 650;
   border-radius: var(--radius-tokentweak);
@@ -124,8 +125,8 @@
 .tokenpanel-palette-edit-direct {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.625rem;
+  gap: 8px;
+  padding: 8px 10px;
   border-top: 1px solid var(--tokentweak-color-muted);
 }
 
@@ -137,9 +138,9 @@
 /* ── Readout ── */
 .tokenpanel-palette-readout {
   display: flex;
-  gap: 0.625rem;
+  gap: 10px;
   align-items: center;
-  padding: 0.5rem 0.625rem 0.625rem;
+  padding: 8px 10px 10px;
   border-top: 1px solid var(--tokentweak-color-muted);
 }
 
@@ -148,7 +149,7 @@
   width: 40px;
   height: 40px;
   border-radius: var(--radius-tokentweak);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgb(from var(--tokentweak-color-fg) r g b / 0.12);
 }
 
 .tokenpanel-palette-readout-rows {
@@ -166,7 +167,7 @@
 }
 
 .tokenpanel-palette-readout-gamut {
-  margin-top: 0.25rem;
+  margin-top: 4px;
   color: var(--tokentweak-color-danger);
   font-size: 10px;
 }

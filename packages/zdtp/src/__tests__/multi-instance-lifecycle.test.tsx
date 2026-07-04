@@ -30,6 +30,7 @@ import {
   toggleEventName,
   type PanelConfig,
 } from '../config/panel-config';
+import { flushEffects } from './_test-helpers';
 
 const OPEN_PANEL_HEADER_TEXT = 'Design Tokens';
 const DEFAULT_TOGGLE_EVENT = 'toggle-design-token-panel';
@@ -67,13 +68,6 @@ function genericTab(id: string, label: string): PanelConfig['tabs'][number] {
       },
     ],
   };
-}
-
-async function waitForEffectFlush(): Promise<void> {
-  await new Promise<void>((resolve) =>
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-  );
-  await new Promise<void>((resolve) => setTimeout(resolve, 50));
 }
 
 function rootFor(cfg: PanelConfig): HTMLElement | null {
@@ -127,7 +121,7 @@ describe('multi-instance lifecycle (#354)', () => {
 
     // Open A via its own event — B must stay closed/unmounted.
     window.dispatchEvent(new CustomEvent(toggleEventName(cfgA)));
-    await waitForEffectFlush();
+    await flushEffects();
     expect(isOpen(cfgA), 'A opens on its own event').toBe(true);
     expect(rootFor(cfgB), 'B did not mount from A event').toBeNull();
     expect(localStorage.getItem(getOpenKey(cfgA))).toBe('1');
@@ -135,13 +129,13 @@ describe('multi-instance lifecycle (#354)', () => {
 
     // Open B via its own event — A stays open, independent.
     window.dispatchEvent(new CustomEvent(toggleEventName(cfgB)));
-    await waitForEffectFlush();
+    await flushEffects();
     expect(isOpen(cfgB), 'B opens on its own event').toBe(true);
     expect(isOpen(cfgA), 'A still open — B event did not touch it').toBe(true);
 
     // Close A via its event — B unaffected.
     window.dispatchEvent(new CustomEvent(toggleEventName(cfgA)));
-    await waitForEffectFlush();
+    await flushEffects();
     expect(isOpen(cfgA), 'A closed by its event').toBe(false);
     expect(isOpen(cfgB), 'B still open after A close').toBe(true);
     expect(localStorage.getItem(getOpenKey(cfgA))).toBeNull();
@@ -158,17 +152,17 @@ describe('multi-instance lifecycle (#354)', () => {
 
     handleA.open();
     handleB.open();
-    await waitForEffectFlush();
+    await flushEffects();
     expect(isOpen(cfgA)).toBe(true);
     expect(isOpen(cfgB)).toBe(true);
 
     handleA.close();
-    await waitForEffectFlush();
+    await flushEffects();
     expect(isOpen(cfgA)).toBe(false);
     expect(isOpen(cfgB), 'B unaffected by A.close()').toBe(true);
 
     handleB.toggle();
-    await waitForEffectFlush();
+    await flushEffects();
     expect(isOpen(cfgB), 'B toggled closed').toBe(false);
     expect(isOpen(cfgA), 'A unaffected by B.toggle()').toBe(false);
   });
@@ -184,24 +178,24 @@ describe('multi-instance lifecycle (#354)', () => {
     // Mount + open both.
     window.dispatchEvent(new CustomEvent(toggleEventName(cfgA)));
     window.dispatchEvent(new CustomEvent(toggleEventName(cfgB)));
-    await waitForEffectFlush();
+    await flushEffects();
     expect(rootFor(cfgA)).not.toBeNull();
     expect(rootFor(cfgB)).not.toBeNull();
 
     // Destroy A — its root is removed; B untouched.
     handleA.destroy();
-    await waitForEffectFlush();
+    await flushEffects();
     expect(rootFor(cfgA), 'A root removed by destroy()').toBeNull();
     expect(isOpen(cfgB), 'B still open after A destroyed').toBe(true);
 
     // A's toggle event is now inert (listener removed) — it must NOT remount.
     window.dispatchEvent(new CustomEvent(toggleEventName(cfgA)));
-    await waitForEffectFlush();
+    await flushEffects();
     expect(rootFor(cfgA), 'A toggle event inert after destroy').toBeNull();
 
     // B still responds to its own event.
     window.dispatchEvent(new CustomEvent(toggleEventName(cfgB)));
-    await waitForEffectFlush();
+    await flushEffects();
     expect(isOpen(cfgB), 'B closes on its own event after A destroyed').toBe(false);
   });
 
@@ -211,17 +205,17 @@ describe('multi-instance lifecycle (#354)', () => {
     const cfgA = makeConfig('alpha');
     const handleA = configurePanel(cfgA);
     window.dispatchEvent(new CustomEvent(toggleEventName(cfgA)));
-    await waitForEffectFlush();
+    await flushEffects();
     expect(isOpen(cfgA)).toBe(true);
 
     handleA.destroy();
-    await waitForEffectFlush();
+    await flushEffects();
     expect(rootFor(cfgA)).toBeNull();
 
     // Re-configure the same prefix (now free) and toggle again.
     configurePanel(cfgA);
     window.dispatchEvent(new CustomEvent(toggleEventName(cfgA)));
-    await waitForEffectFlush();
+    await flushEffects();
     expect(isOpen(cfgA), 'A works again after re-configure').toBe(true);
   });
 
@@ -237,7 +231,7 @@ describe('multi-instance lifecycle (#354)', () => {
 
     window.dispatchEvent(new CustomEvent(toggleEventName(cfgA)));
     window.dispatchEvent(new CustomEvent(toggleEventName(cfgB)));
-    await waitForEffectFlush();
+    await flushEffects();
 
     const aText = rootFor(cfgA)!.textContent ?? '';
     const bText = rootFor(cfgB)!.textContent ?? '';

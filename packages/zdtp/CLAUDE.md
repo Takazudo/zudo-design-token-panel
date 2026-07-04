@@ -37,14 +37,19 @@ These are exempted because they carry intrinsic browser behaviour (focus, value,
 ```css
 /* In panel.css — defensive reset for SVGs embedded in the panel */
 :where(.tokenpanel-shell) svg {
-  fill: currentColor;
+  /* !important is required to beat a hostile `svg { fill: red !important }`.
+   * Both rules land at specificity 0-0-1; the later one (panel CSS, injected
+   * at runtime after host CSS) wins at equal specificity + equal !important. */
+  fill: currentColor !important;
   pointer-events: none;
   display: inline-block;
   overflow: visible;
 }
 ```
 
-This reset is scoped to `.tokenpanel-shell` so it does not bleed into the host page.
+This reset is scoped to `.tokenpanel-shell` so it does not bleed into the host page. Any CSS rule that overrides `fill` for a specific icon class (e.g. `fill: none` for stroke-drawn SVGs like the highlight-toggle) **must also use `!important`**: a non-!important override cannot win over the base `fill: currentColor !important` regardless of its specificity.
+
+The automated gate in `packages/zdtp/src/__tests__/hostile-host-isolation.browser.test.tsx` (F33) verifies that the SVG fill defensive reset survives `svg { fill: red !important }` in a full hostile CSS environment.
 
 ### Chrome-button policy
 

@@ -41,6 +41,7 @@ import {
   type PanelConfig,
 } from '../config/panel-config';
 import { getOpenKey } from '../state/tweak-state';
+import { flushEffects } from './_test-helpers';
 
 const CFG: PanelConfig = {
   storagePrefix: 'test-hdal',
@@ -109,18 +110,6 @@ type ConsoleApiSurface = {
 };
 function api(): ConsoleApiSurface {
   return (window as unknown as Record<string, unknown>)[CFG.consoleNamespace] as ConsoleApiSurface;
-}
-
-/**
- * Wait for Preact effects to flush. The panel module (src/index.tsx) may mount
- * the Preact shell when certain signals are set. Waiting ensures any DOM/storage
- * side effects triggered by the panel's mount effect complete before assertions.
- */
-async function waitForEffects(): Promise<void> {
-  await new Promise<void>((resolve) =>
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-  );
-  await new Promise<void>((resolve) => setTimeout(resolve, 50));
 }
 
 describe('host-adapter owner-autoload wiring (S2 #419)', () => {
@@ -221,7 +210,7 @@ describe('host-adapter owner-autoload wiring (S2 #419)', () => {
     it('sets :visible to "0"', async () => {
       localStorage.setItem(VISIBLE_KEY, '1');
       await bootstrapAdapter();
-      await waitForEffects(); // let panel module mount/show if gate fired
+      await flushEffects(); // let panel module mount/show if gate fired
       await api().disableAutoload();
       expect(localStorage.getItem(VISIBLE_KEY)).toBe('0');
     });
@@ -253,13 +242,16 @@ describe('host-adapter owner-autoload wiring (S2 #419)', () => {
       expect(localStorage.getItem(AUTOLOAD_KEY)).toBe('1');
     });
 
-    it('toggleDesignPanel() does NOT set :autoload when panel closes (OPEN_KEY = "1" → will close)', async () => {
-      // Panel is currently open — OPEN_KEY = '1'.
+    it('toggleDesignPanel() DOES set :autoload when OPEN_KEY="1" but panel root absent (fresh mount → opens)', async () => {
+      // OPEN_KEY='1' with no mounted root — zombie state left by a
+      // handle.destroy() + re-configure cycle or an SPA nav that cleared the
+      // DOM but left OPEN_KEY behind. The old code incorrectly treated
+      // OPEN_KEY='1' as "currently open" and predicted a close. The fix:
+      // fresh mount (no root) always opens, so autoload MUST be armed here.
       localStorage.setItem(OPEN_KEY, '1');
       await bootstrapAdapter();
       await api().toggleDesignPanel();
-      // autoload key must not be armed on a close-toggle.
-      expect(localStorage.getItem(AUTOLOAD_KEY)).not.toBe('1');
+      expect(localStorage.getItem(AUTOLOAD_KEY)).toBe('1');
     });
   });
 

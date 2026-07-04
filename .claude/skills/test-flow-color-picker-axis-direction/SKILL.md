@@ -1,6 +1,6 @@
 ---
 name: test-flow-color-picker-axis-direction
-description: Verify the OKLCH/HSL dual-mode ColorPicker (packages/zudo-design-token-panel) renders its L (lightness), H (hue), and C/S (chroma/saturation) slider axes in the CORRECT direction — left edge = min value, right edge = max value, gradient and thumb position both aligned. Use when /verify-ui-ai dispatches a subagent for color-picker-axis-direction verification, or when a future PR changes the picker and you want to re-confirm the direction is still correct.
+description: Verify the OKLCH/HSL dual-mode ColorPicker (packages/zdtp) renders its L (lightness), H (hue), and C/S (chroma/saturation) slider axes in the CORRECT direction — left edge = min value, right edge = max value, gradient and thumb position both aligned. Use when /verify-ui-ai dispatches a subagent for color-picker-axis-direction verification, or when a future PR changes the picker and you want to re-confirm the direction is still correct.
 ---
 
 # Test flow: ColorPicker axis direction (L / H / C-S)
@@ -46,7 +46,7 @@ Perform each check below. For each, capture (a) a screenshot of the picker popov
 
 ### Check OKLCH-C (chroma)
 
-- Read the C-slider's current aria-valuenow and the thumb's `left` CSS percentage. Compute expected-left-percent = aria-valuenow / MAX_OKLCH_CHROMA (which is 0.37 per packages/zudo-design-token-panel/src/components/color-picker/constants).
+- Read the C-slider's current aria-valuenow and the thumb's `left` CSS percentage. Compute expected-left-percent = aria-valuenow / MAX_OKLCH_CHROMA (which is 0.37 per packages/zdtp/src/components/color-picker/constants).
 - Verify thumb-left-percent matches expected, within ±3%.
 - Sample the LEFT edge of the C track. Expected: grayscale (chroma 0).
 - Sample the RIGHT edge. Expected: most saturated for the current L and H.

@@ -12,7 +12,7 @@ The Highlight Token Users feature lets you visually inspect which DOM elements i
 
 **Gear icon** — opens the settings popover in the panel header. From there you can change the color and outline width of each of the 10 available highlight slots, and reset all slot colors to the vivid default palette.
 
-**Visual outcome** — active highlights appear as colored outlines overlaid on top of the host page's content. The overlays sit at `z-index: 49` (below the panel at `z-index: 50`, but above typical host content). Up to 10 tokens can be highlighted at the same time.
+**Visual outcome** — active highlights appear as colored outlines overlaid on top of the host page's content. The overlays sit just below the panel shell in the panel's z-index scale (`--tokentweak-z-overlay`), above typical host content. Up to 10 tokens can be highlighted at the same time.
 
 <Note>
 Up to 10 simultaneous highlights are supported. Click the eye icon again to disable a highlight.
@@ -132,6 +132,6 @@ If you were relying on the previous algorithm's alias-chain expansion depth limi
 
 **CSS-in-JS frameworks** — frameworks that inject styles via `adoptedStyleSheets` or shadow DOM are subject to the limitations above. Frameworks that inject plain `<style>` tags are fully supported.
 
-**Very-high host z-index** — overlays sit at `z-index: 49`. Modals or other elements at very high `z-index` values (e.g. `z-index: 99999`) will visually cover the outlines. The panel itself sits at `z-index: 50`, so overlays appear below the panel but above typical page content.
+**Very-high host z-index** — overlays sit at `--tokentweak-z-overlay` in the panel's z-index scale. Any host element at a z-index above the overlay's value will visually cover the outlines. The panel shell and overlays use a high-band INT32 value by default to beat most host chrome; a host can tune the ceiling by overriding `--tokentweak-z-*` on the panel scope.
 
 **No auto-update for dynamically inserted elements** — the DOM walk runs once when you click the eye icon, against the elements present at that moment. If a new element is inserted into the DOM after the highlight is activated, it will not automatically receive an overlay. Click the eye icon again to re-run the probe.

@@ -54,6 +54,7 @@ import {
   storageKey_visible,
 } from '../config/panel-config';
 import { setLifecycleAdapter, type LifecycleAdapter } from '../index';
+import { flushEffects } from './_test-helpers';
 
 /** Cleanup-fn callable signature returned by an adapter installer. */
 type CleanupFn = () => void;
@@ -64,18 +65,6 @@ type InstallerMock = ReturnType<typeof vi.fn<Installer>>;
 
 const STORAGE_KEY_VISIBLE = storageKey_visible(getPanelConfig());
 const PANEL_ROOT_ID = panelRootId(getPanelConfig());
-
-/**
- * Wait for Preact's effect flush. Same recipe as
- * `auto-mount-on-visibility.test.tsx` — see that file for the rAF /
- * setTimeout timing rationale.
- */
-async function waitForEffectFlush(): Promise<void> {
-  await new Promise<void>((resolve) =>
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-  );
-  await new Promise<void>((resolve) => setTimeout(resolve, 50));
-}
 
 /**
  * Trigger a synthetic astro page-load. Used as the probe for "is the astro
@@ -156,7 +145,7 @@ describe('design-token-panel lifecycle adapter (#50)', () => {
     expect(document.getElementById(PANEL_ROOT_ID)).toBeNull();
 
     dispatchAstroPageLoad();
-    await waitForEffectFlush();
+    await flushEffects();
 
     expect(document.getElementById(PANEL_ROOT_ID)).not.toBeNull();
   });
@@ -172,13 +161,13 @@ describe('design-token-panel lifecycle adapter (#50)', () => {
 
     // Astro fallback removed: dispatching the document event must NOT mount.
     dispatchAstroPageLoad();
-    await waitForEffectFlush();
+    await flushEffects();
     expect(document.getElementById(PANEL_ROOT_ID)).toBeNull();
 
     // Calling the adapter's captured page-load handler DOES mount —
     // the same internal handler was rebound through the adapter.
     mock.capturedPageLoad();
-    await waitForEffectFlush();
+    await flushEffects();
     expect(document.getElementById(PANEL_ROOT_ID)).not.toBeNull();
   });
 
@@ -204,7 +193,7 @@ describe('design-token-panel lifecycle adapter (#50)', () => {
 
     // Only B routes to the live handler; firing through B mounts the panel.
     adapterB.capturedPageLoad();
-    await waitForEffectFlush();
+    await flushEffects();
     expect(document.getElementById(PANEL_ROOT_ID)).not.toBeNull();
   });
 
@@ -216,7 +205,7 @@ describe('design-token-panel lifecycle adapter (#50)', () => {
 
     // Sanity: astro is inert while the adapter owns the channel.
     dispatchAstroPageLoad();
-    await waitForEffectFlush();
+    await flushEffects();
     expect(document.getElementById(PANEL_ROOT_ID)).toBeNull();
 
     setLifecycleAdapter(null);
@@ -226,7 +215,7 @@ describe('design-token-panel lifecycle adapter (#50)', () => {
 
     // Astro fallback is back: dispatching the document event mounts again.
     dispatchAstroPageLoad();
-    await waitForEffectFlush();
+    await flushEffects();
     expect(document.getElementById(PANEL_ROOT_ID)).not.toBeNull();
   });
 
@@ -250,7 +239,7 @@ describe('design-token-panel lifecycle adapter (#50)', () => {
       // The astro:page-load fallback was retained — dispatching it mounts
       // the panel as if no adapter had been registered.
       dispatchAstroPageLoad();
-      await waitForEffectFlush();
+      await flushEffects();
       expect(document.getElementById(PANEL_ROOT_ID)).not.toBeNull();
 
       expect(onBeforeSwap).toHaveBeenCalledTimes(1);
@@ -278,13 +267,13 @@ describe('design-token-panel lifecycle adapter (#50)', () => {
 
       // Mount via the adapter's captured callback.
       capturedPageLoad();
-      await waitForEffectFlush();
+      await flushEffects();
       expect(document.getElementById(PANEL_ROOT_ID)).not.toBeNull();
 
       // Now exercise the MISSING channel: astro:before-swap should still
       // unmount because the fallback was retained for the gap.
       document.dispatchEvent(new CustomEvent('astro:before-swap'));
-      await waitForEffectFlush();
+      await flushEffects();
       expect(document.getElementById(PANEL_ROOT_ID)).toBeNull();
 
       const onBeforeSwapWarn = warn.mock.calls.find((c) =>

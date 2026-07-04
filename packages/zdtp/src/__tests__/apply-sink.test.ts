@@ -468,3 +468,69 @@ describe('configurePanel with applySink', () => {
     expect(cfg.instanceId).toBe(FIXTURE_PANEL_CONFIG.storagePrefix);
   });
 });
+
+// ---------------------------------------------------------------------------
+// F3 regression: initColorFromScheme must thread cfg to getActiveSchemeName
+// so sink instances never read the host document's data-theme (issue #440).
+// ---------------------------------------------------------------------------
+
+describe('initColorFromScheme — sink instance ignores host data-theme (F3 regression, issue #440)', () => {
+  const SCHEME_DEFAULT = 'default-scheme';
+  const SCHEME_DARK = 'dark-scheme';
+
+  /** A cluster with two schemes and colorMode enabled, seeding from SCHEME_DEFAULT. */
+  function makeSinkCluster() {
+    const scheme = (label: string) => ({
+      background: 0,
+      foreground: 1,
+      cursor: 2,
+      selectionBg: 0,
+      selectionFg: 1,
+      // Use distinct palette[0] so we can verify which scheme was picked.
+      palette: [`#${label.slice(0, 2).padEnd(2, '0')}0000`, ...Array.from({ length: 15 }, () => '#000000')] as [
+        string, string, string, string, string, string, string, string,
+        string, string, string, string, string, string, string, string,
+      ],
+      shikiTheme: 'dracula',
+    });
+
+    return {
+      ...FIXTURE_CLUSTER,
+      paletteSize: 16,
+      colorSchemes: {
+        [SCHEME_DEFAULT]: scheme('de'),
+        [SCHEME_DARK]: scheme('da'),
+      },
+      panelSettings: {
+        colorScheme: SCHEME_DEFAULT,
+        colorMode: {
+          defaultMode: 'light' as const,
+          lightScheme: SCHEME_DEFAULT,
+          darkScheme: SCHEME_DARK,
+        },
+      },
+    };
+  }
+
+  it('without cfg: reads data-theme and seeds from darkScheme when data-theme=dark', () => {
+    const cluster = makeSinkCluster();
+    document.documentElement.setAttribute('data-theme', 'dark');
+    const state = initColorFromScheme(cluster);
+    // With data-theme=dark and no cfg, it should pick SCHEME_DARK.
+    expect(getActiveSchemeName(cluster, undefined)).toBe(SCHEME_DARK);
+    // The first palette slot is unique per scheme — confirm scheme was applied.
+    expect(state.palette[0]).toBe('#da0000');
+  });
+
+  it('with sink cfg: ignores data-theme=dark and seeds from panelSettings.colorScheme', () => {
+    const cluster = makeSinkCluster();
+    const sink = makeSinkSpy();
+    const cfgWithSink = { ...FIXTURE_PANEL_CONFIG, tabs: FIXTURE_TABS, applySink: sink };
+
+    // Host data-theme says dark — sink instance must NOT follow it.
+    document.documentElement.setAttribute('data-theme', 'dark');
+    const state = initColorFromScheme(cluster, cfgWithSink);
+    // Sink instance should use colorScheme ('default-scheme'), not darkScheme.
+    expect(state.palette[0]).toBe('#de0000');
+  });
+});

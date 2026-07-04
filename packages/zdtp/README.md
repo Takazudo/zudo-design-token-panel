@@ -292,7 +292,8 @@ The `<DesignTokenPanelHost>` component AND a paired `<script>` block that loads 
 import { ClientRouter } from 'astro:transitions';
 import DesignTokenPanelHost from '@takazudo/zdtp/astro/DesignTokenPanelHost.astro';
 import { myPanelConfig } from '../lib/my-panel-config';
-import '@takazudo/zdtp/styles';
+// No CSS import needed — the panel self-injects its stylesheet on first mount.
+// import '@takazudo/zdtp/styles'; // optional: pull CSS into your own pipeline
 ---
 
 <!doctype html>
@@ -325,18 +326,20 @@ window.myapp.toggleDesignPanel();
 
 Or wire a hidden keyboard shortcut / dev-only button to call the same helper.
 
-### 4.1.4 Bundled CSS
+### 4.1.4 Stylesheet (self-injected — no consumer import required)
 
-The package builds in Vite library mode, which extracts every CSS side-effect import from the source into a single emitted stylesheet at `dist/design-token-panel.css` and **strips the `import './styles/panel.css'` line from the emitted JS**. That means the consumer's bundler has no static reference to follow and the CSS will not arrive on its own — you MUST import the bundled stylesheet exactly once from somewhere on the consumer's static module graph (typically next to where you mount `<DesignTokenPanelHost>`):
+The panel injects its own stylesheet at runtime. When the panel first mounts, `ensurePanelStyles()` (called from `ensureMounted()` in `src/index.tsx`) appends a `<style>` element to `document.head` carrying the bundled CSS. The CSS is embedded in the JS bundle as a string via a `?inline` import, so it survives Vite library mode's build step and reaches the browser without any consumer-side stylesheet import.
+
+**You do not need to import `@takazudo/zdtp/styles`** — the panel is visually self-contained out of the box.
+
+The `./styles` (alias `./styles.css`) sub-export still resolves to `./dist/zdtp.css` and remains available if you prefer to pull the CSS into your own stylesheet pipeline (e.g. for SSR hydration, PostCSS processing, or bundler-level deduplication). This import is now optional:
 
 ```ts
-// Astro frontmatter, Vite entry, anywhere on the static import chain
+// Optional — pull CSS into your own pipeline if needed
 import '@takazudo/zdtp/styles';
 ```
 
-The `./styles` (alias `./styles.css`) sub-export resolves to `./dist/design-token-panel.css` — the single combined chrome + tokens file Vite emits at build time. `package.json` still declares `sideEffects: ["**/*.css"]` so production bundlers don't tree-shake the import away.
-
-If you skip this line, the panel's JS will still run, `window.<ns>.showDesignPanel()` will mount `#…-design-token-panel-root`, and the shell DOM will render — but with no chrome rules applied (transparent background, default page font), so it appears invisible. See §13 for further notes on bundler behaviour.
+If the panel looks unstyled after mounting, the most likely cause is that the panel module itself failed to load (network error, bundler misconfiguration, missing `preact` peer). The stylesheet is self-injected by the same JS that mounts the panel — if the JS ran, the CSS is present. See §12 for further notes on bundler behaviour.
 
 ### 4.1.5 Why the host-adapter import lives in your wrapper
 
@@ -1033,23 +1036,25 @@ The CSS variables the panel **writes to** (the `cssVar` field on each `TokenDef`
 
 ## 12. Bundler notes
 
-The package builds in **Vite library mode**, which has a quirk that's important to understand: it extracts every `import './something.css'` from the source and emits a single combined stylesheet (`dist/design-token-panel.css`), but **removes the import statements from the emitted JS files**. The `dist/index.js` and `dist/astro/host-adapter.js` therefore have no static reference back to the CSS — `sideEffects: ["**/*.css"]` in `package.json` only protects existing imports from tree-shaking; it cannot resurrect an import the build step has already deleted.
-
-Net effect: the consumer MUST add a one-line side-effect import to their static module graph, as described in §3.4. The `./styles` sub-export is the canonical entry:
+The package builds in **Vite library mode**. Normally, Vite library mode extracts every `import './something.css'` from the source and emits a combined stylesheet (`dist/zdtp.css`), removing the import statements from the emitted JS files. This package works around that limitation via a `?inline` import:
 
 ```ts
-import '@takazudo/zdtp/styles';
+// src/index.tsx (shipped in dist/index.js)
+import panelCss from './styles/panel.css?inline'; // string — survives Vite library build
 ```
 
-`./styles.css` is provided as an alias for clarity in tooling that prefers explicit extensions:
+The `?inline` import is NOT stripped by Vite library mode — it emits the CSS as a JavaScript string constant inside `dist/index.js`. When `ensureMounted()` is called, `ensurePanelStyles()` uses that string to append a `<style>` element to `document.head`. **The panel is therefore visually self-contained: consumers do not need to import the stylesheet.**
+
+The `./styles` sub-export (`dist/zdtp.css`) is still emitted alongside the JS bundle (via a retained side-effect import in `src/index.tsx`). It remains available for consumers who prefer to pull the CSS into their own pipeline (SSR hydration, PostCSS, bundler deduplication):
 
 ```ts
+// Optional — only needed if you want the CSS in your own pipeline
+import '@takazudo/zdtp/styles';
+// Alias with explicit extension:
 import '@takazudo/zdtp/styles.css';
 ```
 
-If you forget the import, the JS layer still works — `window.<ns>.showDesignPanel()` mounts the shell DOM correctly — but every chrome rule is missing, so the panel appears invisible against the host page background. The fix is the import, not bundler reconfiguration.
-
-(Historical note: an earlier draft of this section claimed `sideEffects` alone was sufficient and consumers did not need to import CSS. That was incorrect — Vite library mode's CSS-extraction behaviour means `sideEffects` is necessary but not sufficient. The §3.4 + this section now reflect the actual contract.)
+If the panel appears unstyled, the JS module itself failed to load — the stylesheet is self-injected by the same code that mounts the panel. Adding a styles import will not fix a module-load failure.
 
 ### 12.1 Host-adapter side-effect import (paired-unit contract)
 

@@ -185,7 +185,14 @@ export function loadPosition(cfg?: PanelConfig): PanelPosition {
     const saved = localStorage.getItem(getPositionKey(cfg));
     if (saved) {
       const parsed = JSON.parse(saved) as PanelPosition;
-      if (typeof parsed.top === 'number' && typeof parsed.left === 'number') {
+      // Mirror hydratePanelPosition: reject Infinity/NaN from payloads like
+      // `1e999` which pass typeof === 'number' but are not finite coordinates.
+      if (
+        typeof parsed.top === 'number' &&
+        typeof parsed.left === 'number' &&
+        Number.isFinite(parsed.top) &&
+        Number.isFinite(parsed.left)
+      ) {
         return parsed;
       }
     }
@@ -315,9 +322,9 @@ export type PanelDensity = 0 | 1 | 2;
 export const DEFAULT_DENSITY: PanelDensity = 1;
 
 export function densityToGridMin(density: PanelDensity): string {
-  if (density === 0) return '12rem';
+  if (density === 0) return '192px';
   if (density === 2) return '100%';
-  return '18rem';
+  return '288px';
 }
 
 export function loadDensity(cfg?: PanelConfig): PanelDensity {
@@ -477,9 +484,13 @@ export type TokenOverrides = Record<string, string>;
  * Unified persist envelope. Each tab owns its own sub-state so they can
  * evolve independently.
  *
- * `panelPosition` is persisted alongside the envelope so the user's drag
- * location survives reloads. `secondary` carries a second (optional) color
- * cluster — absent until a host opts in.
+ * Panel position and size are stored in SEPARATE localStorage keys
+ * (`-position` / `-size`) and are NOT part of this envelope. The panel reads
+ * them via `loadPosition` / `loadSize` on mount; drags / resizes write them
+ * directly via `savePosition` / `saveSize`.
+ *
+ * `secondary` carries a second (optional) color cluster — absent until a host
+ * opts in.
  *
  * `tabs` is the v3 extension: a tab-keyed map of `TabOverrides` for host-coined
  * generic tabs that use the tier model. The existing `color`/`spacing`/
@@ -491,7 +502,6 @@ export interface TweakState {
   spacing: TokenOverrides;
   typography: TokenOverrides;
   size: TokenOverrides;
-  panelPosition?: PanelPosition;
   secondary?: ColorTweakState;
   /** Generic tab overrides keyed by tab id. Added in v3 envelope. */
   tabs?: Record<string, TabOverrides>;
@@ -846,9 +856,16 @@ export function getActiveSchemeName(
  * no schemes should not call this directly — they use
  * `initSecondaryDefaults(cluster)` instead because there is no scheme to
  * seed from.
+ *
+ * @param cfg - The panel instance config. When provided and the config has
+ *   `applySink`, the host's `data-theme` attribute is ignored and the scheme
+ *   seed comes from `cluster.panelSettings.colorScheme` instead (sink-instance
+ *   guard). Omitting it silently falls through to reading `data-theme`, which
+ *   is the correct behavior for non-sink instances but wrong for sinks.
  */
 export function initColorFromScheme(
   cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
+  cfg?: PanelConfig,
 ): ColorTweakState {
   const schemes = cluster.colorSchemes;
   // No schemes → fall back to the deterministic neutral seed. This keeps the
@@ -858,13 +875,15 @@ export function initColorFromScheme(
   if (Object.keys(schemes).length === 0) {
     return initSecondaryDefaults(cluster);
   }
-  const schemeName = getActiveSchemeName(cluster);
+  // Pass cfg so getActiveSchemeName can detect sink instances and avoid reading
+  // the host document's data-theme (which belongs to the host, not this panel).
+  const schemeName = getActiveSchemeName(cluster, cfg);
   const scheme = schemes[schemeName] ?? Object.values(schemes)[0];
   return initColorFromSchemeData(scheme, cluster);
 }
 
 /**
- * Seed-time palette sanitiser. Raw `oklch(...)` values are preserved verbatim so
+ * Palette entry sanitiser. Raw `oklch(...)` values are preserved verbatim so
  * wide-gamut chroma survives (and they never touch the canvas → no '#000000'
  * under jsdom / engines whose 2D canvas can't parse oklch). Every NON-oklch entry
  * goes through cssColorToHex() — the exact pre-OKLCH behaviour — which
@@ -872,8 +891,12 @@ export function initColorFromScheme(
  * safe '#000000' rather than leaking it into a CSS custom property. Without this,
  * a bundled scheme's stray non-color entry (e.g. `Default Dark`'s slot-9 `"18"`,
  * referenced by `background: 9`) would reach the apply path verbatim.
+ *
+ * Exported so the serde import path (design-token-serde.ts) can apply the same
+ * sanitiser to imported palette values — commit 8d54e07 hardened seeding; this
+ * export closes the equivalent gap in the JSON-import path.
  */
-function normalizeSchemePaletteEntry(value: string): string {
+export function normalizeSchemePaletteEntry(value: string): string {
   return cssToOklcha(value) ? value : cssColorToHex(value);
 }
 
@@ -1560,21 +1583,6 @@ function hydrateTypographyOverrides(
   return out;
 }
 
-/** Narrow a stored value into a `PanelPosition`, or undefined if malformed. */
-function hydratePanelPosition(raw: unknown): PanelPosition | undefined {
-  if (!raw || typeof raw !== 'object') return undefined;
-  const o = raw as Record<string, unknown>;
-  if (
-    typeof o.top === 'number' &&
-    typeof o.left === 'number' &&
-    Number.isFinite(o.top) &&
-    Number.isFinite(o.left)
-  ) {
-    return { top: o.top, left: o.left };
-  }
-  return undefined;
-}
-
 /**
  * Hydrate a `tabs` field from a raw persisted value.
  * Each value under each tab key is expected to be a `Record<tierId, Record<itemId, string>>`.
@@ -1613,7 +1621,6 @@ function hydrateV2OrV3Object(
     typography?: unknown;
     font?: unknown;
     size?: unknown;
-    panelPosition?: unknown;
     secondary?: unknown;
     tabs?: unknown;
   },
@@ -1621,9 +1628,15 @@ function hydrateV2OrV3Object(
   colorDefaults?: ColorTweakState,
   cfg: PanelConfig = getPanelConfig(),
 ): TweakState | null {
-  if (!obj.color || !isValidColorShape(obj.color, cluster.paletteSize)) return null;
+  // Return null only when color is completely absent or not an object-shaped
+  // value. A palette-size mismatch (common during a supported config evolution
+  // where the host grows/shrinks paletteSize) is tolerated: hydrateColorState
+  // falls back to defaults.palette for the color slice and the non-color slices
+  // (spacing/typography/size/tabs) the user set under the previous config are
+  // preserved.
+  if (!obj.color || typeof obj.color !== 'object') return null;
 
-  const defaults = colorDefaults ?? tryInitColorFromScheme(cluster);
+  const defaults = colorDefaults ?? tryInitColorFromScheme(cluster, cfg);
   const typographySlice = obj.typography !== undefined ? obj.typography : obj.font;
   // Rename map sourced from THIS instance's panel config. Defaults to an
   // empty map (no renaming) so hosts whose manifest ids are stable are
@@ -1641,7 +1654,6 @@ function hydrateV2OrV3Object(
     // host-driven id rename without losing the user's tweaks.
     typography: hydrateTypographyOverrides(typographySlice, renameMap),
     size: hydrateOverrides(obj.size),
-    panelPosition: hydratePanelPosition(obj.panelPosition),
   };
   // Optional secondary slice — validated against the active secondary
   // cluster's palette size, NOT the primary cluster's. When the host
@@ -1690,22 +1702,30 @@ export function loadPersistedState(
         typography?: unknown;
         font?: unknown;
         size?: unknown;
-        panelPosition?: unknown;
         secondary?: unknown;
         tabs?: unknown;
       };
       const next = hydrateV2OrV3Object(obj, cluster, colorDefaults, cfg);
       if (next !== null) {
-        // Renormalize storage when the typography migration actually changed
-        // the slice (rename or null-drop) OR the legacy `font` alias was
-        // used instead of `typography`. Without this, legacy ids and dropped
-        // entries survive on disk indefinitely as dead data, and a host
-        // that later removes the opt-in rename map regresses every user
-        // back to non-applying overrides.
+        // Renormalize storage when:
+        // (a) The typography slice changed — rename or null-drop — or the
+        //     legacy `font` alias was used instead of `typography`. Without
+        //     this, legacy ids and dropped entries survive on disk
+        //     indefinitely as dead data, and a host that later removes the
+        //     opt-in rename map regresses every user back to non-applying
+        //     overrides.
+        // (b) The stored color palette length differs from the current
+        //     cluster.paletteSize. hydrateColorState already fell back to
+        //     defaults.palette in that case; we rewrite v3 so the stale
+        //     palette is replaced and `hasPersistedOverrides` stays accurate.
         const typographySlice = obj.typography !== undefined ? obj.typography : obj.font;
         const typographyChanged =
           JSON.stringify(typographySlice ?? {}) !== JSON.stringify(next.typography);
-        if (typographyChanged || obj.typography === undefined) {
+        const storedColor = obj.color as Record<string, unknown>;
+        const paletteSizeMismatch =
+          Array.isArray(storedColor?.palette) &&
+          (storedColor.palette as unknown[]).length !== cluster.paletteSize;
+        if (typographyChanged || obj.typography === undefined || paletteSizeMismatch) {
           try {
             storage.setItem(STORAGE_KEY_V3, JSON.stringify(next));
           } catch {
@@ -1715,7 +1735,8 @@ export function loadPersistedState(
         return next;
       }
     }
-    // v3 present but malformed — warn and fall through to v2 check.
+    // v3 present but color is completely absent/invalid — warn and fall
+    // through to v2 check.
     console.warn(`[tweak] Malformed ${STORAGE_KEY_V3}, attempting v2 migration`);
   }
 
@@ -1730,7 +1751,6 @@ export function loadPersistedState(
         typography?: unknown;
         font?: unknown;
         size?: unknown;
-        panelPosition?: unknown;
         secondary?: unknown;
         tabs?: unknown;
       };
@@ -1745,7 +1765,7 @@ export function loadPersistedState(
         return migrated;
       }
     }
-    // v2 present but malformed — warn and fall through to v1 check.
+    // v2 present but color is completely absent/invalid — warn and fall through.
     console.warn(`[tweak] Malformed ${STORAGE_KEY_V2}, attempting v1 migration`);
   }
 
@@ -1754,7 +1774,7 @@ export function loadPersistedState(
   if (rawV1 !== null) {
     const parsed = safeParse(rawV1);
     if (parsed && typeof parsed === 'object' && isValidColorShape(parsed, cluster.paletteSize)) {
-      const defaults = colorDefaults ?? tryInitColorFromScheme(cluster);
+      const defaults = colorDefaults ?? tryInitColorFromScheme(cluster, cfg);
       // Backfill shikiTheme like the legacy loader did.
       const partial = parsed as Partial<ColorTweakState>;
       if (!partial.shikiTheme) {
@@ -1855,9 +1875,9 @@ function safeParse(raw: string): unknown {
  * `initColorFromScheme` wrapper that survives JSDOM / node environments where
  * `document` may not be fully scheme-aware. Used as a last-resort default.
  */
-function tryInitColorFromScheme(cluster: ColorClusterDataConfig): ColorTweakState {
+function tryInitColorFromScheme(cluster: ColorClusterDataConfig, cfg?: PanelConfig): ColorTweakState {
   try {
-    return initColorFromScheme(cluster);
+    return initColorFromScheme(cluster, cfg);
   } catch {
     // Fallback: a minimal black/white palette so migration stays deterministic.
     const palette = Array.from({ length: cluster.paletteSize }, (_, i) =>

@@ -9,10 +9,8 @@
  * ---
  * import DesignTokenPanelHost from '@takazudo/zdtp/astro/DesignTokenPanelHost.astro';
  * import { panelConfig } from './my-design-token-config';
- * // Required side-effect import for the package's bundled chrome CSS —
- * // Vite library mode strips the source CSS import from the emitted JS,
- * // so consumers must re-pull the extracted stylesheet explicitly.
- * import '@takazudo/zdtp/styles';
+ * // No CSS import needed — the panel self-injects its stylesheet on first mount.
+ * // Optional: import '@takazudo/zdtp/styles'; // pull CSS into your own pipeline
  * ---
  * <DesignTokenPanelHost config={panelConfig} />
  * <script>

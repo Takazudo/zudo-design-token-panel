@@ -25,6 +25,7 @@
 
 import { useEffect, useRef } from 'preact/hooks';
 import type { JSX } from 'preact';
+import { Z } from '../styles/z-index-tokens';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -56,8 +57,7 @@ export interface HighlightOverlayProps {
 /** Cap to avoid runaway DOM cost with huge item lists. */
 const MAX_ITEMS = 200;
 
-/** Below panel shell (z-index 50) and resize grip (60), above host content. */
-const OVERLAY_Z_INDEX = 49;
+const OVERLAY_Z_INDEX = Z.overlay;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -126,6 +126,18 @@ export function HighlightOverlay({ items }: HighlightOverlayProps): JSX.Element 
       for (let i = 0; i < visibleItems.length; i++) {
         const divEl = overlayRefs.current[i];
         if (!divEl) continue;
+        // F26: Hide overlay when element is disconnected from the DOM.
+        // In browsers, getBoundingClientRect() on a disconnected element returns
+        // a 0×0 rect at the viewport origin, which would draw a phantom ring.
+        // Setting display:none hides the overlay ring immediately; the
+        // orchestrator evicts and re-probes on the next invalidation, removing
+        // the stale item from the items list. Mirrors the isConnected guard in
+        // inspector-overlay.tsx.
+        if (!visibleItems[i].element.isConnected) {
+          divEl.style.display = 'none';
+          continue;
+        }
+        divEl.style.display = '';
         const rect = visibleItems[i].element.getBoundingClientRect();
         applyStyle(divEl, buildOverlayStyle(rect, visibleItems[i].slot));
       }

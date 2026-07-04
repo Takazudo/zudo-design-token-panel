@@ -53,6 +53,12 @@ jobs:
       - name: Write .assetsignore (exclude worker entry from public assets)
         run: printf '%s\n' '_worker.js' '_zfb_inner.mjs' > doc/dist/.assetsignore
 
+      - name: Validate doc HTML
+        run: pnpm --filter doc check:html
+
+      - name: Check doc internal links
+        run: pnpm --filter doc check:links
+
       - name: Validate wrangler config (dry-run, no credentials needed)
         run: pnpm exec wrangler deploy --dry-run
 

@@ -26,18 +26,12 @@ import {
   storageKey_visible,
   getPanelConfig,
 } from '../config/panel-config';
+import { flushEffects } from './_test-helpers';
 
 const PANEL_ROOT_ID = panelRootId(getPanelConfig());
 const STORAGE_KEY_VISIBLE = storageKey_visible(getPanelConfig());
 const ELPATH_ENABLED_KEY = `${getPanelConfig().storagePrefix}-elpath-enabled`;
 const OPEN_PANEL_HEADER_TEXT = 'Design Tokens';
-
-async function waitForEffectFlush(): Promise<void> {
-  await new Promise<void>((resolve) =>
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-  );
-  await new Promise<void>((resolve) => setTimeout(resolve, 50));
-}
 
 /** Re-import the adapter fresh so its module-init binds the astro lifecycle. */
 async function freshAdapterImport(): Promise<void> {
@@ -73,7 +67,7 @@ describe('adapter — Element Path Copy mounts the shell while closed', () => {
 
     // A page load re-evaluates storage and decides what to mount.
     document.dispatchEvent(new Event('astro:page-load'));
-    await waitForEffectFlush();
+    await flushEffects();
 
     // The shell is mounted...
     const root = document.getElementById(PANEL_ROOT_ID);
@@ -87,7 +81,7 @@ describe('adapter — Element Path Copy mounts the shell while closed', () => {
 
     await freshAdapterImport();
     document.dispatchEvent(new Event('astro:page-load'));
-    await waitForEffectFlush();
+    await flushEffects();
 
     expect(document.getElementById(PANEL_ROOT_ID)).toBeNull();
   });

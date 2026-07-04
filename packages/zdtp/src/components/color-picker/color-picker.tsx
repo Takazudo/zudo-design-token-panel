@@ -8,7 +8,7 @@
  *
  * Issue #175 (Wave 2 of the OKLCH Picker epic, issue #174-base).
  *
- * Design rules (see packages/zudo-design-token-panel/CLAUDE.md):
+ * Design rules (see packages/zdtp/CLAUDE.md):
  *   - All interactive elements use <div role="button" tabIndex={0}> with
  *     explicit Enter/Space onKeyDown handlers. Native button and heading tags
  *     are not used (hostile-host policy).
@@ -43,6 +43,7 @@ import {
   oklchaToHsla,
 } from '../../utils/color-oklch';
 import { CustomSlider, type SliderConfig } from './custom-slider';
+import { pushDismissLayer } from '../../controls/dismiss-layer';
 
 /* ── Public API ─────────────────────────────────────────────────────────── */
 
@@ -137,7 +138,10 @@ function oklchSliderConfigs(): SliderConfig[] {
       label: 'H',
       ariaLabel: 'Hue',
       min: 0,
-      max: 360,
+      // Clamp to 359: hue ∈ [0, 360) — committing max=360 round-trips to 0
+      // because parseAngleToDeg normalises ((360 % 360) + 360) % 360 = 0,
+      // snapping the slider thumb to the far left (F30 fix).
+      max: 359,
       step: 1,
       format: (v) => `${Math.round(v)}°`,
     },
@@ -334,10 +338,21 @@ export function getFixedPopoverStyle(
  *
  * Deliberately does NOT close on scroll — a scroll event on the host page
  * should not dismiss an in-flight color edit.
+ *
+ * `anchorRef` (F11): the popover's trigger element lives OUTSIDE `containerRef`.
+ * A pointerdown on the trigger while the popover is open must NOT trigger the
+ * outside-close, otherwise it races the trigger's own click-to-toggle: the
+ * pointerdown closes, then the click reopens, so the trigger can never dismiss
+ * its own popover. Excluding the anchor lets the click toggle it shut.
+ *
+ * Escape is arbitrated by the shared dismiss-layer stack (F10): only the
+ * topmost open popover consumes a single Escape, so one keypress never also
+ * tears down the panel underneath.
  */
 export function usePopoverClose(
   containerRef: React.RefObject<HTMLElement | null>,
   onClose: () => void,
+  anchorRef?: React.RefObject<HTMLElement | null>,
 ): void {
   // Stable ref so effect deps don't change on every render.
   const onCloseRef = useRef(onClose);
@@ -345,24 +360,22 @@ export function usePopoverClose(
 
   useEffect(() => {
     function handlePointerDown(e: PointerEvent) {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(e.target as Node)
-      ) {
-        onCloseRef.current();
-      }
-    }
-    function handleEscape(e: KeyboardEvent) {
-      if (e.key === 'Escape') onCloseRef.current();
+      const target = e.target as Node;
+      if (containerRef.current && containerRef.current.contains(target)) return;
+      if (anchorRef?.current && anchorRef.current.contains(target)) return;
+      onCloseRef.current();
     }
     document.addEventListener('pointerdown', handlePointerDown);
-    document.addEventListener('keydown', handleEscape);
+    const removeLayer = pushDismissLayer({
+      onEscape: () => onCloseRef.current(),
+      getElement: () => containerRef.current,
+    });
     return () => {
       document.removeEventListener('pointerdown', handlePointerDown);
-      document.removeEventListener('keydown', handleEscape);
+      removeLayer();
     };
-    // containerRef is a stable object — its .current changes but the ref
-    // itself doesn't. Omit from deps intentionally.
+    // containerRef / anchorRef are stable objects — their .current changes but
+    // the ref identity does not. Omit from deps intentionally.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 }
@@ -445,7 +458,9 @@ export function ColorPicker({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hex]);
 
-  usePopoverClose(containerRef, onClose);
+  // Pass the trigger anchor so clicking it toggles the popover shut instead of
+  // the outside-close racing the trigger's click and reopening it (F11).
+  usePopoverClose(containerRef, onClose, anchorRef);
 
   // OKLCH and HSL projections of the current color.
   // In hex mode, hex is the single source of truth and both are derived from it.

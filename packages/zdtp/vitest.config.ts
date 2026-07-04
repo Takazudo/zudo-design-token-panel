@@ -47,6 +47,9 @@ export default mergeConfig(
           test: {
             name: 'browser',
             include: ['src/**/*.browser.test.ts', 'src/**/*.browser.test.tsx'],
+            // Parallel browser files share one origin, so tests that assert
+            // persisted localStorage state race each other's clear() calls.
+            fileParallelism: false,
             browser: {
               enabled: true,
               headless: true,
