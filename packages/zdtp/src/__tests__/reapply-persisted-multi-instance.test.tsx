@@ -15,8 +15,8 @@ import {
   __resetPanelConfigForTests,
   configurePanel,
   type PanelConfig,
-  type TabConfig,
 } from '../config/panel-config';
+import type { TabConfig } from '../tokens/tier-model';
 import { getStorageKeyV3, type ColorTweakState } from '../state/tweak-state';
 
 const palette16 = Array.from(
