@@ -38,11 +38,11 @@ importers:
         specifier: 0.1.0-next.76
         version: 0.1.0-next.76(@takazudo/zfb@0.1.0-next.76)
       '@takazudo/zudo-doc':
-        specifier: ^2.5.0
-        version: 2.5.0(@takazudo/zdtp@packages+zdtp)(@takazudo/zfb-runtime@0.1.0-next.76(@takazudo/zfb@0.1.0-next.76))(@takazudo/zfb@0.1.0-next.76)(@takazudo/zudo-doc-history-server@2.5.0)(diff@8.0.4)(katex@0.16.45)(preact@10.29.1)(shiki@4.0.2)(zod@4.3.6)
+        specifier: ^2.5.1
+        version: 2.5.1(@takazudo/zdtp@packages+zdtp)(@takazudo/zfb-runtime@0.1.0-next.76(@takazudo/zfb@0.1.0-next.76))(@takazudo/zfb@0.1.0-next.76)(@takazudo/zudo-doc-history-server@2.5.1)(diff@8.0.4)(katex@0.16.45)(preact@10.29.1)(shiki@4.0.2)(zod@4.3.6)
       '@takazudo/zudo-doc-history-server':
-        specifier: ^2.5.0
-        version: 2.5.0
+        specifier: ^2.5.1
+        version: 2.5.1
       diff:
         specifier: ^8.0.3
         version: 8.0.4
@@ -1249,12 +1249,12 @@ packages:
       react:
         optional: true
 
-  '@takazudo/zudo-doc-history-server@2.5.0':
-    resolution: {integrity: sha512-GgOxoE7wmJCQL63ogmtm81hOMjsf/dbaifoC/4Ps8zSoBL5lBMgYB2Ua++FuAa6TvOysUApDimggrbeHX2McYw==}
+  '@takazudo/zudo-doc-history-server@2.5.1':
+    resolution: {integrity: sha512-685bv4tmWJdYEBAoe2MZdLWouk7g0JKYDmS3SUOA0LKKvHGA/qd4XVnz+eLPhHf3VDbYWDWcX93eXw2X6nALTg==}
     hasBin: true
 
-  '@takazudo/zudo-doc@2.5.0':
-    resolution: {integrity: sha512-gvefYyfRx0indPdOj3tAuTastBS0ZOXhIFAha8mYBqyYqxHmGtAlZX60hXqKTNhKag1z8833LYctwO87H4yICA==}
+  '@takazudo/zudo-doc@2.5.1':
+    resolution: {integrity: sha512-m7FN5d2e+2jMFjHOcouHrTZKRWIFBnpFFOydemwCnmH9THTzR490RVM3F1V+R6o91KmRg5o13eqXM4M/lZLDZA==}
     hasBin: true
     peerDependencies:
       '@takazudo/zdtp': ^0.4.2
@@ -3716,9 +3716,9 @@ snapshots:
       '@takazudo/zfb-linux-x64-gnu': 0.1.0-next.76
       '@takazudo/zfb-win32-x64-msvc': 0.1.0-next.76
 
-  '@takazudo/zudo-doc-history-server@2.5.0': {}
+  '@takazudo/zudo-doc-history-server@2.5.1': {}
 
-  '@takazudo/zudo-doc@2.5.0(@takazudo/zdtp@packages+zdtp)(@takazudo/zfb-runtime@0.1.0-next.76(@takazudo/zfb@0.1.0-next.76))(@takazudo/zfb@0.1.0-next.76)(@takazudo/zudo-doc-history-server@2.5.0)(diff@8.0.4)(katex@0.16.45)(preact@10.29.1)(shiki@4.0.2)(zod@4.3.6)':
+  '@takazudo/zudo-doc@2.5.1(@takazudo/zdtp@packages+zdtp)(@takazudo/zfb-runtime@0.1.0-next.76(@takazudo/zfb@0.1.0-next.76))(@takazudo/zfb@0.1.0-next.76)(@takazudo/zudo-doc-history-server@2.5.1)(diff@8.0.4)(katex@0.16.45)(preact@10.29.1)(shiki@4.0.2)(zod@4.3.6)':
     dependencies:
       '@takazudo/zfb': 0.1.0-next.76
       '@takazudo/zfb-runtime': 0.1.0-next.76(@takazudo/zfb@0.1.0-next.76)
@@ -3730,7 +3730,7 @@ snapshots:
       zod: 4.3.6
     optionalDependencies:
       '@takazudo/zdtp': link:packages/zdtp
-      '@takazudo/zudo-doc-history-server': 2.5.0
+      '@takazudo/zudo-doc-history-server': 2.5.1
       diff: 8.0.4
       katex: 0.16.45
       shiki: 4.0.2
