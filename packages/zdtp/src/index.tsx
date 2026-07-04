@@ -50,6 +50,7 @@ import './styles/panel.css';
 import panelCss from './styles/panel.css?inline';
 import {
   applyFullState,
+  getActivePrimaryCluster,
   getOpenKey,
   getStorageKeyV2,
   getStorageKeyV3,
@@ -517,11 +518,25 @@ export function __reapplyFromStorageForTests(): void {
  */
 export function reapplyPersistedOverrides(): void {
   if (typeof window === 'undefined') return;
-  try {
-    const persisted = loadPersistedState();
-    if (persisted) applyFullState(persisted);
-  } catch {
-    /* ignore — stylesheet defaults paint instead */
+  // Loop ALL registered instances: a hidden instance's persisted overrides are
+  // only ever applied here — the panel's own apply effect is gated on `open`,
+  // so a default-only reapply silently drops every other instance's CSS vars
+  // (and sink writes) after a lifecycle page load. Bootstrap fallback mirrors
+  // unmountForSwap/reapplyFromStorage.
+  const cfgs = getAllPanelConfigs();
+  const targets = cfgs.length > 0 ? cfgs : [getPanelConfig()];
+  for (const cfg of targets) {
+    try {
+      const persisted = loadPersistedState(
+        undefined,
+        undefined,
+        getActivePrimaryCluster(cfg),
+        cfg,
+      );
+      if (persisted) applyFullState(persisted, cfg);
+    } catch {
+      /* ignore — stylesheet defaults paint instead */
+    }
   }
 }
 
@@ -580,8 +595,8 @@ function unmountForSwap(): void {
  * same way the adapter's module-init path kills it on hard-nav.
  */
 function reapplyFromStorage(): void {
-  // Apply persisted token overrides to :root for the default instance first
-  // (kills the FOUT on soft-nav before any Preact render).
+  // Apply persisted token overrides to :root for every registered instance
+  // first (kills the FOUT on soft-nav before any Preact render).
   reapplyPersistedOverrides();
   // Loop ALL registered instances so non-default panels are also re-materialised
   // after an Astro body swap. Without this, only the default instance mounts /

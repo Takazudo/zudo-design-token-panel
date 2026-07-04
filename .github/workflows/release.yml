@@ -86,11 +86,18 @@ jobs:
           echo "DIST_TAG=$DIST_TAG" >> "$GITHUB_ENV"
           echo "Resolved dist-tag: $DIST_TAG (from ref: $GITHUB_REF)"
 
+      # Real publishes build via prepublishOnly (pnpm build) inside `pnpm publish`,
+      # so this explicit build runs only on dry_run — otherwise "Build only" would
+      # install, tag-resolve, and exit without ever exercising the build.
+      - name: Build (dry-run smoke test)
+        if: ${{ inputs.dry_run == true }}
+        run: pnpm build
+
       - name: DRY RUN — skip publish
         if: ${{ inputs.dry_run == true }}
         shell: bash
         run: |
-          echo "DRY RUN — would have published with dist-tag '$DIST_TAG'."
+          echo "DRY RUN — built successfully; would have published with dist-tag '$DIST_TAG'."
           echo "Set dry_run=false on a real v* tag push to publish."
 
       # Guard: a manual workflow_dispatch on a branch (not a v* tag) must not
