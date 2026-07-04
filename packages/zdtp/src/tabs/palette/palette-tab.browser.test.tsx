@@ -431,39 +431,36 @@ describe('PaletteTab browser — chart drag interaction', () => {
       changes.push([tierId, itemId, next]);
     };
 
+    // Give the container an explicit width so the chart lays out in Chromium.
+    // Without a size, the SVG elements have zero bounding rects and the drag
+    // gesture produces no value change.
+    container.style.width = '600px';
     await renderPaletteTab(PALETTE_TAB, {}, onChange);
 
-    // Find the first SVG node (hit-circle) in the active chart
-    // PaletteChart renders nodes as <circle> or <ellipse> within SVG layers.
     const chart = container.querySelector('.tokenpanel-palette-chart');
     expect(chart).not.toBeNull();
 
-    // Get the SVG element to find draggable nodes.
-    // The chart has multiple layered SVGs. The drag nodes live in the
-    // channel-curve SVG layers (class contains 'channel').
-    const svgLayers = chart!.querySelectorAll('svg');
-    expect(svgLayers.length).toBeGreaterThan(0);
-
-    // Try to find a node hit circle — the chart uses elements with role="none"
-    // or just bare shapes inside SVG. We locate the first hit-area ellipse/circle.
-    // Fallback: if no draggable found, skip gracefully (hit-area may be invisible).
-    const nodeEl = chart!.querySelector<SVGElement>('circle, ellipse');
-    if (!nodeEl) {
-      // Chart renders as SVG shapes; in some environments the hit-circles
-      // may not appear when the chart has no explicit size. Skip gracefully.
-      return;
-    }
+    // The chart renders one SVG per channel (l, c, h). Each SVG contains
+    // <circle data-node-hit={i}> hit areas for the draggable nodes.
+    // We target the hit circle explicitly (not the visual <ellipse> which has
+    // pointerEvents="none" in CSS and lacks data-node-hit).
+    const nodeEl = chart!.querySelector<SVGCircleElement>('circle[data-node-hit]');
+    // Hard assertion — a missing hit circle means the chart stopped rendering
+    // draggable nodes, which is a real regression.
+    expect(nodeEl, 'chart must render circle[data-node-hit] elements').not.toBeNull();
+    if (!nodeEl) throw new Error('unreachable');
 
     const rect = nodeEl.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) {
-      // Chart not laid out (zero-size container) — skip
-      return;
-    }
+    // Hard assertion — zero size means the chart has no layout (regression).
+    expect(rect.width, 'chart node must have non-zero width (explicit container width required)').toBeGreaterThan(0);
+    expect(rect.height, 'chart node must have non-zero height').toBeGreaterThan(0);
 
     const cx = rect.left + rect.width / 2;
     const cy = rect.top + rect.height / 2;
 
-    // Simulate a vertical drag
+    // Simulate a vertical drag: pointerdown → pointermove (20px up) → pointerup.
+    // Events bubble from the hit circle to the channel SVG where the chart's
+    // imperative listener (addEventListener, not JSX prop) handles them.
     await act(() => {
       nodeEl.dispatchEvent(
         new PointerEvent('pointerdown', {
@@ -497,13 +494,18 @@ describe('PaletteTab browser — chart drag interaction', () => {
       );
     });
 
-    // After the gesture, onCommitBatch → fallback onChange should have fired.
-    // We don't assert the exact count (depends on chart layout), but at least
-    // the component should not crash.
-    // The gesture may fire onChange (via fallback) or onCommitBatch (when wired).
-    // Here we use the bare `onChange` prop (no onCommitBatch wired), so the
-    // fallback per-item path fires.
-    // This is a smoke-test: no exception thrown, component still mounted.
+    // The drag gesture fires onChangeStart → handleChartChange (per move) →
+    // onChangeEnd → handleChangeEnd. Since no onCommitBatch is wired, the
+    // fallback per-item onChange path fires. The accumulated transient value
+    // is emitted as an oklch() CSS string.
+    expect(changes.length).toBeGreaterThan(0);
+    const [tierId, , newValue] = changes[changes.length - 1];
+    expect(tierId).toBe('warm'); // first active tier
+    expect(newValue).toMatch(/^oklch\(/); // emitted as oklch() string via oklchaToCss
+    // The drag moved the node, so the committed value differs from the initial default.
+    expect(newValue).not.toBe(PALETTE_TAB.tiers[0].items[0].default);
+
+    // The component must still be mounted after the gesture.
     expect(container.querySelector('[data-testid="palette-tab"]')).not.toBeNull();
   });
 });
