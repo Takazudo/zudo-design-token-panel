@@ -230,7 +230,7 @@ brand   -> --zd-brand:   var(--palette-accent-1)
 
 In the panel UI, a row on a `referencesRamps` tier renders as a grouped `<select>` — one `<optgroup>` per declared ramp source (`Base`, `Accent`) — plus a `"Literal…"` option that switches the row to a standalone literal color (see the next section). Picking a different ramp option persists a new `{ ref }` mapping; picking `"Literal…"` persists a `{ literal }` mapping seeded from the row's currently-resolved color.
 
-## `SemanticValue` — the mapping shapes
+## `SemanticValue` mapping shapes
 
 Every item in a semantic tier (`referencesTier`-style OR `semantic: true`) resolves to one `SemanticValue`:
 
@@ -503,7 +503,7 @@ When the user clicks Apply for the Color tab, the pipeline:
 
 1. Iterates palette items (palette tier, when one exists — a lone `semantic: true` tab has none): writes `paletteTier.items[i].cssVar` ← `palette[i]` for each slot.
 2. Iterates `baseRoles`: writes `cssName` ← `palette[state[roleKey]]`. Absent roles emit no writes.
-3. Iterates semantic items: resolves each item's `SemanticValue` mapping and emits per the table in [`SemanticValue` — the mapping shapes](#semanticvalue--the-mapping-shapes) above — `var(...)` for an index or `{ ref }` mapping, the literal string verbatim for `{ literal }`, or `light-dark(<light>, <dark>)` (plus `color-scheme: light dark` on the applied root) for a per-mode `{ literal: { light, dark } }`.
+3. Iterates semantic items: resolves each item's `SemanticValue` mapping and emits per the table in [`SemanticValue` mapping shapes](#semanticvalue-mapping-shapes) above — `var(...)` for an index or `{ ref }` mapping, the literal string verbatim for `{ literal }`, or `light-dark(<light>, <dark>)` (plus `color-scheme: light dark` on the applied root) for a per-mode `{ literal: { light, dark } }`.
 
 `clearAppliedStyles` removes every CSS property that the cluster could have set (palette + base roles + semantic + any `color-scheme` a per-mode literal left behind).
 
