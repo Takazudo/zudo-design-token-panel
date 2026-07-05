@@ -152,6 +152,70 @@ describe('resolveColorClusterFromTab — palette vs. semantic disambiguation (#4
     expect(cluster?.paletteSize).toBe(1);
     expect(cluster?.paletteCssVarTemplate).toBe('--pal-{n}');
   });
+
+  it('does not pick a `semantic: true` tier as the palette when it is ordered BEFORE the real palette tier', () => {
+    // Regression guard: the test above places the real palette tier FIRST, so
+    // it still passes even if the `!t.semantic` exclusion in the paletteTier
+    // finder were deleted (Array.prototype.find would just return the same
+    // first match either way). Order the semantic tier first instead — with a
+    // differing `type.format` from the real palette tier — so this test
+    // actually exercises the guard.
+    const tab: TabConfig = {
+      id: 'color',
+      label: 'Color',
+      colorExtras: COLOR_EXTRAS,
+      tiers: [
+        {
+          id: 'semantic',
+          label: 'Semantic',
+          semantic: true,
+          items: [
+            {
+              id: 'danger',
+              cssVar: '--zd-danger',
+              label: 'Danger',
+              default: 'oklch(0.6 0.2 25)',
+              type: { kind: 'color' as const, format: 'oklch' as const },
+            },
+            {
+              id: 'warning',
+              cssVar: '--zd-warning',
+              label: 'Warning',
+              default: 'oklch(0.8 0.15 80)',
+              type: { kind: 'color' as const, format: 'oklch' as const },
+            },
+          ],
+        },
+        {
+          id: 'palette',
+          label: 'Palette',
+          items: [
+            {
+              id: 'p0',
+              cssVar: '--pal-0',
+              label: 'Palette 0',
+              default: '#000000',
+              type: { kind: 'color' as const },
+            },
+            {
+              id: 'p1',
+              cssVar: '--pal-1',
+              label: 'Palette 1',
+              default: '#ffffff',
+              type: { kind: 'color' as const },
+            },
+          ],
+        },
+      ],
+    };
+
+    const cluster = resolveColorClusterFromTab(tab);
+    expect(cluster).toBeDefined();
+    // The `palette` tier (not the `semantic: true` tier ordered before it)
+    // must be the one reported as the 2-slot palette.
+    expect(cluster?.paletteSize).toBe(2);
+    expect(cluster?.paletteCssVarTemplate).toBe('--pal-{n}');
+  });
 });
 
 /**
