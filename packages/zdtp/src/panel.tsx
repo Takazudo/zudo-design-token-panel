@@ -513,6 +513,12 @@ export default function DesignTokenTweakPanel({
 
   const handleLoadFromJson = useCallback(
     (loaded: TweakState) => {
+      // Clear color cluster vars first — mirrors the scheme-change clear
+      // above. Without this, a dangling `{ ref }` in the imported state
+      // (skipped by the resolver, #482 import nit) would leave the PREVIOUS
+      // session's inline value painted instead of falling back to the
+      // stylesheet default.
+      clearAppliedColorStyles(undefined, undefined, instanceConfig);
       // Replace the panel state with the loaded tweak, apply CSS vars, persist
       // to localStorage (v3). Unknown tokens have already been filtered out by
       // deserialize(). Apply + persist are scoped to THIS instance (#357).
