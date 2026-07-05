@@ -1508,6 +1508,97 @@ function isValidColorShape(s: unknown, paletteSize: number): s is Partial<ColorT
   );
 }
 
+/**
+ * Validate+narrow a single persisted `semanticMappings` entry into a
+ * `SemanticValue`, or return `undefined` when the shape matches none of the
+ * known variants.
+ *
+ * Accepts every shape `ColorTweakState.semanticMappings` has ever held:
+ * the legacy index mapping (`number` / `'bg'` / `'fg'`, pre-#459) plus the
+ * `{ literal }` / `{ literal: { light, dark } }` / `{ ref }` object variants
+ * added in #459 and carried through the external serde in #462.
+ */
+function parsePersistedSemanticValue(val: unknown): SemanticValue | undefined {
+  if (typeof val === 'number') return val;
+  if (val === 'bg' || val === 'fg') return val;
+  if (!val || typeof val !== 'object' || Array.isArray(val)) return undefined;
+
+  const o = val as Record<string, unknown>;
+
+  if ('literal' in o) {
+    const lit = o.literal;
+    if (typeof lit === 'string') return { literal: lit };
+    if (lit && typeof lit === 'object' && !Array.isArray(lit)) {
+      const lo = lit as Record<string, unknown>;
+      if (typeof lo.light === 'string' && typeof lo.dark === 'string') {
+        return { literal: { light: lo.light, dark: lo.dark } };
+      }
+    }
+    return undefined;
+  }
+
+  if ('ref' in o) {
+    const ref = o.ref;
+    if (ref && typeof ref === 'object' && !Array.isArray(ref)) {
+      const ro = ref as Record<string, unknown>;
+      if (typeof ro.tier === 'string' && typeof ro.item === 'string') {
+        return {
+          ref: {
+            tier: ro.tier,
+            item: ro.item,
+            ...(typeof ro.tab === 'string' ? { tab: ro.tab } : {}),
+          },
+        };
+      }
+    }
+    return undefined;
+  }
+
+  return undefined;
+}
+
+/**
+ * Hydrate a persisted `semanticMappings` object into a validated
+ * `Record<string, SemanticValue>`, merged over `defaults` (so keys the
+ * manifest has grown since the payload was written still backfill — see the
+ * "fills in missing semantic keys from defaults" test).
+ *
+ * This is the persist-envelope "tolerant reader" for #462: an OLD payload
+ * (pre-#459, index-only — every value a `number` / `'bg'` / `'fg'`) hydrates
+ * byte-identical to before, because every one of those values already
+ * satisfies `parsePersistedSemanticValue`. A NEWER payload may additionally
+ * carry the `{ literal }` / `{ ref }` object variants, which round-trip too.
+ * Any entry whose shape matches NEITHER — a corrupted key, or a foreign
+ * localStorage value — falls back to whatever `defaults[key]` already holds
+ * instead of being merged in verbatim, so malformed persisted data can't
+ * inject an arbitrary object into runtime state.
+ *
+ * No storage-key version bump was needed for this: `getStorageKeyV3()` /
+ * `storageKey_stateV3()` are also read directly by `astro/host-adapter.ts`
+ * (autoload) and `index.tsx` (`hasPersistedOverrides`) outside this module.
+ * Renaming the key here alone would desync those "does persisted state
+ * exist" checks from where new saves actually land — the v3 envelope shape
+ * was already wide enough (untyped at the JSON boundary) to carry the new
+ * variants, so widening what THIS function accepts is the migration; the key
+ * itself doesn't need to change.
+ */
+function hydrateSemanticMappings(
+  raw: unknown,
+  defaults: Record<string, SemanticValue>,
+): Record<string, SemanticValue> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ...defaults };
+  const out: Record<string, SemanticValue> = { ...defaults };
+  for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
+    const parsed = parsePersistedSemanticValue(val);
+    if (parsed !== undefined) {
+      out[key] = parsed;
+    }
+    // else: an unrecognized shape — keep whatever `defaults[key]` already
+    // provided (possibly nothing) rather than merging garbage into state.
+  }
+  return out;
+}
+
 /** Fill missing fields on a `ColorTweakState`-shaped object using defaults. */
 function hydrateColorState(
   partial: Partial<ColorTweakState>,
@@ -1543,10 +1634,7 @@ function hydrateColorState(
       typeof partial.selectionBg === 'number' ? partial.selectionBg : defaults.selectionBg,
     selectionFg:
       typeof partial.selectionFg === 'number' ? partial.selectionFg : defaults.selectionFg,
-    semanticMappings:
-      partial.semanticMappings && typeof partial.semanticMappings === 'object'
-        ? { ...defaults.semanticMappings, ...partial.semanticMappings }
-        : defaults.semanticMappings,
+    semanticMappings: hydrateSemanticMappings(partial.semanticMappings, defaults.semanticMappings),
     shikiTheme:
       typeof partial.shikiTheme === 'string' && partial.shikiTheme.length > 0
         ? partial.shikiTheme
