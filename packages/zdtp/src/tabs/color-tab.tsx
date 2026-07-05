@@ -1047,42 +1047,53 @@ export default function ColorTab({
 
   return (
     <div className="tokenpanel-tab-content">
-      {/* Preset loader — tab-scoped so the outer header row stays general */}
-      <div className="tokenpanel-tab-actions">
-        <select
-          onChange={(e) => {
-            const target = e.target as HTMLSelectElement;
-            const name = target.value;
-            if (name) {
-              handleLoadPreset(name);
-              target.value = '';
-            }
-          }}
-          className="tokenpanel-color-preset-select"
-          aria-label="Load color scheme preset"
-          defaultValue=""
-        >
-          <option value="" disabled>
-            Scheme...
-          </option>
-          <optgroup label="Built-in">
-            {bundledNames.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </optgroup>
-          {presetNames.length > 0 && (
-            <optgroup label="Presets">
-              {presetNames.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </optgroup>
-          )}
-        </select>
-      </div>
+      {/*
+       * Preset loader — tab-scoped so the outer header row stays general.
+       * Gated on `safeCluster.paletteSize > 0`: a palette-less cluster (a
+       * lone `semantic: true` tier, #458) has no palette for a scheme/preset
+       * to seed — `initColorFromSchemeData` treats a load against it as a
+       * no-op (#488), so offering the control here would be dead UI even
+       * when the host configured `colorPresets`.
+       */}
+      {safeCluster.paletteSize > 0 && (
+        <div className="tokenpanel-tab-actions">
+          <select
+            onChange={(e) => {
+              const target = e.target as HTMLSelectElement;
+              const name = target.value;
+              if (name) {
+                handleLoadPreset(name);
+                target.value = '';
+              }
+            }}
+            className="tokenpanel-color-preset-select"
+            aria-label="Load color scheme preset"
+            defaultValue=""
+          >
+            <option value="" disabled>
+              Scheme...
+            </option>
+            {bundledNames.length > 0 && (
+              <optgroup label="Built-in">
+                {bundledNames.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {presetNames.length > 0 && (
+              <optgroup label="Presets">
+                {presetNames.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+        </div>
+      )}
 
       {/*
        * Section A: Raw Palette — and Section B: Base Theme, which indexes

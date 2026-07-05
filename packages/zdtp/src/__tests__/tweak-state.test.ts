@@ -6,6 +6,7 @@ import {
   getStorageKeyV2,
   getStorageKeyV3,
   initColorFromSchemeData,
+  initSecondaryDefaults,
   type ColorTweakState,
   type StorageLike,
   type TweakState,
@@ -625,6 +626,76 @@ describe('#342 — ColorScheme.shikiTheme is optional', () => {
       cluster,
     );
     expect(state.shikiTheme).toBe('vitesse-dark');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #488 (S7) — initColorFromSchemeData is a no-op for a palette-less cluster
+// ---------------------------------------------------------------------------
+
+describe('#488 — initColorFromSchemeData no-ops for a palette-less (paletteSize: 0) cluster', () => {
+  // A lone `semantic: true` tier cluster (#458/#466) — no palette sibling.
+  // `semanticDefaults` mixes every SemanticValue shape a scheme cannot
+  // express, so a regression back to the pre-#488 flattening (every
+  // non-numeric default collapsed to palette index 0) is caught here.
+  const loneSemanticCluster: ColorClusterDataConfig = {
+    id: 'lone-semantic-fixture',
+    label: 'Lone Semantic',
+    paletteSize: 0,
+    baseRoles: {},
+    paletteCssVarTemplate: '--zudo-stub-p{n}',
+    semanticDefaults: {
+      danger: { literal: 'oklch(0.55 0.22 25)' },
+      accent: { ref: { tier: 'ramp', item: 'p5' } },
+      legacyIndex: 3,
+    },
+    semanticCssNames: { danger: '--zd-danger', accent: '--zd-accent', legacyIndex: '--zd-legacy' },
+    baseDefaults: {},
+    defaultShikiTheme: 'dracula',
+    colorSchemes: {},
+    panelSettings: { colorScheme: '', colorMode: false },
+  };
+
+  // A fully-populated 16-slot scheme — exactly the shape a bundled preset or
+  // a host `colorPresets` entry ships. Loading it against the palette-less
+  // cluster above must not resurrect any of this into state.
+  const fullScheme: ColorScheme = {
+    background: 9,
+    foreground: 11,
+    cursor: 6,
+    selectionBg: 11,
+    selectionFg: 10,
+    palette: palette16 as ColorScheme['palette'],
+    shikiTheme: 'catppuccin-latte',
+    semantic: { danger: 1, accent: 5 },
+  };
+
+  it('returns an empty palette instead of seeding scheme.palette', () => {
+    const state = initColorFromSchemeData(fullScheme, loneSemanticCluster);
+    expect(state.palette).toEqual([]);
+  });
+
+  it('leaves semanticMappings byte-identical to cluster.semanticDefaults (literal/ref rows intact)', () => {
+    const state = initColorFromSchemeData(fullScheme, loneSemanticCluster);
+    expect(state.semanticMappings).toEqual(loneSemanticCluster.semanticDefaults);
+  });
+
+  it('does not collapse the { literal } / { ref } rows to a palette index', () => {
+    const state = initColorFromSchemeData(fullScheme, loneSemanticCluster);
+    expect(state.semanticMappings.danger).toEqual({ literal: 'oklch(0.55 0.22 25)' });
+    expect(state.semanticMappings.accent).toEqual({ ref: { tier: 'ramp', item: 'p5' } });
+  });
+
+  it('warns once via console.warn instead of throwing', () => {
+    expect(() => initColorFromSchemeData(fullScheme, loneSemanticCluster)).not.toThrow();
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0]?.[0]).toContain('lone-semantic-fixture');
+  });
+
+  it('matches initSecondaryDefaults(cluster) exactly — a scheme load is indistinguishable from no scheme', () => {
+    const state = initColorFromSchemeData(fullScheme, loneSemanticCluster);
+    const noSchemeState = initSecondaryDefaults(loneSemanticCluster);
+    expect(state).toEqual(noSchemeState);
   });
 });
 

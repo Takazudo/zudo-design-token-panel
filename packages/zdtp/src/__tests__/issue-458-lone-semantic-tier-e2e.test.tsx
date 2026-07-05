@@ -55,6 +55,7 @@ import {
   getActivePrimaryCluster,
   getStorageKeyV3,
   initColorFromScheme,
+  initColorFromSchemeData,
   loadPersistedState,
   savePersistedState,
   type ColorTweakState,
@@ -63,6 +64,7 @@ import {
 } from '../state/tweak-state';
 import { buildApplyOverrides } from '../apply/build-apply-overrides';
 import { serialize, deserialize, SCHEMA_V3 } from '../utils/design-token-serde';
+import type { ColorScheme } from '../config/color-schemes';
 import {
   HighlightContext,
   type HighlightContextValue,
@@ -644,5 +646,98 @@ describe('6. regression: a conventional palette+semantic 2-tier color tab is una
     expect(semanticGrid.querySelectorAll('[data-testid^="tokenpanel-semantic-literal-"]').length).toBe(
       0,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. #488 — a host colorPresets entry is a no-op against a palette-less cluster
+// ---------------------------------------------------------------------------
+
+/**
+ * A full 16-slot preset — the shape a host's `configurePanel({ colorPresets })`
+ * entry ships, and the exact shape that historically resurrected a phantom
+ * palette + collapsed literal/ref semantic rows to index 0 when loaded
+ * against a lone `semantic: true` tier cluster (#488).
+ */
+const HOST_PRESET: ColorScheme = {
+  background: 9,
+  foreground: 11,
+  cursor: 6,
+  selectionBg: 11,
+  selectionFg: 10,
+  palette: [
+    '#303030',
+    '#dd3131',
+    '#266538',
+    '#a83838',
+    '#3277c8',
+    '#a35e0f',
+    '#90a1b9',
+    '#7a5218',
+    '#6b6b6b',
+    '#e2ddda',
+    '#ece9e9',
+    '#303030',
+    '#5b99dc',
+    '#b89ee7',
+    '#8590a0',
+    '#b91c1c',
+  ],
+  shikiTheme: 'catppuccin-latte',
+  // Keys match SEMANTIC_IDS 1:1 — this is exactly the scenario that used to
+  // flatten `{ literal }` rows to these plain palette indices.
+  semantic: { danger: 1, warning: 3, info: 4 },
+};
+
+const LONE_SEMANTIC_PANEL_CONFIG_WITH_PRESETS: PanelConfig = {
+  ...LONE_SEMANTIC_PANEL_CONFIG,
+  colorPresets: { 'Host Preset': HOST_PRESET },
+};
+
+describe('7. #488 — a host colorPresets entry is a no-op against a palette-less cluster', () => {
+  beforeEach(() => {
+    __resetPanelConfigForTests();
+    configurePanel(LONE_SEMANTIC_PANEL_CONFIG_WITH_PRESETS);
+  });
+
+  it('the Scheme… dropdown is absent entirely, even though colorPresets is non-empty', () => {
+    renderColorTab(LONE_SEMANTIC_TAB, makeLoneSemanticState());
+    expect(container.querySelector('.tokenpanel-color-preset-select')).toBeNull();
+  });
+
+  it('loading the preset directly does not resurrect a palette or collapse literal rows', () => {
+    const cluster = getActivePrimaryCluster();
+    const seeded = initColorFromSchemeData(HOST_PRESET, cluster);
+
+    expect(seeded.palette).toEqual([]);
+    expect(seeded.semanticMappings).toEqual(cluster.semanticDefaults);
+    for (const id of SEMANTIC_IDS) {
+      expect(seeded.semanticMappings[id]).toEqual({ literal: SEMANTIC_LITERALS[id] });
+    }
+  });
+
+  it('neither emitter writes a --zudo-stub-p* key after a preset "load"', () => {
+    const cluster = getActivePrimaryCluster();
+    const colorState = initColorFromSchemeData(HOST_PRESET, cluster);
+    const fullState: TweakState = {
+      color: colorState,
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+
+    const diskMap = buildApplyOverrides(fullState, undefined, cluster, getPanelConfig().tabs);
+    expect(Object.keys(diskMap).some((k) => k.startsWith('--zudo-stub-p'))).toBe(false);
+
+    applyColorState(colorState, cluster);
+    const inlineStyle = document.documentElement.getAttribute('style') ?? '';
+    expect(inlineStyle).not.toMatch(/--zudo-stub-p\d/);
+  });
+
+  it('rendering after the "load" still shows zero palette swatches (Section A stays gated off)', () => {
+    const cluster = getActivePrimaryCluster();
+    const seeded = initColorFromSchemeData(HOST_PRESET, cluster);
+    renderColorTab(LONE_SEMANTIC_TAB, seeded);
+    expect(container.querySelector('.tokenpanel-color-palette-grid')).toBeNull();
   });
 });
