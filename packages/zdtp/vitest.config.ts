@@ -40,6 +40,10 @@ export default mergeConfig(
             // behavior of the original single-project config.
             include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
             exclude: ['src/**/*.browser.test.ts', 'src/**/*.browser.test.tsx'],
+            // Stubs jsdom's unimplemented canvas getContext so the intermittent
+            // "Not implemented" jsdomError can't fail the run. Node-project only
+            // — the browser project keeps real Chromium canvas.
+            setupFiles: ['./vitest-setup-node.ts'],
           },
         },
         {

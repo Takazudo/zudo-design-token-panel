@@ -135,6 +135,11 @@ export function TooltipProvider({ children }: TooltipProviderProps) {
 
   // Escape key hides tooltip.
   useEffect(() => {
+    // Guard document: preact flushes effects via a scheduled timer, which can
+    // fire after a test's jsdom environment tears down (leaking into a later
+    // node-environment test file). Matches the `typeof document` guard on the
+    // portal render below.
+    if (typeof document === 'undefined') return;
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') hideAll();
     }
@@ -145,6 +150,7 @@ export function TooltipProvider({ children }: TooltipProviderProps) {
   // Scroll (capture) repositions the tooltip by hiding it.
   // The trigger will re-show it on next mouseenter if still hovered.
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     function onScroll() {
       if (currentTriggerRef.current) hideAll();
     }
