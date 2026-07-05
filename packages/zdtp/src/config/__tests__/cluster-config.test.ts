@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { resolveColorClusterFromTab } from '../cluster-config';
 import { resolveRefToCssVar } from '../../apply/tier-resolver';
 import type { TabConfig } from '../../tokens/tier-model';
@@ -371,6 +371,208 @@ describe('resolveColorClusterFromTab — cross-tab ramp ref derivation (#467)', 
     const cluster = resolveColorClusterFromTab(COLOR_TAB);
     expect(cluster?.semanticDefaults).toEqual({
       surface: { ref: { tab: 'palette', tier: 'base', item: 'base-3' } },
+    });
+  });
+});
+
+/**
+ * Legacy index-0 fallback (#479 n1, S3a). A LEGACY `referencesTier` semantic
+ * tier's `default` is contractually always a palette id (or `bg`/`fg`) — a
+ * bogus default (e.g. a renamed/removed palette item) must fall back to
+ * palette index 0 with a warning, restoring pre-#459 behavior, instead of
+ * falling through to `{ literal: <bogus-id> }` (an invalid CSS custom
+ * property value once emitted). A `semantic: true` tier hitting the same
+ * bogus-default case keeps the `{ literal }` fallthrough — that IS the new
+ * model's contract.
+ */
+describe('resolveColorClusterFromTab — legacy palette-index fallback (#479 n1)', () => {
+  it('falls back to palette index 0 with a console.warn when a legacy tier default names no palette item', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const tab: TabConfig = {
+      id: 'color',
+      label: 'Color',
+      colorExtras: COLOR_EXTRAS,
+      tiers: [
+        {
+          id: 'palette',
+          label: 'Palette',
+          items: [
+            {
+              id: 'p0',
+              cssVar: '--pal-0',
+              label: 'Palette 0',
+              default: '#000000',
+              type: { kind: 'color' as const },
+            },
+            {
+              id: 'p1',
+              cssVar: '--pal-1',
+              label: 'Palette 1',
+              default: '#ffffff',
+              type: { kind: 'color' as const },
+            },
+          ],
+        },
+        {
+          id: 'semantic',
+          label: 'Semantic',
+          referencesTier: 'palette',
+          items: [
+            {
+              id: 'accent',
+              cssVar: '--semantic-accent',
+              label: 'Accent',
+              default: 'p-nonexistent',
+              type: { kind: 'color' as const },
+            },
+          ],
+        },
+      ],
+    };
+
+    const cluster = resolveColorClusterFromTab(tab);
+    expect(cluster?.semanticDefaults).toEqual({ accent: 0 });
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0][0]).toContain('accent');
+    expect(warnSpy.mock.calls[0][0]).toContain('p-nonexistent');
+
+    warnSpy.mockRestore();
+  });
+
+  it('keeps the { literal } fallthrough (no warning) for a `semantic: true` tier with the same bogus default', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const tab: TabConfig = {
+      id: 'color',
+      label: 'Color',
+      colorExtras: COLOR_EXTRAS,
+      tiers: [
+        {
+          id: 'semantic',
+          label: 'Semantic',
+          semantic: true,
+          items: [
+            {
+              id: 'accent',
+              cssVar: '--semantic-accent',
+              label: 'Accent',
+              default: 'p-nonexistent',
+              type: { kind: 'color' as const },
+            },
+          ],
+        },
+      ],
+    };
+
+    const cluster = resolveColorClusterFromTab(tab);
+    expect(cluster?.semanticDefaults).toEqual({ accent: { literal: 'p-nonexistent' } });
+    expect(warnSpy).not.toHaveBeenCalled();
+
+    warnSpy.mockRestore();
+  });
+});
+
+/**
+ * Named-color literal detection (#479 n2, S3a). `looksLikeColorLiteral` must
+ * recognise bare CSS named-color keywords and value sentinels (`red`,
+ * `transparent`, `currentColor`, …) as literals — not just `#`/`(`-prefixed
+ * values — so a `semantic: true` tier with `referencesRamps` routes them to
+ * `{ literal }` instead of a broken best-effort `{ ref }`. Matching is
+ * case-insensitive; the stored literal preserves the default's original
+ * casing.
+ */
+describe('resolveColorClusterFromTab — named-color literal detection (#479 n2)', () => {
+  const PALETTE_TAB: TabConfig = {
+    id: 'palette',
+    label: 'Palette',
+    tiers: [
+      {
+        id: 'base',
+        label: 'Base',
+        items: [
+          {
+            id: 'base-1',
+            cssVar: '--palette-base-1',
+            label: 'Base 1',
+            default: 'oklch(0.98 0 0)',
+            type: { kind: 'color' as const, format: 'oklch' as const },
+          },
+        ],
+      },
+    ],
+  };
+
+  it.each([
+    ['red', 'red'],
+    ['transparent', 'transparent'],
+    ['currentColor', 'currentColor'],
+    ['currentcolor', 'currentcolor'],
+    ['rebeccapurple', 'rebeccapurple'],
+  ])('treats default %s as a literal, preserving its casing', (defaultValue, expectedLiteral) => {
+    const colorTab: TabConfig = {
+      id: 'color',
+      label: 'Color',
+      colorExtras: COLOR_EXTRAS,
+      tiers: [
+        {
+          id: 'semantic',
+          label: 'Semantic',
+          semantic: true,
+          referencesRamps: [{ tab: 'palette', tier: 'base' }],
+          items: [
+            {
+              id: 'danger',
+              cssVar: '--zd-danger',
+              label: 'Danger',
+              default: defaultValue,
+              type: { kind: 'color' as const },
+            },
+          ],
+        },
+      ],
+    };
+
+    const cluster = resolveColorClusterFromTab(colorTab, [colorTab, PALETTE_TAB]);
+    expect(cluster?.semanticDefaults).toEqual({ danger: { literal: expectedLiteral } });
+  });
+
+  it('still derives a real ramp ref alongside a named-color-literal sibling on the same tier', () => {
+    const colorTab: TabConfig = {
+      id: 'color',
+      label: 'Color',
+      colorExtras: COLOR_EXTRAS,
+      tiers: [
+        {
+          id: 'semantic',
+          label: 'Semantic',
+          semantic: true,
+          referencesRamps: [{ tab: 'palette', tier: 'base' }],
+          items: [
+            {
+              id: 'danger',
+              cssVar: '--zd-danger',
+              label: 'Danger',
+              default: 'red',
+              type: { kind: 'color' as const },
+            },
+            {
+              id: 'surface',
+              cssVar: '--zd-surface',
+              label: 'Surface',
+              default: 'base-1',
+              type: { kind: 'color' as const },
+            },
+          ],
+        },
+      ],
+    };
+
+    const tabs = [colorTab, PALETTE_TAB];
+    const cluster = resolveColorClusterFromTab(colorTab, tabs);
+    expect(cluster?.semanticDefaults).toEqual({
+      danger: { literal: 'red' },
+      surface: { ref: { tab: 'palette', tier: 'base', item: 'base-1' } },
     });
   });
 });
