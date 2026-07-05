@@ -39,6 +39,7 @@ import { memo, useState, useEffect, useCallback, useMemo, useRef, useId } from '
 import type { ColorScheme } from '../config/color-schemes';
 import { pushDismissLayer } from '../controls/dismiss-layer';
 import ColorPicker from '../components/color-picker';
+import ColorField from '../components/color-picker/color-field';
 import { Z } from '../styles/z-index-tokens';
 import type { ColorPickerValueFormat } from '../components/color-picker/color-picker';
 import {
@@ -47,6 +48,7 @@ import {
   applyShikiTheme,
   initColorFromSchemeData,
   isIndexMapping,
+  isLiteralMapping,
   resolvePaletteCssVar,
 } from '../state/tweak-state';
 import { getPanelConfig } from '../config/panel-config';
@@ -54,6 +56,7 @@ import { resolveColorClusterFromTab } from '../config/cluster-config';
 import type { TabConfig, TierConfig } from '../tokens/tier-model';
 import type { PersistColor, PersistSecondary } from '../state/persist';
 import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
+import { TokenLabel } from '../controls/token-label';
 import { useTooltip } from '../controls/tooltip';
 
 // The bundled scheme registry now lives on
@@ -72,10 +75,11 @@ import { useTooltip } from '../controls/tooltip';
  * `PaletteSelector` (below) only understands the legacy index shape — it
  * renders a palette-slot dropdown, not a literal-color or ramp-ref editor.
  * `semanticMappings` / `semanticDefaults` were widened to `SemanticValue`
- * (#459 S1); every value flowing through this tab today is still an index
- * mapping (the `{ literal }` / `{ ref }` editor UI is downstream work), so
- * this just narrows the type for `PaletteSelector`'s `value` prop, falling
- * back to `0` for the not-yet-possible non-index case.
+ * (#459 S1). Single-mode `{ literal: string }` values now render through
+ * `SemanticLiteralRow` instead (S3, #464) — see the Semantic Tokens section
+ * below — so this helper is only reached for index mappings, `{ ref }`
+ * (cross-tab reference — #470) and per-mode `{ literal: { light, dark } }`
+ * (#472), both of which fall back to `0` until their dedicated editors land.
  */
 function toIndexMappingForSelector(v: SemanticValue): number | 'bg' | 'fg' {
   return isIndexMapping(v) ? v : 0;
@@ -544,6 +548,53 @@ const PaletteSelector = memo(function PaletteSelector({
   );
 });
 
+/**
+ * Semantic-token row for a single-mode `{ literal: string }` mapping (S3,
+ * #464): an editable OKLCH `ColorField` swatch instead of `PaletteSelector`'s
+ * palette-index dropdown — the value is a standalone color, not a slot into
+ * `state.palette`, so there is no palette to pick from. Mirrors the
+ * `.tokenpanel-row` layout used by `generic-tab.tsx`'s own `format: 'oklch'`
+ * color rows (`TokenLabel` + `ColorField` + eye toggle) for visual
+ * consistency across the panel.
+ *
+ * `onChange` is `(idKey, value)` — same stable-callback shape as
+ * `PaletteSelector` / `ColorSwatch` above, so a single handler covers every
+ * row and `memo` stays effective.
+ *
+ * Ref (`{ ref }`, #470) and per-mode (`{ literal: { light, dark } }`, #472)
+ * semantic values are NOT handled here — they still fall through to
+ * `PaletteSelector` via `toIndexMappingForSelector`'s `0` fallback until
+ * their dedicated editors land.
+ */
+const SemanticLiteralRow = memo(function SemanticLiteralRow({
+  label,
+  idKey,
+  value,
+  onChange,
+  cssVar,
+}: {
+  label: string;
+  idKey: string;
+  value: string;
+  onChange: (idKey: string, val: string) => void;
+  cssVar?: string;
+}) {
+  const handleChange = useCallback((next: string) => onChange(idKey, next), [onChange, idKey]);
+  return (
+    <div className="tokenpanel-row" data-testid={`tokenpanel-semantic-literal-${idKey}`}>
+      <TokenLabel cssVar={cssVar ?? idKey} label={label} />
+      <ColorField
+        value={value}
+        onChange={handleChange}
+        valueFormat="oklch"
+        label={label}
+        cssVar={cssVar}
+      />
+      {cssVar && <HighlightToggleButton cssVar={cssVar} />}
+    </div>
+  );
+});
+
 // --- Color tab body ---
 
 interface ColorTabProps {
@@ -683,6 +734,20 @@ export default function ColorTab({
     [persistSecondary],
   );
 
+  // Secondary-cluster counterpart to `handleSemanticLiteralChange` (S3, #464).
+  const handleSecondarySemanticLiteralChange = useCallback(
+    (key: string, val: string) => {
+      persistSecondary((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          semanticMappings: { ...prev.semanticMappings, [key]: { literal: val } },
+        };
+      });
+    },
+    [persistSecondary],
+  );
+
   // Accepts `key: string` (broadened from the literal union) so the same
   // handler can be passed directly to memoised <PaletteSelector> rows whose
   // (idKey, val) signature is also string-typed.
@@ -710,6 +775,18 @@ export default function ColorTab({
       persistColor((prev) => ({
         ...prev,
         semanticMappings: { ...prev.semanticMappings, [key]: val },
+      }));
+    },
+    [persistColor],
+  );
+
+  // Writes a `{ literal: <value> }` SemanticValue (S3, #464) — the
+  // `SemanticLiteralRow` counterpart to `handleSemanticChange`'s index write.
+  const handleSemanticLiteralChange = useCallback(
+    (key: string, val: string) => {
+      persistColor((prev) => ({
+        ...prev,
+        semanticMappings: { ...prev.semanticMappings, [key]: { literal: val } },
       }));
     },
     [persistColor],
@@ -839,12 +916,31 @@ export default function ColorTab({
           <div className="tokenpanel-color-base-grid">
             {Object.entries(safeCluster.semanticDefaults).map(([key, defaultVal]) => {
               const semanticCssVar = safeCluster.semanticCssNames[key];
+              const mapping = state.semanticMappings[key] ?? defaultVal;
+              // Single-mode `{ literal: string }` renders an editable OKLCH
+              // swatch (S3, #464) instead of a palette-index dropdown — it
+              // has no palette slot to reference. `{ ref }` and per-mode
+              // `{ literal: { light, dark } }` values still fall through to
+              // `PaletteSelector` (via `toIndexMappingForSelector`'s `0`
+              // fallback) pending #470/#472.
+              if (isLiteralMapping(mapping) && typeof mapping.literal === 'string') {
+                return (
+                  <SemanticLiteralRow
+                    key={key}
+                    label={semanticCssVar ?? key}
+                    idKey={key}
+                    value={mapping.literal}
+                    onChange={handleSemanticLiteralChange}
+                    cssVar={semanticCssVar}
+                  />
+                );
+              }
               return (
                 <PaletteSelector
                   key={key}
                   label={semanticCssVar ?? key}
                   idKey={key}
-                  value={toIndexMappingForSelector(state.semanticMappings[key] ?? defaultVal)}
+                  value={toIndexMappingForSelector(mapping)}
                   palette={state.palette}
                   paletteCssVar={clusterPaletteCssVar}
                   onChange={handleSemanticChange}
@@ -899,12 +995,29 @@ export default function ColorTab({
               <div className="tokenpanel-color-base-grid">
                 {Object.entries(secondaryCluster.semanticDefaults).map(([key, defaultVal]) => {
                   const secondarySemanticCssVar = secondaryCluster.semanticCssNames[key];
+                  const secondaryMapping = secondaryState.semanticMappings[key] ?? defaultVal;
+                  // Mirrors the primary section's literal-vs-index split above.
+                  if (
+                    isLiteralMapping(secondaryMapping) &&
+                    typeof secondaryMapping.literal === 'string'
+                  ) {
+                    return (
+                      <SemanticLiteralRow
+                        key={key}
+                        label={secondarySemanticCssVar ?? key}
+                        idKey={key}
+                        value={secondaryMapping.literal}
+                        onChange={handleSecondarySemanticLiteralChange}
+                        cssVar={secondarySemanticCssVar}
+                      />
+                    );
+                  }
                   return (
                     <PaletteSelector
                       key={key}
                       label={secondarySemanticCssVar ?? key}
                       idKey={key}
-                      value={toIndexMappingForSelector(secondaryState.semanticMappings[key] ?? defaultVal)}
+                      value={toIndexMappingForSelector(secondaryMapping)}
                       palette={secondaryState.palette}
                       paletteCssVar={secondaryPaletteCssVar}
                       onChange={handleSecondarySemanticChange}
