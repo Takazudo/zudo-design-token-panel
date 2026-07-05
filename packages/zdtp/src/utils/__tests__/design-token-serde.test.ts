@@ -10,6 +10,7 @@ import {
   type DesignTokenJsonV2,
   type DesignTokenJsonV3,
 } from '../design-token-serde';
+import { applyFullState } from '../../state/tweak-state';
 import type { ColorTweakState, SemanticValue, TweakState } from '../../state/tweak-state';
 import { __resetPanelConfigForTests } from '../../config/panel-config';
 import { installFixturePanelConfig, FIXTURE_CLUSTER, FIXTURE_TABS } from '../../__tests__/_test-helpers';
@@ -803,13 +804,16 @@ describe('SCHEMA_V3 — serialize/deserialize round-trips for every SemanticValu
   });
 
   it('round-trips a { ref } mapping, upgrading $schema to SCHEMA_V3', () => {
+    // 'color'/'palette'/'fixture-p3' is a real target in FIXTURE_TABS, so this
+    // ref resolves cleanly (no stale-ref warning) — see the S5 describe block
+    // below for the warn-on-missing-target behavior.
     const color = cloneBaseline();
-    const ref: SemanticValue = { ref: { tab: 'brand', tier: 'ramp', item: 'brand-500' } };
+    const ref: SemanticValue = { ref: { tab: 'color', tier: 'palette', item: 'fixture-p3' } };
     color.semanticMappings.active = ref;
     const json = serialize(makeState({ color }), { colorDefaults: COLOR_BASELINE }) as DesignTokenJsonV3;
     expect(json.$schema).toBe(SCHEMA_V3);
     expect(json.tabs?.['color']?.['semantic']).toEqual({
-      '--fixture-semantic-active': { ref: { tab: 'brand', tier: 'ramp', item: 'brand-500' } },
+      '--fixture-semantic-active': { ref: { tab: 'color', tier: 'palette', item: 'fixture-p3' } },
     });
 
     const { state, unknownTokens, warnings } = deserialize(JSON.parse(JSON.stringify(json)), {
@@ -821,8 +825,10 @@ describe('SCHEMA_V3 — serialize/deserialize round-trips for every SemanticValu
   });
 
   it('round-trips a { ref } mapping without an optional tab field', () => {
+    // Intra-tab ref (no `tab`) resolving within the 'color' tab's own
+    // 'palette' tier — a real target, so no stale-ref warning.
     const color = cloneBaseline();
-    const ref: SemanticValue = { ref: { tier: 'ramp', item: 'brand-500' } };
+    const ref: SemanticValue = { ref: { tier: 'palette', item: 'fixture-p3' } };
     color.semanticMappings.active = ref;
     const json = serialize(makeState({ color }), { colorDefaults: COLOR_BASELINE });
     expect(json.$schema).toBe(SCHEMA_V3);
@@ -916,5 +922,160 @@ describe('SCHEMA_V3 — serialize/deserialize round-trips for every SemanticValu
     expect(state.color.semanticMappings.muted).toBe(9);
     expect(state.color.semanticMappings.active).toBe(COLOR_BASELINE.semanticMappings.active);
     expect(state.spacing['hsp-md']).toBe('60px');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S5 — serde robustness (#459 audit): order-independent diff compare,
+// stale-ref import warning, integer-only V3 index leaves.
+// ---------------------------------------------------------------------------
+
+describe('S5 — order-independent semantic diff compare (JSON.stringify key-order bug)', () => {
+  it('does not emit a { ref } mapping as changed when only its property insertion order differs from baseline', () => {
+    const baseline = cloneBaseline();
+    baseline.semanticMappings.active = { ref: { tier: 'palette', item: 'fixture-p3' } };
+
+    const color = cloneBaseline();
+    // Structurally identical to the baseline ref above, just built with a
+    // different key insertion order (mirrors baseline built by
+    // parseSemanticExternalValue's `{tier, item, tab}` vs a UI-produced
+    // `{tab, tier, item}}`).
+    color.semanticMappings.active = { ref: { item: 'fixture-p3', tier: 'palette' } };
+
+    const json = serialize(makeState({ color }), { colorDefaults: baseline });
+    const semMap = json.tabs?.['color']?.['semantic'] as Record<string, unknown> | undefined;
+    expect(semMap?.['--fixture-semantic-active']).toBeUndefined();
+  });
+
+  it('still emits a { ref } mapping that is genuinely changed from baseline', () => {
+    const baseline = cloneBaseline();
+    baseline.semanticMappings.active = { ref: { tier: 'palette', item: 'fixture-p3' } };
+
+    const color = cloneBaseline();
+    color.semanticMappings.active = { ref: { tier: 'palette', item: 'fixture-p9' } };
+
+    const json = serialize(makeState({ color }), { colorDefaults: baseline });
+    expect(json.tabs?.['color']?.['semantic']).toEqual({
+      '--fixture-semantic-active': { ref: { tier: 'palette', item: 'fixture-p9' } },
+    });
+  });
+});
+
+describe('S5 — stale { ref } target produces a warning on import (#459 audit)', () => {
+  it('warns when a { ref } targets a tab/tier/item absent from the current config, but keeps the parsed ref', () => {
+    const payload = {
+      $schema: SCHEMA_V3,
+      exportedAt: new Date().toISOString(),
+      tabs: {
+        color: {
+          semantic: {
+            // No 'ramp' tier exists on any configured tab — a stale reference
+            // (e.g. a renamed ramp item, or a host that dropped a tab).
+            '--fixture-semantic-active': { ref: { tier: 'ramp', item: 'brand-500' } },
+          },
+        },
+      },
+    };
+    const { state, warnings } = deserialize(payload, { colorDefaults: COLOR_BASELINE });
+    // The value is preserved verbatim rather than falling back to baseline —
+    // the apply path already skips an unresolvable ref gracefully.
+    expect(state.color.semanticMappings.active).toEqual({ ref: { tier: 'ramp', item: 'brand-500' } });
+    expect(
+      warnings.some((w) => w.includes('active') && w.includes('ramp') && w.includes('brand-500')),
+    ).toBe(true);
+  });
+
+  it('does not warn for a { ref } targeting a real tab/tier/item', () => {
+    const payload = {
+      $schema: SCHEMA_V3,
+      exportedAt: new Date().toISOString(),
+      tabs: {
+        color: {
+          semantic: {
+            '--fixture-semantic-active': { ref: { tier: 'palette', item: 'fixture-p3' } },
+          },
+        },
+      },
+    };
+    const { state, warnings } = deserialize(payload, { colorDefaults: COLOR_BASELINE });
+    expect(state.color.semanticMappings.active).toEqual({ ref: { tier: 'palette', item: 'fixture-p3' } });
+    expect(warnings).toEqual([]);
+  });
+});
+
+describe('S5 — V3 index leaves require an in-range integer (#459 audit)', () => {
+  it('warns and keeps baseline for a non-integer index leaf (2.5)', () => {
+    const payload = {
+      $schema: SCHEMA_V3,
+      exportedAt: new Date().toISOString(),
+      tabs: { color: { semantic: { '--fixture-semantic-accent': 2.5 } } },
+    };
+    const { state, warnings } = deserialize(payload, { colorDefaults: COLOR_BASELINE });
+    expect(state.color.semanticMappings.accent).toBe(COLOR_BASELINE.semanticMappings.accent);
+    expect(warnings.some((w) => w.includes('accent'))).toBe(true);
+  });
+
+  it('warns and keeps baseline for an out-of-range integer index leaf', () => {
+    // FIXTURE_CLUSTER.paletteSize is 16, so 99 is out of range.
+    const payload = {
+      $schema: SCHEMA_V3,
+      exportedAt: new Date().toISOString(),
+      tabs: { color: { semantic: { '--fixture-semantic-accent': 99 } } },
+    };
+    const { state, warnings } = deserialize(payload, { colorDefaults: COLOR_BASELINE });
+    expect(state.color.semanticMappings.accent).toBe(COLOR_BASELINE.semanticMappings.accent);
+    expect(warnings.some((w) => w.includes('accent'))).toBe(true);
+  });
+
+  it('still accepts a valid in-range integer index leaf (no regression)', () => {
+    const payload = {
+      $schema: SCHEMA_V3,
+      exportedAt: new Date().toISOString(),
+      tabs: { color: { semantic: { '--fixture-semantic-accent': 7 } } },
+    };
+    const { state, warnings } = deserialize(payload, { colorDefaults: COLOR_BASELINE });
+    expect(state.color.semanticMappings.accent).toBe(7);
+    expect(warnings).toEqual([]);
+  });
+});
+
+describe('S5 — composed: stale-ref V3 import + applyFullState keeps the stylesheet default', () => {
+  it('a stale { ref } import surfaces a warning AND is skipped at apply time (token keeps its stylesheet default)', () => {
+    const payload = {
+      $schema: SCHEMA_V3,
+      exportedAt: new Date().toISOString(),
+      tabs: {
+        color: {
+          semantic: {
+            '--fixture-semantic-active': { ref: { tier: 'ramp', item: 'brand-500' } },
+          },
+        },
+      },
+    };
+    const { state, warnings } = deserialize(payload, { colorDefaults: COLOR_BASELINE });
+    expect(warnings.some((w) => w.includes('active'))).toBe(true);
+
+    // An applySink spy avoids any dependency on a real DOM/jsdom environment
+    // (design-token-serde.test.ts runs under the plain "node" vitest project).
+    const applyCalls: Array<ReadonlyArray<readonly [string, string]>> = [];
+    installFixturePanelConfig({
+      applySink: {
+        apply(pairs) {
+          applyCalls.push(pairs);
+        },
+        clear() {
+          // no-op — this test only asserts on what was applied.
+        },
+      },
+    });
+
+    applyFullState(state);
+
+    const appliedNames = applyCalls.flat().map(([name]) => name);
+    // resolveSemanticCssValue's { ref } branch throws inside
+    // resolveRefToCssVar (no 'ramp' tier exists), returns null, and the apply
+    // path skips a null — so the token is never written and keeps whatever
+    // its stylesheet declares.
+    expect(appliedNames).not.toContain('--fixture-semantic-active');
   });
 });
