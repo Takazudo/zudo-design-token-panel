@@ -274,10 +274,22 @@ describe('TierRefSelector — flat/intra-tab mode', () => {
     expect(selected?.textContent).toContain('--easing-ease-out');
   });
 
-  it('falls back to the first item when the ref is unrecognised', () => {
-    renderFlatSelector({ ref: { tier: 'raw', item: 'unknown-id' } }, vi.fn());
+  it('renders a disabled, selected placeholder when the ref is unrecognised (issue #479 nit n3)', () => {
+    const onChange = vi.fn();
+    renderFlatSelector({ ref: { tier: 'raw', item: 'unknown-id' } }, onChange);
     const selected = getOptions().find((o) => o.selected);
-    expect(selected?.textContent).toContain('--easing-ease-in');
+    expect(selected?.textContent).toContain('unresolved: raw/unknown-id');
+    expect(selected?.disabled).toBe(true);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('picking a real option out of the unresolved placeholder emits a valid { ref }', () => {
+    const onChange = vi.fn();
+    renderFlatSelector({ ref: { tier: 'raw', item: 'unknown-id' } }, onChange);
+
+    fireSelectChange(getSelect(), findOptionByText('--easing-linear').value);
+
+    expect(onChange).toHaveBeenCalledWith('tab-open', { ref: { tier: 'raw', item: 'linear' } });
   });
 
   it('each raw item option label includes cssVar and preview value', () => {
@@ -378,6 +390,28 @@ describe('TierRefSelector — grouped ref-or-literal mode', () => {
   it('does NOT render a literal editor while a ramp ref is selected', () => {
     renderGroupedSelector({ ref: { tab: 'palette', tier: 'base', item: 'base-3' } }, vi.fn());
     expect(container.querySelector('[data-testid="color-field-swatch"]')).toBeNull();
+  });
+
+  it('renders a disabled, selected placeholder when a cross-tab ref no longer resolves (issue #479 nit n3)', () => {
+    const onChange = vi.fn();
+    renderGroupedSelector({ ref: { tab: 'palette', tier: 'base', item: 'gone' } }, onChange);
+    const selected = getOptions().find((o) => o.selected);
+    expect(selected?.textContent).toContain('unresolved: base/gone');
+    expect(selected?.disabled).toBe(true);
+    expect(onChange).not.toHaveBeenCalled();
+    // Stays out of the literal editor too — it's neither a resolved ref nor a literal.
+    expect(container.querySelector('[data-testid="color-field-swatch"]')).toBeNull();
+  });
+
+  it('picking a real ramp option out of the unresolved placeholder emits a valid { ref }', () => {
+    const onChange = vi.fn();
+    renderGroupedSelector({ ref: { tab: 'palette', tier: 'base', item: 'gone' } }, onChange);
+
+    fireSelectChange(getSelect(), findOptionByText('--palette-accent-2').value);
+
+    expect(onChange).toHaveBeenCalledWith('surface', {
+      ref: { tab: 'palette', tier: 'accent', item: 'accent-2' },
+    });
   });
 
   it('selecting a ramp option emits { ref: { tab, tier, item } }', () => {
