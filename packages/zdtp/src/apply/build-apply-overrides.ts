@@ -35,8 +35,10 @@
  *     rewrite preserves the indirection that the hand-authored CSS relies on.
  *     A single-mode `{ literal: string }` mapping (#465) is instead EMITTED
  *     VERBATIM as the literal CSS value — there is no palette slot to
- *     reference. Per-mode `{ literal: { light, dark } }` (#472) and `{ ref }`
- *     (#468) mappings are not resolved yet and are silently skipped.
+ *     reference. A cross-tab/tier `{ ref }` mapping (#468) is resolved via
+ *     `resolveRefToCssVar` against the panel's full `tabs` array and EMITTED
+ *     as `var(--<resolved-target>)`. Per-mode `{ literal: { light, dark } }`
+ *     (#472) is not resolved yet and is silently skipped.
  *   - Base roles (`cluster.baseRoles` entries) — NOT emitted. They do not
  *     belong to the apply pipeline's rewrite scope.
  *   - Spacing / typography / size — EMITTED when the corresponding
@@ -64,10 +66,16 @@ import {
   getActivePrimaryCluster,
   isLiteralMapping,
   isPerModeLiteral,
+  isRefMapping,
 } from '../state/tweak-state';
 import type { TabConfig } from '../tokens/tier-model';
 import { getPanelConfig } from '../config/panel-config';
-import { resolveTierItemValue, emitTierItemCssValue, type TabOverrides } from './tier-resolver';
+import {
+  resolveTierItemValue,
+  emitTierItemCssValue,
+  resolveRefToCssVar,
+  type TabOverrides,
+} from './tier-resolver';
 import { structuralEqual } from '../utils/structural-equal';
 
 /**
@@ -122,13 +130,31 @@ export function buildApplyOverrides(
 
     // `{ literal: string }` — single-mode literal color (#465, S4). Emit the
     // stored CSS value verbatim rather than routing through a palette slot.
-    // Per-mode `{ literal: { light, dark } }` (#472) and `{ ref }` (#468) are
-    // NOT resolved here yet — they fall through to `resolveMappingIndex`
-    // below, which returns `null` for them, so the entry is silently skipped
-    // (see that function's doc comment). #472/#468 slot their branch in here,
-    // above the `resolveMappingIndex` call.
+    // Per-mode `{ literal: { light, dark } }` (#472) is NOT resolved here
+    // yet — it falls through to `resolveMappingIndex` below, which returns
+    // `null` for it, so the entry is silently skipped (see that function's
+    // doc comment). #472 slots its branch in here, above the `{ ref }` check.
     if (isLiteralMapping(currentMapping) && !isPerModeLiteral(currentMapping)) {
       out[cssVar] = currentMapping.literal;
+      continue;
+    }
+
+    // `{ ref: { tab?, tier, item } }` — cross-tab/tier ramp reference (#468).
+    // Resolve against the Color tab (the tier the semantic mapping lives on)
+    // using the panel's full `tabs` array so a ref pointing into another tab
+    // (e.g. the grouped Palette tab) resolves. A ref that fails to resolve
+    // (misconfigured manifest) is silently skipped rather than crashing the
+    // apply pipeline — up-front source validation is #469's job.
+    if (isRefMapping(currentMapping)) {
+      const colorTab = tabs.find((t) => t.id === 'color');
+      if (colorTab) {
+        try {
+          const targetCssVar = resolveRefToCssVar(currentMapping.ref, colorTab, tabs);
+          out[cssVar] = `var(${targetCssVar})`;
+        } catch {
+          // Unresolvable ref — skip rather than emit a broken var() reference.
+        }
+      }
       continue;
     }
 
@@ -241,11 +267,11 @@ function emitTabOverrides(
  * - `"fg"`    → the color state's current foreground index.
  * - anything else → `null` (caller skips the entry).
  *
- * The single-mode `{ literal: string }` variant is resolved by the caller
- * BEFORE this function runs (#465, S4) and never reaches here. The
- * per-mode `{ literal: { light, dark } }` variant (#472) and the `{ ref }`
- * variant (#468) still fall through to `null` — those resolvers are
- * downstream work, not this function's job today.
+ * The single-mode `{ literal: string }` variant (#465, S4) and the `{ ref }`
+ * variant (#468) are both resolved by the caller BEFORE this function runs
+ * and never reach here. The per-mode `{ literal: { light, dark } }` variant
+ * (#472) still falls through to `null` — that resolver is downstream work,
+ * not this function's job today.
  */
 function resolveMappingIndex(mapping: SemanticValue, color: ColorTweakState): number | null {
   if (mapping === 'bg') return color.background;
