@@ -16,6 +16,14 @@ import { resolvePerModeLiteral } from '../state/tweak-state';
 const LITERAL_OPTION_VALUE = '__literal__';
 
 /**
+ * `<select>` option value for the synthesized "unresolved ref" placeholder —
+ * shown, disabled and selected, when `value.ref` no longer resolves to a
+ * built option (issue #479 nit n3). Like `LITERAL_OPTION_VALUE`, it's purely
+ * an internal DOM detail and never appears on the `onChange` payload.
+ */
+const UNRESOLVED_OPTION_VALUE = '__unresolved__';
+
+/**
  * Maximum length of a value preview string shown in option labels.
  * Long values like cubic-bezier strings are truncated so the UI stays compact.
  */
@@ -72,6 +80,18 @@ function findTier(tab: TabConfig, tierId: string): TierConfig | undefined {
 
 function refsEqual(a: TierRefTarget, b: TierRefTarget): boolean {
   return (a.tab ?? '') === (b.tab ?? '') && a.tier === b.tier && a.item === b.item;
+}
+
+const warnedUnresolvedRefs = new Set<string>();
+
+/** Logs a dangling `{ ref }` once per distinct target, so a re-render loop doesn't spam the console. */
+function warnUnresolvedRefOnce(ref: TierRefTarget): void {
+  const key = `${ref.tab ?? ''}/${ref.tier}/${ref.item}`;
+  if (warnedUnresolvedRefs.has(key)) return;
+  warnedUnresolvedRefs.add(key);
+  console.warn(
+    `TierRefSelector: ref "${key}" does not resolve to a built option — showing a disabled placeholder instead of silently falling back to another selection.`,
+  );
 }
 
 /** One flattened, selectable ramp/ref option. */
@@ -223,15 +243,25 @@ function TierRefSelector({
 
   const allOptions = groups.flatMap((g) => g.options);
 
-  // Determine the currently selected option — fall back to the first option
-  // when the value is a ref that doesn't (or no longer) resolve.
+  // Determine the currently selected option. When the value is a ref that
+  // doesn't (or no longer) resolve to a built option, leave it undefined —
+  // rendering a disabled "(unresolved: …)" placeholder below instead of
+  // silently falling back to some other option, which would misrepresent a
+  // broken reference as a valid selection.
   const selectedOption = isLiteralValue(value)
     ? undefined
-    : (allOptions.find((o) => refsEqual(o.ref, value.ref)) ?? allOptions[0]);
+    : allOptions.find((o) => refsEqual(o.ref, value.ref));
+
+  const unresolvedRef: TierRefTarget | undefined =
+    !isLiteralValue(value) && !selectedOption ? value.ref : undefined;
+
+  if (unresolvedRef) {
+    warnUnresolvedRefOnce(unresolvedRef);
+  }
 
   const selectedKey = isLiteralValue(value)
     ? LITERAL_OPTION_VALUE
-    : (selectedOption?.key ?? LITERAL_OPTION_VALUE);
+    : (selectedOption?.key ?? UNRESOLVED_OPTION_VALUE);
 
   const rowLabel = label ?? itemId;
 
@@ -241,6 +271,9 @@ function TierRefSelector({
 
   const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const key = e.currentTarget.value;
+    // The placeholder is disabled, so the browser never fires a real change
+    // to it — this guard is defense-in-depth, not a path users can hit.
+    if (key === UNRESOLVED_OPTION_VALUE) return;
     if (key === LITERAL_OPTION_VALUE) {
       // Seed the literal editor from whatever was visible a moment ago, so
       // the user starts from a real color rather than a blank field. Always
@@ -311,6 +344,11 @@ function TierRefSelector({
         onChange={handleSelectChange}
         aria-label={`${rowLabel} tier reference`}
       >
+        {unresolvedRef && (
+          <option value={UNRESOLVED_OPTION_VALUE} disabled>
+            (unresolved: {unresolvedRef.tier}/{unresolvedRef.item})
+          </option>
+        )}
         {isGrouped
           ? groups.map((group) => (
               <optgroup key={group.label} label={group.label}>
