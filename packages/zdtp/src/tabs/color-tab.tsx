@@ -842,71 +842,82 @@ export default function ColorTab({
         </select>
       </div>
 
-      {/* Section A: Raw Palette */}
-      <div className="tokenpanel-tab-section">
-        <div role="heading" aria-level={3} className="tokenpanel-tab-section-heading tokenpanel-tab-section-heading--color">
-          {primaryLabel} — Palette
+      {/*
+       * Section A: Raw Palette — and Section B: Base Theme, which indexes
+       * into that palette. Both are gated on `state.palette.length > 0`: a
+       * lone `semantic: true` tier (no palette sibling, paletteSize 0, #458)
+       * has no palette to render or index into. Rendering either section
+       * unconditionally would show a phantom swatch backed by nothing
+       * (previously a 1-slot grayscale floor in `initSecondaryDefaults`,
+       * #466) or a dead index-picker with zero options.
+       */}
+      {state.palette.length > 0 && (
+        <div className="tokenpanel-tab-section">
+          <div role="heading" aria-level={3} className="tokenpanel-tab-section-heading tokenpanel-tab-section-heading--color">
+            {primaryLabel} — Palette
+          </div>
+          <div className="tokenpanel-color-palette-grid">
+            {state.palette.map((color, i) => (
+              // ColorSwatch passes `i` back via its (index, value) onChange so we
+              // hand `handlePaletteChange` directly — no inline arrow, memo
+              // stays effective. `valueFormat` routes oklch-format slots through
+              // the lossless OKLCH editor; absent/`'hex'` slots stay hex.
+              <ColorSwatch
+                key={i}
+                color={color}
+                index={i}
+                label={resolvePaletteCssVar(safeCluster, i)}
+                cssVar={resolvePaletteCssVar(safeCluster, i)}
+                valueFormat={resolvePaletteFormat(paletteTier, i)}
+                onChange={handlePaletteChange}
+              />
+            ))}
+          </div>
         </div>
-        <div className="tokenpanel-color-palette-grid">
-          {state.palette.map((color, i) => (
-            // ColorSwatch passes `i` back via its (index, value) onChange so we
-            // hand `handlePaletteChange` directly — no inline arrow, memo
-            // stays effective. `valueFormat` routes oklch-format slots through
-            // the lossless OKLCH editor; absent/`'hex'` slots stay hex.
-            <ColorSwatch
-              key={i}
-              color={color}
-              index={i}
-              label={resolvePaletteCssVar(safeCluster, i)}
-              cssVar={resolvePaletteCssVar(safeCluster, i)}
-              valueFormat={resolvePaletteFormat(paletteTier, i)}
-              onChange={handlePaletteChange}
-            />
-          ))}
-        </div>
-      </div>
+      )}
 
       {/* Base + Semantic wrapper */}
       <div className="tokenpanel-tab-content">
-        {/* Section B: Base Theme */}
-        <div className="tokenpanel-tab-section">
-          <div role="heading" aria-level={3} className="tokenpanel-tab-section-heading tokenpanel-tab-section-heading--color">
-            {primaryLabel} — Base
+        {state.palette.length > 0 && (
+          <div className="tokenpanel-tab-section">
+            <div role="heading" aria-level={3} className="tokenpanel-tab-section-heading tokenpanel-tab-section-heading--color">
+              {primaryLabel} — Base
+            </div>
+            {/*
+             * `background (bg)` and `foreground (fg)` are palette-index knobs:
+             * the value picks which palette slot seeds that base role. The
+             * labels read as plain English with the short key in parentheses
+             * rather than the cssVar name. The eye toggle, however, wires to the
+             * cluster's declared base-role cssVar (`cluster.baseRoles.background`
+             * / `.foreground`) — those ARE real tokens written to the DOM by
+             * `applyColorState`, so highlighting them is just as valid as any
+             * semantic token. When a cluster declares no cssVar for a base role,
+             * `cssVar` is undefined and the eye is omitted. The `cursor`,
+             * `sel-bg`, `sel-fg` upstream rows are dropped here because nothing
+             * in this package references them.
+             */}
+            <div className="tokenpanel-color-base-grid">
+              <PaletteSelector
+                label="background (bg)"
+                idKey="background"
+                value={state.background}
+                palette={state.palette}
+                paletteCssVar={clusterPaletteCssVar}
+                onChange={handleBaseIndexChange}
+                cssVar={safeCluster.baseRoles.background}
+              />
+              <PaletteSelector
+                label="foreground (fg)"
+                idKey="foreground"
+                value={state.foreground}
+                palette={state.palette}
+                paletteCssVar={clusterPaletteCssVar}
+                onChange={handleBaseIndexChange}
+                cssVar={safeCluster.baseRoles.foreground}
+              />
+            </div>
           </div>
-          {/*
-           * `background (bg)` and `foreground (fg)` are palette-index knobs:
-           * the value picks which palette slot seeds that base role. The
-           * labels read as plain English with the short key in parentheses
-           * rather than the cssVar name. The eye toggle, however, wires to the
-           * cluster's declared base-role cssVar (`cluster.baseRoles.background`
-           * / `.foreground`) — those ARE real tokens written to the DOM by
-           * `applyColorState`, so highlighting them is just as valid as any
-           * semantic token. When a cluster declares no cssVar for a base role,
-           * `cssVar` is undefined and the eye is omitted. The `cursor`,
-           * `sel-bg`, `sel-fg` upstream rows are dropped here because nothing
-           * in this package references them.
-           */}
-          <div className="tokenpanel-color-base-grid">
-            <PaletteSelector
-              label="background (bg)"
-              idKey="background"
-              value={state.background}
-              palette={state.palette}
-              paletteCssVar={clusterPaletteCssVar}
-              onChange={handleBaseIndexChange}
-              cssVar={safeCluster.baseRoles.background}
-            />
-            <PaletteSelector
-              label="foreground (fg)"
-              idKey="foreground"
-              value={state.foreground}
-              palette={state.palette}
-              paletteCssVar={clusterPaletteCssVar}
-              onChange={handleBaseIndexChange}
-              cssVar={safeCluster.baseRoles.foreground}
-            />
-          </div>
-        </div>
+        )}
 
         {/* Section C: Semantic Token Mappings */}
         <div className="tokenpanel-tab-section">

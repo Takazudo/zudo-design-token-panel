@@ -1000,7 +1000,12 @@ const LITERAL_SEMANTIC_TAB: TabConfig = {
   ],
 };
 
-/** Empty-palette color state — the lone semantic tier has no palette sibling. */
+/**
+ * Empty-palette color state — the lone semantic tier has no palette sibling.
+ * With `palette: []`, Section A (Palette) and Section B (Base) both skip
+ * rendering (#466 follow-up), so `.tokenpanel-color-base-grid` index 0 below
+ * is the Semantic Tokens grid, not the Base grid.
+ */
 function makeLiteralColorState(): ColorTweakState {
   return {
     palette: [],
@@ -1029,7 +1034,7 @@ describe('ColorTab — literal semantic rows render as editable OKLCH swatches (
     renderColorTab(ctx, { tab: LITERAL_SEMANTIC_TAB, colorState: makeLiteralColorState() });
 
     const baseGrids = container.querySelectorAll('.tokenpanel-color-base-grid');
-    const semanticGrid = baseGrids[1] as HTMLElement;
+    const semanticGrid = baseGrids[0] as HTMLElement;
     expect(semanticGrid).not.toBeNull();
 
     // 3 literal rows → 3 editable swatches. NOT a palette-index dropdown
@@ -1043,7 +1048,7 @@ describe('ColorTab — literal semantic rows render as editable OKLCH swatches (
     renderColorTab(ctx, { tab: LITERAL_SEMANTIC_TAB, colorState: makeLiteralColorState() });
 
     const baseGrids = container.querySelectorAll('.tokenpanel-color-base-grid');
-    const semanticGrid = baseGrids[1] as HTMLElement;
+    const semanticGrid = baseGrids[0] as HTMLElement;
     const row = semanticGrid.querySelector(
       '[data-testid="tokenpanel-semantic-literal-danger"]',
     ) as HTMLElement;
@@ -1058,7 +1063,7 @@ describe('ColorTab — literal semantic rows render as editable OKLCH swatches (
     renderColorTab(ctx, { tab: LITERAL_SEMANTIC_TAB, colorState: makeLiteralColorState() });
 
     const baseGrids = container.querySelectorAll('.tokenpanel-color-base-grid');
-    const semanticGrid = baseGrids[1] as HTMLElement;
+    const semanticGrid = baseGrids[0] as HTMLElement;
     expect(semanticGrid.querySelectorAll('.tokenpanel-highlight-toggle').length).toBe(3);
   });
 
@@ -1068,7 +1073,7 @@ describe('ColorTab — literal semantic rows render as editable OKLCH swatches (
     renderColorTab(ctx, { tab: LITERAL_SEMANTIC_TAB, colorState: makeLiteralColorState() });
 
     const baseGrids = container.querySelectorAll('.tokenpanel-color-base-grid');
-    const semanticGrid = baseGrids[1] as HTMLElement;
+    const semanticGrid = baseGrids[0] as HTMLElement;
     const row = semanticGrid.querySelector(
       '[data-testid="tokenpanel-semantic-literal-danger"]',
     ) as HTMLElement;
@@ -1088,7 +1093,7 @@ describe('ColorTab — literal semantic rows render as editable OKLCH swatches (
     });
 
     const baseGrids = container.querySelectorAll('.tokenpanel-color-base-grid');
-    const semanticGrid = baseGrids[1] as HTMLElement;
+    const semanticGrid = baseGrids[0] as HTMLElement;
     const row = semanticGrid.querySelector(
       '[data-testid="tokenpanel-semantic-literal-danger"]',
     ) as HTMLElement;
