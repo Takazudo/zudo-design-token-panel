@@ -47,6 +47,14 @@ import {
   type ColorClusterDataConfig,
   resolvePaletteCssVar,
 } from '../config/cluster-config';
+import type { SemanticValue } from '../tokens/tier-model';
+
+// Re-export so callers that already import from `state/tweak-state` (the
+// historical home of `ColorTweakState`) can reach the mapping-value type
+// without a second import from `tokens/tier-model`. Defined in tier-model.ts
+// to avoid a type-only import cycle with `config/cluster-config.ts` — see the
+// doc comment on `SemanticValue` there.
+export type { SemanticValue } from '../tokens/tier-model';
 import {
   getPanelConfig,
   resolveSecondaryColorCluster,
@@ -469,8 +477,50 @@ export interface ColorTweakState {
   cursor: number;
   selectionBg: number;
   selectionFg: number;
-  semanticMappings: Record<string, number | 'bg' | 'fg'>;
+  /**
+   * Semantic token name → mapping. Widened from `Record<string, number | 'bg'
+   * | 'fg'>` to `Record<string, SemanticValue>` (#459 S1). This is additive
+   * for readers of the type (every legacy value is still a valid
+   * `SemanticValue`), but it BREAKS any exhaustive `switch`/equality check
+   * written against the old narrow union — callers that pattern-match on a
+   * mapping value must now also handle the new `{ literal }` / `{ ref }`
+   * object variants (see `isIndexMapping` / `isLiteralMapping` /
+   * `isPerModeLiteral` / `isRefMapping` below). `resolveMapping` (exported)
+   * still only resolves the legacy `number | 'bg' | 'fg'` shape — resolving
+   * the new variants is downstream work (#467/#469).
+   */
+  semanticMappings: Record<string, SemanticValue>;
   shikiTheme: string;
+}
+
+// ---------------------------------------------------------------------------
+// SemanticValue narrowing helpers
+// ---------------------------------------------------------------------------
+
+/** True when `v` is a legacy index-style mapping (palette index or bg/fg alias). */
+export function isIndexMapping(v: SemanticValue): v is number | 'bg' | 'fg' {
+  return typeof v === 'number' || v === 'bg' || v === 'fg';
+}
+
+/** True when `v` is either literal-color variant (plain string or light/dark pair). */
+export function isLiteralMapping(
+  v: SemanticValue,
+): v is { literal: string } | { literal: { light: string; dark: string } } {
+  return typeof v === 'object' && v !== null && 'literal' in v;
+}
+
+/** True when `v` is specifically the light/dark literal-color variant. */
+export function isPerModeLiteral(
+  v: SemanticValue,
+): v is { literal: { light: string; dark: string } } {
+  return isLiteralMapping(v) && typeof v.literal === 'object' && v.literal !== null;
+}
+
+/** True when `v` is a cross-tab/tier ramp-item reference. */
+export function isRefMapping(
+  v: SemanticValue,
+): v is { ref: { tab?: string; tier: string; item: string } } {
+  return typeof v === 'object' && v !== null && 'ref' in v;
 }
 
 /**
@@ -911,16 +961,23 @@ export function initColorFromSchemeData(
   // into a safe '#000000' instead of leaking them to apply. sRGB clamping for
   // oklch still happens only at a true hex-conversion boundary.
   const palette = scheme.palette.map(normalizeSchemePaletteEntry);
-  const semanticMappings: Record<string, number | 'bg' | 'fg'> = {};
+  const semanticMappings: Record<string, SemanticValue> = {};
   for (const [key, defaultVal] of Object.entries(cluster.semanticDefaults)) {
+    // `cluster.semanticDefaults` is `SemanticValue`-typed (#459), but every
+    // default this function has ever produced is a plain palette-index number
+    // — the `'bg'`/`'fg'` aliases and the `{ literal }` / `{ ref }` variants
+    // are populated by downstream sub-issues (#467/#469), not resolved here.
+    // Fall back to 0 for a non-numeric default so this stays total over the
+    // widened type; `colorRefToIndex`'s `fallback` param is `number`-only.
+    const indexDefault = typeof defaultVal === 'number' ? defaultVal : 0;
     const schemeVal = scheme.semantic?.[key as keyof typeof scheme.semantic];
     if (schemeVal === undefined) {
-      semanticMappings[key] = defaultVal;
+      semanticMappings[key] = indexDefault;
     } else if (typeof schemeVal === 'number') {
       semanticMappings[key] = schemeVal;
     } else {
       // String value — find in palette or nearest match.
-      semanticMappings[key] = colorRefToIndex(schemeVal, scheme.palette, defaultVal);
+      semanticMappings[key] = colorRefToIndex(schemeVal, scheme.palette, indexDefault);
     }
   }
 
@@ -956,7 +1013,16 @@ export function initColorFromSchemeData(
 // Apply / clear
 // ---------------------------------------------------------------------------
 
-/** Resolve a semantic mapping to an actual color (bounds-checked). */
+/**
+ * Resolve a semantic mapping to an actual color (bounds-checked).
+ *
+ * Only handles the legacy `number | 'bg' | 'fg'` index shape — the narrower
+ * type this function accepted before `ColorTweakState.semanticMappings` /
+ * `ColorClusterDataConfig.semanticDefaults` were widened to `SemanticValue`
+ * (#459 S1). Callers holding a `SemanticValue` must narrow with
+ * `isIndexMapping()` first; resolving the `{ literal }` / `{ ref }` variants
+ * is downstream work (#467/#469), not this function's job today.
+ */
 export function resolveMapping(
   mapping: number | 'bg' | 'fg',
   palette: string[],
@@ -971,6 +1037,23 @@ export function resolveMapping(
 
 export function safeIndex(index: number, len: number): number {
   return index >= 0 && index < len ? index : 0;
+}
+
+/**
+ * Resolve a `SemanticValue` to an actual color for the apply path. Delegates
+ * to `resolveMapping` for the legacy index shape (every mapping produced by
+ * the panel today). The `{ literal }` / `{ ref }` variants are not resolved
+ * yet — that lands with #467/#469 — so they fall back to `'#000000'` rather
+ * than throwing, keeping `applyColorState` total over the widened type.
+ */
+function resolveSemanticCssValue(
+  mapping: SemanticValue,
+  palette: string[],
+  bgIndex: number,
+  fgIndex: number,
+): string {
+  if (isIndexMapping(mapping)) return resolveMapping(mapping, palette, bgIndex, fgIndex);
+  return '#000000';
 }
 
 /** Apply a single `ColorTweakState` to the DOM using the given cluster config. */
@@ -994,7 +1077,10 @@ export function applyColorState(
     }
     for (const [key, cssName] of Object.entries(cluster.semanticCssNames)) {
       const mapping = state.semanticMappings[key] ?? cluster.semanticDefaults[key];
-      pairs.push([cssName, resolveMapping(mapping, state.palette, state.background, state.foreground)]);
+      pairs.push([
+        cssName,
+        resolveSemanticCssValue(mapping, state.palette, state.background, state.foreground),
+      ]);
     }
     try {
       sink.apply(pairs);
@@ -1020,7 +1106,10 @@ export function applyColorState(
   // Semantic.
   for (const [key, cssName] of Object.entries(cluster.semanticCssNames)) {
     const mapping = state.semanticMappings[key] ?? cluster.semanticDefaults[key];
-    setCssVar(cssName, resolveMapping(mapping, state.palette, state.background, state.foreground));
+    setCssVar(
+      cssName,
+      resolveSemanticCssValue(mapping, state.palette, state.background, state.foreground),
+    );
   }
 }
 

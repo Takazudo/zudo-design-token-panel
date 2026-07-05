@@ -53,7 +53,7 @@
  * Pure / no IO — safe to import anywhere (browser, Node, tests).
  */
 
-import type { ColorTweakState, TweakState, ColorClusterConfig } from '../state/tweak-state';
+import type { ColorTweakState, TweakState, ColorClusterConfig, SemanticValue } from '../state/tweak-state';
 import { resolvePaletteCssVar, safeIndex, getActivePrimaryCluster } from '../state/tweak-state';
 import type { TabConfig } from '../tokens/tier-model';
 import { getPanelConfig } from '../config/panel-config';
@@ -211,9 +211,13 @@ function emitTabOverrides(
  * - `number`  → used as-is.
  * - `"bg"`    → the color state's current background index.
  * - `"fg"`    → the color state's current foreground index.
- * - anything else → `null` (caller skips the entry).
+ * - anything else → `null` (caller skips the entry). This also covers the
+ *   `{ literal }` / `{ ref }` `SemanticValue` variants (#459) — this
+ *   disk-rewrite pipeline doesn't resolve them yet (downstream #467/#469),
+ *   so they fall through to the existing "skip" behavior rather than a type
+ *   error.
  */
-function resolveMappingIndex(mapping: number | 'bg' | 'fg', color: ColorTweakState): number | null {
+function resolveMappingIndex(mapping: SemanticValue, color: ColorTweakState): number | null {
   if (mapping === 'bg') return color.background;
   if (mapping === 'fg') return color.foreground;
   if (typeof mapping === 'number' && Number.isInteger(mapping)) return mapping;
