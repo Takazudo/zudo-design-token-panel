@@ -163,7 +163,7 @@ afterEach(() => {
 async function renderGenericTab(
   tab: TabConfig,
   overrides: TabOverrides = {},
-  onChange: (tierId: string, itemId: string, next: string) => void = () => undefined,
+  onChange: (tierId: string, itemId: string, next: string | undefined) => void = () => undefined,
   withTooltipProvider = false,
 ): Promise<void> {
   await act(() => {

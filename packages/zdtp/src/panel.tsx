@@ -830,13 +830,24 @@ export default function DesignTokenTweakPanel({
                     tab={tabConfigById[tab.id]}
                     overrides={state.tabs?.[tab.id] ?? {}}
                     onChange={(tierId, itemId, next) => {
-                      persistTab(tab.id, (prev) => ({
-                        ...prev,
-                        [tierId]: {
-                          ...(prev[tierId] ?? {}),
-                          [itemId]: next,
-                        },
-                      }));
+                      // `next === undefined` (ref-tier "Literal…" pick, #470)
+                      // means drop the stored override entirely so the item
+                      // reverts to its tier's default ref, matching the
+                      // font/spacing/size tabs' delete-the-key behavior.
+                      persistTab(tab.id, (prev) => {
+                        if (next === undefined) {
+                          const tierPrev = { ...prev[tierId] };
+                          delete tierPrev[itemId];
+                          return { ...prev, [tierId]: tierPrev };
+                        }
+                        return {
+                          ...prev,
+                          [tierId]: {
+                            ...prev[tierId],
+                            [itemId]: next,
+                          },
+                        };
+                      });
                     }}
                   />
                 )}

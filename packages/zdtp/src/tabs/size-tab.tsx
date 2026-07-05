@@ -2,8 +2,7 @@ import { useCallback } from 'preact/compat';
 import type { TabConfig, TierConfig } from '../tokens/tier-model';
 import type { TokenOverrides } from '../state/tweak-state';
 import type { PersistSize } from '../state/persist';
-import TierRefSelector from '../controls/tier-ref-selector';
-import { TIER_REF_LITERAL_SIGNAL } from '../controls/tier-ref-selector';
+import TierRefSelector, { type TierRefSelectorValue } from '../controls/tier-ref-selector';
 import GenericItemEditor from './_generic-item-editor';
 import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
 import { resolveTierItemValue } from '../apply/tier-resolver';
@@ -27,7 +26,18 @@ interface SizeTabProps {
 export default function SizeTab({ tab, state, persistSize }: SizeTabProps) {
   const handleChange = useCallback(
     (id: string, next: string) => {
-      if (next === TIER_REF_LITERAL_SIGNAL) {
+      persistSize((prev) => ({ ...prev, [id]: next }));
+    },
+    [persistSize],
+  );
+
+  // Ref-tier items go through this handler instead: `{ ref }` stores the
+  // target item id (back-compat with the pre-#470 bare-string persisted
+  // shape); `{ literal }` means "flip the item back to literal mode" — drop
+  // the stored override so it reverts to the tier's own default ref.
+  const handleRefChange = useCallback(
+    (id: string, next: TierRefSelectorValue) => {
+      if ('literal' in next) {
         persistSize((prev) => {
           const n = { ...prev };
           delete n[id];
@@ -35,7 +45,7 @@ export default function SizeTab({ tab, state, persistSize }: SizeTabProps) {
         });
         return;
       }
-      persistSize((prev) => ({ ...prev, [id]: next }));
+      persistSize((prev) => ({ ...prev, [id]: next.ref.item }));
     },
     [persistSize],
   );
@@ -71,6 +81,7 @@ export default function SizeTab({ tab, state, persistSize }: SizeTabProps) {
           tier={tier}
           state={state}
           onChange={handleChange}
+          onRefChange={handleRefChange}
         />
       ))}
     </div>
@@ -86,9 +97,10 @@ interface TierSectionProps {
   tier: TierConfig;
   state: TokenOverrides;
   onChange: (id: string, next: string) => void;
+  onRefChange: (id: string, next: TierRefSelectorValue) => void;
 }
 
-function TierSection({ tab, tier, state, onChange }: TierSectionProps) {
+function TierSection({ tab, tier, state, onChange, onRefChange }: TierSectionProps) {
   const isRefTier = tier.referencesTier !== undefined;
 
   return (
@@ -104,6 +116,7 @@ function TierSection({ tab, tier, state, onChange }: TierSectionProps) {
         {tier.items.map((item) => {
           const value = state[item.id] ?? item.default;
           if (isRefTier) {
+            const refTierId = tier.referencesTier!;
             return (
               <div
                 key={item.id}
@@ -115,11 +128,10 @@ function TierSection({ tab, tier, state, onChange }: TierSectionProps) {
                   tab={tab}
                   tierId={tier.id}
                   itemId={item.id}
-                  value={value}
-                  onChange={onChange}
-                  previewValueFor={(refItemId) => {
-                    const refTierId = tier.referencesTier!;
-                    const result = resolveTierItemValue(tab, refTierId, refItemId, {
+                  value={{ ref: { tier: refTierId, item: value } }}
+                  onChange={onRefChange}
+                  previewValueFor={(ref) => {
+                    const result = resolveTierItemValue(tab, refTierId, ref.item, {
                       [refTierId]: state,
                     });
                     return result.kind === 'literal' ? result.value : result.targetCssVar;

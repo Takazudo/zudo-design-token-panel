@@ -198,7 +198,7 @@ async function renderSizeTab(
 async function renderGenericTab(
   tab: TabConfig = GENERIC_TAB,
   overrides: TabOverrides = {},
-  onChange: (tierId: string, itemId: string, next: string) => void = noop,
+  onChange: (tierId: string, itemId: string, next: string | undefined) => void = noop,
 ): Promise<void> {
   await act(() => {
     render(
