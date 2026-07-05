@@ -1051,11 +1051,16 @@ export default function ColorTab({
     (name: string) => {
       const scheme = allPresets[name];
       if (!scheme) return;
-      const newState = initColorFromSchemeData(scheme);
+      // Seed against THIS instance's derived cluster (`safeCluster`), not the
+      // global active primary cluster. In a multi-instance / direct-render host
+      // the instance's palette size or semantic tokens can differ from the
+      // default config; without the explicit cluster the preset load builds
+      // state for the wrong cluster (#491 follow-up, audit).
+      const newState = initColorFromSchemeData(scheme, safeCluster);
       persistColor(() => newState);
       applyShikiTheme(newState.shikiTheme);
     },
-    [persistColor],
+    [persistColor, safeCluster, allPresets],
   );
 
   return (
