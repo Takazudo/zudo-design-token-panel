@@ -961,6 +961,23 @@ export function initColorFromSchemeData(
   scheme: ColorScheme,
   cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
 ): ColorTweakState {
+  // A palette-less cluster (paletteSize: 0, a lone `semantic: true` tier with
+  // no palette sibling, #458/#466) has nothing for a scheme/preset to seed:
+  // schemes only carry a 16-slot palette + index/string refs, never the
+  // `{ literal }` / `{ ref }` / per-mode SemanticValue shapes such a tier's
+  // rows hold. Loading one anyway previously reseeded `scheme.palette` wholesale
+  // (phantom `--zudo-stub-p*` swatches, since paletteCssVarTemplate falls back
+  // to the stub template with no palette tier to name slots after) and
+  // collapsed every non-numeric semanticDefault to palette index 0 (below),
+  // destroying literal/ref rows. Treat the load as a no-op instead — identical
+  // to the cluster's own no-scheme cold seed (#488).
+  if (cluster.paletteSize === 0) {
+    console.warn(
+      `[tweak] Scheme/preset load ignored for palette-less cluster "${cluster.id}" ` +
+        '(paletteSize: 0) — schemes cannot seed a tier with no palette.',
+    );
+    return initSecondaryDefaults(cluster);
+  }
   // Preserve raw `oklch(...)` losslessly (wide-gamut chroma survives; never
   // collapses to '#000000' under jsdom). Every other entry is sanitised through
   // cssColorToHex() exactly as before this OKLCH work — canonicalises valid
