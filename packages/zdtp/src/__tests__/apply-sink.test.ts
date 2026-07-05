@@ -278,6 +278,20 @@ describe('clearAppliedColorStyles with sink', () => {
     expect(cleared).toContain('--fixture-p0');
     expect(cleared).toContain('--fixture-semantic-accent');
   });
+
+  // #474 (S13) — a per-mode literal apply (#472) may have routed
+  // `color-scheme: light dark` through this same sink to its own target
+  // root. The clear must include it so a Reset on a sink instance doesn't
+  // leave it lingering there either.
+  it('includes "color-scheme" in the sink clear batch so it never lingers on the sink target root', () => {
+    const sink = makeSinkSpy();
+    installFixturePanelConfig({ applySink: sink });
+
+    clearAppliedColorStyles([FIXTURE_CLUSTER], sink);
+
+    const cleared = flatClearNames(sink.clearCalls);
+    expect(cleared).toContain('color-scheme');
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -74,4 +74,26 @@ describe('clearAppliedColorStyles / clearAppliedStyles split (#347)', () => {
       expect(readVar(v)).toBe('');
     }
   });
+
+  // #474 (S13) — a per-mode literal semantic value (#472) causes the apply
+  // path to set `color-scheme: light dark` on :root. Neither clear path
+  // removed it before this fix, leaving it lingering after a Reset even
+  // though every color var it was serving had just been wiped.
+  it('clearAppliedColorStyles also removes a lingering color-scheme left by a per-mode literal apply', () => {
+    seedAppliedVars();
+    document.documentElement.style.setProperty('color-scheme', 'light dark');
+
+    clearAppliedColorStyles();
+
+    expect(readVar('color-scheme')).toBe('');
+  });
+
+  it('clearAppliedStyles also removes a lingering color-scheme left by a per-mode literal apply', () => {
+    seedAppliedVars();
+    document.documentElement.style.setProperty('color-scheme', 'light dark');
+
+    clearAppliedStyles();
+
+    expect(readVar('color-scheme')).toBe('');
+  });
 });
