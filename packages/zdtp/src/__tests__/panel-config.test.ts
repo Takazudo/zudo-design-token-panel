@@ -16,6 +16,7 @@ import {
   storageKey_visible,
   type PanelConfig,
 } from '../config/panel-config';
+import { TierResolverError, resolveRefToCssVar } from '../apply/tier-resolver';
 import type { TabConfig } from '../tokens/tier-model';
 
 /**
@@ -937,5 +938,326 @@ describe('panel-config — assertValidPanelConfig host-tabs validation', () => {
         }),
       ),
     ).not.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S8 (#469): cross-tab ramp-source (`referencesRamps`) validation
+// ---------------------------------------------------------------------------
+//
+// `referencesRamps` (tier-level, on a `semantic: true` tier) is a DIFFERENT
+// mechanism from the same-tab `referencesTier` guard covered above: it is an
+// allow-list of ramp SOURCES — `{ tab?, tier }` — that per-row
+// `{ ref: { tab?, tier, item } }` VALUES are permitted to point into, and it
+// may legitimately name a tier in a DIFFERENT tab. See `TierConfig.referencesRamps`
+// in `tokens/tier-model.ts` and `resolveRefToCssVar` in `apply/tier-resolver.ts`
+// (#467/#468) for the runtime resolution counterpart.
+describe('panel-config — referencesRamps cross-tab source validation (S8, #469)', () => {
+  function makeBaseConfig(extra: Partial<PanelConfig> = {}): PanelConfig {
+    return {
+      storagePrefix: 'p',
+      consoleNamespace: 'p',
+      modalClassPrefix: 'p-modal',
+      schemaId: 'p/v1',
+      exportFilenameBase: 'p',
+      tabs: [],
+      ...extra,
+    };
+  }
+
+  /** The Palette tab: a plain color-kind ramp tier, no semantic/referencesTier. */
+  const PALETTE_TAB: TabConfig = {
+    id: 'palette',
+    label: 'Palette',
+    tiers: [
+      {
+        id: 'base',
+        label: 'Base',
+        items: [
+          {
+            id: 'base-1',
+            cssVar: '--palette-base-1',
+            label: 'Base 1',
+            default: '#111111',
+            type: { kind: 'color' },
+          },
+          {
+            id: 'base-2',
+            cssVar: '--palette-base-2',
+            label: 'Base 2',
+            default: '#222222',
+            type: { kind: 'color' },
+          },
+        ],
+      },
+      {
+        id: 'length-tier',
+        label: 'Not a color tier',
+        items: [
+          {
+            id: 'len-1',
+            cssVar: '--palette-len-1',
+            label: 'Len 1',
+            default: '4px',
+            type: { kind: 'length', step: 1, unit: 'px' },
+          },
+        ],
+      },
+    ],
+  };
+
+  /** A Color tab whose semantic tier declares a cross-tab ramp source. */
+  function makeSemanticColorTab(
+    referencesRamps: unknown,
+    overrides: Record<string, unknown> = {},
+  ): TabConfig {
+    return {
+      id: 'color',
+      label: 'Color',
+      tiers: [
+        {
+          id: 'semantic',
+          label: 'Semantic',
+          semantic: true,
+          referencesRamps,
+          items: [
+            {
+              id: 'surface',
+              cssVar: '--zd-surface',
+              label: 'Surface',
+              default: 'base-1',
+              type: { kind: 'color' },
+            },
+          ],
+          ...overrides,
+        },
+      ],
+    } as unknown as TabConfig;
+  }
+
+  it('accepts a valid referencesRamps declaration naming an existing tab + tier', () => {
+    const colorTab = makeSemanticColorTab([{ tab: 'palette', tier: 'base' }]);
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab, PALETTE_TAB] })),
+    ).not.toThrow();
+  });
+
+  it('accepts a referencesRamps entry with `tab` omitted (same-tab source)', () => {
+    // Same-tab source: a semantic tier referencing a ramp tier in ITS OWN tab.
+    const colorTab: TabConfig = {
+      id: 'color',
+      label: 'Color',
+      tiers: [
+        {
+          id: 'base',
+          label: 'Base',
+          items: [
+            {
+              id: 'base-1',
+              cssVar: '--color-base-1',
+              label: 'Base 1',
+              default: '#111111',
+              type: { kind: 'color' },
+            },
+          ],
+        },
+        {
+          id: 'semantic',
+          label: 'Semantic',
+          semantic: true,
+          referencesRamps: [{ tier: 'base' }],
+          items: [
+            {
+              id: 'surface',
+              cssVar: '--zd-surface',
+              label: 'Surface',
+              default: 'base-1',
+              type: { kind: 'color' },
+            },
+          ],
+        },
+      ],
+    };
+    expect(() => assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab] }))).not.toThrow();
+  });
+
+  it('rejects a referencesRamps entry naming a missing tab, listing available tabs', () => {
+    const colorTab = makeSemanticColorTab([{ tab: 'no-such-tab', tier: 'base' }]);
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab, PALETTE_TAB] })),
+    ).toThrow(/tab "no-such-tab" does not exist. Available tabs: color, palette/);
+  });
+
+  it('rejects a referencesRamps entry naming a missing tier in an existing tab, listing available tiers', () => {
+    const colorTab = makeSemanticColorTab([{ tab: 'palette', tier: 'no-such-tier' }]);
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab, PALETTE_TAB] })),
+    ).toThrow(/tier "no-such-tier" does not exist in tab "palette". Available tiers: base, length-tier/);
+  });
+
+  it('rejects a cross-kind referencesRamps source (color semantic tier -> length ramp tier)', () => {
+    const colorTab = makeSemanticColorTab([{ tab: 'palette', tier: 'length-tier' }]);
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab, PALETTE_TAB] })),
+    ).toThrow(
+      /referencing semantic tier has kind "color" but target tier "length-tier" in tab "palette" has kind "length"/,
+    );
+  });
+
+  it('rejects referencesRamps declared on a tier that is not semantic: true', () => {
+    const colorTab: TabConfig = {
+      id: 'color',
+      label: 'Color',
+      tiers: [
+        {
+          id: 'base',
+          label: 'Base',
+          // Not `semantic: true` — referencesRamps has no business here.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          referencesRamps: [{ tier: 'base' }] as any,
+          items: [
+            {
+              id: 'base-1',
+              cssVar: '--color-base-1',
+              label: 'Base 1',
+              default: '#111111',
+              type: { kind: 'color' },
+            },
+          ],
+        },
+      ],
+    };
+    expect(() => assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab] }))).toThrow(
+      /referencesRamps is only valid on a tier with semantic: true/,
+    );
+  });
+
+  it('rejects a referencesRamps entry missing the required `tier` field', () => {
+    const colorTab = makeSemanticColorTab([{ tab: 'palette' }]);
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab, PALETTE_TAB] })),
+    ).toThrow(/referencesRamps\[0\]\.tier must be a non-empty string/);
+  });
+
+  it('rejects a referencesRamps field that is not an array', () => {
+    const colorTab = makeSemanticColorTab({ tab: 'palette', tier: 'base' });
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab, PALETTE_TAB] })),
+    ).toThrow(/referencesRamps must be an array/);
+  });
+
+  it('keeps the existing same-tab referencesTier guard and F4 palette checks green alongside referencesRamps', () => {
+    // Sanity check: a tab using the unrelated same-tab referencesTier
+    // mechanism (no referencesRamps at all) still validates cleanly when a
+    // sibling tab in the array declares referencesRamps.
+    const spacingTab: TabConfig = {
+      id: 'spacing',
+      label: 'Spacing',
+      tiers: [
+        {
+          id: 'raw',
+          label: 'Raw',
+          items: [
+            {
+              id: 'space-1',
+              cssVar: '--my-spacing-space-1',
+              label: 'Space 1',
+              default: '4px',
+              type: { kind: 'length', step: 1, unit: 'px' },
+            },
+          ],
+        },
+        {
+          id: 'semantic',
+          label: 'Semantic',
+          referencesTier: 'raw',
+          items: [
+            {
+              id: 'gap-sm',
+              cssVar: '--my-spacing-gap-sm',
+              label: 'Gap small',
+              default: 'space-1',
+              type: { kind: 'length', step: 1, unit: 'px' },
+            },
+          ],
+        },
+      ],
+    };
+    const colorTab = makeSemanticColorTab([{ tab: 'palette', tier: 'base' }]);
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab, PALETTE_TAB, spacingTab] })),
+    ).not.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S8 (#469): per-row `{ ref }` to a missing item throws via resolveRefToCssVar
+// ---------------------------------------------------------------------------
+//
+// Per-row `{ ref: { tab?, tier, item } }` VALUES (the actual mappings stored
+// per semantic item, distinct from the tier-level `referencesRamps` source
+// declaration validated above) are resolved — and validated against real
+// items — at apply time by `resolveRefToCssVar` (#467/#468), not re-validated
+// eagerly by `assertValidPanelConfig`. This covers that a bad per-row ref
+// still surfaces a clear error, even though panel-config itself does not
+// re-check every row.
+describe('resolveRefToCssVar — per-row ref to a missing item throws (S8, #469)', () => {
+  const PALETTE_TAB_RESOLVER: TabConfig = {
+    id: 'palette',
+    label: 'Palette',
+    tiers: [
+      {
+        id: 'base',
+        label: 'Base',
+        items: [
+          {
+            id: 'base-1',
+            cssVar: '--palette-base-1',
+            label: 'Base 1',
+            default: '#111111',
+            type: { kind: 'color' },
+          },
+        ],
+      },
+    ],
+  };
+
+  const SEMANTIC_COLOR_TAB_RESOLVER: TabConfig = {
+    id: 'color',
+    label: 'Color',
+    tiers: [
+      {
+        id: 'semantic',
+        label: 'Semantic',
+        semantic: true,
+        referencesRamps: [{ tab: 'palette', tier: 'base' }],
+        items: [
+          {
+            id: 'surface',
+            cssVar: '--zd-surface',
+            label: 'Surface',
+            default: 'base-1',
+            type: { kind: 'color' },
+          },
+        ],
+      },
+    ],
+  };
+
+  it('throws a clear TierResolverError when a per-row ref names a missing item in an existing tab+tier', () => {
+    expect(() =>
+      resolveRefToCssVar(
+        { tab: 'palette', tier: 'base', item: 'no-such-item' },
+        SEMANTIC_COLOR_TAB_RESOLVER,
+        [SEMANTIC_COLOR_TAB_RESOLVER, PALETTE_TAB_RESOLVER],
+      ),
+    ).toThrow(TierResolverError);
+    expect(() =>
+      resolveRefToCssVar(
+        { tab: 'palette', tier: 'base', item: 'no-such-item' },
+        SEMANTIC_COLOR_TAB_RESOLVER,
+        [SEMANTIC_COLOR_TAB_RESOLVER, PALETTE_TAB_RESOLVER],
+      ),
+    ).toThrow(/no-such-item/);
   });
 });
