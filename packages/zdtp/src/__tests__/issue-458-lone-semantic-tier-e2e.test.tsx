@@ -218,11 +218,25 @@ function renderColorTab(
   });
 }
 
-/** The Semantic Tokens grid is the 2nd `.tokenpanel-color-base-grid` (Base is 1st). */
+/**
+ * Locate the Semantic Tokens grid by its section heading rather than a fixed
+ * grid index — the Base section (and its `.tokenpanel-color-base-grid`) is
+ * gated on a non-empty palette (#466 follow-up) and does not render at all
+ * for the lone-semantic-tier fixture, so "2nd base-grid" is no longer a
+ * stable locator for every fixture in this file.
+ */
 function getSemanticGrid(): HTMLElement {
-  const grids = container.querySelectorAll('.tokenpanel-color-base-grid');
-  expect(grids.length).toBeGreaterThanOrEqual(2);
-  return grids[1] as HTMLElement;
+  const headings = Array.from(
+    container.querySelectorAll('[role="heading"][aria-level="3"]'),
+  );
+  const semanticHeading = headings.find((h) =>
+    (h.textContent ?? '').includes('Semantic Tokens'),
+  );
+  expect(semanticHeading).not.toBeUndefined();
+  const section = semanticHeading!.parentElement as HTMLElement;
+  const grid = section.querySelector('.tokenpanel-color-base-grid') as HTMLElement | null;
+  expect(grid).not.toBeNull();
+  return grid!;
 }
 
 /** Open the first literal-semantic swatch (a `ColorField`) in the semantic grid. */
@@ -324,19 +338,48 @@ describe('2. rendering shows editable literal swatches, not palette-index dropdo
     // The Palette section (Section A) maps over `state.palette` directly; it
     // must not expose the semantic tokens as if they were palette slots.
     renderColorTab(LONE_SEMANTIC_TAB, makeLoneSemanticState());
-    const paletteGrid = container.querySelector('.tokenpanel-color-palette-grid') as HTMLElement;
-    expect(paletteGrid).not.toBeNull();
-    const labels = Array.from(
-      paletteGrid.querySelectorAll('.tokenpanel-color-swatch-label'),
+    const paletteGrid = container.querySelector('.tokenpanel-color-palette-grid') as HTMLElement | null;
+    // A lone-semantic-tier cluster has paletteSize 0, so Section A (Palette)
+    // is gated off entirely (#466 follow-up) — there is no grid, not merely
+    // an empty one.
+    expect(paletteGrid).toBeNull();
+  });
+
+  it('#466 follow-up: paletteSize 0 seeds an EMPTY palette, not a phantom 1-slot grayscale', () => {
+    const state = makeLoneSemanticState();
+    expect(state.palette).toEqual([]);
+    expect(state.palette.length).toBe(0);
+  });
+
+  it('#466 follow-up: no phantom --zudo-stub-p0 swatch renders anywhere in the panel', () => {
+    renderColorTab(LONE_SEMANTIC_TAB, makeLoneSemanticState());
+    // Neither Section A (Palette) nor Section B (Base) renders for a
+    // palette-less cluster, so no swatch/label carries the stub template's
+    // cssVar or references a stub palette slot.
+    const allLabels = Array.from(
+      container.querySelectorAll('.tokenpanel-color-swatch-label'),
     ).map((el) => el.textContent);
-    for (const id of SEMANTIC_IDS) {
-      expect(labels).not.toContain(SEMANTIC_CSS_VARS[id]);
-    }
-    // Crucially, the palette grid never shows N (one per semantic token)
-    // swatches — there is no palette backing this lone-semantic-tier cluster.
-    expect(paletteGrid.querySelectorAll('.tokenpanel-color-swatch-button').length).not.toBe(
-      SEMANTIC_IDS.length,
-    );
+    expect(allLabels.some((l) => (l ?? '').includes('--zudo-stub-p'))).toBe(false);
+    expect(container.querySelectorAll('.tokenpanel-color-palette-grid').length).toBe(0);
+    expect(container.querySelectorAll('.tokenpanel-color-base-grid').length).toBe(1); // Semantic Tokens grid only — no Base grid.
+  });
+
+  it('#466 follow-up: neither emitter (disk / DOM) writes a --zudo-stub-p* key', () => {
+    const colorState = makeLoneSemanticState();
+    const cluster = getActivePrimaryCluster();
+    const fullState: TweakState = {
+      color: colorState,
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+
+    const diskMap = buildApplyOverrides(fullState, undefined, cluster, getPanelConfig().tabs);
+    expect(Object.keys(diskMap).some((k) => k.startsWith('--zudo-stub-p'))).toBe(false);
+
+    applyColorState(colorState, cluster);
+    const inlineStyle = document.documentElement.getAttribute('style') ?? '';
+    expect(inlineStyle).not.toMatch(/--zudo-stub-p\d/);
   });
 });
 

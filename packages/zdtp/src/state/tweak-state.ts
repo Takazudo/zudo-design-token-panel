@@ -621,6 +621,10 @@ export function getActivePrimaryCluster(
  *    slots interpolate. Functional but visually flat; hosts wanting a
  *    designed seed should ship a scheme registry on the cluster and call
  *    `initColorFromScheme(cluster)` instead.
+ *  - A cluster with `paletteSize: 0` (a lone `semantic: true` tier with no
+ *    palette sibling, #458/#466) seeds an EMPTY palette — there is nothing
+ *    to ramp. Forcing a 1-slot grayscale floor here produced a phantom
+ *    `--zudo-stub-p0` swatch/token with no backing tier; see #466.
  *
  * The base-role indices are kept on the state shape for envelope-round-trip
  * compatibility but are inert — `applyColorState` only writes a base role
@@ -630,7 +634,9 @@ export function initSecondaryDefaults(cluster: ColorClusterDataConfig): ColorTwe
   // Deterministic grayscale ramp. Index 0 → black, last → white, middle
   // slots interpolate. Functional but visually flat; hosts wanting a
   // designed seed should ship a scheme registry on the cluster.
-  const size = Math.max(1, cluster.paletteSize);
+  // `paletteSize: 0` seeds an empty palette rather than flooring to 1 slot
+  // (no Math.max(1, ...) floor) — see #466.
+  const size = cluster.paletteSize;
   const palette: string[] = Array.from({ length: size }, (_, i) => {
     if (size === 1) return '#808080';
     const v = Math.round((i / (size - 1)) * 255);
