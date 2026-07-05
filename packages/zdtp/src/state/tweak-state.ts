@@ -1586,6 +1586,12 @@ function clearAppliedColorStylesImpl(
     for (const cluster of clusters) {
       names.push(...clusterVarNames(cluster));
     }
+    // #474 — the apply path may have set `color-scheme: light dark` on this
+    // sink's target root (whenever any per-mode literal was present, #472).
+    // Clear it alongside the palette/base-role/semantic vars so a Reset
+    // doesn't leave it lingering. Harmless when it was never set — clearing
+    // an absent property is a no-op.
+    if (clusters.length > 0) names.push(COLOR_SCHEME_PROP);
     if (names.length > 0) {
       try {
         sink.clear(names);
@@ -1607,6 +1613,9 @@ function clearAppliedColorStylesImpl(
       root.style.removeProperty(cssName);
     }
   }
+  // #474 — same rationale as the sink branch above: remove a lingering
+  // `color-scheme: light dark` set by the apply path for a per-mode literal.
+  if (clusters.length > 0) root.style.removeProperty(COLOR_SCHEME_PROP);
 }
 
 /**
