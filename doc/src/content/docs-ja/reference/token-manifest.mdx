@@ -4,4 +4,271 @@ sidebar_position: 3
 description: TabConfig・TierConfig・TierItem・TierValueKind・PillSpec・ColorClusterExtras — パネルの編集可能タブを定義するすべての型。
 ---
 
-> このページは現在英語のみです。後ほど翻訳予定です。英語版を参照してください: [Token tiers (tab manifest)](/docs/reference/token-manifest)
+<Info title="コンセプト概要">
+このページは、ティアモデルを型ごとに正確に定義するリファレンスです。まず設計上の意図と、リテラルティアと参照ティアの関係を理解したい場合は、[抽象トークンティアモデル](/ja/docs/reference/architecture#the-abstract-token-tier-model)を先にお読みください。
+</Info>
+
+パネルは、`PanelConfig.tabs` として渡される `TabConfig` オブジェクトのフラットな配列からタブストリップをレンダリングします。各タブは、編集可能な行からなる 1 つ以上の*ティア*を保持します。ティアはリテラル値を保持することも、別のティアのアイテムへの参照を保持することもできます。このページでは、ティアモデルのすべての公開型を正確に定義します。
+
+## `TierValueKind`
+
+行にどのエディターウィジェットが表示されるかを制御する、判別可能なユニオン型（discriminated union）です。
+
+```ts
+export type TierValueKind =
+  | { kind: 'length'; step: number; unit: string }
+  | { kind: 'number'; step: number }
+  | { kind: 'select'; options: readonly string[] }
+  | { kind: 'text' }
+  | { kind: 'color' }
+  | { kind: 'cursor' }
+  | { kind: 'content' }
+  | { kind: 'mask-image' };
+```
+
+| `kind` | 説明 | エディター | 追加で必須のフィールド |
+| --- | --- | --- | --- |
+| `'length'` | 単位付きの寸法値 | 単位サフィックス付きのテキスト入力（例: `rem`・`px`） | `step`・`unit` |
+| `'number'` | 単位なしの数値 | 制約のないテキスト入力 | `step` |
+| `'select'` | 定義済みの選択肢セット | ドロップダウン | `options`（空でない文字列配列） |
+| `'text'` | 自由形式の CSS 式（イージングカーブ、フォントファミリー、生の文字列） | 自由形式のテキスト入力 | — |
+| `'color'` | カラー値 — カラータブのパレットティアで使用 | カラーピッカー | — |
+| `'cursor'` | cursor プロパティの値（`pointer`・`crosshair` などのキーワード、または `url(...) <fallback>`） | 自由形式のテキスト入力 | — |
+| `'content'` | 疑似要素向けの content プロパティの値（引用符付き文字列、`none`、`normal`、`url(...)`、生成コンテンツ関数） | 自由形式のテキスト入力 | — |
+| `'mask-image'` | mask-image プロパティの値（`none`、`url(...)`、グラデーション関数） | 自由形式のテキスト入力 | — |
+
+特定の `TierConfig.items` 配列内のすべてのアイテムは、同じ `kind` を共有しなければなりません（MUST）。1 つのティア内で `kind` を混在させると、バリデーション時に拒否されます。
+
+## `PillSpec`
+
+単一の `TierItem` のメイン入力を補完する、オプションのピルトグルです。
+
+```ts
+export interface PillSpec {
+  /** Sentinel value emitted when the pill is ON (e.g. `"9999px"` for border-radius-full). */
+  value: string;
+  /** Default CSS value used when the pill is OFF and no override is active. */
+  customDefault: string;
+}
+```
+
+`TierItem` が `pill` を持つ場合、ティアリゾルバーはオーバーライドマップを次のように解釈します。
+
+- オーバーライドが `pill.value` と等しい → ピルのセンチネル値をそのまま出力します。
+- オーバーライドなし → `item.default` ではなく `pill.customDefault` をベースラインとして使用します。
+- `item.default` が使われるのは、オーバーライドも `customDefault` もどちらも適用されない場合のみです。
+
+## `TierItem`
+
+ティア内の 1 つの編集可能な行です。
+
+```ts
+export interface TierItem {
+  /** Stable id used as the key in persisted state. Rename = state loss. */
+  id: string;
+  /** CSS custom property written to `:root` (must start with `--`). */
+  cssVar: string;
+  /** Human-visible label rendered in the panel row. */
+  label: string;
+  /** Default CSS string value — used when no override is active. */
+  default: string;
+  /** Discriminated union controlling the edit widget. */
+  type: TierValueKind;
+  /** Opt-in sentinel-value toggle. */
+  pill?: PillSpec;
+  /** Display-only flag — the row is rendered but not editable. */
+  readonly?: true;
+}
+```
+
+<Note title="`group` フィールドなし">
+`TierItem.group`（ティア内のサブ見出しキー）は #148 で削除されました。パネルの[1 ティア 1 見出しポリシー](/ja/docs/reference/architecture)により、各ティアはちょうど 1 つのセクション見出しをレンダリングする必要があります。概念的にサブグループ分けが必要なティアは、代わりに複数の `TierConfig` エントリに分割します。サンプルマニフェストで `group` を参照してはいけません。
+</Note>
+
+### フィールドリファレンス
+
+| フィールド | 必須 | 備考 |
+| --- | --- | --- |
+| `id` | Yes | 永続化されたオーバーライドマップにおける安定したキー。名前を変更すると、`legacyIdRenameMap` を設定していない限り既存のユーザー状態が壊れます。 |
+| `cssVar` | Yes | `:root` に書き込まれる CSS カスタムプロパティ。`--` で始まり、プレフィックスの後が空でない必要があります。`assertValidPanelConfig` によって検証されます。 |
+| `label` | Yes | パネル行内の表示ラベル。 |
+| `default` | Yes | オーバーライドが有効でないときに出力されるフォールバックの CSS 文字列。 |
+| `type` | Yes | この行にどのエディターがレンダリングされるかを制御します。 |
+| `pill` | No | メインエディターと並べて、オプトインのセンチネルトグルを追加します。 |
+| `readonly` | No | `true` の場合、行は表示されますが編集不可となり、apply パイプラインからスキップされます。 |
+
+## `TierConfig`
+
+タブ内の `TierItem` エントリの名前付きグループです。
+
+```ts
+export interface TierConfig {
+  /** Stable id — must be unique within the parent `TabConfig`. */
+  id: string;
+  /** Human-visible label (e.g. "Raw values", "Semantic"). */
+  label: string;
+  /** The editable rows this tier owns. All items must share the same `kind`. */
+  items: readonly TierItem[];
+  /**
+   * When set, this tier holds cross-tier references.
+   * Each item's override value is interpreted as the id of an item in the
+   * tier named by this field. The apply pipeline emits
+   * `var(--that-tier-item-cssVar)` rather than the raw value string.
+   */
+  referencesTier?: string;
+  /**
+   * Marks this tier as a SEMANTIC tier on the Color tab — its items hold
+   * `SemanticValue` mappings (index, literal, per-mode literal, or a
+   * cross-tab ramp reference) rather than raw palette entries, so the
+   * panel never mistakes it for the palette tier even when its items are
+   * `kind: 'color'`. A tier with `semantic: true` and no sibling palette
+   * tier is a **lone semantic tier** — the Color tab renders it with no
+   * palette grid at all. Additive: omitting `semantic` preserves the
+   * pre-#459 structural palette-detection behavior.
+   */
+  semantic?: true;
+  /**
+   * Cross-tab ramp-source declaration for a `semantic: true` tier: the ramp
+   * tier(s) this tier's `{ ref }` mappings are allowed to point into. Each
+   * entry names a tier `id` and an optional `tab` id (omitted `tab` means
+   * "this tab"). Validated up front by `assertValidPanelConfig` — an
+   * unknown tab or tier throws at configure time, before any row renders.
+   */
+  referencesRamps?: readonly { tab?: string; tier: string }[];
+}
+```
+
+`referencesTier` を持つティアは**参照ティア**と呼ばれます。そのアイテムは直接の CSS 値を保持せず、別の（リテラル）ティア内の*ソース*アイテムの id を保持します。`referencesTier` の値は、同じ `TabConfig` 内に存在するティアの `id` でなければなりません。ティアの `kind` は一致している必要があります（例: 両方とも `'color'`、または両方とも `'length'`）。
+
+<Info title="semantic と referencesRamps はカラータブの概念">
+`semantic` と `referencesRamps` が意味を持つのは、`'color'` / `'color-secondary'` の `TabConfig` 内のティア（カラータブの `resolveColorClusterFromTab` ブリッジが読み取るティア）に対してのみです。完全な動作契約 — `SemanticValue` ユニオン、単独セマンティックティアのレンダリング方法、タブ間の実例 — については、[カラークラスター § セマンティック専用ティア](/ja/docs/reference/color-cluster#semantic-only-tier-semantic-true)を参照してください。
+</Info>
+
+## `TabConfig`
+
+最上位の単位 — パネルのストリップにおける 1 つのタブです。
+
+```ts
+export interface TabConfig {
+  /** Stable id. Reserved ids dispatch to built-in tab components. */
+  id: string;
+  /** Human-visible tab label. */
+  label: string;
+  /** Ordered tiers rendered inside the tab. */
+  tiers: readonly TierConfig[];
+  /**
+   * Color-tab metadata. Required for the reserved `'color'` and
+   * `'color-secondary'` ids — ignored (and unnecessary) for all other ids.
+   */
+  colorExtras?: ColorClusterExtras;
+}
+```
+
+<Note title="`advancedTiers` フィールドなし">
+`TabConfig.advancedTiers`（タブごとの「Advanced」`<details>` 開閉）は #148 で削除されました。パネルの[プログレッシブディスクロージャー禁止ポリシー](/ja/docs/reference/architecture)により、すべてのティアは折りたたみセクションなしでフラットにレンダリングされる必要があります。タブに多数のトークンがある場合は、代わりにティアセクション順にフラットにレンダリングします。サンプルマニフェストで `advancedTiers` を参照してはいけません。
+</Note>
+
+### 予約済みタブ id
+
+| `id` | ディスパッチ先 |
+| --- | --- |
+| `'color'` | プライマリカラータブ — パレット + ベースロール + セマンティックテーブル。`colorExtras` が必須。 |
+| `'color-secondary'` | セカンダリカラータブ。`colorExtras` が必須。 |
+| `'font'` | タイポグラフィタブ。 |
+| `'spacing'` | スペーシングタブ。 |
+| `'size'` | サイズタブ。 |
+| その他の任意の文字列 | `GenericTab` — kind に応じたエディターを使ってタブの `tiers` をレンダリングします。 |
+
+## `ColorClusterExtras`
+
+カラータブが必要とする、ティア以外のメタデータです。予約済みカラー id を持つタブの `TabConfig.colorExtras` に配置します。
+
+```ts
+export interface ColorClusterExtras {
+  /** Stable id forwarded to the internal ColorClusterDataConfig bridge. */
+  id: string;
+  /** Optional label for Color-tab section headings. Falls back to `id.toUpperCase()`. */
+  label?: string;
+  /** CSS custom-property names for base terminal roles. */
+  baseRoles: Partial<Record<BaseRoleKey, string>>;
+  /** Fallback palette indices when a scheme omits a base role. */
+  baseDefaults: Partial<Record<BaseRoleKey, number>>;
+  /** Fallback shikiTheme name when a scheme lacks one. */
+  defaultShikiTheme: string;
+  /** Bundled color-scheme registry keyed by display name. */
+  colorSchemes: Record<string, ColorScheme>;
+  /** Panel-level scheme settings (seed scheme, optional light/dark mode). */
+  panelSettings: ClusterPanelSettings;
+}
+
+export type BaseRoleKey = 'background' | 'foreground' | 'cursor' | 'selectionBg' | 'selectionFg';
+```
+
+## 例: 単一ティアの spacing タブ
+
+1 つのリテラルティアを持つシンプルなタブです。すべてのアイテムが length トークンです。
+
+```ts
+import type { TabConfig } from '@takazudo/zdtp';
+
+export const spacingTab: TabConfig = {
+  id: 'spacing',
+  label: 'Spacing',
+  tiers: [
+    {
+      id: 'base',
+      label: 'Base spacing',
+      items: [
+        { id: 'sp-xs', cssVar: '--myapp-spacing-xs', label: 'XS', default: '0.25rem', type: { kind: 'length', step: 0.125, unit: 'rem' } },
+        { id: 'sp-sm', cssVar: '--myapp-spacing-sm', label: 'SM', default: '0.5rem',  type: { kind: 'length', step: 0.125, unit: 'rem' } },
+        { id: 'sp-md', cssVar: '--myapp-spacing-md', label: 'MD', default: '1rem',    type: { kind: 'length', step: 0.25,  unit: 'rem' } },
+      ],
+    },
+  ],
+};
+```
+
+## 例: 2 ティアの easing タブ（リテラル + 参照）
+
+*セマンティック*ティアが *raw* ティアを参照するジェネリックタブです。パネルはセマンティックアイテムに対して、生の cubic-bezier 文字列ではなく `var(--myapp-easing-ease-in)` を出力します。
+
+```ts
+import type { TabConfig } from '@takazudo/zdtp';
+
+export const easingTab: TabConfig = {
+  id: 'easing',
+  label: 'Easing',
+  tiers: [
+    {
+      id: 'raw',
+      label: 'Raw values',
+      items: [
+        { id: 'ease-in',    cssVar: '--myapp-easing-ease-in',    label: 'Ease in',    default: 'cubic-bezier(0.42, 0, 1, 1)', type: { kind: 'text' } },
+        { id: 'ease-out',   cssVar: '--myapp-easing-ease-out',   label: 'Ease out',   default: 'cubic-bezier(0, 0, 0.58, 1)', type: { kind: 'text' } },
+        { id: 'ease-inout', cssVar: '--myapp-easing-ease-inout', label: 'Ease in-out',default: 'cubic-bezier(0.42, 0, 0.58, 1)', type: { kind: 'text' } },
+      ],
+    },
+    {
+      id: 'semantic',
+      label: 'Semantic aliases',
+      // referencesTier causes the apply pipeline to emit var(--myapp-easing-*)
+      // rather than the raw cubic-bezier string.
+      referencesTier: 'raw',
+      items: [
+        { id: 'tab-open',  cssVar: '--myapp-transition-tab-open',  label: 'Tab open',  default: 'ease-in',    type: { kind: 'text' } },
+        { id: 'tab-close', cssVar: '--myapp-transition-tab-close', label: 'Tab close', default: 'ease-out',   type: { kind: 'text' } },
+        { id: 'modal',     cssVar: '--myapp-transition-modal',     label: 'Modal',     default: 'ease-inout', type: { kind: 'text' } },
+      ],
+    },
+  ],
+};
+```
+
+この構成では、`tab-open` を `'ease-out'` にオーバーライドすると、apply パイプラインはリテラルのイージング文字列ではなく `--myapp-transition-tab-open: var(--myapp-easing-ease-out)` を出力します。
+
+## 関連ページ
+
+- [`PanelConfig.tabs`](/ja/docs/reference/configure-panel#panelconfig-interface) — `TabConfig[]` が組み込まれる場所。
+- [カラークラスター](/ja/docs/reference/color-cluster) — カラータブが `colorExtras` を持つ `TabConfig` から `ColorClusterDataConfig` を派生させる仕組み。
+- [アプライパイプライン](/ja/docs/reference/apply-pipeline) — ティアリゾルバーがオーバーライドとティア間参照を CSS 変数の書き込みに変換する仕組み。
+- [グループ化パレットタブ](../recipes/grouped-palette-tab.mdx) — `colorExtras` なしで複数の `kind: 'color'` ティアを使うスタンドアロン Palette タブの実例。
