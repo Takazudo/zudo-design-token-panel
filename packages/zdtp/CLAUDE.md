@@ -135,6 +135,22 @@ The companion CSS rule is unchanged — the selector targets the class, not the 
 
 This swap is purely structural: it removes the tag-level styling hook without touching the class-based visual styling.
 
+## Ramp-native Tier-2 color editor (`semantic` / `referencesRamps`, epic #459)
+
+The tier model (`tokens/tier-model.ts`) gained two additive `TierConfig` fields for the Color tab:
+
+- `semantic?: true` — marks a tier as holding `SemanticValue` mappings (index, literal, per-mode literal, or a cross-tab ramp `{ ref }`) instead of raw palette entries. A tier marked `semantic: true` is NEVER treated as the palette tier, even when its items are `kind: 'color'` — this lets a Color `TabConfig` ship with a **lone semantic tier** and no palette tier at all (issue #458).
+- `referencesRamps?: readonly { tab?: string; tier: string }[]` — declares which ramp tier(s) (optionally on another tab) a `semantic: true` tier's `{ ref }` rows may point into. Validated up front by `assertValidPanelConfig`.
+
+Full behavioral documentation (the `SemanticValue` union, the per-mode `light-dark()` emission, the worked cross-tab example) lives in `doc/src/content/docs/reference/color-cluster.mdx` — this section only covers what changed for the panel's OWN DOM-hygiene rules above.
+
+**No new tag exemptions were needed.** The two new interactive pieces this feature added both reuse the existing permitted-form-control exemptions, not new markup:
+
+- The grouped ref-or-literal picker (`controls/tier-ref-selector.tsx`) is a native `<select>` with one `<optgroup>` per declared ramp source and a trailing `"Literal…"` `<option>`.
+- The "Per-mode" toggle that expands a literal row into an independently-editable light/dark `ColorField` pair is a native `<label><input type="checkbox"></label>`.
+
+Both `select`/`optgroup`/`option` and `input`/`label` are already on the permitted-form-controls list above. `color-tab.tsx`'s semantic rows (whether `PaletteSelector`, `SemanticLiteralRow`, or the grouped `TierRefSelector`) still render exactly one tier-section heading (`<div role="heading" aria-level={3}>` per the one-tier-one-heading policy) — the new value shapes only change what's inside a row, not the tier's own heading structure.
+
 ## Hostile-host test page
 
 A verification harness page lives at `doc/src/content/docs/internal/hostile-host.mdx`. It is marked `unlisted: true` (not indexed, not in sidebar) and documents the hostile-host test scenario for the Panel Hardening epic (#145).
@@ -177,6 +193,7 @@ After merging changes that affect the tier model, manifest structure, or token n
 
 - **Invariant D** — the panel tabs and `components/color-picker/` source contain no `<h4`, `<details`, `<summary`, `<button`, or `<table` elements (the hostile-host policy above).
 - **Invariant F** — the panel CSS sources (`panel-tokens.css` and `panel.css`) do not read host `--color-*` or `--font-mono` vars, and declare their baked-in dark `--tokentweak-*` chrome tokens.
+- **Invariant H** (#459/#475) — the ramp-native Tier-2 example manifest (`_example-ramp-native-tier2.ts`) is a real, `configurePanel`-valid `PanelConfig`; `semantic: true`, `referencesRamps`, and every `SemanticValue` shape (index-free `{ ref }`, `{ literal }`, and a runtime-built per-mode `{ literal: { light, dark } }`) resolve and emit correctly.
 
 > **Historical note — Invariants A, B, C, E.** Earlier waves asserted Invariant A (`TierItem.group` removed in #148) and Invariant B (`TabConfig.advancedTiers` removed in #148) by grepping every example manifest source for those object-keys. After the panel types removed those fields, TypeScript at panel-compile time covers both. Invariant C (zfb-tailwind Spacing tab tier count) and Invariant E (`examples/zfb-tailwind/styles/global.css` re-exports spacing variables as Tailwind theme tokens) were exercised by reading example source files directly. After the Wave-2 example-move (epic #202) those files left this monorepo, so Invariants C and E are now exercised in the external [`zudo-design-token-panel-example-zfb-tailwind`](https://github.com/Takazudo/zudo-design-token-panel-example-zfb-tailwind) repo's own CI on each panel SHA bump.
 
