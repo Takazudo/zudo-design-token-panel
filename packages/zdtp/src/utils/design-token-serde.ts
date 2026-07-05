@@ -96,6 +96,8 @@ import {
 } from '../state/tweak-state';
 import { getPanelConfig, type PanelConfig } from '../config/panel-config';
 import { resolvePaletteCssVar } from '../config/cluster-config';
+import { resolveRefToCssVar } from '../apply/tier-resolver';
+import { structuralEqual } from './structural-equal';
 import type { TierItem } from '../tokens/tier-model';
 
 /** Minimal token-like interface extracted from TierItem for serde lookups. */
@@ -563,8 +565,11 @@ function resolveIndexMapping(v: number | 'bg' | 'fg', bg: number, fg: number): n
  * by their RESOLVED palette index (so e.g. `'bg'` and a baseline numeric
  * mapping that happens to equal the current background index are treated as
  * equal, matching pre-#462 behavior). The `{ literal }` / `{ ref }` variants
- * have no index to resolve to, so they're compared structurally; a mapping
- * that changed KIND (index → object or vice versa) is always "changed".
+ * have no index to resolve to, so they're compared structurally (order-
+ * independent — see `structuralEqual`, so a `{ ref }` reconstructed by
+ * `parseSemanticExternalValue` compares equal to a UI-produced ref with
+ * different key insertion order); a mapping that changed KIND (index → object
+ * or vice versa) is always "changed".
  */
 function semanticMappingsEqual(
   cur: SemanticValue,
@@ -583,7 +588,12 @@ function semanticMappingsEqual(
   }
   if (isIndexMapping(cur) !== isIndexMapping(baselineVal)) return false;
   // Both are object variants (literal / ref) — compare structurally.
-  return JSON.stringify(cur) === JSON.stringify(baselineVal);
+  // JSON.stringify is key-order sensitive, so a structurally identical ref
+  // built with a different property insertion order (e.g. baseline via
+  // parseSemanticExternalValue's `{tier, item, tab}` vs. a UI-produced
+  // `{tab, tier, item}`) would spuriously compare "changed" and get emitted
+  // as diff-noise (import-modal.tsx's `structuralEqual` avoids the same trap).
+  return structuralEqual(cur, baselineVal);
 }
 
 /**
@@ -852,7 +862,7 @@ function deserializeV3(
   const tabsRaw = normalizeTabsRaw(obj.tabs);
 
   // Color tab — the only slice that differs from v2.
-  const color = deserializeColorV3(tabsRaw['color'], baseline, cluster, warnings);
+  const color = deserializeColorV3(tabsRaw['color'], baseline, cluster, warnings, cfg);
 
   const { spacing, typography, size, tabsState } = deserializeNonColorSlices(
     tabsRaw,
@@ -875,9 +885,18 @@ function deserializeV3(
  * (#462, SCHEMA_V3+). Returns `undefined` for any other shape so the caller
  * can warn-and-keep-baseline exactly like the other malformed-value paths in
  * this module.
+ *
+ * `paletteSize` gates the `number` branch to an in-range INTEGER index: a
+ * non-integer like `2.5` passes `safeIndex`'s bounds check downstream
+ * (`safeIndex` only checks `index < len`, not `Number.isInteger`) and indexes
+ * `palette[2.5] === undefined`, painting the token black instead of being
+ * caught here at parse time. V1/V2 index parsing is untouched — only the
+ * V3-only path (this function) gates on integer + range.
  */
-function parseSemanticExternalValue(val: unknown): SemanticValue | undefined {
-  if (typeof val === 'number') return val;
+function parseSemanticExternalValue(val: unknown, paletteSize: number): SemanticValue | undefined {
+  if (typeof val === 'number') {
+    return Number.isInteger(val) && val >= 0 && val < paletteSize ? val : undefined;
+  }
   if (!val || typeof val !== 'object' || Array.isArray(val)) return undefined;
 
   const o = val as Record<string, unknown>;
@@ -948,6 +967,7 @@ function deserializeColorV3(
   baseline: ColorTweakState,
   cluster: ReturnType<typeof getActivePrimaryCluster>,
   warnings: string[],
+  cfg: PanelConfig,
 ): ColorTweakState {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     // No color tab — fall back entirely to baseline.
@@ -973,14 +993,34 @@ function deserializeColorV3(
         warnings.push(`color.semantic: unknown cssVar "${cssName}"; skipped.`);
         continue;
       }
-      const parsed = parseSemanticExternalValue(val);
-      if (parsed !== undefined) {
-        semanticMappings[key] = parsed;
-      } else {
+      const parsed = parseSemanticExternalValue(val, cluster.paletteSize);
+      if (parsed === undefined) {
         warnings.push(
           `color.semantic.${cssName} has unsupported value ${JSON.stringify(val)}; kept baseline.`,
         );
+        continue;
       }
+      // A `{ ref }` mapping's target tab/tier/item may no longer exist
+      // (renamed ramp item, host dropped a tab) — `resolveRefToCssVar` throws
+      // in that case. Warn so the Import modal can surface it, but still keep
+      // the parsed ref (not degraded to baseline): the apply path
+      // (`resolveSemanticCssValue`) already skips an unresolvable ref and
+      // leaves the token at its stylesheet default, so this stays a graceful
+      // degradation rather than a silent no-op.
+      if (isRefMapping(parsed)) {
+        const colorTab = cfg.tabs.find((t) => t.id === 'color');
+        try {
+          if (!colorTab) throw new Error('no color tab configured');
+          resolveRefToCssVar(parsed.ref, colorTab, cfg.tabs);
+        } catch {
+          warnings.push(
+            `color.semantic.${cssName} ref points to a missing target ` +
+              `(tab "${parsed.ref.tab ?? colorTab?.id ?? '?'}", tier "${parsed.ref.tier}", ` +
+              `item "${parsed.ref.item}"); kept as an unresolved reference.`,
+          );
+        }
+      }
+      semanticMappings[key] = parsed;
     }
   }
 
