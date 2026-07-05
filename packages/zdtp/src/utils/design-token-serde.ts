@@ -11,12 +11,19 @@
  * | `$schema` value            | Status   | Structure                                |
  * |----------------------------|----------|------------------------------------------|
  * | `zudo-design-tokens/v1`    | Legacy   | Flat top-level `color`/`spacing`/`typography`/`size` keys |
- * | `zudo-design-tokens/v2`    | Current  | `tabs` wrapper keyed by tab id; cssVar-keyed leaves |
+ * | `zudo-design-tokens/v2`    | Current  | `tabs` wrapper keyed by tab id; cssVar-keyed leaves; `color.semantic` leaves are palette-index integers only |
+ * | `zudo-design-tokens/v3`    | Current  | Same shape as v2, but `color.semantic` leaves may ALSO be `{ literal }` / `{ literal: { light, dark } }` / `{ ref }` objects (#462) |
  *
- * `serialize()` always emits v2. `deserialize()` accepts both v1 and v2 and
- * normalises to an internal `TweakState` regardless of which schema was in the
- * payload. Hosts that export v1 docs (custom `schemaId`) get a `schema-mismatch`
- * error on import unless they have opted into the dual-accept path (see below).
+ * `serialize()` emits v2 when every semantic mapping in the state resolves to
+ * a plain palette-index integer (byte-identical to the pre-#462 output), and
+ * opportunistically upgrades to v3 only when at least one semantic mapping is
+ * one of the new `SemanticValue` object variants — v3 is a strict superset of
+ * v2's shape, so this upgrade never loses information and never happens for a
+ * doc that v2 could already represent losslessly. `deserialize()` accepts v1,
+ * v2, and v3, and normalises to an internal `TweakState` regardless of which
+ * schema was in the payload. Hosts that export v1 docs (custom `schemaId`) get
+ * a `schema-mismatch` error on import unless they have opted into the
+ * dual-accept path (see below).
  *
  * ## v2 format
  *
@@ -79,7 +86,14 @@ import type {
   TokenOverrides,
   TweakState,
 } from '../state/tweak-state';
-import { getActivePrimaryCluster, normalizeSchemePaletteEntry } from '../state/tweak-state';
+import {
+  getActivePrimaryCluster,
+  isIndexMapping,
+  isLiteralMapping,
+  isPerModeLiteral,
+  isRefMapping,
+  normalizeSchemePaletteEntry,
+} from '../state/tweak-state';
 import { getPanelConfig, type PanelConfig } from '../config/panel-config';
 import { resolvePaletteCssVar } from '../config/cluster-config';
 import type { TierItem } from '../tokens/tier-model';
@@ -166,11 +180,23 @@ function buildTabVarLookup(
   return map;
 }
 
-/** The canonical v2 schema identifier emitted by serialize(). */
+/** The canonical v2 schema identifier emitted by serialize() when every
+ *  semantic mapping is a plain palette-index integer. */
 export const SCHEMA_V2 = 'zudo-design-tokens/v2';
 
 /** The legacy v1 schema identifier accepted by deserialize() for back-compat. */
 export const SCHEMA_V1 = 'zudo-design-tokens/v1';
+
+/**
+ * The v3 schema identifier — emitted by serialize() instead of `SCHEMA_V2`
+ * only when the state carries at least one `SemanticValue` object variant
+ * (`{ literal }` / `{ literal: { light, dark } }` / `{ ref }`) that v2's
+ * number-only `color.semantic` leaf cannot represent (#462). Structurally a
+ * strict superset of v2 — a v3 deserializer accepts every v2 document too,
+ * but `deserialize()` still dispatches v2 docs through the unmodified v2 path
+ * so legacy exports keep parsing byte-for-byte as before.
+ */
+export const SCHEMA_V3 = 'zudo-design-tokens/v3';
 
 /** Local alias for an empty override map — inlined (rather than imported from
  *  `../state/tweak-state`) to avoid pulling the tweak-state runtime module into
@@ -268,6 +294,42 @@ export interface DesignTokenJsonV2 {
 }
 
 // ---------------------------------------------------------------------------
+// v3 external JSON types (widened `color.semantic` leaf, #462)
+// ---------------------------------------------------------------------------
+
+/** A single-color (non-per-mode) literal semantic mapping, external shape. */
+export type SemanticLiteralExternal = { literal: string } | { literal: { light: string; dark: string } };
+
+/** A cross-tab/tier ramp-item reference semantic mapping, external shape. */
+export type SemanticRefExternal = { ref: { tab?: string; tier: string; item: string } };
+
+/**
+ * The widened leaf type for `tabs.color.semantic` entries under `SCHEMA_V3`.
+ * A plain `number` is still the palette-index shape v2 has always emitted;
+ * the object variants are the new `SemanticValue` shapes serialize() emits
+ * verbatim (no index resolution) when the state holds one (#462).
+ */
+export type SemanticExternalValue = number | SemanticLiteralExternal | SemanticRefExternal;
+
+/** `tabs.color.semantic` leaf map under `SCHEMA_V3` — same cssVar keys as
+ *  v2's `V2TierMap`, but values may be the wider `SemanticExternalValue`. */
+export type V3SemanticTierMap = Record<string, SemanticExternalValue>;
+
+/**
+ * Per-tab overrides accepted/emitted at `SCHEMA_V3`. Identical to `V2TabEntry`
+ * for every tier EXCEPT `color.semantic`, whose leaf may be the widened
+ * `SemanticExternalValue` union instead of just `string | number`.
+ */
+export type V3TabEntry = Record<string, V2TierMap | V3SemanticTierMap>;
+
+/** v3 external JSON document shape — see `SCHEMA_V3` for when serialize() emits this. */
+export interface DesignTokenJsonV3 {
+  $schema: string;
+  exportedAt: string;
+  tabs?: Record<string, V3TabEntry>;
+}
+
+// ---------------------------------------------------------------------------
 // Shared types (SerializeOptions, DeserializeResult, errors)
 // ---------------------------------------------------------------------------
 
@@ -328,16 +390,23 @@ export class DesignTokenSchemaError extends Error {
 }
 
 // ---------------------------------------------------------------------------
-// Serialize (v2 output)
+// Serialize (v2 output, opportunistically upgraded to v3)
 // ---------------------------------------------------------------------------
 
 /**
- * Produce the external JSON document (v2 format) for a given tweak state.
+ * Produce the external JSON document for a given tweak state.
  *
  * By default this is diff-only against `opts.colorDefaults` + manifest
  * defaults; set `opts.includeDefaults = true` to dump everything.
  *
- * The output `$schema` is always `SCHEMA_V2` ("zudo-design-tokens/v2").
+ * The output `$schema` is `SCHEMA_V2` ("zudo-design-tokens/v2") UNLESS the
+ * state holds at least one semantic mapping that is a `SemanticValue` object
+ * variant (`{ literal }` / `{ literal: { light, dark } }` / `{ ref }`) — those
+ * can't be represented by v2's number-only `color.semantic` leaf, so the
+ * output is upgraded to `SCHEMA_V3` instead (#462). A state whose semantic
+ * mappings are all plain palette-index integers (the only shape that existed
+ * before #459) always emits byte-identical `SCHEMA_V2` output, unchanged from
+ * pre-#462 behavior.
  *
  * `cfg` defaults to the active (most-recently-configured) instance so the
  * single-default path stays byte-identical. The Export / Apply modals thread
@@ -349,18 +418,18 @@ export function serialize(
   state: TweakState,
   opts: SerializeOptions = {},
   cfg: PanelConfig = getPanelConfig(),
-): DesignTokenJsonV2 {
+): DesignTokenJsonV3 {
   const now = opts.now ? opts.now() : new Date();
-  const out: DesignTokenJsonV2 = {
-    $schema: SCHEMA_V2,
-    exportedAt: now.toISOString(),
-  };
 
-  const tabs: Record<string, V2TabEntry> = {};
+  const tabs: Record<string, V3TabEntry> = {};
+  let needsV3 = false;
 
   // Color tab — keyed under "color".
-  const colorTab = serializeColorV2(state.color, opts, cfg);
-  if (colorTab) tabs['color'] = colorTab;
+  const colorResult = serializeColorTab(state.color, opts, cfg);
+  if (colorResult) {
+    tabs['color'] = colorResult.tab;
+    if (colorResult.usesObjectSemanticLeaf) needsV3 = true;
+  }
 
   // Read items from tabs[] so a host-supplied config drives the diff pass.
   // The internal state slice is named `typography`; the external tab id is
@@ -388,6 +457,11 @@ export function serialize(
     if (genericTab) tabs[tab.id] = genericTab;
   }
 
+  const out: DesignTokenJsonV3 = {
+    $schema: needsV3 ? SCHEMA_V3 : SCHEMA_V2,
+    exportedAt: now.toISOString(),
+  };
+
   if (Object.keys(tabs).length > 0) {
     out.tabs = tabs;
   }
@@ -396,30 +470,35 @@ export function serialize(
 }
 
 /**
- * Serialize a `ColorTweakState` into the v2 `color` tab entry.
+ * Serialize a `ColorTweakState` into the `color` tab entry.
  *
  * `palette` tier: cssVar-keyed map from `resolvePaletteCssVar(cluster, i)` to
  * the hex color string at that index. Only changed slots are emitted in
  * diff-only mode.
  *
  * `semantic` tier: cssVar-keyed map from `semanticCssNames[key]` to the
- * palette-index integer. Only changed entries in diff-only mode.
+ * mapping's external value. Only changed entries in diff-only mode. Index
+ * mappings (`number` / `'bg'` / `'fg'`) resolve to a palette-index integer
+ * exactly as v2 always has; the newer `{ literal }` / `{ ref }` variants are
+ * emitted verbatim as objects (#462) — `usesObjectSemanticLeaf` tells the
+ * caller whether that happened, so `serialize()` knows to upgrade `$schema`
+ * to `SCHEMA_V3`.
  *
- * The legacy `base` / `shikiTheme` fields are NOT emitted in v2; they were
+ * The legacy `base` / `shikiTheme` fields are NOT emitted; they were
  * panel-internal and not needed by AI consumers. They survive through the
  * internal `TweakState` persist envelope and are round-tripped through storage,
  * but are dropped from the external export to keep the format minimal.
  */
-function serializeColorV2(
+function serializeColorTab(
   color: ColorTweakState,
   opts: SerializeOptions,
   cfg: PanelConfig,
-): V2TabEntry | undefined {
+): { tab: V3TabEntry; usesObjectSemanticLeaf: boolean } | undefined {
   const baseline = opts.colorDefaults;
   const full = opts.includeDefaults === true;
   const cluster = getActivePrimaryCluster(cfg);
 
-  const out: V2TabEntry = {};
+  const out: V3TabEntry = {};
   let wrote = false;
 
   // Palette tier — cssVar-keyed.
@@ -437,38 +516,95 @@ function serializeColorV2(
     wrote = true;
   }
 
-  // Semantic tier — cssVar-keyed palette-index integers.
-  // 'bg' and 'fg' are legacy alias values admitted by v1 deserialize; resolve
-  // them to their concrete palette index (mirroring resolveMappingIndex in
-  // build-apply-overrides.ts) so they survive round-trips through the v2 format,
-  // which only admits numbers on deserialize (F29 fix).
-  const semantic: Record<string, number> = {};
+  // Semantic tier — cssVar-keyed. Index mappings ('bg'/'fg' legacy aliases
+  // admitted by v1 deserialize, and plain palette-index numbers) resolve to
+  // their concrete palette index (mirroring resolveMappingIndex in
+  // build-apply-overrides.ts) so they survive round-trips exactly as v2
+  // always has (F29 fix). The newer `{ literal }` / `{ ref }` variants
+  // (#459/#462) can't be resolved to an index — they're written verbatim as
+  // objects, which flips `usesObjectSemanticLeaf` so the caller upgrades
+  // `$schema` to `SCHEMA_V3`.
+  const semantic: Record<string, SemanticExternalValue> = {};
   let semanticWrote = false;
+  let usesObjectSemanticLeaf = false;
   for (const [key, cssName] of Object.entries(cluster.semanticCssNames)) {
     const cur = color.semanticMappings[key];
     if (cur === undefined) continue;
-    const resolvedCur: number =
-      typeof cur === 'number' ? cur : cur === 'bg' ? color.background : color.foreground;
     const baselineVal = baseline?.semanticMappings[key];
-    const resolvedBaseline: number | undefined =
-      baselineVal === undefined
-        ? undefined
-        : typeof baselineVal === 'number'
-          ? baselineVal
-          : baselineVal === 'bg'
-            ? (baseline?.background ?? 0)
-            : (baseline?.foreground ?? 1);
-    if (full || resolvedBaseline === undefined || resolvedCur !== resolvedBaseline) {
-      semantic[cssName] = resolvedCur;
-      semanticWrote = true;
-    }
+    const unchanged =
+      !full &&
+      baselineVal !== undefined &&
+      semanticMappingsEqual(cur, baselineVal, color.background, color.foreground, baseline);
+    if (unchanged) continue;
+    const external = toSemanticExternalValue(cur, color.background, color.foreground);
+    semantic[cssName] = external;
+    semanticWrote = true;
+    if (typeof external !== 'number') usesObjectSemanticLeaf = true;
   }
   if (semanticWrote) {
     out['semantic'] = semantic;
     wrote = true;
   }
 
-  return wrote ? out : undefined;
+  return wrote ? { tab: out, usesObjectSemanticLeaf } : undefined;
+}
+
+/**
+ * Resolve an index-style mapping (`number` / `'bg'` / `'fg'`) to a concrete
+ * palette index, given the state's own background/foreground indices.
+ */
+function resolveIndexMapping(v: number | 'bg' | 'fg', bg: number, fg: number): number {
+  return typeof v === 'number' ? v : v === 'bg' ? bg : fg;
+}
+
+/**
+ * True when `cur` (the current state's mapping) is unchanged from
+ * `baselineVal` for diff-only serialize purposes. Index mappings are compared
+ * by their RESOLVED palette index (so e.g. `'bg'` and a baseline numeric
+ * mapping that happens to equal the current background index are treated as
+ * equal, matching pre-#462 behavior). The `{ literal }` / `{ ref }` variants
+ * have no index to resolve to, so they're compared structurally; a mapping
+ * that changed KIND (index → object or vice versa) is always "changed".
+ */
+function semanticMappingsEqual(
+  cur: SemanticValue,
+  baselineVal: SemanticValue,
+  curBg: number,
+  curFg: number,
+  baseline: ColorTweakState | undefined,
+): boolean {
+  if (isIndexMapping(cur) && isIndexMapping(baselineVal)) {
+    const resolvedBaseline = resolveIndexMapping(
+      baselineVal,
+      baseline?.background ?? 0,
+      baseline?.foreground ?? 1,
+    );
+    return resolveIndexMapping(cur, curBg, curFg) === resolvedBaseline;
+  }
+  if (isIndexMapping(cur) !== isIndexMapping(baselineVal)) return false;
+  // Both are object variants (literal / ref) — compare structurally.
+  return JSON.stringify(cur) === JSON.stringify(baselineVal);
+}
+
+/**
+ * Resolve a `SemanticValue` to its external (JSON-serializable) form. Index
+ * mappings resolve to a concrete palette-index integer (unchanged v2
+ * behavior); the `{ literal }` / `{ ref }` variants pass through verbatim —
+ * they're already plain-JSON-serializable shapes.
+ */
+function toSemanticExternalValue(
+  v: SemanticValue,
+  bg: number,
+  fg: number,
+): SemanticExternalValue {
+  if (isIndexMapping(v)) return resolveIndexMapping(v, bg, fg);
+  if (isPerModeLiteral(v)) return { literal: { light: v.literal.light, dark: v.literal.dark } };
+  if (isLiteralMapping(v)) return { literal: v.literal as string };
+  if (isRefMapping(v)) return { ref: v.ref };
+  // Exhaustive over `SemanticValue`; kept as a safe fallback rather than a
+  // thrown error so a future non-exhaustive addition to the union degrades to
+  // a background-color fallback instead of crashing serialize().
+  return bg;
 }
 
 /**
@@ -510,14 +646,18 @@ function serializeOverridesV2(
 }
 
 // ---------------------------------------------------------------------------
-// Deserialize (accepts v1 and v2)
+// Deserialize (accepts v1, v2, and v3)
 // ---------------------------------------------------------------------------
 
 /**
  * Parse a design-token JSON document and lift it back into a tweak state.
  *
  * Accepted schema values:
- *  - `SCHEMA_V2` ("zudo-design-tokens/v2") — parsed directly.
+ *  - `SCHEMA_V3` ("zudo-design-tokens/v3") — parsed directly; `color.semantic`
+ *    leaves may be a palette-index integer OR a `SemanticValue` object
+ *    variant (#462).
+ *  - `SCHEMA_V2` ("zudo-design-tokens/v2") — parsed directly; `color.semantic`
+ *    leaves are palette-index integers only (unchanged since before #462).
  *  - `SCHEMA_V1` ("zudo-design-tokens/v1") — lifted to equivalent internal
  *    state (one-way migration; v1 is no longer a valid OUTPUT format).
  *  - Any other value (including custom host schema ids) — throws
@@ -551,8 +691,12 @@ export function deserialize(
   if (schema === undefined) {
     throw new DesignTokenSchemaError(
       'schema-missing',
-      `Missing "$schema" key. Expected "${SCHEMA_V2}" or "${SCHEMA_V1}".`,
+      `Missing "$schema" key. Expected "${SCHEMA_V3}", "${SCHEMA_V2}", or "${SCHEMA_V1}".`,
     );
+  }
+
+  if (schema === SCHEMA_V3) {
+    return deserializeV3(obj, opts, cfg);
   }
 
   if (schema === SCHEMA_V2) {
@@ -565,33 +709,35 @@ export function deserialize(
 
   throw new DesignTokenSchemaError(
     'schema-mismatch',
-    `Unsupported "$schema" value: ${JSON.stringify(schema)}. Expected "${SCHEMA_V2}" or "${SCHEMA_V1}".`,
+    `Unsupported "$schema" value: ${JSON.stringify(schema)}. Expected "${SCHEMA_V3}", "${SCHEMA_V2}", or "${SCHEMA_V1}".`,
     schema,
   );
 }
 
-// ---------------------------------------------------------------------------
-// v2 deserialization
-// ---------------------------------------------------------------------------
-
-function deserializeV2(
-  obj: Record<string, unknown>,
-  opts: DeserializeOptions,
-  cfg: PanelConfig,
-): DeserializeResult {
-  const warnings: string[] = [];
-  const unknownTokens: string[] = [];
-  const baseline = opts.colorDefaults ?? neutralColorDefaults(cfg);
-  const cluster = getActivePrimaryCluster(cfg);
-
-  const tabsRaw = obj.tabs && typeof obj.tabs === 'object' && !Array.isArray(obj.tabs)
-    ? (obj.tabs as Record<string, unknown>)
+/** Narrow `obj.tabs` into a plain object, defaulting to `{}` for any other shape. */
+function normalizeTabsRaw(tabs: unknown): Record<string, unknown> {
+  return tabs && typeof tabs === 'object' && !Array.isArray(tabs)
+    ? (tabs as Record<string, unknown>)
     : {};
+}
 
-  // Color tab.
-  const colorTabRaw = tabsRaw['color'];
-  const color = deserializeColorV2(colorTabRaw, baseline, cluster, warnings);
-
+/**
+ * Shared deserialization for every tab EXCEPT `color` — spacing / font / size
+ * and host-coined generic tabs. Identical between v2 and v3 (the widened
+ * `SemanticValue` leaf only affects `color.semantic`), so both
+ * `deserializeV2` and `deserializeV3` call this instead of duplicating it.
+ */
+function deserializeNonColorSlices(
+  tabsRaw: Record<string, unknown>,
+  cfg: PanelConfig,
+  unknownTokens: string[],
+  warnings: string[],
+): {
+  spacing: TokenOverrides;
+  typography: TokenOverrides;
+  size: TokenOverrides;
+  tabsState: Record<string, TabOverrides> | undefined;
+} {
   // Spacing tab (id "spacing").
   const spacingTab = tabsRaw['spacing'];
   const spacingRaw = spacingTab && typeof spacingTab === 'object'
@@ -599,7 +745,7 @@ function deserializeV2(
     : undefined;
   const spacing = deserializeOverridesV2(spacingRaw, getTabItems('spacing', cfg), 'spacing', unknownTokens, warnings);
 
-  // Font tab (id "font" in v2 external, maps to internal "typography").
+  // Font tab (id "font" in external schema, maps to internal "typography").
   const fontTab = tabsRaw['font'];
   const fontRaw = fontTab && typeof fontTab === 'object'
     ? (fontTab as Record<string, unknown>)['raw']
@@ -652,10 +798,201 @@ function deserializeV2(
     }
   }
 
+  return { spacing, typography, size, tabsState };
+}
+
+// ---------------------------------------------------------------------------
+// v2 deserialization
+// ---------------------------------------------------------------------------
+
+function deserializeV2(
+  obj: Record<string, unknown>,
+  opts: DeserializeOptions,
+  cfg: PanelConfig,
+): DeserializeResult {
+  const warnings: string[] = [];
+  const unknownTokens: string[] = [];
+  const baseline = opts.colorDefaults ?? neutralColorDefaults(cfg);
+  const cluster = getActivePrimaryCluster(cfg);
+
+  const tabsRaw = normalizeTabsRaw(obj.tabs);
+
+  // Color tab.
+  const color = deserializeColorV2(tabsRaw['color'], baseline, cluster, warnings);
+
+  const { spacing, typography, size, tabsState } = deserializeNonColorSlices(
+    tabsRaw,
+    cfg,
+    unknownTokens,
+    warnings,
+  );
+
   return {
     state: { color, spacing, typography, size, ...(tabsState ? { tabs: tabsState } : {}) },
     unknownTokens,
     warnings,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// v3 deserialization — same shape as v2, but `color.semantic` leaves may also
+// be a `SemanticValue` object variant (#462).
+// ---------------------------------------------------------------------------
+
+function deserializeV3(
+  obj: Record<string, unknown>,
+  opts: DeserializeOptions,
+  cfg: PanelConfig,
+): DeserializeResult {
+  const warnings: string[] = [];
+  const unknownTokens: string[] = [];
+  const baseline = opts.colorDefaults ?? neutralColorDefaults(cfg);
+  const cluster = getActivePrimaryCluster(cfg);
+
+  const tabsRaw = normalizeTabsRaw(obj.tabs);
+
+  // Color tab — the only slice that differs from v2.
+  const color = deserializeColorV3(tabsRaw['color'], baseline, cluster, warnings);
+
+  const { spacing, typography, size, tabsState } = deserializeNonColorSlices(
+    tabsRaw,
+    cfg,
+    unknownTokens,
+    warnings,
+  );
+
+  return {
+    state: { color, spacing, typography, size, ...(tabsState ? { tabs: tabsState } : {}) },
+    unknownTokens,
+    warnings,
+  };
+}
+
+/**
+ * Parse a single external `color.semantic` leaf value into a `SemanticValue`.
+ * Accepts a plain palette-index `number` (the v2/pre-#462 shape) plus the
+ * `{ literal }` / `{ literal: { light, dark } }` / `{ ref }` object variants
+ * (#462, SCHEMA_V3+). Returns `undefined` for any other shape so the caller
+ * can warn-and-keep-baseline exactly like the other malformed-value paths in
+ * this module.
+ */
+function parseSemanticExternalValue(val: unknown): SemanticValue | undefined {
+  if (typeof val === 'number') return val;
+  if (!val || typeof val !== 'object' || Array.isArray(val)) return undefined;
+
+  const o = val as Record<string, unknown>;
+
+  if ('literal' in o) {
+    const lit = o.literal;
+    if (typeof lit === 'string') return { literal: lit };
+    if (lit && typeof lit === 'object' && !Array.isArray(lit)) {
+      const lo = lit as Record<string, unknown>;
+      if (typeof lo.light === 'string' && typeof lo.dark === 'string') {
+        return { literal: { light: lo.light, dark: lo.dark } };
+      }
+    }
+    return undefined;
+  }
+
+  if ('ref' in o) {
+    const ref = o.ref;
+    if (ref && typeof ref === 'object' && !Array.isArray(ref)) {
+      const ro = ref as Record<string, unknown>;
+      if (typeof ro.tier === 'string' && typeof ro.item === 'string') {
+        return {
+          ref: {
+            tier: ro.tier,
+            item: ro.item,
+            ...(typeof ro.tab === 'string' ? { tab: ro.tab } : {}),
+          },
+        };
+      }
+    }
+    return undefined;
+  }
+
+  return undefined;
+}
+
+/**
+ * Deserialize the `palette` tier shared by v2 and v3 `color` tabs — a
+ * cssVar-keyed map of hex/oklch color strings. Extracted so
+ * `deserializeColorV2` and `deserializeColorV3` don't duplicate it.
+ */
+function deserializePaletteTier(
+  raw: Record<string, unknown>,
+  baseline: ColorTweakState,
+  cluster: ReturnType<typeof getActivePrimaryCluster>,
+): string[] {
+  if (!raw['palette'] || typeof raw['palette'] !== 'object' || Array.isArray(raw['palette'])) {
+    return [...baseline.palette];
+  }
+  const paletteMap = raw['palette'] as Record<string, unknown>;
+  const newPalette = [...baseline.palette];
+  for (let i = 0; i < cluster.paletteSize; i++) {
+    const cssVar = resolvePaletteCssVar(cluster, i);
+    const val = paletteMap[cssVar];
+    if (typeof val === 'string') {
+      // Apply the same seed-time sanitiser (commit 8d54e07): preserve
+      // valid oklch() verbatim and route everything else through
+      // cssColorToHex() so a garbage entry like "18" becomes '#000000'
+      // instead of leaking verbatim into a CSS custom property.
+      newPalette[i] = normalizeSchemePaletteEntry(val);
+    }
+  }
+  return newPalette;
+}
+
+function deserializeColorV3(
+  raw: unknown,
+  baseline: ColorTweakState,
+  cluster: ReturnType<typeof getActivePrimaryCluster>,
+  warnings: string[],
+): ColorTweakState {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    // No color tab — fall back entirely to baseline.
+    return { ...baseline, palette: [...baseline.palette], semanticMappings: { ...baseline.semanticMappings } };
+  }
+
+  const c = raw as Record<string, unknown>;
+  const palette = deserializePaletteTier(c, baseline, cluster);
+
+  // Semantic tier: cssVar-keyed. Accepts a palette-index integer (same as v2)
+  // OR one of the `SemanticValue` object variants (#462) via
+  // `parseSemanticExternalValue`.
+  const semanticMappings: Record<string, SemanticValue> = { ...baseline.semanticMappings };
+  if (c['semantic'] && typeof c['semantic'] === 'object' && !Array.isArray(c['semantic'])) {
+    const semMap = c['semantic'] as Record<string, unknown>;
+    // Build reverse map: cssName → key from cluster.semanticCssNames.
+    const cssNameToKey = new Map<string, string>(
+      Object.entries(cluster.semanticCssNames).map(([k, v]) => [v, k]),
+    );
+    for (const [cssName, val] of Object.entries(semMap)) {
+      const key = cssNameToKey.get(cssName);
+      if (!key) {
+        warnings.push(`color.semantic: unknown cssVar "${cssName}"; skipped.`);
+        continue;
+      }
+      const parsed = parseSemanticExternalValue(val);
+      if (parsed !== undefined) {
+        semanticMappings[key] = parsed;
+      } else {
+        warnings.push(
+          `color.semantic.${cssName} has unsupported value ${JSON.stringify(val)}; kept baseline.`,
+        );
+      }
+    }
+  }
+
+  return {
+    palette,
+    background: baseline.background,
+    foreground: baseline.foreground,
+    cursor: baseline.cursor,
+    selectionBg: baseline.selectionBg,
+    selectionFg: baseline.selectionFg,
+    semanticMappings,
+    shikiTheme: baseline.shikiTheme,
   };
 }
 

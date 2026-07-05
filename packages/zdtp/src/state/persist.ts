@@ -11,6 +11,13 @@
  * Framework-agnostic wrt. the setState function: pass any
  * `(updater) => void` that propagates `updater(prev)` to the caller's state.
  * In practice the panel passes Preact's `setState` from `useState`.
+ *
+ * `persistColor`'s updater is `(prev: ColorTweakState) => ColorTweakState`, so
+ * the widened `ColorTweakState.semanticMappings: Record<string, SemanticValue>`
+ * (#459) — including the `{ literal }` / `{ ref }` object variants added for
+ * #462 — already flows through this hook's generic pass-through unchanged; the
+ * actual validating hydrate/round-trip logic for those variants lives in
+ * `tweak-state.ts` (`hydrateSemanticMappings` / `savePersistedState`), not here.
  */
 
 import { useCallback } from 'preact/hooks';
