@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { resolveColorClusterFromTab } from '../cluster-config';
+import { resolveRefToCssVar } from '../../apply/tier-resolver';
 import type { TabConfig } from '../../tokens/tier-model';
 
 /**
@@ -303,5 +304,73 @@ describe('resolveColorClusterFromTab — semantic default derivation (#463)', ()
     expect(cluster?.paletteCssVarTemplate).toBe('--pal-{n}');
     expect(cluster?.semanticDefaults).toEqual({});
     expect(cluster?.semanticCssNames).toEqual({});
+  });
+});
+
+/**
+ * Cross-tab ramp-reference derivation (#467, S7a). When a `semantic: true` tier
+ * declares `referencesRamps` pointing at a ramp tier in the grouped Palette tab
+ * (a DIFFERENT tab), `resolveColorClusterFromTab(colorTab, tabs)` must derive a
+ * `{ ref: { tab, tier, item } }` that actually names a real ramp item — i.e. one
+ * that `resolveRefToCssVar` can resolve to the ramp item's cssVar.
+ */
+describe('resolveColorClusterFromTab — cross-tab ramp ref derivation (#467)', () => {
+  const PALETTE_TAB: TabConfig = {
+    id: 'palette',
+    label: 'Palette',
+    tiers: [
+      {
+        id: 'base',
+        label: 'Base',
+        items: [
+          { id: 'base-1', cssVar: '--palette-base-1', label: 'Base 1', default: 'oklch(0.98 0 0)', type: { kind: 'color' as const, format: 'oklch' as const } },
+          { id: 'base-2', cssVar: '--palette-base-2', label: 'Base 2', default: 'oklch(0.9 0 0)', type: { kind: 'color' as const, format: 'oklch' as const } },
+          { id: 'base-3', cssVar: '--palette-base-3', label: 'Base 3', default: 'oklch(0.8 0 0)', type: { kind: 'color' as const, format: 'oklch' as const } },
+        ],
+      },
+    ],
+  };
+
+  const COLOR_TAB: TabConfig = {
+    id: 'color',
+    label: 'Color',
+    colorExtras: COLOR_EXTRAS,
+    tiers: [
+      {
+        id: 'semantic',
+        label: 'Semantic',
+        semantic: true,
+        referencesRamps: [{ tab: 'palette', tier: 'base' }],
+        items: [
+          { id: 'surface', cssVar: '--zd-surface', label: 'Surface', default: 'base-3', type: { kind: 'color' as const } },
+        ],
+      },
+    ],
+  };
+
+  it('derives a { ref } naming a real ramp item that resolves cross-tab to its cssVar', () => {
+    const tabs = [COLOR_TAB, PALETTE_TAB];
+    const cluster = resolveColorClusterFromTab(COLOR_TAB, tabs);
+    expect(cluster).toBeDefined();
+    expect(cluster?.paletteSize).toBe(0);
+    expect(cluster?.semanticCssNames).toEqual({ surface: '--zd-surface' });
+    expect(cluster?.semanticDefaults).toEqual({
+      surface: { ref: { tab: 'palette', tier: 'base', item: 'base-3' } },
+    });
+
+    // The derived ref must actually resolve against the Palette tab.
+    const derived = cluster?.semanticDefaults.surface as {
+      ref: { tab?: string; tier: string; item: string };
+    };
+    expect(resolveRefToCssVar(derived.ref, COLOR_TAB, tabs)).toBe('--palette-base-3');
+  });
+
+  it('back-compat: single-arg (lone-tab) call still derives the best-effort ref shape', () => {
+    // Without the Palette tab threaded in, the ref cannot be resolved but the
+    // shape is still produced (validation/throwing is #469's job).
+    const cluster = resolveColorClusterFromTab(COLOR_TAB);
+    expect(cluster?.semanticDefaults).toEqual({
+      surface: { ref: { tab: 'palette', tier: 'base', item: 'base-3' } },
+    });
   });
 });

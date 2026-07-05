@@ -129,6 +129,7 @@ export function resolvePaletteCssVar(
 // ---------------------------------------------------------------------------
 
 import type { TabConfig, TierItem } from '../tokens/tier-model';
+import { resolveRefToCssVar } from '../apply/tier-resolver';
 
 /**
  * True when `value` reads as a literal CSS color (e.g. `#fff`, `oklch(...)`,
@@ -142,27 +143,53 @@ function looksLikeColorLiteral(value: string): boolean {
 }
 
 /**
- * Build a best-effort `{ ref }` `SemanticValue` for a semantic item whose
- * `default` names a ramp item rather than a literal color. Full cross-tab
- * resolution (actually looking up the ramp item's color) is #467/#469's job —
- * this only preserves the ref intent so it isn't silently dropped.
+ * Build a `{ ref }` `SemanticValue` for a semantic item whose `default` names
+ * a ramp item rather than a literal color.
  *
  * Convention: `"tierId:itemId"` picks the matching `referencesRamps` entry by
  * tier id; a bare `"itemId"` (no `:`) assumes the tier's first declared ramp.
+ *
+ * When the panel's full `tabs` array is threaded in (via
+ * `resolveColorClusterFromTab(tab, tabs)`), each candidate ref is checked
+ * against the real ramp tier with `resolveRefToCssVar`, and the first ref that
+ * names an existing ramp item is chosen. This makes the derived ref actually
+ * resolvable cross-tab (the ramp typically lives in the Palette tab). When no
+ * candidate resolves — e.g. a lone-tab caller passing only `[tab]` — the
+ * best-effort shape is returned unchanged; up-front source validation (throwing
+ * on an unresolvable declaration) is #469's job.
  */
 function deriveRampRef(
   defaultId: string,
   referencesRamps: readonly { tab?: string; tier: string }[],
+  currentTab: TabConfig,
+  tabs: readonly TabConfig[],
 ): { ref: { tab?: string; tier: string; item: string } } {
+  const candidates: { tab?: string; tier: string; item: string }[] = [];
+
   const sepIdx = defaultId.indexOf(':');
   if (sepIdx !== -1) {
     const tierId = defaultId.slice(0, sepIdx);
     const itemId = defaultId.slice(sepIdx + 1);
     const match = referencesRamps.find((r) => r.tier === tierId);
-    if (match) return { ref: { tab: match.tab, tier: match.tier, item: itemId } };
+    if (match) candidates.push({ tab: match.tab, tier: match.tier, item: itemId });
   }
+
   const [firstRamp] = referencesRamps;
-  return { ref: { tab: firstRamp.tab, tier: firstRamp.tier, item: defaultId } };
+  candidates.push({ tab: firstRamp.tab, tier: firstRamp.tier, item: defaultId });
+
+  // Prefer the first candidate that resolves against a real ramp item.
+  for (const cand of candidates) {
+    try {
+      resolveRefToCssVar(cand, currentTab, tabs);
+      return { ref: cand };
+    } catch {
+      // Not resolvable against the supplied tabs — try the next candidate.
+    }
+  }
+
+  // Nothing resolved (lone-tab caller / ramp lives in a tab not passed).
+  // Return the best-effort shape; #469 owns up-front validation.
+  return { ref: candidates[0] };
 }
 
 /**
@@ -184,6 +211,8 @@ function deriveSemanticValue(
   item: TierItem,
   paletteIdToIndex: ReadonlyMap<string, number>,
   referencesRamps: readonly { tab?: string; tier: string }[] | undefined,
+  currentTab: TabConfig,
+  tabs: readonly TabConfig[],
 ): SemanticValue {
   const paletteIdx = paletteIdToIndex.get(item.default);
   if (paletteIdx !== undefined) return paletteIdx;
@@ -191,7 +220,7 @@ function deriveSemanticValue(
   if (item.default === 'bg' || item.default === 'fg') return item.default;
 
   if (referencesRamps && referencesRamps.length > 0 && !looksLikeColorLiteral(item.default)) {
-    return deriveRampRef(item.default, referencesRamps);
+    return deriveRampRef(item.default, referencesRamps, currentTab, tabs);
   }
 
   return { literal: item.default };
@@ -221,10 +250,17 @@ function deriveSemanticValue(
  *
  * - Metadata comes from `tab.colorExtras` (required on a color tab).
  *
+ * `tabs` is the panel config's full tabs array, used to resolve a semantic
+ * tier's cross-tab `{ ref }` mappings against a ramp tier living in ANOTHER
+ * tab (typically the grouped Palette tab). It defaults to `[tab]` so an
+ * existing single-argument call still works — intra-tab refs resolve, and a
+ * cross-tab ramp declaration falls back to its best-effort shape (#467).
+ *
  * Returns `undefined` when the tab has no `colorExtras` (not a color tab).
  */
 export function resolveColorClusterFromTab(
   tab: TabConfig,
+  tabs: readonly TabConfig[] = [tab],
 ): ColorClusterDataConfig | undefined {
   const extras = tab.colorExtras;
   if (!extras) return undefined;
@@ -293,6 +329,8 @@ export function resolveColorClusterFromTab(
         item,
         paletteIdToIndex,
         semanticTier.referencesRamps,
+        tab,
+        tabs,
       );
     }
   }
@@ -322,7 +360,7 @@ export function resolvePrimaryColorCluster(
 ): ColorClusterDataConfig | undefined {
   const colorTab = tabs.find((t) => t.id === 'color');
   if (!colorTab) return undefined;
-  return resolveColorClusterFromTab(colorTab);
+  return resolveColorClusterFromTab(colorTab, tabs);
 }
 
 /**
@@ -334,5 +372,5 @@ export function resolveSecondaryColorClusterFromTabs(
 ): ColorClusterDataConfig | null {
   const secondaryTab = tabs.find((t) => t.id === 'color-secondary');
   if (!secondaryTab) return null;
-  return resolveColorClusterFromTab(secondaryTab) ?? null;
+  return resolveColorClusterFromTab(secondaryTab, tabs) ?? null;
 }
