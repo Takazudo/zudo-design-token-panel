@@ -22,6 +22,11 @@
  */
 
 import type { ColorScheme } from './color-schemes';
+import type { SemanticValue } from '../tokens/tier-model';
+
+// Re-exported so callers that only import from `cluster-config` (rather than
+// `tokens/tier-model` or `state/tweak-state`) can still reach the type.
+export type { SemanticValue } from '../tokens/tier-model';
 
 /**
  * Base-role keys that a cluster may declare. Subset is allowed (a cluster may
@@ -76,8 +81,14 @@ export interface ColorClusterDataConfig {
    * `--brand-p{n}`, `--demo-palette-{n}`.
    */
   paletteCssVarTemplate: string;
-  /** Semantic token name → default palette index. */
-  semanticDefaults: Record<string, number>;
+  /**
+   * Semantic token name → default mapping. Historically always a palette
+   * index (`number`); widened to `SemanticValue` (#459) so a default can also
+   * be a literal color or a cross-tab ramp reference. `resolveColorClusterFromTab`
+   * still only ever produces `number` defaults today — the wider variants are
+   * populated by downstream sub-issues (#467/#469).
+   */
+  semanticDefaults: Record<string, SemanticValue>;
   /** Semantic token name → CSS custom-property name. */
   semanticCssNames: Record<string, string>;
   /** Fallback indices used when a scheme doesn't declare a base role. */

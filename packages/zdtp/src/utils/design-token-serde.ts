@@ -72,7 +72,13 @@
  * Read-only manifest tokens are skipped in both directions.
  */
 
-import type { ColorTweakState, TabOverrides, TokenOverrides, TweakState } from '../state/tweak-state';
+import type {
+  ColorTweakState,
+  SemanticValue,
+  TabOverrides,
+  TokenOverrides,
+  TweakState,
+} from '../state/tweak-state';
 import { getActivePrimaryCluster, normalizeSchemePaletteEntry } from '../state/tweak-state';
 import { getPanelConfig, type PanelConfig } from '../config/panel-config';
 import { resolvePaletteCssVar } from '../config/cluster-config';
@@ -685,8 +691,12 @@ function deserializeColorV2(
     palette = newPalette;
   }
 
-  // Semantic tier: cssVar-keyed palette-index integers.
-  const semanticMappings: Record<string, number | 'bg' | 'fg'> = { ...baseline.semanticMappings };
+  // Semantic tier: cssVar-keyed palette-index integers. Only ever populated
+  // with legacy `number` values below (v2 deserialize doesn't admit
+  // `'bg'`/`'fg'` or the newer `SemanticValue` object variants) — typed as
+  // `SemanticValue` because that's `ColorTweakState.semanticMappings`'s type
+  // (#459), and `baseline.semanticMappings` may already carry the wider shape.
+  const semanticMappings: Record<string, SemanticValue> = { ...baseline.semanticMappings };
   if (c['semantic'] && typeof c['semantic'] === 'object' && !Array.isArray(c['semantic'])) {
     const semMap = c['semantic'] as Record<string, unknown>;
     // Build reverse map: cssName → key from cluster.semanticCssNames.
@@ -823,8 +833,11 @@ function deserializeColorV1(
   const selectionFg = numOr(base['sel-fg'], baseline.selectionFg);
 
   // Semantic mappings — merge over baseline so diff-only exports still
-  // produce a complete map.
-  const semanticMappings: Record<string, number | 'bg' | 'fg'> = {
+  // produce a complete map. Typed as `SemanticValue` (not the legacy
+  // `number | 'bg' | 'fg'`) because that's `ColorTweakState.semanticMappings`'s
+  // type (#459); v1 deserialize below still only ever writes `number` or
+  // `'bg'`/`'fg'` into it.
+  const semanticMappings: Record<string, SemanticValue> = {
     ...baseline.semanticMappings,
   };
   if (c.semantic && typeof c.semantic === 'object') {

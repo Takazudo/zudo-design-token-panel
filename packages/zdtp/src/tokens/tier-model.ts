@@ -66,6 +66,31 @@ export interface PillSpec {
 }
 
 // ---------------------------------------------------------------------------
+// Semantic value union (Ramp-native Tier-2 color editor, #459)
+// ---------------------------------------------------------------------------
+
+/**
+ * A semantic token's mapping value.
+ *
+ * Legacy shape stays valid: a palette index (`number`) or the `'bg'` / `'fg'`
+ * sentinel aliases. New variants (added for #459) let a semantic tier point at
+ * an arbitrary literal color (optionally split light/dark) or reference a ramp
+ * item living in another tab/tier — both resolved downstream by #467/#469.
+ *
+ * Defined here (not in `state/tweak-state.ts`) because `config/cluster-config.ts`
+ * needs it for `ColorClusterDataConfig.semanticDefaults`, and cluster-config.ts
+ * already imports types from this module — keeping the definition here avoids
+ * a new type-only import cycle. `state/tweak-state.ts` re-exports it.
+ */
+export type SemanticValue =
+  | number
+  | 'bg'
+  | 'fg'
+  | { literal: string }
+  | { literal: { light: string; dark: string } }
+  | { ref: { tab?: string; tier: string; item: string } };
+
+// ---------------------------------------------------------------------------
 // Tier item
 // ---------------------------------------------------------------------------
 
@@ -91,6 +116,22 @@ export interface TierConfig {
    *  an item in the tier whose id matches referencesTier. The apply pipeline
    *  emits var(--tier1-cssvar). */
   referencesTier?: string;
+  /**
+   * Marks this tier as a SEMANTIC tier (its items hold `SemanticValue`
+   * mappings, not raw palette entries) so the panel never mistakes it for
+   * the palette tier. Optional and additive — omitting it preserves today's
+   * behavior (palette-tier detection stays structural, via
+   * `resolveColorClusterFromTab`'s `kind: 'color'` check).
+   */
+  semantic?: true;
+  /**
+   * Cross-tab ramp-source declaration for a semantic tier: the ramp tier(s)
+   * this tier's `{ ref }` mappings are allowed to point into. Each entry names
+   * a tier id and an optional tab id (omitted `tab` means "this tab").
+   * Reserved here for #467/#469, which wire it into ramp-item resolution and
+   * the Tier-2 editor's item picker; unused until then.
+   */
+  referencesRamps?: readonly { tab?: string; tier: string }[];
 }
 
 // ---------------------------------------------------------------------------

@@ -43,8 +43,10 @@ import { Z } from '../styles/z-index-tokens';
 import type { ColorPickerValueFormat } from '../components/color-picker/color-picker';
 import {
   type ColorTweakState,
+  type SemanticValue,
   applyShikiTheme,
   initColorFromSchemeData,
+  isIndexMapping,
   resolvePaletteCssVar,
 } from '../state/tweak-state';
 import { getPanelConfig } from '../config/panel-config';
@@ -65,6 +67,19 @@ import { useTooltip } from '../controls/tooltip';
 // presets. The Color tab reads the active map at render time below —
 // `presetNames` is no longer a module-level constant computed from a
 // baked-in import.
+
+/**
+ * `PaletteSelector` (below) only understands the legacy index shape — it
+ * renders a palette-slot dropdown, not a literal-color or ramp-ref editor.
+ * `semanticMappings` / `semanticDefaults` were widened to `SemanticValue`
+ * (#459 S1); every value flowing through this tab today is still an index
+ * mapping (the `{ literal }` / `{ ref }` editor UI is downstream work), so
+ * this just narrows the type for `PaletteSelector`'s `value` prop, falling
+ * back to `0` for the not-yet-possible non-index case.
+ */
+function toIndexMappingForSelector(v: SemanticValue): number | 'bg' | 'fg' {
+  return isIndexMapping(v) ? v : 0;
+}
 
 // --- Shared popover helpers (Color-tab scoped) ---
 
@@ -824,7 +839,7 @@ export default function ColorTab({
                   key={key}
                   label={semanticCssVar ?? key}
                   idKey={key}
-                  value={state.semanticMappings[key] ?? defaultVal}
+                  value={toIndexMappingForSelector(state.semanticMappings[key] ?? defaultVal)}
                   palette={state.palette}
                   paletteCssVar={clusterPaletteCssVar}
                   onChange={handleSemanticChange}
@@ -884,7 +899,7 @@ export default function ColorTab({
                       key={key}
                       label={secondarySemanticCssVar ?? key}
                       idKey={key}
-                      value={secondaryState.semanticMappings[key] ?? defaultVal}
+                      value={toIndexMappingForSelector(secondaryState.semanticMappings[key] ?? defaultVal)}
                       palette={secondaryState.palette}
                       paletteCssVar={secondaryPaletteCssVar}
                       onChange={handleSecondarySemanticChange}
