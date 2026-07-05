@@ -938,7 +938,12 @@ function assertValidTabs(tabs: unknown): void {
       );
     }
     tabIds.add(t.id);
-    assertValidTab(t.id, t);
+    // Pass the full (raw, untyped) tabs array down so a tab can validate
+    // cross-tab references (S8, #469) against sibling tabs — including
+    // siblings that appear later in the array and have not been validated
+    // yet themselves. assertValidTab only reads shape (id/tiers/items) from
+    // those siblings defensively; it never assumes they are fully valid.
+    assertValidTab(t.id, t, tabs as unknown[]);
   }
 }
 
@@ -947,8 +952,12 @@ function assertValidTabs(tabs: unknown): void {
  * Checks tier-id uniqueness, item-id uniqueness across all tiers, cssVar
  * format, referencesTier existence (the referenced tier id must exist), and
  * cross-tier kind compatibility (Option 2-a narrowed guard — see below).
+ *
+ * `allTabs` is the raw, untyped `PanelConfig.tabs` array (every tab, including
+ * this one) — needed to validate cross-tab `referencesRamps` sources (S8,
+ * #469), which name a sibling tab by id.
  */
-function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
+function assertValidTab(tabId: string, tab: Record<string, unknown>, allTabs: unknown[]): void {
   if (!Array.isArray(tab.tiers)) {
     throw new Error(
       `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers must be an array`,
@@ -1099,6 +1108,135 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
         throw new Error(
           `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].referencesTier: referencing tier has kind "${referencingKind}" but referenced tier "${refId}" has kind "${referencedKind}" (cross-kind reference is only allowed when the referencing tier has kind "text")`,
         );
+      }
+    }
+  }
+
+  // Rule: referencesRamps integrity (S8, #469) — a `semantic: true` tier's
+  // cross-tab ramp-source declaration must name an EXISTING tab (cross-tab;
+  // an omitted `tab` means "this tab") and an existing tier within it.
+  //
+  // This is a DIFFERENT mechanism from the same-tab `referencesTier` guard
+  // above: `referencesTier` names one tier a whole tier's items resolve
+  // against by id; `referencesRamps` is a tier-level allow-list of ramp
+  // SOURCES that per-row `{ ref: { tab?, tier, item } }` VALUES (see
+  // `SemanticValue` in `tokens/tier-model.ts`) are permitted to point into.
+  // Per-row `{ ref }` values are resolved (and validated against actual
+  // items) at apply time by `resolveRefToCssVar` in `apply/tier-resolver.ts`
+  // — this block only validates the declared sources, not every row.
+  for (const tier of tab.tiers) {
+    const ti = tier as Record<string, unknown>;
+    const tierId = ti.id as string;
+    if (ti.referencesRamps === undefined) continue;
+    if (ti.semantic !== true) {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].referencesRamps is only valid on a tier with semantic: true`,
+      );
+    }
+    if (!Array.isArray(ti.referencesRamps)) {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].referencesRamps must be an array`,
+      );
+    }
+    // Representative kind of THIS semantic tier, for the best-effort
+    // cross-kind compatibility check below (reuses the same tierKinds map
+    // built during the item loop earlier in this function).
+    const referencingKind = tierKinds.get(tierId);
+    const sources = ti.referencesRamps as unknown[];
+    for (let i = 0; i < sources.length; i++) {
+      const src = sources[i];
+      if (src === null || typeof src !== 'object' || Array.isArray(src)) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].referencesRamps[${i}] must be a non-null object`,
+        );
+      }
+      const s = src as Record<string, unknown>;
+      if (typeof s.tier !== 'string' || s.tier.length === 0) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].referencesRamps[${i}].tier must be a non-empty string`,
+        );
+      }
+      if (s.tab !== undefined && (typeof s.tab !== 'string' || s.tab.length === 0)) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].referencesRamps[${i}].tab must be a non-empty string when set`,
+        );
+      }
+      // Resolve the source tab: omitted (or equal to this tab's id) means
+      // "this tab" — mirrors resolveRefToCssVar's `ref.tab === undefined ||
+      // ref.tab === currentTab.id` rule in apply/tier-resolver.ts, so the
+      // declared allow-list stays in lockstep with actual row resolution.
+      const targetTabId = s.tab === undefined ? tabId : s.tab;
+      let targetTabRaw: Record<string, unknown>;
+      if (targetTabId === tabId) {
+        targetTabRaw = tab;
+      } else {
+        const found = allTabs.find(
+          (t) =>
+            t !== null &&
+            typeof t === 'object' &&
+            !Array.isArray(t) &&
+            (t as Record<string, unknown>).id === targetTabId,
+        );
+        if (!found) {
+          const availableTabs = allTabs
+            .filter((t) => t !== null && typeof t === 'object' && !Array.isArray(t))
+            .map((t) => (t as Record<string, unknown>).id)
+            .join(', ');
+          throw new Error(
+            `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].referencesRamps[${i}]: tab "${targetTabId}" does not exist. Available tabs: ${availableTabs}.`,
+          );
+        }
+        targetTabRaw = found as Record<string, unknown>;
+      }
+
+      // Find the target tier within the target tab. The target tab may be a
+      // sibling that has not gone through its own assertValidTab call yet
+      // (it can appear later in `allTabs`), so this reads its raw shape
+      // defensively instead of assuming full validity.
+      const targetTiers = Array.isArray(targetTabRaw.tiers)
+        ? (targetTabRaw.tiers as unknown[])
+        : [];
+      const targetTierIds: string[] = [];
+      let targetTierRaw: Record<string, unknown> | undefined;
+      for (const tt of targetTiers) {
+        if (tt === null || typeof tt !== 'object' || Array.isArray(tt)) continue;
+        const ttObj = tt as Record<string, unknown>;
+        if (typeof ttObj.id !== 'string') continue;
+        targetTierIds.push(ttObj.id);
+        if (ttObj.id === s.tier) targetTierRaw = ttObj;
+      }
+      if (!targetTierRaw) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].referencesRamps[${i}]: tier "${s.tier}" does not exist in tab "${targetTabId}". Available tiers: ${targetTierIds.join(', ')}.`,
+        );
+      }
+
+      // Best-effort cross-tab kind compatibility: a color semantic tier
+      // should reference color-kind ramp tiers, etc. Compute the target
+      // tier's representative kind directly from its raw items (the
+      // per-tab tierKinds map built earlier only covers THIS tab). Skip
+      // when either kind is unknown (empty tier, missing type.kind) to stay
+      // permissive — same precedent as the same-tab referencesTier guard.
+      if (referencingKind !== undefined) {
+        const targetItems = Array.isArray(targetTierRaw.items)
+          ? (targetTierRaw.items as unknown[])
+          : [];
+        let targetKind: string | undefined;
+        for (const rawItem of targetItems) {
+          if (rawItem === null || typeof rawItem !== 'object' || Array.isArray(rawItem)) continue;
+          const typeObj = (rawItem as Record<string, unknown>).type;
+          if (typeObj === null || typeof typeObj !== 'object' || Array.isArray(typeObj)) continue;
+          const kind = (typeObj as Record<string, unknown>).kind;
+          if (typeof kind === 'string') {
+            targetKind = kind;
+            break;
+          }
+        }
+        if (targetKind !== undefined && referencingKind !== targetKind) {
+          throw new Error(
+            `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].referencesRamps[${i}]: referencing semantic tier has kind "${referencingKind}" but target tier "${s.tier}" in tab "${targetTabId}" has kind "${targetKind}" (cross-tab ramp sources must share the semantic tier's kind)`,
+          );
+        }
       }
     }
   }
