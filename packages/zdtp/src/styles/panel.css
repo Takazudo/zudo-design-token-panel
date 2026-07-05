@@ -1105,6 +1105,33 @@ select.tokenpanel-tier-ref-select:focus-visible {
 }
 
 /* ===========================================================================
+ * Per-mode (light/dark) literal editor — S12, #473
+ *
+ * The "Per-mode" checkbox and the light/dark `ColorField` pair it reveals,
+ * shared by `SemanticLiteralRow` (tabs/color-tab.tsx) and the grouped
+ * ref-or-literal editor (controls/tier-ref-selector.tsx).
+ * ========================================================================= */
+
+.tokenpanel-per-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.tokenpanel-per-mode-fields {
+  display: flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-sm);
+  flex-wrap: wrap;
+}
+
+/* ===========================================================================
  * Tab role-button + tier headings (#148)
  *
  * These rules were added as part of the semantic-tag replacement in #148.

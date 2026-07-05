@@ -46,12 +46,13 @@ import {
   type ColorTweakState,
   type SemanticValue,
   applyShikiTheme,
+  getClusterDefaultMode,
   initColorFromSchemeData,
   isIndexMapping,
   isLiteralMapping,
-  isPerModeLiteral,
   isRefMapping,
   resolvePaletteCssVar,
+  resolvePerModeLiteral,
 } from '../state/tweak-state';
 import { getPanelConfig } from '../config/panel-config';
 import { resolveColorClusterFromTab } from '../config/cluster-config';
@@ -81,13 +82,13 @@ import TierRefSelector, {
  * `PaletteSelector` (below) only understands the legacy index shape — it
  * renders a palette-slot dropdown, not a literal-color or ramp-ref editor.
  * `semanticMappings` / `semanticDefaults` were widened to `SemanticValue`
- * (#459 S1). Single-mode `{ literal: string }` values render through
- * `SemanticLiteralRow` (S3, #464); `{ ref }` and single-mode `{ literal }`
- * values on a tier that declares `referencesRamps` render through the
- * grouped ref-or-literal `TierRefSelector` (S9, #470) — see the Semantic
- * Tokens section below. This helper is only reached for plain index
- * mappings and per-mode `{ literal: { light, dark } }` (#472), which still
- * fall back to `0` until its dedicated editor lands.
+ * (#459 S1). Every `{ literal }` variant — single-mode `{ literal: string }`
+ * AND per-mode `{ literal: { light, dark } }` (#472) — renders through
+ * `SemanticLiteralRow` (S3 #464 / S12 #473); `{ ref }` and any `{ literal }`
+ * on a tier that declares `referencesRamps` render through the grouped
+ * ref-or-literal `TierRefSelector` (S9 #470 / S12 #473) instead — see the
+ * Semantic Tokens section below. This helper is only reached for plain
+ * index mappings now.
  */
 function toIndexMappingForSelector(v: SemanticValue): number | 'bg' | 'fg' {
   return isIndexMapping(v) ? v : 0;
@@ -570,25 +571,30 @@ const PaletteSelector = memo(function PaletteSelector({
 });
 
 /**
- * Semantic-token row for a single-mode `{ literal: string }` mapping (S3,
- * #464): an editable OKLCH `ColorField` swatch instead of `PaletteSelector`'s
- * palette-index dropdown — the value is a standalone color, not a slot into
+ * Semantic-token row for a `{ literal: string }` OR per-mode
+ * `{ literal: { light, dark } }` mapping (S3 #464 / S12 #473): an editable
+ * OKLCH `ColorField` swatch instead of `PaletteSelector`'s palette-index
+ * dropdown — the value is a standalone color, not a slot into
  * `state.palette`, so there is no palette to pick from. Mirrors the
  * `.tokenpanel-row` layout used by `generic-tab.tsx`'s own `format: 'oklch'`
  * color rows (`TokenLabel` + `ColorField` + eye toggle) for visual
  * consistency across the panel.
+ *
+ * A "Per-mode" checkbox (`<label><input type="checkbox">`, both permitted by
+ * the panel DOM-hygiene policy) switches between a single `ColorField` and a
+ * light/dark pair, each edited independently via its own `ColorField`.
+ * Checking it seeds both sides from the current single value; unchecking it
+ * collapses back to one value — the cluster's `defaultMode` side, via
+ * `resolvePerModeLiteral` (#472's runtime helper for exactly this).
  *
  * `onChange` is `(idKey, value)` — same stable-callback shape as
  * `PaletteSelector` / `ColorSwatch` above, so a single handler covers every
  * row and `memo` stays effective.
  *
  * Only reached for a tier with NO `referencesRamps` declared — a tier that
- * does declare ramp sources renders `SemanticRefOrLiteralRow` instead (S9,
- * #470), even for its literal-mode rows, so the user can switch back to a
- * ramp reference. Per-mode (`{ literal: { light, dark } }`, #472) semantic
- * values are NOT handled here — they still fall through to `PaletteSelector`
- * via `toIndexMappingForSelector`'s `0` fallback until their dedicated
- * editor lands.
+ * does declare ramp sources renders `SemanticRefOrLiteralRow` instead (S9
+ * #470 / S12 #473), even for its literal-mode rows, so the user can switch
+ * back to a ramp reference.
  */
 const SemanticLiteralRow = memo(function SemanticLiteralRow({
   label,
@@ -596,24 +602,92 @@ const SemanticLiteralRow = memo(function SemanticLiteralRow({
   value,
   onChange,
   cssVar,
+  defaultMode = 'light',
 }: {
   label: string;
   idKey: string;
-  value: string;
-  onChange: (idKey: string, val: string) => void;
+  value: { literal: string } | { literal: { light: string; dark: string } };
+  onChange: (
+    idKey: string,
+    val: { literal: string } | { literal: { light: string; dark: string } },
+  ) => void;
   cssVar?: string;
+  /** The cluster's `getClusterDefaultMode()` result (#472) — the side kept
+   *  when the user unchecks "Per-mode". Defaults to `'light'`. */
+  defaultMode?: 'light' | 'dark';
 }) {
-  const handleChange = useCallback((next: string) => onChange(idKey, next), [onChange, idKey]);
+  const isPerMode = typeof value.literal === 'object' && value.literal !== null;
+
+  const handleTogglePerMode = useCallback(() => {
+    const current = value.literal;
+    if (typeof current === 'object' && current !== null) {
+      onChange(idKey, { literal: resolvePerModeLiteral({ literal: current }, defaultMode) });
+    } else {
+      onChange(idKey, { literal: { light: current, dark: current } });
+    }
+  }, [value, defaultMode, onChange, idKey]);
+
+  const handleSingleChange = useCallback(
+    (next: string) => onChange(idKey, { literal: next }),
+    [onChange, idKey],
+  );
+
+  const handleLightChange = useCallback(
+    (next: string) => {
+      const current = value.literal;
+      if (typeof current !== 'object' || current === null) return;
+      onChange(idKey, { literal: { light: next, dark: current.dark } });
+    },
+    [value, onChange, idKey],
+  );
+
+  const handleDarkChange = useCallback(
+    (next: string) => {
+      const current = value.literal;
+      if (typeof current !== 'object' || current === null) return;
+      onChange(idKey, { literal: { light: current.light, dark: next } });
+    },
+    [value, onChange, idKey],
+  );
+
   return (
     <div className="tokenpanel-row" data-testid={`tokenpanel-semantic-literal-${idKey}`}>
       <TokenLabel cssVar={cssVar ?? idKey} label={label} />
-      <ColorField
-        value={value}
-        onChange={handleChange}
-        valueFormat="oklch"
-        label={label}
-        cssVar={cssVar}
-      />
+      <label className="tokenpanel-per-mode-toggle">
+        <input
+          type="checkbox"
+          checked={isPerMode}
+          onChange={handleTogglePerMode}
+          aria-label={`${label} per-mode (light/dark)`}
+        />
+        Per-mode
+      </label>
+      {typeof value.literal === 'object' && value.literal !== null ? (
+        <div className="tokenpanel-per-mode-fields">
+          <ColorField
+            value={value.literal.light}
+            onChange={handleLightChange}
+            valueFormat="oklch"
+            label={`${label} (Light)`}
+            cssVar={cssVar}
+          />
+          <ColorField
+            value={value.literal.dark}
+            onChange={handleDarkChange}
+            valueFormat="oklch"
+            label={`${label} (Dark)`}
+            cssVar={cssVar}
+          />
+        </div>
+      ) : (
+        <ColorField
+          value={value.literal}
+          onChange={handleSingleChange}
+          valueFormat="oklch"
+          label={label}
+          cssVar={cssVar}
+        />
+      )}
       {cssVar && <HighlightToggleButton cssVar={cssVar} />}
     </div>
   );
@@ -641,6 +715,7 @@ const SemanticRefOrLiteralRow = memo(function SemanticRefOrLiteralRow({
   onChange,
   previewValueFor,
   cssVar,
+  defaultMode,
 }: {
   label: string;
   idKey: string;
@@ -651,6 +726,9 @@ const SemanticRefOrLiteralRow = memo(function SemanticRefOrLiteralRow({
   onChange: (idKey: string, next: TierRefSelectorValue) => void;
   previewValueFor: (ref: TierRefTarget) => string;
   cssVar?: string;
+  /** The cluster's `getClusterDefaultMode()` result (#472) — forwarded to
+   *  `TierRefSelector` for its per-mode collapse-to-single-mode fallback. */
+  defaultMode?: 'light' | 'dark';
 }) {
   return (
     <div className="tokenpanel-row" data-testid={`tokenpanel-semantic-ref-${idKey}`}>
@@ -665,6 +743,7 @@ const SemanticRefOrLiteralRow = memo(function SemanticRefOrLiteralRow({
         previewValueFor={previewValueFor}
         label={label}
         cssVar={cssVar}
+        defaultMode={defaultMode}
       />
       {cssVar && <HighlightToggleButton cssVar={cssVar} />}
     </div>
@@ -745,6 +824,15 @@ export default function ColorTab({
   const secondaryCluster = useMemo(
     () => (secondaryTab ? resolveColorClusterFromTab(secondaryTab, allTabs) ?? null : null),
     [secondaryTab, allTabs],
+  );
+  // Each cluster's configured default light/dark mode (#472) — the side a
+  // per-mode literal collapses to when the user unchecks "Per-mode" (S12,
+  // #473). Secondary falls back to 'light' (matching `getClusterDefaultMode`'s
+  // own default) when there's no secondary cluster at all.
+  const primaryDefaultMode = useMemo(() => getClusterDefaultMode(safeCluster), [safeCluster]);
+  const secondaryDefaultMode = useMemo(
+    () => (secondaryCluster ? getClusterDefaultMode(secondaryCluster) : 'light'),
+    [secondaryCluster],
   );
   // Host-supplied preset list. Read through the panel
   // config so a host that calls `configurePanel({ ..., colorPresets })`
@@ -833,14 +921,15 @@ export default function ColorTab({
     [persistSecondary],
   );
 
-  // Secondary-cluster counterpart to `handleSemanticLiteralChange` (S3, #464).
+  // Secondary-cluster counterpart to `handleSemanticLiteralChange` (S3 #464 /
+  // S12 #473) — `val` already carries the full `{ literal: ... }` wrapper.
   const handleSecondarySemanticLiteralChange = useCallback(
-    (key: string, val: string) => {
+    (key: string, val: { literal: string } | { literal: { light: string; dark: string } }) => {
       persistSecondary((prev) => {
         if (!prev) return prev;
         return {
           ...prev,
-          semanticMappings: { ...prev.semanticMappings, [key]: { literal: val } },
+          semanticMappings: { ...prev.semanticMappings, [key]: val },
         };
       });
     },
@@ -854,11 +943,15 @@ export default function ColorTab({
     (key: string, next: TierRefSelectorValue) => {
       persistSecondary((prev) => {
         if (!prev) return prev;
+        // `next` is returned as-is in the literal branch (not rebuilt as
+        // `{ literal: next.literal }`) — reconstructing collapses the
+        // `string | { light, dark }` union into one shape TS can't match
+        // back to `SemanticValue`'s two distinct `{ literal }` members.
         return {
           ...prev,
           semanticMappings: {
             ...prev.semanticMappings,
-            [key]: 'ref' in next ? { ref: next.ref } : { literal: next.literal },
+            [key]: 'ref' in next ? { ref: next.ref } : next,
           },
         };
       });
@@ -898,13 +991,16 @@ export default function ColorTab({
     [persistColor],
   );
 
-  // Writes a `{ literal: <value> }` SemanticValue (S3, #464) — the
-  // `SemanticLiteralRow` counterpart to `handleSemanticChange`'s index write.
+  // Writes a `{ literal }` SemanticValue — single-mode `string` or per-mode
+  // `{ light, dark }` (S3 #464 / S12 #473) — the `SemanticLiteralRow`
+  // counterpart to `handleSemanticChange`'s index write. `val` already
+  // carries the full `{ literal: ... }` wrapper (mirroring
+  // `handleSemanticRefOrLiteralChange` below), so no re-wrapping is needed.
   const handleSemanticLiteralChange = useCallback(
-    (key: string, val: string) => {
+    (key: string, val: { literal: string } | { literal: { light: string; dark: string } }) => {
       persistColor((prev) => ({
         ...prev,
-        semanticMappings: { ...prev.semanticMappings, [key]: { literal: val } },
+        semanticMappings: { ...prev.semanticMappings, [key]: val },
       }));
     },
     [persistColor],
@@ -917,9 +1013,12 @@ export default function ColorTab({
     (key: string, next: TierRefSelectorValue) => {
       persistColor((prev) => ({
         ...prev,
+        // `next` is returned as-is in the literal branch — see the secondary
+        // counterpart above for why reconstructing `{ literal: next.literal }`
+        // does not typecheck.
         semanticMappings: {
           ...prev.semanticMappings,
-          [key]: 'ref' in next ? { ref: next.ref } : { literal: next.literal },
+          [key]: 'ref' in next ? { ref: next.ref } : next,
         },
       }));
     },
@@ -1072,22 +1171,26 @@ export default function ColorTab({
               const semanticCssVar = safeCluster.semanticCssNames[key];
               const mapping = state.semanticMappings[key] ?? defaultVal;
               // A tier that declares `referencesRamps` routes both its ref
-              // and single-mode-literal values through the grouped
-              // ref-or-literal picker (S9, #470), so the user can switch
-              // between a cross-tab ramp reference and an arbitrary OKLCH
-              // literal. Per-mode `{ literal: { light, dark } }` (#472)
-              // isn't handled by that picker yet, so it still falls through
-              // to `PaletteSelector` below regardless of `referencesRamps`.
+              // and literal values — single-mode AND per-mode
+              // `{ literal: { light, dark } }` (#472) alike — through the
+              // grouped ref-or-literal picker (S9 #470 / S12 #473), so the
+              // user can switch between a cross-tab ramp reference and an
+              // arbitrary OKLCH literal (optionally split light/dark).
               const semanticTier = findSemanticTier(tab, key);
               const rampSources = semanticTier?.referencesRamps;
               if (
                 rampSources &&
                 rampSources.length > 0 &&
-                (isRefMapping(mapping) || (isLiteralMapping(mapping) && !isPerModeLiteral(mapping)))
+                (isRefMapping(mapping) || isLiteralMapping(mapping))
               ) {
+                // `mapping` is passed through as-is in the literal branch —
+                // rebuilding `{ literal: mapping.literal }` collapses the
+                // `string | { light, dark }` union into a shape TS can't
+                // match back to `TierRefSelectorValue`'s two `{ literal }`
+                // members.
                 const tierRefValue: TierRefSelectorValue = isRefMapping(mapping)
                   ? { ref: mapping.ref }
-                  : { literal: mapping.literal as string };
+                  : mapping;
                 return (
                   <SemanticRefOrLiteralRow
                     key={key}
@@ -1100,22 +1203,25 @@ export default function ColorTab({
                     onChange={handleSemanticRefOrLiteralChange}
                     previewValueFor={previewRampValue}
                     cssVar={semanticCssVar}
+                    defaultMode={primaryDefaultMode}
                   />
                 );
               }
-              // Single-mode `{ literal: string }` (on a tier with NO
-              // `referencesRamps`) renders an editable OKLCH swatch (S3,
-              // #464) instead of a palette-index dropdown — it has no
-              // palette slot to reference.
-              if (isLiteralMapping(mapping) && typeof mapping.literal === 'string') {
+              // Any `{ literal }` mapping (on a tier with NO
+              // `referencesRamps`) — single-mode string OR per-mode
+              // `{ light, dark }` (S12, #473) — renders an editable OKLCH
+              // swatch (S3, #464) instead of a palette-index dropdown; it has
+              // no palette slot to reference.
+              if (isLiteralMapping(mapping)) {
                 return (
                   <SemanticLiteralRow
                     key={key}
                     label={semanticCssVar ?? key}
                     idKey={key}
-                    value={mapping.literal}
+                    value={mapping}
                     onChange={handleSemanticLiteralChange}
                     cssVar={semanticCssVar}
+                    defaultMode={primaryDefaultMode}
                   />
                 );
               }
@@ -1186,12 +1292,13 @@ export default function ColorTab({
                   if (
                     secondaryRampSources &&
                     secondaryRampSources.length > 0 &&
-                    (isRefMapping(secondaryMapping) ||
-                      (isLiteralMapping(secondaryMapping) && !isPerModeLiteral(secondaryMapping)))
+                    (isRefMapping(secondaryMapping) || isLiteralMapping(secondaryMapping))
                   ) {
+                    // See the primary section's `tierRefValue` above for why
+                    // `secondaryMapping` is passed through as-is here.
                     const secondaryTierRefValue: TierRefSelectorValue = isRefMapping(secondaryMapping)
                       ? { ref: secondaryMapping.ref }
-                      : { literal: secondaryMapping.literal as string };
+                      : secondaryMapping;
                     return (
                       <SemanticRefOrLiteralRow
                         key={key}
@@ -1204,21 +1311,20 @@ export default function ColorTab({
                         onChange={handleSecondarySemanticRefOrLiteralChange}
                         previewValueFor={secondaryPreviewRampValue!}
                         cssVar={secondarySemanticCssVar}
+                        defaultMode={secondaryDefaultMode}
                       />
                     );
                   }
-                  if (
-                    isLiteralMapping(secondaryMapping) &&
-                    typeof secondaryMapping.literal === 'string'
-                  ) {
+                  if (isLiteralMapping(secondaryMapping)) {
                     return (
                       <SemanticLiteralRow
                         key={key}
                         label={secondarySemanticCssVar ?? key}
                         idKey={key}
-                        value={secondaryMapping.literal}
+                        value={secondaryMapping}
                         onChange={handleSecondarySemanticLiteralChange}
                         cssVar={secondarySemanticCssVar}
+                        defaultMode={secondaryDefaultMode}
                       />
                     );
                   }

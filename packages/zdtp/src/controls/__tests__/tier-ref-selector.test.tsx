@@ -187,6 +187,7 @@ function renderGroupedSelector(
   value: TierRefSelectorValue,
   onChange: (itemId: string, next: TierRefSelectorValue) => void,
   previewValueFor: (ref: TierRefTarget) => string = rampPreviewValueFor,
+  defaultMode?: 'light' | 'dark',
 ) {
   act(() => {
     render(
@@ -200,9 +201,18 @@ function renderGroupedSelector(
         previewValueFor={previewValueFor}
         label="Surface"
         cssVar="--zd-surface"
+        defaultMode={defaultMode}
       />,
       container,
     );
+  });
+}
+
+/** Fire a native change event on a checkbox, toggling its checked state. */
+function fireCheckboxToggle(checkbox: HTMLInputElement, checked: boolean) {
+  act(() => {
+    checkbox.checked = checked;
+    checkbox.dispatchEvent(new Event('change', { bubbles: true }));
   });
 }
 
@@ -434,7 +444,144 @@ describe('TierRefSelector — grouped ref-or-literal mode', () => {
 });
 
 // ===========================================================================
-// 3. DOM hygiene (CLAUDE.md panel policy)
+// 3. Per-mode (light/dark) literal editor (S12, #473)
+// ===========================================================================
+
+describe('TierRefSelector — per-mode literal editor', () => {
+  it('renders a "Per-mode" checkbox alongside a single-mode literal, unchecked', () => {
+    renderGroupedSelector({ literal: 'oklch(0.5 0.1 200)' }, vi.fn());
+    const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    expect(checkbox).not.toBeNull();
+    expect(checkbox.checked).toBe(false);
+    // Still exactly one editable swatch (single-mode).
+    expect(container.querySelectorAll('[data-testid="color-field-swatch"]').length).toBe(1);
+  });
+
+  it('renders two ColorField swatches (Light / Dark), checkbox checked, for a per-mode value', () => {
+    renderGroupedSelector({ literal: { light: 'oklch(0.9 0 0)', dark: 'oklch(0.2 0 0)' } }, vi.fn());
+    const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
+    expect(container.querySelectorAll('[data-testid="color-field-swatch"]').length).toBe(2);
+    expect(
+      container.querySelector('[aria-label="Surface (Light): --zd-surface"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[aria-label="Surface (Dark): --zd-surface"]'),
+    ).not.toBeNull();
+  });
+
+  it('checking "Per-mode" on a single-mode literal seeds both sides from the current value', () => {
+    const onChange = vi.fn();
+    renderGroupedSelector({ literal: 'oklch(0.5 0.1 200)' }, onChange);
+
+    const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    fireCheckboxToggle(checkbox, true);
+
+    expect(onChange).toHaveBeenCalledWith('surface', {
+      literal: { light: 'oklch(0.5 0.1 200)', dark: 'oklch(0.5 0.1 200)' },
+    });
+  });
+
+  it('unchecking "Per-mode" collapses to the light side by default (defaultMode="light")', () => {
+    const onChange = vi.fn();
+    renderGroupedSelector(
+      { literal: { light: 'oklch(0.9 0 0)', dark: 'oklch(0.2 0 0)' } },
+      onChange,
+    );
+
+    const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    fireCheckboxToggle(checkbox, false);
+
+    expect(onChange).toHaveBeenCalledWith('surface', { literal: 'oklch(0.9 0 0)' });
+  });
+
+  it('unchecking "Per-mode" collapses to the dark side when defaultMode="dark"', () => {
+    const onChange = vi.fn();
+    renderGroupedSelector(
+      { literal: { light: 'oklch(0.9 0 0)', dark: 'oklch(0.2 0 0)' } },
+      onChange,
+      undefined,
+      'dark',
+    );
+
+    const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    fireCheckboxToggle(checkbox, false);
+
+    expect(onChange).toHaveBeenCalledWith('surface', { literal: 'oklch(0.2 0 0)' });
+  });
+
+  describe('editing the light/dark swatches independently', () => {
+    beforeEach(() => {
+      localStorage.setItem('tokenpanel.colorPicker.mode', 'oklch');
+    });
+    afterEach(() => {
+      localStorage.removeItem('tokenpanel.colorPicker.mode');
+    });
+
+    it('editing the Light swatch updates only the light side, leaving dark untouched', () => {
+      const onChange = vi.fn();
+      renderGroupedSelector(
+        { literal: { light: 'oklch(0.5 0.1 200)', dark: 'oklch(0.3 0.1 200)' } },
+        onChange,
+      );
+
+      const lightSwatch = container.querySelector(
+        '[aria-label="Surface (Light): --zd-surface"]',
+      ) as HTMLElement;
+      act(() => lightSwatch.click());
+      const slider = container.querySelector('[role="dialog"] [role="slider"]') as HTMLElement;
+      expect(slider).not.toBeNull();
+      act(() => {
+        slider.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+      });
+
+      expect(onChange).toHaveBeenCalled();
+      const [itemId, next] = onChange.mock.calls.at(-1)!;
+      expect(itemId).toBe('surface');
+      expect(next).toEqual({
+        literal: { light: expect.stringMatching(/^oklch\(/), dark: 'oklch(0.3 0.1 200)' },
+      });
+    });
+
+    it('editing the Dark swatch updates only the dark side, leaving light untouched', () => {
+      const onChange = vi.fn();
+      renderGroupedSelector(
+        { literal: { light: 'oklch(0.5 0.1 200)', dark: 'oklch(0.3 0.1 200)' } },
+        onChange,
+      );
+
+      const darkSwatch = container.querySelector(
+        '[aria-label="Surface (Dark): --zd-surface"]',
+      ) as HTMLElement;
+      act(() => darkSwatch.click());
+      const slider = container.querySelector('[role="dialog"] [role="slider"]') as HTMLElement;
+      expect(slider).not.toBeNull();
+      act(() => {
+        slider.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+      });
+
+      expect(onChange).toHaveBeenCalled();
+      const [itemId, next] = onChange.mock.calls.at(-1)!;
+      expect(itemId).toBe('surface');
+      expect(next).toEqual({
+        literal: { light: 'oklch(0.5 0.1 200)', dark: expect.stringMatching(/^oklch\(/) },
+      });
+    });
+  });
+
+  it('a ref-mode row (no literal value) shows no "Per-mode" checkbox', () => {
+    renderGroupedSelector({ ref: { tab: 'palette', tier: 'base', item: 'base-3' } }, vi.fn());
+    expect(container.querySelector('input[type="checkbox"]')).toBeNull();
+  });
+
+  it('flat/intra-tab mode never shows a "Per-mode" checkbox (grouped-only feature)', () => {
+    renderFlatSelector({ literal: 'whatever' }, vi.fn());
+    expect(container.querySelector('input[type="checkbox"]')).toBeNull();
+  });
+});
+
+// ===========================================================================
+// 4. DOM hygiene (CLAUDE.md panel policy)
 // ===========================================================================
 
 describe('TierRefSelector — DOM hygiene', () => {
@@ -448,9 +595,21 @@ describe('TierRefSelector — DOM hygiene', () => {
     expect(container.querySelector('button')).toBeNull();
   });
 
-  it('only uses permitted form-control tags (select/option/optgroup)', () => {
+  it('grouped mode renders no <button> elements with the per-mode fields open', () => {
+    renderGroupedSelector({ literal: { light: 'oklch(0.9 0 0)', dark: 'oklch(0.2 0 0)' } }, vi.fn());
+    expect(container.querySelector('button')).toBeNull();
+  });
+
+  it('only uses permitted form-control tags (select/option/optgroup/input/label)', () => {
     renderGroupedSelector({ ref: { tab: 'palette', tier: 'base', item: 'base-3' } }, vi.fn());
     expect(getSelect().tagName.toLowerCase()).toBe('select');
     expect(getOptgroups().length).toBeGreaterThan(0);
+  });
+
+  it('renders no banned semantic tags with the per-mode fields open', () => {
+    renderGroupedSelector({ literal: { light: 'oklch(0.9 0 0)', dark: 'oklch(0.2 0 0)' } }, vi.fn());
+    expect(
+      container.querySelector('h1,h2,h3,h4,h5,h6,ul,ol,li,table,a,details,summary'),
+    ).toBeNull();
   });
 });

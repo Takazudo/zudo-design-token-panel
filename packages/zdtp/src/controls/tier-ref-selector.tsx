@@ -1,6 +1,7 @@
 import { memo } from 'preact/compat';
 import type { TabConfig, TierConfig, TierItem } from '../tokens/tier-model';
 import ColorField from '../components/color-picker/color-field';
+import { resolvePerModeLiteral } from '../state/tweak-state';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -37,16 +38,22 @@ export interface TierRefTarget {
 
 /**
  * The value `TierRefSelector` reads and writes. Mirrors the `{ ref } | {
- * literal }` variants of `SemanticValue` (`tokens/tier-model.ts`) so the
+ * literal }` variants of `SemanticValue` (`tokens/tier-model.ts`) — including
+ * the per-mode `{ literal: { light, dark } }` shape (#472/#473) — so the
  * Color tab can pass a semantic mapping straight through. Flat/intra-tab
  * consumers (font/spacing/size/generic-tab) wrap their bare `TokenOverrides`
  * string into `{ ref: { tier, item } }` at the call site, and unwrap a
  * `{ literal }` response back into "drop the override" — see those tabs'
- * `onChange` handlers.
+ * `onChange` handlers. Those flat consumers never produce a per-mode literal.
  */
-export type TierRefSelectorValue = { ref: TierRefTarget } | { literal: string };
+export type TierRefSelectorValue =
+  | { ref: TierRefTarget }
+  | { literal: string }
+  | { literal: { light: string; dark: string } };
 
-function isLiteralValue(v: TierRefSelectorValue): v is { literal: string } {
+function isLiteralValue(
+  v: TierRefSelectorValue,
+): v is { literal: string } | { literal: { light: string; dark: string } } {
   return 'literal' in v;
 }
 
@@ -173,6 +180,12 @@ export interface TierRefSelectorProps {
    * editor for its `aria-label`, matching `SemanticLiteralRow`'s convention.
    */
   cssVar?: string;
+  /**
+   * The cluster's `getClusterDefaultMode()` result (#472) — used only when
+   * the user collapses a per-mode literal back to single-mode, to pick which
+   * side (`light` or `dark`) survives. Defaults to `'light'`.
+   */
+  defaultMode?: 'light' | 'dark';
 }
 
 // ---------------------------------------------------------------------------
@@ -189,6 +202,7 @@ function TierRefSelector({
   previewValueFor,
   label,
   cssVar,
+  defaultMode = 'light',
 }: TierRefSelectorProps) {
   // -------------------------------------------------------------------------
   // Derive mode (grouped cross-tab ramps vs. flat intra-tab ref) and options
@@ -229,9 +243,15 @@ function TierRefSelector({
     const key = e.currentTarget.value;
     if (key === LITERAL_OPTION_VALUE) {
       // Seed the literal editor from whatever was visible a moment ago, so
-      // the user starts from a real color rather than a blank field.
+      // the user starts from a real color rather than a blank field. Always
+      // seeds a single-mode string — picking "Literal…" starts single-mode;
+      // the user expands to per-mode via the "Per-mode" checkbox below. If
+      // the previous value was already a per-mode literal, collapse it to
+      // the cluster's default-mode side first.
       const seed = isLiteralValue(value)
-        ? value.literal
+        ? typeof value.literal === 'string'
+          ? value.literal
+          : resolvePerModeLiteral({ literal: value.literal }, defaultMode)
         : selectedOption
           ? (previewValueFor ? previewValueFor(selectedOption.ref) : selectedOption.item.default)
           : '';
@@ -245,6 +265,38 @@ function TierRefSelector({
 
   const handleLiteralChange = (next: string) => {
     onChange(itemId, { literal: next });
+  };
+
+  /**
+   * "Per-mode" checkbox (permitted `<label><input type="checkbox">`,
+   * CLAUDE.md) — expands a single-mode literal into a light/dark pair, or
+   * collapses a per-mode pair back to one value. Only meaningful while
+   * `value` is already a literal (the checkbox only renders in that state).
+   */
+  const handleTogglePerMode = () => {
+    if (!isLiteralValue(value)) return;
+    const current = value.literal;
+    if (typeof current === 'object' && current !== null) {
+      // Collapse — keep the cluster's default-mode side (#472).
+      onChange(itemId, { literal: resolvePerModeLiteral({ literal: current }, defaultMode) });
+    } else {
+      // Expand — seed both sides from the current single value.
+      onChange(itemId, { literal: { light: current, dark: current } });
+    }
+  };
+
+  const handleLightChange = (next: string) => {
+    if (!isLiteralValue(value)) return;
+    const current = value.literal;
+    if (typeof current !== 'object' || current === null) return;
+    onChange(itemId, { literal: { light: next, dark: current.dark } });
+  };
+
+  const handleDarkChange = (next: string) => {
+    if (!isLiteralValue(value)) return;
+    const current = value.literal;
+    if (typeof current !== 'object' || current === null) return;
+    onChange(itemId, { literal: { light: current.light, dark: next } });
   };
 
   // -------------------------------------------------------------------------
@@ -287,19 +339,50 @@ function TierRefSelector({
         <option value={LITERAL_OPTION_VALUE}>Literal…</option>
       </select>
       {/*
-       * The editable literal swatch only ever appears in grouped (ramp)
-       * mode — flat/intra-tab tiers (font/spacing/size/generic-tab) treat
+       * The editable literal swatch (single-mode, or the per-mode light/dark
+       * pair, S12 #473) only ever appears in grouped (ramp) mode —
+       * flat/intra-tab tiers (font/spacing/size/generic-tab) treat
        * "Literal…" as "revert to the tier's default ref", not a real
        * standalone value to edit (see those tabs' onChange handlers).
        */}
       {isGrouped && isLiteralValue(value) && (
-        <ColorField
-          value={value.literal}
-          onChange={handleLiteralChange}
-          valueFormat="oklch"
-          label={rowLabel}
-          cssVar={cssVar}
-        />
+        <div className="tokenpanel-per-mode-fields">
+          <label className="tokenpanel-per-mode-toggle">
+            <input
+              type="checkbox"
+              checked={typeof value.literal === 'object' && value.literal !== null}
+              onChange={handleTogglePerMode}
+              aria-label={`${rowLabel} per-mode (light/dark)`}
+            />
+            Per-mode
+          </label>
+          {typeof value.literal === 'object' && value.literal !== null ? (
+            <>
+              <ColorField
+                value={value.literal.light}
+                onChange={handleLightChange}
+                valueFormat="oklch"
+                label={`${rowLabel} (Light)`}
+                cssVar={cssVar}
+              />
+              <ColorField
+                value={value.literal.dark}
+                onChange={handleDarkChange}
+                valueFormat="oklch"
+                label={`${rowLabel} (Dark)`}
+                cssVar={cssVar}
+              />
+            </>
+          ) : (
+            <ColorField
+              value={value.literal}
+              onChange={handleLiteralChange}
+              valueFormat="oklch"
+              label={rowLabel}
+              cssVar={cssVar}
+            />
+          )}
+        </div>
       )}
     </div>
   );
