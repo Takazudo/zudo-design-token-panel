@@ -8,7 +8,9 @@ import {
   initColorFromSchemeData,
   type ColorTweakState,
   type StorageLike,
+  type TweakState,
   loadPersistedState,
+  savePersistedState,
 } from '../state/tweak-state';
 import type { ColorScheme } from '../config/color-schemes';
 import type { ColorClusterDataConfig } from '../config/cluster-config';
@@ -623,5 +625,122 @@ describe('#342 — ColorScheme.shikiTheme is optional', () => {
       cluster,
     );
     expect(state.shikiTheme).toBe('vitesse-dark');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #462 (S5) — persist-envelope round-trip for every SemanticValue variant
+// ---------------------------------------------------------------------------
+
+describe('savePersistedState / loadPersistedState — SemanticValue variant round-trips (#462)', () => {
+  function makeFullState(semanticMappings: ColorTweakState['semanticMappings']): TweakState {
+    return {
+      color: { ...defaults, semanticMappings },
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+  }
+
+  it('round-trips a plain index (number) mapping unchanged', () => {
+    const storage = makeStorage();
+    const state = makeFullState({ accent: 9, muted: 8, active: 14 });
+    savePersistedState(state, storage);
+
+    const result = loadPersistedState(storage, defaults);
+    expect(result).not.toBeNull();
+    expect(result!.color.semanticMappings.accent).toBe(9);
+  });
+
+  it('round-trips a { literal: string } mapping', () => {
+    const storage = makeStorage();
+    const state = makeFullState({
+      accent: { literal: '#ff8800' },
+      muted: 8,
+      active: 14,
+    });
+    savePersistedState(state, storage);
+
+    const result = loadPersistedState(storage, defaults);
+    expect(result).not.toBeNull();
+    expect(result!.color.semanticMappings.accent).toEqual({ literal: '#ff8800' });
+  });
+
+  it('round-trips a { literal: { light, dark } } per-mode mapping', () => {
+    const storage = makeStorage();
+    const perMode = { literal: { light: '#111111', dark: '#eeeeee' } };
+    const state = makeFullState({ accent: 6, muted: perMode, active: 14 });
+    savePersistedState(state, storage);
+
+    const result = loadPersistedState(storage, defaults);
+    expect(result).not.toBeNull();
+    expect(result!.color.semanticMappings.muted).toEqual(perMode);
+  });
+
+  it('round-trips a { ref } mapping (with and without the optional tab field)', () => {
+    const storage = makeStorage();
+    const refWithTab = { ref: { tab: 'brand', tier: 'ramp', item: 'brand-500' } };
+    const refWithoutTab = { ref: { tier: 'ramp', item: 'brand-700' } };
+    const state = makeFullState({ accent: refWithTab, muted: refWithoutTab, active: 14 });
+    savePersistedState(state, storage);
+
+    const result = loadPersistedState(storage, defaults);
+    expect(result).not.toBeNull();
+    expect(result!.color.semanticMappings.accent).toEqual(refWithTab);
+    expect(result!.color.semanticMappings.muted).toEqual(refWithoutTab);
+  });
+
+  it('loads an OLD (pre-#459, index-only) persisted envelope without error under the widened hydrator', () => {
+    // Simulate a v3 envelope written by a build that predates #459/#462 — every
+    // semanticMappings value is a plain number (no object variants ever
+    // existed at persist time). Must hydrate byte-identical to before.
+    const legacyIndexOnlyV3 = {
+      color: {
+        palette: palette16,
+        background: 1,
+        foreground: 14,
+        cursor: 5,
+        selectionBg: 2,
+        selectionFg: 13,
+        semanticMappings: { accent: 6, muted: 8, active: 14 },
+        shikiTheme: 'tokyo-night',
+      },
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+    const storage = makeStorage({ [STORAGE_KEY_V3]: JSON.stringify(legacyIndexOnlyV3) });
+
+    const result = loadPersistedState(storage, defaults);
+    expect(result).not.toBeNull();
+    expect(result!.color.semanticMappings).toEqual({ accent: 6, muted: 8, active: 14 });
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('a malformed semantic-mapping value (neither index nor a recognized object shape) falls back to defaults instead of corrupting state', () => {
+    const corrupted = {
+      color: {
+        palette: palette16,
+        background: 1,
+        foreground: 14,
+        cursor: 5,
+        selectionBg: 2,
+        selectionFg: 13,
+        // `garbage` matches none of the SemanticValue variants.
+        semanticMappings: { accent: { garbage: true }, muted: 8, active: 14 },
+        shikiTheme: 'tokyo-night',
+      },
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+    const storage = makeStorage({ [STORAGE_KEY_V3]: JSON.stringify(corrupted) });
+
+    const result = loadPersistedState(storage, defaults);
+    expect(result).not.toBeNull();
+    // Falls back to the caller-supplied default for the corrupted key instead
+    // of admitting the arbitrary `{ garbage: true }` object into state.
+    expect(result!.color.semanticMappings.accent).toBe(defaults.semanticMappings.accent);
+    expect(result!.color.semanticMappings.muted).toBe(8);
   });
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildApplyOverrides } from '../build-apply-overrides';
-import type { TweakState, ColorTweakState } from '../../state/tweak-state';
+import { applyColorState } from '../../state/tweak-state';
+import type { TweakState, ColorTweakState, ApplySink } from '../../state/tweak-state';
 import type { TabConfig } from '../../tokens/tier-model';
 
 // ---------------------------------------------------------------------------
@@ -472,5 +473,443 @@ describe('buildApplyOverrides — state.tabs generic tab overrides', () => {
     const result = buildApplyOverrides(state, undefined, STUB_CLUSTER, FIXTURE_TABS_WITH_PALETTE);
     expect(result['--zd-spacing-hgap-md']).toBe('24px');
     expect(result['--palette-gray-3']).toBe('#cccccc');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests — literal semantic value (S4, #465)
+// ---------------------------------------------------------------------------
+
+describe('buildApplyOverrides — literal semantic value (S4, #465)', () => {
+  const LITERAL_CLUSTER = {
+    id: 'literal-fixture',
+    label: 'Literal Fixture',
+    paletteSize: 4,
+    baseRoles: {},
+    paletteCssVarTemplate: '--literal-p{n}',
+    semanticDefaults: { accent: 1 },
+    semanticCssNames: { accent: '--zd-danger' },
+    baseDefaults: { background: 0, foreground: 3, cursor: 1, selectionBg: 0, selectionFg: 3 },
+    defaultShikiTheme: 'dracula' as const,
+    colorSchemes: {},
+    panelSettings: { colorScheme: '', colorMode: false as const },
+  };
+
+  const LITERAL_BASE_COLOR: ColorTweakState = {
+    palette: ['#000000', '#111111', '#222222', '#ffffff'],
+    background: 0,
+    foreground: 3,
+    cursor: 1,
+    selectionBg: 0,
+    selectionFg: 3,
+    semanticMappings: { accent: 1 },
+    shikiTheme: 'dracula',
+  };
+
+  it('emits a { literal: string } semantic mapping verbatim, not var(--palette-N)', () => {
+    const state: TweakState = {
+      color: {
+        ...LITERAL_BASE_COLOR,
+        semanticMappings: { accent: { literal: 'oklch(0.55 0.2 25)' } },
+      },
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+    const result = buildApplyOverrides(state, LITERAL_BASE_COLOR, LITERAL_CLUSTER, []);
+    expect(result['--zd-danger']).toBe('oklch(0.55 0.2 25)');
+  });
+
+  it('legacy index/bg/fg mapping still emits var(--palette-N) (unchanged behavior)', () => {
+    const state: TweakState = {
+      color: { ...LITERAL_BASE_COLOR, semanticMappings: { accent: 2 } },
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+    const result = buildApplyOverrides(state, LITERAL_BASE_COLOR, LITERAL_CLUSTER, []);
+    expect(result['--zd-danger']).toBe('var(--literal-p2)');
+  });
+
+  it('emits the literal value when colorDefaults is undefined (no baseline)', () => {
+    const state: TweakState = {
+      color: {
+        ...LITERAL_BASE_COLOR,
+        semanticMappings: { accent: { literal: 'oklch(0.55 0.2 25)' } },
+      },
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+    const result = buildApplyOverrides(state, undefined, LITERAL_CLUSTER, []);
+    expect(result['--zd-danger']).toBe('oklch(0.55 0.2 25)');
+  });
+
+  it('diff gate: does not re-emit a structurally-unchanged literal value', () => {
+    // The baseline and current mappings hold the SAME literal string but are
+    // distinct object references (as an immutable state update would produce).
+    // A reference-identity (`!==`) diff gate would treat this as "changed" and
+    // re-emit every time; the structural-equality gate must recognize no
+    // actual value change occurred.
+    const baseline: ColorTweakState = {
+      ...LITERAL_BASE_COLOR,
+      semanticMappings: { accent: { literal: 'oklch(0.55 0.2 25)' } },
+    };
+    const state: TweakState = {
+      color: {
+        ...LITERAL_BASE_COLOR,
+        semanticMappings: { accent: { literal: 'oklch(0.55 0.2 25)' } },
+      },
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+    const result = buildApplyOverrides(state, baseline, LITERAL_CLUSTER, []);
+    expect(result['--zd-danger']).toBeUndefined();
+  });
+
+  it('diff gate: DOES re-emit when the literal string actually changes', () => {
+    const baseline: ColorTweakState = {
+      ...LITERAL_BASE_COLOR,
+      semanticMappings: { accent: { literal: 'oklch(0.55 0.2 25)' } },
+    };
+    const state: TweakState = {
+      color: {
+        ...LITERAL_BASE_COLOR,
+        semanticMappings: { accent: { literal: 'oklch(0.9 0.1 100)' } },
+      },
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+    const result = buildApplyOverrides(state, baseline, LITERAL_CLUSTER, []);
+    expect(result['--zd-danger']).toBe('oklch(0.9 0.1 100)');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests — emitter parity: disk output vs. DOM-applied value (S4, #465)
+// ---------------------------------------------------------------------------
+
+describe('buildApplyOverrides / applyColorState — emitter parity for a literal semantic row', () => {
+  const PARITY_CLUSTER = {
+    id: 'parity-fixture',
+    label: 'Parity Fixture',
+    paletteSize: 4,
+    baseRoles: {},
+    paletteCssVarTemplate: '--parity-p{n}',
+    semanticDefaults: { danger: 1 },
+    semanticCssNames: { danger: '--zd-danger' },
+    baseDefaults: { background: 0, foreground: 3, cursor: 1, selectionBg: 0, selectionFg: 3 },
+    defaultShikiTheme: 'dracula' as const,
+    colorSchemes: {},
+    panelSettings: { colorScheme: '', colorMode: false as const },
+  };
+
+  it('the disk cssVar value equals the DOM-applied (sink) value for a { literal } row', () => {
+    const color: ColorTweakState = {
+      palette: ['#000000', '#111111', '#222222', '#ffffff'],
+      background: 0,
+      foreground: 3,
+      cursor: 1,
+      selectionBg: 0,
+      selectionFg: 3,
+      semanticMappings: { danger: { literal: 'oklch(0.55 0.2 25)' } },
+      shikiTheme: 'dracula',
+    };
+    const state: TweakState = { color, spacing: {}, typography: {}, size: {} };
+
+    const diskResult = buildApplyOverrides(state, undefined, PARITY_CLUSTER, []);
+
+    const applied: Record<string, string> = {};
+    const sink: ApplySink = {
+      apply(pairs) {
+        for (const [name, value] of pairs) applied[name] = value;
+      },
+      clear() {},
+    };
+    applyColorState(color, PARITY_CLUSTER, sink);
+
+    expect(diskResult['--zd-danger']).toBe('oklch(0.55 0.2 25)');
+    expect(applied['--zd-danger']).toBe(diskResult['--zd-danger']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests — emitter parity: disk output vs. DOM-applied value for a cross-tab
+// { ref } semantic row (S7b, #468)
+// ---------------------------------------------------------------------------
+
+describe('buildApplyOverrides / applyColorState — emitter parity for a cross-tab { ref } semantic row (S7b, #468)', () => {
+  // The color tab whose semantic tier holds the { ref } mapping. Empty tiers
+  // are fine here — buildApplyOverrides/applyColorState only need this tab to
+  // exist (by id 'color') so resolveRefToCssVar has a currentTab to resolve
+  // "tab omitted" refs against; the actual ref under test always names an
+  // explicit target tab ('palette').
+  const COLOR_TAB: TabConfig = {
+    id: 'color',
+    label: 'Color',
+    tiers: [],
+  };
+
+  // The grouped Palette tab: the ramp tier the { ref } points into.
+  const PALETTE_TAB: TabConfig = {
+    id: 'palette',
+    label: 'Palette',
+    tiers: [
+      {
+        id: 'base',
+        label: 'Base',
+        items: [
+          {
+            id: 'base-1',
+            cssVar: '--palette-base-1',
+            label: 'base-1',
+            default: '#111111',
+            type: { kind: 'color' },
+          },
+          {
+            id: 'base-3',
+            cssVar: '--palette-base-3',
+            label: 'base-3',
+            default: '#333333',
+            type: { kind: 'color' },
+          },
+        ],
+      },
+    ],
+  };
+
+  const REF_TABS: readonly TabConfig[] = [COLOR_TAB, PALETTE_TAB];
+
+  const REF_CLUSTER = {
+    id: 'ref-fixture',
+    label: 'Ref Fixture',
+    paletteSize: 4,
+    baseRoles: {},
+    paletteCssVarTemplate: '--ref-p{n}',
+    semanticDefaults: { surface: 1, danger: 1, accent: 1 },
+    semanticCssNames: { surface: '--zd-surface', danger: '--zd-danger', accent: '--zd-accent' },
+    baseDefaults: { background: 0, foreground: 3, cursor: 1, selectionBg: 0, selectionFg: 3 },
+    defaultShikiTheme: 'dracula' as const,
+    colorSchemes: {},
+    panelSettings: { colorScheme: '', colorMode: false as const },
+  };
+
+  const BASE_COLOR: ColorTweakState = {
+    palette: ['#000000', '#111111', '#222222', '#ffffff'],
+    background: 0,
+    foreground: 3,
+    cursor: 1,
+    selectionBg: 0,
+    selectionFg: 3,
+    semanticMappings: { surface: 1, danger: 1, accent: 1 },
+    shikiTheme: 'dracula',
+  };
+
+  it('a { ref: { tab: "palette", tier: "base", item: "base-3" } } row emits var(--palette-base-3) identically in both emitters', () => {
+    const color: ColorTweakState = {
+      ...BASE_COLOR,
+      semanticMappings: {
+        ...BASE_COLOR.semanticMappings,
+        surface: { ref: { tab: 'palette', tier: 'base', item: 'base-3' } },
+      },
+    };
+    const state: TweakState = { color, spacing: {}, typography: {}, size: {} };
+
+    const diskResult = buildApplyOverrides(state, undefined, REF_CLUSTER, REF_TABS);
+
+    const applied: Record<string, string> = {};
+    const sink: ApplySink = {
+      apply(pairs) {
+        for (const [name, value] of pairs) applied[name] = value;
+      },
+      clear() {},
+    };
+    applyColorState(color, REF_CLUSTER, sink, COLOR_TAB, REF_TABS);
+
+    expect(diskResult['--zd-surface']).toBe('var(--palette-base-3)');
+    expect(applied['--zd-surface']).toBe(diskResult['--zd-surface']);
+  });
+
+  it('index and literal rows alongside a { ref } row are unaffected (unchanged behavior)', () => {
+    const color: ColorTweakState = {
+      ...BASE_COLOR,
+      semanticMappings: {
+        surface: { ref: { tab: 'palette', tier: 'base', item: 'base-3' } },
+        danger: { literal: 'oklch(0.55 0.2 25)' },
+        accent: 2, // legacy palette-index mapping
+      },
+    };
+    const state: TweakState = { color, spacing: {}, typography: {}, size: {} };
+
+    const diskResult = buildApplyOverrides(state, undefined, REF_CLUSTER, REF_TABS);
+
+    const applied: Record<string, string> = {};
+    const sink: ApplySink = {
+      apply(pairs) {
+        for (const [name, value] of pairs) applied[name] = value;
+      },
+      clear() {},
+    };
+    applyColorState(color, REF_CLUSTER, sink, COLOR_TAB, REF_TABS);
+
+    // The { ref } and { literal } rows keep byte-identical disk/DOM output.
+    expect(diskResult['--zd-surface']).toBe('var(--palette-base-3)');
+    expect(diskResult['--zd-danger']).toBe('oklch(0.55 0.2 25)');
+    expect(applied['--zd-surface']).toBe(diskResult['--zd-surface']);
+    expect(applied['--zd-danger']).toBe(diskResult['--zd-danger']);
+
+    // The legacy index row keeps its PRE-EXISTING (intentional) disk/DOM
+    // divergence: disk emits an indirect var(--palette-N) reference, while
+    // the DOM path resolves straight to the palette's stored color value
+    // (see `resolveMapping`/the top-of-file doc comment) — { ref } support
+    // does not change this.
+    expect(diskResult['--zd-accent']).toBe('var(--ref-p2)');
+    expect(applied['--zd-accent']).toBe('#222222');
+  });
+
+  it('an unresolvable { ref } (unknown target item) is skipped on BOTH disk and DOM — same-output contract, no black paint', () => {
+    const color: ColorTweakState = {
+      ...BASE_COLOR,
+      semanticMappings: {
+        ...BASE_COLOR.semanticMappings,
+        surface: { ref: { tab: 'palette', tier: 'base', item: 'no-such-item' } },
+      },
+    };
+    const state: TweakState = { color, spacing: {}, typography: {}, size: {} };
+
+    const diskResult = buildApplyOverrides(state, undefined, REF_CLUSTER, REF_TABS);
+    expect(diskResult['--zd-surface']).toBeUndefined();
+
+    const applied: Record<string, string> = {};
+    const sink: ApplySink = {
+      apply(pairs) {
+        for (const [name, value] of pairs) applied[name] = value;
+      },
+      clear() {},
+    };
+    applyColorState(color, REF_CLUSTER, sink, COLOR_TAB, REF_TABS);
+    // DOM now also skips (leaves the token at its stylesheet default) instead
+    // of painting it black — matching disk, per the review fix.
+    expect(applied['--zd-surface']).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests — per-mode literal { literal: { light, dark } } → light-dark() (S11, #472)
+// ---------------------------------------------------------------------------
+
+describe('buildApplyOverrides — per-mode literal semantic value (S11, #472)', () => {
+  const PM_CLUSTER = {
+    id: 'permode-fixture',
+    label: 'Per-mode Fixture',
+    paletteSize: 4,
+    baseRoles: {},
+    paletteCssVarTemplate: '--pm-p{n}',
+    semanticDefaults: { danger: 1 },
+    semanticCssNames: { danger: '--zd-danger' },
+    baseDefaults: { background: 0, foreground: 3, cursor: 1, selectionBg: 0, selectionFg: 3 },
+    defaultShikiTheme: 'dracula' as const,
+    colorSchemes: {},
+    panelSettings: { colorScheme: '', colorMode: false as const },
+  };
+
+  const PM_BASE_COLOR: ColorTweakState = {
+    palette: ['#000000', '#111111', '#222222', '#ffffff'],
+    background: 0,
+    foreground: 3,
+    cursor: 1,
+    selectionBg: 0,
+    selectionFg: 3,
+    semanticMappings: { danger: 1 },
+    shikiTheme: 'dracula',
+  };
+
+  it('emits light-dark(<light>, <dark>) for a { literal: { light, dark } } mapping', () => {
+    const state: TweakState = {
+      color: {
+        ...PM_BASE_COLOR,
+        semanticMappings: { danger: { literal: { light: '#ff0000', dark: '#990000' } } },
+      },
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+    const result = buildApplyOverrides(state, undefined, PM_CLUSTER, []);
+    expect(result['--zd-danger']).toBe('light-dark(#ff0000, #990000)');
+  });
+
+  it('diff gate: does not re-emit a structurally-unchanged per-mode value', () => {
+    const baseline: ColorTweakState = {
+      ...PM_BASE_COLOR,
+      semanticMappings: { danger: { literal: { light: '#ff0000', dark: '#990000' } } },
+    };
+    const state: TweakState = {
+      color: {
+        ...PM_BASE_COLOR,
+        // Distinct object reference, identical structural value.
+        semanticMappings: { danger: { literal: { light: '#ff0000', dark: '#990000' } } },
+      },
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+    const result = buildApplyOverrides(state, baseline, PM_CLUSTER, []);
+    expect(result['--zd-danger']).toBeUndefined();
+  });
+
+  it('diff gate: DOES re-emit when either mode of the per-mode value changes', () => {
+    const baseline: ColorTweakState = {
+      ...PM_BASE_COLOR,
+      semanticMappings: { danger: { literal: { light: '#ff0000', dark: '#990000' } } },
+    };
+    const state: TweakState = {
+      color: {
+        ...PM_BASE_COLOR,
+        semanticMappings: { danger: { literal: { light: '#ff0000', dark: '#550000' } } },
+      },
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+    const result = buildApplyOverrides(state, baseline, PM_CLUSTER, []);
+    expect(result['--zd-danger']).toBe('light-dark(#ff0000, #550000)');
+  });
+
+  it('disk output equals the DOM-applied (sink) value for a per-mode row (parity)', () => {
+    const color: ColorTweakState = {
+      ...PM_BASE_COLOR,
+      semanticMappings: { danger: { literal: { light: '#ff0000', dark: '#990000' } } },
+    };
+    const state: TweakState = { color, spacing: {}, typography: {}, size: {} };
+
+    const diskResult = buildApplyOverrides(state, undefined, PM_CLUSTER, []);
+
+    const applied: Record<string, string> = {};
+    const sink: ApplySink = {
+      apply(pairs) {
+        for (const [name, value] of pairs) applied[name] = value;
+      },
+      clear() {},
+    };
+    applyColorState(color, PM_CLUSTER, sink);
+
+    expect(diskResult['--zd-danger']).toBe('light-dark(#ff0000, #990000)');
+    expect(applied['--zd-danger']).toBe(diskResult['--zd-danger']);
+  });
+
+  it('single-mode { literal: string } rows still emit a plain value (unchanged)', () => {
+    const state: TweakState = {
+      color: {
+        ...PM_BASE_COLOR,
+        semanticMappings: { danger: { literal: 'oklch(0.55 0.2 25)' } },
+      },
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+    const result = buildApplyOverrides(state, undefined, PM_CLUSTER, []);
+    expect(result['--zd-danger']).toBe('oklch(0.55 0.2 25)');
   });
 });

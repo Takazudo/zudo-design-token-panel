@@ -70,8 +70,6 @@ export interface TierItem {
   cssVar: string;
   /** Human-visible label rendered in the panel row. */
   label: string;
-  /** Optional group id — used by some tab components for section headers. */
-  group?: string;
   /** Default CSS string value — used when no override is active. */
   default: string;
   /** Discriminated union controlling the edit widget. */
@@ -83,6 +81,10 @@ export interface TierItem {
 }
 ```
 
+<Note title="No `group` field">
+`TierItem.group` (a sub-heading key inside a tier) was removed in #148 — the panel's [one-tier-one-heading policy](/docs/reference/architecture) requires each tier to render exactly one section heading. A tier that conceptually needs sub-grouping is split into multiple `TierConfig` entries instead. Example manifests must not reference `group`.
+</Note>
+
 ### Field reference
 
 | Field | Required | Notes |
@@ -90,7 +92,6 @@ export interface TierItem {
 | `id` | yes | Stable key in the persisted override map. Renaming breaks existing user state unless `legacyIdRenameMap` is configured. |
 | `cssVar` | yes | The CSS custom property written to `:root`. Must start with `--` and be non-empty after the prefix; validated by `assertValidPanelConfig`. |
 | `label` | yes | Display label inside the panel row. |
-| `group` | no | Section header grouping key. Some tab components render a heading for each unique group value. |
 | `default` | yes | Fallback CSS string emitted when no override is active. |
 | `type` | yes | Controls which editor renders for this row. |
 | `pill` | no | Adds an opt-in sentinel toggle alongside the main editor. |
@@ -115,10 +116,33 @@ export interface TierConfig {
    * `var(--that-tier-item-cssVar)` rather than the raw value string.
    */
   referencesTier?: string;
+  /**
+   * Marks this tier as a SEMANTIC tier on the Color tab — its items hold
+   * `SemanticValue` mappings (index, literal, per-mode literal, or a
+   * cross-tab ramp reference) rather than raw palette entries, so the
+   * panel never mistakes it for the palette tier even when its items are
+   * `kind: 'color'`. A tier with `semantic: true` and no sibling palette
+   * tier is a **lone semantic tier** — the Color tab renders it with no
+   * palette grid at all. Additive: omitting `semantic` preserves the
+   * pre-#459 structural palette-detection behavior.
+   */
+  semantic?: true;
+  /**
+   * Cross-tab ramp-source declaration for a `semantic: true` tier: the ramp
+   * tier(s) this tier's `{ ref }` mappings are allowed to point into. Each
+   * entry names a tier `id` and an optional `tab` id (omitted `tab` means
+   * "this tab"). Validated up front by `assertValidPanelConfig` — an
+   * unknown tab or tier throws at configure time, before any row renders.
+   */
+  referencesRamps?: readonly { tab?: string; tier: string }[];
 }
 ```
 
 A tier with `referencesTier` is called a **reference tier**. Its items don't hold direct CSS values — they hold the id of a *source* item in another (literal) tier. The `referencesTier` value must be the `id` of a tier that exists in the same `TabConfig`. The tier kinds must match (e.g. both `'color'` or both `'length'`).
+
+<Info title="semantic + referencesRamps are Color-tab concepts">
+`semantic` and `referencesRamps` are only meaningful on a tier inside a `'color'` / `'color-secondary'` `TabConfig` (a tier the Color tab's `resolveColorClusterFromTab` bridge reads). For the full behavioral contract — the `SemanticValue` union, how a lone semantic tier renders, and a worked cross-tab example — see [Color cluster § Semantic-only tier](/docs/reference/color-cluster#semantic-only-tier-semantic-true).
+</Info>
 
 ## `TabConfig`
 
@@ -133,17 +157,16 @@ export interface TabConfig {
   /** Ordered tiers rendered inside the tab. */
   tiers: readonly TierConfig[];
   /**
-   * Optional list of tier ids hidden behind the per-tab "Advanced" disclosure.
-   * Any tier id listed here is rendered inside a collapsed `<details>` element.
-   */
-  advancedTiers?: readonly string[];
-  /**
    * Color-tab metadata. Required for the reserved `'color'` and
    * `'color-secondary'` ids — ignored (and unnecessary) for all other ids.
    */
   colorExtras?: ColorClusterExtras;
 }
 ```
+
+<Note title="No `advancedTiers` field">
+`TabConfig.advancedTiers` (a per-tab "Advanced" `<details>` disclosure) was removed in #148 — the panel's [no-progressive-disclosure policy](/docs/reference/architecture) requires every tier to render flat, with no collapsed sections. If a tab has many tokens, render them flat in tier-section order instead. Example manifests must not reference `advancedTiers`.
+</Note>
 
 ### Reserved tab ids
 
@@ -238,7 +261,6 @@ export const easingTab: TabConfig = {
       ],
     },
   ],
-  advancedTiers: ['semantic'],
 };
 ```
 

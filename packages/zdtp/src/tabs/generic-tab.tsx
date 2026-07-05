@@ -19,7 +19,7 @@
 import { useCallback, useState, useEffect } from 'preact/compat';
 import type { TabConfig, TierConfig, TierItem, TierValueKind } from '../tokens/tier-model';
 import { type TabOverrides, resolveTierItemValue } from '../apply/tier-resolver';
-import TierRefSelector from '../controls/tier-ref-selector';
+import TierRefSelector, { type TierRefSelectorValue } from '../controls/tier-ref-selector';
 import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
 import TokenLabel from '../controls/token-label';
 import ColorField from '../components/color-picker/color-field';
@@ -36,16 +36,26 @@ interface ItemEditorProps {
   overrides: TabOverrides;
   /** Called with (itemId, newValue) when the user commits a change. */
   onChange: (itemId: string, next: string) => void;
+  /**
+   * Called for ref-tier items instead of `onChange`. `undefined` means "drop
+   * the stored override" (revert to the tier's default ref) — the fix for
+   * the pre-#470 bug where the "Literal…" sentinel was written verbatim into
+   * `overrides` because nothing intercepted it at this layer.
+   */
+  onRefChange: (itemId: string, next: string | undefined) => void;
 }
 
 /**
  * Dispatch to TierRefSelector for reference tiers, otherwise render the
  * kind-appropriate editor (slider, select, text, color).
  */
-function ItemEditor({ tab, tier, item, value, overrides, onChange }: ItemEditorProps) {
+function ItemEditor({ tab, tier, item, value, overrides, onChange, onRefChange }: ItemEditorProps) {
   // Reference tier: delegate to TierRefSelector.
   if (tier.referencesTier !== undefined) {
     const refTierId = tier.referencesTier;
+    const handleTierRefChange = (itemId: string, next: TierRefSelectorValue) => {
+      onRefChange(itemId, 'literal' in next ? undefined : next.ref.item);
+    };
     return (
       <div className="tokenpanel-row" data-testid={`tier-ref-row-${item.id}`}>
         <TokenLabel cssVar={item.cssVar} label={item.label} />
@@ -53,10 +63,10 @@ function ItemEditor({ tab, tier, item, value, overrides, onChange }: ItemEditorP
           tab={tab}
           tierId={tier.id}
           itemId={item.id}
-          value={value}
-          onChange={onChange}
-          previewValueFor={(refItemId) => {
-            const result = resolveTierItemValue(tab, refTierId, refItemId, overrides);
+          value={{ ref: { tier: refTierId, item: value } }}
+          onChange={handleTierRefChange}
+          previewValueFor={(ref) => {
+            const result = resolveTierItemValue(tab, refTierId, ref.item, overrides);
             return result.kind === 'literal' ? result.value : result.targetCssVar;
           }}
         />
@@ -238,14 +248,31 @@ interface TierSectionProps {
   overrides: Record<string, string>;
   fullOverrides: TabOverrides;
   onItemChange: (tierId: string, itemId: string, next: string) => void;
+  /** Ref-tier counterpart of `onItemChange` — `next: undefined` means "drop
+   *  the override" (see `ItemEditorProps.onRefChange`). */
+  onRefItemChange: (tierId: string, itemId: string, next: string | undefined) => void;
 }
 
-function TierSection({ tab, tier, overrides, fullOverrides, onItemChange }: TierSectionProps) {
+function TierSection({
+  tab,
+  tier,
+  overrides,
+  fullOverrides,
+  onItemChange,
+  onRefItemChange,
+}: TierSectionProps) {
   const handleItemChange = useCallback(
     (itemId: string, next: string) => {
       onItemChange(tier.id, itemId, next);
     },
     [onItemChange, tier.id],
+  );
+
+  const handleRefItemChange = useCallback(
+    (itemId: string, next: string | undefined) => {
+      onRefItemChange(tier.id, itemId, next);
+    },
+    [onRefItemChange, tier.id],
   );
 
   return (
@@ -269,6 +296,7 @@ function TierSection({ tab, tier, overrides, fullOverrides, onItemChange }: Tier
               value={value}
               overrides={fullOverrides}
               onChange={handleItemChange}
+              onRefChange={handleRefItemChange}
             />
           );
         })}
@@ -292,8 +320,10 @@ export interface GenericTabProps {
    * When an item has no override, its `TierItem.default` is used.
    */
   overrides: TabOverrides;
-  /** Called when the user commits a change to any item. */
-  onChange: (tierId: string, itemId: string, next: string) => void;
+  /** Called when the user commits a change to any item. `next: undefined`
+   *  (only reachable for ref-tier items) means "drop the stored override for
+   *  this item" rather than writing a literal value. */
+  onChange: (tierId: string, itemId: string, next: string | undefined) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -316,6 +346,13 @@ export default function GenericTab({ tab, overrides, onChange }: GenericTabProps
     [onChange],
   );
 
+  const handleRefItemChange = useCallback(
+    (tierId: string, itemId: string, next: string | undefined) => {
+      onChange(tierId, itemId, next);
+    },
+    [onChange],
+  );
+
   return (
     <div className="tokenpanel-tab-content" data-testid={`generic-tab-${tab.id}`}>
       {tab.tiers.map((tier) => {
@@ -328,6 +365,7 @@ export default function GenericTab({ tab, overrides, onChange }: GenericTabProps
             overrides={tierOverrides}
             fullOverrides={overrides}
             onItemChange={handleItemChange}
+            onRefItemChange={handleRefItemChange}
           />
         );
       })}

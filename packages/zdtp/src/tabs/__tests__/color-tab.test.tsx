@@ -945,3 +945,413 @@ describe('ColorTab — palette format:"oklch" routing (#436)', () => {
     expect(/^#[0-9a-fA-F]{6,8}$/.test(result!.palette[0])).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// S3 (#464) — literal semantic rows render as editable OKLCH swatches
+//
+// A lone `semantic: true` tier with no palette sibling, whose items all
+// resolve to `{ literal: string }` (an OKLCH color, not a palette-item id —
+// see `deriveSemanticValue` in cluster-config.ts). These must render as
+// editable `ColorField` swatches, NOT `PaletteSelector` dropdowns (there is
+// no palette to pick a slot from).
+// ---------------------------------------------------------------------------
+
+const LITERAL_SEMANTIC_TAB: TabConfig = {
+  id: 'color',
+  label: 'Color',
+  colorExtras: {
+    id: 'lit-fixture',
+    label: 'Lit Fixture',
+    baseRoles: {},
+    baseDefaults: { background: 0, foreground: 0, cursor: 0, selectionBg: 0, selectionFg: 0 },
+    defaultShikiTheme: 'dracula',
+    colorSchemes: {},
+    panelSettings: { colorScheme: '', colorMode: false as const },
+  },
+  tiers: [
+    {
+      id: 'semantic',
+      label: 'Semantic',
+      semantic: true,
+      items: [
+        {
+          id: 'danger',
+          cssVar: '--lit-danger',
+          label: 'Danger',
+          default: 'oklch(0.6 0.2 30)',
+          type: { kind: 'color' as const },
+        },
+        {
+          id: 'success',
+          cssVar: '--lit-success',
+          label: 'Success',
+          default: 'oklch(0.7 0.15 140)',
+          type: { kind: 'color' as const },
+        },
+        {
+          id: 'warning',
+          cssVar: '--lit-warning',
+          label: 'Warning',
+          default: 'oklch(0.75 0.18 80)',
+          type: { kind: 'color' as const },
+        },
+      ],
+    },
+  ],
+};
+
+/**
+ * Empty-palette color state — the lone semantic tier has no palette sibling.
+ * With `palette: []`, Section A (Palette) and Section B (Base) both skip
+ * rendering (#466 follow-up), so `.tokenpanel-color-base-grid` index 0 below
+ * is the Semantic Tokens grid, not the Base grid.
+ */
+function makeLiteralColorState(): ColorTweakState {
+  return {
+    palette: [],
+    background: 0,
+    foreground: 0,
+    cursor: 0,
+    selectionBg: 0,
+    selectionFg: 0,
+    semanticMappings: {},
+    shikiTheme: 'dracula',
+  };
+}
+
+describe('ColorTab — literal semantic rows render as editable OKLCH swatches (S3, #464)', () => {
+  beforeEach(() => {
+    // Pin the in-picker display mode so the OKLCH (L/C/H) sliders render
+    // deterministically, mirroring the #436 suite above.
+    localStorage.setItem('tokenpanel.colorPicker.mode', 'oklch');
+  });
+  afterEach(() => {
+    localStorage.removeItem('tokenpanel.colorPicker.mode');
+  });
+
+  it('renders one editable ColorField swatch per literal semantic entry (N=3), not a PaletteSelector', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx, { tab: LITERAL_SEMANTIC_TAB, colorState: makeLiteralColorState() });
+
+    const baseGrids = container.querySelectorAll('.tokenpanel-color-base-grid');
+    const semanticGrid = baseGrids[0] as HTMLElement;
+    expect(semanticGrid).not.toBeNull();
+
+    // 3 literal rows → 3 editable swatches. NOT a palette-index dropdown
+    // (there's no palette tier) and NOT an empty section.
+    expect(semanticGrid.querySelectorAll('[data-testid="color-field-swatch"]').length).toBe(3);
+    expect(semanticGrid.querySelectorAll('.tokenpanel-palette-selector').length).toBe(0);
+  });
+
+  it('each literal row shows the starting OKLCH color and its cssVar label', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx, { tab: LITERAL_SEMANTIC_TAB, colorState: makeLiteralColorState() });
+
+    const baseGrids = container.querySelectorAll('.tokenpanel-color-base-grid');
+    const semanticGrid = baseGrids[0] as HTMLElement;
+    const row = semanticGrid.querySelector(
+      '[data-testid="tokenpanel-semantic-literal-danger"]',
+    ) as HTMLElement;
+    expect(row).not.toBeNull();
+    const swatch = row.querySelector('[data-testid="color-field-swatch"]') as HTMLElement;
+    expect(swatch.style.backgroundColor).toContain('oklch');
+    expect(row.textContent).toContain('--lit-danger');
+  });
+
+  it('each literal row has the eye/highlight toggle (real cssVar), matching palette-swatch behavior', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx, { tab: LITERAL_SEMANTIC_TAB, colorState: makeLiteralColorState() });
+
+    const baseGrids = container.querySelectorAll('.tokenpanel-color-base-grid');
+    const semanticGrid = baseGrids[0] as HTMLElement;
+    expect(semanticGrid.querySelectorAll('.tokenpanel-highlight-toggle').length).toBe(3);
+  });
+
+  it('clicking the eye toggle on a literal row calls toggle with the row cssVar', () => {
+    const toggle = vi.fn();
+    const ctx = makeCtx(makeHighlightState(), toggle);
+    renderColorTab(ctx, { tab: LITERAL_SEMANTIC_TAB, colorState: makeLiteralColorState() });
+
+    const baseGrids = container.querySelectorAll('.tokenpanel-color-base-grid');
+    const semanticGrid = baseGrids[0] as HTMLElement;
+    const row = semanticGrid.querySelector(
+      '[data-testid="tokenpanel-semantic-literal-danger"]',
+    ) as HTMLElement;
+    const eyeToggle = row.querySelector('.tokenpanel-highlight-toggle') as HTMLElement;
+    act(() => eyeToggle.click());
+
+    expect(toggle).toHaveBeenCalledWith('--lit-danger');
+  });
+
+  it('editing a literal swatch dispatches { literal: <oklch string> } into semanticMappings, not a palette index', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    const persistColor = vi.fn();
+    renderColorTab(ctx, {
+      tab: LITERAL_SEMANTIC_TAB,
+      colorState: makeLiteralColorState(),
+      persistColor,
+    });
+
+    const baseGrids = container.querySelectorAll('.tokenpanel-color-base-grid');
+    const semanticGrid = baseGrids[0] as HTMLElement;
+    const row = semanticGrid.querySelector(
+      '[data-testid="tokenpanel-semantic-literal-danger"]',
+    ) as HTMLElement;
+    const swatchBtn = row.querySelector('[data-testid="color-field-swatch"]') as HTMLElement;
+    act(() => swatchBtn.click());
+    fireFirstPickerSliderArrow();
+
+    expect(persistColor).toHaveBeenCalled();
+    const updater = persistColor.mock.calls.at(-1)![0] as (
+      prev: ColorTweakState,
+    ) => ColorTweakState;
+    const result = updater(makeLiteralColorState());
+    expect(result.semanticMappings.danger).toEqual(
+      expect.objectContaining({ literal: expect.stringMatching(/^oklch\(/) }),
+    );
+  });
+
+  it('does not regress a conventional index-based semantic default (still a PaletteSelector, no ColorField)', () => {
+    // PRIMARY_COLOR_TAB's semantic tier resolves accent/muted to palette
+    // indices (not literals) — must be unaffected by the literal-row change.
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx);
+
+    const baseGrids = container.querySelectorAll('.tokenpanel-color-base-grid');
+    const semanticGrid = baseGrids[1] as HTMLElement;
+    expect(semanticGrid.querySelectorAll('.tokenpanel-palette-selector').length).toBe(2);
+    expect(semanticGrid.querySelectorAll('[data-testid="color-field-swatch"]').length).toBe(0);
+  });
+
+  it('renders no banned semantic tags and no <button> elements (hostile-host / panel DOM-hygiene policy)', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx, { tab: LITERAL_SEMANTIC_TAB, colorState: makeLiteralColorState() });
+
+    expect(container.querySelector('button')).toBeNull();
+    expect(container.querySelector('h1,h2,h3,h4,h5,h6,ul,ol,li,table,a,details,summary')).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S12 (#473) — SemanticLiteralRow per-mode (light/dark) editor toggle
+//
+// A literal semantic row (no `referencesRamps` on its tier) gets a "Per-mode"
+// checkbox. Checking it expands one literal into an independently-editable
+// light/dark `ColorField` pair; unchecking it collapses back to a single
+// value using the cluster's `getClusterDefaultMode()` side.
+// ---------------------------------------------------------------------------
+
+/** `danger` seeded as an already-per-mode literal; `success`/`warning` stay single-mode. */
+function makePerModeColorState(): ColorTweakState {
+  return {
+    ...makeLiteralColorState(),
+    semanticMappings: {
+      danger: { literal: { light: 'oklch(0.9 0.05 30)', dark: 'oklch(0.3 0.1 30)' } },
+    },
+  };
+}
+
+/** Same fixture, but the cluster's configured default mode is "dark". */
+const DARK_DEFAULT_LITERAL_SEMANTIC_TAB: TabConfig = {
+  ...LITERAL_SEMANTIC_TAB,
+  colorExtras: {
+    ...LITERAL_SEMANTIC_TAB.colorExtras!,
+    panelSettings: {
+      colorScheme: '',
+      colorMode: { defaultMode: 'dark' as const, lightScheme: 'L', darkScheme: 'D' },
+    },
+  },
+};
+
+/** Toggle a checkbox and fire its native change event. */
+function fireCheckboxToggle(checkbox: HTMLInputElement, checked: boolean) {
+  act(() => {
+    checkbox.checked = checked;
+    checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+}
+
+describe('ColorTab — SemanticLiteralRow per-mode (light/dark) editor toggle (S12, #473)', () => {
+  beforeEach(() => {
+    localStorage.setItem('tokenpanel.colorPicker.mode', 'oklch');
+  });
+  afterEach(() => {
+    localStorage.removeItem('tokenpanel.colorPicker.mode');
+  });
+
+  it('a single-mode literal row shows an unchecked "Per-mode" checkbox and one editable swatch', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx, { tab: LITERAL_SEMANTIC_TAB, colorState: makeLiteralColorState() });
+
+    const row = container.querySelector(
+      '[data-testid="tokenpanel-semantic-literal-danger"]',
+    ) as HTMLElement;
+    const checkbox = row.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    expect(checkbox).not.toBeNull();
+    expect(checkbox.checked).toBe(false);
+    expect(row.querySelectorAll('[data-testid="color-field-swatch"]').length).toBe(1);
+  });
+
+  it('a per-mode literal row shows a checked "Per-mode" checkbox and two editable swatches', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx, { tab: LITERAL_SEMANTIC_TAB, colorState: makePerModeColorState() });
+
+    const row = container.querySelector(
+      '[data-testid="tokenpanel-semantic-literal-danger"]',
+    ) as HTMLElement;
+    const checkbox = row.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
+    expect(row.querySelectorAll('[data-testid="color-field-swatch"]').length).toBe(2);
+  });
+
+  it('checking "Per-mode" seeds both sides from the current single value and persists { literal: { light, dark } }', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    const persistColor = vi.fn();
+    renderColorTab(ctx, {
+      tab: LITERAL_SEMANTIC_TAB,
+      colorState: makeLiteralColorState(),
+      persistColor,
+    });
+
+    const row = container.querySelector(
+      '[data-testid="tokenpanel-semantic-literal-danger"]',
+    ) as HTMLElement;
+    const checkbox = row.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    fireCheckboxToggle(checkbox, true);
+
+    expect(persistColor).toHaveBeenCalled();
+    const updater = persistColor.mock.calls.at(-1)![0] as (
+      prev: ColorTweakState,
+    ) => ColorTweakState;
+    const result = updater(makeLiteralColorState());
+    expect(result.semanticMappings.danger).toEqual({
+      literal: { light: 'oklch(0.6 0.2 30)', dark: 'oklch(0.6 0.2 30)' },
+    });
+  });
+
+  it('unchecking "Per-mode" collapses to the light side (cluster defaultMode is "light" by default)', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    const persistColor = vi.fn();
+    renderColorTab(ctx, {
+      tab: LITERAL_SEMANTIC_TAB,
+      colorState: makePerModeColorState(),
+      persistColor,
+    });
+
+    const row = container.querySelector(
+      '[data-testid="tokenpanel-semantic-literal-danger"]',
+    ) as HTMLElement;
+    const checkbox = row.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    fireCheckboxToggle(checkbox, false);
+
+    expect(persistColor).toHaveBeenCalled();
+    const updater = persistColor.mock.calls.at(-1)![0] as (
+      prev: ColorTweakState,
+    ) => ColorTweakState;
+    const result = updater(makePerModeColorState());
+    expect(result.semanticMappings.danger).toEqual({ literal: 'oklch(0.9 0.05 30)' });
+  });
+
+  it('unchecking "Per-mode" collapses to the dark side when the cluster defaultMode is "dark"', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    const persistColor = vi.fn();
+    renderColorTab(ctx, {
+      tab: DARK_DEFAULT_LITERAL_SEMANTIC_TAB,
+      colorState: makePerModeColorState(),
+      persistColor,
+    });
+
+    const row = container.querySelector(
+      '[data-testid="tokenpanel-semantic-literal-danger"]',
+    ) as HTMLElement;
+    const checkbox = row.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    fireCheckboxToggle(checkbox, false);
+
+    expect(persistColor).toHaveBeenCalled();
+    const updater = persistColor.mock.calls.at(-1)![0] as (
+      prev: ColorTweakState,
+    ) => ColorTweakState;
+    const result = updater(makePerModeColorState());
+    expect(result.semanticMappings.danger).toEqual({ literal: 'oklch(0.3 0.1 30)' });
+  });
+
+  it('editing the Light swatch of a per-mode row updates only the light side', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    const persistColor = vi.fn();
+    renderColorTab(ctx, {
+      tab: LITERAL_SEMANTIC_TAB,
+      colorState: makePerModeColorState(),
+      persistColor,
+    });
+
+    const row = container.querySelector(
+      '[data-testid="tokenpanel-semantic-literal-danger"]',
+    ) as HTMLElement;
+    const lightSwatch = row.querySelector(
+      '[aria-label="--lit-danger (Light): --lit-danger"]',
+    ) as HTMLElement;
+    expect(lightSwatch).not.toBeNull();
+    act(() => lightSwatch.click());
+    fireFirstPickerSliderArrow();
+
+    expect(persistColor).toHaveBeenCalled();
+    const updater = persistColor.mock.calls.at(-1)![0] as (
+      prev: ColorTweakState,
+    ) => ColorTweakState;
+    const result = updater(makePerModeColorState());
+    expect(result.semanticMappings.danger).toEqual({
+      literal: { light: expect.stringMatching(/^oklch\(/), dark: 'oklch(0.3 0.1 30)' },
+    });
+  });
+
+  it('editing the Dark swatch of a per-mode row updates only the dark side', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    const persistColor = vi.fn();
+    renderColorTab(ctx, {
+      tab: LITERAL_SEMANTIC_TAB,
+      colorState: makePerModeColorState(),
+      persistColor,
+    });
+
+    const row = container.querySelector(
+      '[data-testid="tokenpanel-semantic-literal-danger"]',
+    ) as HTMLElement;
+    const darkSwatch = row.querySelector(
+      '[aria-label="--lit-danger (Dark): --lit-danger"]',
+    ) as HTMLElement;
+    expect(darkSwatch).not.toBeNull();
+    act(() => darkSwatch.click());
+    fireFirstPickerSliderArrow();
+
+    expect(persistColor).toHaveBeenCalled();
+    const updater = persistColor.mock.calls.at(-1)![0] as (
+      prev: ColorTweakState,
+    ) => ColorTweakState;
+    const result = updater(makePerModeColorState());
+    expect(result.semanticMappings.danger).toEqual({
+      literal: { light: 'oklch(0.9 0.05 30)', dark: expect.stringMatching(/^oklch\(/) },
+    });
+  });
+
+  it('single-mode literal rows for other keys are unaffected (regression check)', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx, { tab: LITERAL_SEMANTIC_TAB, colorState: makePerModeColorState() });
+
+    const successRow = container.querySelector(
+      '[data-testid="tokenpanel-semantic-literal-success"]',
+    ) as HTMLElement;
+    expect(successRow.querySelectorAll('[data-testid="color-field-swatch"]').length).toBe(1);
+    const checkbox = successRow.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    expect(checkbox.checked).toBe(false);
+  });
+
+  it('renders no banned semantic tags or <button> elements with a per-mode row expanded', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx, { tab: LITERAL_SEMANTIC_TAB, colorState: makePerModeColorState() });
+
+    expect(container.querySelector('button')).toBeNull();
+    expect(
+      container.querySelector('h1,h2,h3,h4,h5,h6,ul,ol,li,table,a,details,summary'),
+    ).toBeNull();
+  });
+});

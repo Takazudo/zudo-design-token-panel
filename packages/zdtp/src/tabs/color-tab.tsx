@@ -39,20 +39,32 @@ import { memo, useState, useEffect, useCallback, useMemo, useRef, useId } from '
 import type { ColorScheme } from '../config/color-schemes';
 import { pushDismissLayer } from '../controls/dismiss-layer';
 import ColorPicker from '../components/color-picker';
+import ColorField from '../components/color-picker/color-field';
 import { Z } from '../styles/z-index-tokens';
 import type { ColorPickerValueFormat } from '../components/color-picker/color-picker';
 import {
   type ColorTweakState,
+  type SemanticValue,
   applyShikiTheme,
+  getClusterDefaultMode,
   initColorFromSchemeData,
+  isIndexMapping,
+  isLiteralMapping,
+  isRefMapping,
   resolvePaletteCssVar,
+  resolvePerModeLiteral,
 } from '../state/tweak-state';
 import { getPanelConfig } from '../config/panel-config';
 import { resolveColorClusterFromTab } from '../config/cluster-config';
 import type { TabConfig, TierConfig } from '../tokens/tier-model';
 import type { PersistColor, PersistSecondary } from '../state/persist';
 import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
+import { TokenLabel } from '../controls/token-label';
 import { useTooltip } from '../controls/tooltip';
+import TierRefSelector, {
+  type TierRefSelectorValue,
+  type TierRefTarget,
+} from '../controls/tier-ref-selector';
 
 // The bundled scheme registry now lives on
 // `panelConfig.colorCluster.colorSchemes`, not on a global import. Read it
@@ -65,6 +77,35 @@ import { useTooltip } from '../controls/tooltip';
 // presets. The Color tab reads the active map at render time below —
 // `presetNames` is no longer a module-level constant computed from a
 // baked-in import.
+
+/**
+ * `PaletteSelector` (below) only understands the legacy index shape — it
+ * renders a palette-slot dropdown, not a literal-color or ramp-ref editor.
+ * `semanticMappings` / `semanticDefaults` were widened to `SemanticValue`
+ * (#459 S1). Every `{ literal }` variant — single-mode `{ literal: string }`
+ * AND per-mode `{ literal: { light, dark } }` (#472) — renders through
+ * `SemanticLiteralRow` (S3 #464 / S12 #473); `{ ref }` and any `{ literal }`
+ * on a tier that declares `referencesRamps` render through the grouped
+ * ref-or-literal `TierRefSelector` (S9 #470 / S12 #473) instead — see the
+ * Semantic Tokens section below. This helper is only reached for plain
+ * index mappings now.
+ */
+function toIndexMappingForSelector(v: SemanticValue): number | 'bg' | 'fg' {
+  return isIndexMapping(v) ? v : 0;
+}
+
+/**
+ * Finds the `semantic: true` tier (if any) in `tab` that owns the item with
+ * id `itemId`. Used to look up a semantic key's declared `referencesRamps`
+ * so the render loop below can decide whether to route it through the
+ * grouped ref-or-literal picker. Legacy `referencesTier`-only tiers (the
+ * intra-tab index-mapping style, e.g. a plain "semantic" tier pointing at a
+ * sibling "palette" tier) are NOT matched here — they aren't marked
+ * `semantic: true` and keep rendering through `PaletteSelector` as before.
+ */
+function findSemanticTier(tab: TabConfig, itemId: string): TierConfig | undefined {
+  return tab.tiers.find((t) => t.semantic === true && t.items.some((i) => i.id === itemId));
+}
 
 // --- Shared popover helpers (Color-tab scoped) ---
 
@@ -161,15 +202,20 @@ function getFixedPopoverStyle(
 // --- Palette format resolution ---
 
 /**
- * Find the palette tier in a color tab: the first non-reference tier whose
- * items are color-kind. Mirrors the palette-tier detection in
+ * Find the palette tier in a color tab: the first non-reference, non-semantic
+ * tier whose items are color-kind. Mirrors the palette-tier detection in
  * `resolveColorClusterFromTab`, so the format lookup keys off the SAME tier the
  * cluster was flattened from. `resolveColorClusterFromTab` drops the per-item
- * `type.format`, so the swatch grid must recover it from the tier here.
+ * `type.format`, so the swatch grid must recover it from the tier here. A tier
+ * marked `semantic: true` is excluded (#461) even if its items are color-kind.
  */
 function findPaletteTier(tab: TabConfig): TierConfig | undefined {
   return tab.tiers.find(
-    (t) => !t.referencesTier && t.items.length > 0 && t.items[0].type.kind === 'color',
+    (t) =>
+      !t.referencesTier &&
+      !t.semantic &&
+      t.items.length > 0 &&
+      t.items[0].type.kind === 'color',
   );
 }
 
@@ -524,6 +570,206 @@ const PaletteSelector = memo(function PaletteSelector({
   );
 });
 
+/**
+ * Semantic-token row for a `{ literal: string }` OR per-mode
+ * `{ literal: { light, dark } }` mapping (S3 #464 / S12 #473): an editable
+ * OKLCH `ColorField` swatch instead of `PaletteSelector`'s palette-index
+ * dropdown — the value is a standalone color, not a slot into
+ * `state.palette`, so there is no palette to pick from. Mirrors the
+ * `.tokenpanel-row` layout used by `generic-tab.tsx`'s own `format: 'oklch'`
+ * color rows (`TokenLabel` + `ColorField` + eye toggle) for visual
+ * consistency across the panel.
+ *
+ * A "Per-mode" checkbox (`<label><input type="checkbox">`, both permitted by
+ * the panel DOM-hygiene policy) switches between a single `ColorField` and a
+ * light/dark pair, each edited independently via its own `ColorField`.
+ * Checking it seeds both sides from the current single value; unchecking it
+ * collapses back to one value — the cluster's `defaultMode` side, via
+ * `resolvePerModeLiteral` (#472's runtime helper for exactly this).
+ *
+ * `onChange` is `(idKey, value)` — same stable-callback shape as
+ * `PaletteSelector` / `ColorSwatch` above, so a single handler covers every
+ * row and `memo` stays effective.
+ *
+ * Only reached for a tier with NO `referencesRamps` declared — a tier that
+ * does declare ramp sources renders `SemanticRefOrLiteralRow` instead (S9
+ * #470 / S12 #473), even for its literal-mode rows, so the user can switch
+ * back to a ramp reference.
+ */
+const SemanticLiteralRow = memo(function SemanticLiteralRow({
+  label,
+  idKey,
+  value,
+  onChange,
+  cssVar,
+  defaultMode = 'light',
+}: {
+  label: string;
+  idKey: string;
+  value: { literal: string } | { literal: { light: string; dark: string } };
+  onChange: (
+    idKey: string,
+    val: { literal: string } | { literal: { light: string; dark: string } },
+  ) => void;
+  cssVar?: string;
+  /** The cluster's `getClusterDefaultMode()` result (#472) — the side kept
+   *  when the user unchecks "Per-mode". Defaults to `'light'`. */
+  defaultMode?: 'light' | 'dark';
+}) {
+  const isPerMode = typeof value.literal === 'object' && value.literal !== null;
+
+  const handleTogglePerMode = useCallback(() => {
+    const current = value.literal;
+    if (typeof current === 'object' && current !== null) {
+      onChange(idKey, { literal: resolvePerModeLiteral({ literal: current }, defaultMode) });
+    } else {
+      onChange(idKey, { literal: { light: current, dark: current } });
+    }
+  }, [value, defaultMode, onChange, idKey]);
+
+  const handleSingleChange = useCallback(
+    (next: string) => onChange(idKey, { literal: next }),
+    [onChange, idKey],
+  );
+
+  const handleLightChange = useCallback(
+    (next: string) => {
+      const current = value.literal;
+      if (typeof current !== 'object' || current === null) return;
+      onChange(idKey, { literal: { light: next, dark: current.dark } });
+    },
+    [value, onChange, idKey],
+  );
+
+  const handleDarkChange = useCallback(
+    (next: string) => {
+      const current = value.literal;
+      if (typeof current !== 'object' || current === null) return;
+      onChange(idKey, { literal: { light: current.light, dark: next } });
+    },
+    [value, onChange, idKey],
+  );
+
+  return (
+    <div className="tokenpanel-row" data-testid={`tokenpanel-semantic-literal-${idKey}`}>
+      <TokenLabel cssVar={cssVar ?? idKey} label={label} />
+      <label className="tokenpanel-per-mode-toggle">
+        <input
+          type="checkbox"
+          checked={isPerMode}
+          onChange={handleTogglePerMode}
+          aria-label={`${label} per-mode (light/dark)`}
+        />
+        Per-mode
+      </label>
+      {typeof value.literal === 'object' && value.literal !== null ? (
+        <div className="tokenpanel-per-mode-fields">
+          <ColorField
+            value={value.literal.light}
+            onChange={handleLightChange}
+            valueFormat="oklch"
+            label={`${label} (Light)`}
+            cssVar={cssVar}
+          />
+          <ColorField
+            value={value.literal.dark}
+            onChange={handleDarkChange}
+            valueFormat="oklch"
+            label={`${label} (Dark)`}
+            cssVar={cssVar}
+          />
+        </div>
+      ) : (
+        <ColorField
+          value={value.literal}
+          onChange={handleSingleChange}
+          valueFormat="oklch"
+          label={label}
+          cssVar={cssVar}
+        />
+      )}
+      {cssVar && <HighlightToggleButton cssVar={cssVar} />}
+    </div>
+  );
+});
+
+/**
+ * Semantic-token row for a tier that declares `referencesRamps` (S9, #470):
+ * wraps `TierRefSelector`'s grouped ref-or-literal control with the same
+ * `.tokenpanel-row` (`TokenLabel` + control + eye toggle) layout every other
+ * semantic row uses. Handles both current-value shapes the selector reads —
+ * `{ ref }` (a cross-tab ramp item) and single-mode `{ literal }` (a
+ * standalone OKLCH color, editable in place) — and can switch between them.
+ *
+ * `onChange` is `(idKey, next: TierRefSelectorValue)` — mirrors the
+ * `SemanticValue` `{ ref } | { literal }` shape one-for-one, so the caller's
+ * handler just needs to spread it straight into `semanticMappings`.
+ */
+const SemanticRefOrLiteralRow = memo(function SemanticRefOrLiteralRow({
+  label,
+  idKey,
+  tab,
+  tabs,
+  tierId,
+  value,
+  onChange,
+  previewValueFor,
+  cssVar,
+  defaultMode,
+}: {
+  label: string;
+  idKey: string;
+  tab: TabConfig;
+  tabs: readonly TabConfig[];
+  tierId: string;
+  value: TierRefSelectorValue;
+  onChange: (idKey: string, next: TierRefSelectorValue) => void;
+  previewValueFor: (ref: TierRefTarget) => string;
+  cssVar?: string;
+  /** The cluster's `getClusterDefaultMode()` result (#472) — forwarded to
+   *  `TierRefSelector` for its per-mode collapse-to-single-mode fallback. */
+  defaultMode?: 'light' | 'dark';
+}) {
+  return (
+    <div className="tokenpanel-row" data-testid={`tokenpanel-semantic-ref-${idKey}`}>
+      <TokenLabel cssVar={cssVar ?? idKey} label={label} />
+      <TierRefSelector
+        tab={tab}
+        tabs={tabs}
+        tierId={tierId}
+        itemId={idKey}
+        value={value}
+        onChange={onChange}
+        previewValueFor={previewValueFor}
+        label={label}
+        cssVar={cssVar}
+        defaultMode={defaultMode}
+      />
+      {cssVar && <HighlightToggleButton cssVar={cssVar} />}
+    </div>
+  );
+});
+
+/**
+ * Resolve a ramp-option preview string for the grouped picker. Looks the
+ * target item up by its manifest data (`{tab?,tier,item}`) and returns its
+ * `default` — a static preview, not override-aware against the Palette tab's
+ * live tweak state (that state isn't threaded into `ColorTab`). Good enough
+ * to label options distinctly; wiring a live preview is left for a follow-up
+ * (see #471's cross-tab e2e confirmation).
+ */
+function makeRampPreview(
+  currentTab: TabConfig,
+  tabs: readonly TabConfig[],
+): (ref: TierRefTarget) => string {
+  return (ref) => {
+    const targetTab = ref.tab === undefined ? currentTab : tabs.find((t) => t.id === ref.tab);
+    const targetTier = targetTab?.tiers.find((t) => t.id === ref.tier);
+    const item = targetTier?.items.find((i) => i.id === ref.item);
+    return item?.default ?? ref.item;
+  };
+}
+
 // --- Color tab body ---
 
 interface ColorTabProps {
@@ -553,7 +799,10 @@ export default function ColorTab({
 }: ColorTabProps) {
   // Derive the cluster from the tab's colorExtras + tiers. This provides the
   // same shape that the rest of the panel (apply, clear, state) expects.
-  const cluster = useMemo(() => resolveColorClusterFromTab(tab), [tab]);
+  // The full tabs array is threaded in so a semantic tier's cross-tab `{ ref }`
+  // mappings resolve against a ramp tier in another tab (e.g. the Palette tab).
+  const allTabs = getPanelConfig().tabs;
+  const cluster = useMemo(() => resolveColorClusterFromTab(tab, allTabs), [tab, allTabs]);
   // Fallback to an empty stub cluster when the tab has no colorExtras.
   const safeCluster = useMemo(
     () =>
@@ -573,8 +822,17 @@ export default function ColorTab({
   );
   // Secondary cluster derived from the secondary tab (if any).
   const secondaryCluster = useMemo(
-    () => (secondaryTab ? resolveColorClusterFromTab(secondaryTab) ?? null : null),
-    [secondaryTab],
+    () => (secondaryTab ? resolveColorClusterFromTab(secondaryTab, allTabs) ?? null : null),
+    [secondaryTab, allTabs],
+  );
+  // Each cluster's configured default light/dark mode (#472) — the side a
+  // per-mode literal collapses to when the user unchecks "Per-mode" (S12,
+  // #473). Secondary falls back to 'light' (matching `getClusterDefaultMode`'s
+  // own default) when there's no secondary cluster at all.
+  const primaryDefaultMode = useMemo(() => getClusterDefaultMode(safeCluster), [safeCluster]);
+  const secondaryDefaultMode = useMemo(
+    () => (secondaryCluster ? getClusterDefaultMode(secondaryCluster) : 'light'),
+    [secondaryCluster],
   );
   // Host-supplied preset list. Read through the panel
   // config so a host that calls `configurePanel({ ..., colorPresets })`
@@ -663,6 +921,44 @@ export default function ColorTab({
     [persistSecondary],
   );
 
+  // Secondary-cluster counterpart to `handleSemanticLiteralChange` (S3 #464 /
+  // S12 #473) — `val` already carries the full `{ literal: ... }` wrapper.
+  const handleSecondarySemanticLiteralChange = useCallback(
+    (key: string, val: { literal: string } | { literal: { light: string; dark: string } }) => {
+      persistSecondary((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          semanticMappings: { ...prev.semanticMappings, [key]: val },
+        };
+      });
+    },
+    [persistSecondary],
+  );
+
+  // Secondary-cluster counterpart to `handleSemanticRefOrLiteralChange` (S9,
+  // #470) — writes whichever variant `TierRefSelector` reports straight into
+  // `semanticMappings`, mirroring the `{ ref } | { literal }` shape 1:1.
+  const handleSecondarySemanticRefOrLiteralChange = useCallback(
+    (key: string, next: TierRefSelectorValue) => {
+      persistSecondary((prev) => {
+        if (!prev) return prev;
+        // `next` is returned as-is in the literal branch (not rebuilt as
+        // `{ literal: next.literal }`) — reconstructing collapses the
+        // `string | { light, dark }` union into one shape TS can't match
+        // back to `SemanticValue`'s two distinct `{ literal }` members.
+        return {
+          ...prev,
+          semanticMappings: {
+            ...prev.semanticMappings,
+            [key]: 'ref' in next ? { ref: next.ref } : next,
+          },
+        };
+      });
+    },
+    [persistSecondary],
+  );
+
   // Accepts `key: string` (broadened from the literal union) so the same
   // handler can be passed directly to memoised <PaletteSelector> rows whose
   // (idKey, val) signature is also string-typed.
@@ -693,6 +989,49 @@ export default function ColorTab({
       }));
     },
     [persistColor],
+  );
+
+  // Writes a `{ literal }` SemanticValue — single-mode `string` or per-mode
+  // `{ light, dark }` (S3 #464 / S12 #473) — the `SemanticLiteralRow`
+  // counterpart to `handleSemanticChange`'s index write. `val` already
+  // carries the full `{ literal: ... }` wrapper (mirroring
+  // `handleSemanticRefOrLiteralChange` below), so no re-wrapping is needed.
+  const handleSemanticLiteralChange = useCallback(
+    (key: string, val: { literal: string } | { literal: { light: string; dark: string } }) => {
+      persistColor((prev) => ({
+        ...prev,
+        semanticMappings: { ...prev.semanticMappings, [key]: val },
+      }));
+    },
+    [persistColor],
+  );
+
+  // Writes whichever variant `TierRefSelector`'s grouped ref-or-literal
+  // control reports (S9, #470) — mirrors the `{ ref } | { literal }`
+  // `SemanticValue` shape 1:1, so no further translation is needed.
+  const handleSemanticRefOrLiteralChange = useCallback(
+    (key: string, next: TierRefSelectorValue) => {
+      persistColor((prev) => ({
+        ...prev,
+        // `next` is returned as-is in the literal branch — see the secondary
+        // counterpart above for why reconstructing `{ literal: next.literal }`
+        // does not typecheck.
+        semanticMappings: {
+          ...prev.semanticMappings,
+          [key]: 'ref' in next ? { ref: next.ref } : next,
+        },
+      }));
+    },
+    [persistColor],
+  );
+
+  // Preview-text resolvers for the grouped picker's ramp options — one bound
+  // to the primary cluster's own tab (the default "current tab" for
+  // same-tab ramp sources), one to the secondary cluster's tab.
+  const previewRampValue = useMemo(() => makeRampPreview(tab, allTabs), [tab, allTabs]);
+  const secondaryPreviewRampValue = useMemo(
+    () => (secondaryTab ? makeRampPreview(secondaryTab, allTabs) : undefined),
+    [secondaryTab, allTabs],
   );
 
   const handleLoadPreset = useCallback(
@@ -745,71 +1084,82 @@ export default function ColorTab({
         </select>
       </div>
 
-      {/* Section A: Raw Palette */}
-      <div className="tokenpanel-tab-section">
-        <div role="heading" aria-level={3} className="tokenpanel-tab-section-heading tokenpanel-tab-section-heading--color">
-          {primaryLabel} — Palette
+      {/*
+       * Section A: Raw Palette — and Section B: Base Theme, which indexes
+       * into that palette. Both are gated on `state.palette.length > 0`: a
+       * lone `semantic: true` tier (no palette sibling, paletteSize 0, #458)
+       * has no palette to render or index into. Rendering either section
+       * unconditionally would show a phantom swatch backed by nothing
+       * (previously a 1-slot grayscale floor in `initSecondaryDefaults`,
+       * #466) or a dead index-picker with zero options.
+       */}
+      {state.palette.length > 0 && (
+        <div className="tokenpanel-tab-section">
+          <div role="heading" aria-level={3} className="tokenpanel-tab-section-heading tokenpanel-tab-section-heading--color">
+            {primaryLabel} — Palette
+          </div>
+          <div className="tokenpanel-color-palette-grid">
+            {state.palette.map((color, i) => (
+              // ColorSwatch passes `i` back via its (index, value) onChange so we
+              // hand `handlePaletteChange` directly — no inline arrow, memo
+              // stays effective. `valueFormat` routes oklch-format slots through
+              // the lossless OKLCH editor; absent/`'hex'` slots stay hex.
+              <ColorSwatch
+                key={i}
+                color={color}
+                index={i}
+                label={resolvePaletteCssVar(safeCluster, i)}
+                cssVar={resolvePaletteCssVar(safeCluster, i)}
+                valueFormat={resolvePaletteFormat(paletteTier, i)}
+                onChange={handlePaletteChange}
+              />
+            ))}
+          </div>
         </div>
-        <div className="tokenpanel-color-palette-grid">
-          {state.palette.map((color, i) => (
-            // ColorSwatch passes `i` back via its (index, value) onChange so we
-            // hand `handlePaletteChange` directly — no inline arrow, memo
-            // stays effective. `valueFormat` routes oklch-format slots through
-            // the lossless OKLCH editor; absent/`'hex'` slots stay hex.
-            <ColorSwatch
-              key={i}
-              color={color}
-              index={i}
-              label={resolvePaletteCssVar(safeCluster, i)}
-              cssVar={resolvePaletteCssVar(safeCluster, i)}
-              valueFormat={resolvePaletteFormat(paletteTier, i)}
-              onChange={handlePaletteChange}
-            />
-          ))}
-        </div>
-      </div>
+      )}
 
       {/* Base + Semantic wrapper */}
       <div className="tokenpanel-tab-content">
-        {/* Section B: Base Theme */}
-        <div className="tokenpanel-tab-section">
-          <div role="heading" aria-level={3} className="tokenpanel-tab-section-heading tokenpanel-tab-section-heading--color">
-            {primaryLabel} — Base
+        {state.palette.length > 0 && (
+          <div className="tokenpanel-tab-section">
+            <div role="heading" aria-level={3} className="tokenpanel-tab-section-heading tokenpanel-tab-section-heading--color">
+              {primaryLabel} — Base
+            </div>
+            {/*
+             * `background (bg)` and `foreground (fg)` are palette-index knobs:
+             * the value picks which palette slot seeds that base role. The
+             * labels read as plain English with the short key in parentheses
+             * rather than the cssVar name. The eye toggle, however, wires to the
+             * cluster's declared base-role cssVar (`cluster.baseRoles.background`
+             * / `.foreground`) — those ARE real tokens written to the DOM by
+             * `applyColorState`, so highlighting them is just as valid as any
+             * semantic token. When a cluster declares no cssVar for a base role,
+             * `cssVar` is undefined and the eye is omitted. The `cursor`,
+             * `sel-bg`, `sel-fg` upstream rows are dropped here because nothing
+             * in this package references them.
+             */}
+            <div className="tokenpanel-color-base-grid">
+              <PaletteSelector
+                label="background (bg)"
+                idKey="background"
+                value={state.background}
+                palette={state.palette}
+                paletteCssVar={clusterPaletteCssVar}
+                onChange={handleBaseIndexChange}
+                cssVar={safeCluster.baseRoles.background}
+              />
+              <PaletteSelector
+                label="foreground (fg)"
+                idKey="foreground"
+                value={state.foreground}
+                palette={state.palette}
+                paletteCssVar={clusterPaletteCssVar}
+                onChange={handleBaseIndexChange}
+                cssVar={safeCluster.baseRoles.foreground}
+              />
+            </div>
           </div>
-          {/*
-           * `background (bg)` and `foreground (fg)` are palette-index knobs:
-           * the value picks which palette slot seeds that base role. The
-           * labels read as plain English with the short key in parentheses
-           * rather than the cssVar name. The eye toggle, however, wires to the
-           * cluster's declared base-role cssVar (`cluster.baseRoles.background`
-           * / `.foreground`) — those ARE real tokens written to the DOM by
-           * `applyColorState`, so highlighting them is just as valid as any
-           * semantic token. When a cluster declares no cssVar for a base role,
-           * `cssVar` is undefined and the eye is omitted. The `cursor`,
-           * `sel-bg`, `sel-fg` upstream rows are dropped here because nothing
-           * in this package references them.
-           */}
-          <div className="tokenpanel-color-base-grid">
-            <PaletteSelector
-              label="background (bg)"
-              idKey="background"
-              value={state.background}
-              palette={state.palette}
-              paletteCssVar={clusterPaletteCssVar}
-              onChange={handleBaseIndexChange}
-              cssVar={safeCluster.baseRoles.background}
-            />
-            <PaletteSelector
-              label="foreground (fg)"
-              idKey="foreground"
-              value={state.foreground}
-              palette={state.palette}
-              paletteCssVar={clusterPaletteCssVar}
-              onChange={handleBaseIndexChange}
-              cssVar={safeCluster.baseRoles.foreground}
-            />
-          </div>
-        </div>
+        )}
 
         {/* Section C: Semantic Token Mappings */}
         <div className="tokenpanel-tab-section">
@@ -819,12 +1169,68 @@ export default function ColorTab({
           <div className="tokenpanel-color-base-grid">
             {Object.entries(safeCluster.semanticDefaults).map(([key, defaultVal]) => {
               const semanticCssVar = safeCluster.semanticCssNames[key];
+              const mapping = state.semanticMappings[key] ?? defaultVal;
+              // A tier that declares `referencesRamps` routes both its ref
+              // and literal values — single-mode AND per-mode
+              // `{ literal: { light, dark } }` (#472) alike — through the
+              // grouped ref-or-literal picker (S9 #470 / S12 #473), so the
+              // user can switch between a cross-tab ramp reference and an
+              // arbitrary OKLCH literal (optionally split light/dark).
+              const semanticTier = findSemanticTier(tab, key);
+              const rampSources = semanticTier?.referencesRamps;
+              if (
+                rampSources &&
+                rampSources.length > 0 &&
+                (isRefMapping(mapping) || isLiteralMapping(mapping))
+              ) {
+                // `mapping` is passed through as-is in the literal branch —
+                // rebuilding `{ literal: mapping.literal }` collapses the
+                // `string | { light, dark }` union into a shape TS can't
+                // match back to `TierRefSelectorValue`'s two `{ literal }`
+                // members.
+                const tierRefValue: TierRefSelectorValue = isRefMapping(mapping)
+                  ? { ref: mapping.ref }
+                  : mapping;
+                return (
+                  <SemanticRefOrLiteralRow
+                    key={key}
+                    label={semanticCssVar ?? key}
+                    idKey={key}
+                    tab={tab}
+                    tabs={allTabs}
+                    tierId={semanticTier!.id}
+                    value={tierRefValue}
+                    onChange={handleSemanticRefOrLiteralChange}
+                    previewValueFor={previewRampValue}
+                    cssVar={semanticCssVar}
+                    defaultMode={primaryDefaultMode}
+                  />
+                );
+              }
+              // Any `{ literal }` mapping (on a tier with NO
+              // `referencesRamps`) — single-mode string OR per-mode
+              // `{ light, dark }` (S12, #473) — renders an editable OKLCH
+              // swatch (S3, #464) instead of a palette-index dropdown; it has
+              // no palette slot to reference.
+              if (isLiteralMapping(mapping)) {
+                return (
+                  <SemanticLiteralRow
+                    key={key}
+                    label={semanticCssVar ?? key}
+                    idKey={key}
+                    value={mapping}
+                    onChange={handleSemanticLiteralChange}
+                    cssVar={semanticCssVar}
+                    defaultMode={primaryDefaultMode}
+                  />
+                );
+              }
               return (
                 <PaletteSelector
                   key={key}
                   label={semanticCssVar ?? key}
                   idKey={key}
-                  value={state.semanticMappings[key] ?? defaultVal}
+                  value={toIndexMappingForSelector(mapping)}
                   palette={state.palette}
                   paletteCssVar={clusterPaletteCssVar}
                   onChange={handleSemanticChange}
@@ -843,7 +1249,7 @@ export default function ColorTab({
          * config. The `data-testid` markers below give Playwright a
          * stable handle for asserting presence / absence.
          */}
-        {secondaryCluster && secondaryState && (
+        {secondaryCluster && secondaryState && secondaryTab && (
           <>
             {/* Section D: SECONDARY — Palette */}
             <div
@@ -879,12 +1285,55 @@ export default function ColorTab({
               <div className="tokenpanel-color-base-grid">
                 {Object.entries(secondaryCluster.semanticDefaults).map(([key, defaultVal]) => {
                   const secondarySemanticCssVar = secondaryCluster.semanticCssNames[key];
+                  const secondaryMapping = secondaryState.semanticMappings[key] ?? defaultVal;
+                  // Mirrors the primary section's ramp/literal/index split above.
+                  const secondarySemanticTier = findSemanticTier(secondaryTab, key);
+                  const secondaryRampSources = secondarySemanticTier?.referencesRamps;
+                  if (
+                    secondaryRampSources &&
+                    secondaryRampSources.length > 0 &&
+                    (isRefMapping(secondaryMapping) || isLiteralMapping(secondaryMapping))
+                  ) {
+                    // See the primary section's `tierRefValue` above for why
+                    // `secondaryMapping` is passed through as-is here.
+                    const secondaryTierRefValue: TierRefSelectorValue = isRefMapping(secondaryMapping)
+                      ? { ref: secondaryMapping.ref }
+                      : secondaryMapping;
+                    return (
+                      <SemanticRefOrLiteralRow
+                        key={key}
+                        label={secondarySemanticCssVar ?? key}
+                        idKey={key}
+                        tab={secondaryTab}
+                        tabs={allTabs}
+                        tierId={secondarySemanticTier!.id}
+                        value={secondaryTierRefValue}
+                        onChange={handleSecondarySemanticRefOrLiteralChange}
+                        previewValueFor={secondaryPreviewRampValue!}
+                        cssVar={secondarySemanticCssVar}
+                        defaultMode={secondaryDefaultMode}
+                      />
+                    );
+                  }
+                  if (isLiteralMapping(secondaryMapping)) {
+                    return (
+                      <SemanticLiteralRow
+                        key={key}
+                        label={secondarySemanticCssVar ?? key}
+                        idKey={key}
+                        value={secondaryMapping}
+                        onChange={handleSecondarySemanticLiteralChange}
+                        cssVar={secondarySemanticCssVar}
+                        defaultMode={secondaryDefaultMode}
+                      />
+                    );
+                  }
                   return (
                     <PaletteSelector
                       key={key}
                       label={secondarySemanticCssVar ?? key}
                       idKey={key}
-                      value={secondaryState.semanticMappings[key] ?? defaultVal}
+                      value={toIndexMappingForSelector(secondaryMapping)}
                       palette={secondaryState.palette}
                       paletteCssVar={secondaryPaletteCssVar}
                       onChange={handleSecondarySemanticChange}

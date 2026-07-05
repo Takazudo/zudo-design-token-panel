@@ -3,12 +3,14 @@ import {
   DesignTokenSchemaError,
   SCHEMA_V1,
   SCHEMA_V2,
+  SCHEMA_V3,
   deserialize,
   getDesignTokenSchema,
   serialize,
   type DesignTokenJsonV2,
+  type DesignTokenJsonV3,
 } from '../design-token-serde';
-import type { ColorTweakState, TweakState } from '../../state/tweak-state';
+import type { ColorTweakState, SemanticValue, TweakState } from '../../state/tweak-state';
 import { __resetPanelConfigForTests } from '../../config/panel-config';
 import { installFixturePanelConfig, FIXTURE_CLUSTER, FIXTURE_TABS } from '../../__tests__/_test-helpers';
 import type { TabConfig } from '../../tokens/tier-model';
@@ -737,5 +739,182 @@ describe("F29 — serialize() emits 'bg'/'fg' semantic mappings as their resolve
     // Either form that resolves to 0 is acceptable, but the v2 format emits numbers.
     const resolvedAccent = step3State.color.semanticMappings['accent'];
     expect(typeof resolvedAccent === 'number' ? resolvedAccent : -1).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SCHEMA_V3 — widened color.semantic leaf for SemanticValue variants (#462)
+// ---------------------------------------------------------------------------
+
+describe('SCHEMA_V3 — serialize/deserialize round-trips for every SemanticValue variant', () => {
+  it('a state whose semantic mappings are all plain indices still emits SCHEMA_V2 (no regression)', () => {
+    const json = serialize(makeState(), { colorDefaults: COLOR_BASELINE });
+    expect(json.$schema).toBe(SCHEMA_V2);
+  });
+
+  it('round-trips an index mapping (number) unchanged and keeps $schema at V2', () => {
+    const color = cloneBaseline();
+    color.semanticMappings.accent = 9; // was 5
+    const json = serialize(makeState({ color }), { colorDefaults: COLOR_BASELINE });
+    expect(json.$schema).toBe(SCHEMA_V2);
+    expect(json.tabs?.['color']?.['semantic']).toEqual({ '--fixture-semantic-accent': 9 });
+
+    const { state, unknownTokens, warnings } = deserialize(JSON.parse(JSON.stringify(json)), {
+      colorDefaults: COLOR_BASELINE,
+    });
+    expect(unknownTokens).toEqual([]);
+    expect(warnings).toEqual([]);
+    expect(state.color.semanticMappings.accent).toBe(9);
+  });
+
+  it('round-trips a { literal: string } mapping, upgrading $schema to SCHEMA_V3', () => {
+    const color = cloneBaseline();
+    color.semanticMappings.accent = { literal: '#ff8800' };
+    const json = serialize(makeState({ color }), { colorDefaults: COLOR_BASELINE }) as DesignTokenJsonV3;
+    expect(json.$schema).toBe(SCHEMA_V3);
+    expect(json.tabs?.['color']?.['semantic']).toEqual({
+      '--fixture-semantic-accent': { literal: '#ff8800' },
+    });
+
+    const { state, unknownTokens, warnings } = deserialize(JSON.parse(JSON.stringify(json)), {
+      colorDefaults: COLOR_BASELINE,
+    });
+    expect(unknownTokens).toEqual([]);
+    expect(warnings).toEqual([]);
+    expect(state.color.semanticMappings.accent).toEqual({ literal: '#ff8800' });
+  });
+
+  it('round-trips a { literal: { light, dark } } per-mode mapping, upgrading $schema to SCHEMA_V3', () => {
+    const color = cloneBaseline();
+    const perMode: SemanticValue = { literal: { light: '#111111', dark: '#eeeeee' } };
+    color.semanticMappings.muted = perMode;
+    const json = serialize(makeState({ color }), { colorDefaults: COLOR_BASELINE }) as DesignTokenJsonV3;
+    expect(json.$schema).toBe(SCHEMA_V3);
+    expect(json.tabs?.['color']?.['semantic']).toEqual({
+      '--fixture-semantic-muted': { literal: { light: '#111111', dark: '#eeeeee' } },
+    });
+
+    const { state, unknownTokens, warnings } = deserialize(JSON.parse(JSON.stringify(json)), {
+      colorDefaults: COLOR_BASELINE,
+    });
+    expect(unknownTokens).toEqual([]);
+    expect(warnings).toEqual([]);
+    expect(state.color.semanticMappings.muted).toEqual(perMode);
+  });
+
+  it('round-trips a { ref } mapping, upgrading $schema to SCHEMA_V3', () => {
+    const color = cloneBaseline();
+    const ref: SemanticValue = { ref: { tab: 'brand', tier: 'ramp', item: 'brand-500' } };
+    color.semanticMappings.active = ref;
+    const json = serialize(makeState({ color }), { colorDefaults: COLOR_BASELINE }) as DesignTokenJsonV3;
+    expect(json.$schema).toBe(SCHEMA_V3);
+    expect(json.tabs?.['color']?.['semantic']).toEqual({
+      '--fixture-semantic-active': { ref: { tab: 'brand', tier: 'ramp', item: 'brand-500' } },
+    });
+
+    const { state, unknownTokens, warnings } = deserialize(JSON.parse(JSON.stringify(json)), {
+      colorDefaults: COLOR_BASELINE,
+    });
+    expect(unknownTokens).toEqual([]);
+    expect(warnings).toEqual([]);
+    expect(state.color.semanticMappings.active).toEqual(ref);
+  });
+
+  it('round-trips a { ref } mapping without an optional tab field', () => {
+    const color = cloneBaseline();
+    const ref: SemanticValue = { ref: { tier: 'ramp', item: 'brand-500' } };
+    color.semanticMappings.active = ref;
+    const json = serialize(makeState({ color }), { colorDefaults: COLOR_BASELINE });
+    expect(json.$schema).toBe(SCHEMA_V3);
+
+    const { state } = deserialize(JSON.parse(JSON.stringify(json)), { colorDefaults: COLOR_BASELINE });
+    expect(state.color.semanticMappings.active).toEqual(ref);
+  });
+
+  it('upgrades to SCHEMA_V3 when only ONE of several semantic mappings is an object variant', () => {
+    const color = cloneBaseline();
+    color.semanticMappings.accent = 7; // still an index mapping
+    color.semanticMappings.muted = { literal: '#ff8800' };
+    const json = serialize(makeState({ color }), { colorDefaults: COLOR_BASELINE });
+    expect(json.$schema).toBe(SCHEMA_V3);
+    expect(json.tabs?.['color']?.['semantic']).toEqual({
+      '--fixture-semantic-accent': 7,
+      '--fixture-semantic-muted': { literal: '#ff8800' },
+    });
+  });
+
+  it('warns and keeps baseline for a malformed { literal } value (missing string/light+dark)', () => {
+    const payload = {
+      $schema: SCHEMA_V3,
+      exportedAt: new Date().toISOString(),
+      tabs: {
+        color: {
+          semantic: { '--fixture-semantic-accent': { literal: 42 } },
+        },
+      },
+    };
+    const { state, warnings } = deserialize(payload, { colorDefaults: COLOR_BASELINE });
+    expect(state.color.semanticMappings.accent).toBe(COLOR_BASELINE.semanticMappings.accent);
+    expect(warnings.some((w) => w.includes('accent'))).toBe(true);
+  });
+
+  it('warns and keeps baseline for a malformed { ref } value (missing tier/item)', () => {
+    const payload = {
+      $schema: SCHEMA_V3,
+      exportedAt: new Date().toISOString(),
+      tabs: {
+        color: {
+          semantic: { '--fixture-semantic-active': { ref: { tab: 'brand' } } },
+        },
+      },
+    };
+    const { state, warnings } = deserialize(payload, { colorDefaults: COLOR_BASELINE });
+    expect(state.color.semanticMappings.active).toBe(COLOR_BASELINE.semanticMappings.active);
+    expect(warnings.some((w) => w.includes('active'))).toBe(true);
+  });
+
+  it('SCHEMA_V3 still deserializes spacing/font/size/generic tabs identically to SCHEMA_V2', () => {
+    const original = makeState({
+      spacing: { 'hsp-md': '50px' },
+      typography: { 'text-base': '1.3rem' },
+      size: { 'radius-lg': '12px' },
+    });
+    original.color.semanticMappings.accent = { literal: '#ff8800' }; // forces V3 upgrade
+
+    const json = serialize(original, { colorDefaults: COLOR_BASELINE });
+    expect(json.$schema).toBe(SCHEMA_V3);
+    const { state, unknownTokens } = deserialize(JSON.parse(JSON.stringify(json)), {
+      colorDefaults: COLOR_BASELINE,
+    });
+    expect(unknownTokens).toEqual([]);
+    expect(state.spacing).toEqual(original.spacing);
+    expect(state.typography).toEqual(original.typography);
+    expect(state.size).toEqual(original.size);
+  });
+
+  it('a legacy SCHEMA_V2 document (index-only color.semantic) still hydrates losslessly under the widened deserializer', () => {
+    // A pre-#462 export tagged $schema v2 — every semantic value is a plain
+    // palette-index integer. Must parse identically whether routed through
+    // deserializeV2 (this doc's own tag) — this is the "keep SCHEMA_V2
+    // deserialize lossless" guarantee from #462.
+    const legacyV2Doc: DesignTokenJsonV2 = {
+      $schema: SCHEMA_V2,
+      exportedAt: new Date().toISOString(),
+      tabs: {
+        color: {
+          semantic: { '--fixture-semantic-accent': 3, '--fixture-semantic-muted': 9 },
+        },
+        spacing: { raw: { '--zd-spacing-hgap-md': '60px' } },
+      },
+    };
+    const { state, unknownTokens, warnings } = deserialize(legacyV2Doc, {
+      colorDefaults: COLOR_BASELINE,
+    });
+    expect(unknownTokens).toEqual([]);
+    expect(warnings).toEqual([]);
+    expect(state.color.semanticMappings.accent).toBe(3);
+    expect(state.color.semanticMappings.muted).toBe(9);
+    expect(state.color.semanticMappings.active).toBe(COLOR_BASELINE.semanticMappings.active);
+    expect(state.spacing['hsp-md']).toBe('60px');
   });
 });

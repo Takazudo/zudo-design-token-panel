@@ -81,6 +81,276 @@ export const colorTab: TabConfig = {
 };
 ```
 
+## Semantic-only tier (`semantic: true`)
+
+The palette tier above is detected **structurally** — the first tier with no `referencesTier` whose items are `kind: 'color'`. That heuristic breaks for a design system that ships only named semantic tokens (`--zd-danger`, `--zd-warning`, `--zd-info`, …) with no numbered palette slots at all: the semantic tier's own `kind: 'color'` items would otherwise be mistaken for a malformed palette (issue #458).
+
+Setting `TierConfig.semantic: true` opts a tier out of palette-tier detection everywhere — validation, `resolveColorClusterFromTab`, and the internal `findPaletteTier` helper never treat it as the palette, even though its items are color-kind. A Color `TabConfig` whose only tier is `semantic: true` is a **lone semantic tier**:
+
+```ts
+import type { TabConfig } from '@takazudo/zdtp';
+
+export const colorTab: TabConfig = {
+  id: 'color',
+  label: 'Color',
+  colorExtras: {
+    id: 'myapp',
+    baseRoles: {},
+    baseDefaults: {},
+    defaultShikiTheme: 'github-dark',
+    colorSchemes: {},
+    panelSettings: { colorScheme: 'default', colorMode: false },
+  },
+  tiers: [
+    {
+      id: 'semantic',
+      label: 'Semantic',
+      semantic: true, // no palette tier anywhere in this TabConfig
+      items: [
+        { id: 'danger',  cssVar: '--zd-danger',  label: 'Danger',  default: 'oklch(0.55 0.22 25)', type: { kind: 'color', format: 'oklch' } },
+        { id: 'warning', cssVar: '--zd-warning', label: 'Warning', default: 'oklch(0.75 0.18 80)', type: { kind: 'color', format: 'oklch' } },
+        { id: 'info',    cssVar: '--zd-info',    label: 'Info',    default: 'oklch(0.6 0.1 230)',  type: { kind: 'color', format: 'oklch' } },
+      ],
+    },
+  ],
+};
+```
+
+Consequences for a lone semantic tier — `resolveColorClusterFromTab` reports `paletteSize: 0` — and the Color tab renders accordingly:
+
+| Before #459 (bug, issue #458) | After #459 |
+| --- | --- |
+| `configurePanel` threw — the F4 palette-cssVar contiguity check mistook the semantic tier's non-contiguous named cssVars for a malformed palette. | `configurePanel` accepts it — F4 never fires on a `semantic: true` tier. |
+| The "Semantic Tokens" section rendered grayscale `PaletteSelector` dropdowns pointing at a synthetic 1-slot palette. | Each row renders an editable OKLCH `ColorField` swatch directly — there is no palette to select from, so there is nothing to select. |
+| The "Scheme…" preset dropdown rendered as a dead control. | No scheme dropdown is rendered at all when `colorSchemes` is empty. |
+
+A lone semantic tier can also mix in `referencesRamps` to source some (or all) of its rows from a palette living on another tab — see the next section.
+
+## Cross-tab ramp references (`referencesRamps`)
+
+A `semantic: true` tier is not limited to standalone literals. `TierConfig.referencesRamps` declares one or more *ramp sources* — tiers (optionally on another tab) whose items the semantic tier's rows may reference:
+
+```ts
+referencesRamps?: readonly { tab?: string; tier: string }[];
+```
+
+Each entry names a tier `id` and an optional `tab` id (omitted `tab` means "this tab"). `assertValidPanelConfig` validates every declared source up front — an unknown tab or tier throws a clear configure-time error, before any row renders.
+
+### Worked example: a Palette tab feeding a Color tab's semantic tier
+
+```ts
+import type { TabConfig } from '@takazudo/zdtp';
+
+// The ramp source — a standalone Palette tab (no colorExtras: see
+// [Grouped palette tab](../recipes/grouped-palette-tab.mdx) for the full
+// rationale). Two ramps, "base" and "accent".
+export const paletteTab: TabConfig = {
+  id: 'palette',
+  label: 'Palette',
+  tiers: [
+    {
+      id: 'base',
+      label: 'Base',
+      items: [
+        { id: 'base-0', cssVar: '--palette-base-0', label: 'Base 0', default: 'oklch(0.98 0 0)', type: { kind: 'color', format: 'oklch' } },
+        { id: 'base-1', cssVar: '--palette-base-1', label: 'Base 1', default: 'oklch(0.7 0 0)',  type: { kind: 'color', format: 'oklch' } },
+        { id: 'base-2', cssVar: '--palette-base-2', label: 'Base 2', default: 'oklch(0.2 0 0)',  type: { kind: 'color', format: 'oklch' } },
+      ],
+    },
+    {
+      id: 'accent',
+      label: 'Accent',
+      items: [
+        { id: 'accent-0', cssVar: '--palette-accent-0', label: 'Accent 0', default: 'oklch(0.65 0.2 250)', type: { kind: 'color', format: 'oklch' } },
+        { id: 'accent-1', cssVar: '--palette-accent-1', label: 'Accent 1', default: 'oklch(0.45 0.2 250)', type: { kind: 'color', format: 'oklch' } },
+      ],
+    },
+  ],
+};
+
+// The Color tab: a lone semantic tier that references BOTH of the Palette
+// tab's ramps.
+export const colorTab: TabConfig = {
+  id: 'color',
+  label: 'Color',
+  colorExtras: {
+    id: 'myapp',
+    baseRoles: {},
+    baseDefaults: {},
+    defaultShikiTheme: 'github-dark',
+    colorSchemes: {},
+    panelSettings: { colorScheme: 'default', colorMode: false },
+  },
+  tiers: [
+    {
+      id: 'semantic',
+      label: 'Semantic',
+      semantic: true,
+      referencesRamps: [
+        { tab: 'palette', tier: 'base' },   // ramp source #1 (the default)
+        { tab: 'palette', tier: 'accent' }, // ramp source #2
+      ],
+      items: [
+        {
+          id: 'surface',
+          cssVar: '--zd-surface',
+          label: 'Surface',
+          // A bare ramp-item id resolves against the FIRST declared ramp
+          // source (referencesRamps[0] — here, "base").
+          default: 'base-1',
+          type: { kind: 'color', format: 'oklch' },
+        },
+        {
+          id: 'brand',
+          cssVar: '--zd-brand',
+          label: 'Brand',
+          // "tierId:itemId" picks a NON-first ramp source by name.
+          default: 'accent:accent-1',
+          type: { kind: 'color', format: 'oklch' },
+        },
+      ],
+    },
+  ],
+};
+```
+
+`resolveColorClusterFromTab` derives each row's manifest default into a `{ ref }` `SemanticValue`:
+
+```ts
+cluster.semanticDefaults['surface'] === { ref: { tab: 'palette', tier: 'base',   item: 'base-1' } }
+cluster.semanticDefaults['brand']   === { ref: { tab: 'palette', tier: 'accent', item: 'accent-1' } }
+```
+
+The apply pipeline emits a **live** `var(...)` reference for each — never a resolved snapshot — so tweaking `--palette-accent-1` on the Palette tab re-colors `--zd-brand` immediately, with no re-apply needed:
+
+```
+surface -> --zd-surface: var(--palette-base-1)
+brand   -> --zd-brand:   var(--palette-accent-1)
+```
+
+In the panel UI, a row on a `referencesRamps` tier renders as a grouped `<select>` — one `<optgroup>` per declared ramp source (`Base`, `Accent`) — plus a `"Literal…"` option that switches the row to a standalone literal color (see the next section). Picking a different ramp option persists a new `{ ref }` mapping; picking `"Literal…"` persists a `{ literal }` mapping seeded from the row's currently-resolved color.
+
+## `SemanticValue` mapping shapes
+
+Every item in a semantic tier (`referencesTier`-style OR `semantic: true`) resolves to one `SemanticValue`:
+
+```ts
+export type SemanticValue =
+  | number
+  | 'bg'
+  | 'fg'
+  | { literal: string }
+  | { literal: { light: string; dark: string } }
+  | { ref: { tab?: string; tier: string; item: string } };
+```
+
+| Shape | Meaning | Manifest default | Apply emission |
+| --- | --- | --- | --- |
+| `number` | Palette-index mapping (the conventional `referencesTier` shape at the top of this page). | The id of a palette item, looked up to its index. | `var(--palette-item-cssVar)` |
+| `'bg'` / `'fg'` | Legacy aliases — resolve to the scheme's current background/foreground palette index. | Rare as a manifest default; mostly a v1-import artifact. | `var(--palette-item-cssVar)` for whichever index `'bg'`/`'fg'` currently resolves to. |
+| `{ literal: string }` | A standalone color, independent of any palette. | A literal CSS color string (e.g. `'oklch(0.6 0.1 230)'`). | The literal string verbatim. |
+| `{ literal: { light, dark } }` | The **per-mode literal** (#472/#473) — two independently-edited colors, one per color-scheme mode. | Never — `TierItem.default` is always a plain string, so this shape can only arise at RUNTIME (the panel's "Per-mode" editor checkbox, or a hand-built `ColorTweakState` / imported `SCHEMA_V3` JSON). | `light-dark(<light>, <dark>)`, and the apply pipeline additionally sets `color-scheme: light dark` on the applied root (cleared again on Reset) so the browser can pick a side. |
+| `{ ref: { tab?, tier, item } }` | A cross-tab/tier **ramp reference** (#467/#468) — only legal on a tier that declares `referencesRamps` naming the target tier. | The `"itemId"` (bare, first declared source) or `"tierId:itemId"` (named source) shorthand — see the worked example above. | `var(--target-item-cssVar)` — a live reference, re-resolved by the browser on every change to the ramp source, never a baked snapshot. |
+
+### Per-mode literal and `colorMode.defaultMode`
+
+`ClusterPanelSettings.colorMode.defaultMode` (documented below) gains a second job once a per-mode literal is in play: it selects which side (`'light'` or `'dark'`) is used for the panel's own swatch preview and as the flat fallback anywhere `light-dark()` cannot be resolved by a real browser (an export preview, an SSR seed). It does **not** change what gets emitted — `applyColorState` / `buildApplyOverrides` always emit the full `light-dark(<light>, <dark>)` function; `defaultMode` only affects which value the panel itself displays or falls back to.
+
+```ts
+panelSettings: {
+  colorScheme: 'default',
+  colorMode: { defaultMode: 'dark', lightScheme: 'Light', darkScheme: 'Dark' },
+},
+```
+
+### Regression: pre-#459 shapes are unaffected
+
+A conventional 2-tier palette + semantic cluster (the `referencesTier`-driven shape documented earlier on this page) keeps working unchanged — `number` index mappings still render as `PaletteSelector` dropdowns and still emit `var(--palette-item-cssVar)`. `semantic: true` and `referencesRamps` are purely additive: a tab that never sets them behaves exactly as it did before #459.
+
+## Minimal end-to-end example
+
+The snippet below wires a `configurePanel({...})` call with a grouped Palette tab (`base` / `accent` ramps) and a Color tab whose lone `semantic: true` tier exercises all three post-#459 `SemanticValue` shapes side by side — a cross-tab `{ ref }`, a standalone `{ literal }`, and (via a runtime state hand-edit, since `TierItem.default` cannot express it) the per-mode `{ literal: { light, dark } }`:
+
+```ts
+import { configurePanel } from '@takazudo/zdtp';
+import type { TabConfig, PanelConfig } from '@takazudo/zdtp';
+
+const paletteTab: TabConfig = {
+  id: 'palette',
+  label: 'Palette',
+  tiers: [
+    {
+      id: 'base',
+      label: 'Base',
+      items: [
+        { id: 'base-0', cssVar: '--palette-base-0', label: 'Base 0', default: 'oklch(0.98 0 0)', type: { kind: 'color', format: 'oklch' } },
+        { id: 'base-1', cssVar: '--palette-base-1', label: 'Base 1', default: 'oklch(0.7 0 0)',  type: { kind: 'color', format: 'oklch' } },
+      ],
+    },
+    {
+      id: 'accent',
+      label: 'Accent',
+      items: [
+        { id: 'accent-0', cssVar: '--palette-accent-0', label: 'Accent 0', default: 'oklch(0.65 0.2 250)', type: { kind: 'color', format: 'oklch' } },
+      ],
+    },
+  ],
+};
+
+const colorTab: TabConfig = {
+  id: 'color',
+  label: 'Color',
+  colorExtras: {
+    id: 'myapp',
+    baseRoles: {},
+    baseDefaults: {},
+    defaultShikiTheme: 'github-dark',
+    colorSchemes: {},
+    panelSettings: { colorScheme: 'default', colorMode: false },
+  },
+  tiers: [
+    {
+      id: 'semantic',
+      label: 'Semantic',
+      semantic: true,
+      referencesRamps: [{ tab: 'palette', tier: 'base' }, { tab: 'palette', tier: 'accent' }],
+      items: [
+        // { ref } — bare id resolves against the first ramp source ("base").
+        { id: 'brand', cssVar: '--zd-brand', label: 'Brand', default: 'base-1', type: { kind: 'color', format: 'oklch' } },
+        // { literal } — a standalone color, unrelated to any ramp.
+        { id: 'info', cssVar: '--zd-info', label: 'Info', default: 'oklch(0.6 0.1 230)', type: { kind: 'color', format: 'oklch' } },
+        // Manifest default is a single-mode literal; the per-mode pair below
+        // is layered on top of the seeded state at runtime.
+        { id: 'danger', cssVar: '--zd-danger', label: 'Danger', default: 'oklch(0.55 0.22 25)', type: { kind: 'color', format: 'oklch' } },
+      ],
+    },
+  ],
+};
+
+const config: PanelConfig = {
+  storagePrefix: 'myapp-design-token-panel',
+  consoleNamespace: 'myapp',
+  modalClassPrefix: 'myapp-design-token-panel-modal',
+  schemaId: 'myapp-design-tokens/v1',
+  exportFilenameBase: 'myapp-design-tokens',
+  tabs: [paletteTab, colorTab],
+};
+
+configurePanel(config);
+
+// Optional: seed "danger" with a per-mode literal, exactly as the panel's own
+// "Per-mode" editor checkbox would produce it. (Sketch — the real call site
+// reads the current state via the panel's persisted-state helpers rather than
+// constructing ColorTweakState by hand.)
+// state.color.semanticMappings.danger = {
+//   literal: { light: 'oklch(0.55 0.22 25)', dark: 'oklch(0.7 0.19 25)' },
+// };
+```
+
+<Tip title="Runnable fixture in the package's own test suite">
+This exact shape (Palette tab + lone `semantic: true` Color tab with a `{ ref }`, a `{ literal }`, and a runtime `{ literal: { light, dark } }` override on top) is a real, `configurePanel`-validated fixture in the package's own repo — `packages/zdtp/src/__tests__/_example-ramp-native-tier2.ts` — exercised by `manifest-cascade-verification.test.ts`'s Invariant H.
+</Tip>
+
 ## `ColorClusterExtras`
 
 The `colorExtras` field on a color `TabConfig` carries every piece of metadata that does not fit into the tier model.
@@ -231,11 +501,11 @@ See [`setPanelColorPresets`](/docs/reference/configure-panel#setpanelcolorpreset
 
 When the user clicks Apply for the Color tab, the pipeline:
 
-1. Iterates palette items (palette tier): writes `paletteTier.items[i].cssVar` ← `palette[i]` for each slot.
+1. Iterates palette items (palette tier, when one exists — a lone `semantic: true` tab has none): writes `paletteTier.items[i].cssVar` ← `palette[i]` for each slot.
 2. Iterates `baseRoles`: writes `cssName` ← `palette[state[roleKey]]`. Absent roles emit no writes.
-3. Iterates semantic items: resolves each item's override (a palette item id) to the palette item's `cssVar`, emits `var(--that-cssVar)` into the semantic slot.
+3. Iterates semantic items: resolves each item's `SemanticValue` mapping and emits per the table in [`SemanticValue` mapping shapes](#semanticvalue-mapping-shapes) above — `var(...)` for an index or `{ ref }` mapping, the literal string verbatim for `{ literal }`, or `light-dark(<light>, <dark>)` (plus `color-scheme: light dark` on the applied root) for a per-mode `{ literal: { light, dark } }`.
 
-`clearAppliedStyles` removes every CSS property that the cluster could have set (palette + base roles + semantic).
+`clearAppliedStyles` removes every CSS property that the cluster could have set (palette + base roles + semantic + any `color-scheme` a per-mode literal left behind).
 
 ## Cross-references
 

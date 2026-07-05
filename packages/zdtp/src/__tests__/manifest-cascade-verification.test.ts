@@ -21,6 +21,18 @@
  *      export and the self-injected `<style>` string) cannot diverge: all
  *      component CSS flows through a single `panel.css` `@import` aggregate,
  *      with no side-effect `.css` imports outside `index.tsx` (guards #413).
+ *   H. The ramp-native Tier-2 color editor's example manifest
+ *      (`_example-ramp-native-tier2.ts`, #459/#475) is a real, valid
+ *      `PanelConfig` — `semantic: true`, `referencesRamps`, and every
+ *      `SemanticValue` variant (index-free `{ ref }`, `{ literal }`, and a
+ *      runtime-built `{ literal: { light, dark } }`) resolve and emit
+ *      correctly through `configurePanel` / `resolveColorClusterFromTab` /
+ *      `buildApplyOverrides`. The new grouped ref-or-literal picker and
+ *      per-mode editor components (`controls/tier-ref-selector.tsx`,
+ *      `tabs/color-tab.tsx`) are already covered by Invariant D above (it
+ *      walks all of `src/**\/*.tsx`, not just the historical `tabs/` +
+ *      `components/color-picker/` set) — no separate DOM-hygiene invariant
+ *      is needed here.
  *
  * Historical Invariants A, B (no `group:` / `advancedTiers:` in example
  * manifests) are now enforced by TypeScript at panel-package compile time
@@ -32,12 +44,34 @@
  * exercised in that repo's CI.
  *
  * Browser-based cascade testing is deferred — see procedure in
- * packages/zdtp/CLAUDE.md.
+ * packages/zdtp/CLAUDE.md. For the ramp-native Tier-2 editor specifically,
+ * the actual visual cascade (grouped `<optgroup>` picker rendering, the
+ * "Per-mode" checkbox expanding into two swatches, `light-dark()` resolving
+ * against a real browser's `color-scheme`) can only be confirmed once the
+ * five external example repos and zudo-doc pick up this change via a panel
+ * SHA bump — that verification pass happens in those repos' own CI /
+ * `/verify-ui`, not here.
  */
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import {
+  __resetPanelConfigForTests,
+  assertValidPanelConfig,
+  configurePanel,
+} from '../config/panel-config';
+import { resolveColorClusterFromTab } from '../config/cluster-config';
+import { buildApplyOverrides } from '../apply/build-apply-overrides';
+import { getActivePrimaryCluster, initColorFromScheme, type ColorTweakState, type TweakState } from '../state/tweak-state';
+import {
+  EXAMPLE_COLOR_TAB,
+  EXAMPLE_DANGER_DARK,
+  EXAMPLE_DANGER_LIGHT,
+  EXAMPLE_PALETTE_TAB,
+  EXAMPLE_PANEL_CONFIG,
+  EXAMPLE_TABS,
+} from './_example-ramp-native-tier2';
 
 // ---------------------------------------------------------------------------
 // D. Panel source — no blocked semantic elements across ALL panel TSX files
@@ -245,5 +279,106 @@ describe('Invariant G — CSS self-inject and ./styles paths stay in sync', () =
       .filter((file) => !importTargets.includes(file))
       .map((file) => path.relative(SRC_DIR, file));
     expect(missing).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// H. Ramp-native Tier-2 example manifest (semantic + referencesRamps +
+//    every SemanticValue shape, #459/#475). See `_example-ramp-native-tier2.ts`
+//    for the fixture and its doc-page cross-reference.
+// ---------------------------------------------------------------------------
+
+describe('Invariant H — ramp-native Tier-2 example manifest is valid and exercises the new tier-model fields', () => {
+  afterEach(() => {
+    __resetPanelConfigForTests();
+  });
+
+  it('assertValidPanelConfig accepts the example manifest (host-adapter trust boundary)', () => {
+    expect(() => assertValidPanelConfig(EXAMPLE_PANEL_CONFIG)).not.toThrow();
+  });
+
+  it('configurePanel accepts the example manifest', () => {
+    __resetPanelConfigForTests();
+    expect(() => configurePanel(EXAMPLE_PANEL_CONFIG)).not.toThrow();
+  });
+
+  it('resolveColorClusterFromTab resolves the bare-id ref ("surface": "base-2") against the FIRST declared ramp source', () => {
+    const cluster = resolveColorClusterFromTab(EXAMPLE_COLOR_TAB, EXAMPLE_TABS)!;
+    expect(cluster).toBeDefined();
+    expect(cluster.semanticDefaults['surface']).toEqual({
+      ref: { tab: 'palette', tier: 'base', item: 'base-2' },
+    });
+  });
+
+  it('resolveColorClusterFromTab resolves the "tierId:itemId" ref ("brand": "accent:accent-1") against the NAMED ramp source', () => {
+    const cluster = resolveColorClusterFromTab(EXAMPLE_COLOR_TAB, EXAMPLE_TABS)!;
+    expect(cluster.semanticDefaults['brand']).toEqual({
+      ref: { tab: 'palette', tier: 'accent', item: 'accent-1' },
+    });
+  });
+
+  it('resolveColorClusterFromTab resolves the standalone literal ("info") to a { literal } SemanticValue', () => {
+    const cluster = resolveColorClusterFromTab(EXAMPLE_COLOR_TAB, EXAMPLE_TABS)!;
+    expect(cluster.semanticDefaults['info']).toEqual({ literal: 'oklch(0.6 0.1 230)' });
+  });
+
+  it('resolveColorClusterFromTab resolves the manifest-default literal ("danger") to a single-mode { literal }', () => {
+    const cluster = resolveColorClusterFromTab(EXAMPLE_COLOR_TAB, EXAMPLE_TABS)!;
+    expect(cluster.semanticDefaults['danger']).toEqual({ literal: EXAMPLE_DANGER_LIGHT });
+  });
+
+  it('paletteSize is 0 — the lone semantic:true tier has no palette tier of its own', () => {
+    const cluster = resolveColorClusterFromTab(EXAMPLE_COLOR_TAB, EXAMPLE_TABS)!;
+    expect(cluster.paletteSize).toBe(0);
+  });
+
+  it('buildApplyOverrides emits var(...) for both ref rows and the literal verbatim for "info"', () => {
+    __resetPanelConfigForTests();
+    configurePanel(EXAMPLE_PANEL_CONFIG);
+    const cluster = getActivePrimaryCluster();
+    const colorState = initColorFromScheme(cluster);
+    const fullState: TweakState = { color: colorState, spacing: {}, typography: {}, size: {} };
+
+    const out = buildApplyOverrides(fullState, undefined, cluster, EXAMPLE_TABS);
+
+    expect(out['--zd-surface']).toBe('var(--palette-base-2)');
+    expect(out['--zd-brand']).toBe('var(--palette-accent-1)');
+    expect(out['--zd-info']).toBe('oklch(0.6 0.1 230)');
+  });
+
+  it('buildApplyOverrides emits light-dark(<light>, <dark>) once "danger" carries a runtime per-mode literal override', () => {
+    // TierItem.default is always a plain string, so the { literal: { light,
+    // dark } } shape never appears as a manifest default (see the fixture's
+    // file header) — it is layered on top of the manifest-seeded state here,
+    // exactly as the panel's own "Per-mode" editor checkbox would produce it.
+    __resetPanelConfigForTests();
+    configurePanel(EXAMPLE_PANEL_CONFIG);
+    const cluster = getActivePrimaryCluster();
+    const baseState = initColorFromScheme(cluster);
+    const perModeState: ColorTweakState = {
+      ...baseState,
+      semanticMappings: {
+        ...baseState.semanticMappings,
+        danger: { literal: { light: EXAMPLE_DANGER_LIGHT, dark: EXAMPLE_DANGER_DARK } },
+      },
+    };
+    const fullState: TweakState = { color: perModeState, spacing: {}, typography: {}, size: {} };
+
+    const out = buildApplyOverrides(fullState, undefined, cluster, EXAMPLE_TABS);
+
+    expect(out['--zd-danger']).toBe(`light-dark(${EXAMPLE_DANGER_LIGHT}, ${EXAMPLE_DANGER_DARK})`);
+    // Sibling rows are unaffected by the per-mode override on "danger".
+    expect(out['--zd-surface']).toBe('var(--palette-base-2)');
+    expect(out['--zd-brand']).toBe('var(--palette-accent-1)');
+  });
+
+  it('EXAMPLE_PALETTE_TAB carries no palette-tier defaults that collide with EXAMPLE_COLOR_TAB\'s cssVars (sanity)', () => {
+    const paletteVars = new Set(
+      EXAMPLE_PALETTE_TAB.tiers.flatMap((t) => t.items.map((i) => i.cssVar)),
+    );
+    const colorVars = EXAMPLE_COLOR_TAB.tiers.flatMap((t) => t.items.map((i) => i.cssVar));
+    for (const v of colorVars) {
+      expect(paletteVars.has(v)).toBe(false);
+    }
   });
 });

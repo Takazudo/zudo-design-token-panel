@@ -47,6 +47,14 @@ import {
   type ColorClusterDataConfig,
   resolvePaletteCssVar,
 } from '../config/cluster-config';
+import type { SemanticValue } from '../tokens/tier-model';
+
+// Re-export so callers that already import from `state/tweak-state` (the
+// historical home of `ColorTweakState`) can reach the mapping-value type
+// without a second import from `tokens/tier-model`. Defined in tier-model.ts
+// to avoid a type-only import cycle with `config/cluster-config.ts` — see the
+// doc comment on `SemanticValue` there.
+export type { SemanticValue } from '../tokens/tier-model';
 import {
   getPanelConfig,
   resolveSecondaryColorCluster,
@@ -70,6 +78,7 @@ import {
   type TabOverrides,
   emitTierItemCssValue,
   resolveTierItemValue,
+  resolveRefToCssVar,
 } from '../apply/tier-resolver';
 import { cssToOklcha, type Oklcha } from '../utils/color-oklch';
 
@@ -469,8 +478,50 @@ export interface ColorTweakState {
   cursor: number;
   selectionBg: number;
   selectionFg: number;
-  semanticMappings: Record<string, number | 'bg' | 'fg'>;
+  /**
+   * Semantic token name → mapping. Widened from `Record<string, number | 'bg'
+   * | 'fg'>` to `Record<string, SemanticValue>` (#459 S1). This is additive
+   * for readers of the type (every legacy value is still a valid
+   * `SemanticValue`), but it BREAKS any exhaustive `switch`/equality check
+   * written against the old narrow union — callers that pattern-match on a
+   * mapping value must now also handle the new `{ literal }` / `{ ref }`
+   * object variants (see `isIndexMapping` / `isLiteralMapping` /
+   * `isPerModeLiteral` / `isRefMapping` below). `resolveMapping` (exported)
+   * still only resolves the legacy `number | 'bg' | 'fg'` shape — resolving
+   * the new variants is downstream work (#467/#469).
+   */
+  semanticMappings: Record<string, SemanticValue>;
   shikiTheme: string;
+}
+
+// ---------------------------------------------------------------------------
+// SemanticValue narrowing helpers
+// ---------------------------------------------------------------------------
+
+/** True when `v` is a legacy index-style mapping (palette index or bg/fg alias). */
+export function isIndexMapping(v: SemanticValue): v is number | 'bg' | 'fg' {
+  return typeof v === 'number' || v === 'bg' || v === 'fg';
+}
+
+/** True when `v` is either literal-color variant (plain string or light/dark pair). */
+export function isLiteralMapping(
+  v: SemanticValue,
+): v is { literal: string } | { literal: { light: string; dark: string } } {
+  return typeof v === 'object' && v !== null && 'literal' in v;
+}
+
+/** True when `v` is specifically the light/dark literal-color variant. */
+export function isPerModeLiteral(
+  v: SemanticValue,
+): v is { literal: { light: string; dark: string } } {
+  return isLiteralMapping(v) && typeof v.literal === 'object' && v.literal !== null;
+}
+
+/** True when `v` is a cross-tab/tier ramp-item reference. */
+export function isRefMapping(
+  v: SemanticValue,
+): v is { ref: { tab?: string; tier: string; item: string } } {
+  return typeof v === 'object' && v !== null && 'ref' in v;
 }
 
 /**
@@ -571,6 +622,10 @@ export function getActivePrimaryCluster(
  *    slots interpolate. Functional but visually flat; hosts wanting a
  *    designed seed should ship a scheme registry on the cluster and call
  *    `initColorFromScheme(cluster)` instead.
+ *  - A cluster with `paletteSize: 0` (a lone `semantic: true` tier with no
+ *    palette sibling, #458/#466) seeds an EMPTY palette — there is nothing
+ *    to ramp. Forcing a 1-slot grayscale floor here produced a phantom
+ *    `--zudo-stub-p0` swatch/token with no backing tier; see #466.
  *
  * The base-role indices are kept on the state shape for envelope-round-trip
  * compatibility but are inert — `applyColorState` only writes a base role
@@ -580,7 +635,9 @@ export function initSecondaryDefaults(cluster: ColorClusterDataConfig): ColorTwe
   // Deterministic grayscale ramp. Index 0 → black, last → white, middle
   // slots interpolate. Functional but visually flat; hosts wanting a
   // designed seed should ship a scheme registry on the cluster.
-  const size = Math.max(1, cluster.paletteSize);
+  // `paletteSize: 0` seeds an empty palette rather than flooring to 1 slot
+  // (no Math.max(1, ...) floor) — see #466.
+  const size = cluster.paletteSize;
   const palette: string[] = Array.from({ length: size }, (_, i) => {
     if (size === 1) return '#808080';
     const v = Math.round((i / (size - 1)) * 255);
@@ -911,16 +968,23 @@ export function initColorFromSchemeData(
   // into a safe '#000000' instead of leaking them to apply. sRGB clamping for
   // oklch still happens only at a true hex-conversion boundary.
   const palette = scheme.palette.map(normalizeSchemePaletteEntry);
-  const semanticMappings: Record<string, number | 'bg' | 'fg'> = {};
+  const semanticMappings: Record<string, SemanticValue> = {};
   for (const [key, defaultVal] of Object.entries(cluster.semanticDefaults)) {
+    // `cluster.semanticDefaults` is `SemanticValue`-typed (#459), but every
+    // default this function has ever produced is a plain palette-index number
+    // — the `'bg'`/`'fg'` aliases and the `{ literal }` / `{ ref }` variants
+    // are populated by downstream sub-issues (#467/#469), not resolved here.
+    // Fall back to 0 for a non-numeric default so this stays total over the
+    // widened type; `colorRefToIndex`'s `fallback` param is `number`-only.
+    const indexDefault = typeof defaultVal === 'number' ? defaultVal : 0;
     const schemeVal = scheme.semantic?.[key as keyof typeof scheme.semantic];
     if (schemeVal === undefined) {
-      semanticMappings[key] = defaultVal;
+      semanticMappings[key] = indexDefault;
     } else if (typeof schemeVal === 'number') {
       semanticMappings[key] = schemeVal;
     } else {
       // String value — find in palette or nearest match.
-      semanticMappings[key] = colorRefToIndex(schemeVal, scheme.palette, defaultVal);
+      semanticMappings[key] = colorRefToIndex(schemeVal, scheme.palette, indexDefault);
     }
   }
 
@@ -956,7 +1020,16 @@ export function initColorFromSchemeData(
 // Apply / clear
 // ---------------------------------------------------------------------------
 
-/** Resolve a semantic mapping to an actual color (bounds-checked). */
+/**
+ * Resolve a semantic mapping to an actual color (bounds-checked).
+ *
+ * Only handles the legacy `number | 'bg' | 'fg'` index shape — the narrower
+ * type this function accepted before `ColorTweakState.semanticMappings` /
+ * `ColorClusterDataConfig.semanticDefaults` were widened to `SemanticValue`
+ * (#459 S1). Callers holding a `SemanticValue` must narrow with
+ * `isIndexMapping()` first; resolving the `{ literal }` / `{ ref }` variants
+ * is downstream work (#467/#469), not this function's job today.
+ */
 export function resolveMapping(
   mapping: number | 'bg' | 'fg',
   palette: string[],
@@ -973,11 +1046,180 @@ export function safeIndex(index: number, len: number): number {
   return index >= 0 && index < len ? index : 0;
 }
 
-/** Apply a single `ColorTweakState` to the DOM using the given cluster config. */
+/**
+ * Resolve a `SemanticValue` to an actual color for the apply path. Delegates
+ * to `resolveMapping` for the legacy index shape (every mapping produced by
+ * the panel today), returns the raw CSS value verbatim for a single-mode
+ * `{ literal: string }` mapping (#465, S4) — the DOM value for a literal row
+ * must equal what `build-apply-overrides.ts`'s disk emitter writes for the
+ * same mapping — and resolves a cross-tab/tier `{ ref }` mapping (#468) via
+ * `resolveRefToCssVar` into a `var(--target)` string, again matching the disk
+ * emitter's output for the same mapping.
+ *
+ * `currentTab` / `tabs` are optional so existing callers that have no tab
+ * context (or only ever produce index/literal mappings) keep compiling. A
+ * `{ ref }` mapping with no `currentTab` supplied, or one that fails to
+ * resolve (misconfigured manifest), falls back to `'#000000'` rather than
+ * throwing — up-front source validation is #469's job, not this function's.
+ *
+ * The per-mode `{ literal: { light, dark } }` variant (#472) emits a CSS
+ * `light-dark(<light>, <dark>)` function so the browser resolves the correct
+ * side automatically from the applied root's `color-scheme` (set by
+ * `applyColorState` whenever any per-mode literal is present). When the
+ * optional `perModeMode` is supplied — a preview / seed / non-browser context
+ * where `light-dark()` cannot resolve — the branch instead collapses to that
+ * single mode's literal. `perModeMode` is the cluster's
+ * `panelSettings.colorMode.defaultMode` (via `getClusterDefaultMode`), giving
+ * that previously-inert field a real runtime effect.
+ */
+function resolveSemanticCssValue(
+  mapping: SemanticValue,
+  palette: string[],
+  bgIndex: number,
+  fgIndex: number,
+  currentTab?: TabConfig,
+  tabs?: readonly TabConfig[],
+  perModeMode?: 'light' | 'dark',
+): string | null {
+  // Returns `null` to mean "emit nothing" — an unresolvable `{ ref }` or an
+  // unrecognized mapping shape. Apply call sites SKIP a null (leaving the
+  // token at its stylesheet default), matching the disk emitter
+  // (`build-apply-overrides.ts`) which also skips. The preview caller
+  // (`resolveSemanticPreviewColor`) substitutes a concrete fallback instead.
+  if (isIndexMapping(mapping)) return resolveMapping(mapping, palette, bgIndex, fgIndex);
+  if (isLiteralMapping(mapping) && isPerModeLiteral(mapping)) {
+    // #472 — per-mode literal. Emit `light-dark()` so the browser picks the
+    // side matching the applied root's used color-scheme; or, when a concrete
+    // single value is requested (preview/seed, no `light-dark()` support),
+    // collapse to `perModeMode`'s literal.
+    return perModeMode
+      ? mapping.literal[perModeMode]
+      : `light-dark(${mapping.literal.light}, ${mapping.literal.dark})`;
+  }
+  if (isLiteralMapping(mapping) && !isPerModeLiteral(mapping)) return mapping.literal;
+  if (isRefMapping(mapping) && currentTab) {
+    try {
+      const targetCssVar = resolveRefToCssVar(mapping.ref, currentTab, tabs ?? [currentTab]);
+      return `var(${targetCssVar})`;
+    } catch {
+      // Unresolvable ref (misconfigured manifest / renamed ramp item) — emit
+      // nothing so the token keeps its stylesheet default, exactly as the disk
+      // emitter does. Do NOT paint it black.
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * The cluster's configured default light/dark mode, or `'light'` when the
+ * cluster declares no `colorMode` (`colorMode === false`).
+ *
+ * This is the single runtime reader of `ClusterPanelSettings.colorMode.defaultMode`
+ * (#472). The field validates but was previously never read at runtime; this
+ * helper (consumed by `resolveSemanticPreviewColor`) gives it a real effect —
+ * it selects which side of a per-mode `{ literal: { light, dark } }` pair is the
+ * fallback when `light-dark()` cannot resolve.
+ */
+export function getClusterDefaultMode(
+  cluster: ColorClusterDataConfig,
+): 'light' | 'dark' {
+  const cm = cluster.panelSettings.colorMode;
+  return cm ? cm.defaultMode : 'light';
+}
+
+/**
+ * Resolve a per-mode literal to a single concrete CSS color for `mode`.
+ *
+ * Used wherever CSS `light-dark()` cannot be used — a preview swatch, an SSR
+ * seed, or any non-browser consumer that needs one flat value rather than a
+ * `light-dark(...)` function. The emitters (`applyColorState`,
+ * `buildApplyOverrides`) deliberately do NOT call this; they emit
+ * `light-dark()` and let the browser choose.
+ */
+export function resolvePerModeLiteral(
+  value: { literal: { light: string; dark: string } },
+  mode: 'light' | 'dark',
+): string {
+  return value.literal[mode];
+}
+
+/**
+ * Resolve a semantic mapping to a single concrete CSS color suitable for a
+ * PREVIEW swatch — a flat value, never a `light-dark()` function. Mirrors the
+ * internal apply-path resolver, except a per-mode `{ literal: { light, dark } }`
+ * value collapses to `getClusterDefaultMode(cluster)`'s side (#472).
+ *
+ * This is the "preview/seed" consumer referenced by #472/#473: the per-mode
+ * editor UI (#473) renders its swatch from this so the user sees the cluster's
+ * default-mode color, while the applied CSS var still emits `light-dark()`.
+ */
+export function resolveSemanticPreviewColor(
+  mapping: SemanticValue,
+  state: ColorTweakState,
+  cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
+  currentTab?: TabConfig,
+  tabs?: readonly TabConfig[],
+): string {
+  // Preview needs a concrete color; substitute the neutral fallback when the
+  // mapping resolves to nothing (unresolvable ref / unknown shape).
+  return (
+    resolveSemanticCssValue(
+      mapping,
+      state.palette,
+      state.background,
+      state.foreground,
+      currentTab,
+      tabs,
+      getClusterDefaultMode(cluster),
+    ) ?? '#000000'
+  );
+}
+
+/**
+ * Inline CSS property (NOT a custom property) written to the applied root when
+ * a cluster emits any per-mode `light-dark()` value, so that function resolves
+ * against a defined color-scheme instead of silently falling back. Emitted as
+ * a plain `[name, value]` pair through the same write path (sink batch or
+ * `document.documentElement`) as every other var, per #472.
+ */
+const COLOR_SCHEME_PROP = 'color-scheme';
+const COLOR_SCHEME_LIGHT_DARK = 'light dark';
+
+/**
+ * True when applying `state` against `cluster` would emit at least one per-mode
+ * `light-dark()` semantic value — i.e. the applied root needs
+ * `color-scheme: light dark` for those values to resolve.
+ */
+function hasPerModeLiteralSemantic(
+  state: ColorTweakState,
+  cluster: ColorClusterDataConfig,
+): boolean {
+  for (const key of Object.keys(cluster.semanticCssNames)) {
+    const mapping = state.semanticMappings[key] ?? cluster.semanticDefaults[key];
+    if (mapping !== undefined && isPerModeLiteral(mapping)) return true;
+  }
+  return false;
+}
+
+/**
+ * Apply a single `ColorTweakState` to the DOM using the given cluster config.
+ *
+ * `currentTab` / `tabs` are optional and exist so a cross-tab/tier `{ ref }`
+ * semantic mapping (#468) can resolve: `currentTab` should be the color
+ * TabConfig this cluster was derived from (id `'color'` or
+ * `'color-secondary'`), and `tabs` the panel's full tabs array so a ref
+ * pointing into another tab (e.g. the grouped Palette tab) resolves. Callers
+ * that never hold `{ ref }` mappings (or have no tab context, e.g. most
+ * existing tests) can omit both — `resolveSemanticCssValue` falls back to
+ * `'#000000'` for an unresolvable ref rather than throwing.
+ */
 export function applyColorState(
   state: ColorTweakState,
   cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
   sink?: ApplySink,
+  currentTab?: TabConfig,
+  tabs?: readonly TabConfig[],
 ) {
   const len = state.palette.length;
   if (sink) {
@@ -994,7 +1236,24 @@ export function applyColorState(
     }
     for (const [key, cssName] of Object.entries(cluster.semanticCssNames)) {
       const mapping = state.semanticMappings[key] ?? cluster.semanticDefaults[key];
-      pairs.push([cssName, resolveMapping(mapping, state.palette, state.background, state.foreground)]);
+      const value = resolveSemanticCssValue(
+        mapping,
+        state.palette,
+        state.background,
+        state.foreground,
+        currentTab,
+        tabs,
+      );
+      // Skip an unresolvable ref / unknown shape (null) — leave the token at
+      // its default, matching the disk emitter.
+      if (value !== null) pairs.push([cssName, value]);
+    }
+    // #472 — when any semantic value emits `light-dark()`, the applied root
+    // needs `color-scheme: light dark` for it to resolve. Route it through the
+    // SAME sink so it lands on the sink's own target root, never a hardcoded
+    // `document.documentElement`.
+    if (hasPerModeLiteralSemantic(state, cluster)) {
+      pairs.push([COLOR_SCHEME_PROP, COLOR_SCHEME_LIGHT_DARK]);
     }
     try {
       sink.apply(pairs);
@@ -1020,7 +1279,24 @@ export function applyColorState(
   // Semantic.
   for (const [key, cssName] of Object.entries(cluster.semanticCssNames)) {
     const mapping = state.semanticMappings[key] ?? cluster.semanticDefaults[key];
-    setCssVar(cssName, resolveMapping(mapping, state.palette, state.background, state.foreground));
+    const value = resolveSemanticCssValue(
+      mapping,
+      state.palette,
+      state.background,
+      state.foreground,
+      currentTab,
+      tabs,
+    );
+    // Skip an unresolvable ref / unknown shape (null) — leave the token at its
+    // default, matching the disk emitter.
+    if (value !== null) setCssVar(cssName, value);
+  }
+  // #472 — set `color-scheme: light dark` on the applied root so any emitted
+  // `light-dark()` semantic value resolves. `setCssVar` writes to
+  // `document.documentElement` (the default, no-sink path's root). This is a
+  // plain CSS property, not a custom property, but `setProperty` handles both.
+  if (hasPerModeLiteralSemantic(state, cluster)) {
+    setCssVar(COLOR_SCHEME_PROP, COLOR_SCHEME_LIGHT_DARK);
   }
 }
 
@@ -1092,8 +1368,12 @@ export function applyTokenOverrides(
 export function applyFullState(state: TweakState, cfg?: PanelConfig) {
   const config = cfg ?? getPanelConfig();
   const sink = config.applySink;
-  // Primary color cluster is derived from the color TabConfig.
-  applyColorState(state.color, getActivePrimaryCluster(config), sink);
+  // Primary color cluster is derived from the color TabConfig. Thread the
+  // color tab + the full tabs array through so a cross-tab `{ ref }` semantic
+  // mapping (#468) resolves against a ramp tier living in another tab (e.g.
+  // the grouped Palette tab).
+  const colorTab = config.tabs.find((t) => t.id === 'color');
+  applyColorState(state.color, getActivePrimaryCluster(config), sink, colorTab, config.tabs);
   // Apply spacing / typography / size from tabs[] (required field post-Wave-5).
   applyTabOverridesFlat(config.tabs, 'spacing', state.spacing, sink);
   applyTabOverridesFlat(config.tabs, 'font', state.typography, sink);
@@ -1102,7 +1382,8 @@ export function applyFullState(state: TweakState, cfg?: PanelConfig) {
   // When no such tab is configured, skip the secondary apply pass entirely.
   const secondaryCluster = resolveSecondaryColorCluster(config);
   if (secondaryCluster && state.secondary) {
-    applyColorState(state.secondary, secondaryCluster, sink);
+    const secondaryColorTab = config.tabs.find((t) => t.id === 'color-secondary');
+    applyColorState(state.secondary, secondaryCluster, sink, secondaryColorTab, config.tabs);
   }
   // Apply generic tab overrides (v3 envelope tabs field).
   // The `tabs` field stores `TabOverrides` (tierId → { itemId → value }).
@@ -1316,6 +1597,12 @@ function clearAppliedColorStylesImpl(
     for (const cluster of clusters) {
       names.push(...clusterVarNames(cluster));
     }
+    // #474 — the apply path may have set `color-scheme: light dark` on this
+    // sink's target root (whenever any per-mode literal was present, #472).
+    // Clear it alongside the palette/base-role/semantic vars so a Reset
+    // doesn't leave it lingering. Harmless when it was never set — clearing
+    // an absent property is a no-op.
+    if (clusters.length > 0) names.push(COLOR_SCHEME_PROP);
     if (names.length > 0) {
       try {
         sink.clear(names);
@@ -1337,6 +1624,9 @@ function clearAppliedColorStylesImpl(
       root.style.removeProperty(cssName);
     }
   }
+  // #474 — same rationale as the sink branch above: remove a lingering
+  // `color-scheme: light dark` set by the apply path for a per-mode literal.
+  if (clusters.length > 0) root.style.removeProperty(COLOR_SCHEME_PROP);
 }
 
 /**
@@ -1419,6 +1709,97 @@ function isValidColorShape(s: unknown, paletteSize: number): s is Partial<ColorT
   );
 }
 
+/**
+ * Validate+narrow a single persisted `semanticMappings` entry into a
+ * `SemanticValue`, or return `undefined` when the shape matches none of the
+ * known variants.
+ *
+ * Accepts every shape `ColorTweakState.semanticMappings` has ever held:
+ * the legacy index mapping (`number` / `'bg'` / `'fg'`, pre-#459) plus the
+ * `{ literal }` / `{ literal: { light, dark } }` / `{ ref }` object variants
+ * added in #459 and carried through the external serde in #462.
+ */
+function parsePersistedSemanticValue(val: unknown): SemanticValue | undefined {
+  if (typeof val === 'number') return val;
+  if (val === 'bg' || val === 'fg') return val;
+  if (!val || typeof val !== 'object' || Array.isArray(val)) return undefined;
+
+  const o = val as Record<string, unknown>;
+
+  if ('literal' in o) {
+    const lit = o.literal;
+    if (typeof lit === 'string') return { literal: lit };
+    if (lit && typeof lit === 'object' && !Array.isArray(lit)) {
+      const lo = lit as Record<string, unknown>;
+      if (typeof lo.light === 'string' && typeof lo.dark === 'string') {
+        return { literal: { light: lo.light, dark: lo.dark } };
+      }
+    }
+    return undefined;
+  }
+
+  if ('ref' in o) {
+    const ref = o.ref;
+    if (ref && typeof ref === 'object' && !Array.isArray(ref)) {
+      const ro = ref as Record<string, unknown>;
+      if (typeof ro.tier === 'string' && typeof ro.item === 'string') {
+        return {
+          ref: {
+            tier: ro.tier,
+            item: ro.item,
+            ...(typeof ro.tab === 'string' ? { tab: ro.tab } : {}),
+          },
+        };
+      }
+    }
+    return undefined;
+  }
+
+  return undefined;
+}
+
+/**
+ * Hydrate a persisted `semanticMappings` object into a validated
+ * `Record<string, SemanticValue>`, merged over `defaults` (so keys the
+ * manifest has grown since the payload was written still backfill — see the
+ * "fills in missing semantic keys from defaults" test).
+ *
+ * This is the persist-envelope "tolerant reader" for #462: an OLD payload
+ * (pre-#459, index-only — every value a `number` / `'bg'` / `'fg'`) hydrates
+ * byte-identical to before, because every one of those values already
+ * satisfies `parsePersistedSemanticValue`. A NEWER payload may additionally
+ * carry the `{ literal }` / `{ ref }` object variants, which round-trip too.
+ * Any entry whose shape matches NEITHER — a corrupted key, or a foreign
+ * localStorage value — falls back to whatever `defaults[key]` already holds
+ * instead of being merged in verbatim, so malformed persisted data can't
+ * inject an arbitrary object into runtime state.
+ *
+ * No storage-key version bump was needed for this: `getStorageKeyV3()` /
+ * `storageKey_stateV3()` are also read directly by `astro/host-adapter.ts`
+ * (autoload) and `index.tsx` (`hasPersistedOverrides`) outside this module.
+ * Renaming the key here alone would desync those "does persisted state
+ * exist" checks from where new saves actually land — the v3 envelope shape
+ * was already wide enough (untyped at the JSON boundary) to carry the new
+ * variants, so widening what THIS function accepts is the migration; the key
+ * itself doesn't need to change.
+ */
+function hydrateSemanticMappings(
+  raw: unknown,
+  defaults: Record<string, SemanticValue>,
+): Record<string, SemanticValue> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ...defaults };
+  const out: Record<string, SemanticValue> = { ...defaults };
+  for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
+    const parsed = parsePersistedSemanticValue(val);
+    if (parsed !== undefined) {
+      out[key] = parsed;
+    }
+    // else: an unrecognized shape — keep whatever `defaults[key]` already
+    // provided (possibly nothing) rather than merging garbage into state.
+  }
+  return out;
+}
+
 /** Fill missing fields on a `ColorTweakState`-shaped object using defaults. */
 function hydrateColorState(
   partial: Partial<ColorTweakState>,
@@ -1454,10 +1835,7 @@ function hydrateColorState(
       typeof partial.selectionBg === 'number' ? partial.selectionBg : defaults.selectionBg,
     selectionFg:
       typeof partial.selectionFg === 'number' ? partial.selectionFg : defaults.selectionFg,
-    semanticMappings:
-      partial.semanticMappings && typeof partial.semanticMappings === 'object'
-        ? { ...defaults.semanticMappings, ...partial.semanticMappings }
-        : defaults.semanticMappings,
+    semanticMappings: hydrateSemanticMappings(partial.semanticMappings, defaults.semanticMappings),
     shikiTheme:
       typeof partial.shikiTheme === 'string' && partial.shikiTheme.length > 0
         ? partial.shikiTheme
