@@ -30,9 +30,13 @@
  *   - Palette slots (resolved via `resolvePaletteCssVar(cluster, i)`) —
  *     EMITTED as the stored color value (hex, or `oklch(...)` for
  *     oklch-format palettes).
- *   - Semantic tokens (`cluster.semanticCssNames` entries) — EMITTED as
- *     `var(--<paletteSlotName>)` so the rewrite preserves the indirection
- *     that the hand-authored CSS relies on.
+ *   - Semantic tokens (`cluster.semanticCssNames` entries) — a legacy
+ *     index/`bg`/`fg` mapping is EMITTED as `var(--<paletteSlotName>)` so the
+ *     rewrite preserves the indirection that the hand-authored CSS relies on.
+ *     A single-mode `{ literal: string }` mapping (#465) is instead EMITTED
+ *     VERBATIM as the literal CSS value — there is no palette slot to
+ *     reference. Per-mode `{ literal: { light, dark } }` (#472) and `{ ref }`
+ *     (#468) mappings are not resolved yet and are silently skipped.
  *   - Base roles (`cluster.baseRoles` entries) — NOT emitted. They do not
  *     belong to the apply pipeline's rewrite scope.
  *   - Spacing / typography / size — EMITTED when the corresponding
@@ -54,10 +58,17 @@
  */
 
 import type { ColorTweakState, TweakState, ColorClusterConfig, SemanticValue } from '../state/tweak-state';
-import { resolvePaletteCssVar, safeIndex, getActivePrimaryCluster } from '../state/tweak-state';
+import {
+  resolvePaletteCssVar,
+  safeIndex,
+  getActivePrimaryCluster,
+  isLiteralMapping,
+  isPerModeLiteral,
+} from '../state/tweak-state';
 import type { TabConfig } from '../tokens/tier-model';
 import { getPanelConfig } from '../config/panel-config';
 import { resolveTierItemValue, emitTierItemCssValue, type TabOverrides } from './tier-resolver';
+import { structuralEqual } from '../utils/structural-equal';
 
 /**
  * Produce the flat cssVar → value map for the dev-API handler.
@@ -102,8 +113,25 @@ export function buildApplyOverrides(
     const currentMapping = color.semanticMappings[key];
     if (currentMapping === undefined) continue;
     const baselineMapping = colorDefaults?.semanticMappings[key];
-    const changed = colorDefaults === undefined || currentMapping !== baselineMapping;
+    // Structural (not reference) equality: a `{ literal }` object produced by
+    // an immutable update is a fresh reference every time even when its value
+    // is unchanged. `!==` would always see it as "changed" and defeat the
+    // diff-only contract documented at the top of this file.
+    const changed = colorDefaults === undefined || !structuralEqual(currentMapping, baselineMapping);
     if (!changed) continue;
+
+    // `{ literal: string }` — single-mode literal color (#465, S4). Emit the
+    // stored CSS value verbatim rather than routing through a palette slot.
+    // Per-mode `{ literal: { light, dark } }` (#472) and `{ ref }` (#468) are
+    // NOT resolved here yet — they fall through to `resolveMappingIndex`
+    // below, which returns `null` for them, so the entry is silently skipped
+    // (see that function's doc comment). #472/#468 slot their branch in here,
+    // above the `resolveMappingIndex` call.
+    if (isLiteralMapping(currentMapping) && !isPerModeLiteral(currentMapping)) {
+      out[cssVar] = currentMapping.literal;
+      continue;
+    }
+
     const paletteIndex = resolveMappingIndex(currentMapping, color);
     if (paletteIndex === null) continue;
     // clamp out-of-range indices to a valid
@@ -211,11 +239,13 @@ function emitTabOverrides(
  * - `number`  → used as-is.
  * - `"bg"`    → the color state's current background index.
  * - `"fg"`    → the color state's current foreground index.
- * - anything else → `null` (caller skips the entry). This also covers the
- *   `{ literal }` / `{ ref }` `SemanticValue` variants (#459) — this
- *   disk-rewrite pipeline doesn't resolve them yet (downstream #467/#469),
- *   so they fall through to the existing "skip" behavior rather than a type
- *   error.
+ * - anything else → `null` (caller skips the entry).
+ *
+ * The single-mode `{ literal: string }` variant is resolved by the caller
+ * BEFORE this function runs (#465, S4) and never reaches here. The
+ * per-mode `{ literal: { light, dark } }` variant (#472) and the `{ ref }`
+ * variant (#468) still fall through to `null` — those resolvers are
+ * downstream work, not this function's job today.
  */
 function resolveMappingIndex(mapping: SemanticValue, color: ColorTweakState): number | null {
   if (mapping === 'bg') return color.background;

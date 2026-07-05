@@ -1042,8 +1042,14 @@ export function safeIndex(index: number, len: number): number {
 /**
  * Resolve a `SemanticValue` to an actual color for the apply path. Delegates
  * to `resolveMapping` for the legacy index shape (every mapping produced by
- * the panel today). The `{ literal }` / `{ ref }` variants are not resolved
- * yet — that lands with #467/#469 — so they fall back to `'#000000'` rather
+ * the panel today), and returns the raw CSS value verbatim for a single-mode
+ * `{ literal: string }` mapping (#465, S4) — the DOM value for a literal row
+ * must equal what `build-apply-overrides.ts`'s disk emitter writes for the
+ * same mapping.
+ *
+ * The per-mode `{ literal: { light, dark } }` variant (#472) and the `{ ref }`
+ * variant (#468) are not resolved yet — those branches slot in here, above
+ * the final `'#000000'` fallback — so they fall back to `'#000000'` rather
  * than throwing, keeping `applyColorState` total over the widened type.
  */
 function resolveSemanticCssValue(
@@ -1053,6 +1059,7 @@ function resolveSemanticCssValue(
   fgIndex: number,
 ): string {
   if (isIndexMapping(mapping)) return resolveMapping(mapping, palette, bgIndex, fgIndex);
+  if (isLiteralMapping(mapping) && !isPerModeLiteral(mapping)) return mapping.literal;
   return '#000000';
 }
 
