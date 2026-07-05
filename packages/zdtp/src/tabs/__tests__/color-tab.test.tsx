@@ -40,8 +40,9 @@ import type { PersistColor, PersistSecondary } from '../../state/persist';
 import {
   installFixturePanelConfig,
   FIXTURE_CLUSTER,
+  FIXTURE_PANEL_CONFIG,
 } from '../../__tests__/_test-helpers';
-import { __resetPanelConfigForTests } from '../../config/panel-config';
+import { __resetPanelConfigForTests, type PanelConfig } from '../../config/panel-config';
 
 // ---------------------------------------------------------------------------
 // Setup / teardown
@@ -163,6 +164,7 @@ function renderColorTab(
     secondaryState?: ColorTweakState | null;
     persistColor?: PersistColor;
     persistSecondary?: PersistSecondary;
+    instanceConfig?: PanelConfig;
   } = {},
 ): void {
   const {
@@ -172,6 +174,7 @@ function renderColorTab(
     secondaryState = null,
     persistColor = noop,
     persistSecondary = noop,
+    instanceConfig,
   } = opts;
   act(() => {
     render(
@@ -184,6 +187,7 @@ function renderColorTab(
             secondaryTab={secondaryTab}
             secondaryState={secondaryState}
             persistSecondary={persistSecondary}
+            instanceConfig={instanceConfig}
           />
         </HighlightContext.Provider>
       </TooltipProvider>,
@@ -1353,5 +1357,163 @@ describe('ColorTab — SemanticLiteralRow per-mode (light/dark) editor toggle (S
     expect(
       container.querySelector('h1,h2,h3,h4,h5,h6,ul,ol,li,table,a,details,summary'),
     ).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S9 — cross-tab semantic refs resolve against the passed `instanceConfig`,
+// not the active default instance (#357/#491 audit finding)
+// ---------------------------------------------------------------------------
+
+/**
+ * Two distinct multi-instance manifests sharing the SAME color-tab shape (a
+ * lone `semantic: true` tier whose one row references a Palette tab's "base"
+ * ramp) but each instance's own Palette tab holds a DIFFERENT, non-overlapping
+ * ramp item — `a-only` vs `b-only`. Before #491, `ColorTab` always read
+ * `getPanelConfig().tabs` (the active DEFAULT instance) for cluster
+ * derivation, the grouped ref-or-literal picker's ramp groups, and preview
+ * resolution — so a non-default instance's `{ ref }` mappings resolved
+ * against whichever instance happened to be the last-configured default, not
+ * against its OWN Palette tab. `instanceConfig` (mirroring the
+ * `usePersist`/`applyFullState` apply-path seam) fixes that.
+ */
+function makeRampSourceTab(itemId: string): TabConfig {
+  return {
+    id: 'palette',
+    label: 'Palette',
+    tiers: [
+      {
+        id: 'base',
+        label: 'Base',
+        items: [
+          {
+            id: itemId,
+            cssVar: `--instance-${itemId}`,
+            label: itemId,
+            default: 'oklch(0.5 0 0)',
+            type: { kind: 'color' as const, format: 'oklch' as const },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+const INSTANCE_SEMANTIC_COLOR_TAB: TabConfig = {
+  id: 'color',
+  label: 'Color',
+  colorExtras: {
+    id: 'instance-cluster',
+    label: 'Instance',
+    baseRoles: {},
+    baseDefaults: {},
+    defaultShikiTheme: 'dracula',
+    colorSchemes: {},
+    panelSettings: { colorScheme: '', colorMode: false },
+  },
+  tiers: [
+    {
+      id: 'semantic',
+      label: 'Semantic',
+      semantic: true,
+      referencesRamps: [{ tab: 'palette', tier: 'base' }],
+      items: [
+        {
+          id: 'surface',
+          cssVar: '--zd-surface',
+          label: 'Surface',
+          default: 'a-only',
+          type: { kind: 'color' as const, format: 'oklch' as const },
+        },
+      ],
+    },
+  ],
+};
+
+const INSTANCE_A_CONFIG: PanelConfig = {
+  ...FIXTURE_PANEL_CONFIG,
+  storagePrefix: 'instance-a',
+  tabs: [makeRampSourceTab('a-only'), INSTANCE_SEMANTIC_COLOR_TAB],
+};
+
+const INSTANCE_B_CONFIG: PanelConfig = {
+  ...FIXTURE_PANEL_CONFIG,
+  storagePrefix: 'instance-b',
+  tabs: [makeRampSourceTab('b-only'), INSTANCE_SEMANTIC_COLOR_TAB],
+};
+
+/**
+ * A `{ ref }`-only color state pointing `surface` at `refItem` in the Palette
+ * tab's "base" tier. No palette of its own (paletteSize 0 — the lone
+ * `semantic: true` tier shape, #458).
+ */
+function makeInstanceRefState(refItem: string): ColorTweakState {
+  return {
+    palette: [],
+    background: 0,
+    foreground: 0,
+    cursor: 0,
+    selectionBg: 0,
+    selectionFg: 0,
+    semanticMappings: { surface: { ref: { tab: 'palette', tier: 'base', item: refItem } } },
+    shikiTheme: 'dracula',
+  };
+}
+
+function getSurfaceRefSelect(): HTMLSelectElement {
+  const row = container.querySelector('[data-testid="tokenpanel-semantic-ref-surface"]');
+  expect(row).not.toBeNull();
+  const select = row!.querySelector('select.tokenpanel-tier-ref-select') as HTMLSelectElement;
+  expect(select).not.toBeNull();
+  return select;
+}
+
+describe('S9 — ColorTab resolves cross-tab refs against `instanceConfig`, not the default instance (#491)', () => {
+  it("instance B's ref resolves against B's OWN tabs even though the active default instance is A", () => {
+    // Active default instance is A — B's ramp item ('b-only') does not exist
+    // anywhere in A's Palette tab.
+    installFixturePanelConfig(INSTANCE_A_CONFIG);
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx, {
+      tab: INSTANCE_SEMANTIC_COLOR_TAB,
+      colorState: makeInstanceRefState('b-only'),
+      instanceConfig: INSTANCE_B_CONFIG,
+    });
+
+    const selected = Array.from(getSurfaceRefSelect().querySelectorAll('option')).find(
+      (o) => o.selected,
+    );
+    expect(selected?.textContent).toContain('--instance-b-only');
+    expect(selected?.disabled).not.toBe(true);
+  });
+
+  it('sanity: the SAME ref renders UNRESOLVED when instanceConfig is omitted and the default instance is A (proves A and B are genuinely distinct fixtures)', () => {
+    installFixturePanelConfig(INSTANCE_A_CONFIG);
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx, {
+      tab: INSTANCE_SEMANTIC_COLOR_TAB,
+      colorState: makeInstanceRefState('b-only'),
+      // No instanceConfig — falls back to getPanelConfig() (instance A).
+    });
+
+    const selected = Array.from(getSurfaceRefSelect().querySelectorAll('option')).find(
+      (o) => o.selected,
+    );
+    expect(selected?.textContent).toContain('unresolved: base/b-only');
+  });
+
+  it('single-instance default path unchanged: omitting instanceConfig resolves against getPanelConfig() when it already matches', () => {
+    // Active default instance IS B this time — the pre-#491 single-panel path.
+    installFixturePanelConfig(INSTANCE_B_CONFIG);
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx, {
+      tab: INSTANCE_SEMANTIC_COLOR_TAB,
+      colorState: makeInstanceRefState('b-only'),
+    });
+
+    const selected = Array.from(getSurfaceRefSelect().querySelectorAll('option')).find(
+      (o) => o.selected,
+    );
+    expect(selected?.textContent).toContain('--instance-b-only');
   });
 });

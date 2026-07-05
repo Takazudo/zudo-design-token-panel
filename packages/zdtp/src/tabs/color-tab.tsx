@@ -54,7 +54,7 @@ import {
   resolvePaletteCssVar,
   resolvePerModeLiteral,
 } from '../state/tweak-state';
-import { getPanelConfig } from '../config/panel-config';
+import { getPanelConfig, type PanelConfig } from '../config/panel-config';
 import { resolveColorClusterFromTab } from '../config/cluster-config';
 import type { TabConfig, TierConfig } from '../tokens/tier-model';
 import type { PersistColor, PersistSecondary } from '../state/persist';
@@ -787,6 +787,17 @@ interface ColorTabProps {
   secondaryTab: TabConfig | null;
   secondaryState: ColorTweakState | null;
   persistSecondary: PersistSecondary;
+  /**
+   * The mounted panel instance's config (multi-instance, #353/#357). When
+   * supplied, cross-tab cluster/ref resolution (cluster derivation, the
+   * grouped ref-or-literal picker's ramp groups, preview resolution, and the
+   * host preset list) reads THIS instance's `tabs` / `colorPresets` rather
+   * than the active default instance — matching the apply path, which
+   * already resolves against `cfg.tabs` via `usePersist` (`applyFullState`,
+   * `state/persist.ts`). Omitted (e.g. a direct test render) →
+   * `getPanelConfig()`, preserving the single-instance path.
+   */
+  instanceConfig?: PanelConfig;
 }
 
 export default function ColorTab({
@@ -796,12 +807,14 @@ export default function ColorTab({
   secondaryTab,
   secondaryState,
   persistSecondary,
+  instanceConfig,
 }: ColorTabProps) {
   // Derive the cluster from the tab's colorExtras + tiers. This provides the
   // same shape that the rest of the panel (apply, clear, state) expects.
   // The full tabs array is threaded in so a semantic tier's cross-tab `{ ref }`
   // mappings resolve against a ramp tier in another tab (e.g. the Palette tab).
-  const allTabs = getPanelConfig().tabs;
+  const cfg = instanceConfig ?? getPanelConfig();
+  const allTabs = cfg.tabs;
   const cluster = useMemo(() => resolveColorClusterFromTab(tab, allTabs), [tab, allTabs]);
   // Fallback to an empty stub cluster when the tab has no colorExtras.
   const safeCluster = useMemo(
@@ -840,7 +853,7 @@ export default function ColorTab({
   // ships zero presets — `colorPresets` defaults to `{}` on
   // `DEFAULT_PANEL_CONFIG` so a host that omits the field sees only
   // `cluster.colorSchemes` (the bundled, cluster-local scheme registry).
-  const hostPresets = getPanelConfig().colorPresets ?? {};
+  const hostPresets = cfg.colorPresets ?? {};
   // Cluster-bundled schemes win on key collision: they are the cluster
   // owner's documented defaults (e.g. "Default Light" / "Default Dark"),
   // and the host preset list is the broader experimentation pool.
