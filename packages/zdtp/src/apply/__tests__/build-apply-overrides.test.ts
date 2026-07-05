@@ -634,3 +634,162 @@ describe('buildApplyOverrides / applyColorState — emitter parity for a literal
     expect(applied['--zd-danger']).toBe(diskResult['--zd-danger']);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Tests — emitter parity: disk output vs. DOM-applied value for a cross-tab
+// { ref } semantic row (S7b, #468)
+// ---------------------------------------------------------------------------
+
+describe('buildApplyOverrides / applyColorState — emitter parity for a cross-tab { ref } semantic row (S7b, #468)', () => {
+  // The color tab whose semantic tier holds the { ref } mapping. Empty tiers
+  // are fine here — buildApplyOverrides/applyColorState only need this tab to
+  // exist (by id 'color') so resolveRefToCssVar has a currentTab to resolve
+  // "tab omitted" refs against; the actual ref under test always names an
+  // explicit target tab ('palette').
+  const COLOR_TAB: TabConfig = {
+    id: 'color',
+    label: 'Color',
+    tiers: [],
+  };
+
+  // The grouped Palette tab: the ramp tier the { ref } points into.
+  const PALETTE_TAB: TabConfig = {
+    id: 'palette',
+    label: 'Palette',
+    tiers: [
+      {
+        id: 'base',
+        label: 'Base',
+        items: [
+          {
+            id: 'base-1',
+            cssVar: '--palette-base-1',
+            label: 'base-1',
+            default: '#111111',
+            type: { kind: 'color' },
+          },
+          {
+            id: 'base-3',
+            cssVar: '--palette-base-3',
+            label: 'base-3',
+            default: '#333333',
+            type: { kind: 'color' },
+          },
+        ],
+      },
+    ],
+  };
+
+  const REF_TABS: readonly TabConfig[] = [COLOR_TAB, PALETTE_TAB];
+
+  const REF_CLUSTER = {
+    id: 'ref-fixture',
+    label: 'Ref Fixture',
+    paletteSize: 4,
+    baseRoles: {},
+    paletteCssVarTemplate: '--ref-p{n}',
+    semanticDefaults: { surface: 1, danger: 1, accent: 1 },
+    semanticCssNames: { surface: '--zd-surface', danger: '--zd-danger', accent: '--zd-accent' },
+    baseDefaults: { background: 0, foreground: 3, cursor: 1, selectionBg: 0, selectionFg: 3 },
+    defaultShikiTheme: 'dracula' as const,
+    colorSchemes: {},
+    panelSettings: { colorScheme: '', colorMode: false as const },
+  };
+
+  const BASE_COLOR: ColorTweakState = {
+    palette: ['#000000', '#111111', '#222222', '#ffffff'],
+    background: 0,
+    foreground: 3,
+    cursor: 1,
+    selectionBg: 0,
+    selectionFg: 3,
+    semanticMappings: { surface: 1, danger: 1, accent: 1 },
+    shikiTheme: 'dracula',
+  };
+
+  it('a { ref: { tab: "palette", tier: "base", item: "base-3" } } row emits var(--palette-base-3) identically in both emitters', () => {
+    const color: ColorTweakState = {
+      ...BASE_COLOR,
+      semanticMappings: {
+        ...BASE_COLOR.semanticMappings,
+        surface: { ref: { tab: 'palette', tier: 'base', item: 'base-3' } },
+      },
+    };
+    const state: TweakState = { color, spacing: {}, typography: {}, size: {} };
+
+    const diskResult = buildApplyOverrides(state, undefined, REF_CLUSTER, REF_TABS);
+
+    const applied: Record<string, string> = {};
+    const sink: ApplySink = {
+      apply(pairs) {
+        for (const [name, value] of pairs) applied[name] = value;
+      },
+      clear() {},
+    };
+    applyColorState(color, REF_CLUSTER, sink, COLOR_TAB, REF_TABS);
+
+    expect(diskResult['--zd-surface']).toBe('var(--palette-base-3)');
+    expect(applied['--zd-surface']).toBe(diskResult['--zd-surface']);
+  });
+
+  it('index and literal rows alongside a { ref } row are unaffected (unchanged behavior)', () => {
+    const color: ColorTweakState = {
+      ...BASE_COLOR,
+      semanticMappings: {
+        surface: { ref: { tab: 'palette', tier: 'base', item: 'base-3' } },
+        danger: { literal: 'oklch(0.55 0.2 25)' },
+        accent: 2, // legacy palette-index mapping
+      },
+    };
+    const state: TweakState = { color, spacing: {}, typography: {}, size: {} };
+
+    const diskResult = buildApplyOverrides(state, undefined, REF_CLUSTER, REF_TABS);
+
+    const applied: Record<string, string> = {};
+    const sink: ApplySink = {
+      apply(pairs) {
+        for (const [name, value] of pairs) applied[name] = value;
+      },
+      clear() {},
+    };
+    applyColorState(color, REF_CLUSTER, sink, COLOR_TAB, REF_TABS);
+
+    // The { ref } and { literal } rows keep byte-identical disk/DOM output.
+    expect(diskResult['--zd-surface']).toBe('var(--palette-base-3)');
+    expect(diskResult['--zd-danger']).toBe('oklch(0.55 0.2 25)');
+    expect(applied['--zd-surface']).toBe(diskResult['--zd-surface']);
+    expect(applied['--zd-danger']).toBe(diskResult['--zd-danger']);
+
+    // The legacy index row keeps its PRE-EXISTING (intentional) disk/DOM
+    // divergence: disk emits an indirect var(--palette-N) reference, while
+    // the DOM path resolves straight to the palette's stored color value
+    // (see `resolveMapping`/the top-of-file doc comment) — { ref } support
+    // does not change this.
+    expect(diskResult['--zd-accent']).toBe('var(--ref-p2)');
+    expect(applied['--zd-accent']).toBe('#222222');
+  });
+
+  it('an unresolvable { ref } (unknown target item) is skipped on disk and falls back to #000000 in the DOM', () => {
+    const color: ColorTweakState = {
+      ...BASE_COLOR,
+      semanticMappings: {
+        ...BASE_COLOR.semanticMappings,
+        surface: { ref: { tab: 'palette', tier: 'base', item: 'no-such-item' } },
+      },
+    };
+    const state: TweakState = { color, spacing: {}, typography: {}, size: {} };
+
+    const diskResult = buildApplyOverrides(state, undefined, REF_CLUSTER, REF_TABS);
+    expect(diskResult['--zd-surface']).toBeUndefined();
+
+    const applied: Record<string, string> = {};
+    const sink: ApplySink = {
+      apply(pairs) {
+        for (const [name, value] of pairs) applied[name] = value;
+      },
+      clear() {},
+    };
+    applyColorState(color, REF_CLUSTER, sink, COLOR_TAB, REF_TABS);
+    expect(applied['--zd-surface']).toBe('#000000');
+  });
+});

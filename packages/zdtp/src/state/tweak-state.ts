@@ -78,6 +78,7 @@ import {
   type TabOverrides,
   emitTierItemCssValue,
   resolveTierItemValue,
+  resolveRefToCssVar,
 } from '../apply/tier-resolver';
 import { cssToOklcha, type Oklcha } from '../utils/color-oklch';
 
@@ -1048,32 +1049,64 @@ export function safeIndex(index: number, len: number): number {
 /**
  * Resolve a `SemanticValue` to an actual color for the apply path. Delegates
  * to `resolveMapping` for the legacy index shape (every mapping produced by
- * the panel today), and returns the raw CSS value verbatim for a single-mode
+ * the panel today), returns the raw CSS value verbatim for a single-mode
  * `{ literal: string }` mapping (#465, S4) — the DOM value for a literal row
  * must equal what `build-apply-overrides.ts`'s disk emitter writes for the
- * same mapping.
+ * same mapping — and resolves a cross-tab/tier `{ ref }` mapping (#468) via
+ * `resolveRefToCssVar` into a `var(--target)` string, again matching the disk
+ * emitter's output for the same mapping.
  *
- * The per-mode `{ literal: { light, dark } }` variant (#472) and the `{ ref }`
- * variant (#468) are not resolved yet — those branches slot in here, above
- * the final `'#000000'` fallback — so they fall back to `'#000000'` rather
- * than throwing, keeping `applyColorState` total over the widened type.
+ * `currentTab` / `tabs` are optional so existing callers that have no tab
+ * context (or only ever produce index/literal mappings) keep compiling. A
+ * `{ ref }` mapping with no `currentTab` supplied, or one that fails to
+ * resolve (misconfigured manifest), falls back to `'#000000'` rather than
+ * throwing — up-front source validation is #469's job, not this function's.
+ *
+ * The per-mode `{ literal: { light, dark } }` variant (#472) is not resolved
+ * yet — that branch slots in here, above the final `'#000000'` fallback —
+ * so it currently falls back to `'#000000'`, keeping `applyColorState` total
+ * over the widened type.
  */
 function resolveSemanticCssValue(
   mapping: SemanticValue,
   palette: string[],
   bgIndex: number,
   fgIndex: number,
+  currentTab?: TabConfig,
+  tabs?: readonly TabConfig[],
 ): string {
   if (isIndexMapping(mapping)) return resolveMapping(mapping, palette, bgIndex, fgIndex);
   if (isLiteralMapping(mapping) && !isPerModeLiteral(mapping)) return mapping.literal;
+  if (isRefMapping(mapping) && currentTab) {
+    try {
+      const targetCssVar = resolveRefToCssVar(mapping.ref, currentTab, tabs ?? [currentTab]);
+      return `var(${targetCssVar})`;
+    } catch {
+      // Unresolvable ref (misconfigured manifest) — fall through to the
+      // '#000000' fallback below rather than throwing.
+    }
+  }
   return '#000000';
 }
 
-/** Apply a single `ColorTweakState` to the DOM using the given cluster config. */
+/**
+ * Apply a single `ColorTweakState` to the DOM using the given cluster config.
+ *
+ * `currentTab` / `tabs` are optional and exist so a cross-tab/tier `{ ref }`
+ * semantic mapping (#468) can resolve: `currentTab` should be the color
+ * TabConfig this cluster was derived from (id `'color'` or
+ * `'color-secondary'`), and `tabs` the panel's full tabs array so a ref
+ * pointing into another tab (e.g. the grouped Palette tab) resolves. Callers
+ * that never hold `{ ref }` mappings (or have no tab context, e.g. most
+ * existing tests) can omit both — `resolveSemanticCssValue` falls back to
+ * `'#000000'` for an unresolvable ref rather than throwing.
+ */
 export function applyColorState(
   state: ColorTweakState,
   cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
   sink?: ApplySink,
+  currentTab?: TabConfig,
+  tabs?: readonly TabConfig[],
 ) {
   const len = state.palette.length;
   if (sink) {
@@ -1092,7 +1125,14 @@ export function applyColorState(
       const mapping = state.semanticMappings[key] ?? cluster.semanticDefaults[key];
       pairs.push([
         cssName,
-        resolveSemanticCssValue(mapping, state.palette, state.background, state.foreground),
+        resolveSemanticCssValue(
+          mapping,
+          state.palette,
+          state.background,
+          state.foreground,
+          currentTab,
+          tabs,
+        ),
       ]);
     }
     try {
@@ -1121,7 +1161,14 @@ export function applyColorState(
     const mapping = state.semanticMappings[key] ?? cluster.semanticDefaults[key];
     setCssVar(
       cssName,
-      resolveSemanticCssValue(mapping, state.palette, state.background, state.foreground),
+      resolveSemanticCssValue(
+        mapping,
+        state.palette,
+        state.background,
+        state.foreground,
+        currentTab,
+        tabs,
+      ),
     );
   }
 }
@@ -1194,8 +1241,12 @@ export function applyTokenOverrides(
 export function applyFullState(state: TweakState, cfg?: PanelConfig) {
   const config = cfg ?? getPanelConfig();
   const sink = config.applySink;
-  // Primary color cluster is derived from the color TabConfig.
-  applyColorState(state.color, getActivePrimaryCluster(config), sink);
+  // Primary color cluster is derived from the color TabConfig. Thread the
+  // color tab + the full tabs array through so a cross-tab `{ ref }` semantic
+  // mapping (#468) resolves against a ramp tier living in another tab (e.g.
+  // the grouped Palette tab).
+  const colorTab = config.tabs.find((t) => t.id === 'color');
+  applyColorState(state.color, getActivePrimaryCluster(config), sink, colorTab, config.tabs);
   // Apply spacing / typography / size from tabs[] (required field post-Wave-5).
   applyTabOverridesFlat(config.tabs, 'spacing', state.spacing, sink);
   applyTabOverridesFlat(config.tabs, 'font', state.typography, sink);
@@ -1204,7 +1255,8 @@ export function applyFullState(state: TweakState, cfg?: PanelConfig) {
   // When no such tab is configured, skip the secondary apply pass entirely.
   const secondaryCluster = resolveSecondaryColorCluster(config);
   if (secondaryCluster && state.secondary) {
-    applyColorState(state.secondary, secondaryCluster, sink);
+    const secondaryColorTab = config.tabs.find((t) => t.id === 'color-secondary');
+    applyColorState(state.secondary, secondaryCluster, sink, secondaryColorTab, config.tabs);
   }
   // Apply generic tab overrides (v3 envelope tabs field).
   // The `tabs` field stores `TabOverrides` (tierId → { itemId → value }).
