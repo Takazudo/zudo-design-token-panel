@@ -769,7 +769,7 @@ describe('buildApplyOverrides / applyColorState — emitter parity for a cross-t
     expect(applied['--zd-accent']).toBe('#222222');
   });
 
-  it('an unresolvable { ref } (unknown target item) is skipped on disk and falls back to #000000 in the DOM', () => {
+  it('an unresolvable { ref } (unknown target item) is skipped on BOTH disk and DOM — same-output contract, no black paint', () => {
     const color: ColorTweakState = {
       ...BASE_COLOR,
       semanticMappings: {
@@ -790,7 +790,9 @@ describe('buildApplyOverrides / applyColorState — emitter parity for a cross-t
       clear() {},
     };
     applyColorState(color, REF_CLUSTER, sink, COLOR_TAB, REF_TABS);
-    expect(applied['--zd-surface']).toBe('#000000');
+    // DOM now also skips (leaves the token at its stylesheet default) instead
+    // of painting it black — matching disk, per the review fix.
+    expect(applied['--zd-surface']).toBeUndefined();
   });
 });
 

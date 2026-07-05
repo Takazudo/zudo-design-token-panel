@@ -577,7 +577,7 @@ describe('5. validation: a bad referencesRamps source or a bad per-row ref throw
     ).toThrow(/item "no-such-item" not found in tier "base"/);
   });
 
-  it('an unresolvable per-row { ref } degrades gracefully at apply time: skipped on disk, #000000 fallback in the DOM', () => {
+  it('an unresolvable per-row { ref } degrades gracefully at apply time: skipped on BOTH disk and DOM (no black paint)', () => {
     const baseState = makeCrosstabState();
     const badState: ColorTweakState = {
       ...baseState,
@@ -592,8 +592,12 @@ describe('5. validation: a bad referencesRamps source or a bad per-row ref throw
     const diskMap = buildApplyOverrides(fullState, undefined, cluster, ALL_TABS);
     expect(diskMap['--zd-surface']).toBeUndefined();
 
+    // Isolate from any residue a sibling test left on the shared documentElement.
+    document.documentElement.style.removeProperty('--zd-surface');
     applyColorState(badState, cluster, undefined, COLOR_TAB, ALL_TABS);
-    expect(document.documentElement.style.getPropertyValue('--zd-surface')).toBe('#000000');
+    // DOM now skips the unresolvable ref too — token stays at its default,
+    // never painted black — matching the disk emitter (review fix).
+    expect(document.documentElement.style.getPropertyValue('--zd-surface')).toBe('');
   });
 });
 

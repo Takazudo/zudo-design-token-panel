@@ -1080,7 +1080,12 @@ function resolveSemanticCssValue(
   currentTab?: TabConfig,
   tabs?: readonly TabConfig[],
   perModeMode?: 'light' | 'dark',
-): string {
+): string | null {
+  // Returns `null` to mean "emit nothing" — an unresolvable `{ ref }` or an
+  // unrecognized mapping shape. Apply call sites SKIP a null (leaving the
+  // token at its stylesheet default), matching the disk emitter
+  // (`build-apply-overrides.ts`) which also skips. The preview caller
+  // (`resolveSemanticPreviewColor`) substitutes a concrete fallback instead.
   if (isIndexMapping(mapping)) return resolveMapping(mapping, palette, bgIndex, fgIndex);
   if (isLiteralMapping(mapping) && isPerModeLiteral(mapping)) {
     // #472 — per-mode literal. Emit `light-dark()` so the browser picks the
@@ -1097,11 +1102,13 @@ function resolveSemanticCssValue(
       const targetCssVar = resolveRefToCssVar(mapping.ref, currentTab, tabs ?? [currentTab]);
       return `var(${targetCssVar})`;
     } catch {
-      // Unresolvable ref (misconfigured manifest) — fall through to the
-      // '#000000' fallback below rather than throwing.
+      // Unresolvable ref (misconfigured manifest / renamed ramp item) — emit
+      // nothing so the token keeps its stylesheet default, exactly as the disk
+      // emitter does. Do NOT paint it black.
+      return null;
     }
   }
-  return '#000000';
+  return null;
 }
 
 /**
@@ -1154,14 +1161,18 @@ export function resolveSemanticPreviewColor(
   currentTab?: TabConfig,
   tabs?: readonly TabConfig[],
 ): string {
-  return resolveSemanticCssValue(
-    mapping,
-    state.palette,
-    state.background,
-    state.foreground,
-    currentTab,
-    tabs,
-    getClusterDefaultMode(cluster),
+  // Preview needs a concrete color; substitute the neutral fallback when the
+  // mapping resolves to nothing (unresolvable ref / unknown shape).
+  return (
+    resolveSemanticCssValue(
+      mapping,
+      state.palette,
+      state.background,
+      state.foreground,
+      currentTab,
+      tabs,
+      getClusterDefaultMode(cluster),
+    ) ?? '#000000'
   );
 }
 
@@ -1225,17 +1236,17 @@ export function applyColorState(
     }
     for (const [key, cssName] of Object.entries(cluster.semanticCssNames)) {
       const mapping = state.semanticMappings[key] ?? cluster.semanticDefaults[key];
-      pairs.push([
-        cssName,
-        resolveSemanticCssValue(
-          mapping,
-          state.palette,
-          state.background,
-          state.foreground,
-          currentTab,
-          tabs,
-        ),
-      ]);
+      const value = resolveSemanticCssValue(
+        mapping,
+        state.palette,
+        state.background,
+        state.foreground,
+        currentTab,
+        tabs,
+      );
+      // Skip an unresolvable ref / unknown shape (null) — leave the token at
+      // its default, matching the disk emitter.
+      if (value !== null) pairs.push([cssName, value]);
     }
     // #472 — when any semantic value emits `light-dark()`, the applied root
     // needs `color-scheme: light dark` for it to resolve. Route it through the
@@ -1268,17 +1279,17 @@ export function applyColorState(
   // Semantic.
   for (const [key, cssName] of Object.entries(cluster.semanticCssNames)) {
     const mapping = state.semanticMappings[key] ?? cluster.semanticDefaults[key];
-    setCssVar(
-      cssName,
-      resolveSemanticCssValue(
-        mapping,
-        state.palette,
-        state.background,
-        state.foreground,
-        currentTab,
-        tabs,
-      ),
+    const value = resolveSemanticCssValue(
+      mapping,
+      state.palette,
+      state.background,
+      state.foreground,
+      currentTab,
+      tabs,
     );
+    // Skip an unresolvable ref / unknown shape (null) — leave the token at its
+    // default, matching the disk emitter.
+    if (value !== null) setCssVar(cssName, value);
   }
   // #472 — set `color-scheme: light dark` on the applied root so any emitted
   // `light-dark()` semantic value resolves. `setCssVar` writes to
