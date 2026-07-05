@@ -94,12 +94,21 @@ import { structuralEqual } from '../utils/structural-equal';
  *
  * `tabs` defaults to the active panel config's tab list. Injected by tests so
  * non-color token resolution works without a live panel config singleton.
+ *
+ * `currentTab` is the color TabConfig `state.color`'s semantic mappings live
+ * on — needed so a cross-tab/tier `{ ref }` mapping (#468) with an omitted
+ * `ref.tab` resolves against the RIGHT tab. Defaults to the `'color'` tab
+ * (primary-cluster behavior, unchanged). Secondary-cluster callers MUST pass
+ * the `'color-secondary'` tab explicitly — mirroring the DOM emitter's
+ * `applyFullState`/`applyColorState` `currentTab` threading
+ * (`state/tweak-state.ts`).
  */
 export function buildApplyOverrides(
   state: TweakState,
   colorDefaults: ColorTweakState | undefined,
   cluster: ColorClusterConfig = getActivePrimaryCluster(),
   tabs: readonly TabConfig[] = getPanelConfig().tabs,
+  currentTab: TabConfig | undefined = tabs.find((t) => t.id === 'color'),
 ): Record<string, string> {
   const out: Record<string, string> = {};
   const color = state.color;
@@ -154,16 +163,17 @@ export function buildApplyOverrides(
     }
 
     // `{ ref: { tab?, tier, item } }` — cross-tab/tier ramp reference (#468).
-    // Resolve against the Color tab (the tier the semantic mapping lives on)
-    // using the panel's full `tabs` array so a ref pointing into another tab
-    // (e.g. the grouped Palette tab) resolves. A ref that fails to resolve
-    // (misconfigured manifest) is silently skipped rather than crashing the
-    // apply pipeline — up-front source validation is #469's job.
+    // Resolve against `currentTab` (the tab the semantic mapping lives on —
+    // `'color'` for the primary cluster, `'color-secondary'` when the caller
+    // passed that tab explicitly) using the panel's full `tabs` array so a
+    // ref pointing into another tab (e.g. the grouped Palette tab) resolves.
+    // A ref that fails to resolve (misconfigured manifest) is silently
+    // skipped rather than crashing the apply pipeline — up-front source
+    // validation is #469's job.
     if (isRefMapping(currentMapping)) {
-      const colorTab = tabs.find((t) => t.id === 'color');
-      if (colorTab) {
+      if (currentTab) {
         try {
-          const targetCssVar = resolveRefToCssVar(currentMapping.ref, colorTab, tabs);
+          const targetCssVar = resolveRefToCssVar(currentMapping.ref, currentTab, tabs);
           out[cssVar] = `var(${targetCssVar})`;
         } catch {
           // Unresolvable ref — skip rather than emit a broken var() reference.

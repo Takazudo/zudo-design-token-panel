@@ -913,3 +913,161 @@ describe('buildApplyOverrides — per-mode literal semantic value (S11, #472)', 
     expect(result['--zd-danger']).toBe('oklch(0.55 0.2 25)');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Tests — secondary-cluster { ref } resolution against the OWNING tab, not
+// the primary 'color' tab (audit defect D1, issue #481)
+// ---------------------------------------------------------------------------
+
+describe('buildApplyOverrides — secondary-cluster { ref } resolves against currentTab (D1, #481)', () => {
+  // Primary color tab. Its 'ramp' tier shares an id with the secondary tab's
+  // 'ramp' tier below, but the items (and cssVars) differ — this is the
+  // fixture that proves resolution picks the OWNING tab's item, not just
+  // "any tab with a same-id tier".
+  const PRIMARY_COLOR_TAB: TabConfig = {
+    id: 'color',
+    label: 'Color',
+    tiers: [
+      {
+        id: 'ramp',
+        label: 'Ramp',
+        items: [
+          {
+            id: 'ramp-1',
+            cssVar: '--zd-color-ramp-1',
+            label: 'ramp-1',
+            default: '#111111',
+            type: { kind: 'color' },
+          },
+        ],
+      },
+    ],
+  };
+
+  // Secondary color tab — the 'color-secondary' tab per resolveSecondaryColorCluster's
+  // convention. Same tier id ('ramp') as the primary tab, different cssVar.
+  const SECONDARY_COLOR_TAB: TabConfig = {
+    id: 'color-secondary',
+    label: 'Color (secondary)',
+    tiers: [
+      {
+        id: 'ramp',
+        label: 'Ramp',
+        items: [
+          {
+            id: 'ramp-1',
+            cssVar: '--zd-color-secondary-ramp-1',
+            label: 'ramp-1',
+            default: '#222222',
+            type: { kind: 'color' },
+          },
+        ],
+      },
+    ],
+  };
+
+  const SECONDARY_CLUSTER = {
+    id: 'secondary-fixture',
+    label: 'Secondary Fixture',
+    paletteSize: 4,
+    baseRoles: {},
+    paletteCssVarTemplate: '--secondary-p{n}',
+    semanticDefaults: { 'surface-secondary': 1 },
+    semanticCssNames: { 'surface-secondary': '--zd-surface-secondary' },
+    baseDefaults: { background: 0, foreground: 3, cursor: 1, selectionBg: 0, selectionFg: 3 },
+    defaultShikiTheme: 'dracula' as const,
+    colorSchemes: {},
+    panelSettings: { colorScheme: '', colorMode: false as const },
+  };
+
+  // Intra-tab ref (no `tab` key) — must resolve against whichever tab is
+  // passed as `currentTab`, not a hardcoded 'color'.
+  const SECONDARY_COLOR_STATE: ColorTweakState = {
+    palette: ['#000000', '#111111', '#222222', '#ffffff'],
+    background: 0,
+    foreground: 3,
+    cursor: 1,
+    selectionBg: 0,
+    selectionFg: 3,
+    semanticMappings: { 'surface-secondary': { ref: { tier: 'ramp', item: 'ramp-1' } } },
+    shikiTheme: 'dracula',
+  };
+
+  it('an intra-tab ref on the secondary cluster resolves against color-secondary, not the primary color tab', () => {
+    const tabs: readonly TabConfig[] = [PRIMARY_COLOR_TAB, SECONDARY_COLOR_TAB];
+    const state: TweakState = {
+      color: SECONDARY_COLOR_STATE,
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+
+    // Correct usage (mirrors apply-modal.tsx's secondary call site): thread
+    // the owning 'color-secondary' tab as currentTab.
+    const result = buildApplyOverrides(
+      state,
+      undefined,
+      SECONDARY_CLUSTER,
+      tabs,
+      SECONDARY_COLOR_TAB,
+    );
+    expect(result['--zd-surface-secondary']).toBe('var(--zd-color-secondary-ramp-1)');
+
+    // Contrast: omitting currentTab falls back to the default 'color' tab
+    // lookup — the pre-fix behavior — and resolves against the WRONG tab's
+    // same-id tier, proving the defect this test guards against.
+    const buggyResult = buildApplyOverrides(state, undefined, SECONDARY_CLUSTER, tabs);
+    expect(buggyResult['--zd-surface-secondary']).toBe('var(--zd-color-ramp-1)');
+  });
+
+  it('a config with a color-secondary tab but no "color" tab still emits the ref (no silent drop)', () => {
+    // No primary 'color' tab at all — the pre-fix `tabs.find(t => t.id ===
+    // 'color')` guard would find nothing and silently drop the ref entirely.
+    const tabs: readonly TabConfig[] = [SECONDARY_COLOR_TAB];
+    const state: TweakState = {
+      color: SECONDARY_COLOR_STATE,
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+
+    const result = buildApplyOverrides(
+      state,
+      undefined,
+      SECONDARY_CLUSTER,
+      tabs,
+      SECONDARY_COLOR_TAB,
+    );
+    expect(result['--zd-surface-secondary']).toBe('var(--zd-color-secondary-ramp-1)');
+  });
+
+  it('disk output equals the DOM-applied (sink) value for the secondary-cluster ref (parity)', () => {
+    const tabs: readonly TabConfig[] = [PRIMARY_COLOR_TAB, SECONDARY_COLOR_TAB];
+    const state: TweakState = {
+      color: SECONDARY_COLOR_STATE,
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+
+    const diskResult = buildApplyOverrides(
+      state,
+      undefined,
+      SECONDARY_CLUSTER,
+      tabs,
+      SECONDARY_COLOR_TAB,
+    );
+
+    const applied: Record<string, string> = {};
+    const sink: ApplySink = {
+      apply(pairs) {
+        for (const [name, value] of pairs) applied[name] = value;
+      },
+      clear() {},
+    };
+    applyColorState(SECONDARY_COLOR_STATE, SECONDARY_CLUSTER, sink, SECONDARY_COLOR_TAB, tabs);
+
+    expect(diskResult['--zd-surface-secondary']).toBe('var(--zd-color-secondary-ramp-1)');
+    expect(applied['--zd-surface-secondary']).toBe(diskResult['--zd-surface-secondary']);
+  });
+});
