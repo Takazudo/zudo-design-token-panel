@@ -312,18 +312,25 @@ export function ApplyModal(props: ApplyModalProps) {
     //   2. Host kept the default but the persist envelope has no secondary
     //      slice yet — `state.secondary` undefined → skip.
     //   3. Otherwise — diff against `undefined` (no scheme baseline yet)
-    //      and merge into the flat overrides. The shallow
-    //      `{ ...state, color: state.secondary }` swap lets
-    //      `buildApplyOverrides` reuse its existing logic without
-    //      signature changes.
+    //      and merge into the flat overrides. Spacing/typography/size/tabs
+    //      are zeroed out on the secondary call — the primary call above
+    //      already emitted them from the same `state`, so re-walking them
+    //      here would just redundantly re-emit identical values.
+    //
+    // `currentTab` is threaded as the `'color-secondary'` tab — mirroring
+    // `applyFullState`'s DOM-emitter threading (`state/tweak-state.ts`) — so a
+    // cross-tab/tier `{ ref }` semantic mapping on the secondary cluster
+    // resolves against the SECONDARY tab, not the primary `'color'` tab.
     const secondaryCluster = resolveSecondaryColorCluster(cfg);
+    const secondaryColorTab = cfg.tabs.find((t) => t.id === 'color-secondary');
     const secondaryOverrides =
       secondaryCluster && state.secondary
         ? buildApplyOverrides(
-            { ...state, color: state.secondary },
+            { color: state.secondary, spacing: {}, typography: {}, size: {} },
             undefined,
             secondaryCluster,
             cfg.tabs,
+            secondaryColorTab,
           )
         : {};
     return { ...zdOverrides, ...secondaryOverrides };
