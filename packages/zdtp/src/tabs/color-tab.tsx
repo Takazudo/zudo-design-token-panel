@@ -624,7 +624,10 @@ export default function ColorTab({
 }: ColorTabProps) {
   // Derive the cluster from the tab's colorExtras + tiers. This provides the
   // same shape that the rest of the panel (apply, clear, state) expects.
-  const cluster = useMemo(() => resolveColorClusterFromTab(tab), [tab]);
+  // The full tabs array is threaded in so a semantic tier's cross-tab `{ ref }`
+  // mappings resolve against a ramp tier in another tab (e.g. the Palette tab).
+  const allTabs = getPanelConfig().tabs;
+  const cluster = useMemo(() => resolveColorClusterFromTab(tab, allTabs), [tab, allTabs]);
   // Fallback to an empty stub cluster when the tab has no colorExtras.
   const safeCluster = useMemo(
     () =>
@@ -644,8 +647,8 @@ export default function ColorTab({
   );
   // Secondary cluster derived from the secondary tab (if any).
   const secondaryCluster = useMemo(
-    () => (secondaryTab ? resolveColorClusterFromTab(secondaryTab) ?? null : null),
-    [secondaryTab],
+    () => (secondaryTab ? resolveColorClusterFromTab(secondaryTab, allTabs) ?? null : null),
+    [secondaryTab, allTabs],
   );
   // Host-supplied preset list. Read through the panel
   // config so a host that calls `configurePanel({ ..., colorPresets })`

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   resolveTierItemValue,
   emitTierItemCssValue,
+  resolveRefToCssVar,
   TierResolverError,
   type TabOverrides,
 } from '../tier-resolver';
@@ -556,5 +557,121 @@ describe('resolveTierItemValue — empty referenced tier', () => {
     expect(() =>
       resolveTierItemValue(tabWithEmptyRefTier, 'semantic', 'my-token', EMPTY_OVERRIDES),
     ).toThrow(/raw/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 12. resolveRefToCssVar — cross-tab ramp reference resolution (#467)
+// ---------------------------------------------------------------------------
+
+/** The grouped Palette tab: ramp tiers whose items have `--palette-<tier>-<n>` cssVars. */
+const PALETTE_TAB: TabConfig = {
+  id: 'palette',
+  label: 'Palette',
+  tiers: [
+    {
+      id: 'base',
+      label: 'Base',
+      items: [
+        colorItem('base-1', '--palette-base-1', 'oklch(0.98 0 0)'),
+        colorItem('base-2', '--palette-base-2', 'oklch(0.9 0 0)'),
+        colorItem('base-3', '--palette-base-3', 'oklch(0.8 0 0)'),
+      ],
+    },
+    {
+      id: 'accent',
+      label: 'Accent',
+      items: [colorItem('accent-1', '--palette-accent-1', 'oklch(0.6 0.2 250)')],
+    },
+  ],
+};
+
+/** A semantic color tab that references ramp items living in PALETTE_TAB. */
+const SEMANTIC_COLOR_TAB: TabConfig = {
+  id: 'color',
+  label: 'Color',
+  tiers: [
+    {
+      id: 'semantic',
+      label: 'Semantic',
+      semantic: true,
+      referencesRamps: [{ tab: 'palette', tier: 'base' }],
+      items: [colorItem('surface', '--zd-surface', 'base-3')],
+    },
+  ],
+};
+
+describe('resolveRefToCssVar — cross-tab ramp reference (#467)', () => {
+  it('resolves a { tab, tier, item } ref to the Palette-tab item cssVar', () => {
+    const cssVar = resolveRefToCssVar(
+      { tab: 'palette', tier: 'base', item: 'base-3' },
+      SEMANTIC_COLOR_TAB,
+      [SEMANTIC_COLOR_TAB, PALETTE_TAB],
+    );
+    expect(cssVar).toBe('--palette-base-3');
+  });
+
+  it('feeds cleanly into emitTierItemCssValue as a var() ref (for #468)', () => {
+    const cssVar = resolveRefToCssVar(
+      { tab: 'palette', tier: 'accent', item: 'accent-1' },
+      SEMANTIC_COLOR_TAB,
+      [SEMANTIC_COLOR_TAB, PALETTE_TAB],
+    );
+    expect(emitTierItemCssValue({ kind: 'ref', targetCssVar: cssVar })).toBe(
+      'var(--palette-accent-1)',
+    );
+  });
+
+  it('resolves an intra-tab ref (tab omitted) within the current tab', () => {
+    const cssVar = resolveRefToCssVar(
+      { tier: 'base', item: 'base-2' },
+      PALETTE_TAB, // current tab is the palette tab itself
+    );
+    expect(cssVar).toBe('--palette-base-2');
+  });
+
+  it('resolves an intra-tab ref when tab equals the current tab id', () => {
+    const cssVar = resolveRefToCssVar(
+      { tab: 'palette', tier: 'accent', item: 'accent-1' },
+      PALETTE_TAB,
+    );
+    expect(cssVar).toBe('--palette-accent-1');
+  });
+
+  it('throws TierResolverError when the target tab does not exist', () => {
+    expect(() =>
+      resolveRefToCssVar(
+        { tab: 'no-such-tab', tier: 'base', item: 'base-3' },
+        SEMANTIC_COLOR_TAB,
+        [SEMANTIC_COLOR_TAB, PALETTE_TAB],
+      ),
+    ).toThrow(TierResolverError);
+    expect(() =>
+      resolveRefToCssVar(
+        { tab: 'no-such-tab', tier: 'base', item: 'base-3' },
+        SEMANTIC_COLOR_TAB,
+        [SEMANTIC_COLOR_TAB, PALETTE_TAB],
+      ),
+    ).toThrow(/no-such-tab/);
+  });
+
+  it('throws TierResolverError when the target tier does not exist', () => {
+    expect(() =>
+      resolveRefToCssVar(
+        { tab: 'palette', tier: 'no-such-tier', item: 'base-3' },
+        SEMANTIC_COLOR_TAB,
+        [SEMANTIC_COLOR_TAB, PALETTE_TAB],
+      ),
+    ).toThrow(/no-such-tier/);
+  });
+
+  it('throws TierResolverError when the target item does not exist', () => {
+    expect(() =>
+      resolveRefToCssVar(
+        { tab: 'palette', tier: 'base', item: 'base-99' },
+        SEMANTIC_COLOR_TAB,
+        [SEMANTIC_COLOR_TAB, PALETTE_TAB],
+      ),
+    ).toThrow(/base-99/);
   });
 });

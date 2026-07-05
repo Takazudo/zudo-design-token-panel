@@ -184,3 +184,66 @@ export function emitTierItemCssValue(resolved: ResolvedTierItem): string {
   if (resolved.kind === 'literal') return resolved.value;
   return `var(${resolved.targetCssVar})`;
 }
+
+// ---------------------------------------------------------------------------
+// Cross-tab ref resolution (#467)
+// ---------------------------------------------------------------------------
+
+/**
+ * A `SemanticValue`'s cross-tab ramp reference: names a target ramp item by
+ * `{ tab?, tier, item }`. An omitted `tab` means "the current tab" (intra-tab,
+ * back-compat). Mirrors the `{ ref }` variant of `SemanticValue` in
+ * `tokens/tier-model.ts`.
+ */
+export type CrossTabRef = { tab?: string; tier: string; item: string };
+
+/**
+ * Resolve a `{ tab?, tier, item }` reference to the target item's `cssVar`
+ * so a downstream emitter (#468) can write `var(--target-cssvar)`.
+ *
+ * Resolution:
+ *   - `tab` omitted (or equal to `currentTab.id`) → resolve within
+ *     `currentTab` (intra-tab; keeps a lone-tab caller working with the
+ *     default `tabs = [currentTab]`).
+ *   - `tab` set → look the target tab up by id in `tabs` (the panel config's
+ *     full tabs array), then find `tier` in it, then `item` in that tier.
+ *
+ * Throws `TierResolverError` with a precise message when the target tab, tier,
+ * or item does not exist. This is the single reachable cross-tab lookup path;
+ * #468 wraps the returned cssVar in `var(...)` and #469 validates source
+ * declarations up front.
+ */
+export function resolveRefToCssVar(
+  ref: CrossTabRef,
+  currentTab: TabConfig,
+  tabs: readonly TabConfig[] = [currentTab],
+): string {
+  const targetTab =
+    ref.tab === undefined || ref.tab === currentTab.id
+      ? currentTab
+      : tabs.find((t) => t.id === ref.tab);
+  if (!targetTab) {
+    throw new TierResolverError(
+      `Cross-tab ref target tab "${ref.tab}" not found. ` +
+        `Available tabs: ${tabs.map((t) => t.id).join(', ')}.`,
+    );
+  }
+
+  const tier = findTier(targetTab, ref.tier);
+  if (!tier) {
+    throw new TierResolverError(
+      `Cross-tab ref target tier "${ref.tier}" not found in tab "${targetTab.id}". ` +
+        `Available tiers: ${targetTab.tiers.map((t) => t.id).join(', ')}.`,
+    );
+  }
+
+  const item = findItem(tier, ref.item);
+  if (!item) {
+    throw new TierResolverError(
+      `Cross-tab ref target item "${ref.item}" not found in tier "${ref.tier}" ` +
+        `of tab "${targetTab.id}". Available items: ${tier.items.map((i) => i.id).join(', ')}.`,
+    );
+  }
+
+  return item.cssVar;
+}
