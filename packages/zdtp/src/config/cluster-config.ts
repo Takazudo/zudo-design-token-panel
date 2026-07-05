@@ -85,8 +85,10 @@ export interface ColorClusterDataConfig {
    * Semantic token name → default mapping. Historically always a palette
    * index (`number`); widened to `SemanticValue` (#459) so a default can also
    * be a literal color or a cross-tab ramp reference. `resolveColorClusterFromTab`
-   * still only ever produces `number` defaults today — the wider variants are
-   * populated by downstream sub-issues (#467/#469).
+   * now derives the `{ literal }` / best-effort `{ ref }` variants too (#463)
+   * for a `semantic: true` tier; actually resolving a `{ ref }` against the
+   * ramp tier it names (rendering + apply) is still downstream work
+   * (#467/#469).
    */
   semanticDefaults: Record<string, SemanticValue>;
   /** Semantic token name → CSS custom-property name. */
@@ -126,22 +128,96 @@ export function resolvePaletteCssVar(
 // all need to be rewritten in one wave.
 // ---------------------------------------------------------------------------
 
-import type { TabConfig } from '../tokens/tier-model';
+import type { TabConfig, TierItem } from '../tokens/tier-model';
+
+/**
+ * True when `value` reads as a literal CSS color (e.g. `#fff`, `oklch(...)`,
+ * `rgb(...)`) rather than an id referencing another tier's item. Bare ids
+ * (palette-item ids, ramp-item ids) never start with `#` or contain `(`, so
+ * this is a cheap, reliable-enough discriminator for #463's best-effort
+ * literal-vs-ref split.
+ */
+function looksLikeColorLiteral(value: string): boolean {
+  return value.startsWith('#') || value.includes('(');
+}
+
+/**
+ * Build a best-effort `{ ref }` `SemanticValue` for a semantic item whose
+ * `default` names a ramp item rather than a literal color. Full cross-tab
+ * resolution (actually looking up the ramp item's color) is #467/#469's job —
+ * this only preserves the ref intent so it isn't silently dropped.
+ *
+ * Convention: `"tierId:itemId"` picks the matching `referencesRamps` entry by
+ * tier id; a bare `"itemId"` (no `:`) assumes the tier's first declared ramp.
+ */
+function deriveRampRef(
+  defaultId: string,
+  referencesRamps: readonly { tab?: string; tier: string }[],
+): { ref: { tab?: string; tier: string; item: string } } {
+  const sepIdx = defaultId.indexOf(':');
+  if (sepIdx !== -1) {
+    const tierId = defaultId.slice(0, sepIdx);
+    const itemId = defaultId.slice(sepIdx + 1);
+    const match = referencesRamps.find((r) => r.tier === tierId);
+    if (match) return { ref: { tab: match.tab, tier: match.tier, item: itemId } };
+  }
+  const [firstRamp] = referencesRamps;
+  return { ref: { tab: firstRamp.tab, tier: firstRamp.tier, item: defaultId } };
+}
+
+/**
+ * Derive the `SemanticValue` a semantic-tier item's `default` denotes.
+ *
+ * Branches (checked in order):
+ * 1. Legacy palette-index shape — `default` names a sibling palette item's
+ *    id (conventional 2-tier palette+semantic config, or a `semantic: true`
+ *    tier that still points at palette ids). Regression-critical: must keep
+ *    producing the exact numeric index as before.
+ * 2. `'bg'` / `'fg'` base-role sentinel aliases, passed through unchanged.
+ * 3. Cross-tab ramp reference — the tier declares `referencesRamps` and
+ *    `default` doesn't read as a literal color, so it's treated as naming a
+ *    ramp item (best-effort shape; see `deriveRampRef`).
+ * 4. Literal color default (e.g. an `oklch(...)`/hex string) — the common
+ *    case for a lone `semantic: true` tier with no palette sibling.
+ */
+function deriveSemanticValue(
+  item: TierItem,
+  paletteIdToIndex: ReadonlyMap<string, number>,
+  referencesRamps: readonly { tab?: string; tier: string }[] | undefined,
+): SemanticValue {
+  const paletteIdx = paletteIdToIndex.get(item.default);
+  if (paletteIdx !== undefined) return paletteIdx;
+
+  if (item.default === 'bg' || item.default === 'fg') return item.default;
+
+  if (referencesRamps && referencesRamps.length > 0 && !looksLikeColorLiteral(item.default)) {
+    return deriveRampRef(item.default, referencesRamps);
+  }
+
+  return { literal: item.default };
+}
 
 /**
  * Derive a `ColorClusterDataConfig` from a color `TabConfig`.
  *
- * - Palette items: the first tier whose items all have `kind: 'color'`.
- *   Each item's `cssVar` becomes a palette slot; `paletteCssVarTemplate` is
- *   synthesised as `"{item.cssVar}"` with `{n}` replaced by the slot index.
- *   Because item cssVars are explicit (e.g. `--zfb-palette-0`) rather
- *   than template-based, we derive the template from the first item by
- *   replacing the terminal digit sequence with `{n}`.
+ * - Palette items: the first tier whose items all have `kind: 'color'` and
+ *   are not `semantic: true`. Each item's `cssVar` becomes a palette slot;
+ *   `paletteCssVarTemplate` is synthesised as `"{item.cssVar}"` with `{n}`
+ *   replaced by the slot index. Because item cssVars are explicit (e.g.
+ *   `--zfb-palette-0`) rather than template-based, we derive the template
+ *   from the first item by replacing the terminal digit sequence with `{n}`.
  *
- * - Semantic items: the first tier with `referencesTier` set pointing at the
- *   palette tier. Each item's `id` → `cssVar` mapping becomes `semanticCssNames`;
- *   the item's `default` (a palette item id) is looked up to produce the index
- *   for `semanticDefaults`.
+ * - Semantic items: either the first tier with `referencesTier` set pointing
+ *   at the palette tier (legacy shape), or a tier explicitly marked
+ *   `semantic: true` (#461) — the latter may have no palette sibling at all.
+ *   Each item's `id` → `cssVar` mapping becomes `semanticCssNames`; the
+ *   item's `default` is resolved to a `SemanticValue` by
+ *   `deriveSemanticValue` (palette index / literal / ramp-ref — see there).
+ *
+ * - A tab with a semantic tier but NO palette tier still produces a usable
+ *   cluster: `paletteSize` is `0` (the palette-driven UI has nothing to
+ *   render) but `semanticDefaults`/`semanticCssNames` are populated from the
+ *   semantic tier so the Semantic Tokens section isn't left empty (#463).
  *
  * - Metadata comes from `tab.colorExtras` (required on a color tab).
  *
@@ -163,8 +239,17 @@ export function resolveColorClusterFromTab(
       t.items.length > 0 &&
       t.items[0].type.kind === 'color',
   );
-  if (!paletteTier) {
-    // No palette tier — return stub cluster with zero palette.
+
+  // Find the semantic tier: either the first tier with referencesTier pointing
+  // at paletteTier (legacy shape), or a tier explicitly marked `semantic: true`
+  // (#461) — the latter may have no referencesTier at all, and no palette
+  // sibling at all (#463).
+  const semanticTier = tab.tiers.find(
+    (t) => (paletteTier && t.referencesTier === paletteTier.id) || t.semantic === true,
+  );
+
+  if (!paletteTier && !semanticTier) {
+    // Genuinely no palette AND no semantic tier — return stub cluster.
     return {
       id: extras.id,
       label: extras.label,
@@ -180,14 +265,17 @@ export function resolveColorClusterFromTab(
     };
   }
 
-  const paletteItems = paletteTier.items;
+  const paletteItems = paletteTier?.items ?? [];
   const paletteSize = paletteItems.length;
 
   // Derive the palette CSS-var template from the first item's cssVar.
   // e.g. "--zfb-palette-0" → "--zfb-palette-{n}"
   // Strategy: replace the LAST run of digits in the cssVar with "{n}".
-  const firstCssVar = paletteItems[0]?.cssVar ?? '--palette-{n}';
-  const paletteCssVarTemplate = firstCssVar.replace(/\d+$/, '{n}');
+  // When there's no palette tier (lone semantic tier), fall back to the
+  // stub template — nothing reads it since paletteSize is 0.
+  const paletteCssVarTemplate = paletteItems[0]
+    ? paletteItems[0].cssVar.replace(/\d+$/, '{n}')
+    : '--zudo-stub-p{n}';
 
   // Build palette cssVar lookup for semantic default index resolution.
   const paletteIdToIndex = new Map<string, number>();
@@ -195,25 +283,17 @@ export function resolveColorClusterFromTab(
     paletteIdToIndex.set(paletteItems[i].id, i);
   }
 
-  // Find the semantic tier: either the first tier with referencesTier pointing
-  // at paletteTier (legacy shape), or a tier explicitly marked `semantic: true`
-  // (#461) — the latter may have no referencesTier at all (its mappings are
-  // SemanticValue, not necessarily plain palette indices). Literal/ref default
-  // derivation for a `semantic: true` tier is #463's job; this only stops it
-  // from being mis-detected as "no semantic tier".
-  const semanticTier = tab.tiers.find(
-    (t) => t.referencesTier === paletteTier.id || t.semantic === true,
-  );
-
-  const semanticDefaults: Record<string, number> = {};
+  const semanticDefaults: Record<string, SemanticValue> = {};
   const semanticCssNames: Record<string, string> = {};
 
   if (semanticTier) {
     for (const item of semanticTier.items) {
       semanticCssNames[item.id] = item.cssVar;
-      // item.default is the palette item id; look up its index.
-      const idx = paletteIdToIndex.get(item.default);
-      semanticDefaults[item.id] = idx ?? 0;
+      semanticDefaults[item.id] = deriveSemanticValue(
+        item,
+        paletteIdToIndex,
+        semanticTier.referencesRamps,
+      );
     }
   }
 
