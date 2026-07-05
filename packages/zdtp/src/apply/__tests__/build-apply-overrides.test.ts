@@ -793,3 +793,121 @@ describe('buildApplyOverrides / applyColorState — emitter parity for a cross-t
     expect(applied['--zd-surface']).toBe('#000000');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Tests — per-mode literal { literal: { light, dark } } → light-dark() (S11, #472)
+// ---------------------------------------------------------------------------
+
+describe('buildApplyOverrides — per-mode literal semantic value (S11, #472)', () => {
+  const PM_CLUSTER = {
+    id: 'permode-fixture',
+    label: 'Per-mode Fixture',
+    paletteSize: 4,
+    baseRoles: {},
+    paletteCssVarTemplate: '--pm-p{n}',
+    semanticDefaults: { danger: 1 },
+    semanticCssNames: { danger: '--zd-danger' },
+    baseDefaults: { background: 0, foreground: 3, cursor: 1, selectionBg: 0, selectionFg: 3 },
+    defaultShikiTheme: 'dracula' as const,
+    colorSchemes: {},
+    panelSettings: { colorScheme: '', colorMode: false as const },
+  };
+
+  const PM_BASE_COLOR: ColorTweakState = {
+    palette: ['#000000', '#111111', '#222222', '#ffffff'],
+    background: 0,
+    foreground: 3,
+    cursor: 1,
+    selectionBg: 0,
+    selectionFg: 3,
+    semanticMappings: { danger: 1 },
+    shikiTheme: 'dracula',
+  };
+
+  it('emits light-dark(<light>, <dark>) for a { literal: { light, dark } } mapping', () => {
+    const state: TweakState = {
+      color: {
+        ...PM_BASE_COLOR,
+        semanticMappings: { danger: { literal: { light: '#ff0000', dark: '#990000' } } },
+      },
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+    const result = buildApplyOverrides(state, undefined, PM_CLUSTER, []);
+    expect(result['--zd-danger']).toBe('light-dark(#ff0000, #990000)');
+  });
+
+  it('diff gate: does not re-emit a structurally-unchanged per-mode value', () => {
+    const baseline: ColorTweakState = {
+      ...PM_BASE_COLOR,
+      semanticMappings: { danger: { literal: { light: '#ff0000', dark: '#990000' } } },
+    };
+    const state: TweakState = {
+      color: {
+        ...PM_BASE_COLOR,
+        // Distinct object reference, identical structural value.
+        semanticMappings: { danger: { literal: { light: '#ff0000', dark: '#990000' } } },
+      },
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+    const result = buildApplyOverrides(state, baseline, PM_CLUSTER, []);
+    expect(result['--zd-danger']).toBeUndefined();
+  });
+
+  it('diff gate: DOES re-emit when either mode of the per-mode value changes', () => {
+    const baseline: ColorTweakState = {
+      ...PM_BASE_COLOR,
+      semanticMappings: { danger: { literal: { light: '#ff0000', dark: '#990000' } } },
+    };
+    const state: TweakState = {
+      color: {
+        ...PM_BASE_COLOR,
+        semanticMappings: { danger: { literal: { light: '#ff0000', dark: '#550000' } } },
+      },
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+    const result = buildApplyOverrides(state, baseline, PM_CLUSTER, []);
+    expect(result['--zd-danger']).toBe('light-dark(#ff0000, #550000)');
+  });
+
+  it('disk output equals the DOM-applied (sink) value for a per-mode row (parity)', () => {
+    const color: ColorTweakState = {
+      ...PM_BASE_COLOR,
+      semanticMappings: { danger: { literal: { light: '#ff0000', dark: '#990000' } } },
+    };
+    const state: TweakState = { color, spacing: {}, typography: {}, size: {} };
+
+    const diskResult = buildApplyOverrides(state, undefined, PM_CLUSTER, []);
+
+    const applied: Record<string, string> = {};
+    const sink: ApplySink = {
+      apply(pairs) {
+        for (const [name, value] of pairs) applied[name] = value;
+      },
+      clear() {},
+    };
+    applyColorState(color, PM_CLUSTER, sink);
+
+    expect(diskResult['--zd-danger']).toBe('light-dark(#ff0000, #990000)');
+    expect(applied['--zd-danger']).toBe(diskResult['--zd-danger']);
+  });
+
+  it('single-mode { literal: string } rows still emit a plain value (unchanged)', () => {
+    const state: TweakState = {
+      color: {
+        ...PM_BASE_COLOR,
+        semanticMappings: { danger: { literal: 'oklch(0.55 0.2 25)' } },
+      },
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+    const result = buildApplyOverrides(state, undefined, PM_CLUSTER, []);
+    expect(result['--zd-danger']).toBe('oklch(0.55 0.2 25)');
+  });
+});

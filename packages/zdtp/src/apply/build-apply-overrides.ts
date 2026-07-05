@@ -38,7 +38,9 @@
  *     reference. A cross-tab/tier `{ ref }` mapping (#468) is resolved via
  *     `resolveRefToCssVar` against the panel's full `tabs` array and EMITTED
  *     as `var(--<resolved-target>)`. Per-mode `{ literal: { light, dark } }`
- *     (#472) is not resolved yet and is silently skipped.
+ *     (#472) is EMITTED as `light-dark(<light>, <dark>)`, byte-identical to
+ *     the DOM emitter (the required `color-scheme: light dark` is NOT settable
+ *     via this pipeline — see the per-mode branch below for why).
  *   - Base roles (`cluster.baseRoles` entries) — NOT emitted. They do not
  *     belong to the apply pipeline's rewrite scope.
  *   - Spacing / typography / size — EMITTED when the corresponding
@@ -128,12 +130,24 @@ export function buildApplyOverrides(
     const changed = colorDefaults === undefined || !structuralEqual(currentMapping, baselineMapping);
     if (!changed) continue;
 
+    // Per-mode `{ literal: { light, dark } }` (#472). Emit a CSS
+    // `light-dark(<light>, <dark>)` — byte-identical to the DOM emitter
+    // (`resolveSemanticCssValue`) so disk and live-apply stay in parity. The
+    // browser resolves the correct side from the root's `color-scheme`.
+    //
+    // NOTE: this pipeline cannot ALSO set `color-scheme: light dark` on disk.
+    // `routeTokensToFiles` only rewrites entries shaped `--<prefix>-...`; a
+    // bare `color-scheme` property has no `--` prefix and no routing entry, so
+    // it would land in `rejected`. The host's tokens CSS is expected to declare
+    // `color-scheme` itself (see `generateLightDarkCssProperties`); the DOM
+    // apply path sets it at runtime for the live panel.
+    if (isPerModeLiteral(currentMapping)) {
+      out[cssVar] = `light-dark(${currentMapping.literal.light}, ${currentMapping.literal.dark})`;
+      continue;
+    }
+
     // `{ literal: string }` — single-mode literal color (#465, S4). Emit the
     // stored CSS value verbatim rather than routing through a palette slot.
-    // Per-mode `{ literal: { light, dark } }` (#472) is NOT resolved here
-    // yet — it falls through to `resolveMappingIndex` below, which returns
-    // `null` for it, so the entry is silently skipped (see that function's
-    // doc comment). #472 slots its branch in here, above the `{ ref }` check.
     if (isLiteralMapping(currentMapping) && !isPerModeLiteral(currentMapping)) {
       out[cssVar] = currentMapping.literal;
       continue;
@@ -267,11 +281,10 @@ function emitTabOverrides(
  * - `"fg"`    → the color state's current foreground index.
  * - anything else → `null` (caller skips the entry).
  *
- * The single-mode `{ literal: string }` variant (#465, S4) and the `{ ref }`
- * variant (#468) are both resolved by the caller BEFORE this function runs
- * and never reach here. The per-mode `{ literal: { light, dark } }` variant
- * (#472) still falls through to `null` — that resolver is downstream work,
- * not this function's job today.
+ * The single-mode `{ literal: string }` (#465, S4), per-mode
+ * `{ literal: { light, dark } }` (#472), and `{ ref }` (#468) variants are all
+ * resolved by the caller BEFORE this function runs and never reach here. Any
+ * other object shape still falls through to `null` (caller skips the entry).
  */
 function resolveMappingIndex(mapping: SemanticValue, color: ColorTweakState): number | null {
   if (mapping === 'bg') return color.background;
