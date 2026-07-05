@@ -989,6 +989,21 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>, allTabs: un
     }
     tierIds.add(ti.id);
 
+    // Rule: `semantic` is a boolean marker (`TierConfig.semantic?: true`) read
+    // by five separate predicate sites across this file, cluster-config.ts,
+    // and color-tab.tsx — some compare with truthiness, some with `=== true`.
+    // A present-but-not-`true` value (e.g. `1`, `'true'`) is reachable from a
+    // plain-JS host config, where TS's structural typing offers no defense,
+    // and would get divergent treatment across those sites (e.g. excluded
+    // from palette-pick here but still able to be picked elsewhere). Reject
+    // it up front so the ambiguity is never reachable at runtime.
+    if (ti.semantic !== undefined && ti.semantic !== true) {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${ti.id}"].semantic must be` +
+          ` exactly \`true\` when present (got ${JSON.stringify(ti.semantic)})`,
+      );
+    }
+
     if (!Array.isArray(ti.items)) {
       throw new Error(
         `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${ti.id}"].items must be an array`,
