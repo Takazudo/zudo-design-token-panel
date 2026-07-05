@@ -40,8 +40,10 @@ import type { PersistColor, PersistSecondary } from '../../state/persist';
 import {
   installFixturePanelConfig,
   FIXTURE_CLUSTER,
+  FIXTURE_PANEL_CONFIG,
 } from '../../__tests__/_test-helpers';
-import { __resetPanelConfigForTests } from '../../config/panel-config';
+import { __resetPanelConfigForTests, type PanelConfig } from '../../config/panel-config';
+import type { ColorScheme } from '../../config/color-schemes';
 
 // ---------------------------------------------------------------------------
 // Setup / teardown
@@ -163,6 +165,7 @@ function renderColorTab(
     secondaryState?: ColorTweakState | null;
     persistColor?: PersistColor;
     persistSecondary?: PersistSecondary;
+    instanceConfig?: PanelConfig;
   } = {},
 ): void {
   const {
@@ -172,6 +175,7 @@ function renderColorTab(
     secondaryState = null,
     persistColor = noop,
     persistSecondary = noop,
+    instanceConfig,
   } = opts;
   act(() => {
     render(
@@ -184,6 +188,7 @@ function renderColorTab(
             secondaryTab={secondaryTab}
             secondaryState={secondaryState}
             persistSecondary={persistSecondary}
+            instanceConfig={instanceConfig}
           />
         </HighlightContext.Provider>
       </TooltipProvider>,
@@ -1353,5 +1358,338 @@ describe('ColorTab — SemanticLiteralRow per-mode (light/dark) editor toggle (S
     expect(
       container.querySelector('h1,h2,h3,h4,h5,h6,ul,ol,li,table,a,details,summary'),
     ).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S9 — cross-tab semantic refs resolve against the passed `instanceConfig`,
+// not the active default instance (#357/#491 audit finding)
+// ---------------------------------------------------------------------------
+
+/**
+ * Two distinct multi-instance manifests sharing the SAME color-tab shape (a
+ * lone `semantic: true` tier whose one row references a Palette tab's "base"
+ * ramp) but each instance's own Palette tab holds a DIFFERENT, non-overlapping
+ * ramp item — `a-only` vs `b-only`. Before #491, `ColorTab` always read
+ * `getPanelConfig().tabs` (the active DEFAULT instance) for cluster
+ * derivation, the grouped ref-or-literal picker's ramp groups, and preview
+ * resolution — so a non-default instance's `{ ref }` mappings resolved
+ * against whichever instance happened to be the last-configured default, not
+ * against its OWN Palette tab. `instanceConfig` (mirroring the
+ * `usePersist`/`applyFullState` apply-path seam) fixes that.
+ */
+function makeRampSourceTab(itemId: string): TabConfig {
+  return {
+    id: 'palette',
+    label: 'Palette',
+    tiers: [
+      {
+        id: 'base',
+        label: 'Base',
+        items: [
+          {
+            id: itemId,
+            cssVar: `--instance-${itemId}`,
+            label: itemId,
+            default: 'oklch(0.5 0 0)',
+            type: { kind: 'color' as const, format: 'oklch' as const },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+const INSTANCE_SEMANTIC_COLOR_TAB: TabConfig = {
+  id: 'color',
+  label: 'Color',
+  colorExtras: {
+    id: 'instance-cluster',
+    label: 'Instance',
+    baseRoles: {},
+    baseDefaults: {},
+    defaultShikiTheme: 'dracula',
+    colorSchemes: {},
+    panelSettings: { colorScheme: '', colorMode: false },
+  },
+  tiers: [
+    {
+      id: 'semantic',
+      label: 'Semantic',
+      semantic: true,
+      referencesRamps: [{ tab: 'palette', tier: 'base' }],
+      items: [
+        {
+          id: 'surface',
+          cssVar: '--zd-surface',
+          label: 'Surface',
+          default: 'a-only',
+          type: { kind: 'color' as const, format: 'oklch' as const },
+        },
+      ],
+    },
+  ],
+};
+
+const INSTANCE_A_CONFIG: PanelConfig = {
+  ...FIXTURE_PANEL_CONFIG,
+  storagePrefix: 'instance-a',
+  tabs: [makeRampSourceTab('a-only'), INSTANCE_SEMANTIC_COLOR_TAB],
+};
+
+const INSTANCE_B_CONFIG: PanelConfig = {
+  ...FIXTURE_PANEL_CONFIG,
+  storagePrefix: 'instance-b',
+  tabs: [makeRampSourceTab('b-only'), INSTANCE_SEMANTIC_COLOR_TAB],
+};
+
+/**
+ * A `{ ref }`-only color state pointing `surface` at `refItem` in the Palette
+ * tab's "base" tier. No palette of its own (paletteSize 0 — the lone
+ * `semantic: true` tier shape, #458).
+ */
+function makeInstanceRefState(refItem: string): ColorTweakState {
+  return {
+    palette: [],
+    background: 0,
+    foreground: 0,
+    cursor: 0,
+    selectionBg: 0,
+    selectionFg: 0,
+    semanticMappings: { surface: { ref: { tab: 'palette', tier: 'base', item: refItem } } },
+    shikiTheme: 'dracula',
+  };
+}
+
+function getSurfaceRefSelect(): HTMLSelectElement {
+  const row = container.querySelector('[data-testid="tokenpanel-semantic-ref-surface"]');
+  expect(row).not.toBeNull();
+  const select = row!.querySelector('select.tokenpanel-tier-ref-select') as HTMLSelectElement;
+  expect(select).not.toBeNull();
+  return select;
+}
+
+describe('S9 — ColorTab resolves cross-tab refs against `instanceConfig`, not the default instance (#491)', () => {
+  it("instance B's ref resolves against B's OWN tabs even though the active default instance is A", () => {
+    // Active default instance is A — B's ramp item ('b-only') does not exist
+    // anywhere in A's Palette tab.
+    installFixturePanelConfig(INSTANCE_A_CONFIG);
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx, {
+      tab: INSTANCE_SEMANTIC_COLOR_TAB,
+      colorState: makeInstanceRefState('b-only'),
+      instanceConfig: INSTANCE_B_CONFIG,
+    });
+
+    const selected = Array.from(getSurfaceRefSelect().querySelectorAll('option')).find(
+      (o) => o.selected,
+    );
+    expect(selected?.textContent).toContain('--instance-b-only');
+    expect(selected?.disabled).not.toBe(true);
+  });
+
+  it('sanity: the SAME ref renders UNRESOLVED when instanceConfig is omitted and the default instance is A (proves A and B are genuinely distinct fixtures)', () => {
+    installFixturePanelConfig(INSTANCE_A_CONFIG);
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx, {
+      tab: INSTANCE_SEMANTIC_COLOR_TAB,
+      colorState: makeInstanceRefState('b-only'),
+      // No instanceConfig — falls back to getPanelConfig() (instance A).
+    });
+
+    const selected = Array.from(getSurfaceRefSelect().querySelectorAll('option')).find(
+      (o) => o.selected,
+    );
+    expect(selected?.textContent).toContain('unresolved: base/b-only');
+  });
+
+  it('single-instance default path unchanged: omitting instanceConfig resolves against getPanelConfig() when it already matches', () => {
+    // Active default instance IS B this time — the pre-#491 single-panel path.
+    installFixturePanelConfig(INSTANCE_B_CONFIG);
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx, {
+      tab: INSTANCE_SEMANTIC_COLOR_TAB,
+      colorState: makeInstanceRefState('b-only'),
+    });
+
+    const selected = Array.from(getSurfaceRefSelect().querySelectorAll('option')).find(
+      (o) => o.selected,
+    );
+    expect(selected?.textContent).toContain('--instance-b-only');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S9 follow-up (audit / codex-review) — loading a Scheme preset must seed
+// against the passed `instanceConfig`'s cluster, not the global active primary
+// cluster. Regression guard for the #491 seam: ColorTab threaded
+// `instanceConfig` into cluster derivation + the preset LIST, but the preset
+// LOAD handler still called `initColorFromSchemeData(scheme)` with no cluster,
+// defaulting to `getActivePrimaryCluster()` — so a non-default instance's
+// preset built state for the wrong cluster.
+// ---------------------------------------------------------------------------
+
+function make16(color: string): ColorScheme['palette'] {
+  return Array.from({ length: 16 }, () => color) as unknown as ColorScheme['palette'];
+}
+
+const PRESET_X: ColorScheme = {
+  background: 0,
+  foreground: 1,
+  cursor: 0,
+  selectionBg: 0,
+  selectionFg: 1,
+  palette: make16('#123456'),
+};
+
+// Global (active default) instance — its primary cluster carries the semantic
+// key `accent-global`, which instance B's cluster does NOT have.
+const GLOBAL_DEFAULT_COLOR_TAB: TabConfig = {
+  id: 'color',
+  label: 'Color',
+  colorExtras: {
+    id: 'global-cluster',
+    label: 'Global',
+    baseRoles: {},
+    baseDefaults: {},
+    defaultShikiTheme: 'dracula',
+    colorSchemes: {},
+    panelSettings: { colorScheme: '', colorMode: false },
+  },
+  tiers: [
+    {
+      id: 'palette',
+      label: 'Palette',
+      items: Array.from({ length: 3 }, (_, i) => ({
+        id: `g-p${i}`,
+        cssVar: `--g-p${i}`,
+        label: `G${i}`,
+        default: '#000000',
+        type: { kind: 'color' as const },
+      })),
+    },
+    {
+      id: 'semantic',
+      label: 'Semantic',
+      referencesTier: 'palette',
+      items: [
+        {
+          id: 'accent-global',
+          cssVar: '--g-accent',
+          label: 'Accent',
+          default: 'g-p1',
+          type: { kind: 'color' as const },
+        },
+      ],
+    },
+  ],
+};
+
+const GLOBAL_DEFAULT_CONFIG: PanelConfig = {
+  ...FIXTURE_PANEL_CONFIG,
+  storagePrefix: 'global-default-inst',
+  tabs: [GLOBAL_DEFAULT_COLOR_TAB],
+};
+
+// Instance B — a DIFFERENT primary cluster (semantic key `surface-b`, and its
+// own bundled `PresetX` scheme so the Scheme… dropdown offers a load target).
+const INSTANCE_B_PRESET_COLOR_TAB: TabConfig = {
+  id: 'color',
+  label: 'Color',
+  colorExtras: {
+    id: 'b-cluster',
+    label: 'B',
+    baseRoles: {},
+    baseDefaults: {},
+    defaultShikiTheme: 'dracula',
+    colorSchemes: { PresetX: PRESET_X },
+    panelSettings: { colorScheme: '', colorMode: false },
+  },
+  tiers: [
+    {
+      id: 'palette',
+      label: 'Palette',
+      items: Array.from({ length: 2 }, (_, i) => ({
+        id: `b-p${i}`,
+        cssVar: `--b-p${i}`,
+        label: `B${i}`,
+        default: '#000000',
+        type: { kind: 'color' as const },
+      })),
+    },
+    {
+      id: 'semantic',
+      label: 'Semantic',
+      referencesTier: 'palette',
+      items: [
+        {
+          id: 'surface-b',
+          cssVar: '--b-surface',
+          label: 'Surface',
+          default: 'b-p0',
+          type: { kind: 'color' as const },
+        },
+      ],
+    },
+  ],
+};
+
+const INSTANCE_B_PRESET_CONFIG: PanelConfig = {
+  ...FIXTURE_PANEL_CONFIG,
+  storagePrefix: 'instance-b-preset',
+  tabs: [INSTANCE_B_PRESET_COLOR_TAB],
+};
+
+describe('S9 follow-up — Scheme preset load seeds against `instanceConfig`, not the global default cluster (#491 audit)', () => {
+  it("loading a preset builds state for the instance's cluster (its semantic keys), not the active default instance's", () => {
+    // Active default instance is the GLOBAL config (cluster key `accent-global`).
+    installFixturePanelConfig(GLOBAL_DEFAULT_CONFIG);
+    const persistColor = vi.fn();
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx, {
+      tab: INSTANCE_B_PRESET_COLOR_TAB,
+      colorState: {
+        palette: ['#111111', '#222222'],
+        background: 0,
+        foreground: 1,
+        cursor: 0,
+        selectionBg: 0,
+        selectionFg: 1,
+        semanticMappings: { 'surface-b': 0 },
+        shikiTheme: 'dracula',
+      },
+      instanceConfig: INSTANCE_B_PRESET_CONFIG,
+      persistColor,
+    });
+
+    const select = container.querySelector('.tokenpanel-color-preset-select') as HTMLSelectElement;
+    expect(select).not.toBeNull();
+    // PresetX is bundled on instance B's cluster, so it must be offered.
+    expect(Array.from(select.querySelectorAll('option')).some((o) => o.value === 'PresetX')).toBe(
+      true,
+    );
+
+    act(() => {
+      select.value = 'PresetX';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    expect(persistColor).toHaveBeenCalledTimes(1);
+    const updater = persistColor.mock.calls.at(-1)![0] as (prev: ColorTweakState) => ColorTweakState;
+    const newState = updater({
+      palette: [],
+      background: 0,
+      foreground: 0,
+      cursor: 0,
+      selectionBg: 0,
+      selectionFg: 0,
+      semanticMappings: {},
+      shikiTheme: 'dracula',
+    });
+
+    // Seeded from instance B's cluster.semanticDefaults ...
+    expect(Object.keys(newState.semanticMappings)).toContain('surface-b');
+    // ... NOT the global active default cluster's.
+    expect(Object.keys(newState.semanticMappings)).not.toContain('accent-global');
   });
 });

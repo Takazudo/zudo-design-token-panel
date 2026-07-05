@@ -961,6 +961,23 @@ export function initColorFromSchemeData(
   scheme: ColorScheme,
   cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
 ): ColorTweakState {
+  // A palette-less cluster (paletteSize: 0, a lone `semantic: true` tier with
+  // no palette sibling, #458/#466) has nothing for a scheme/preset to seed:
+  // schemes only carry a 16-slot palette + index/string refs, never the
+  // `{ literal }` / `{ ref }` / per-mode SemanticValue shapes such a tier's
+  // rows hold. Loading one anyway previously reseeded `scheme.palette` wholesale
+  // (phantom `--zudo-stub-p*` swatches, since paletteCssVarTemplate falls back
+  // to the stub template with no palette tier to name slots after) and
+  // collapsed every non-numeric semanticDefault to palette index 0 (below),
+  // destroying literal/ref rows. Treat the load as a no-op instead — identical
+  // to the cluster's own no-scheme cold seed (#488).
+  if (cluster.paletteSize === 0) {
+    console.warn(
+      `[tweak] Scheme/preset load ignored for palette-less cluster "${cluster.id}" ` +
+        '(paletteSize: 0) — schemes cannot seed a tier with no palette.',
+    );
+    return initSecondaryDefaults(cluster);
+  }
   // Preserve raw `oklch(...)` losslessly (wide-gamut chroma survives; never
   // collapses to '#000000' under jsdom). Every other entry is sanitised through
   // cssColorToHex() exactly as before this OKLCH work — canonicalises valid
@@ -1059,8 +1076,10 @@ export function safeIndex(index: number, len: number): number {
  * `currentTab` / `tabs` are optional so existing callers that have no tab
  * context (or only ever produce index/literal mappings) keep compiling. A
  * `{ ref }` mapping with no `currentTab` supplied, or one that fails to
- * resolve (misconfigured manifest), falls back to `'#000000'` rather than
- * throwing — up-front source validation is #469's job, not this function's.
+ * resolve (misconfigured manifest), returns `null` — "emit nothing", matching
+ * the disk emitter's skip behavior (see the inline comment below) — rather
+ * than throwing or painting a fallback color. Up-front source validation is
+ * #469's job, not this function's.
  *
  * The per-mode `{ literal: { light, dark } }` variant (#472) emits a CSS
  * `light-dark(<light>, <dark>)` function so the browser resolves the correct
@@ -1211,8 +1230,10 @@ function hasPerModeLiteralSemantic(
  * `'color-secondary'`), and `tabs` the panel's full tabs array so a ref
  * pointing into another tab (e.g. the grouped Palette tab) resolves. Callers
  * that never hold `{ ref }` mappings (or have no tab context, e.g. most
- * existing tests) can omit both — `resolveSemanticCssValue` falls back to
- * `'#000000'` for an unresolvable ref rather than throwing.
+ * existing tests) can omit both — `resolveSemanticCssValue` returns `null`
+ * for an unresolvable ref rather than throwing, and this function skips a
+ * `null` (leaving the token at its stylesheet default) rather than painting
+ * a fallback color.
  */
 export function applyColorState(
   state: ColorTweakState,
@@ -1364,6 +1385,15 @@ export function applyTokenOverrides(
  * When `cfg` is supplied its `applySink` (if any) is used to route all
  * CSS-var writes for this instance. Omitting `cfg` uses the default active
  * config (single-panel path, unchanged behavior).
+ *
+ * `color-scheme` is managed as an AGGREGATE across the primary + secondary
+ * clusters, not per-cluster (#482 D3): `applyColorState` only ever SETS
+ * `color-scheme: light dark` when its OWN cluster needs it, it never clears
+ * it, so demoting the last per-mode-literal row (in either cluster) would
+ * otherwise leave the previous apply's value stale. A naive per-cluster
+ * clear inside `applyColorState` would let a per-mode-free secondary undo
+ * what the primary just required (or vice versa), so the clear-when-neither-
+ * needs-it decision is made here, once, after both clusters have applied.
  */
 export function applyFullState(state: TweakState, cfg?: PanelConfig) {
   const config = cfg ?? getPanelConfig();
@@ -1373,7 +1403,8 @@ export function applyFullState(state: TweakState, cfg?: PanelConfig) {
   // mapping (#468) resolves against a ramp tier living in another tab (e.g.
   // the grouped Palette tab).
   const colorTab = config.tabs.find((t) => t.id === 'color');
-  applyColorState(state.color, getActivePrimaryCluster(config), sink, colorTab, config.tabs);
+  const primaryCluster = getActivePrimaryCluster(config);
+  applyColorState(state.color, primaryCluster, sink, colorTab, config.tabs);
   // Apply spacing / typography / size from tabs[] (required field post-Wave-5).
   applyTabOverridesFlat(config.tabs, 'spacing', state.spacing, sink);
   applyTabOverridesFlat(config.tabs, 'font', state.typography, sink);
@@ -1381,9 +1412,26 @@ export function applyFullState(state: TweakState, cfg?: PanelConfig) {
   // The secondary cluster is host-driven via the 'color-secondary' tab.
   // When no such tab is configured, skip the secondary apply pass entirely.
   const secondaryCluster = resolveSecondaryColorCluster(config);
+  let secondaryHasPerMode = false;
   if (secondaryCluster && state.secondary) {
     const secondaryColorTab = config.tabs.find((t) => t.id === 'color-secondary');
     applyColorState(state.secondary, secondaryCluster, sink, secondaryColorTab, config.tabs);
+    secondaryHasPerMode = hasPerModeLiteralSemantic(state.secondary, secondaryCluster);
+  }
+  // #482 D3 — clear the aggregate `color-scheme` exactly when NEITHER
+  // cluster needs it. When either does, that cluster's own `applyColorState`
+  // call already set it above (see the docstring above for why this can't
+  // be a per-cluster decision).
+  if (!hasPerModeLiteralSemantic(state.color, primaryCluster) && !secondaryHasPerMode) {
+    if (sink) {
+      try {
+        sink.clear([COLOR_SCHEME_PROP]);
+      } catch (err) {
+        console.warn('[design-token-panel] applySink.clear threw; falling back silently.', err);
+      }
+    } else {
+      document.documentElement.style.removeProperty(COLOR_SCHEME_PROP);
+    }
   }
   // Apply generic tab overrides (v3 envelope tabs field).
   // The `tabs` field stores `TabOverrides` (tierId → { itemId → value }).
@@ -1659,6 +1707,12 @@ export function clearAppliedStyles(
     for (const cluster of resolvedClusters) {
       names.push(...clusterVarNames(cluster));
     }
+    // #482 D2 — same rationale as `clearAppliedColorStylesImpl`'s sink
+    // branch: the apply path may have set `color-scheme: light dark` on this
+    // sink's target root (#472/#474); clear it here too so a Reset (or the
+    // post-Apply cleanup) doesn't leave it lingering. Harmless when it was
+    // never set — clearing an absent property is a no-op.
+    if (resolvedClusters.length > 0) names.push(COLOR_SCHEME_PROP);
     names.push(...nonColorTabVarNames(config));
     if (names.length > 0) {
       try {

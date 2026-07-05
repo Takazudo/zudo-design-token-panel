@@ -132,14 +132,52 @@ import type { TabConfig, TierItem } from '../tokens/tier-model';
 import { resolveRefToCssVar } from '../apply/tier-resolver';
 
 /**
+ * CSS Color Module Level 4 named-color keywords, plus the non-named `<color>`
+ * sentinels (`transparent`, `currentcolor`) and CSS-wide keywords a literal
+ * default may legitimately hold. Lowercase — `looksLikeColorLiteral` compares
+ * against `value.toLowerCase()` since CSS named colors are case-insensitive;
+ * the matched value itself is stored with its original casing intact. A
+ * static Set (not `CSS.supports`) keeps this SSR-safe.
+ */
+const CSS_NAMED_COLOR_KEYWORDS = new Set([
+  'aliceblue', 'antiquewhite', 'aqua', 'aquamarine', 'azure', 'beige', 'bisque', 'black',
+  'blanchedalmond', 'blue', 'blueviolet', 'brown', 'burlywood', 'cadetblue', 'chartreuse',
+  'chocolate', 'coral', 'cornflowerblue', 'cornsilk', 'crimson', 'cyan', 'darkblue', 'darkcyan',
+  'darkgoldenrod', 'darkgray', 'darkgreen', 'darkgrey', 'darkkhaki', 'darkmagenta',
+  'darkolivegreen', 'darkorange', 'darkorchid', 'darkred', 'darksalmon', 'darkseagreen',
+  'darkslateblue', 'darkslategray', 'darkslategrey', 'darkturquoise', 'darkviolet', 'deeppink',
+  'deepskyblue', 'dimgray', 'dimgrey', 'dodgerblue', 'firebrick', 'floralwhite', 'forestgreen',
+  'fuchsia', 'gainsboro', 'ghostwhite', 'gold', 'goldenrod', 'gray', 'green', 'greenyellow',
+  'grey', 'honeydew', 'hotpink', 'indianred', 'indigo', 'ivory', 'khaki', 'lavender',
+  'lavenderblush', 'lawngreen', 'lemonchiffon', 'lightblue', 'lightcoral', 'lightcyan',
+  'lightgoldenrodyellow', 'lightgray', 'lightgreen', 'lightgrey', 'lightpink', 'lightsalmon',
+  'lightseagreen', 'lightskyblue', 'lightslategray', 'lightslategrey', 'lightsteelblue',
+  'lightyellow', 'lime', 'limegreen', 'linen', 'magenta', 'maroon', 'mediumaquamarine',
+  'mediumblue', 'mediumorchid', 'mediumpurple', 'mediumseagreen', 'mediumslateblue',
+  'mediumspringgreen', 'mediumturquoise', 'mediumvioletred', 'midnightblue', 'mintcream',
+  'mistyrose', 'moccasin', 'navajowhite', 'navy', 'oldlace', 'olive', 'olivedrab', 'orange',
+  'orangered', 'orchid', 'palegoldenrod', 'palegreen', 'paleturquoise', 'palevioletred',
+  'papayawhip', 'peachpuff', 'peru', 'pink', 'plum', 'powderblue', 'purple', 'rebeccapurple',
+  'red', 'rosybrown', 'royalblue', 'saddlebrown', 'salmon', 'sandybrown', 'seagreen', 'seashell',
+  'sienna', 'silver', 'skyblue', 'slateblue', 'slategray', 'slategrey', 'snow', 'springgreen',
+  'steelblue', 'tan', 'teal', 'thistle', 'tomato', 'turquoise', 'violet', 'wheat', 'white',
+  'whitesmoke', 'yellow', 'yellowgreen',
+  'transparent', 'currentcolor', 'inherit', 'initial', 'unset', 'revert', 'revert-layer',
+]);
+
+/**
  * True when `value` reads as a literal CSS color (e.g. `#fff`, `oklch(...)`,
- * `rgb(...)`) rather than an id referencing another tier's item. Bare ids
- * (palette-item ids, ramp-item ids) never start with `#` or contain `(`, so
- * this is a cheap, reliable-enough discriminator for #463's best-effort
- * literal-vs-ref split.
+ * `red`, `transparent`) rather than an id referencing another tier's item.
+ * Bare ids (palette-item ids, ramp-item ids) never start with `#`, contain
+ * `(`, or spell a CSS named-color keyword, so this is a cheap, reliable-enough
+ * discriminator for #463's best-effort literal-vs-ref split.
  */
 function looksLikeColorLiteral(value: string): boolean {
-  return value.startsWith('#') || value.includes('(');
+  return (
+    value.startsWith('#') ||
+    value.includes('(') ||
+    CSS_NAMED_COLOR_KEYWORDS.has(value.toLowerCase())
+  );
 }
 
 /**
@@ -204,7 +242,14 @@ function deriveRampRef(
  * 3. Cross-tab ramp reference — the tier declares `referencesRamps` and
  *    `default` doesn't read as a literal color, so it's treated as naming a
  *    ramp item (best-effort shape; see `deriveRampRef`).
- * 4. Literal color default (e.g. an `oklch(...)`/hex string) — the common
+ * 4. Legacy tier (`referencesTier`, not `semantic: true`) whose `default`
+ *    names neither a palette item nor `bg`/`fg` — a bogus/renamed palette id.
+ *    Pre-#459 behavior fell back to palette index 0; restored here (with a
+ *    `console.warn`) so the emitters don't write the bogus id straight into
+ *    a CSS custom property. A `semantic: true` tier hitting this same case
+ *    instead falls through to branch 5 — `{ literal }` is the new model's
+ *    actual contract, not a bug to warn about.
+ * 5. Literal color default (e.g. an `oklch(...)`/hex string) — the common
  *    case for a lone `semantic: true` tier with no palette sibling.
  */
 function deriveSemanticValue(
@@ -213,6 +258,7 @@ function deriveSemanticValue(
   referencesRamps: readonly { tab?: string; tier: string }[] | undefined,
   currentTab: TabConfig,
   tabs: readonly TabConfig[],
+  isLegacyTier: boolean,
 ): SemanticValue {
   const paletteIdx = paletteIdToIndex.get(item.default);
   if (paletteIdx !== undefined) return paletteIdx;
@@ -221,6 +267,13 @@ function deriveSemanticValue(
 
   if (referencesRamps && referencesRamps.length > 0 && !looksLikeColorLiteral(item.default)) {
     return deriveRampRef(item.default, referencesRamps, currentTab, tabs);
+  }
+
+  if (isLegacyTier) {
+    console.warn(
+      `[design-token-panel] semantic item "${item.id}" default "${item.default}" names no palette item; falling back to palette index 0`,
+    );
+    return 0;
   }
 
   return { literal: item.default };
@@ -323,6 +376,7 @@ export function resolveColorClusterFromTab(
   const semanticCssNames: Record<string, string> = {};
 
   if (semanticTier) {
+    const isLegacyTier = !semanticTier.semantic;
     for (const item of semanticTier.items) {
       semanticCssNames[item.id] = item.cssVar;
       semanticDefaults[item.id] = deriveSemanticValue(
@@ -331,6 +385,7 @@ export function resolveColorClusterFromTab(
         semanticTier.referencesRamps,
         tab,
         tabs,
+        isLegacyTier,
       );
     }
   }

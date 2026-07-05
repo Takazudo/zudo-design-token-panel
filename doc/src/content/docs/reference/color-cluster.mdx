@@ -249,12 +249,14 @@ export type SemanticValue =
 | `number` | Palette-index mapping (the conventional `referencesTier` shape at the top of this page). | The id of a palette item, looked up to its index. | `var(--palette-item-cssVar)` |
 | `'bg'` / `'fg'` | Legacy aliases — resolve to the scheme's current background/foreground palette index. | Rare as a manifest default; mostly a v1-import artifact. | `var(--palette-item-cssVar)` for whichever index `'bg'`/`'fg'` currently resolves to. |
 | `{ literal: string }` | A standalone color, independent of any palette. | A literal CSS color string (e.g. `'oklch(0.6 0.1 230)'`). | The literal string verbatim. |
-| `{ literal: { light, dark } }` | The **per-mode literal** (#472/#473) — two independently-edited colors, one per color-scheme mode. | Never — `TierItem.default` is always a plain string, so this shape can only arise at RUNTIME (the panel's "Per-mode" editor checkbox, or a hand-built `ColorTweakState` / imported `SCHEMA_V3` JSON). | `light-dark(<light>, <dark>)`, and the apply pipeline additionally sets `color-scheme: light dark` on the applied root (cleared again on Reset) so the browser can pick a side. |
+| `{ literal: { light, dark } }` | The **per-mode literal** (#472/#473) — two independently-edited colors, one per color-scheme mode. | Never — `TierItem.default` is always a plain string, so this shape can only arise at RUNTIME (the panel's "Per-mode" editor checkbox, or a hand-built `ColorTweakState` / imported `SCHEMA_V3` JSON). | `light-dark(<light>, <dark>)`, and the DOM apply path additionally sets `color-scheme: light dark` on the applied root (cleared again on Reset) so the browser can pick a side — the disk emitter cannot write this bare property (see below). |
 | `{ ref: { tab?, tier, item } }` | A cross-tab/tier **ramp reference** (#467/#468) — only legal on a tier that declares `referencesRamps` naming the target tier. | The `"itemId"` (bare, first declared source) or `"tierId:itemId"` (named source) shorthand — see the worked example above. | `var(--target-item-cssVar)` — a live reference, re-resolved by the browser on every change to the ramp source, never a baked snapshot. |
 
 ### Per-mode literal and `colorMode.defaultMode`
 
 `ClusterPanelSettings.colorMode.defaultMode` (documented below) gains a second job once a per-mode literal is in play: it selects which side (`'light'` or `'dark'`) is used for the panel's own swatch preview and as the flat fallback anywhere `light-dark()` cannot be resolved by a real browser (an export preview, an SSR seed). It does **not** change what gets emitted — `applyColorState` / `buildApplyOverrides` always emit the full `light-dark(<light>, <dark>)` function; `defaultMode` only affects which value the panel itself displays or falls back to.
+
+The accompanying `color-scheme: light dark` declaration, though, is DOM-only: `applyColorState` sets it on the applied root, but `buildApplyOverrides` (the disk emitter) cannot — `routeTokensToFiles` only rewrites `--`-prefixed property names, and a bare `color-scheme` property has none — so a host relying on disk-emitted tokens must declare `color-scheme` itself in its own tokens CSS (see `generateLightDarkCssProperties`).
 
 ```ts
 panelSettings: {
@@ -428,14 +430,14 @@ export interface ClusterPanelSettings {
 
 ## Internal bridge: `resolveColorClusterFromTab`
 
-`resolveColorClusterFromTab(tab)` derives a `ColorClusterDataConfig` from any `TabConfig` that has `colorExtras`. It is called automatically by the panel when it processes the `'color'` and `'color-secondary'` tabs.
+`resolveColorClusterFromTab(tab, tabs = [tab])` derives a `ColorClusterDataConfig` from any `TabConfig` that has `colorExtras`. It is called automatically by the panel when it processes the `'color'` and `'color-secondary'` tabs. The second argument is the panel's full `tabs` array — pass it so a semantic tier's cross-tab `referencesRamps` (see above) resolves against a ramp tier living on another tab; a single-argument call falls back to `[tab]`, so a cross-tab `{ ref }` on the tab you passed resolves only best-effort and the emitters skip it.
 
 Hosts do not call this directly — it is exposed from `cluster-config` for testing and advanced host tooling.
 
 ```ts
 import { resolveColorClusterFromTab } from '@takazudo/zdtp';
 
-const cluster = resolveColorClusterFromTab(colorTab);
+const cluster = resolveColorClusterFromTab(colorTab, config.tabs);
 // cluster.paletteSize, cluster.paletteCssVarTemplate, cluster.semanticDefaults, ...
 ```
 
@@ -503,7 +505,7 @@ When the user clicks Apply for the Color tab, the pipeline:
 
 1. Iterates palette items (palette tier, when one exists — a lone `semantic: true` tab has none): writes `paletteTier.items[i].cssVar` ← `palette[i]` for each slot.
 2. Iterates `baseRoles`: writes `cssName` ← `palette[state[roleKey]]`. Absent roles emit no writes.
-3. Iterates semantic items: resolves each item's `SemanticValue` mapping and emits per the table in [`SemanticValue` mapping shapes](#semanticvalue-mapping-shapes) above — `var(...)` for an index or `{ ref }` mapping, the literal string verbatim for `{ literal }`, or `light-dark(<light>, <dark>)` (plus `color-scheme: light dark` on the applied root) for a per-mode `{ literal: { light, dark } }`.
+3. Iterates semantic items: resolves each item's `SemanticValue` mapping and emits per the table in [`SemanticValue` mapping shapes](#semanticvalue-mapping-shapes) above — `var(...)` for an index or `{ ref }` mapping, the literal string verbatim for `{ literal }`, or `light-dark(<light>, <dark>)` (plus `color-scheme: light dark` on the applied root — DOM apply only, see the per-mode literal caveat above) for a per-mode `{ literal: { light, dark } }`.
 
 `clearAppliedStyles` removes every CSS property that the cluster could have set (palette + base roles + semantic + any `color-scheme` a per-mode literal left behind).
 

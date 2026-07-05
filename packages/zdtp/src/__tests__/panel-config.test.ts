@@ -832,6 +832,140 @@ describe('panel-config — assertValidPanelConfig host-tabs validation', () => {
     expect(() => assertValidPanelConfig(makeBaseConfig({ tabs: [tab] }))).not.toThrow();
   });
 
+  it('F4: still finds the real palette tier when a `semantic: true` tier is ordered BEFORE it', () => {
+    // Regression guard mirroring the mixed-order test in cluster-config.test.ts:
+    // this exercises the F4 finder's own `t.semantic === true` exclusion.
+    // Ordering the semantic tier FIRST means Array.prototype.find would pick
+    // it up (and throw on its non-numbered, multi-item cssVars) if that
+    // exclusion were ever deleted.
+    const tab: TabConfig = {
+      id: 'color',
+      label: 'Color',
+      colorExtras: {
+        id: 'test',
+        defaultShikiTheme: 'dracula',
+        baseRoles: {},
+        baseDefaults: {},
+        colorSchemes: {},
+        panelSettings: { colorScheme: 'default', colorMode: false },
+      },
+      tiers: [
+        {
+          id: 'semantic',
+          label: 'Semantic',
+          semantic: true,
+          items: [
+            {
+              id: 'danger',
+              cssVar: '--zd-danger',
+              label: 'Danger',
+              default: '#ff0000',
+              type: { kind: 'color' as const, format: 'oklch' as const },
+            },
+            {
+              id: 'warning',
+              cssVar: '--zd-warning',
+              label: 'Warning',
+              default: '#ffaa00',
+              type: { kind: 'color' as const, format: 'oklch' as const },
+            },
+          ],
+        },
+        {
+          id: 'palette',
+          label: 'Palette',
+          items: [
+            {
+              id: 'p0',
+              cssVar: '--pal-0',
+              label: 'Palette 0',
+              default: '#000000',
+              type: { kind: 'color' as const },
+            },
+            {
+              id: 'p1',
+              cssVar: '--pal-1',
+              label: 'Palette 1',
+              default: '#ffffff',
+              type: { kind: 'color' as const },
+            },
+          ],
+        },
+      ],
+    };
+    expect(() => assertValidPanelConfig(makeBaseConfig({ tabs: [tab] }))).not.toThrow();
+  });
+
+  // Rule: `semantic` must be exactly `true` when present -----------------------
+  //
+  // A truthy-but-not-`true` marker (e.g. `1`, `'true'`) is reachable from a
+  // plain-JS host config (TS's structural typing offers no defense at that
+  // boundary) and would otherwise get divergent treatment across the five
+  // separate `semantic` predicate sites in this file, cluster-config.ts, and
+  // color-tab.tsx — some compare with truthiness, some with `=== true`.
+  // Rejecting it here at config-validation time makes that ambiguity
+  // unreachable instead of leaving it to silently misbehave downstream.
+
+  it('rejects a tier with `semantic: 1` (truthy, not exactly `true`)', () => {
+    const tab: TabConfig = {
+      id: 'color',
+      label: 'Color',
+      tiers: [
+        {
+          id: 'semantic',
+          label: 'Semantic',
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          semantic: 1 as any,
+          items: [
+            {
+              id: 'danger',
+              cssVar: '--zd-danger',
+              label: 'Danger',
+              default: '#ff0000',
+              type: { kind: 'color' as const },
+            },
+          ],
+        },
+      ],
+    };
+    expect(() => assertValidPanelConfig(makeBaseConfig({ tabs: [tab] }))).toThrow(
+      /tiers\["semantic"\]\.semantic must be exactly `true`/,
+    );
+  });
+
+  it('rejects a tier with `semantic: \'true\'` (string, not the boolean `true`)', () => {
+    const tab: TabConfig = {
+      id: 'color',
+      label: 'Color',
+      tiers: [
+        {
+          id: 'semantic',
+          label: 'Semantic',
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          semantic: 'true' as any,
+          items: [
+            {
+              id: 'danger',
+              cssVar: '--zd-danger',
+              label: 'Danger',
+              default: '#ff0000',
+              type: { kind: 'color' as const },
+            },
+          ],
+        },
+      ],
+    };
+    expect(() => assertValidPanelConfig(makeBaseConfig({ tabs: [tab] }))).toThrow(
+      /tiers\["semantic"\]\.semantic must be exactly `true`/,
+    );
+  });
+
+  it('accepts a tier with `semantic: true` (unchanged) and a tier with `semantic` absent (unchanged)', () => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [VALID_TEXT_TAB, VALID_TWO_TIER_TAB] })),
+    ).not.toThrow();
+  });
+
   // F8: colorExtras deep validation (issue #440) ----------------------------
 
   function makeColorExtrasTab(overrides: Record<string, unknown> = {}): TabConfig {

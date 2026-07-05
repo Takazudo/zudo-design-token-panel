@@ -58,6 +58,7 @@ import { render } from 'preact';
 import { act } from 'preact/test-utils';
 
 import ColorTab from '../tabs/color-tab';
+import DesignTokenTweakPanel from '../panel';
 import {
   __resetPanelConfigForTests,
   assertValidPanelConfig,
@@ -74,6 +75,7 @@ import {
   clearAppliedStyles,
   getActivePrimaryCluster,
   getClusterDefaultMode,
+  getOpenKey,
   initColorFromScheme,
   isLiteralMapping,
   isPerModeLiteral,
@@ -101,7 +103,7 @@ import { DEFAULT_HIGHLIGHT_SLOTS, type HighlightState } from '../highlight/highl
 import { TooltipProvider } from '../controls/tooltip';
 import type { TabConfig } from '../tokens/tier-model';
 import type { PersistColor, PersistSecondary } from '../state/persist';
-import { FIXTURE_TABS, FIXTURE_PANEL_CONFIG } from './_test-helpers';
+import { FIXTURE_TABS, FIXTURE_PANEL_CONFIG, flushEffects } from './_test-helpers';
 
 // ---------------------------------------------------------------------------
 // FIXTURE — a grouped Palette tab (ramp source) + a Color tab whose lone
@@ -732,5 +734,423 @@ describe('8. Reset removes a lingering color-scheme left by a per-mode literal a
 
     __resetPanelConfigForTests();
     configurePanel(PER_MODE_PANEL_CONFIG);
+  });
+
+  // -------------------------------------------------------------------------
+  // D2 (#482) — `clearAppliedStyles`' own sink branch (used by the panel's
+  // Reset button and the post-Apply cleanup) built its clear set from
+  // `clusterVarNames()` + `nonColorTabVarNames()` only, never including
+  // "color-scheme" — unlike `clearAppliedColorStylesImpl`'s sink branch
+  // exercised just above. A sink target kept `color-scheme: light dark`
+  // inline indefinitely after Reset.
+  // -------------------------------------------------------------------------
+
+  it('D2: clearAppliedStyles (sink instance, full panel Reset) ALSO includes "color-scheme" in its clear set', () => {
+    const sink = makeSinkSpy();
+    const sinkCfg: PanelConfig = { ...PER_MODE_PANEL_CONFIG, applySink: sink };
+    __resetPanelConfigForTests();
+    configurePanel(sinkCfg);
+
+    const colorState = makePerModeState();
+    applyFullState({ color: colorState, spacing: {}, typography: {}, size: {} }, sinkCfg);
+    clearAppliedStyles(undefined, sinkCfg);
+
+    const cleared = flatClearNames(sink.clearCalls);
+    expect(cleared).toContain('color-scheme');
+
+    __resetPanelConfigForTests();
+    configurePanel(PER_MODE_PANEL_CONFIG);
+  });
+
+  // -------------------------------------------------------------------------
+  // D3 (#482) — `applyColorState` only ever SETS `color-scheme: light dark`
+  // when its own cluster has a per-mode literal; nothing removed it, so
+  // demoting the last per-mode row (back to a single-mode literal, or to a
+  // `{ ref }`) left the DOM's inline `color-scheme` stale on the next apply.
+  // -------------------------------------------------------------------------
+
+  it('D3: demoting the last per-mode row to a single-mode literal removes the stale color-scheme on the next apply', () => {
+    const perModeState = makePerModeState();
+    applyFullState({ color: perModeState, spacing: {}, typography: {}, size: {} });
+    expect(document.documentElement.style.getPropertyValue('color-scheme')).toBe('light dark');
+
+    const demoted: ColorTweakState = {
+      ...perModeState,
+      semanticMappings: { ...perModeState.semanticMappings, danger: { literal: LIGHT_DANGER } },
+    };
+    applyFullState({ color: demoted, spacing: {}, typography: {}, size: {} });
+
+    expect(document.documentElement.style.getPropertyValue('color-scheme')).toBe('');
+  });
+
+  it('D3: switching the last per-mode row to a { ref } also removes the stale color-scheme', () => {
+    const perModeState = makePerModeState();
+    applyFullState({ color: perModeState, spacing: {}, typography: {}, size: {} });
+    expect(document.documentElement.style.getPropertyValue('color-scheme')).toBe('light dark');
+
+    const refState: ColorTweakState = {
+      ...perModeState,
+      semanticMappings: {
+        ...perModeState.semanticMappings,
+        danger: { ref: { tab: 'palette', tier: 'base', item: 'base-1' } },
+      },
+    };
+    applyFullState({ color: refState, spacing: {}, typography: {}, size: {} });
+
+    expect(document.documentElement.style.getPropertyValue('color-scheme')).toBe('');
+  });
+
+  it('D3: on a sink instance, demoting the last per-mode row clears "color-scheme" through the sink too', () => {
+    const sink = makeSinkSpy();
+    const sinkCfg: PanelConfig = { ...PER_MODE_PANEL_CONFIG, applySink: sink };
+    __resetPanelConfigForTests();
+    configurePanel(sinkCfg);
+
+    const perModeState = makePerModeState();
+    applyFullState({ color: perModeState, spacing: {}, typography: {}, size: {} }, sinkCfg);
+    expect(
+      flatApplyPairs(sink.applyCalls).find(([name]) => name === 'color-scheme'),
+    ).toEqual(['color-scheme', 'light dark']);
+
+    const demoted: ColorTweakState = {
+      ...perModeState,
+      semanticMappings: { ...perModeState.semanticMappings, danger: { literal: LIGHT_DANGER } },
+    };
+    applyFullState({ color: demoted, spacing: {}, typography: {}, size: {} }, sinkCfg);
+
+    expect(flatClearNames(sink.clearCalls)).toContain('color-scheme');
+
+    __resetPanelConfigForTests();
+    configurePanel(PER_MODE_PANEL_CONFIG);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9. Multi-cluster color-scheme aggregate (#482 D3) — `applyFullState` must
+// manage "color-scheme" as an AGGREGATE across the primary + secondary
+// clusters: a per-mode-free cluster must never clear what the other cluster
+// just required, in either direction.
+// ---------------------------------------------------------------------------
+
+const AGG_PRIMARY_COLOR_TAB: TabConfig = {
+  id: 'color',
+  label: 'Color',
+  colorExtras: {
+    id: 'agg-primary',
+    label: 'Aggregate Primary',
+    baseRoles: {},
+    baseDefaults: {},
+    defaultShikiTheme: 'dracula',
+    colorSchemes: {},
+    panelSettings: { colorScheme: '', colorMode: false },
+  },
+  tiers: [
+    {
+      id: 'semantic',
+      label: 'Semantic',
+      semantic: true,
+      items: [
+        {
+          id: 'danger',
+          cssVar: '--agg-primary-danger',
+          label: 'Danger',
+          default: LIGHT_DANGER,
+          type: { kind: 'color', format: 'oklch' },
+        },
+      ],
+    },
+  ],
+};
+
+const AGG_SECONDARY_COLOR_TAB: TabConfig = {
+  id: 'color-secondary',
+  label: 'Secondary Color',
+  colorExtras: {
+    id: 'agg-secondary',
+    label: 'Aggregate Secondary',
+    baseRoles: {},
+    baseDefaults: {},
+    defaultShikiTheme: 'dracula',
+    colorSchemes: {},
+    panelSettings: { colorScheme: '', colorMode: false },
+  },
+  tiers: [
+    {
+      id: 'semantic',
+      label: 'Semantic',
+      semantic: true,
+      items: [
+        {
+          id: 'danger',
+          cssVar: '--agg-secondary-danger',
+          label: 'Danger',
+          default: LIGHT_DANGER,
+          type: { kind: 'color', format: 'oklch' },
+        },
+      ],
+    },
+  ],
+};
+
+/** Panel config with a lone-semantic-tier primary + secondary cluster, no palette tier on either. */
+const AGG_PANEL_CONFIG: PanelConfig = {
+  storagePrefix: 'issue-482-color-scheme-aggregate',
+  consoleNamespace: 'issue-482-agg',
+  modalClassPrefix: 'issue-482-agg-modal',
+  schemaId: 'zudo-design-tokens/v1',
+  exportFilenameBase: 'issue-482-agg-tokens',
+  tabs: [AGG_PRIMARY_COLOR_TAB, AGG_SECONDARY_COLOR_TAB],
+  colorPresets: {},
+};
+
+/** A lone-semantic-tier, no-palette ColorTweakState (paletteSize: 0 cluster shape, mirrors COLOR_TAB above). */
+function makeAggColorState(danger: ColorTweakState['semanticMappings']['danger']): ColorTweakState {
+  return {
+    palette: [],
+    background: 0,
+    foreground: 0,
+    cursor: 0,
+    selectionBg: 0,
+    selectionFg: 0,
+    semanticMappings: { danger },
+    shikiTheme: 'dracula',
+  };
+}
+
+const PER_MODE_DANGER = { literal: { light: LIGHT_DANGER, dark: DARK_DANGER } };
+const SINGLE_MODE_DANGER = { literal: LIGHT_DANGER };
+
+describe('9. applyFullState manages "color-scheme" as an aggregate across primary + secondary', () => {
+  it('primary has a per-mode literal, secondary does not — color-scheme REMAINS after the full apply', () => {
+    const fullState: TweakState = {
+      color: makeAggColorState(PER_MODE_DANGER),
+      secondary: makeAggColorState(SINGLE_MODE_DANGER),
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+    applyFullState(fullState, AGG_PANEL_CONFIG);
+
+    expect(document.documentElement.style.getPropertyValue('color-scheme')).toBe('light dark');
+  });
+
+  it('secondary has a per-mode literal, primary does not — color-scheme REMAINS after the full apply', () => {
+    const fullState: TweakState = {
+      color: makeAggColorState(SINGLE_MODE_DANGER),
+      secondary: makeAggColorState(PER_MODE_DANGER),
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+    applyFullState(fullState, AGG_PANEL_CONFIG);
+
+    expect(document.documentElement.style.getPropertyValue('color-scheme')).toBe('light dark');
+  });
+
+  it('neither cluster has a per-mode literal — color-scheme is cleared (and stays cleared)', () => {
+    const fullState: TweakState = {
+      color: makeAggColorState(SINGLE_MODE_DANGER),
+      secondary: makeAggColorState(SINGLE_MODE_DANGER),
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+    applyFullState(fullState, AGG_PANEL_CONFIG);
+
+    expect(document.documentElement.style.getPropertyValue('color-scheme')).toBe('');
+  });
+
+  it('regression: a prior per-mode apply on BOTH clusters, then demoting BOTH, clears the stale color-scheme', () => {
+    applyFullState(
+      {
+        color: makeAggColorState(PER_MODE_DANGER),
+        secondary: makeAggColorState(PER_MODE_DANGER),
+        spacing: {},
+        typography: {},
+        size: {},
+      },
+      AGG_PANEL_CONFIG,
+    );
+    expect(document.documentElement.style.getPropertyValue('color-scheme')).toBe('light dark');
+
+    applyFullState(
+      {
+        color: makeAggColorState(SINGLE_MODE_DANGER),
+        secondary: makeAggColorState(SINGLE_MODE_DANGER),
+        spacing: {},
+        typography: {},
+        size: {},
+      },
+      AGG_PANEL_CONFIG,
+    );
+    expect(document.documentElement.style.getPropertyValue('color-scheme')).toBe('');
+  });
+
+  it('a sink instance: only the secondary needs color-scheme — it is set once via the sink, never cleared by the primary\'s own apply', () => {
+    const sink = makeSinkSpy();
+    const sinkCfg: PanelConfig = { ...AGG_PANEL_CONFIG, applySink: sink };
+
+    applyFullState(
+      {
+        color: makeAggColorState(SINGLE_MODE_DANGER),
+        secondary: makeAggColorState(PER_MODE_DANGER),
+        spacing: {},
+        typography: {},
+        size: {},
+      },
+      sinkCfg,
+    );
+
+    const colorSchemePairs = flatApplyPairs(sink.applyCalls).filter(
+      ([name]) => name === 'color-scheme',
+    );
+    expect(colorSchemePairs).toEqual([['color-scheme', 'light dark']]);
+    expect(flatClearNames(sink.clearCalls)).not.toContain('color-scheme');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10. Import clear-before-apply (#482 import nit) — a dangling `{ ref }` in
+// an imported state must not inherit the PREVIOUS session's painted value.
+// `handleLoadFromJson` (panel.tsx) now clears color cluster vars before
+// calling `applyFullState`, mirroring the scheme-change clear at panel.tsx.
+// This test drives the same two-call sequence directly at the state layer.
+// ---------------------------------------------------------------------------
+
+describe('10. handleLoadFromJson-style import clears color cluster vars before applying', () => {
+  it('a dangling ref in the imported state does not leave the previous resolvable ref painted', () => {
+    const baseState = makeBaseState();
+
+    // 1. Apply a state whose "brand" resolves to a real ramp item.
+    const resolvableState: ColorTweakState = {
+      ...baseState,
+      semanticMappings: {
+        ...baseState.semanticMappings,
+        brand: { ref: { tab: 'palette', tier: 'base', item: 'base-1' } },
+      },
+    };
+    applyFullState({ color: resolvableState, spacing: {}, typography: {}, size: {} });
+    expect(document.documentElement.style.getPropertyValue('--zd-brand')).toBe(
+      'var(--palette-base-1)',
+    );
+
+    // 2. "Import" a state whose "brand" ref names a ramp item that does not
+    // exist — the resolver skips it (emits nothing), exactly like a
+    // misconfigured/edited manifest.
+    const danglingState: ColorTweakState = {
+      ...resolvableState,
+      semanticMappings: {
+        ...resolvableState.semanticMappings,
+        brand: { ref: { tab: 'palette', tier: 'base', item: 'does-not-exist' } },
+      },
+    };
+
+    // Mirrors handleLoadFromJson: clear color cluster vars BEFORE applying
+    // the loaded state.
+    clearAppliedColorStyles();
+    applyFullState({ color: danglingState, spacing: {}, typography: {}, size: {} });
+
+    // The stale var(--palette-base-1) from step 1 must be gone — the token
+    // falls back to its stylesheet default, matching a fresh reload of the
+    // imported (dangling-ref) state.
+    expect(document.documentElement.style.getPropertyValue('--zd-brand')).toBe('');
+  });
+
+  it('the real panel.tsx handleLoadFromJson wiring clears the previous paint before applying the imported (dangling-ref) state', async () => {
+    // jsdom does not implement <dialog>.showModal()/close() (see
+    // modal-backdrop-drag.test.tsx) — polyfill both for this test only.
+    HTMLDialogElement.prototype.showModal = function showModal() {
+      this.setAttribute('open', '');
+    };
+    HTMLDialogElement.prototype.close = function close() {
+      this.removeAttribute('open');
+      this.dispatchEvent(new Event('close'));
+    };
+
+    try {
+      // 1. The host page currently has a resolvable ref applied from a prior
+      // session — write it directly to the DOM, exactly like a real mount
+      // would have left it.
+      const baseState = makeBaseState();
+      const resolvableState: ColorTweakState = {
+        ...baseState,
+        semanticMappings: {
+          ...baseState.semanticMappings,
+          brand: { ref: { tab: 'palette', tier: 'base', item: 'base-1' } },
+        },
+      };
+      applyFullState({ color: resolvableState, spacing: {}, typography: {}, size: {} });
+      expect(document.documentElement.style.getPropertyValue('--zd-brand')).toBe(
+        'var(--palette-base-1)',
+      );
+
+      // 2. Build the "imported" JSON — same shape, but "brand" now names a
+      // ramp item that no longer exists (a dangling ref).
+      const fullState: TweakState = {
+        color: resolvableState,
+        spacing: {},
+        typography: {},
+        size: {},
+      };
+      const json = serialize(fullState, { colorDefaults: baseState }) as unknown as {
+        $schema: string;
+        tabs?: Record<string, Record<string, Record<string, unknown>>>;
+      };
+      json.tabs ??= {};
+      json.tabs.color ??= {};
+      json.tabs.color.semantic ??= {};
+      json.tabs.color.semantic['--zd-brand'] = {
+        ref: { tab: 'palette', tier: 'base', item: 'does-not-exist' },
+      };
+      // The "brand" override happens to equal the cluster's own default ref,
+      // so the diff-only serializer never emitted it and left $schema at V2
+      // (see serialize()'s usesObjectSemanticLeaf gate). Now that an
+      // object-shaped { ref } leaf has been added by hand, bump to V3 so
+      // deserializeV3 (not the legacy numeric-only V2 path) reads it back.
+      json.$schema = SCHEMA_V3;
+      const jsonText = JSON.stringify(json);
+
+      // 3. Mount the REAL panel, pre-opened via localStorage (mirrors a
+      // returning user who left the panel open) with no persisted state, so
+      // the init effect does NOT re-apply/touch the DOM (see panel.tsx's
+      // "no saved state" branch) — the step-1 paint stays exactly as applied.
+      localStorage.setItem(getOpenKey(PER_MODE_PANEL_CONFIG), '1');
+      act(() => {
+        render(<DesignTokenTweakPanel instanceConfig={PER_MODE_PANEL_CONFIG} />, container);
+      });
+      await flushEffects();
+
+      const loadTrigger = Array.from(container.querySelectorAll('[role="button"]')).find((el) =>
+        el.textContent?.includes('Load from JSON'),
+      ) as HTMLElement | undefined;
+      expect(loadTrigger).toBeTruthy();
+      act(() => loadTrigger!.click());
+
+      const dialog = container.querySelector('dialog');
+      expect(dialog).not.toBeNull();
+      const textarea = dialog!.querySelector('textarea') as HTMLTextAreaElement;
+      act(() => {
+        textarea.value = jsonText;
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+
+      const loadBtn = Array.from(dialog!.querySelectorAll('[role="button"]')).find(
+        (el) => el.textContent?.trim() === 'Load',
+      ) as HTMLElement | undefined;
+      expect(loadBtn).toBeTruthy();
+      act(() => loadBtn!.click());
+
+      // handleLoadFromJson (panel.tsx) clears color cluster vars BEFORE
+      // applying the loaded (dangling-ref) state — the stale
+      // var(--palette-base-1) from the pre-existing session must be gone.
+      expect(document.documentElement.style.getPropertyValue('--zd-brand')).toBe('');
+    } finally {
+      act(() => {
+        render(null, container);
+      });
+      delete (HTMLDialogElement.prototype as { showModal?: unknown }).showModal;
+      delete (HTMLDialogElement.prototype as { close?: unknown }).close;
+      localStorage.removeItem(getOpenKey(PER_MODE_PANEL_CONFIG));
+    }
   });
 });

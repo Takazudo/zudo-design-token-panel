@@ -54,7 +54,7 @@ import {
   resolvePaletteCssVar,
   resolvePerModeLiteral,
 } from '../state/tweak-state';
-import { getPanelConfig } from '../config/panel-config';
+import { getPanelConfig, type PanelConfig } from '../config/panel-config';
 import { resolveColorClusterFromTab } from '../config/cluster-config';
 import type { TabConfig, TierConfig } from '../tokens/tier-model';
 import type { PersistColor, PersistSecondary } from '../state/persist';
@@ -787,6 +787,17 @@ interface ColorTabProps {
   secondaryTab: TabConfig | null;
   secondaryState: ColorTweakState | null;
   persistSecondary: PersistSecondary;
+  /**
+   * The mounted panel instance's config (multi-instance, #353/#357). When
+   * supplied, cross-tab cluster/ref resolution (cluster derivation, the
+   * grouped ref-or-literal picker's ramp groups, preview resolution, and the
+   * host preset list) reads THIS instance's `tabs` / `colorPresets` rather
+   * than the active default instance — matching the apply path, which
+   * already resolves against `cfg.tabs` via `usePersist` (`applyFullState`,
+   * `state/persist.ts`). Omitted (e.g. a direct test render) →
+   * `getPanelConfig()`, preserving the single-instance path.
+   */
+  instanceConfig?: PanelConfig;
 }
 
 export default function ColorTab({
@@ -796,12 +807,14 @@ export default function ColorTab({
   secondaryTab,
   secondaryState,
   persistSecondary,
+  instanceConfig,
 }: ColorTabProps) {
   // Derive the cluster from the tab's colorExtras + tiers. This provides the
   // same shape that the rest of the panel (apply, clear, state) expects.
   // The full tabs array is threaded in so a semantic tier's cross-tab `{ ref }`
   // mappings resolve against a ramp tier in another tab (e.g. the Palette tab).
-  const allTabs = getPanelConfig().tabs;
+  const cfg = instanceConfig ?? getPanelConfig();
+  const allTabs = cfg.tabs;
   const cluster = useMemo(() => resolveColorClusterFromTab(tab, allTabs), [tab, allTabs]);
   // Fallback to an empty stub cluster when the tab has no colorExtras.
   const safeCluster = useMemo(
@@ -840,7 +853,7 @@ export default function ColorTab({
   // ships zero presets — `colorPresets` defaults to `{}` on
   // `DEFAULT_PANEL_CONFIG` so a host that omits the field sees only
   // `cluster.colorSchemes` (the bundled, cluster-local scheme registry).
-  const hostPresets = getPanelConfig().colorPresets ?? {};
+  const hostPresets = cfg.colorPresets ?? {};
   // Cluster-bundled schemes win on key collision: they are the cluster
   // owner's documented defaults (e.g. "Default Light" / "Default Dark"),
   // and the host preset list is the broader experimentation pool.
@@ -1038,51 +1051,67 @@ export default function ColorTab({
     (name: string) => {
       const scheme = allPresets[name];
       if (!scheme) return;
-      const newState = initColorFromSchemeData(scheme);
+      // Seed against THIS instance's derived cluster (`safeCluster`), not the
+      // global active primary cluster. In a multi-instance / direct-render host
+      // the instance's palette size or semantic tokens can differ from the
+      // default config; without the explicit cluster the preset load builds
+      // state for the wrong cluster (#491 follow-up, audit).
+      const newState = initColorFromSchemeData(scheme, safeCluster);
       persistColor(() => newState);
       applyShikiTheme(newState.shikiTheme);
     },
-    [persistColor],
+    [persistColor, safeCluster, allPresets],
   );
 
   return (
     <div className="tokenpanel-tab-content">
-      {/* Preset loader — tab-scoped so the outer header row stays general */}
-      <div className="tokenpanel-tab-actions">
-        <select
-          onChange={(e) => {
-            const target = e.target as HTMLSelectElement;
-            const name = target.value;
-            if (name) {
-              handleLoadPreset(name);
-              target.value = '';
-            }
-          }}
-          className="tokenpanel-color-preset-select"
-          aria-label="Load color scheme preset"
-          defaultValue=""
-        >
-          <option value="" disabled>
-            Scheme...
-          </option>
-          <optgroup label="Built-in">
-            {bundledNames.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </optgroup>
-          {presetNames.length > 0 && (
-            <optgroup label="Presets">
-              {presetNames.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </optgroup>
-          )}
-        </select>
-      </div>
+      {/*
+       * Preset loader — tab-scoped so the outer header row stays general.
+       * Gated on `safeCluster.paletteSize > 0`: a palette-less cluster (a
+       * lone `semantic: true` tier, #458) has no palette for a scheme/preset
+       * to seed — `initColorFromSchemeData` treats a load against it as a
+       * no-op (#488), so offering the control here would be dead UI even
+       * when the host configured `colorPresets`.
+       */}
+      {safeCluster.paletteSize > 0 && (
+        <div className="tokenpanel-tab-actions">
+          <select
+            onChange={(e) => {
+              const target = e.target as HTMLSelectElement;
+              const name = target.value;
+              if (name) {
+                handleLoadPreset(name);
+                target.value = '';
+              }
+            }}
+            className="tokenpanel-color-preset-select"
+            aria-label="Load color scheme preset"
+            defaultValue=""
+          >
+            <option value="" disabled>
+              Scheme...
+            </option>
+            {bundledNames.length > 0 && (
+              <optgroup label="Built-in">
+                {bundledNames.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {presetNames.length > 0 && (
+              <optgroup label="Presets">
+                {presetNames.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+        </div>
+      )}
 
       {/*
        * Section A: Raw Palette — and Section B: Base Theme, which indexes
