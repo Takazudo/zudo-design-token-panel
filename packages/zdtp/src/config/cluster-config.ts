@@ -153,10 +153,13 @@ export function resolveColorClusterFromTab(
   const extras = tab.colorExtras;
   if (!extras) return undefined;
 
-  // Find the palette tier (first tier with kind: 'color' items).
+  // Find the palette tier (first tier with kind: 'color' items). A tier
+  // marked `semantic: true` is never the palette, even if its items happen
+  // to be color-kind — it holds SemanticValue mappings (#461).
   const paletteTier = tab.tiers.find(
     (t) =>
       !t.referencesTier &&
+      !t.semantic &&
       t.items.length > 0 &&
       t.items[0].type.kind === 'color',
   );
@@ -192,9 +195,14 @@ export function resolveColorClusterFromTab(
     paletteIdToIndex.set(paletteItems[i].id, i);
   }
 
-  // Find the semantic tier (first tier with referencesTier pointing to paletteTier).
+  // Find the semantic tier: either the first tier with referencesTier pointing
+  // at paletteTier (legacy shape), or a tier explicitly marked `semantic: true`
+  // (#461) — the latter may have no referencesTier at all (its mappings are
+  // SemanticValue, not necessarily plain palette indices). Literal/ref default
+  // derivation for a `semantic: true` tier is #463's job; this only stops it
+  // from being mis-detected as "no semantic tier".
   const semanticTier = tab.tiers.find(
-    (t) => t.referencesTier === paletteTier.id,
+    (t) => t.referencesTier === paletteTier.id || t.semantic === true,
   );
 
   const semanticDefaults: Record<string, number> = {};

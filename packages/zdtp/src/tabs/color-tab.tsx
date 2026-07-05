@@ -176,15 +176,20 @@ function getFixedPopoverStyle(
 // --- Palette format resolution ---
 
 /**
- * Find the palette tier in a color tab: the first non-reference tier whose
- * items are color-kind. Mirrors the palette-tier detection in
+ * Find the palette tier in a color tab: the first non-reference, non-semantic
+ * tier whose items are color-kind. Mirrors the palette-tier detection in
  * `resolveColorClusterFromTab`, so the format lookup keys off the SAME tier the
  * cluster was flattened from. `resolveColorClusterFromTab` drops the per-item
- * `type.format`, so the swatch grid must recover it from the tier here.
+ * `type.format`, so the swatch grid must recover it from the tier here. A tier
+ * marked `semantic: true` is excluded (#461) even if its items are color-kind.
  */
 function findPaletteTier(tab: TabConfig): TierConfig | undefined {
   return tab.tiers.find(
-    (t) => !t.referencesTier && t.items.length > 0 && t.items[0].type.kind === 'color',
+    (t) =>
+      !t.referencesTier &&
+      !t.semantic &&
+      t.items.length > 0 &&
+      t.items[0].type.kind === 'color',
   );
 }
 
