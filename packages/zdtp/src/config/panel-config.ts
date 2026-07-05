@@ -1178,14 +1178,18 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>): void {
     }
 
     // F4: Palette cssVar 0-based contiguity check.
-    // Find the palette tier (first tier with kind:'color' items and no
-    // referencesTier) and verify that each item's cssVar matches the template
-    // derived from the first item at its expected 0-based index. A mismatch
-    // means the host used 1-based or non-numbered cssVars, which causes
-    // palette writes to land on the wrong variables at runtime.
+    // Find the palette tier (first tier with kind:'color' items, no
+    // referencesTier, and not marked `semantic: true`) and verify that each
+    // item's cssVar matches the template derived from the first item at its
+    // expected 0-based index. A mismatch means the host used 1-based or
+    // non-numbered cssVars, which causes palette writes to land on the wrong
+    // variables at runtime. A `semantic: true` tier is skipped here (#461) —
+    // it legitimately holds named, non-contiguous cssVars (e.g. `--zd-danger`)
+    // since its items are SemanticValue mappings, not palette slots.
     const tiers = tab.tiers as unknown as Array<Record<string, unknown>>;
     const paletteTier = tiers.find((t) => {
       if (t.referencesTier !== undefined) return false;
+      if (t.semantic === true) return false;
       const items = t.items;
       if (!Array.isArray(items) || items.length === 0) return false;
       const first = items[0];

@@ -788,6 +788,49 @@ describe('panel-config — assertValidPanelConfig host-tabs validation', () => {
     expect(() => assertValidPanelConfig(makeBaseConfig({ tabs: [tab] }))).not.toThrow();
   });
 
+  it('F4: skips a `semantic: true` tier — named, non-contiguous cssVars do not throw (#461)', () => {
+    // A lone semantic tier (no palette tier at all) with named cssVars like
+    // `--zd-danger` must not trip the "no trailing digit" guard: that guard
+    // only applies to the palette tier, and a semantic:true tier is never
+    // the palette (see cluster-config.ts / color-tab.ts findPaletteTier).
+    const tab: TabConfig = {
+      id: 'color',
+      label: 'Color',
+      colorExtras: {
+        id: 'test',
+        defaultShikiTheme: 'dracula',
+        baseRoles: {},
+        baseDefaults: {},
+        colorSchemes: {},
+        panelSettings: { colorScheme: 'default', colorMode: false },
+      },
+      tiers: [
+        {
+          id: 'semantic',
+          label: 'Semantic',
+          semantic: true,
+          items: [
+            {
+              id: 'danger',
+              cssVar: '--zd-danger',
+              label: 'Danger',
+              default: '#ff0000',
+              type: { kind: 'color' as const },
+            },
+            {
+              id: 'warning',
+              cssVar: '--zd-warning',
+              label: 'Warning',
+              default: '#ffaa00',
+              type: { kind: 'color' as const },
+            },
+          ],
+        },
+      ],
+    };
+    expect(() => assertValidPanelConfig(makeBaseConfig({ tabs: [tab] }))).not.toThrow();
+  });
+
   // F8: colorExtras deep validation (issue #440) ----------------------------
 
   function makeColorExtrasTab(overrides: Record<string, unknown> = {}): TabConfig {
