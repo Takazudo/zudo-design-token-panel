@@ -367,6 +367,16 @@ export {
 // avoids isolatedModules surprises; `emptyOverrides` is a runtime value.
 export type { TweakState } from './state/tweak-state';
 export { emptyOverrides } from './state/tweak-state';
+// Per-mode literal helpers (#472). `getClusterDefaultMode` reads the cluster's
+// `colorMode.defaultMode`; `resolvePerModeLiteral` / `resolveSemanticPreviewColor`
+// collapse a `{ literal: { light, dark } }` value to a single concrete color for
+// preview/seed contexts where CSS `light-dark()` cannot resolve. Consumed by the
+// per-mode editor UI (#473).
+export {
+  getClusterDefaultMode,
+  resolvePerModeLiteral,
+  resolveSemanticPreviewColor,
+} from './state/tweak-state';
 
 /**
  * Show ONE instance's panel. Internal per-instance core shared by the public

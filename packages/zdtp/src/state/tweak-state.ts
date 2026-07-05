@@ -1062,10 +1062,15 @@ export function safeIndex(index: number, len: number): number {
  * resolve (misconfigured manifest), falls back to `'#000000'` rather than
  * throwing — up-front source validation is #469's job, not this function's.
  *
- * The per-mode `{ literal: { light, dark } }` variant (#472) is not resolved
- * yet — that branch slots in here, above the final `'#000000'` fallback —
- * so it currently falls back to `'#000000'`, keeping `applyColorState` total
- * over the widened type.
+ * The per-mode `{ literal: { light, dark } }` variant (#472) emits a CSS
+ * `light-dark(<light>, <dark>)` function so the browser resolves the correct
+ * side automatically from the applied root's `color-scheme` (set by
+ * `applyColorState` whenever any per-mode literal is present). When the
+ * optional `perModeMode` is supplied — a preview / seed / non-browser context
+ * where `light-dark()` cannot resolve — the branch instead collapses to that
+ * single mode's literal. `perModeMode` is the cluster's
+ * `panelSettings.colorMode.defaultMode` (via `getClusterDefaultMode`), giving
+ * that previously-inert field a real runtime effect.
  */
 function resolveSemanticCssValue(
   mapping: SemanticValue,
@@ -1074,8 +1079,18 @@ function resolveSemanticCssValue(
   fgIndex: number,
   currentTab?: TabConfig,
   tabs?: readonly TabConfig[],
+  perModeMode?: 'light' | 'dark',
 ): string {
   if (isIndexMapping(mapping)) return resolveMapping(mapping, palette, bgIndex, fgIndex);
+  if (isLiteralMapping(mapping) && isPerModeLiteral(mapping)) {
+    // #472 — per-mode literal. Emit `light-dark()` so the browser picks the
+    // side matching the applied root's used color-scheme; or, when a concrete
+    // single value is requested (preview/seed, no `light-dark()` support),
+    // collapse to `perModeMode`'s literal.
+    return perModeMode
+      ? mapping.literal[perModeMode]
+      : `light-dark(${mapping.literal.light}, ${mapping.literal.dark})`;
+  }
   if (isLiteralMapping(mapping) && !isPerModeLiteral(mapping)) return mapping.literal;
   if (isRefMapping(mapping) && currentTab) {
     try {
@@ -1087,6 +1102,93 @@ function resolveSemanticCssValue(
     }
   }
   return '#000000';
+}
+
+/**
+ * The cluster's configured default light/dark mode, or `'light'` when the
+ * cluster declares no `colorMode` (`colorMode === false`).
+ *
+ * This is the single runtime reader of `ClusterPanelSettings.colorMode.defaultMode`
+ * (#472). The field validates but was previously never read at runtime; this
+ * helper (consumed by `resolveSemanticPreviewColor`) gives it a real effect —
+ * it selects which side of a per-mode `{ literal: { light, dark } }` pair is the
+ * fallback when `light-dark()` cannot resolve.
+ */
+export function getClusterDefaultMode(
+  cluster: ColorClusterDataConfig,
+): 'light' | 'dark' {
+  const cm = cluster.panelSettings.colorMode;
+  return cm ? cm.defaultMode : 'light';
+}
+
+/**
+ * Resolve a per-mode literal to a single concrete CSS color for `mode`.
+ *
+ * Used wherever CSS `light-dark()` cannot be used — a preview swatch, an SSR
+ * seed, or any non-browser consumer that needs one flat value rather than a
+ * `light-dark(...)` function. The emitters (`applyColorState`,
+ * `buildApplyOverrides`) deliberately do NOT call this; they emit
+ * `light-dark()` and let the browser choose.
+ */
+export function resolvePerModeLiteral(
+  value: { literal: { light: string; dark: string } },
+  mode: 'light' | 'dark',
+): string {
+  return value.literal[mode];
+}
+
+/**
+ * Resolve a semantic mapping to a single concrete CSS color suitable for a
+ * PREVIEW swatch — a flat value, never a `light-dark()` function. Mirrors the
+ * internal apply-path resolver, except a per-mode `{ literal: { light, dark } }`
+ * value collapses to `getClusterDefaultMode(cluster)`'s side (#472).
+ *
+ * This is the "preview/seed" consumer referenced by #472/#473: the per-mode
+ * editor UI (#473) renders its swatch from this so the user sees the cluster's
+ * default-mode color, while the applied CSS var still emits `light-dark()`.
+ */
+export function resolveSemanticPreviewColor(
+  mapping: SemanticValue,
+  state: ColorTweakState,
+  cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
+  currentTab?: TabConfig,
+  tabs?: readonly TabConfig[],
+): string {
+  return resolveSemanticCssValue(
+    mapping,
+    state.palette,
+    state.background,
+    state.foreground,
+    currentTab,
+    tabs,
+    getClusterDefaultMode(cluster),
+  );
+}
+
+/**
+ * Inline CSS property (NOT a custom property) written to the applied root when
+ * a cluster emits any per-mode `light-dark()` value, so that function resolves
+ * against a defined color-scheme instead of silently falling back. Emitted as
+ * a plain `[name, value]` pair through the same write path (sink batch or
+ * `document.documentElement`) as every other var, per #472.
+ */
+const COLOR_SCHEME_PROP = 'color-scheme';
+const COLOR_SCHEME_LIGHT_DARK = 'light dark';
+
+/**
+ * True when applying `state` against `cluster` would emit at least one per-mode
+ * `light-dark()` semantic value — i.e. the applied root needs
+ * `color-scheme: light dark` for those values to resolve.
+ */
+function hasPerModeLiteralSemantic(
+  state: ColorTweakState,
+  cluster: ColorClusterDataConfig,
+): boolean {
+  for (const key of Object.keys(cluster.semanticCssNames)) {
+    const mapping = state.semanticMappings[key] ?? cluster.semanticDefaults[key];
+    if (mapping !== undefined && isPerModeLiteral(mapping)) return true;
+  }
+  return false;
 }
 
 /**
@@ -1135,6 +1237,13 @@ export function applyColorState(
         ),
       ]);
     }
+    // #472 — when any semantic value emits `light-dark()`, the applied root
+    // needs `color-scheme: light dark` for it to resolve. Route it through the
+    // SAME sink so it lands on the sink's own target root, never a hardcoded
+    // `document.documentElement`.
+    if (hasPerModeLiteralSemantic(state, cluster)) {
+      pairs.push([COLOR_SCHEME_PROP, COLOR_SCHEME_LIGHT_DARK]);
+    }
     try {
       sink.apply(pairs);
     } catch (err) {
@@ -1170,6 +1279,13 @@ export function applyColorState(
         tabs,
       ),
     );
+  }
+  // #472 — set `color-scheme: light dark` on the applied root so any emitted
+  // `light-dark()` semantic value resolves. `setCssVar` writes to
+  // `document.documentElement` (the default, no-sink path's root). This is a
+  // plain CSS property, not a custom property, but `setProperty` handles both.
+  if (hasPerModeLiteralSemantic(state, cluster)) {
+    setCssVar(COLOR_SCHEME_PROP, COLOR_SCHEME_LIGHT_DARK);
   }
 }
 
