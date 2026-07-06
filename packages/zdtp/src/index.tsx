@@ -367,6 +367,15 @@ export {
 // avoids isolatedModules surprises; `emptyOverrides` is a runtime value.
 export type { TweakState } from './state/tweak-state';
 export { emptyOverrides } from './state/tweak-state';
+// Canonical `$schema` value constants actually emitted/accepted by
+// `serialize()`/`deserialize()`. Re-exported so hosts that set a display-only
+// `PanelConfig.schemaId` can derive a truthful label instead of an arbitrary
+// string that silently diverges from what the serde enforces (#498).
+export {
+  SCHEMA_V1,
+  SCHEMA_V2,
+  SCHEMA_V3,
+} from './utils/design-token-serde';
 // Per-mode literal helpers (#472). `getClusterDefaultMode` reads the cluster's
 // `colorMode.defaultMode`; `resolvePerModeLiteral` / `resolveSemanticPreviewColor`
 // collapse a `{ literal: { light, dark } }` value to a single concrete color for

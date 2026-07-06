@@ -19,11 +19,16 @@
  * opportunistically upgrades to v3 only when at least one semantic mapping is
  * one of the new `SemanticValue` object variants — v3 is a strict superset of
  * v2's shape, so this upgrade never loses information and never happens for a
- * doc that v2 could already represent losslessly. `deserialize()` accepts v1,
- * v2, and v3, and normalises to an internal `TweakState` regardless of which
- * schema was in the payload. Hosts that export v1 docs (custom `schemaId`) get
- * a `schema-mismatch` error on import unless they have opted into the
- * dual-accept path (see below).
+ * doc that v2 could already represent losslessly. `deserialize()` accepts
+ * exactly the three canonical `$schema` values above (`SCHEMA_V1`, `SCHEMA_V2`,
+ * `SCHEMA_V3`) and normalises to an internal `TweakState` regardless of which
+ * one was in the payload. `PanelConfig.schemaId` is a UI-label-only value
+ * (see `getDesignTokenSchema` below) that this package's own modals do NOT
+ * consult — `import-modal.tsx` / `export-modal.tsx` name the canonical
+ * constants directly in their copy. It is never consulted by
+ * `serialize()`/`deserialize()` either; a host that sets a custom `schemaId`
+ * still gets a `schema-mismatch` error importing any doc whose `$schema`
+ * isn't one of the three canonical constants (#498).
  *
  * ## v2 format
  *
@@ -212,15 +217,18 @@ function emptyOverrides(): TokenOverrides {
 /**
  * Read the design-token schema id at call time.
  *
- * Returns the host-configured schema id from `cfg.schemaId`. Used as the
- * `$schema` value in legacy v1 exports (for hosts that have not upgraded their
- * config to v2) and as the expected-schema label the Import modal surfaces. The
- * canonical v2 serialize path always emits `SCHEMA_V2`.
+ * Returns the host-configured schema id from `cfg.schemaId`. This is a
+ * UI-label-only value on `PanelConfig` — it is never read by `serialize()`
+ * (which always emits `SCHEMA_V2` or `SCHEMA_V3`) or by `deserialize()`
+ * (which always validates against `SCHEMA_V1`/`SCHEMA_V2`/`SCHEMA_V3`); see
+ * the header comment above and #498. Neither `import-modal.tsx` nor
+ * `export-modal.tsx` calls this function — their copy names the actual
+ * `SCHEMA_V1`/`V2`/`V3` constants directly instead. This helper remains for
+ * hosts that want to read their own configured `schemaId` label without
+ * reaching into `PanelConfig` directly.
  *
  * `cfg` defaults to the active (most-recently-configured) instance so the
- * single-default path stays byte-identical. The Import modal threads its OWN
- * mounted instance config (multi-instance, #361) so a non-default panel
- * validates against ITS schema id, not the default's.
+ * single-default path stays byte-identical.
  */
 export function getDesignTokenSchema(cfg: PanelConfig = getPanelConfig()): string {
   return cfg.schemaId;
