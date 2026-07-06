@@ -65,6 +65,7 @@ import {
   storageKey_stateV1,
   storageKey_stateV2,
   storageKey_stateV3,
+  storageKey_stateV4,
   markColorSchemeWritten,
   clearColorSchemeOwnership,
   ownsColorScheme,
@@ -137,6 +138,15 @@ export function getStorageKeyV2(cfg: PanelConfig = getPanelConfig()): string {
 
 export function getStorageKeyV3(cfg: PanelConfig = getPanelConfig()): string {
   return storageKey_stateV3(cfg);
+}
+
+/**
+ * v4 unified envelope key — the per-scheme-keyed color format (#500/#509).
+ * See `storageKey_stateV4` for the shape rationale. Read first by
+ * `loadPersistedState`; v1/v2/v3 migrate into it on first load.
+ */
+export function getStorageKeyV4(cfg: PanelConfig = getPanelConfig()): string {
+  return storageKey_stateV4(cfg);
 }
 
 export function getOpenKey(cfg: PanelConfig = getPanelConfig()): string {
@@ -561,6 +571,33 @@ export interface TweakState {
   tabs?: Record<string, TabOverrides>;
 }
 
+/**
+ * On-disk v4 persist envelope (#500/#509). Same top-level slices as the runtime
+ * `TweakState`, EXCEPT the `color` and `secondary` slices are identity-keyed
+ * sub-objects: one `ColorTweakState` slot per active-color IDENTITY (see
+ * `getActiveColorIdentity`). This is what lets a per-scheme color tweak survive
+ * a scheme toggle — editing under scheme A never touches scheme B's slot.
+ *
+ * The non-color slices (`spacing` / `typography` / `size` / `tabs`) stay global
+ * and unkeyed, exactly as in v1–v3: a light/dark toggle does not change them.
+ *
+ * `secondary` slots are keyed by the SAME primary identity — the secondary
+ * cluster has no scheme of its own but reseeds on the same `color-scheme-changed`
+ * event, so it follows the primary's identity.
+ *
+ * `loadPersistedState` selects the active identity's slots into a runtime
+ * `TweakState`; `savePersistedState` merge-saves the active slots while
+ * preserving every inactive identity's slot.
+ */
+export interface PersistedEnvelopeV4 {
+  color: Record<string, ColorTweakState>;
+  secondary?: Record<string, ColorTweakState>;
+  spacing: TokenOverrides;
+  typography: TokenOverrides;
+  size: TokenOverrides;
+  tabs?: Record<string, TabOverrides>;
+}
+
 /** Produce an empty overrides map — `TweakState` default for new tabs. */
 export function emptyOverrides(): TokenOverrides {
   return {};
@@ -940,6 +977,30 @@ export function initColorFromScheme(
   const schemeName = getActiveSchemeName(cluster, cfg);
   const scheme = schemes[schemeName] ?? Object.values(schemes)[0];
   return initColorFromSchemeData(scheme, cluster);
+}
+
+/**
+ * Derive the active-color IDENTITY — the key under which the v4 envelope files
+ * this instance's `color` / `secondary` slots (#500/#509).
+ *
+ * The identity is EXACTLY the active scheme name `initColorFromScheme` resolves
+ * for the primary cluster via `getActiveSchemeName` (the active scheme, with the
+ * light/dark mode already folded into the resolved name where the cluster
+ * `panelSettings.colorMode` distinguishes modes). This is deliberate: the same
+ * inputs whose change triggers a reseed today produce the identity, so the
+ * invariant holds — *the same identity that causes a reseed selects its own
+ * persisted slot*. A colorMode-less cluster resolves a constant identity (one
+ * slot); a light/dark cluster resolves distinct identities per side.
+ *
+ * The secondary cluster has no scheme concept of its own but reseeds on the same
+ * `color-scheme-changed` event, so its slots are keyed by this SAME primary
+ * identity — callers pass the PRIMARY cluster here for both slices.
+ */
+export function getActiveColorIdentity(
+  cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
+  cfg?: PanelConfig,
+): string {
+  return getActiveSchemeName(cluster, cfg);
 }
 
 /**
@@ -1397,16 +1458,14 @@ export function applyTokenOverrides(
 }
 
 /**
- * Apply the full unified `TweakState` — primary color cluster + token
- * overrides + optional secondary cluster.
+ * Apply ONLY the color slices — primary color cluster + optional secondary
+ * cluster + the aggregate `color-scheme` decision — leaving spacing / font /
+ * size / generic-tab vars untouched.
  *
- * Tab configs AND the primary color cluster are read from `panelConfig`
- * at call time so a host that calls `configurePanel` before mount sees its
- * own data driving the apply pass.
- *
- * When `cfg` is supplied its `applySink` (if any) is used to route all
- * CSS-var writes for this instance. Omitting `cfg` uses the default active
- * config (single-panel path, unchanged behavior).
+ * Extracted from `applyFullState` (#500/#509) so the scheme-change handler can
+ * re-paint the new identity's persisted color overrides after
+ * `clearAppliedColorStyles` WITHOUT re-writing (or clearing) the scheme-
+ * independent non-color vars that must survive a light/dark toggle (#347).
  *
  * `color-scheme` is managed as an AGGREGATE across the primary + secondary
  * clusters, not per-cluster (#482 D3): `applyColorState` only ever SETS
@@ -1416,8 +1475,17 @@ export function applyTokenOverrides(
  * clear inside `applyColorState` would let a per-mode-free secondary undo
  * what the primary just required (or vice versa), so the clear-when-neither-
  * needs-it decision is made here, once, after both clusters have applied.
+ *
+ * #501 — the `document.documentElement` clear is scoped to a color-scheme THIS
+ * instance actually wrote (`clearOwnedColorSchemeFromDocument`) so a host that
+ * owns `<html style="color-scheme">` is never clobbered; the sink path stays
+ * unconditional (sink targets are panel-owned) but drops the ownership claim.
  */
-export function applyFullState(state: TweakState, cfg?: PanelConfig) {
+export function applyColorSlices(
+  color: ColorTweakState,
+  secondary: ColorTweakState | undefined,
+  cfg?: PanelConfig,
+) {
   const config = cfg ?? getPanelConfig();
   const sink = config.applySink;
   // Primary color cluster is derived from the color TabConfig. Thread the
@@ -1426,37 +1494,28 @@ export function applyFullState(state: TweakState, cfg?: PanelConfig) {
   // the grouped Palette tab).
   const colorTab = config.tabs.find((t) => t.id === 'color');
   const primaryCluster = getActivePrimaryCluster(config);
-  applyColorState(state.color, primaryCluster, sink, colorTab, config.tabs, config.storagePrefix);
-  // Apply spacing / typography / size from tabs[] (required field post-Wave-5).
-  applyTabOverridesFlat(config.tabs, 'spacing', state.spacing, sink);
-  applyTabOverridesFlat(config.tabs, 'font', state.typography, sink);
-  applyTabOverridesFlat(config.tabs, 'size', state.size, sink);
+  applyColorState(color, primaryCluster, sink, colorTab, config.tabs, config.storagePrefix);
   // The secondary cluster is host-driven via the 'color-secondary' tab.
   // When no such tab is configured, skip the secondary apply pass entirely.
   const secondaryCluster = resolveSecondaryColorCluster(config);
   let secondaryHasPerMode = false;
-  if (secondaryCluster && state.secondary) {
+  if (secondaryCluster && secondary) {
     const secondaryColorTab = config.tabs.find((t) => t.id === 'color-secondary');
     applyColorState(
-      state.secondary,
+      secondary,
       secondaryCluster,
       sink,
       secondaryColorTab,
       config.tabs,
       config.storagePrefix,
     );
-    secondaryHasPerMode = hasPerModeLiteralSemantic(state.secondary, secondaryCluster);
+    secondaryHasPerMode = hasPerModeLiteralSemantic(secondary, secondaryCluster);
   }
   // #482 D3 — clear the aggregate `color-scheme` exactly when NEITHER
   // cluster needs it. When either does, that cluster's own `applyColorState`
   // call already set it above (see the docstring above for why this can't
   // be a per-cluster decision).
-  //
-  // #501 — but scope the removal to a color-scheme THIS instance actually
-  // wrote. `reapplyPersistedOverrides()` (src/index.tsx) calls `applyFullState`
-  // on every adapter init and `astro:page-load`; a non-per-mode host that owns
-  // `<html style="color-scheme">` must not have it wiped by that reapply.
-  if (!hasPerModeLiteralSemantic(state.color, primaryCluster) && !secondaryHasPerMode) {
+  if (!hasPerModeLiteralSemantic(color, primaryCluster) && !secondaryHasPerMode) {
     if (sink) {
       // Sink targets (shadow root / iframe) are panel-owned, so the sink clear
       // stays unconditional — but drop the ownership claim to keep it honest.
@@ -1470,6 +1529,36 @@ export function applyFullState(state: TweakState, cfg?: PanelConfig) {
       clearOwnedColorSchemeFromDocument(config.storagePrefix);
     }
   }
+}
+
+/**
+ * Apply the full unified `TweakState` — primary color cluster + token
+ * overrides + optional secondary cluster.
+ *
+ * Tab configs AND the primary color cluster are read from `panelConfig`
+ * at call time so a host that calls `configurePanel` before mount sees its
+ * own data driving the apply pass.
+ *
+ * When `cfg` is supplied its `applySink` (if any) is used to route all
+ * CSS-var writes for this instance. Omitting `cfg` uses the default active
+ * config (single-panel path, unchanged behavior).
+ *
+ * The color slices + aggregate `color-scheme` decision are delegated to
+ * `applyColorSlices`; this function adds the non-color (spacing / font / size /
+ * generic-tab) writes.
+ */
+export function applyFullState(state: TweakState, cfg?: PanelConfig) {
+  const config = cfg ?? getPanelConfig();
+  const sink = config.applySink;
+  // Color clusters (primary + optional secondary) + the aggregate
+  // `color-scheme` decision, extracted so the scheme-change handler can
+  // re-apply ONLY the color slices without touching the spacing/font/size vars
+  // (#347 non-color survival) — see `applyColorSlices`.
+  applyColorSlices(state.color, state.secondary, config);
+  // Apply spacing / typography / size from tabs[] (required field post-Wave-5).
+  applyTabOverridesFlat(config.tabs, 'spacing', state.spacing, sink);
+  applyTabOverridesFlat(config.tabs, 'font', state.typography, sink);
+  applyTabOverridesFlat(config.tabs, 'size', state.size, sink);
   // Apply generic tab overrides (v3 envelope tabs field).
   // The `tabs` field stores `TabOverrides` (tierId → { itemId → value }).
   // `applyTabOverridesFlat` takes a flat `TokenOverrides` (itemId → value),
@@ -2226,7 +2315,14 @@ function hydrateV2OrV3Object(
   return next;
 }
 
-export function loadPersistedState(
+/**
+ * Legacy (v1/v2/v3) load + migration chain. Returns the single active
+ * `TweakState` (color slice is global, not per-scheme) or `null`. Behavior is
+ * unchanged from before the v4 upgrade: v3 wins, else v2 → v3, else v1 → v3,
+ * writing/deleting the legacy keys exactly as before. `loadPersistedState`
+ * wraps this with the v4 branch + a v3→v4 migration step (#500/#509).
+ */
+function loadLegacyPersistedState(
   storage: StorageLike = localStorage,
   colorDefaults?: ColorTweakState,
   cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
@@ -2353,27 +2449,236 @@ export function loadPersistedState(
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// v4 envelope — per-scheme keyed color persistence (#500/#509)
+// ---------------------------------------------------------------------------
+
 /**
- * Persist the full `TweakState` to v3.
- *
- * `cfg` scopes the storage key to a specific panel instance (multi-instance,
- * #357). Omitting it resolves the default instance via `getPanelConfig()`,
- * preserving the single-panel path.
+ * Loosely-typed view of a raw v4 envelope read from storage. The `color` /
+ * `secondary` maps are `Record<identity, unknown>` because their slot values
+ * are untrusted until run through the hardened hydrator (#503).
  */
-export function savePersistedState(
-  state: TweakState,
-  storage: StorageLike = localStorage,
+interface PersistedEnvelopeV4Raw {
+  color: Record<string, unknown>;
+  secondary?: unknown;
+  spacing?: unknown;
+  typography?: unknown;
+  font?: unknown;
+  size?: unknown;
+  tabs?: unknown;
+}
+
+/**
+ * Read + shape-validate the raw v4 envelope. Returns `null` when the key is
+ * absent, unparseable, not an object, or shaped like a LEGACY (non-keyed)
+ * envelope — a v3 payload's `color` is a raw `ColorTweakState` (so
+ * `'palette' in color`), whereas a v4 `color` is an identity→state map. That
+ * guard keeps a v3-shaped blob accidentally written under the v4 key from being
+ * mis-read as v4 (it falls through to the legacy chain + re-migration instead).
+ */
+function readV4Envelope(storage: StorageLike, cfg: PanelConfig): PersistedEnvelopeV4Raw | null {
+  const raw = safeGet(storage, getStorageKeyV4(cfg));
+  if (raw === null) return null;
+  const parsed = safeParse(raw);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  const obj = parsed as Record<string, unknown>;
+  const color = obj.color;
+  if (!color || typeof color !== 'object' || Array.isArray(color)) return null;
+  // A raw ColorTweakState (v3 shape) carries `palette`; a v4 color map does not.
+  if ('palette' in (color as Record<string, unknown>)) return null;
+  return obj as unknown as PersistedEnvelopeV4Raw;
+}
+
+/** Extract the validated identity→ColorTweakState `color` map, or undefined. */
+function readColorMap(
+  env: PersistedEnvelopeV4Raw | null,
+): Record<string, ColorTweakState> | undefined {
+  const c = env?.color;
+  return c && typeof c === 'object' && !Array.isArray(c)
+    ? (c as Record<string, ColorTweakState>)
+    : undefined;
+}
+
+/** Extract the validated identity→ColorTweakState `secondary` map, or undefined. */
+function readSecondaryMap(
+  env: PersistedEnvelopeV4Raw | null,
+): Record<string, ColorTweakState> | undefined {
+  const s = env?.secondary;
+  return s && typeof s === 'object' && !Array.isArray(s)
+    ? (s as Record<string, ColorTweakState>)
+    : undefined;
+}
+
+/**
+ * Select the ACTIVE identity's `color` / `secondary` slots out of a v4 envelope
+ * into a runtime `TweakState`, reusing the hardened v2/v3 hydrator (#503 palette
+ * + semantic validation, typography rename, secondary-cluster validation, tabs).
+ *
+ * When the active identity has no slot (never persisted under this scheme), the
+ * color slice reseeds from config defaults (`colorDefaults` / the active
+ * scheme) — the same cold-seed the panel uses today — while the GLOBAL non-color
+ * slices still load. Never returns null: `color` is always an object here.
+ */
+function selectV4ActiveState(
+  envelope: PersistedEnvelopeV4Raw,
+  cluster: ColorClusterDataConfig,
+  colorDefaults: ColorTweakState | undefined,
+  cfg: PanelConfig,
+): TweakState {
+  const identity = getActiveColorIdentity(cluster, cfg);
+  const rawColorSlot = readColorMap(envelope)?.[identity];
+  const colorSlot =
+    rawColorSlot && typeof rawColorSlot === 'object' && !Array.isArray(rawColorSlot)
+      ? (rawColorSlot as Partial<ColorTweakState>)
+      : undefined;
+  const secondarySlot = readSecondaryMap(envelope)?.[identity];
+  // Seed once and thread it as `colorDefaults` so hydrateV2OrV3Object does not
+  // re-seed (avoids a double tryInitColorFromScheme call).
+  const seededColor = colorDefaults ?? tryInitColorFromScheme(cluster, cfg);
+  const shaped = {
+    color: colorSlot ?? seededColor,
+    secondary: secondarySlot,
+    spacing: envelope.spacing,
+    typography: envelope.typography,
+    font: envelope.font,
+    size: envelope.size,
+    tabs: envelope.tabs,
+  };
+  // `color` is always an object → hydrateV2OrV3Object never returns null here.
+  return hydrateV2OrV3Object(shaped, cluster, seededColor, cfg) as TweakState;
+}
+
+/**
+ * True when the v4 envelope holds a color slot for the CURRENTLY active
+ * identity. The scheme-change handler uses this to decide whether to hydrate +
+ * apply persisted overrides for the new scheme (slot present) or reseed from
+ * config defaults WITHOUT applying (slot absent — the pre-#500 behavior that
+ * lets the new scheme's stylesheet show through).
+ */
+export function hasActiveColorSlot(
   cfg: PanelConfig = getPanelConfig(),
-) {
+  cluster: ColorClusterDataConfig = getActivePrimaryCluster(cfg),
+  storage: StorageLike = localStorage,
+): boolean {
+  const envelope = readV4Envelope(storage, cfg);
+  if (!envelope) return false;
+  const identity = getActiveColorIdentity(cluster, cfg);
+  const slot = readColorMap(envelope)?.[identity];
+  return !!slot && typeof slot === 'object' && !Array.isArray(slot);
+}
+
+/**
+ * Merge-save `state` into the v4 envelope: overwrite the ACTIVE identity's
+ * color/secondary slots while PRESERVING every inactive identity's slot (the
+ * drift guard at the heart of #500 — an edit under scheme A must never mutate
+ * scheme B's stored color). The global non-color slices are taken wholesale
+ * from the runtime snapshot (they carry the full current value, same as v1–v3).
+ *
+ * `existing` is the pre-read envelope whose inactive slots are preserved; pass
+ * `null` to start fresh (the migration path, which overwrites any malformed v4).
+ */
+function writeMergedV4(
+  state: TweakState,
+  existing: PersistedEnvelopeV4Raw | null,
+  storage: StorageLike,
+  cluster: ColorClusterDataConfig,
+  cfg: PanelConfig,
+): void {
+  const identity = getActiveColorIdentity(cluster, cfg);
+  const colorMap: Record<string, ColorTweakState> = {
+    ...readColorMap(existing),
+    [identity]: state.color,
+  };
+  const envelope: PersistedEnvelopeV4 = {
+    color: colorMap,
+    spacing: state.spacing,
+    typography: state.typography,
+    size: state.size,
+  };
+  // Secondary: preserve inactive slots; set-or-delete the active slot to mirror
+  // the runtime (an opt-out host has `state.secondary === undefined`). Omit the
+  // whole map when it ends up empty so opt-out envelopes stay small.
+  const secondaryMap: Record<string, ColorTweakState> = { ...readSecondaryMap(existing) };
+  if (state.secondary !== undefined) {
+    secondaryMap[identity] = state.secondary;
+  } else {
+    delete secondaryMap[identity];
+  }
+  if (Object.keys(secondaryMap).length > 0) {
+    envelope.secondary = secondaryMap;
+  }
+  // Generic tab overrides — global, only when non-empty (matches the loader,
+  // which only sets `tabs` when hydration produced at least one entry).
+  if (state.tabs && Object.keys(state.tabs).length > 0) {
+    envelope.tabs = state.tabs;
+  }
   try {
-    storage.setItem(getStorageKeyV3(cfg), JSON.stringify(state));
+    storage.setItem(getStorageKeyV4(cfg), JSON.stringify(envelope));
   } catch {
     // Storage full.
   }
 }
 
 /**
- * Remove v3 (and lingering v2/v1) keys.
+ * Load the active `TweakState`, preferring the v4 per-scheme envelope
+ * (#500/#509).
+ *
+ * Order:
+ *   1. v4 present → select the active identity's color/secondary slots.
+ *   2. else run the legacy v1/v2/v3 chain (unchanged) → migrate that state into
+ *      a v4 envelope filed under the identity active at load, WITHOUT deleting
+ *      the legacy key (v4 wins on every future load via step 1). This is why the
+ *      pre-existing v1/v2/v3 migration tests keep passing: the legacy chain still
+ *      writes/keeps the v3 key exactly as before; v4 is layered on top.
+ *   3. else null (caller cold-seeds).
+ *
+ * A present-but-malformed v4 blob falls through to steps 2/3, which overwrite it.
+ */
+export function loadPersistedState(
+  storage: StorageLike = localStorage,
+  colorDefaults?: ColorTweakState,
+  cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
+  cfg: PanelConfig = getPanelConfig(),
+): TweakState | null {
+  // 1. v4 wins — select the active identity's slots.
+  const envelope = readV4Envelope(storage, cfg);
+  if (envelope !== null) {
+    return selectV4ActiveState(envelope, cluster, colorDefaults, cfg);
+  }
+  // A present-but-malformed v4 blob is reported once, then re-migrated below.
+  if (safeGet(storage, getStorageKeyV4(cfg)) !== null) {
+    console.warn(`[tweak] Malformed ${getStorageKeyV4(cfg)}, attempting v3/v2/v1 migration`);
+  }
+
+  // 2. Legacy chain (unchanged) → single active TweakState.
+  const legacy = loadLegacyPersistedState(storage, colorDefaults, cluster, cfg);
+  if (legacy === null) return null;
+
+  // 3. Migrate: file the loaded color/secondary under the identity active NOW.
+  writeMergedV4(legacy, null, storage, cluster, cfg);
+  return legacy;
+}
+
+/**
+ * Merge-save the full `TweakState` into the v4 per-scheme envelope (#500/#509).
+ *
+ * The active identity's color/secondary slots are overwritten; every inactive
+ * identity's slot is preserved (read → merge → write). Global non-color slices
+ * are replaced wholesale. `cfg` scopes the storage key to a specific panel
+ * instance (multi-instance, #357).
+ */
+export function savePersistedState(
+  state: TweakState,
+  storage: StorageLike = localStorage,
+  cfg: PanelConfig = getPanelConfig(),
+) {
+  const cluster = getActivePrimaryCluster(cfg);
+  const existing = readV4Envelope(storage, cfg);
+  writeMergedV4(state, existing, storage, cluster, cfg);
+}
+
+/**
+ * Remove the v4 key (and lingering v3/v2/v1 keys).
  *
  * `cfg` scopes the cleared keys to a specific panel instance (multi-instance,
  * #357). Omitting it resolves the default instance via `getPanelConfig()`,
@@ -2383,20 +2688,17 @@ export function clearPersistedState(
   storage: StorageLike = localStorage,
   cfg: PanelConfig = getPanelConfig(),
 ) {
-  try {
-    storage.removeItem(getStorageKeyV3(cfg));
-  } catch {
-    /* ignore */
-  }
-  try {
-    storage.removeItem(getStorageKeyV2(cfg));
-  } catch {
-    /* ignore */
-  }
-  try {
-    storage.removeItem(getStorageKeyV1(cfg));
-  } catch {
-    /* ignore */
+  for (const key of [
+    getStorageKeyV4(cfg),
+    getStorageKeyV3(cfg),
+    getStorageKeyV2(cfg),
+    getStorageKeyV1(cfg),
+  ]) {
+    try {
+      storage.removeItem(key);
+    } catch {
+      /* ignore */
+    }
   }
 }
 

@@ -795,6 +795,21 @@ export function storageKey_stateV3(cfg: PanelConfig): string {
   return `${cfg.storagePrefix}-state-v3`;
 }
 
+/**
+ * Storage key for the v4 unified envelope. Upgrades the "global tweak model" to
+ * per-scheme color persistence (#500/#509): the `color` and `secondary` slices
+ * become identity-keyed sub-objects (one slot per resolved scheme/mode), so a
+ * per-scheme color tweak survives a scheme toggle round-trip instead of being
+ * clobbered by the next unrelated edit. Non-color slices stay global. Kept a
+ * SINGLE storage key (not one key per scheme) because the Astro bootstrap must
+ * existence-check persistence before cluster config loads — a per-scheme key
+ * would hit a chicken-and-egg there. v1/v2/v3 migrate into this key on first
+ * load; v4 takes precedence on every subsequent load.
+ */
+export function storageKey_stateV4(cfg: PanelConfig): string {
+  return `${cfg.storagePrefix}-state-v4`;
+}
+
 /** Legacy v1 key (Color-only flat state). Migrated into v2 on first load, then deleted. */
 export function storageKey_stateV1(cfg: PanelConfig): string {
   return `${cfg.storagePrefix}-state`;
