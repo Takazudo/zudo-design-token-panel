@@ -1073,6 +1073,82 @@ describe('panel-config — assertValidPanelConfig host-tabs validation', () => {
       ),
     ).not.toThrow();
   });
+
+  // colorExtras.semanticDefaults override map (#499) -------------------------
+
+  it('accepts colorExtras with an omitted semanticDefaults (optional field)', () => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [makeColorExtrasTab()] })),
+    ).not.toThrow();
+  });
+
+  it('accepts every valid SemanticValue shape in semanticDefaults', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          tabs: [
+            makeColorExtrasTab({
+              semanticDefaults: {
+                legacyIndex: 3,
+                bgAlias: 'bg',
+                fgAlias: 'fg',
+                literalString: { literal: '#00cc66' },
+                literalPerMode: { literal: { light: '#fff', dark: '#000' } },
+                ref: { ref: { tier: 'ramp', item: 'p5' } },
+                refWithTab: { ref: { tab: 'palette', tier: 'ramp', item: 'p5' } },
+              },
+            }),
+          ],
+        }),
+      ),
+    ).not.toThrow();
+  });
+
+  it('rejects semanticDefaults that is not a plain object', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({ tabs: [makeColorExtrasTab({ semanticDefaults: 'invalid' })] }),
+      ),
+    ).toThrow(/colorExtras\.semanticDefaults must be a plain object/);
+  });
+
+  it('rejects a semanticDefaults entry with an invalid literal shape', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          tabs: [
+            makeColorExtrasTab({
+              semanticDefaults: { danger: { literal: { light: '#fff' } } },
+            }),
+          ],
+        }),
+      ),
+    ).toThrow(/colorExtras\.semanticDefaults\["danger"\] must be a valid SemanticValue/);
+  });
+
+  it('rejects a semanticDefaults entry with an invalid ref shape', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          tabs: [
+            makeColorExtrasTab({
+              semanticDefaults: { accent: { ref: { item: 'p5' } } },
+            }),
+          ],
+        }),
+      ),
+    ).toThrow(/colorExtras\.semanticDefaults\["accent"\] must be a valid SemanticValue/);
+  });
+
+  it('rejects a semanticDefaults entry that is neither literal, ref, index, nor bg/fg', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          tabs: [makeColorExtrasTab({ semanticDefaults: { danger: true } })],
+        }),
+      ),
+    ).toThrow(/colorExtras\.semanticDefaults\["danger"\] must be a valid SemanticValue/);
+  });
 });
 
 // ---------------------------------------------------------------------------

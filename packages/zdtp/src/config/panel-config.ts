@@ -953,6 +953,36 @@ function assertValidTabs(tabs: unknown): void {
 }
 
 /**
+ * Shape-check a config-time `SemanticValue` override
+ * (`colorExtras.semanticDefaults` entries, #499) against the union defined in
+ * `tokens/tier-model.ts` — a plain-object shape check on unknown JSON rather
+ * than a TS type guard, since these values arrive straight off `PanelConfig`
+ * before any typed narrowing has happened.
+ */
+function isValidSemanticValueShape(v: unknown): boolean {
+  if (typeof v === 'number') return true;
+  if (v === 'bg' || v === 'fg') return true;
+  if (v === null || typeof v !== 'object' || Array.isArray(v)) return false;
+  const obj = v as Record<string, unknown>;
+  if ('literal' in obj) {
+    const lit = obj.literal;
+    if (typeof lit === 'string') return true;
+    if (lit === null || typeof lit !== 'object' || Array.isArray(lit)) return false;
+    const pair = lit as Record<string, unknown>;
+    return typeof pair.light === 'string' && typeof pair.dark === 'string';
+  }
+  if ('ref' in obj) {
+    const ref = obj.ref;
+    if (ref === null || typeof ref !== 'object' || Array.isArray(ref)) return false;
+    const r = ref as Record<string, unknown>;
+    if (typeof r.tier !== 'string' || typeof r.item !== 'string') return false;
+    if (r.tab !== undefined && typeof r.tab !== 'string') return false;
+    return true;
+  }
+  return false;
+}
+
+/**
  * Validate a single tab entry within `PanelConfig.tabs`.
  * Checks tier-id uniqueness, item-id uniqueness across all tiers, cssVar
  * format, referencesTier existence (the referenced tier id must exist), and
@@ -1332,6 +1362,35 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>, allTabs: un
         throw new Error(
           `[design-token-panel] PanelConfig.tabs["${tabId}"].colorExtras.panelSettings.colorMode.defaultMode must be "light" or "dark" (got ${JSON.stringify(cm.defaultMode)})`,
         );
+      }
+    }
+
+    // Optional semanticDefaults override map (#499): a config-time per-item
+    // SemanticValue override that `resolveColorClusterFromTab` consults ahead
+    // of `deriveSemanticValue` — the only way a host ships a
+    // `{ literal: { light, dark } }` / `{ ref }` config-time default. Shape-check
+    // every entry here so a malformed override throws a clear error at
+    // configure time instead of surfacing as a cryptic failure deep in the
+    // color tab.
+    if (extras.semanticDefaults !== undefined) {
+      if (
+        extras.semanticDefaults === null ||
+        typeof extras.semanticDefaults !== 'object' ||
+        Array.isArray(extras.semanticDefaults)
+      ) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].colorExtras.semanticDefaults must be a plain object`,
+        );
+      }
+      const semanticDefaultsMap = extras.semanticDefaults as Record<string, unknown>;
+      for (const [itemId, sv] of Object.entries(semanticDefaultsMap)) {
+        if (!isValidSemanticValueShape(sv)) {
+          throw new Error(
+            `[design-token-panel] PanelConfig.tabs["${tabId}"].colorExtras.semanticDefaults["${itemId}"]` +
+              ` must be a valid SemanticValue (number | 'bg' | 'fg' | { literal: string } |` +
+              ` { literal: { light, dark } } | { ref: { tier, item, tab? } }), got ${JSON.stringify(sv)}`,
+          );
+        }
       }
     }
 

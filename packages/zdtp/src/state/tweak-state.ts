@@ -987,20 +987,22 @@ export function initColorFromSchemeData(
   const palette = scheme.palette.map(normalizeSchemePaletteEntry);
   const semanticMappings: Record<string, SemanticValue> = {};
   for (const [key, defaultVal] of Object.entries(cluster.semanticDefaults)) {
-    // `cluster.semanticDefaults` is `SemanticValue`-typed (#459), but every
-    // default this function has ever produced is a plain palette-index number
-    // — the `'bg'`/`'fg'` aliases and the `{ literal }` / `{ ref }` variants
-    // are populated by downstream sub-issues (#467/#469), not resolved here.
-    // Fall back to 0 for a non-numeric default so this stays total over the
-    // widened type; `colorRefToIndex`'s `fallback` param is `number`-only.
-    const indexDefault = typeof defaultVal === 'number' ? defaultVal : 0;
     const schemeVal = scheme.semantic?.[key as keyof typeof scheme.semantic];
     if (schemeVal === undefined) {
-      semanticMappings[key] = indexDefault;
+      // The scheme doesn't override this key — seed the cluster default
+      // verbatim. `defaultVal` may be a `{ literal }` / `{ literal: { light,
+      // dark } }` / `{ ref }` SemanticValue (config-time defaults, #499), not
+      // just a palette index; collapsing it to index 0 here would silently
+      // destroy those rows (#499's fix for the stale claim that every default
+      // this function has ever produced is a plain palette-index number).
+      semanticMappings[key] = defaultVal;
     } else if (typeof schemeVal === 'number') {
       semanticMappings[key] = schemeVal;
     } else {
-      // String value — find in palette or nearest match.
+      // String value — find in palette or nearest match. A scheme's semantic
+      // override is always index-or-string, so only a numeric default is a
+      // meaningful fallback here; a non-numeric default falls back to 0.
+      const indexDefault = typeof defaultVal === 'number' ? defaultVal : 0;
       semanticMappings[key] = colorRefToIndex(schemeVal, scheme.palette, indexDefault);
     }
   }

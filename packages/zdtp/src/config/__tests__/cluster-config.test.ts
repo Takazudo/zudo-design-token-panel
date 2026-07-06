@@ -640,3 +640,129 @@ describe('resolveColorClusterFromTab — named-color literal detection (#479 n2)
     });
   });
 });
+
+/**
+ * Config-time `colorExtras.semanticDefaults` override map (#499, Option B).
+ * When a host ships an override for a semantic item's id, `resolveColorClusterFromTab`
+ * must use it verbatim instead of running `deriveSemanticValue` on the item's
+ * plain-string `default` — this is the only way a per-mode literal pair
+ * (`{ literal: { light, dark } }`) or a `{ ref }` reaches config-time, since
+ * `TierItem.default` itself stays a plain string.
+ */
+describe('resolveColorClusterFromTab — colorExtras.semanticDefaults override map (#499)', () => {
+  it('uses the override verbatim for an item id present in the map, ignoring the derived value', () => {
+    const perModeDanger = { literal: { light: 'oklch(.505 .170 25)', dark: 'oklch(.655 .170 25)' } };
+    const tab: TabConfig = {
+      id: 'color',
+      label: 'Color',
+      colorExtras: { ...COLOR_EXTRAS, semanticDefaults: { danger: perModeDanger } },
+      tiers: [
+        {
+          id: 'semantic',
+          label: 'Semantic',
+          semantic: true,
+          items: [
+            {
+              id: 'danger',
+              cssVar: '--zd-danger',
+              label: 'Danger',
+              // Would derive to { literal: 'oklch(0.6 0.2 25)' } without the override.
+              default: 'oklch(0.6 0.2 25)',
+              type: { kind: 'color' as const, format: 'oklch' as const },
+            },
+            {
+              id: 'success',
+              cssVar: '--zd-success',
+              label: 'Success',
+              default: '#00cc66',
+              type: { kind: 'color' as const },
+            },
+          ],
+        },
+      ],
+    };
+
+    const cluster = resolveColorClusterFromTab(tab);
+    // The overridden item is the exact object supplied in config — not a
+    // structurally-equal copy — since it flows through untouched.
+    expect(cluster?.semanticDefaults.danger).toBe(perModeDanger);
+    // A sibling item with no override still falls through to deriveSemanticValue.
+    expect(cluster?.semanticDefaults.success).toEqual({ literal: '#00cc66' });
+  });
+
+  it('falls through to deriveSemanticValue when semanticDefaults is omitted entirely', () => {
+    const tab: TabConfig = {
+      id: 'color',
+      label: 'Color',
+      colorExtras: COLOR_EXTRAS,
+      tiers: [
+        {
+          id: 'semantic',
+          label: 'Semantic',
+          semantic: true,
+          items: [
+            {
+              id: 'danger',
+              cssVar: '--zd-danger',
+              label: 'Danger',
+              default: 'oklch(0.6 0.2 25)',
+              type: { kind: 'color' as const, format: 'oklch' as const },
+            },
+          ],
+        },
+      ],
+    };
+
+    const cluster = resolveColorClusterFromTab(tab);
+    expect(cluster?.semanticDefaults).toEqual({ danger: { literal: 'oklch(0.6 0.2 25)' } });
+  });
+
+  it('overrides a legacy palette-index default with a { ref } from the map', () => {
+    const refOverride = { ref: { tier: 'ramp', item: 'p5' } };
+    const tab: TabConfig = {
+      id: 'color',
+      label: 'Color',
+      colorExtras: { ...COLOR_EXTRAS, semanticDefaults: { accent: refOverride } },
+      tiers: [
+        {
+          id: 'palette',
+          label: 'Palette',
+          items: [
+            {
+              id: 'p0',
+              cssVar: '--pal-0',
+              label: 'Palette 0',
+              default: '#000000',
+              type: { kind: 'color' as const },
+            },
+            {
+              id: 'p1',
+              cssVar: '--pal-1',
+              label: 'Palette 1',
+              default: '#ffffff',
+              type: { kind: 'color' as const },
+            },
+          ],
+        },
+        {
+          id: 'semantic',
+          label: 'Semantic',
+          referencesTier: 'palette',
+          items: [
+            {
+              id: 'accent',
+              cssVar: '--semantic-accent',
+              label: 'Accent',
+              default: 'p1',
+              type: { kind: 'color' as const },
+            },
+          ],
+        },
+      ],
+    };
+
+    const cluster = resolveColorClusterFromTab(tab);
+    // Without the override this would resolve to the palette index 1 (p1).
+    expect(cluster?.semanticDefaults.accent).toBe(refOverride);
+  });
+});
