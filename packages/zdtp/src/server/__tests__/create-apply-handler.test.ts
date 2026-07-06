@@ -213,6 +213,76 @@ describe('createApplyHandler', () => {
     expect(secondaryCss).toContain('--secondary-pa8: #aa3333;');
   });
 
+  // ----- @theme block support (Tailwind v4, #507 / repro of #496) -----------
+
+  it('rewrites vars across a mixed :root + @theme file (Tailwind v4, #496 repro)', async () => {
+    // #496: a Tailwind v4 tokens file keeps a palette var in :root and the
+    // design tokens in @theme. Before #507 the @theme vars landed in
+    // unknownCssVars; now all three must be rewritten in one pass. All three
+    // share one routing prefix so they form a single group (one file write).
+    const rel = 'tokens/tailwind.css';
+    const absPath = join(tmpRepo, rel);
+    const mixed =
+      ':root {\n  --tw-palette-cool-700: oklch(0.21 0.03 264);\n}\n\n' +
+      '@theme {\n' +
+      '  --tw-spacing-md: 0.75rem;\n' +
+      '  --tw-color-ink: light-dark(var(--tw-palette-cool-700), #fff);\n' +
+      '}\n';
+    await fs.writeFile(absPath, mixed, 'utf-8');
+
+    const twHandler = createApplyHandler({
+      rootDir: tmpRepo,
+      writeRoot: resolve(tmpRepo, 'tokens'),
+      routing: { tw: rel },
+    });
+
+    const res = await twHandler(
+      makeRequest({
+        tokens: {
+          '--tw-palette-cool-700': 'oklch(0.30 0.03 264)',
+          '--tw-spacing-md': '1rem',
+          '--tw-color-ink': '#000',
+        },
+      }),
+    );
+    expect(res.status).toBe(200);
+    const json = await readResponseJson(res);
+    expect(json.ok).toBe(true);
+    expect(json.unknownCssVars).toEqual([]);
+
+    const changed = (json.updated as Array<{ changed: string[] }>).flatMap((u) => u.changed);
+    expect(changed).toContain('--tw-palette-cool-700'); // lives in :root
+    expect(changed).toContain('--tw-spacing-md'); // lives in @theme
+    expect(changed).toContain('--tw-color-ink'); // lives in @theme
+
+    const after = await fs.readFile(absPath, 'utf-8');
+    expect(after).toContain('--tw-palette-cool-700: oklch(0.30 0.03 264);');
+    expect(after).toContain('--tw-spacing-md: 1rem;');
+    expect(after).toContain('--tw-color-ink: #000;');
+  });
+
+  it('no longer 409s for a @theme-only file (no :root) and writes the change', async () => {
+    const rel = 'tokens/theme-only.css';
+    const absPath = join(tmpRepo, rel);
+    const themeOnly = '@theme {\n  --tw-spacing-md: 0.75rem;\n}\n';
+    await fs.writeFile(absPath, themeOnly, 'utf-8');
+
+    const twHandler = createApplyHandler({
+      rootDir: tmpRepo,
+      writeRoot: resolve(tmpRepo, 'tokens'),
+      routing: { tw: rel },
+    });
+
+    const res = await twHandler(makeRequest({ tokens: { '--tw-spacing-md': '1rem' } }));
+    expect(res.status).toBe(200);
+    const json = await readResponseJson(res);
+    expect(json.ok).toBe(true);
+    expect(json.unknownCssVars).toEqual([]);
+
+    const after = await fs.readFile(absPath, 'utf-8');
+    expect(after).toContain('--tw-spacing-md: 1rem;');
+  });
+
   // ----- idempotent re-apply -------------------------------------------------
 
   it('reports values already matching the file as unchanged (idempotent re-apply)', async () => {

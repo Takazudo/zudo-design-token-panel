@@ -3,7 +3,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { serializeFileWrite } from './serialize-write';
 import { isPathSafe, validateAndSanitizeTokens } from './path-safety';
-import { applyTokenOverridesOrThrow, NoRootBlockError } from '../apply/apply-token-overrides';
+import { applyTokenOverridesOrThrow, NoTokenBlockError } from '../apply/apply-token-overrides';
 import { routeTokensToFiles } from '../apply/route-tokens-to-files';
 import type { ApplyRoutingMap } from '../config/panel-config';
 
@@ -203,12 +203,12 @@ export function createApplyHandler(
       try {
         computed.push(await computeRewrite(absPath, relPath, groupTokens));
       } catch (err) {
-        if (err instanceof NoRootBlockError) {
-          console.error('[design-token-panel/server] No :root block in', relPath);
+        if (err instanceof NoTokenBlockError) {
+          console.error('[design-token-panel/server] No :root or @theme block in', relPath);
           return jsonResponse(
             {
               ok: false,
-              error: `No top-level :root { ... } block in ${relPath}`,
+              error: `No top-level :root { ... } or @theme { ... } block in ${relPath}`,
             },
             409,
           );
