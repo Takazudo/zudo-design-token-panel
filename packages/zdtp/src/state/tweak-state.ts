@@ -1549,12 +1549,31 @@ export function applyColorSlices(
  */
 export function applyFullState(state: TweakState, cfg?: PanelConfig) {
   const config = cfg ?? getPanelConfig();
-  const sink = config.applySink;
   // Color clusters (primary + optional secondary) + the aggregate
   // `color-scheme` decision, extracted so the scheme-change handler can
   // re-apply ONLY the color slices without touching the spacing/font/size vars
   // (#347 non-color survival) — see `applyColorSlices`.
   applyColorSlices(state.color, state.secondary, config);
+  applyNonColorSlices(state, config);
+}
+
+/**
+ * Apply ONLY the non-color slices (spacing / typography / size / generic-tab
+ * overrides), leaving the color clusters and aggregate `color-scheme` decision
+ * untouched. Complement of `applyColorSlices`; together they compose
+ * `applyFullState`.
+ *
+ * Extracted (#509 audit) so the persisted-overrides reapply paths
+ * (`reapplyPersistedOverrides`, the panel first-open effect) can, when a v4
+ * envelope exists but the ACTIVE (scheme, mode) identity has no color slot,
+ * still apply the scheme-INDEPENDENT non-color tweaks while leaving the active
+ * scheme's own stylesheet colors to show through — instead of painting the
+ * synthesized config-default colors inline. This mirrors the scheme-change
+ * handler's missing-slot behavior (gated on `hasActiveColorSlot`).
+ */
+export function applyNonColorSlices(state: TweakState, cfg?: PanelConfig) {
+  const config = cfg ?? getPanelConfig();
+  const sink = config.applySink;
   // Apply spacing / typography / size from tabs[] (required field post-Wave-5).
   applyTabOverridesFlat(config.tabs, 'spacing', state.spacing, sink);
   applyTabOverridesFlat(config.tabs, 'font', state.typography, sink);
@@ -2471,10 +2490,14 @@ interface PersistedEnvelopeV4Raw {
 /**
  * Read + shape-validate the raw v4 envelope. Returns `null` when the key is
  * absent, unparseable, not an object, or shaped like a LEGACY (non-keyed)
- * envelope — a v3 payload's `color` is a raw `ColorTweakState` (so
- * `'palette' in color`), whereas a v4 `color` is an identity→state map. That
- * guard keeps a v3-shaped blob accidentally written under the v4 key from being
- * mis-read as v4 (it falls through to the legacy chain + re-migration instead).
+ * envelope — a v3 payload's `color` is a raw `ColorTweakState` whose `palette`
+ * is a `string[]`, whereas a v4 `color` is an identity→state map. Discriminate
+ * on that ARRAY shape (not mere key presence): a v4 envelope whose active
+ * identity is literally `"palette"` has a `color.palette` slot that is a
+ * `ColorTweakState` OBJECT — rejecting on key presence would misread that valid
+ * v4 blob as legacy v3 and silently drop the scheme's saved overrides. The
+ * guard still keeps a real v3-shaped blob (array `palette`) from being mis-read
+ * as v4 (it falls through to the legacy chain + re-migration instead).
  */
 function readV4Envelope(storage: StorageLike, cfg: PanelConfig): PersistedEnvelopeV4Raw | null {
   const raw = safeGet(storage, getStorageKeyV4(cfg));
@@ -2484,8 +2507,11 @@ function readV4Envelope(storage: StorageLike, cfg: PanelConfig): PersistedEnvelo
   const obj = parsed as Record<string, unknown>;
   const color = obj.color;
   if (!color || typeof color !== 'object' || Array.isArray(color)) return null;
-  // A raw ColorTweakState (v3 shape) carries `palette`; a v4 color map does not.
-  if ('palette' in (color as Record<string, unknown>)) return null;
+  // A raw ColorTweakState (v3 shape) carries `palette` as a `string[]`; a v4
+  // identity→state map only has a `palette` key when a scheme's identity is
+  // literally "palette", and then it is a ColorTweakState OBJECT. Discriminate
+  // on the array shape so that valid v4 envelope is not misread as legacy v3.
+  if (Array.isArray((color as Record<string, unknown>).palette)) return null;
   return obj as unknown as PersistedEnvelopeV4Raw;
 }
 

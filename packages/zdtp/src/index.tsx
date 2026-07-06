@@ -50,7 +50,9 @@ import './styles/panel.css';
 import panelCss from './styles/panel.css?inline';
 import {
   applyFullState,
+  applyNonColorSlices,
   getActivePrimaryCluster,
+  hasActiveColorSlot,
   getOpenKey,
   getStorageKeyV2,
   getStorageKeyV3,
@@ -552,13 +554,22 @@ export function reapplyPersistedOverrides(): void {
   const targets = cfgs.length > 0 ? cfgs : [getPanelConfig()];
   for (const cfg of targets) {
     try {
-      const persisted = loadPersistedState(
-        undefined,
-        undefined,
-        getActivePrimaryCluster(cfg),
-        cfg,
-      );
-      if (persisted) applyFullState(persisted, cfg);
+      const cluster = getActivePrimaryCluster(cfg);
+      const persisted = loadPersistedState(undefined, undefined, cluster, cfg);
+      if (persisted) {
+        // Gate color on whether the active (scheme, mode) identity has a
+        // persisted color slot. A v4 envelope saved under a DIFFERENT identity
+        // must not paint synthesized config-default colors here — apply only the
+        // scheme-independent non-color tweaks and let the active scheme's own
+        // stylesheet colors show through (#509 audit; mirrors the scheme-change
+        // handler's missing-slot behavior). This is the most common real-world
+        // trigger of the bug — it runs at adapter init + every astro:page-load.
+        if (hasActiveColorSlot(cfg, cluster)) {
+          applyFullState(persisted, cfg);
+        } else {
+          applyNonColorSlices(persisted, cfg);
+        }
+      }
     } catch {
       /* ignore — stylesheet defaults paint instead */
     }

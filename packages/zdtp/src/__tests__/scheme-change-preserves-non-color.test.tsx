@@ -27,8 +27,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { __resetPanelConfigForTests, getPanelConfig, storageKey_visible } from '../config/panel-config';
 import {
+  getActivePrimaryCluster,
   getStorageKeyV3,
   getStorageKeyV4,
+  loadPersistedState,
   savePersistedState,
   type ColorTweakState,
   type PersistedEnvelopeV4,
@@ -279,5 +281,136 @@ describe('per-scheme color persistence — scheme change (#500/#509)', () => {
     window.dispatchEvent(new Event('color-scheme-changed'));
     await flushEffects();
     expect(readVar('--modep0')).toBe('#dada00');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #509 audit (epic #502 codex review) — two v4 edge cases the confirm pass
+// (#510) did not exercise.
+// ---------------------------------------------------------------------------
+
+describe('#509 audit — first-open with a v4 envelope but no slot for the active identity', () => {
+  beforeEach(() => {
+    installFixturePanelConfig({ tabs: MODE_TABS });
+    localStorage.clear();
+    document.body.innerHTML = '';
+    document.documentElement.removeAttribute('style');
+    document.documentElement.removeAttribute('data-theme');
+    const adapterWin = window as unknown as Record<string, unknown>;
+    delete adapterWin.__zudoDesignTokenPanelAdapter;
+    delete adapterWin.__zudoDesignTokenPanelLifecycle;
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+    document.documentElement.removeAttribute('style');
+    document.documentElement.removeAttribute('data-theme');
+    localStorage.clear();
+    __resetPanelConfigForTests();
+  });
+
+  it('applies the global non-color tweaks but lets the active scheme colors show through (no default paint)', async () => {
+    const cfg = getPanelConfig();
+
+    // Persist a DARK color slot + a GLOBAL (scheme-independent) spacing tweak.
+    setTheme('dark');
+    savePersistedState(modeState('#dada00', { 'hsp-md': '24px' }), undefined, cfg);
+
+    // Open the panel under LIGHT — the light identity has NO color slot, yet a
+    // v4 envelope exists (the dark slot + the global spacing).
+    setTheme('light');
+    localStorage.setItem(storageKey_visible(FIXTURE_PANEL_CONFIG), '1');
+    const { showDesignTokenPanel } = await import('../index');
+    showDesignTokenPanel();
+    await flushEffects();
+
+    // The scheme-independent spacing tweak IS applied.
+    expect(readVar('--zd-spacing-hgap-md')).toBe('24px');
+    // ...but NO color var is painted — the light scheme's own stylesheet shows
+    // through. Pre-fix, first-open (and reapplyPersistedOverrides) called
+    // applyFullState and painted the synthesized default light palette here.
+    expect(readVar('--modep0')).toBe('');
+  });
+});
+
+// A cluster whose single scheme — and therefore active identity — is literally
+// named "palette", to exercise the v3/v4 discriminator collision.
+const paletteIdentityScheme: ColorScheme = {
+  background: 0,
+  foreground: 15,
+  cursor: 6,
+  selectionBg: 0,
+  selectionFg: 15,
+  palette: Array.from(
+    { length: 16 },
+    (_, i) => `#22${i.toString(16).padStart(2, '0')}22`,
+  ) as unknown as ColorScheme['palette'],
+  shikiTheme: 'dracula',
+};
+
+const PALETTE_IDENTITY_COLOR_TAB: TabConfig = {
+  id: 'color',
+  label: 'Color',
+  colorExtras: {
+    id: 'palette-identity-fixture',
+    label: 'Palette Identity Fixture',
+    baseRoles: {},
+    baseDefaults: { background: 0, foreground: 15, cursor: 6, selectionBg: 0, selectionFg: 15 },
+    defaultShikiTheme: 'dracula',
+    colorSchemes: { palette: paletteIdentityScheme },
+    // colorMode: false → active identity is the constant scheme name "palette".
+    panelSettings: { colorScheme: 'palette', colorMode: false },
+  },
+  tiers: [
+    {
+      id: 'palette',
+      label: 'Palette',
+      items: Array.from({ length: 16 }, (_, i) => ({
+        id: `palidp${i}`,
+        cssVar: `--palidp${i}`,
+        label: `Palette ${i}`,
+        default: '#000000',
+        type: { kind: 'color' as const },
+      })),
+    },
+  ],
+};
+
+const PALETTE_IDENTITY_TABS: readonly TabConfig[] = [
+  ...FIXTURE_TABS.filter((t) => t.id !== 'color'),
+  PALETTE_IDENTITY_COLOR_TAB,
+];
+
+describe('#509 audit — v4 envelope whose active identity is literally "palette"', () => {
+  beforeEach(() => {
+    installFixturePanelConfig({ tabs: PALETTE_IDENTITY_TABS });
+    localStorage.clear();
+    document.documentElement.removeAttribute('style');
+    document.documentElement.removeAttribute('data-theme');
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+    document.documentElement.removeAttribute('style');
+    __resetPanelConfigForTests();
+  });
+
+  it('round-trips the saved slot instead of misreading the v4 blob as a legacy v3 payload', () => {
+    const cfg = getPanelConfig();
+
+    // Save a custom slot under the "palette" identity → the v4 color map gets a
+    // `palette` KEY whose value is a ColorTweakState OBJECT (not the v3 array).
+    savePersistedState(modeState('#abcdef'), undefined, cfg);
+
+    const env = JSON.parse(localStorage.getItem(getStorageKeyV4())!) as PersistedEnvelopeV4;
+    expect(Array.isArray(env.color.palette)).toBe(false);
+    expect((env.color.palette as ColorTweakState).palette[0]).toBe('#abcdef');
+
+    // Load it back. Pre-fix, readV4Envelope rejected ANY `color.palette` key and
+    // returned null (the slot was silently dropped); post-fix it discriminates
+    // on the array shape, so the valid v4 envelope is read and the slot survives.
+    const loaded = loadPersistedState(undefined, undefined, getActivePrimaryCluster(cfg), cfg);
+    expect(loaded).not.toBeNull();
+    expect(loaded!.color.palette[0]).toBe('#abcdef');
   });
 });

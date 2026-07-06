@@ -32,6 +32,7 @@ import {
   DEFAULT_POSITION,
   applyColorSlices,
   applyFullState,
+  applyNonColorSlices,
   clampPosition,
   clampSize,
   clearAppliedColorStyles,
@@ -335,14 +336,21 @@ export default function DesignTokenTweakPanel({
   // applies through A's sink, never touching B's.
   useEffect(() => {
     if (!open || state) return;
-    const persisted = loadPersistedState(
-      undefined,
-      undefined,
-      getActivePrimaryCluster(instanceConfig),
-      instanceConfig,
-    );
+    const cluster = getActivePrimaryCluster(instanceConfig);
+    const persisted = loadPersistedState(undefined, undefined, cluster, instanceConfig);
     if (persisted) {
-      applyFullState(persisted, instanceConfig);
+      // Gate color application on whether the ACTIVE (scheme, mode) identity
+      // actually has a persisted color slot. If it does not — a v4 envelope
+      // exists but was saved under a DIFFERENT identity — apply only the
+      // scheme-independent non-color tweaks and let the active scheme's own
+      // stylesheet colors show through, instead of painting synthesized
+      // config-default colors inline (#509 audit; mirrors the scheme-change
+      // handler's missing-slot behavior).
+      if (hasActiveColorSlot(instanceConfig, cluster)) {
+        applyFullState(persisted, instanceConfig);
+      } else {
+        applyNonColorSlices(persisted, instanceConfig);
+      }
       setState(persisted);
       return;
     }
