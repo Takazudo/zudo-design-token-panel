@@ -15,8 +15,9 @@ import {
 } from '../state/tweak-state';
 import type { ColorScheme } from '../config/color-schemes';
 import type { ColorClusterDataConfig } from '../config/cluster-config';
-import { __resetPanelConfigForTests } from '../config/panel-config';
-import { installFixturePanelConfig, FIXTURE_CLUSTER } from './_test-helpers';
+import { __resetPanelConfigForTests, resolveSecondaryColorCluster } from '../config/panel-config';
+import type { TabConfig } from '../tokens/tier-model';
+import { installFixturePanelConfig, FIXTURE_CLUSTER, FIXTURE_TABS } from './_test-helpers';
 
 /**
  * v1→v3 and v2→v3 migration tests.
@@ -813,5 +814,231 @@ describe('savePersistedState / loadPersistedState — SemanticValue variant roun
     // of admitting the arbitrary `{ garbage: true }` object into state.
     expect(result!.color.semanticMappings.accent).toBe(defaults.semanticMappings.accent);
     expect(result!.color.semanticMappings.muted).toBe(8);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #497/#503 — a legacy palette-index `semanticMappings` entry persisted
+// BEFORE a cluster went ramp-native must be validated against the LIVE
+// cluster's paletteSize at hydration, not merged in verbatim.
+// ---------------------------------------------------------------------------
+
+describe('loadPersistedState — stale numeric semanticMappings rejected against the live cluster paletteSize (#497/#503)', () => {
+  // A lone `semantic: true` tier cluster (#458/#466) — no palette sibling,
+  // paletteSize 0. Mirrors the `loneSemanticCluster` fixture in the #488
+  // describe block above.
+  const paletteless0Cluster: ColorClusterDataConfig = {
+    id: 'stale-index-fixture',
+    label: 'Stale Index Fixture',
+    paletteSize: 0,
+    baseRoles: {},
+    paletteCssVarTemplate: '--zudo-stub-p{n}',
+    semanticDefaults: { danger: { literal: 'oklch(0.55 0.22 25)' } },
+    semanticCssNames: { danger: '--zd-danger' },
+    baseDefaults: {},
+    defaultShikiTheme: 'dracula',
+    colorSchemes: {},
+    panelSettings: { colorScheme: '', colorMode: false },
+  };
+
+  const paletteless0Defaults: ColorTweakState = {
+    palette: [],
+    background: 0,
+    foreground: 0,
+    cursor: 0,
+    selectionBg: 0,
+    selectionFg: 0,
+    semanticMappings: { danger: { literal: 'oklch(0.55 0.22 25)' } },
+    shikiTheme: 'dracula',
+  };
+
+  it('a stale legacy index survives into a paletteSize:0 cluster and hydrates to the config default, never a raw index or #000000', () => {
+    const staleV3 = {
+      color: {
+        palette: [],
+        background: 0,
+        foreground: 0,
+        cursor: 0,
+        selectionBg: 0,
+        selectionFg: 0,
+        // Stale: `danger` used to point at palette slot 3, back when this
+        // cluster still had a palette. The cluster is now paletteSize:0
+        // (ramp-native) — index 3 no longer exists.
+        semanticMappings: { danger: 3 },
+        shikiTheme: 'dracula',
+      },
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+    const storage = makeStorage({ [STORAGE_KEY_V3]: JSON.stringify(staleV3) });
+
+    const result = loadPersistedState(storage, paletteless0Defaults, paletteless0Cluster);
+
+    expect(result).not.toBeNull();
+    expect(result!.color.semanticMappings.danger).toEqual({
+      literal: 'oklch(0.55 0.22 25)',
+    });
+  });
+
+  it('boundary: an index equal to paletteSize (16) is rejected against a non-zero cluster', () => {
+    const staleV3 = {
+      color: {
+        ...defaults,
+        semanticMappings: { accent: 16, muted: 8, active: 14 }, // 16 === paletteSize, out of range
+      },
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+    const storage = makeStorage({ [STORAGE_KEY_V3]: JSON.stringify(staleV3) });
+
+    const result = loadPersistedState(storage, defaults);
+
+    expect(result).not.toBeNull();
+    expect(result!.color.semanticMappings.accent).toBe(defaults.semanticMappings.accent);
+  });
+
+  it('boundary: the last valid index (paletteSize - 1 = 15) is accepted', () => {
+    const v3 = {
+      color: {
+        ...defaults,
+        semanticMappings: { accent: 15, muted: 8, active: 14 }, // 15 === paletteSize - 1, in range
+      },
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+    const storage = makeStorage({ [STORAGE_KEY_V3]: JSON.stringify(v3) });
+
+    const result = loadPersistedState(storage, defaults);
+
+    expect(result).not.toBeNull();
+    expect(result!.color.semanticMappings.accent).toBe(15);
+  });
+
+  it('the v1-migration branch also rejects a stale out-of-range index', () => {
+    const v1 = makeV1({ semanticMappings: { accent: 16, muted: 8, active: 14 } });
+    const storage = makeStorage({ [STORAGE_KEY_V1]: JSON.stringify(v1) });
+
+    const result = loadPersistedState(storage, defaults);
+
+    expect(result).not.toBeNull();
+    expect(result!.color.semanticMappings.accent).toBe(defaults.semanticMappings.accent);
+    // Untouched keys still come through unchanged.
+    expect(result!.color.semanticMappings.muted).toBe(8);
+  });
+});
+
+describe('loadPersistedState — secondary slice validated against the SECONDARY cluster\'s own paletteSize (#497/#503)', () => {
+  const SECONDARY_PALETTE_SIZE = 4;
+  const SECONDARY_TAB: TabConfig = {
+    id: 'color-secondary',
+    label: 'Secondary Color',
+    colorExtras: {
+      id: 'secondary-fixture',
+      label: 'Secondary Fixture',
+      baseRoles: {},
+      baseDefaults: { background: 0, foreground: 3 },
+      defaultShikiTheme: 'dracula',
+      colorSchemes: {},
+      panelSettings: { colorScheme: '', colorMode: false },
+    },
+    tiers: [
+      {
+        id: 'palette',
+        label: 'Palette',
+        items: Array.from({ length: SECONDARY_PALETTE_SIZE }, (_, i) => ({
+          id: `sec-p${i}`,
+          cssVar: `--sec-p${i}`,
+          label: `Palette ${i}`,
+          default: '#000000',
+          type: { kind: 'color' as const },
+        })),
+      },
+      {
+        id: 'semantic',
+        label: 'Semantic',
+        referencesTier: 'palette',
+        items: [
+          {
+            id: 'highlight',
+            cssVar: '--sec-semantic-highlight',
+            label: 'Highlight',
+            default: 'sec-p2',
+            type: { kind: 'color' as const },
+          },
+        ],
+      },
+    ],
+  };
+
+  function makeSecondaryPalette(): string[] {
+    return Array.from({ length: SECONDARY_PALETTE_SIZE }, (_, i) => `#${i}${i}${i}${i}${i}${i}`);
+  }
+
+  beforeEach(() => {
+    installFixturePanelConfig({ tabs: [...FIXTURE_TABS, SECONDARY_TAB] });
+    STORAGE_KEY_V3 = getStorageKeyV3();
+  });
+
+  it('the secondary cluster fixture resolves to paletteSize 4 (sanity check)', () => {
+    expect(resolveSecondaryColorCluster()?.paletteSize).toBe(SECONDARY_PALETTE_SIZE);
+  });
+
+  it("rejects a secondary index equal to the SECONDARY paletteSize (4), even though it is well within the PRIMARY cluster's range (16)", () => {
+    const v3 = {
+      color: { ...defaults },
+      spacing: {},
+      typography: {},
+      size: {},
+      secondary: {
+        palette: makeSecondaryPalette(),
+        background: 0,
+        foreground: 3,
+        cursor: 0,
+        selectionBg: 0,
+        selectionFg: 3,
+        // 4 is in-range for the PRIMARY cluster (paletteSize 16) but
+        // out-of-range for the secondary cluster (paletteSize 4) — must be
+        // validated against the secondary cluster's OWN size (#497/#503).
+        semanticMappings: { highlight: 4 },
+        shikiTheme: 'dracula',
+      },
+    };
+    const storage = makeStorage({ [STORAGE_KEY_V3]: JSON.stringify(v3) });
+
+    const result = loadPersistedState(storage, defaults);
+
+    expect(result).not.toBeNull();
+    expect(result!.secondary).toBeDefined();
+    // Falls back to the secondary cluster's own semantic default (index 2,
+    // derived from `sec-p2`), not the stale out-of-range 4.
+    expect(result!.secondary!.semanticMappings.highlight).toBe(2);
+  });
+
+  it('accepts a secondary index at the boundary (paletteSize - 1 = 3)', () => {
+    const v3 = {
+      color: { ...defaults },
+      spacing: {},
+      typography: {},
+      size: {},
+      secondary: {
+        palette: makeSecondaryPalette(),
+        background: 0,
+        foreground: 3,
+        cursor: 0,
+        selectionBg: 0,
+        selectionFg: 3,
+        semanticMappings: { highlight: 3 },
+        shikiTheme: 'dracula',
+      },
+    };
+    const storage = makeStorage({ [STORAGE_KEY_V3]: JSON.stringify(v3) });
+
+    const result = loadPersistedState(storage, defaults);
+
+    expect(result).not.toBeNull();
+    expect(result!.secondary!.semanticMappings.highlight).toBe(3);
   });
 });

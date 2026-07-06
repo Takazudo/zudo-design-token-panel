@@ -510,6 +510,40 @@ describe('3. editing a semantic swatch updates state to { literal } and survives
     // Untouched entries still hydrate from the manifest defaults merge.
     expect(loaded!.color.semanticMappings['info']).toEqual({ literal: SEMANTIC_LITERALS.info });
   });
+
+  it('#497/#503: a pre-stored v3 envelope carrying a STALE legacy numeric semantic mapping falls back to the manifest default instead of surviving as a raw index', () => {
+    // This cluster (LONE_SEMANTIC_TAB) has no palette tier at all —
+    // paletteSize 0. A `danger: 2` entry can only be a leftover from before
+    // this tab went ramp-native; index 2 has never resolved to anything
+    // here. It must not survive hydration.
+    const storageKey = getStorageKeyV3();
+    const baseState = makeLoneSemanticState();
+    const staleColorState = {
+      ...baseState,
+      semanticMappings: {
+        ...baseState.semanticMappings,
+        danger: 2,
+      },
+    };
+    const v3Payload = {
+      color: staleColorState,
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+    const storage = makeStorage({ [storageKey]: JSON.stringify(v3Payload) });
+
+    const cluster = getActivePrimaryCluster();
+    expect(cluster.paletteSize).toBe(0);
+    const loaded = loadPersistedState(storage, baseState, cluster);
+
+    expect(loaded).not.toBeNull();
+    // Falls back to the manifest default `{ literal }` — never the stale
+    // index 2, and never a black swatch from indexing a nonexistent palette.
+    expect(loaded!.color.semanticMappings['danger']).toEqual({
+      literal: SEMANTIC_LITERALS.danger,
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
