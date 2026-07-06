@@ -1280,3 +1280,82 @@ describe('loadPersistedState / savePersistedState — v4 per-scheme envelope (#5
     expect(storage.entries[STORAGE_KEY_V1]).toBeUndefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// #510 confirm — #503 x #509 cross-cutting: the "stale numeric semanticMappings
+// (#497/#503)" describe above only exercises loadLegacyPersistedState (a v3
+// read with no v4 key involved). Separately, the "v4 per-scheme envelope"
+// describe above migrates v3 -> v4 but its fixtures never carry a stale
+// semantic index. Neither proves the migration branch of loadPersistedState
+// (step 2 -> step 3, writeMergedV4) re-validates against the live cluster
+// paletteSize before filing the color slot under v4, rather than copying the
+// legacy value across verbatim.
+// ---------------------------------------------------------------------------
+
+describe('loadPersistedState — v3-to-v4 migration re-validates a stale semantic index against paletteSize (#503 x #509)', () => {
+  // Mirrors the paletteless0Cluster fixture from the #497/#503 describe above.
+  const paletteless0Cluster: ColorClusterDataConfig = {
+    id: 'stale-index-v4-migration-fixture',
+    label: 'Stale Index V4 Migration Fixture',
+    paletteSize: 0,
+    baseRoles: {},
+    paletteCssVarTemplate: '--zudo-stub-p{n}',
+    semanticDefaults: { danger: { literal: 'oklch(0.55 0.22 25)' } },
+    semanticCssNames: { danger: '--zd-danger' },
+    baseDefaults: {},
+    defaultShikiTheme: 'dracula',
+    colorSchemes: {},
+    panelSettings: { colorScheme: '', colorMode: false },
+  };
+
+  const paletteless0Defaults: ColorTweakState = {
+    palette: [],
+    background: 0,
+    foreground: 0,
+    cursor: 0,
+    selectionBg: 0,
+    selectionFg: 0,
+    semanticMappings: { danger: { literal: 'oklch(0.55 0.22 25)' } },
+    shikiTheme: 'dracula',
+  };
+
+  it('migrating a v3 envelope with a stale numeric mapping under a paletteSize:0 cluster writes the DEFAULTED value to v4, never the stale index', () => {
+    const staleV3 = {
+      color: {
+        palette: [],
+        background: 0,
+        foreground: 0,
+        cursor: 0,
+        selectionBg: 0,
+        selectionFg: 0,
+        // Stale: this cluster went ramp-native (paletteSize: 0) after this
+        // index was persisted — index 3 no longer names a palette slot.
+        semanticMappings: { danger: 3 },
+        shikiTheme: 'dracula',
+      },
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+    // No v4 key present, so loadPersistedState falls through to the legacy
+    // chain and then migrates the result into v4 (steps 2-3).
+    const storage = makeStorage({ [STORAGE_KEY_V3]: JSON.stringify(staleV3) });
+
+    const result = loadPersistedState(storage, paletteless0Defaults, paletteless0Cluster);
+
+    expect(result).not.toBeNull();
+    expect(result!.color.semanticMappings.danger).toEqual({
+      literal: 'oklch(0.55 0.22 25)',
+    });
+
+    // The migrated v4 envelope carries the VALIDATED value — proving
+    // writeMergedV4 was handed the already-hydrated `legacy` state (which ran
+    // through hydrateColorState's paletteSize gate), not a raw copy of the
+    // stale v3 payload.
+    const v4 = JSON.parse(storage.entries[STORAGE_KEY_V4]) as PersistedEnvelopeV4;
+    const identity = ''; // colorMode: false -> constant identity
+    expect(v4.color[identity].semanticMappings.danger).toEqual({
+      literal: 'oklch(0.55 0.22 25)',
+    });
+  });
+});

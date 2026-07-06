@@ -499,5 +499,70 @@ describe('createApplyHandler', () => {
         }),
       ]);
     });
+
+    // #510 confirm — #507 x #508 cross-cutting: the #496-repro test above
+    // (line ~218) proves the @theme dual-block scan rewrites every reachable
+    // var, but its fixture has none declared outside the scanned blocks. The
+    // nested/grouped/second-block tests above prove the outside-block
+    // diagnostic in isolation, but never against the #496 repro shape itself.
+    // Neither proves both hold AT ONCE against the same file.
+    it('against the #496 repro shape: rewritable vars land in changed AND an outside-block var gets the distinct diagnostic', async () => {
+      const rel = 'tokens/tailwind-mixed-outside.css';
+      const absPath = join(tmpRepo, rel);
+      const src =
+        ':root {\n  --tw-palette-cool-700: oklch(0.21 0.03 264);\n}\n\n' +
+        '@theme {\n' +
+        '  --tw-spacing-md: 0.75rem;\n' +
+        '  --tw-color-ink: light-dark(var(--tw-palette-cool-700), #fff);\n' +
+        '}\n\n' +
+        // Declared in the file, but not inside a top-level :root/@theme block
+        // the scanner reaches — the #496/#508 "outside scanned block" case.
+        '@media (prefers-color-scheme: dark) {\n' +
+        '  :root {\n' +
+        '    --tw-nested-only: #222222;\n' +
+        '  }\n' +
+        '}\n';
+      await fs.writeFile(absPath, src, 'utf-8');
+
+      const twHandler = createApplyHandler({
+        rootDir: tmpRepo,
+        writeRoot: resolve(tmpRepo, 'tokens'),
+        routing: { tw: rel },
+      });
+
+      const res = await twHandler(
+        makeRequest({
+          tokens: {
+            '--tw-palette-cool-700': 'oklch(0.30 0.03 264)',
+            '--tw-spacing-md': '1rem',
+            '--tw-color-ink': '#000',
+            '--tw-nested-only': '#333333',
+          },
+        }),
+      );
+      expect(res.status).toBe(200);
+      const json = await readResponseJson(res);
+      expect(json.ok).toBe(true);
+
+      const changed = (json.updated as Array<{ changed: string[] }>).flatMap((u) => u.changed);
+      expect(changed).toEqual(
+        expect.arrayContaining([
+          '--tw-palette-cool-700',
+          '--tw-spacing-md',
+          '--tw-color-ink',
+        ]),
+      );
+      expect(changed).not.toContain('--tw-nested-only');
+
+      expect(json.unknownCssVars).toEqual(['--tw-nested-only']);
+      expect(json.unknownOutsideBlockCssVars).toEqual(['--tw-nested-only']);
+
+      const after = await fs.readFile(absPath, 'utf-8');
+      expect(after).toContain('--tw-palette-cool-700: oklch(0.30 0.03 264);');
+      expect(after).toContain('--tw-spacing-md: 1rem;');
+      expect(after).toContain('--tw-color-ink: #000;');
+      // The unreachable var is left exactly as authored.
+      expect(after).toContain('--tw-nested-only: #222222;');
+    });
   });
 });
