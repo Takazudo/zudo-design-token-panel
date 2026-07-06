@@ -265,21 +265,22 @@ On every input change or color pick, the resolver calls `resolveTierItemValue(ta
 
 ### Storage schema and migration
 
-State is persisted to `localStorage` under `${storagePrefix}-state-v3`. On first load after an upgrade the panel automatically migrates any existing v2 state into the v3 envelope and removes the old key; v1 state is promoted to v2 in the same pass. No user action is required.
+State is persisted to `localStorage` under `${storagePrefix}-state-v4`. On first load after an upgrade the panel automatically migrates any existing v3 state into the v4 envelope (the legacy v3 key is left in place, not deleted); v2 is promoted to v3 and v1 to v2 in the same pass. No user action is required.
 
 | Storage key | Contents | Lifecycle |
 | --- | --- | --- |
-| `${storagePrefix}-state-v3` | Current unified override envelope (all tabs). | Live; written on every change. |
-| Previous v2 key | v2 envelope — migrated to v3 on first load, then deleted. | Transitional — see [Storage-key derivation](/docs/reference/configure-panel#storage-key-derivation). |
-| `${storagePrefix}-state` | Pre-v2 flat state (color-only). Migrated to v2 on first load, then deleted. | Legacy. |
+| `${storagePrefix}-state-v4` | Current unified envelope. Same slices as v3, except `color` (and any secondary cluster slice) is keyed by active (scheme, mode) identity — one slot per identity — rather than a single flat object. | Live; written on every change. See [Per-scheme color persistence](/docs/reference/configure-panel#per-scheme-color-persistence-v4-envelope). |
+| Previous v3 key | v3 envelope (flat, single-slot `color`) — migrated into v4 on first load. Left in place (not deleted) so a downgrade can still read it. | Transitional — see [Storage-key derivation](/docs/reference/configure-panel#storage-key-derivation). |
+| Previous v2 key | v2 envelope — migrated to v3 (and from there into v4) on first load, then deleted. | Transitional. |
+| `${storagePrefix}-state` | Pre-v2 flat state (color-only). Migrated to v2 (and from there into v4) on first load, then deleted. | Legacy. |
 
 ### JSON export and import
 
-The **Export** button emits a JSON file whose `$schema` field identifies it as the v2 export schema. The **Import** modal accepts both v1 and v2 export files and normalises them to v2 before applying. The export schema version is independent of the localStorage schema version — bumps to one do not imply a bump to the other.
+The **Export** button emits a JSON file whose `$schema` field identifies it as `SCHEMA_V2` or, when the state holds a semantic mapping v2's number-only leaf can't represent (a `{ literal }` / `{ literal: { light, dark } }` / `{ ref }` value), the superset `SCHEMA_V3`. The **Import** modal accepts `SCHEMA_V1`, `SCHEMA_V2`, and `SCHEMA_V3` payloads and normalises them internally before applying. `PanelConfig.schemaId` is a display-only label surfaced in the Import modal's copy — it is never read by the serializer or the validator; see [`PanelConfig` interface](/docs/reference/configure-panel#panelconfig-interface). The export schema version is independent of the localStorage schema version — bumps to one do not imply a bump to the other.
 
 ### Optional disk rewrite
 
-A tweak never leaves the browser — `:root` updates synchronously on every change and the state is persisted to `localStorage` under `${storagePrefix}-state-v3`. The bin server only runs when the host passes `applyEndpoint` + `applyRouting` on `PanelConfig`, and even then only activates when the user clicks Apply.
+A tweak never leaves the browser — `:root` updates synchronously on every change and the state is persisted to `localStorage` under `${storagePrefix}-state-v4`. The bin server only runs when the host passes `applyEndpoint` + `applyRouting` on `PanelConfig`, and even then only activates when the user clicks Apply.
 
 The bin server receives a POST with the current override diff, validates the request origin against its CORS allow-list, validates each routing entry against the write-root sandbox, and rewrites the target CSS files atomically (temp file + rename, per-file mutex). Any write failure triggers an in-memory snapshot rollback so no file is left in a partial state.
 

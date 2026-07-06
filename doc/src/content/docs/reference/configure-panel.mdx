@@ -151,7 +151,7 @@ export interface PanelConfig {
 | `storagePrefix` | `string` | yes | Drives every persisted localStorage key. Also the instance id. |
 | `consoleNamespace` | `string` | yes | Globals installed under `window[consoleNamespace]`. |
 | `modalClassPrefix` | `string` | yes | BEM root for every modal the panel owns. |
-| `schemaId` | `string` | yes | Emitted as `$schema` on exports; required on import. |
+| `schemaId` | `string` | yes | **Display-only** label surfaced in the Import modal's copy. `serialize()`/`deserialize()` always use the canonical `SCHEMA_V1`/`SCHEMA_V2`/`SCHEMA_V3` constants and never read this field — set it to one of those constants for a truthful label. See [Apply pipeline](/docs/reference/apply-pipeline#export-schema-v2). |
 | `exportFilenameBase` | `string` | yes | Saves as `${exportFilenameBase}.json`. |
 | `toggleEvent` | `string` | no | Toggle-event name for this instance. Default: `toggle-${storagePrefix}` (non-default instances); the default instance uses `toggle-design-token-panel`. |
 | `tabs` | [`TabConfig[]`](/docs/reference/token-manifest) | yes | Tab strip definition. The Color tab reads its data from the tier model via `colorExtras` + `TierItem[]`. |
@@ -235,9 +235,10 @@ window.dispatchEvent(new CustomEvent('my-custom-event'));
 
 | Logical key | Derivation | Purpose |
 | --- | --- | --- |
-| `state-v3` | `${storagePrefix}-state-v3` | Unified envelope: color + spacing + typography + size + tabs (for generic host tabs) + optional secondary cluster slice. |
-| `state-v2` | `${storagePrefix}-state-v2` | v2 envelope — migrated to v3 on first load, then deleted. |
-| `state-v1` | `${storagePrefix}-state` | Pre-v2 flat-state format (Color-only). Migrated to v2 on first load, then deleted. |
+| `state-v4` | `${storagePrefix}-state-v4` | Current unified envelope. Same slices as v3, EXCEPT `color` (and optional secondary cluster slice) is an identity-keyed map — one slot per active (scheme, mode) identity — instead of a single flat object. See "Per-scheme color persistence" below. |
+| `state-v3` | `${storagePrefix}-state-v3` | Legacy pre-v4 envelope (flat, single-slot `color`). Migrated into `state-v4` on first load; left in place (not deleted) so a downgrade can still read it. |
+| `state-v2` | `${storagePrefix}-state-v2` | v2 envelope — migrated to v3 (and from there into v4) on first load, then deleted. |
+| `state-v1` | `${storagePrefix}-state` | Pre-v2 flat-state format (Color-only). Migrated to v2 (and from there into v4) on first load, then deleted. |
 | `open` | `${storagePrefix}-open` | Mirror of the panel's open boolean state. |
 | `position` | `${storagePrefix}-position` | Drag position `{ top, right }` so the panel reappears where the user left it. |
 | `visible` | `${storagePrefix}:visible` | Adapter-level visibility-intent flag. |
@@ -245,6 +246,10 @@ window.dispatchEvent(new CustomEvent('my-custom-event'));
 <Note title="Colon, not dash, for `visible`">
 The `visible` key uses a `:` separator; every other derived key uses `-`. This is a historical artifact preserved for storage-key continuity.
 </Note>
+
+### Per-scheme color persistence (v4 envelope)
+
+Color/secondary tweaks are persisted **per (scheme, mode) identity** inside the single `state-v4` key — there is no per-scheme key fan-out. The identity is the active scheme name the panel already resolves for seeding; a cluster without `colorMode` resolves one constant identity (one slot), while a light/dark cluster resolves a distinct identity per side, so a light tweak and a dark tweak occupy independent slots in the same envelope and each **survives** a round-trip through the other scheme. The `spacing` / `typography` / `size` / `tabs` slices stay global and unkeyed, exactly as in v1–v3 — a scheme/mode toggle never touches them. Editing color under one identity only ever overwrites that identity's slot; every other identity's slot is preserved untouched on save. A host-owned inline `color-scheme` (e.g. a site-level theme toggle) is never cleared by the panel — only a `color-scheme` value the panel itself applied is ever removed.
 
 ### `legacyIdRenameMap` migration
 
