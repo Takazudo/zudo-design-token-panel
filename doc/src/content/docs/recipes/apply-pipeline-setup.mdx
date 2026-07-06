@@ -51,6 +51,14 @@ starts with `--myapp-` (e.g. `--myapp-spacing-md`,
 map is rejected with a 400.
 </Note>
 
+The routing JSON only says WHICH FILE a token family lands in — it says
+nothing about where inside that file the value gets rewritten. The rewriter
+itself scans the first top-level `:root { ... }` block AND the first
+top-level `@theme { ... }` block of the routed file (Tailwind v4's token
+scope), so a token declared inside either one is reachable; see
+[Which CSS blocks get rewritten](/docs/reference/apply-pipeline#which-css-blocks-get-rewritten)
+for the full scanning rules and a Tailwind v4 worked example.
+
 ## 3. Wire it into your dev script
 
 Use `concurrently` (or `npm-run-all`) to run the bin alongside your dev
