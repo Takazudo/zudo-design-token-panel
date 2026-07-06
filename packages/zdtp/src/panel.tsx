@@ -24,12 +24,15 @@ import type { TabConfig } from './tokens/tier-model';
 import { usePersist } from './state/persist';
 import {
   type TweakState,
+  type ColorTweakState,
   type PanelDensity,
   type PanelPosition,
   type PanelSize,
   DEFAULT_DENSITY,
   DEFAULT_POSITION,
+  applyColorSlices,
   applyFullState,
+  applyNonColorSlices,
   clampPosition,
   clampSize,
   clearAppliedColorStyles,
@@ -40,6 +43,7 @@ import {
   emptyOverrides,
   getActivePrimaryCluster,
   getOpenKey,
+  hasActiveColorSlot,
   initColorFromScheme,
   initSecondaryFromConfig,
   loadDensity,
@@ -280,33 +284,47 @@ export default function DesignTokenTweakPanel({
   }, [instanceConfig]);
 
   // Re-initialize the COLOR slice when the color scheme or light/dark mode
-  // changes. Global tweak model (see README §9): the stored palette is
-  // absolute, so on a scheme change we drop the inline color overrides and
-  // re-seed the live color envelope from the new scheme rather than layering
-  // the old absolute colors on top.
+  // changes. Per-scheme tweak model (#500/#509 — supersedes the old global
+  // model in README §9): each (scheme, mode) IDENTITY owns its own persisted
+  // color/secondary slot in the v4 envelope.
+  //
+  // On a scheme change we clear the old scheme's inline color vars, then:
+  //   - if the NEW identity has a persisted slot → hydrate it (through the #503
+  //     validation, inside loadPersistedState) and APPLY it via applyColorSlices
+  //     so the user's saved overrides for that scheme paint immediately instead
+  //     of drifting until the next unrelated edit clobbers the old slot (#500).
+  //   - else → reseed from config defaults and leave the color vars cleared so
+  //     the new scheme's stylesheet shows through (the pre-existing behavior).
   //
   // Spacing / typography / size tweaks are scheme-INDEPENDENT (a light/dark
   // toggle does not change them), so they are preserved across the toggle:
-  // we clear only the color cluster vars and re-seed only the color slices,
-  // leaving the non-color live state and its applied inline vars intact (#347).
+  // clearAppliedColorStyles clears only color vars and applyColorSlices writes
+  // only color vars, leaving the non-color live state + its inline vars intact
+  // (#347). Everything is scoped to THIS instance (#357).
   //
-  // This does not rewrite localStorage — the persisted envelope is left until
-  // the next edit re-persists or a reload re-applies it.
+  // The apply is done outside setState (with values that don't depend on `prev`)
+  // so the state updater stays a pure merge of the new color/secondary slices.
   useEffect(() => {
     function handleSchemeChange() {
-      // Clear only the color cluster inline vars so the new scheme's <style>
-      // tag takes effect for color; spacing/font/size inline vars stay applied.
-      // Scoped to THIS instance's clusters + sink so a scheme change on panel A
-      // never wipes panel B's color vars / sink target (#357).
       clearAppliedColorStyles(undefined, undefined, instanceConfig);
+      const cluster = getActivePrimaryCluster(instanceConfig);
+      const slotPresent = hasActiveColorSlot(instanceConfig, cluster);
+      let nextColor: ColorTweakState;
+      let nextSecondary: ColorTweakState | undefined;
+      if (slotPresent) {
+        const loaded = loadPersistedState(undefined, undefined, cluster, instanceConfig);
+        nextColor = loaded ? loaded.color : initColorFromScheme(cluster, instanceConfig);
+        nextSecondary = loaded ? loaded.secondary : initSecondaryFromConfig(instanceConfig);
+        // The new identity has persisted overrides — paint them now.
+        applyColorSlices(nextColor, nextSecondary, instanceConfig);
+      } else {
+        nextColor = initColorFromScheme(cluster, instanceConfig);
+        nextSecondary = initSecondaryFromConfig(instanceConfig);
+      }
       setState((prev) =>
         prev
-          ? {
-              ...prev,
-              color: initColorFromScheme(getActivePrimaryCluster(instanceConfig), instanceConfig),
-              secondary: initSecondaryFromConfig(instanceConfig),
-            }
-          : freshTweakState(instanceConfig),
+          ? { ...prev, color: nextColor, secondary: nextSecondary }
+          : { ...freshTweakState(instanceConfig), color: nextColor, secondary: nextSecondary },
       );
     }
     window.addEventListener('color-scheme-changed', handleSchemeChange);
@@ -318,14 +336,21 @@ export default function DesignTokenTweakPanel({
   // applies through A's sink, never touching B's.
   useEffect(() => {
     if (!open || state) return;
-    const persisted = loadPersistedState(
-      undefined,
-      undefined,
-      getActivePrimaryCluster(instanceConfig),
-      instanceConfig,
-    );
+    const cluster = getActivePrimaryCluster(instanceConfig);
+    const persisted = loadPersistedState(undefined, undefined, cluster, instanceConfig);
     if (persisted) {
-      applyFullState(persisted, instanceConfig);
+      // Gate color application on whether the ACTIVE (scheme, mode) identity
+      // actually has a persisted color slot. If it does not — a v4 envelope
+      // exists but was saved under a DIFFERENT identity — apply only the
+      // scheme-independent non-color tweaks and let the active scheme's own
+      // stylesheet colors show through, instead of painting synthesized
+      // config-default colors inline (#509 audit; mirrors the scheme-change
+      // handler's missing-slot behavior).
+      if (hasActiveColorSlot(instanceConfig, cluster)) {
+        applyFullState(persisted, instanceConfig);
+      } else {
+        applyNonColorSlices(persisted, instanceConfig);
+      }
       setState(persisted);
       return;
     }

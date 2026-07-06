@@ -54,6 +54,7 @@ import {
   getPanelConfig,
   storageKey_stateV2,
   storageKey_stateV3,
+  storageKey_stateV4,
   storageKey_visible,
   type PanelConfig,
   type PanelInstanceHandle,
@@ -156,11 +157,22 @@ function wasVisible(visibleKey: string): boolean {
   }
 }
 
-function hasPersistedOverrides(stateV2Key: string, stateV3Key: string): boolean {
+function hasPersistedOverrides(
+  stateV2Key: string,
+  stateV3Key: string,
+  stateV4Key: string,
+): boolean {
   try {
-    // Check v3 first; fall back to v2 for sessions pre-migration.
+    // Check v4 (per-scheme, #500/#509) first, then v3, then v2 for sessions
+    // pre-migration. The single-key v4 design means NO scheme knowledge is
+    // needed here — a bare key-existence check still answers "does the user
+    // have persisted overrides?" before the cluster config has loaded.
     const ls = window.localStorage;
-    return ls.getItem(stateV3Key) !== null || ls.getItem(stateV2Key) !== null;
+    return (
+      ls.getItem(stateV4Key) !== null ||
+      ls.getItem(stateV3Key) !== null ||
+      ls.getItem(stateV2Key) !== null
+    );
   } catch {
     return false;
   }
@@ -369,9 +381,10 @@ function installConsoleApi(
   const visibleKey = storageKey_visible(cfg);
   const stateV2Key = storageKey_stateV2(cfg);
   const stateV3Key = storageKey_stateV3(cfg);
+  const stateV4Key = storageKey_stateV4(cfg);
   if (
     wasVisible(visibleKey) ||
-    hasPersistedOverrides(stateV2Key, stateV3Key) ||
+    hasPersistedOverrides(stateV2Key, stateV3Key, stateV4Key) ||
     shouldAutoload(cfg) ||
     loadElementPathEnabled(cfg)
   ) {

@@ -91,7 +91,12 @@ export interface PanelConfig {
   consoleNamespace: string;
   /** BEM-style prefix used by every modal in the panel (export / import / apply). */
   modalClassPrefix: string;
-  /** `$schema` value emitted into export JSON and required on import. */
+  /**
+   * Schema label surfaced in the Import modal's hint/placeholder/error text
+   * and the Export modal's copy. NOT enforced: `serialize()`/`deserialize()`
+   * always use the fixed `SCHEMA_V1`/`SCHEMA_V2`/`SCHEMA_V3` constants
+   * regardless of this value (#498).
+   */
   schemaId: string;
   /** Default filename base — exports save as `${exportFilenameBase}.json`. */
   exportFilenameBase: string;
@@ -359,6 +364,27 @@ interface InstanceRegistry {
    * second+ instances would never bind their per-instance toggle events.
    */
   lifecycleHooks: PanelLifecycleHooks;
+  /**
+   * #501 — set of instance `storagePrefix`es whose panel wrote the standard
+   * `color-scheme` inline property to its apply target (`document.documentElement`
+   * or its sink's root). Presence = "this panel instance owns the current inline
+   * `color-scheme` and may clear it"; absence = "host-owned or never written —
+   * leave it alone".
+   *
+   * MUST live on this shared globalThis-keyed registry, NOT:
+   *  - a `PanelInstanceRecord` field — `destroy()` deletes the record, but the
+   *    inline `color-scheme` survives destroy (`unmountInstance` never clears
+   *    it), so ownership knowledge must outlive the record across
+   *    `destroy()` → `configurePanel()` → remount.
+   *  - a module-scope `Map` in `tweak-state.ts` — Vite multi-entry builds can
+   *    duplicate that module (see the `REGISTRY_SYMBOL` note above / epic #108);
+   *    each copy would track ownership independently and the apply-writing
+   *    copy's flag would be invisible to the clear-reading copy.
+   *
+   * Keyed per-instance (#357): instance A's per-mode-literal write must not
+   * authorize instance B's clear, and vice versa.
+   */
+  colorSchemeOwners: Set<string>;
 }
 
 function getRegistry(): InstanceRegistry {
@@ -371,6 +397,7 @@ function getRegistry(): InstanceRegistry {
       pendingColorPresets: null,
       pendingPostConfigureHooks: [],
       lifecycleHooks: {},
+      colorSchemeOwners: new Set(),
     };
     g[REGISTRY_SYMBOL] = registry;
   }
@@ -654,6 +681,57 @@ export function __resetPanelConfigForTests(): void {
   registry.defaultPrefix = null;
   registry.pendingColorPresets = null;
   registry.pendingPostConfigureHooks.length = 0;
+  colorSchemeOwnerSet().clear();
+}
+
+// ---------------------------------------------------------------------------
+// #501 — color-scheme ownership (registry-level metadata)
+// ---------------------------------------------------------------------------
+//
+// The panel writes the standard `color-scheme` inline property to its apply
+// target only when a per-mode `light-dark()` literal is present. It must only
+// ever CLEAR a `color-scheme` it itself wrote — never a host-owned
+// `<html style="color-scheme">` (issue #501). These three helpers are the
+// storage plumbing the apply/clear paths in `tweak-state.ts` use to record and
+// query that ownership, keyed by instance `storagePrefix`.
+
+/**
+ * Lazily-initialised accessor for the ownership set. The lazy guard upgrades a
+ * registry created by an older module copy (pre-#501, no `colorSchemeOwners`
+ * field) in place rather than dereferencing `undefined` — important under the
+ * Vite multi-entry duplication the `REGISTRY_SYMBOL` note describes.
+ */
+function colorSchemeOwnerSet(): Set<string> {
+  const registry = getRegistry() as InstanceRegistry & { colorSchemeOwners?: Set<string> };
+  if (!registry.colorSchemeOwners) registry.colorSchemeOwners = new Set();
+  return registry.colorSchemeOwners;
+}
+
+/**
+ * #501 — record that the panel instance keyed by `prefix` wrote `color-scheme`
+ * to its apply target. Called from the apply path (`applyColorState`) wherever
+ * a per-mode literal forces `color-scheme: light dark`.
+ */
+export function markColorSchemeWritten(prefix: string): void {
+  colorSchemeOwnerSet().add(prefix);
+}
+
+/**
+ * #501 — drop the color-scheme ownership claim for `prefix`. Called from the
+ * clear paths after a panel-written `color-scheme` is removed (or found to have
+ * been overwritten by the host — the stale-ownership case).
+ */
+export function clearColorSchemeOwnership(prefix: string): void {
+  colorSchemeOwnerSet().delete(prefix);
+}
+
+/**
+ * #501 — true when the panel instance keyed by `prefix` is the recorded writer
+ * of the current inline `color-scheme`. Gates the clear paths so the panel
+ * never removes a `color-scheme` it did not write.
+ */
+export function ownsColorScheme(prefix: string): boolean {
+  return colorSchemeOwnerSet().has(prefix);
 }
 
 // Re-export cluster resolution helpers so callers can import from panel-config
@@ -715,6 +793,21 @@ export function storageKey_stateV2(cfg: PanelConfig): string {
  */
 export function storageKey_stateV3(cfg: PanelConfig): string {
   return `${cfg.storagePrefix}-state-v3`;
+}
+
+/**
+ * Storage key for the v4 unified envelope. Upgrades the "global tweak model" to
+ * per-scheme color persistence (#500/#509): the `color` and `secondary` slices
+ * become identity-keyed sub-objects (one slot per resolved scheme/mode), so a
+ * per-scheme color tweak survives a scheme toggle round-trip instead of being
+ * clobbered by the next unrelated edit. Non-color slices stay global. Kept a
+ * SINGLE storage key (not one key per scheme) because the Astro bootstrap must
+ * existence-check persistence before cluster config loads — a per-scheme key
+ * would hit a chicken-and-egg there. v1/v2/v3 migrate into this key on first
+ * load; v4 takes precedence on every subsequent load.
+ */
+export function storageKey_stateV4(cfg: PanelConfig): string {
+  return `${cfg.storagePrefix}-state-v4`;
 }
 
 /** Legacy v1 key (Color-only flat state). Migrated into v2 on first load, then deleted. */
@@ -945,6 +1038,36 @@ function assertValidTabs(tabs: unknown): void {
     // those siblings defensively; it never assumes they are fully valid.
     assertValidTab(t.id, t, tabs as unknown[]);
   }
+}
+
+/**
+ * Shape-check a config-time `SemanticValue` override
+ * (`colorExtras.semanticDefaults` entries, #499) against the union defined in
+ * `tokens/tier-model.ts` — a plain-object shape check on unknown JSON rather
+ * than a TS type guard, since these values arrive straight off `PanelConfig`
+ * before any typed narrowing has happened.
+ */
+function isValidSemanticValueShape(v: unknown): boolean {
+  if (typeof v === 'number') return true;
+  if (v === 'bg' || v === 'fg') return true;
+  if (v === null || typeof v !== 'object' || Array.isArray(v)) return false;
+  const obj = v as Record<string, unknown>;
+  if ('literal' in obj) {
+    const lit = obj.literal;
+    if (typeof lit === 'string') return true;
+    if (lit === null || typeof lit !== 'object' || Array.isArray(lit)) return false;
+    const pair = lit as Record<string, unknown>;
+    return typeof pair.light === 'string' && typeof pair.dark === 'string';
+  }
+  if ('ref' in obj) {
+    const ref = obj.ref;
+    if (ref === null || typeof ref !== 'object' || Array.isArray(ref)) return false;
+    const r = ref as Record<string, unknown>;
+    if (typeof r.tier !== 'string' || typeof r.item !== 'string') return false;
+    if (r.tab !== undefined && typeof r.tab !== 'string') return false;
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -1327,6 +1450,35 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>, allTabs: un
         throw new Error(
           `[design-token-panel] PanelConfig.tabs["${tabId}"].colorExtras.panelSettings.colorMode.defaultMode must be "light" or "dark" (got ${JSON.stringify(cm.defaultMode)})`,
         );
+      }
+    }
+
+    // Optional semanticDefaults override map (#499): a config-time per-item
+    // SemanticValue override that `resolveColorClusterFromTab` consults ahead
+    // of `deriveSemanticValue` — the only way a host ships a
+    // `{ literal: { light, dark } }` / `{ ref }` config-time default. Shape-check
+    // every entry here so a malformed override throws a clear error at
+    // configure time instead of surfacing as a cryptic failure deep in the
+    // color tab.
+    if (extras.semanticDefaults !== undefined) {
+      if (
+        extras.semanticDefaults === null ||
+        typeof extras.semanticDefaults !== 'object' ||
+        Array.isArray(extras.semanticDefaults)
+      ) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].colorExtras.semanticDefaults must be a plain object`,
+        );
+      }
+      const semanticDefaultsMap = extras.semanticDefaults as Record<string, unknown>;
+      for (const [itemId, sv] of Object.entries(semanticDefaultsMap)) {
+        if (!isValidSemanticValueShape(sv)) {
+          throw new Error(
+            `[design-token-panel] PanelConfig.tabs["${tabId}"].colorExtras.semanticDefaults["${itemId}"]` +
+              ` must be a valid SemanticValue (number | 'bg' | 'fg' | { literal: string } |` +
+              ` { literal: { light, dark } } | { ref: { tier, item, tab? } }), got ${JSON.stringify(sv)}`,
+          );
+        }
       }
     }
 

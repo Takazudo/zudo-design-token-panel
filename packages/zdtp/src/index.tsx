@@ -50,10 +50,13 @@ import './styles/panel.css';
 import panelCss from './styles/panel.css?inline';
 import {
   applyFullState,
+  applyNonColorSlices,
   getActivePrimaryCluster,
+  hasActiveColorSlot,
   getOpenKey,
   getStorageKeyV2,
   getStorageKeyV3,
+  getStorageKeyV4,
   loadPersistedState,
 } from './state/tweak-state';
 import {
@@ -141,11 +144,16 @@ function wasVisible(cfg: PanelConfig): boolean {
 function hasPersistedOverrides(cfg: PanelConfig): boolean {
   if (typeof window === 'undefined') return false;
   try {
-    // Check v3 key first; fall back to v2 for sessions that have not yet
-    // migrated (migration runs on first loadPersistedState call, i.e. once
-    // the panel mounts — before mount we may only see the v2 key).
+    // Check v4 (per-scheme, #500/#509) first, then v3, then v2 for sessions
+    // that have not yet migrated (migration runs on first loadPersistedState
+    // call, i.e. once the panel mounts — before mount we may only see an older
+    // key). Any of them being present means the user has persisted overrides.
     const ls = window.localStorage;
-    return ls.getItem(getStorageKeyV3(cfg)) !== null || ls.getItem(getStorageKeyV2(cfg)) !== null;
+    return (
+      ls.getItem(getStorageKeyV4(cfg)) !== null ||
+      ls.getItem(getStorageKeyV3(cfg)) !== null ||
+      ls.getItem(getStorageKeyV2(cfg)) !== null
+    );
   } catch {
     return false;
   }
@@ -367,6 +375,15 @@ export {
 // avoids isolatedModules surprises; `emptyOverrides` is a runtime value.
 export type { TweakState } from './state/tweak-state';
 export { emptyOverrides } from './state/tweak-state';
+// Canonical `$schema` value constants actually emitted/accepted by
+// `serialize()`/`deserialize()`. Re-exported so hosts that set a display-only
+// `PanelConfig.schemaId` can derive a truthful label instead of an arbitrary
+// string that silently diverges from what the serde enforces (#498).
+export {
+  SCHEMA_V1,
+  SCHEMA_V2,
+  SCHEMA_V3,
+} from './utils/design-token-serde';
 // Per-mode literal helpers (#472). `getClusterDefaultMode` reads the cluster's
 // `colorMode.defaultMode`; `resolvePerModeLiteral` / `resolveSemanticPreviewColor`
 // collapse a `{ literal: { light, dark } }` value to a single concrete color for
@@ -537,13 +554,22 @@ export function reapplyPersistedOverrides(): void {
   const targets = cfgs.length > 0 ? cfgs : [getPanelConfig()];
   for (const cfg of targets) {
     try {
-      const persisted = loadPersistedState(
-        undefined,
-        undefined,
-        getActivePrimaryCluster(cfg),
-        cfg,
-      );
-      if (persisted) applyFullState(persisted, cfg);
+      const cluster = getActivePrimaryCluster(cfg);
+      const persisted = loadPersistedState(undefined, undefined, cluster, cfg);
+      if (persisted) {
+        // Gate color on whether the active (scheme, mode) identity has a
+        // persisted color slot. A v4 envelope saved under a DIFFERENT identity
+        // must not paint synthesized config-default colors here — apply only the
+        // scheme-independent non-color tweaks and let the active scheme's own
+        // stylesheet colors show through (#509 audit; mirrors the scheme-change
+        // handler's missing-slot behavior). This is the most common real-world
+        // trigger of the bug — it runs at adapter init + every astro:page-load.
+        if (hasActiveColorSlot(cfg, cluster)) {
+          applyFullState(persisted, cfg);
+        } else {
+          applyNonColorSlices(persisted, cfg);
+        }
+      }
     } catch {
       /* ignore — stylesheet defaults paint instead */
     }

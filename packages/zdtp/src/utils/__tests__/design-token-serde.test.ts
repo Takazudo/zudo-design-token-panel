@@ -15,6 +15,11 @@ import type { ColorTweakState, SemanticValue, TweakState } from '../../state/twe
 import { __resetPanelConfigForTests } from '../../config/panel-config';
 import { installFixturePanelConfig, FIXTURE_CLUSTER, FIXTURE_TABS } from '../../__tests__/_test-helpers';
 import type { TabConfig } from '../../tokens/tier-model';
+import {
+  SCHEMA_V1 as ROOT_SCHEMA_V1,
+  SCHEMA_V2 as ROOT_SCHEMA_V2,
+  SCHEMA_V3 as ROOT_SCHEMA_V3,
+} from '../../index';
 
 beforeEach(() => {
   installFixturePanelConfig();
@@ -529,6 +534,34 @@ describe('getDesignTokenSchema', () => {
     // (from FIXTURE_PANEL_CONFIG). This is the host-configured "expected" schema
     // for import validation UI. serialize() independently always emits SCHEMA_V2.
     expect(getDesignTokenSchema()).toBe('zudo-design-tokens/v1');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SCHEMA_V1/V2/V3 — importable from the package root (#498)
+// ---------------------------------------------------------------------------
+
+describe('SCHEMA_V1/V2/V3 — package-root import surface (#498)', () => {
+  it('re-export from the package root and match the internal serde constants', () => {
+    expect(ROOT_SCHEMA_V1).toBe(SCHEMA_V1);
+    expect(ROOT_SCHEMA_V2).toBe(SCHEMA_V2);
+    expect(ROOT_SCHEMA_V3).toBe(SCHEMA_V3);
+  });
+
+  it('SCHEMA_V2 equals the `$schema` value serialize() actually emits for a plain state', () => {
+    const json = serialize(makeState(), { colorDefaults: COLOR_BASELINE });
+    expect(json.$schema).toBe(ROOT_SCHEMA_V2);
+  });
+
+  it('SCHEMA_V1/V2/V3 are exactly the three `$schema` values deserialize() accepts', () => {
+    for (const schema of [ROOT_SCHEMA_V1, ROOT_SCHEMA_V2, ROOT_SCHEMA_V3]) {
+      expect(() =>
+        deserialize({ $schema: schema, exportedAt: 'x' }, { colorDefaults: COLOR_BASELINE }),
+      ).not.toThrow();
+    }
+    expect(() =>
+      deserialize({ $schema: 'not-a-real-schema', exportedAt: 'x' }, { colorDefaults: COLOR_BASELINE }),
+    ).toThrowError(DesignTokenSchemaError);
   });
 });
 

@@ -373,12 +373,32 @@ export interface ColorClusterExtras {
   colorSchemes: Record<string, ColorScheme>;
   /** Panel-level scheme settings. */
   panelSettings: ClusterPanelSettings;
+  /**
+   * Config-time override map for a semantic tier's derived defaults, keyed by
+   * semantic item id. The only way to ship a `{ literal }` /
+   * `{ literal: { light, dark } }` / `{ ref }` default — `TierItem.default`
+   * stays a plain string, consumed generically by every tab kind.
+   */
+  semanticDefaults?: Record<string, SemanticValue>;
 }
 
 export type BaseRoleKey = 'background' | 'foreground' | 'cursor' | 'selectionBg' | 'selectionFg';
 ```
 
 `baseRoles` is a partial map — a cluster declares only the terminal roles its design system surfaces. An empty map is legal; only declared roles emit CSS writes on apply.
+
+`semanticDefaults` lets a host override the derived default for specific semantic item ids with a shape the plain-string `TierItem.default` can't express — most usefully a per-mode literal:
+
+```ts
+colorExtras: {
+  // ...
+  semanticDefaults: {
+    danger: { literal: { light: '#b91c1c', dark: '#f87171' } },
+  },
+}
+```
+
+A key present in `semanticDefaults` wins verbatim over the value `resolveColorClusterFromTab` would otherwise derive from that item's `default` string; keys not listed fall back to the normal derivation.
 
 ## `ColorScheme`
 

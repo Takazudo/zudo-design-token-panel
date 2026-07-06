@@ -3,7 +3,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { serializeFileWrite } from './serialize-write';
 import { isPathSafe, validateAndSanitizeTokens } from './path-safety';
-import { applyTokenOverridesOrThrow, NoRootBlockError } from '../apply/apply-token-overrides';
+import { applyTokenOverridesOrThrow, NoTokenBlockError } from '../apply/apply-token-overrides';
 import { routeTokensToFiles } from '../apply/route-tokens-to-files';
 import type { ApplyRoutingMap } from '../config/panel-config';
 
@@ -33,6 +33,12 @@ export interface PerFileResult {
   changed: string[];
   unchanged: string[];
   unknown: string[];
+  /**
+   * Subset of `unknown` (#508): declared somewhere in the file but outside
+   * the scanned `:root`/`@theme` blocks — see `ApplyResult.unknownOutsideBlock`
+   * in `apply-token-overrides.ts` for the full classification rules.
+   */
+  unknownOutsideBlock: string[];
 }
 
 // ----- Helpers ----------------------------------------------------------------
@@ -47,6 +53,7 @@ interface ComputedRewrite {
   changed: string[];
   unchanged: string[];
   unknown: string[];
+  unknownOutsideBlock: string[];
 }
 
 function jsonResponse(data: Record<string, unknown>, status = 200): Response {
@@ -71,6 +78,7 @@ async function computeRewrite(
     changed: result.changed,
     unchanged: result.unchanged,
     unknown: result.unknown,
+    unknownOutsideBlock: result.unknownOutsideBlock,
   };
 }
 
@@ -203,12 +211,12 @@ export function createApplyHandler(
       try {
         computed.push(await computeRewrite(absPath, relPath, groupTokens));
       } catch (err) {
-        if (err instanceof NoRootBlockError) {
-          console.error('[design-token-panel/server] No :root block in', relPath);
+        if (err instanceof NoTokenBlockError) {
+          console.error('[design-token-panel/server] No :root or @theme block in', relPath);
           return jsonResponse(
             {
               ok: false,
-              error: `No top-level :root { ... } block in ${relPath}`,
+              error: `No top-level :root { ... } or @theme { ... } block in ${relPath}`,
             },
             409,
           );
@@ -259,6 +267,9 @@ export function createApplyHandler(
 
     const unknownCssVars: string[] = computed.flatMap((r) => r.unknown);
     const unchangedCssVars: string[] = computed.flatMap((r) => r.unchanged);
+    // #508: subset of unknownCssVars that IS declared somewhere in its file,
+    // just outside the scanned :root/@theme blocks.
+    const unknownOutsideBlockCssVars: string[] = computed.flatMap((r) => r.unknownOutsideBlock);
 
     // Normalise `file` paths in the response to repo-relative form.
     const updated: PerFileResult[] = computed.map((r) => ({
@@ -266,6 +277,7 @@ export function createApplyHandler(
       changed: r.changed,
       unchanged: r.unchanged,
       unknown: r.unknown,
+      unknownOutsideBlock: r.unknownOutsideBlock,
     }));
 
     return jsonResponse({
@@ -273,6 +285,7 @@ export function createApplyHandler(
       updated,
       unknownCssVars,
       unchangedCssVars,
+      unknownOutsideBlockCssVars,
     });
   };
 }

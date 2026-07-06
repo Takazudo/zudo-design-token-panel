@@ -377,16 +377,23 @@ export function resolveColorClusterFromTab(
 
   if (semanticTier) {
     const isLegacyTier = !semanticTier.semantic;
+    const overrides = extras.semanticDefaults;
     for (const item of semanticTier.items) {
       semanticCssNames[item.id] = item.cssVar;
-      semanticDefaults[item.id] = deriveSemanticValue(
-        item,
-        paletteIdToIndex,
-        semanticTier.referencesRamps,
-        tab,
-        tabs,
-        isLegacyTier,
-      );
+      // A config-time override (#499) wins verbatim over the derived value —
+      // it's the only way a host can ship a `{ literal: { light, dark } }` /
+      // `{ ref }` default, since `item.default` itself stays a plain string.
+      semanticDefaults[item.id] =
+        overrides && item.id in overrides
+          ? overrides[item.id]
+          : deriveSemanticValue(
+              item,
+              paletteIdToIndex,
+              semanticTier.referencesRamps,
+              tab,
+              tabs,
+              isLegacyTier,
+            );
     }
   }
 

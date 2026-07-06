@@ -161,6 +161,8 @@ export const panelConfig: PanelConfig = {
 
 For the full token-overrides payload schema and the `PanelConfig` shape, see §5 and §6.
 
+**Which CSS blocks the rewriter scans.** Each routed file's rewrite only reaches two locations: the FIRST top-level `:root { ... }` block and the FIRST top-level `@theme { ... }` block (bare `@theme`, or with one modifier such as `@theme inline` — the shape Tailwind v4 prescribes when theme values reference other variables). Later blocks of either kind, and anything nested under `@media` / `@layer` / `@supports`, are not scanned. A cssVar declared in BOTH blocks is rewritten only in `:root` (`:root`-first-match-wins). A file with neither block returns a 409 — see §11 for the Tailwind `@theme` worked example, and [Apply pipeline reference](/docs/reference/apply-pipeline) for the full response-field contract, including the `unknownOutsideBlockCssVars` diagnostic for a cssVar that's declared somewhere in the file but outside both scanned blocks.
+
 ### 3.3 Security model
 
 The bin is **dev-only** and is built with three independent guards:
@@ -273,7 +275,7 @@ export const myPanelConfig: PanelConfig = {
   storagePrefix: 'myapp-design-token-panel',
   consoleNamespace: 'myapp',
   modalClassPrefix: 'myapp-design-token-panel-modal',
-  schemaId: 'myapp-design-tokens/v1',
+  schemaId: 'myapp-design-tokens/v1', // display-only label — see §5.3; import/export always use the canonical SCHEMA_V1/V2/V3
   exportFilenameBase: 'myapp-design-tokens',
   tabs: [spacingTab /*, fontTab, sizeTab, colorTab, ... */],
 };
@@ -477,7 +479,7 @@ export interface PanelInstanceHandle {
 | `storagePrefix`      | `string`                       | Base for every derived `localStorage` key. Also the instance id. See §9.                                                                                               |
 | `consoleNamespace`   | `string`                       | Global object the package installs `showDesignPanel` / `hideDesignPanel` / `toggleDesignPanel` on (e.g. `consoleNamespace: 'myapp'` → `window.myapp.showDesignPanel`). |
 | `modalClassPrefix`   | `string`                       | BEM root class for every modal the panel owns (export, import, apply). Emits `${prefix}__overlay`, `${prefix}__panel`, etc.                                            |
-| `schemaId`           | `string`                       | `$schema` value emitted into export JSON and required on import.                                                                                                       |
+| `schemaId`           | `string`                       | **Display-only** label surfaced in the Import modal's copy. `serialize()` always emits the canonical `SCHEMA_V2`/`SCHEMA_V3` and `deserialize()` always validates against the canonical `SCHEMA_V1`/`V2`/`V3` — neither reads this field. See §14's migration recipe. |
 | `exportFilenameBase` | `string`                       | Default download filename base — exports save as `${exportFilenameBase}.json`.                                                                                         |
 | `toggleEvent`        | `string` (optional)            | Window-event name that toggles THIS instance. Defaults to `toggle-${storagePrefix}` for non-default instances; the default instance keeps `toggle-design-token-panel`. |
 | `tabs`               | `readonly TabConfig[]`         | **Required.** Tab strip data — each entry is a tab with one or more `TierConfig` objects. The color tab (id `'color'`) additionally requires `colorExtras`. See §6.    |
@@ -533,7 +535,7 @@ const handle = configurePanel({
 The Astro entry point (`<DesignTokenPanelHost>`) handles mounting for you. Internally:
 
 - The console API (`showDesignPanel` etc.) is **always installed eagerly**, even when the panel module has not loaded — calling them is what triggers the lazy import for cold-start users.
-- The panel module is **dynamically imported on first need**: when the user calls a console helper, OR when first-paint detects any of four gate signals in `localStorage` — `${storagePrefix}:visible` set to `1`, persisted overrides (`${storagePrefix}-state-v3`), the owner-autoload flag (`${storagePrefix}:autoload` set to `1`), or the element-path inspector enabled.
+- The panel module is **dynamically imported on first need**: when the user calls a console helper, OR when first-paint detects any of four gate signals in `localStorage` — `${storagePrefix}:visible` set to `1`, persisted overrides (checked as `${storagePrefix}-state-v4`, falling back to `-state-v3` / `-state-v2` for pre-migration sessions — see §9), the owner-autoload flag (`${storagePrefix}:autoload` set to `1`), or the element-path inspector enabled.
 - This gating keeps the panel out of the initial JS bundle for first-time visitors while still re-applying overrides on hard reload for users who have tweaked things. **General visitors** (none of the four signals set) pay zero bundle cost.
 
 For a Vite-only / non-Astro host, mount it yourself by importing the adapter module after `configurePanel(...)`. See §11.5.
@@ -693,6 +695,13 @@ export interface ColorClusterExtras {
     colorScheme: string;
     colorMode: false | { defaultMode: 'light' | 'dark'; lightScheme: string; darkScheme: string };
   };
+  /**
+   * Optional config-time override map for a semantic tier's derived defaults,
+   * keyed by semantic item id. This is the ONLY way to ship a `{ literal }` /
+   * `{ literal: { light, dark } }` / `{ ref }` default — `TierItem.default`
+   * itself stays a plain string, consumed generically by every tab kind.
+   */
+  semanticDefaults?: Record<string, SemanticValue>;
 }
 
 export interface ColorScheme {
@@ -711,6 +720,30 @@ export interface ColorScheme {
 > `ColorClusterDataConfig`. `ColorClusterConfig` is the public-facing alias
 > re-exported from the package root:
 > `import type { ColorClusterConfig } from '@takazudo/zdtp'`.
+
+**`colorExtras.semanticDefaults`.** Without this field, a semantic tier's default `SemanticValue` is DERIVED from each `TierItem.default` string (palette-index lookup, or a literal fallback). `semanticDefaults` lets a host override that derivation for specific semantic item ids and ship a default the plain-string `default` field can't express — most usefully a per-mode literal that resolves via CSS `light-dark()`:
+
+```ts
+const colorTab: TabConfig = {
+  id: 'color',
+  label: 'Color',
+  tiers: [paletteTier, semanticTier],
+  colorExtras: {
+    id: 'myapp',
+    baseRoles: { background: '--myapp-bg', foreground: '--myapp-fg' },
+    baseDefaults: {},
+    defaultShikiTheme: 'dracula',
+    colorSchemes: { /* ... */ },
+    panelSettings: { colorScheme: 'Default', colorMode: false },
+    semanticDefaults: {
+      // Keyed by the semantic TierItem's `id`, not its cssVar.
+      danger: { literal: { light: '#b91c1c', dark: '#f87171' } },
+    },
+  },
+};
+```
+
+A key present in `semanticDefaults` wins verbatim over the derived value; keys not listed fall back to the normal derivation from `TierItem.default`.
 
 ### 7.2 JSON-serializable constraint (important)
 
@@ -888,9 +921,10 @@ Behaviour notes:
 
 | Logical key | Derivation                  | Purpose                                                                                                                 |
 | ----------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `state-v3`  | `${storagePrefix}-state-v3` | Current unified envelope (color + spacing + typography + size + panelPosition + generic `tabs` map). Added in abstract-token-tiers epic. |
-| `state-v2`  | `${storagePrefix}-state-v2` | Legacy pre-v3 format. Migrated into `state-v3` on first load, then deleted.                                             |
-| `state-v1`  | `${storagePrefix}-state`    | Legacy pre-v2 flat-state format (Color-only). Migrated into `state-v3` on first load, then deleted.                    |
+| `state-v4`  | `${storagePrefix}-state-v4` | Current unified envelope. Same top-level slices as v3, EXCEPT `color` (and optional `secondary`) is an identity-keyed map — one `ColorTweakState` slot per active-scheme identity — instead of a single flat object. See "Per-scheme color persistence" below. |
+| `state-v3`  | `${storagePrefix}-state-v3` | Legacy pre-v4 format (flat, single-slot `color`). Migrated into `state-v4` on first load; the v3 key itself is left in place (not deleted) so a downgrade can still read it. |
+| `state-v2`  | `${storagePrefix}-state-v2` | Legacy pre-v3 format. Migrated into `state-v3` (and from there into `state-v4`) on first load, then deleted.            |
+| `state-v1`  | `${storagePrefix}-state`    | Legacy pre-v2 flat-state format (Color-only). Migrated into `state-v3` (and from there into `state-v4`) on first load, then deleted. |
 | `open`      | `${storagePrefix}-open`     | Mirror of the panel's `open` boolean (synchronous mount-time read — preserves user intent across reloads, fixes #1549). |
 | `position`  | `${storagePrefix}-position` | Drag position `{ top, right }` so the panel reappears where the user left it.                                           |
 | `visible`   | `${storagePrefix}:visible`  | Adapter-level visibility-intent flag, owned by the lazy-load gate.                                                      |
@@ -899,6 +933,7 @@ Behaviour notes:
 For example, with `storagePrefix: 'myapp-design-token-panel'`:
 
 ```
+myapp-design-token-panel-state-v4
 myapp-design-token-panel-state-v3
 myapp-design-token-panel-state-v2
 myapp-design-token-panel-state
@@ -912,18 +947,40 @@ myapp-design-token-panel:autoload
 
 The `visible` and `autoload` keys use a literal `:` separator, not `-`. Every other derived key uses `-`. The colon form is intentional for these adapter-level flags — see [`PORTABLE-CONTRACT.md`](./PORTABLE-CONTRACT.md) §2 for the historical reason. Don't try to "normalize" them; the unit tests assert this specific shape.
 
-### Scheme changes and the global tweak model
+### Per-scheme color persistence (v4 envelope)
 
-Tweak state is **global**, not scheme-scoped: the keys above are derived only from `storagePrefix` and carry no color-scheme name. A single envelope holds every slice — the `color` slice stores **absolute** colors (palette + role/semantic indices resolved against that palette), while the `spacing` / `typography` / `size` slices store token overrides that are independent of the active scheme.
+Color/secondary tweaks are persisted **per (scheme, mode) identity**, inside the single `state-v4` storage key — there is no per-scheme key fan-out. The identity is exactly the active scheme name the panel already resolves for seeding (`getActiveSchemeName`): a cluster without `colorMode` resolves one constant identity (one slot, effectively the old global behavior); a cluster with light/dark `colorMode` resolves a distinct identity per side, so a light tweak and a dark tweak occupy independent slots in the same envelope:
 
-Because the stored palette is absolute, it cannot simply be re-applied on top of a different scheme. So when the host dispatches a `color-scheme-changed` event (e.g. a light/dark toggle), the panel **re-seeds its live color state from the newly active scheme**: it removes only the inline `:root` color-cluster overrides it had applied (`clearAppliedColorStyles`) and re-initializes only the live `color` (and optional `secondary`) slices from that scheme. Palette tweaks are therefore intentionally **not** carried across a scheme switch — the panel adopts the new scheme's palette rather than layering the previous absolute colors on top of it. This is the panel's deliberate global model; it does **not** persist a separate color slice per scheme.
+```jsonc
+{
+  "color": {
+    "Default Light": { "palette": [...], "semanticMappings": {...}, /* ... */ },
+    "Default Dark":  { "palette": [...], "semanticMappings": {...}, /* ... */ }
+  },
+  "secondary": { "Default Light": { /* ... */ } }, // optional, same identity keying
+  "spacing": { /* ... */ },
+  "typography": { /* ... */ },
+  "size": { /* ... */ }
+}
+```
 
-The `spacing` / `typography` / `size` slices are scheme-INDEPENDENT, so they are deliberately left untouched by the re-seed: their live values and their applied inline `:root` vars survive a scheme toggle (the scheme-change handler narrows the clear to the color cluster(s) for exactly this reason — see #347). A full panel reset (Reset / Apply) still wipes every slice via `clearAppliedStyles`.
+The `spacing` / `typography` / `size` (and generic `tabs`) slices stay **global and unkeyed**, exactly as in v1–v3 — a scheme/mode toggle never touches them.
+
+When the host dispatches a `color-scheme-changed` event (e.g. a light/dark toggle), the panel re-seeds its live color state for the newly active identity:
+
+- If that identity already has a persisted slot, the slot's stored `color` (and `secondary`) state is loaded and re-applied — a per-scheme tweak now **survives** a round-trip through another scheme and back.
+- If the identity has no slot yet (never tweaked under this scheme before), the panel cold-seeds from that scheme's defaults instead — the pre-existing "adopt the new scheme's palette" behavior for a scheme you haven't touched.
+
+Editing color under scheme A only ever overwrites scheme A's slot (`writeMergedV4` merge-saves: it reads the existing envelope, replaces just the active identity's slot, and preserves every other identity's slot untouched) — it never mutates scheme B's stored state. A full panel reset (Reset / Apply) still wipes every slice via `clearAppliedStyles`.
+
+**Migration.** On first load with no `state-v4` key, the legacy v1/v2/v3 chain runs unchanged (v3 wins over v2 over v1, exactly as before) and the resulting single flat `TweakState` is filed into `state-v4` under whichever identity is active at that moment — every subsequent load reads `state-v4` first. The legacy v3/v2/v1 keys are left in place by the v4 migration step (only the v1→v2→v3 chain deletes as it goes), so a host that needs to downgrade can still read them.
+
+**Host-owned `color-scheme` is never touched.** A host that manages its own `<html style="color-scheme">` (e.g. a site-level light/dark toggle) has that inline style tracked separately from the panel's own writes; the panel's mount/clear paths only ever remove a `color-scheme` value that the panel itself applied, never a host-owned one (#501).
 
 Two consequences worth knowing as a host integrator:
 
-- The event handler does not rewrite the `localStorage` envelope — it only re-seeds the live (in-memory) state and clears the inline overrides. The persisted envelope remains until the next in-panel edit re-persists the (re-seeded) state, or a full reload re-applies it via `loadPersistedState`.
-- Do **not** manually delete the tweak keys on a scheme toggle. The panel already re-seeds on the event, and a manual envelope delete would also discard the scheme-independent `spacing` / `typography` / `size` overrides.
+- The event handler does not rewrite `localStorage` directly beyond what's described above — it reads/re-seeds the live (in-memory) state and clears the inline overrides for the previous identity. The next in-panel edit (or a full reload via `loadPersistedState`) is what persists the current identity's state.
+- Do **not** manually delete the tweak keys on a scheme toggle. The panel already handles per-identity persistence on the event, and a manual envelope delete would also discard the scheme-independent `spacing` / `typography` / `size` overrides.
 
 ---
 
@@ -1032,6 +1089,39 @@ Because the fallback ladder is host-CSS-var-driven, a brand-new consumer can mou
 
 The CSS variables the panel **writes to** (the `cssVar` field on each `TokenDef`, the cluster's `paletteCssVarTemplate`, base-role names, and semantic CSS names) are entirely consumer-controlled. The package never reads those consumer CSS variables; it only writes through `setProperty` on `:root`.
 
+### 11.2 Apply-to-disk for a Tailwind v4 `@theme` block
+
+The section above is about the panel's OWN chrome — it never needed Tailwind. This section is about the opposite direction: a Tailwind v4 **consumer** whose design tokens live inside `@theme { ... }` (so Tailwind can generate utility classes from them) rather than `:root`.
+
+The apply-to-disk rewriter (§3.2) scans the first top-level `:root` block AND the first top-level `@theme` block, so a Tailwind v4 token file like this applies out of the box (issue #496's repro):
+
+```css
+:root {
+  --palette-cool-700: oklch(0.21 0.03 264);
+}
+
+@theme {
+  --spacing-md: 0.75rem;
+  --color-ink: light-dark(var(--palette-cool-700), var(--palette-cool-50));
+}
+```
+
+POSTing overrides for `--palette-cool-700` (in `:root`), `--spacing-md`, or `--color-ink` (both in `@theme`) all land in `changed` — no indirection required. A file that is 100% `@theme` (no `:root` block at all) also applies cleanly; only a file with **neither** block 409s.
+
+**Legacy workaround (no longer required).** Before the rewriter learned to scan `@theme`, the only way to make a Tailwind-`@theme` token editable was to declare the editable value in `:root` and have `@theme` alias it via `var(...)`:
+
+```css
+:root {
+  --spacing-md-editable: 0.75rem; /* apply pipeline writes here */
+}
+
+@theme {
+  --spacing-md: var(--spacing-md-editable); /* Tailwind reads the alias */
+}
+```
+
+This indirection is no longer necessary — declare the token directly inside `@theme` as shown above. The alias pattern still works (it's just two ordinary top-level blocks), so existing consumers are not required to migrate.
+
 ---
 
 ## 12. Bundler notes
@@ -1111,6 +1201,17 @@ This recipe walks through wiring the panel into a project that does not currentl
 2. **Define your `PanelConfig` literals.**
 
    Pick identifiers for `storagePrefix`, `consoleNamespace`, `modalClassPrefix`, `schemaId`, `exportFilenameBase`, and your palette CSS-var family (`paletteCssVarTemplate`). Pull these into a host-side config file (e.g. `src/lib/panel-config.ts`). If you are migrating from an internal snapshot fork and want to preserve users' saved state across the migration, keep the legacy values verbatim; otherwise pick fresh, neutral identifiers (e.g. `myapp-design-token-panel`).
+
+   `schemaId` is display-only (see §5.3) — it never gates import/export, so picking any string here is safe. If you want the Import modal's copy to name the ACTUAL schema your export/import round-trips through, import `SCHEMA_V1` / `SCHEMA_V2` / `SCHEMA_V3` from the package root and set `schemaId` to one of them instead of an arbitrary string:
+
+   ```ts
+   import { SCHEMA_V3 } from '@takazudo/zdtp';
+
+   export const myPanelConfig: PanelConfig = {
+     // ...
+     schemaId: SCHEMA_V3, // truthful label — matches what serialize()/deserialize() actually validate against
+   };
+   ```
 
 3. **Author your token manifest in the host project.**
 

@@ -213,6 +213,76 @@ describe('createApplyHandler', () => {
     expect(secondaryCss).toContain('--secondary-pa8: #aa3333;');
   });
 
+  // ----- @theme block support (Tailwind v4, #507 / repro of #496) -----------
+
+  it('rewrites vars across a mixed :root + @theme file (Tailwind v4, #496 repro)', async () => {
+    // #496: a Tailwind v4 tokens file keeps a palette var in :root and the
+    // design tokens in @theme. Before #507 the @theme vars landed in
+    // unknownCssVars; now all three must be rewritten in one pass. All three
+    // share one routing prefix so they form a single group (one file write).
+    const rel = 'tokens/tailwind.css';
+    const absPath = join(tmpRepo, rel);
+    const mixed =
+      ':root {\n  --tw-palette-cool-700: oklch(0.21 0.03 264);\n}\n\n' +
+      '@theme {\n' +
+      '  --tw-spacing-md: 0.75rem;\n' +
+      '  --tw-color-ink: light-dark(var(--tw-palette-cool-700), #fff);\n' +
+      '}\n';
+    await fs.writeFile(absPath, mixed, 'utf-8');
+
+    const twHandler = createApplyHandler({
+      rootDir: tmpRepo,
+      writeRoot: resolve(tmpRepo, 'tokens'),
+      routing: { tw: rel },
+    });
+
+    const res = await twHandler(
+      makeRequest({
+        tokens: {
+          '--tw-palette-cool-700': 'oklch(0.30 0.03 264)',
+          '--tw-spacing-md': '1rem',
+          '--tw-color-ink': '#000',
+        },
+      }),
+    );
+    expect(res.status).toBe(200);
+    const json = await readResponseJson(res);
+    expect(json.ok).toBe(true);
+    expect(json.unknownCssVars).toEqual([]);
+
+    const changed = (json.updated as Array<{ changed: string[] }>).flatMap((u) => u.changed);
+    expect(changed).toContain('--tw-palette-cool-700'); // lives in :root
+    expect(changed).toContain('--tw-spacing-md'); // lives in @theme
+    expect(changed).toContain('--tw-color-ink'); // lives in @theme
+
+    const after = await fs.readFile(absPath, 'utf-8');
+    expect(after).toContain('--tw-palette-cool-700: oklch(0.30 0.03 264);');
+    expect(after).toContain('--tw-spacing-md: 1rem;');
+    expect(after).toContain('--tw-color-ink: #000;');
+  });
+
+  it('no longer 409s for a @theme-only file (no :root) and writes the change', async () => {
+    const rel = 'tokens/theme-only.css';
+    const absPath = join(tmpRepo, rel);
+    const themeOnly = '@theme {\n  --tw-spacing-md: 0.75rem;\n}\n';
+    await fs.writeFile(absPath, themeOnly, 'utf-8');
+
+    const twHandler = createApplyHandler({
+      rootDir: tmpRepo,
+      writeRoot: resolve(tmpRepo, 'tokens'),
+      routing: { tw: rel },
+    });
+
+    const res = await twHandler(makeRequest({ tokens: { '--tw-spacing-md': '1rem' } }));
+    expect(res.status).toBe(200);
+    const json = await readResponseJson(res);
+    expect(json.ok).toBe(true);
+    expect(json.unknownCssVars).toEqual([]);
+
+    const after = await fs.readFile(absPath, 'utf-8');
+    expect(after).toContain('--tw-spacing-md: 1rem;');
+  });
+
   // ----- idempotent re-apply -------------------------------------------------
 
   it('reports values already matching the file as unchanged (idempotent re-apply)', async () => {
@@ -314,5 +384,185 @@ describe('createApplyHandler', () => {
     expect(afterSecondaryCss).toBe(SECONDARY_TOKENS_CSS_FIXTURE);
 
     expect(renameCount).toBeGreaterThan(0);
+  });
+
+  // ----- unknownOutsideBlock diagnostic (#508) -------------------------------
+
+  describe('unknownOutsideBlock diagnostic (#508)', () => {
+    it('flags a var declared only in a nested @media { :root { ... } } block', async () => {
+      const rel = 'tokens/nested.css';
+      const absPath = join(tmpRepo, rel);
+      const src =
+        ':root {\n  --zd-p5: #111111;\n}\n' +
+        '@media (prefers-color-scheme: dark) {\n  :root {\n    --zd-nested-only: #222222;\n  }\n}\n';
+      await fs.writeFile(absPath, src, 'utf-8');
+
+      const nestedHandler = createApplyHandler({
+        rootDir: tmpRepo,
+        writeRoot: resolve(tmpRepo, 'tokens'),
+        routing: { zd: rel },
+      });
+
+      const res = await nestedHandler(
+        makeRequest({ tokens: { '--zd-nested-only': '#333333' } }),
+      );
+      expect(res.status).toBe(200);
+      const json = await readResponseJson(res);
+      expect(json.ok).toBe(true);
+      expect(json.unknownCssVars).toEqual(['--zd-nested-only']);
+      expect(json.unknownOutsideBlockCssVars).toEqual(['--zd-nested-only']);
+      expect(json.updated).toEqual([
+        expect.objectContaining({
+          file: rel,
+          unknown: ['--zd-nested-only'],
+          unknownOutsideBlock: ['--zd-nested-only'],
+        }),
+      ]);
+
+      // File must remain unchanged — nothing was rewritable.
+      const after = await fs.readFile(absPath, 'utf-8');
+      expect(after).toBe(src);
+    });
+
+    it('flags a var declared only in a grouped :root, html {} selector', async () => {
+      const rel = 'tokens/grouped.css';
+      const absPath = join(tmpRepo, rel);
+      // A genuine top-level :root block keeps the file 409-free; the target
+      // var lives ONLY in the trailing grouped selector, which the scanner
+      // does not recognize as a `:root` block.
+      const src =
+        ':root {\n  --zd-p5: #111111;\n}\n:root, html {\n  --zd-grouped-only: #444444;\n}\n';
+      await fs.writeFile(absPath, src, 'utf-8');
+
+      const groupedHandler = createApplyHandler({
+        rootDir: tmpRepo,
+        writeRoot: resolve(tmpRepo, 'tokens'),
+        routing: { zd: rel },
+      });
+
+      const res = await groupedHandler(
+        makeRequest({ tokens: { '--zd-grouped-only': '#555555' } }),
+      );
+      expect(res.status).toBe(200);
+      const json = await readResponseJson(res);
+      expect(json.ok).toBe(true);
+      expect(json.unknownCssVars).toEqual(['--zd-grouped-only']);
+      expect(json.unknownOutsideBlockCssVars).toEqual(['--zd-grouped-only']);
+    });
+
+    it('flags a var declared only in a SECOND top-level :root or @theme block', async () => {
+      const rel = 'tokens/second-block.css';
+      const absPath = join(tmpRepo, rel);
+      const src =
+        ':root {\n  --zd-p5: #111111;\n}\n' +
+        ':root {\n  --zd-second-root-only: #222222;\n}\n' +
+        '@theme {\n  --zd-first-theme: 1rem;\n}\n' +
+        '@theme {\n  --zd-second-theme-only: 2rem;\n}\n';
+      await fs.writeFile(absPath, src, 'utf-8');
+
+      const secondBlockHandler = createApplyHandler({
+        rootDir: tmpRepo,
+        writeRoot: resolve(tmpRepo, 'tokens'),
+        routing: { zd: rel },
+      });
+
+      const res = await secondBlockHandler(
+        makeRequest({
+          tokens: {
+            '--zd-second-root-only': '#333333',
+            '--zd-second-theme-only': '3rem',
+          },
+        }),
+      );
+      expect(res.status).toBe(200);
+      const json = await readResponseJson(res);
+      expect(json.ok).toBe(true);
+      expect(json.unknownCssVars).toEqual(
+        expect.arrayContaining(['--zd-second-root-only', '--zd-second-theme-only']),
+      );
+      expect(json.unknownOutsideBlockCssVars).toEqual(
+        expect.arrayContaining(['--zd-second-root-only', '--zd-second-theme-only']),
+      );
+    });
+
+    it('leaves a truly-absent var as plain unknown (not in unknownOutsideBlockCssVars)', async () => {
+      const res = await handler(makeRequest({ tokens: { '--zd-totally-missing': '#666666' } }));
+      expect(res.status).toBe(200);
+      const json = await readResponseJson(res);
+      expect(json.ok).toBe(true);
+      expect(json.unknownCssVars).toEqual(['--zd-totally-missing']);
+      expect(json.unknownOutsideBlockCssVars).toEqual([]);
+      expect(json.updated).toEqual([
+        expect.objectContaining({
+          unknown: ['--zd-totally-missing'],
+          unknownOutsideBlock: [],
+        }),
+      ]);
+    });
+
+    // #510 confirm — #507 x #508 cross-cutting: the #496-repro test above
+    // (line ~218) proves the @theme dual-block scan rewrites every reachable
+    // var, but its fixture has none declared outside the scanned blocks. The
+    // nested/grouped/second-block tests above prove the outside-block
+    // diagnostic in isolation, but never against the #496 repro shape itself.
+    // Neither proves both hold AT ONCE against the same file.
+    it('against the #496 repro shape: rewritable vars land in changed AND an outside-block var gets the distinct diagnostic', async () => {
+      const rel = 'tokens/tailwind-mixed-outside.css';
+      const absPath = join(tmpRepo, rel);
+      const src =
+        ':root {\n  --tw-palette-cool-700: oklch(0.21 0.03 264);\n}\n\n' +
+        '@theme {\n' +
+        '  --tw-spacing-md: 0.75rem;\n' +
+        '  --tw-color-ink: light-dark(var(--tw-palette-cool-700), #fff);\n' +
+        '}\n\n' +
+        // Declared in the file, but not inside a top-level :root/@theme block
+        // the scanner reaches — the #496/#508 "outside scanned block" case.
+        '@media (prefers-color-scheme: dark) {\n' +
+        '  :root {\n' +
+        '    --tw-nested-only: #222222;\n' +
+        '  }\n' +
+        '}\n';
+      await fs.writeFile(absPath, src, 'utf-8');
+
+      const twHandler = createApplyHandler({
+        rootDir: tmpRepo,
+        writeRoot: resolve(tmpRepo, 'tokens'),
+        routing: { tw: rel },
+      });
+
+      const res = await twHandler(
+        makeRequest({
+          tokens: {
+            '--tw-palette-cool-700': 'oklch(0.30 0.03 264)',
+            '--tw-spacing-md': '1rem',
+            '--tw-color-ink': '#000',
+            '--tw-nested-only': '#333333',
+          },
+        }),
+      );
+      expect(res.status).toBe(200);
+      const json = await readResponseJson(res);
+      expect(json.ok).toBe(true);
+
+      const changed = (json.updated as Array<{ changed: string[] }>).flatMap((u) => u.changed);
+      expect(changed).toEqual(
+        expect.arrayContaining([
+          '--tw-palette-cool-700',
+          '--tw-spacing-md',
+          '--tw-color-ink',
+        ]),
+      );
+      expect(changed).not.toContain('--tw-nested-only');
+
+      expect(json.unknownCssVars).toEqual(['--tw-nested-only']);
+      expect(json.unknownOutsideBlockCssVars).toEqual(['--tw-nested-only']);
+
+      const after = await fs.readFile(absPath, 'utf-8');
+      expect(after).toContain('--tw-palette-cool-700: oklch(0.30 0.03 264);');
+      expect(after).toContain('--tw-spacing-md: 1rem;');
+      expect(after).toContain('--tw-color-ink: #000;');
+      // The unreachable var is left exactly as authored.
+      expect(after).toContain('--tw-nested-only: #222222;');
+    });
   });
 });
