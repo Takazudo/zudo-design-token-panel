@@ -1,6 +1,6 @@
 {
   "name": "@takazudo/zdtp",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "description": "Dynamic design-token tweak panel — host-config-driven, framework-agnostic Preact UI.",
   "private": false,
   "license": "MIT",
