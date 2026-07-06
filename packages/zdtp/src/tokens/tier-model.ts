@@ -156,6 +156,18 @@ export interface ColorClusterExtras {
   defaultShikiTheme: string;
   colorSchemes: Record<string, ColorScheme>;
   panelSettings: ClusterPanelSettings;
+  /**
+   * Config-time override map for a semantic tier's derived defaults (#499).
+   * Keyed by semantic item id; when a key is present here,
+   * `resolveColorClusterFromTab` uses its `SemanticValue` verbatim instead of
+   * running `deriveSemanticValue` on the item's plain-string `default` — this
+   * is the only way a host can ship a `{ literal: { light, dark } }` (or
+   * `{ ref }`) config-time default, since `TierItem.default` itself stays a
+   * plain string (Option B from #499, chosen over widening `TierItem.default`
+   * to `SemanticValue` — that field is consumed generically as a plain string
+   * by every tab kind, not just Color).
+   */
+  semanticDefaults?: Record<string, SemanticValue>;
 }
 
 // ---------------------------------------------------------------------------

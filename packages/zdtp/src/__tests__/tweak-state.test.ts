@@ -700,6 +700,75 @@ describe('#488 — initColorFromSchemeData no-ops for a palette-less (paletteSiz
 });
 
 // ---------------------------------------------------------------------------
+// #499 — initColorFromSchemeData preserves a non-numeric semanticDefaults
+// entry verbatim when the scheme leaves that key un-overridden, instead of
+// collapsing it to palette index 0.
+// ---------------------------------------------------------------------------
+
+describe('#499 — initColorFromSchemeData seeds un-overridden non-numeric defaults verbatim', () => {
+  // A normal palette-backed cluster (paletteSize > 0) so this exercises the
+  // seed loop itself, not the paletteSize:0 no-op path covered by #488 above.
+  const clusterWithMixedDefaults: ColorClusterDataConfig = {
+    id: 'mixed-defaults-fixture',
+    label: 'Mixed Defaults',
+    paletteSize: 16,
+    baseRoles: {},
+    paletteCssVarTemplate: '--zd-palette-{n}',
+    semanticDefaults: {
+      danger: { literal: { light: 'oklch(.505 .170 25)', dark: 'oklch(.655 .170 25)' } },
+      accent: { ref: { tier: 'ramp', item: 'p5' } },
+      muted: { literal: '#888888' },
+      success: 3,
+    },
+    semanticCssNames: {
+      danger: '--zd-danger',
+      accent: '--zd-accent',
+      muted: '--zd-muted',
+      success: '--zd-success',
+    },
+    baseDefaults: {},
+    defaultShikiTheme: 'dracula',
+    colorSchemes: {},
+    panelSettings: { colorScheme: '', colorMode: false },
+  };
+
+  // Overrides only `success` — `danger` / `accent` / `muted` are left
+  // un-overridden, so the seed loop must fall through to the cluster default
+  // for those three instead of coercing them to index 0.
+  const partialScheme: ColorScheme = {
+    background: 0,
+    foreground: 15,
+    cursor: 6,
+    selectionBg: 0,
+    selectionFg: 15,
+    palette: palette16 as ColorScheme['palette'],
+    semantic: { success: 7 },
+  };
+
+  it('seeds a per-mode { literal: { light, dark } } default verbatim', () => {
+    const state = initColorFromSchemeData(partialScheme, clusterWithMixedDefaults);
+    expect(state.semanticMappings.danger).toEqual({
+      literal: { light: 'oklch(.505 .170 25)', dark: 'oklch(.655 .170 25)' },
+    });
+  });
+
+  it('seeds a { ref } default verbatim', () => {
+    const state = initColorFromSchemeData(partialScheme, clusterWithMixedDefaults);
+    expect(state.semanticMappings.accent).toEqual({ ref: { tier: 'ramp', item: 'p5' } });
+  });
+
+  it('seeds a plain { literal: string } default verbatim', () => {
+    const state = initColorFromSchemeData(partialScheme, clusterWithMixedDefaults);
+    expect(state.semanticMappings.muted).toEqual({ literal: '#888888' });
+  });
+
+  it('still honors the scheme override for a key the scheme does provide', () => {
+    const state = initColorFromSchemeData(partialScheme, clusterWithMixedDefaults);
+    expect(state.semanticMappings.success).toBe(7);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // #462 (S5) — persist-envelope round-trip for every SemanticValue variant
 // ---------------------------------------------------------------------------
 
