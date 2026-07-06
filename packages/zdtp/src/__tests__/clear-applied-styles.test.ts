@@ -17,8 +17,33 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { __resetPanelConfigForTests } from '../config/panel-config';
-import { installFixturePanelConfig } from './_test-helpers';
-import { clearAppliedColorStyles, clearAppliedStyles } from '../state/tweak-state';
+import { FIXTURE_CLUSTER, installFixturePanelConfig } from './_test-helpers';
+import {
+  applyFullState,
+  clearAppliedColorStyles,
+  clearAppliedStyles,
+  initColorFromScheme,
+  type ColorTweakState,
+} from '../state/tweak-state';
+
+/**
+ * A full TweakState whose primary cluster carries a per-mode `light-dark()`
+ * literal, so the real apply path (`applyFullState`) writes
+ * `color-scheme: light dark` to :root AND records this instance as its owner
+ * (#501). Poking `document.documentElement.style.setProperty('color-scheme',…)`
+ * directly is NOT equivalent post-#501: the clear paths only remove a
+ * `color-scheme` the panel itself wrote.
+ */
+function perModeFullState() {
+  const color: ColorTweakState = {
+    ...initColorFromScheme(FIXTURE_CLUSTER),
+    semanticMappings: {
+      ...initColorFromScheme(FIXTURE_CLUSTER).semanticMappings,
+      accent: { literal: { light: '#ff0000', dark: '#990000' } },
+    },
+  };
+  return { color, spacing: {}, typography: {}, size: {} } as const;
+}
 
 // CSS vars written by FIXTURE_CLUSTER / FIXTURE_TABS (see _test-helpers.ts).
 const COLOR_VARS = ['--fixture-p0', '--fixture-p6', '--fixture-semantic-accent'];
@@ -77,20 +102,26 @@ describe('clearAppliedColorStyles / clearAppliedStyles split (#347)', () => {
 
   // #474 (S13) — a per-mode literal semantic value (#472) causes the apply
   // path to set `color-scheme: light dark` on :root. Neither clear path
-  // removed it before this fix, leaving it lingering after a Reset even
+  // removed it before that fix, leaving it lingering after a Reset even
   // though every color var it was serving had just been wiped.
-  it('clearAppliedColorStyles also removes a lingering color-scheme left by a per-mode literal apply', () => {
-    seedAppliedVars();
-    document.documentElement.style.setProperty('color-scheme', 'light dark');
+  //
+  // #501 — these two now apply through the REAL path (`applyFullState` with a
+  // per-mode-literal state) so the panel actually owns the `color-scheme` it
+  // later clears. A directly-poked `color-scheme` the panel never wrote is
+  // deliberately left alone by the clear paths now (see
+  // issue-501-color-scheme-ownership.test.ts).
+  it('clearAppliedColorStyles removes a panel-written color-scheme left by a per-mode literal apply', () => {
+    applyFullState(perModeFullState());
+    expect(readVar('color-scheme')).toBe('light dark');
 
     clearAppliedColorStyles();
 
     expect(readVar('color-scheme')).toBe('');
   });
 
-  it('clearAppliedStyles also removes a lingering color-scheme left by a per-mode literal apply', () => {
-    seedAppliedVars();
-    document.documentElement.style.setProperty('color-scheme', 'light dark');
+  it('clearAppliedStyles removes a panel-written color-scheme left by a per-mode literal apply', () => {
+    applyFullState(perModeFullState());
+    expect(readVar('color-scheme')).toBe('light dark');
 
     clearAppliedStyles();
 

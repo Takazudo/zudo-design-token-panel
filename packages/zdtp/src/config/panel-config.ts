@@ -364,6 +364,27 @@ interface InstanceRegistry {
    * second+ instances would never bind their per-instance toggle events.
    */
   lifecycleHooks: PanelLifecycleHooks;
+  /**
+   * #501 — set of instance `storagePrefix`es whose panel wrote the standard
+   * `color-scheme` inline property to its apply target (`document.documentElement`
+   * or its sink's root). Presence = "this panel instance owns the current inline
+   * `color-scheme` and may clear it"; absence = "host-owned or never written —
+   * leave it alone".
+   *
+   * MUST live on this shared globalThis-keyed registry, NOT:
+   *  - a `PanelInstanceRecord` field — `destroy()` deletes the record, but the
+   *    inline `color-scheme` survives destroy (`unmountInstance` never clears
+   *    it), so ownership knowledge must outlive the record across
+   *    `destroy()` → `configurePanel()` → remount.
+   *  - a module-scope `Map` in `tweak-state.ts` — Vite multi-entry builds can
+   *    duplicate that module (see the `REGISTRY_SYMBOL` note above / epic #108);
+   *    each copy would track ownership independently and the apply-writing
+   *    copy's flag would be invisible to the clear-reading copy.
+   *
+   * Keyed per-instance (#357): instance A's per-mode-literal write must not
+   * authorize instance B's clear, and vice versa.
+   */
+  colorSchemeOwners: Set<string>;
 }
 
 function getRegistry(): InstanceRegistry {
@@ -376,6 +397,7 @@ function getRegistry(): InstanceRegistry {
       pendingColorPresets: null,
       pendingPostConfigureHooks: [],
       lifecycleHooks: {},
+      colorSchemeOwners: new Set(),
     };
     g[REGISTRY_SYMBOL] = registry;
   }
@@ -659,6 +681,57 @@ export function __resetPanelConfigForTests(): void {
   registry.defaultPrefix = null;
   registry.pendingColorPresets = null;
   registry.pendingPostConfigureHooks.length = 0;
+  colorSchemeOwnerSet().clear();
+}
+
+// ---------------------------------------------------------------------------
+// #501 — color-scheme ownership (registry-level metadata)
+// ---------------------------------------------------------------------------
+//
+// The panel writes the standard `color-scheme` inline property to its apply
+// target only when a per-mode `light-dark()` literal is present. It must only
+// ever CLEAR a `color-scheme` it itself wrote — never a host-owned
+// `<html style="color-scheme">` (issue #501). These three helpers are the
+// storage plumbing the apply/clear paths in `tweak-state.ts` use to record and
+// query that ownership, keyed by instance `storagePrefix`.
+
+/**
+ * Lazily-initialised accessor for the ownership set. The lazy guard upgrades a
+ * registry created by an older module copy (pre-#501, no `colorSchemeOwners`
+ * field) in place rather than dereferencing `undefined` — important under the
+ * Vite multi-entry duplication the `REGISTRY_SYMBOL` note describes.
+ */
+function colorSchemeOwnerSet(): Set<string> {
+  const registry = getRegistry() as InstanceRegistry & { colorSchemeOwners?: Set<string> };
+  if (!registry.colorSchemeOwners) registry.colorSchemeOwners = new Set();
+  return registry.colorSchemeOwners;
+}
+
+/**
+ * #501 — record that the panel instance keyed by `prefix` wrote `color-scheme`
+ * to its apply target. Called from the apply path (`applyColorState`) wherever
+ * a per-mode literal forces `color-scheme: light dark`.
+ */
+export function markColorSchemeWritten(prefix: string): void {
+  colorSchemeOwnerSet().add(prefix);
+}
+
+/**
+ * #501 — drop the color-scheme ownership claim for `prefix`. Called from the
+ * clear paths after a panel-written `color-scheme` is removed (or found to have
+ * been overwritten by the host — the stale-ownership case).
+ */
+export function clearColorSchemeOwnership(prefix: string): void {
+  colorSchemeOwnerSet().delete(prefix);
+}
+
+/**
+ * #501 — true when the panel instance keyed by `prefix` is the recorded writer
+ * of the current inline `color-scheme`. Gates the clear paths so the panel
+ * never removes a `color-scheme` it did not write.
+ */
+export function ownsColorScheme(prefix: string): boolean {
+  return colorSchemeOwnerSet().has(prefix);
 }
 
 // Re-export cluster resolution helpers so callers can import from panel-config
