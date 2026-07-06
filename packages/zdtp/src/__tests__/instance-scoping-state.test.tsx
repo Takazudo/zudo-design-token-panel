@@ -36,7 +36,9 @@ import {
   configurePanel,
   getPanelConfig,
   panelRootId,
-  storageKey_stateV3,
+  // Per-scheme persistence (#500/#509) — savePersistedState now writes the v4
+  // per-scheme envelope, so these instance-scoping probes read the v4 key.
+  storageKey_stateV4,
   type ApplySink,
   type PanelConfig,
 } from '../config/panel-config';
@@ -205,8 +207,8 @@ describe('state path — usePersist scoped to a non-default instance writes to A
     expect(setPropertySpy).not.toHaveBeenCalled();
 
     // Persisted to A's storage key, NOT B's.
-    expect(localStorage.getItem(storageKey_stateV3(cfgA))).not.toBeNull();
-    expect(localStorage.getItem(storageKey_stateV3(cfgB))).toBeNull();
+    expect(localStorage.getItem(storageKey_stateV4(cfgA))).not.toBeNull();
+    expect(localStorage.getItem(storageKey_stateV4(cfgB))).toBeNull();
 
     render(null, host);
   });
@@ -228,8 +230,8 @@ describe('state path — apply/save/load/clear scoped to A do not touch B', () =
     savePersistedState(stateA, undefined, cfgA);
 
     // A's key written, B's key absent.
-    expect(localStorage.getItem(storageKey_stateV3(cfgA))).not.toBeNull();
-    expect(localStorage.getItem(storageKey_stateV3(cfgB))).toBeNull();
+    expect(localStorage.getItem(storageKey_stateV4(cfgA))).not.toBeNull();
+    expect(localStorage.getItem(storageKey_stateV4(cfgB))).toBeNull();
 
     // Load scoped to A reads A's key back; load scoped to B finds nothing.
     const loadedA = loadPersistedState(
@@ -281,16 +283,16 @@ describe('state path — reset (handleResetAll) on a non-default instance clears
     // Seed BOTH instances' persisted state.
     savePersistedState(fullTweakStateFor(cfgA), undefined, cfgA);
     savePersistedState(fullTweakStateFor(cfgB), undefined, cfgB);
-    expect(localStorage.getItem(storageKey_stateV3(cfgA))).not.toBeNull();
-    expect(localStorage.getItem(storageKey_stateV3(cfgB))).not.toBeNull();
+    expect(localStorage.getItem(storageKey_stateV4(cfgA))).not.toBeNull();
+    expect(localStorage.getItem(storageKey_stateV4(cfgB))).not.toBeNull();
 
     // Reset A only (the two calls panel.tsx's handleResetAll makes, scoped to A).
     clearPersistedState(undefined, cfgA);
     clearAppliedStyles(undefined, cfgA);
 
     // A's storage gone; B's storage survives.
-    expect(localStorage.getItem(storageKey_stateV3(cfgA))).toBeNull();
-    expect(localStorage.getItem(storageKey_stateV3(cfgB))).not.toBeNull();
+    expect(localStorage.getItem(storageKey_stateV4(cfgA))).toBeNull();
+    expect(localStorage.getItem(storageKey_stateV4(cfgB))).not.toBeNull();
 
     // A's sink received the clear; B's sink never did.
     expect(flatClearNames(sinkA.clearCalls).length).toBeGreaterThan(0);

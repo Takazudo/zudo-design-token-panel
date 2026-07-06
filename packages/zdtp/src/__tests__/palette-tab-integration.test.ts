@@ -24,7 +24,7 @@ import {
 } from '../config/panel-config';
 import {
   applyFullState,
-  getStorageKeyV3,
+  getStorageKeyV4,
   loadPersistedState,
   savePersistedState,
   type TweakState,
@@ -221,8 +221,8 @@ describe('palette-tab integration — persist + reload rehydrates overrides', ()
 
     savePersistedState(state, storage, PALETTE_PANEL_CONFIG);
 
-    // Verify the storage key was written
-    const storageKey = getStorageKeyV3(PALETTE_PANEL_CONFIG);
+    // Verify the storage key was written (v4 per-scheme envelope, #500/#509).
+    const storageKey = getStorageKeyV4(PALETTE_PANEL_CONFIG);
     const raw = storage.getItem(storageKey);
     expect(raw).not.toBeNull();
 

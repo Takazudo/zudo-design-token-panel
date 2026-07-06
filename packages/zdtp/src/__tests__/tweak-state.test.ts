@@ -1,13 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP,
+  clearPersistedState,
   getActivePrimaryCluster,
   getStorageKeyV1,
   getStorageKeyV2,
   getStorageKeyV3,
+  getStorageKeyV4,
+  hasActiveColorSlot,
   initColorFromSchemeData,
   initSecondaryDefaults,
   type ColorTweakState,
+  type PersistedEnvelopeV4,
   type StorageLike,
   type TweakState,
   loadPersistedState,
@@ -84,12 +88,14 @@ let warnSpy: ReturnType<typeof vi.spyOn>;
 let STORAGE_KEY_V1 = '';
 let STORAGE_KEY_V2 = '';
 let STORAGE_KEY_V3 = '';
+let STORAGE_KEY_V4 = '';
 
 beforeEach(() => {
   installFixturePanelConfig();
   STORAGE_KEY_V1 = getStorageKeyV1();
   STORAGE_KEY_V2 = getStorageKeyV2();
   STORAGE_KEY_V3 = getStorageKeyV3();
+  STORAGE_KEY_V4 = getStorageKeyV4();
   warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
 
@@ -1109,5 +1115,168 @@ describe('loadPersistedState — secondary slice validated against the SECONDARY
 
     expect(result).not.toBeNull();
     expect(result!.secondary!.semanticMappings.highlight).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// #500/#509 (S7) — v4 per-scheme envelope: selection, merge-save preservation,
+// and v3/v2/v1 → v4 migration. The fixture cluster has `colorMode: false`, so
+// `getActiveColorIdentity` resolves the CONSTANT identity `''` (one slot) in the
+// node environment; the distinct-identity flow is covered by the jsdom
+// scheme-change tests. Contract d ("a v3 envelope migrates losslessly for the
+// identity active at load; subsequent loads prefer v4") is pinned here.
+// ---------------------------------------------------------------------------
+
+describe('loadPersistedState / savePersistedState — v4 per-scheme envelope (#500/#509)', () => {
+  // colorMode:false fixture → getActiveSchemeName === '' (see FIXTURE_CLUSTER).
+  const IDENTITY = '';
+
+  it('contract d: migrates a v3 envelope into v4 under the active identity; subsequent loads prefer v4', () => {
+    const v3 = { color: makeV1({ shikiTheme: 'v3-theme' }), spacing: { 'hsp-md': '20px' } };
+    const storage = makeStorage({ [STORAGE_KEY_V3]: JSON.stringify(v3) });
+
+    const result = loadPersistedState(storage, defaults);
+    expect(result).not.toBeNull();
+    expect(result!.color.shikiTheme).toBe('v3-theme');
+    expect(result!.color.background).toBe(1);
+    expect(result!.spacing).toEqual({ 'hsp-md': '20px' });
+
+    // v4 written, keyed by the active identity; the color slice is filed under
+    // the identity, the non-color slices stay global.
+    const v4 = JSON.parse(storage.entries[STORAGE_KEY_V4]) as PersistedEnvelopeV4;
+    expect(v4.color[IDENTITY].shikiTheme).toBe('v3-theme');
+    expect(v4.color[IDENTITY].background).toBe(1);
+    expect(v4.spacing).toEqual({ 'hsp-md': '20px' });
+    // Legacy v3 is left in place (legacy chain unchanged); v4 wins on next load.
+    expect(storage.entries[STORAGE_KEY_V3]).toBeDefined();
+
+    // Subsequent loads PREFER v4 — mutate the stale v3 and prove it's ignored.
+    storage.entries[STORAGE_KEY_V3] = JSON.stringify({
+      color: makeV1({ shikiTheme: 'STALE-V3' }),
+    });
+    const second = loadPersistedState(storage, defaults);
+    expect(second!.color.shikiTheme).toBe('v3-theme');
+  });
+
+  it('contract d (chain sanity): a v2 envelope migrates into v4', () => {
+    const v2 = { color: makeV1({ shikiTheme: 'v2-theme' }) };
+    const storage = makeStorage({ [STORAGE_KEY_V2]: JSON.stringify(v2) });
+
+    const result = loadPersistedState(storage, defaults);
+    expect(result!.color.shikiTheme).toBe('v2-theme');
+    const v4 = JSON.parse(storage.entries[STORAGE_KEY_V4]) as PersistedEnvelopeV4;
+    expect(v4.color[IDENTITY].shikiTheme).toBe('v2-theme');
+  });
+
+  it('contract d (chain sanity): a v1 envelope migrates into v4', () => {
+    const v1 = makeV1({ shikiTheme: 'v1-theme' });
+    const storage = makeStorage({ [STORAGE_KEY_V1]: JSON.stringify(v1) });
+
+    const result = loadPersistedState(storage, defaults);
+    expect(result!.color.shikiTheme).toBe('v1-theme');
+    const v4 = JSON.parse(storage.entries[STORAGE_KEY_V4]) as PersistedEnvelopeV4;
+    expect(v4.color[IDENTITY].shikiTheme).toBe('v1-theme');
+  });
+
+  it('v4 wins over v3 when both are present — no re-migration', () => {
+    const v4Env: PersistedEnvelopeV4 = {
+      color: { [IDENTITY]: makeV1({ shikiTheme: 'v4-theme' }) },
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+    const v3 = { color: makeV1({ shikiTheme: 'v3-theme' }) };
+    const storage = makeStorage({
+      [STORAGE_KEY_V4]: JSON.stringify(v4Env),
+      [STORAGE_KEY_V3]: JSON.stringify(v3),
+    });
+
+    const result = loadPersistedState(storage, defaults);
+    expect(result!.color.shikiTheme).toBe('v4-theme');
+    // v3 untouched — the v4 branch short-circuits before the legacy chain.
+    expect(JSON.parse(storage.entries[STORAGE_KEY_V3]).color.shikiTheme).toBe('v3-theme');
+  });
+
+  it('merge-save overwrites the active slot while preserving an inactive identity\'s slot', () => {
+    const storage = makeStorage({
+      [STORAGE_KEY_V4]: JSON.stringify({
+        color: { 'other-scheme': makeV1({ shikiTheme: 'other' }) },
+        spacing: {},
+        typography: {},
+        size: {},
+      }),
+    });
+    const state: TweakState = {
+      color: { ...defaults, shikiTheme: 'active' },
+      spacing: {},
+      typography: {},
+      size: {},
+    };
+
+    savePersistedState(state, storage);
+
+    const v4 = JSON.parse(storage.entries[STORAGE_KEY_V4]) as PersistedEnvelopeV4;
+    // Inactive identity's slot is preserved …
+    expect(v4.color['other-scheme'].shikiTheme).toBe('other');
+    // … and the active identity's slot is written.
+    expect(v4.color[IDENTITY].shikiTheme).toBe('active');
+  });
+
+  it('round-trips a fresh save through v4 (save then load selects the active slot)', () => {
+    const storage = makeStorage();
+    const state: TweakState = {
+      color: { ...defaults, background: 3 },
+      spacing: { 'hsp-md': '5px' },
+      typography: {},
+      size: {},
+    };
+
+    savePersistedState(state, storage);
+    // Only the v4 key is written — no legacy keys on a fresh save.
+    expect(storage.entries[STORAGE_KEY_V4]).toBeDefined();
+    expect(storage.entries[STORAGE_KEY_V3]).toBeUndefined();
+
+    const result = loadPersistedState(storage, defaults);
+    expect(result!.color.background).toBe(3);
+    expect(result!.spacing).toEqual({ 'hsp-md': '5px' });
+  });
+
+  it('hasActiveColorSlot reflects whether the active identity has a persisted slot', () => {
+    const storage = makeStorage();
+    expect(hasActiveColorSlot(undefined, undefined, storage)).toBe(false);
+
+    savePersistedState({ color: defaults, spacing: {}, typography: {}, size: {} }, storage);
+    expect(hasActiveColorSlot(undefined, undefined, storage)).toBe(true);
+  });
+
+  it('a malformed v4 blob falls through to the legacy chain and is re-migrated', () => {
+    const v3 = { color: makeV1({ shikiTheme: 'from-v3' }) };
+    const storage = makeStorage({
+      [STORAGE_KEY_V4]: '{not valid json',
+      [STORAGE_KEY_V3]: JSON.stringify(v3),
+    });
+
+    const result = loadPersistedState(storage, defaults);
+    expect(result!.color.shikiTheme).toBe('from-v3');
+    expect(warnSpy).toHaveBeenCalled();
+    // The malformed v4 is overwritten by the migration.
+    const v4 = JSON.parse(storage.entries[STORAGE_KEY_V4]) as PersistedEnvelopeV4;
+    expect(v4.color[IDENTITY].shikiTheme).toBe('from-v3');
+  });
+
+  it('clearPersistedState removes the v4 key alongside the legacy keys', () => {
+    const storage = makeStorage({
+      [STORAGE_KEY_V4]: '{"color":{}}',
+      [STORAGE_KEY_V3]: '{}',
+      [STORAGE_KEY_V2]: '{}',
+      [STORAGE_KEY_V1]: '{}',
+    });
+
+    clearPersistedState(storage);
+
+    expect(storage.entries[STORAGE_KEY_V4]).toBeUndefined();
+    expect(storage.entries[STORAGE_KEY_V3]).toBeUndefined();
+    expect(storage.entries[STORAGE_KEY_V2]).toBeUndefined();
+    expect(storage.entries[STORAGE_KEY_V1]).toBeUndefined();
   });
 });

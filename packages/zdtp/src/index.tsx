@@ -54,6 +54,7 @@ import {
   getOpenKey,
   getStorageKeyV2,
   getStorageKeyV3,
+  getStorageKeyV4,
   loadPersistedState,
 } from './state/tweak-state';
 import {
@@ -141,11 +142,16 @@ function wasVisible(cfg: PanelConfig): boolean {
 function hasPersistedOverrides(cfg: PanelConfig): boolean {
   if (typeof window === 'undefined') return false;
   try {
-    // Check v3 key first; fall back to v2 for sessions that have not yet
-    // migrated (migration runs on first loadPersistedState call, i.e. once
-    // the panel mounts — before mount we may only see the v2 key).
+    // Check v4 (per-scheme, #500/#509) first, then v3, then v2 for sessions
+    // that have not yet migrated (migration runs on first loadPersistedState
+    // call, i.e. once the panel mounts — before mount we may only see an older
+    // key). Any of them being present means the user has persisted overrides.
     const ls = window.localStorage;
-    return ls.getItem(getStorageKeyV3(cfg)) !== null || ls.getItem(getStorageKeyV2(cfg)) !== null;
+    return (
+      ls.getItem(getStorageKeyV4(cfg)) !== null ||
+      ls.getItem(getStorageKeyV3(cfg)) !== null ||
+      ls.getItem(getStorageKeyV2(cfg)) !== null
+    );
   } catch {
     return false;
   }
