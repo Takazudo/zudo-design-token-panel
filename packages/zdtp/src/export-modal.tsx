@@ -1,8 +1,10 @@
 /**
  * Export modal — renders the current `TweakState` as a design-tokens JSON
- * document (default schema: `zudo-design-tokens/v1`; configurable via
- * `panelConfig.schemaId`) with a diff-only toggle and a copy-to-clipboard
- * button.
+ * document (`serialize()` emits `SCHEMA_V2` or opportunistically `SCHEMA_V3`
+ * — see `./utils/design-token-serde`; `panelConfig.schemaId` is not read
+ * here or anywhere else in this package — it is a UI-label-only field on
+ * `PanelConfig` that hosts may read via `getDesignTokenSchema()`, #498) with
+ * a diff-only toggle and a copy-to-clipboard button.
  *
  * Ported verbatim from zudo-doc's
  * `src/components/design-token-tweak/export-modal.tsx`. Intentional deltas:

@@ -91,7 +91,12 @@ export interface PanelConfig {
   consoleNamespace: string;
   /** BEM-style prefix used by every modal in the panel (export / import / apply). */
   modalClassPrefix: string;
-  /** `$schema` value emitted into export JSON and required on import. */
+  /**
+   * Schema label surfaced in the Import modal's hint/placeholder/error text
+   * and the Export modal's copy. NOT enforced: `serialize()`/`deserialize()`
+   * always use the fixed `SCHEMA_V1`/`SCHEMA_V2`/`SCHEMA_V3` constants
+   * regardless of this value (#498).
+   */
   schemaId: string;
   /** Default filename base — exports save as `${exportFilenameBase}.json`. */
   exportFilenameBase: string;

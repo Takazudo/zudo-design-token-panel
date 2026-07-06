@@ -1,16 +1,16 @@
 /**
- * Import modal — accepts a pasted design-tokens JSON document (default schema:
- * `zudo-design-tokens/v1`; configurable via `panelConfig.schemaId`) and lifts
- * it into a `TweakState` via `deserialize()`. Validation and unknown-token
- * reporting are delegated to serde; this component only renders status
- * feedback and routes the parsed state up to the shell.
+ * Import modal — accepts a pasted design-tokens JSON document and lifts it
+ * into a `TweakState` via `deserialize()`. `deserialize()` validates the
+ * `$schema` key against the fixed `SCHEMA_V1`/`SCHEMA_V2`/`SCHEMA_V3`
+ * constants exported by the serde — `panelConfig.schemaId` plays no part in
+ * that validation; it is a UI-label-only field (#498). This component does
+ * not read `schemaId` at all; the hint/placeholder/error copy below names
+ * the actual accepted constants directly.
  *
  * Ported verbatim from zudo-doc's
  * `src/components/design-token-tweak/import-modal.tsx`. Intentional deltas:
- *  - `deserialize` / `DesignTokenSchemaError` / `getDesignTokenSchema` come
- *    from this package's serde (`./utils/design-token-serde`); the schema
- *    id is read at render time from `panelConfig.schemaId` instead of
- *    being a module-level constant.
+ *  - `deserialize` / `DesignTokenSchemaError` come from this package's serde
+ *    (`./utils/design-token-serde`).
  *  - State types import from this package's state envelope.
  *  - Modal class names are derived from `panelConfig.modalClassPrefix` via
  *    `modalClass(...)` so a single config swap re-themes every dialog.
@@ -26,7 +26,9 @@ import { useDialogBackdropClose } from './controls/use-dialog-backdrop-close';
 import {
   DesignTokenSchemaError,
   deserialize,
-  getDesignTokenSchema,
+  SCHEMA_V1,
+  SCHEMA_V2,
+  SCHEMA_V3,
 } from './utils/design-token-serde';
 import type { ColorTweakState, TweakState } from './state/tweak-state';
 import { getPanelConfig, modalClass, type PanelConfig } from './config/panel-config';
@@ -61,10 +63,6 @@ export function ImportModal({ onClose, onLoad, colorDefaults, instanceConfig }: 
   // Resolve THIS instance's config (multi-instance, #357); a prop-less test
   // render falls back to the active default instance.
   const cfg = instanceConfig ?? getPanelConfig();
-  // Thread THIS instance's config (multi-instance, #361) so the schema label
-  // surfaced in the UI comes from the mounted panel's OWN schema id, not the
-  // active default instance's.
-  const expectedSchema = getDesignTokenSchema(cfg);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -191,12 +189,12 @@ export function ImportModal({ onClose, onLoad, colorDefaults, instanceConfig }: 
         if (err.reason === 'schema-mismatch') {
           setNote({
             kind: 'error',
-            text: `Schema mismatch: this panel expects "${expectedSchema}".`,
+            text: `Schema mismatch: expected "${SCHEMA_V3}", "${SCHEMA_V2}", or "${SCHEMA_V1}".`,
           });
         } else if (err.reason === 'schema-missing') {
           setNote({
             kind: 'error',
-            text: `Missing "$schema" key. Expected "${expectedSchema}".`,
+            text: `Missing "$schema" key. Expected "${SCHEMA_V3}", "${SCHEMA_V2}", or "${SCHEMA_V1}".`,
           });
         } else {
           setNote({ kind: 'error', text: 'Input is not a JSON object.' });
@@ -228,8 +226,11 @@ export function ImportModal({ onClose, onLoad, colorDefaults, instanceConfig }: 
       </div>
 
       <div className={modalClass(cfg, '__hint')}>
-        Paste a <span className="tokenpanel-code">{expectedSchema}</span> JSON blob. Unknown tokens
-        are ignored; schema mismatch aborts the load.
+        Paste a design-tokens JSON blob. Accepts{' '}
+        <span className="tokenpanel-code">{SCHEMA_V3}</span> or{' '}
+        <span className="tokenpanel-code">{SCHEMA_V2}</span> (current export format), plus the
+        legacy <span className="tokenpanel-code">{SCHEMA_V1}</span>. Unknown tokens are ignored;
+        schema mismatch aborts the load.
       </div>
 
       <textarea
@@ -238,7 +239,7 @@ export function ImportModal({ onClose, onLoad, colorDefaults, instanceConfig }: 
         onChange={(e) => setText(e.currentTarget.value)}
         spellcheck={false}
         className={modalClass(cfg, '__textarea')}
-        placeholder={`{ "$schema": "${expectedSchema}", ... }`}
+        placeholder={`{ "$schema": "${SCHEMA_V2}", ... }`}
       />
 
       {note && (
