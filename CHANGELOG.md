@@ -94,7 +94,7 @@ tab/tier model for all token categories, including color. Key highlights:
 
 ## [0.1.0] — 2026-04-27
 
-Initial OSS port of the design-token panel + bin server from `zmodular`
+Initial OSS port of the design-token panel + bin server from [Takazudo Modular](https://takazudomodular.com/)
 into a standalone monorepo. Tracked under
 [super-epic issue #2](https://github.com/Takazudo/zudo-design-token-panel/issues/2).
 

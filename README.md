@@ -5,7 +5,7 @@ A live design-token tweak panel and companion bin server for modern web framewor
 ## What it is
 
 `zudo-design-token-panel` is the OSS port of the design-token panel + bin
-server originally developed inside `zmodular`. Released here as a standalone
+server originally developed inside [Takazudo Modular](https://takazudomodular.com/). Released here as a standalone
 public package, it lets designers and developers adjust design tokens (CSS
 custom properties) live in the browser, while the bin process round-trips
 those tweaks back into the source CSS files on disk.
@@ -20,7 +20,7 @@ doc page for live demos and source links.
 
 **In-progress port.** Epic 1 (repo + doc-site bootstrap) has landed; the panel
 package, the bin server, and the example apps are still being ported from
-`zmodular`. Track progress on the
+[Takazudo Modular](https://takazudomodular.com/). Track progress on the
 [super-epic issue #2](https://github.com/Takazudo/zudo-design-token-panel/issues/2).
 The remaining work is split across Epics 2 through 7.
 
