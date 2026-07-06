@@ -65,6 +65,9 @@ import {
   storageKey_stateV1,
   storageKey_stateV2,
   storageKey_stateV3,
+  markColorSchemeWritten,
+  clearColorSchemeOwnership,
+  ownsColorScheme,
   type ApplySink,
   type PanelConfig,
 } from '../config/panel-config';
@@ -1234,6 +1237,15 @@ function hasPerModeLiteralSemantic(
  * for an unresolvable ref rather than throwing, and this function skips a
  * `null` (leaving the token at its stylesheet default) rather than painting
  * a fallback color.
+ *
+ * `ownerPrefix` (#501) is the instance `storagePrefix` this apply belongs to.
+ * When supplied AND this cluster emits a per-mode `light-dark()` literal (so
+ * `color-scheme: light dark` is written to the apply target — either
+ * `document.documentElement` or the sink's root), the instance is recorded as
+ * the owner of that inline `color-scheme` so the clear paths can later remove
+ * it without ever wiping a host-owned `<html style="color-scheme">`. Omitting
+ * it (direct callers with no instance context, e.g. some tests) skips the
+ * bookkeeping only — the actual CSS write is unchanged.
  */
 export function applyColorState(
   state: ColorTweakState,
@@ -1241,6 +1253,7 @@ export function applyColorState(
   sink?: ApplySink,
   currentTab?: TabConfig,
   tabs?: readonly TabConfig[],
+  ownerPrefix?: string,
 ) {
   const len = state.palette.length;
   if (sink) {
@@ -1275,6 +1288,9 @@ export function applyColorState(
     // `document.documentElement`.
     if (hasPerModeLiteralSemantic(state, cluster)) {
       pairs.push([COLOR_SCHEME_PROP, COLOR_SCHEME_LIGHT_DARK]);
+      // #501 — record that THIS instance wrote `color-scheme` to its sink root
+      // so the clear paths can scope removal to panel-written values.
+      if (ownerPrefix) markColorSchemeWritten(ownerPrefix);
     }
     try {
       sink.apply(pairs);
@@ -1318,6 +1334,10 @@ export function applyColorState(
   // plain CSS property, not a custom property, but `setProperty` handles both.
   if (hasPerModeLiteralSemantic(state, cluster)) {
     setCssVar(COLOR_SCHEME_PROP, COLOR_SCHEME_LIGHT_DARK);
+    // #501 — record that THIS instance wrote `color-scheme` to
+    // document.documentElement so the clear paths can scope removal to
+    // panel-written values (never the host-owned `<html style="color-scheme">`).
+    if (ownerPrefix) markColorSchemeWritten(ownerPrefix);
   }
 }
 
@@ -1404,7 +1424,7 @@ export function applyFullState(state: TweakState, cfg?: PanelConfig) {
   // the grouped Palette tab).
   const colorTab = config.tabs.find((t) => t.id === 'color');
   const primaryCluster = getActivePrimaryCluster(config);
-  applyColorState(state.color, primaryCluster, sink, colorTab, config.tabs);
+  applyColorState(state.color, primaryCluster, sink, colorTab, config.tabs, config.storagePrefix);
   // Apply spacing / typography / size from tabs[] (required field post-Wave-5).
   applyTabOverridesFlat(config.tabs, 'spacing', state.spacing, sink);
   applyTabOverridesFlat(config.tabs, 'font', state.typography, sink);
@@ -1415,22 +1435,37 @@ export function applyFullState(state: TweakState, cfg?: PanelConfig) {
   let secondaryHasPerMode = false;
   if (secondaryCluster && state.secondary) {
     const secondaryColorTab = config.tabs.find((t) => t.id === 'color-secondary');
-    applyColorState(state.secondary, secondaryCluster, sink, secondaryColorTab, config.tabs);
+    applyColorState(
+      state.secondary,
+      secondaryCluster,
+      sink,
+      secondaryColorTab,
+      config.tabs,
+      config.storagePrefix,
+    );
     secondaryHasPerMode = hasPerModeLiteralSemantic(state.secondary, secondaryCluster);
   }
   // #482 D3 — clear the aggregate `color-scheme` exactly when NEITHER
   // cluster needs it. When either does, that cluster's own `applyColorState`
   // call already set it above (see the docstring above for why this can't
   // be a per-cluster decision).
+  //
+  // #501 — but scope the removal to a color-scheme THIS instance actually
+  // wrote. `reapplyPersistedOverrides()` (src/index.tsx) calls `applyFullState`
+  // on every adapter init and `astro:page-load`; a non-per-mode host that owns
+  // `<html style="color-scheme">` must not have it wiped by that reapply.
   if (!hasPerModeLiteralSemantic(state.color, primaryCluster) && !secondaryHasPerMode) {
     if (sink) {
+      // Sink targets (shadow root / iframe) are panel-owned, so the sink clear
+      // stays unconditional — but drop the ownership claim to keep it honest.
       try {
         sink.clear([COLOR_SCHEME_PROP]);
       } catch (err) {
         console.warn('[design-token-panel] applySink.clear threw; falling back silently.', err);
       }
+      clearColorSchemeOwnership(config.storagePrefix);
     } else {
-      document.documentElement.style.removeProperty(COLOR_SCHEME_PROP);
+      clearOwnedColorSchemeFromDocument(config.storagePrefix);
     }
   }
   // Apply generic tab overrides (v3 envelope tabs field).
@@ -1603,6 +1638,34 @@ function nonColorTabVarNames(cfg: PanelConfig): string[] {
 }
 
 /**
+ * #501 — remove a panel-written `color-scheme` from `document.documentElement`,
+ * but ONLY when the instance keyed by `prefix` is its recorded writer AND the
+ * current inline value is still the panel-written `light dark` sentinel.
+ *
+ * Three cases:
+ *  - We don't own it (host owns `<html style="color-scheme">`, or the panel
+ *    never wrote one): leave the value untouched — the #501 fix.
+ *  - We own it and the value is still `light dark`: remove it and drop the
+ *    ownership claim.
+ *  - We own it but the value was overwritten by the host after we wrote it (the
+ *    stale-ownership case — e.g. the host re-asserted `color-scheme` between a
+ *    `destroy()` and a remount): leave the host's value, but drop the now-stale
+ *    ownership claim so the next apply re-establishes it cleanly.
+ *
+ * Palette / base-role / semantic var removals are always panel-written, so they
+ * stay unconditional at the call sites; only the standard `color-scheme`
+ * property (which the host may legitimately own) is gated here.
+ */
+function clearOwnedColorSchemeFromDocument(prefix: string): void {
+  if (!ownsColorScheme(prefix)) return;
+  const root = document.documentElement;
+  if (root.style.getPropertyValue(COLOR_SCHEME_PROP) === COLOR_SCHEME_LIGHT_DARK) {
+    root.style.removeProperty(COLOR_SCHEME_PROP);
+  }
+  clearColorSchemeOwnership(prefix);
+}
+
+/**
  * Strip the inline CSS variables written by the color cluster(s) only —
  * palette slots, base roles, and semantic vars. Spacing / typography / size
  * tab vars are left untouched.
@@ -1625,6 +1688,11 @@ function nonColorTabVarNames(cfg: PanelConfig): string[] {
  * historical `(clusters, sink)` call shape (e.g. the scheme-change path before
  * #357, and existing tests) is unchanged. Omitting all three preserves the
  * single-panel default-instance behaviour.
+ *
+ * The color-scheme removal on the `document.documentElement` path is gated on
+ * this instance owning the inline value (#501) — see
+ * `clearOwnedColorSchemeFromDocument`. The owner is `cfg.storagePrefix` when a
+ * `cfg` is given, else the default instance's prefix.
  */
 export function clearAppliedColorStyles(
   clusters?: readonly ColorClusterDataConfig[],
@@ -1633,12 +1701,14 @@ export function clearAppliedColorStyles(
 ) {
   const resolvedClusters = clusters ?? defaultClusterWipeSet(cfg);
   const resolvedSink = sink ?? cfg?.applySink;
-  return clearAppliedColorStylesImpl(resolvedClusters, resolvedSink);
+  const ownerPrefix = (cfg ?? getPanelConfig()).storagePrefix;
+  return clearAppliedColorStylesImpl(resolvedClusters, resolvedSink, ownerPrefix);
 }
 
 function clearAppliedColorStylesImpl(
   clusters: readonly ColorClusterDataConfig[],
   sink?: ApplySink,
+  ownerPrefix?: string,
 ) {
   if (sink) {
     const names: string[] = [];
@@ -1649,7 +1719,8 @@ function clearAppliedColorStylesImpl(
     // sink's target root (whenever any per-mode literal was present, #472).
     // Clear it alongside the palette/base-role/semantic vars so a Reset
     // doesn't leave it lingering. Harmless when it was never set — clearing
-    // an absent property is a no-op.
+    // an absent property is a no-op. Sink targets are panel-owned, so this
+    // stays unconditional; we just drop the ownership claim to keep it honest.
     if (clusters.length > 0) names.push(COLOR_SCHEME_PROP);
     if (names.length > 0) {
       try {
@@ -1658,6 +1729,7 @@ function clearAppliedColorStylesImpl(
         console.warn('[design-token-panel] applySink.clear threw; falling back silently.', err);
       }
     }
+    if (ownerPrefix && clusters.length > 0) clearColorSchemeOwnership(ownerPrefix);
     return;
   }
   const root = document.documentElement;
@@ -1672,9 +1744,11 @@ function clearAppliedColorStylesImpl(
       root.style.removeProperty(cssName);
     }
   }
-  // #474 — same rationale as the sink branch above: remove a lingering
-  // `color-scheme: light dark` set by the apply path for a per-mode literal.
-  if (clusters.length > 0) root.style.removeProperty(COLOR_SCHEME_PROP);
+  // #474 — remove a lingering `color-scheme: light dark` set by the apply path
+  // for a per-mode literal, but #501-gated: only when THIS instance wrote it
+  // and the host hasn't overwritten it since (never wipe a host-owned
+  // `<html style="color-scheme">`).
+  if (clusters.length > 0 && ownerPrefix) clearOwnedColorSchemeFromDocument(ownerPrefix);
 }
 
 /**
@@ -1721,12 +1795,16 @@ export function clearAppliedStyles(
         console.warn('[design-token-panel] applySink.clear threw; falling back silently.', err);
       }
     }
+    // #501 — sink targets are panel-owned; the clear above is unconditional, so
+    // just drop the ownership claim to keep it honest.
+    if (resolvedClusters.length > 0) clearColorSchemeOwnership(config.storagePrefix);
     return;
   }
 
   // Default path — write/remove directly on document.documentElement.
-  // Color cluster vars (palette / base roles / semantic).
-  clearAppliedColorStyles(resolvedClusters);
+  // Color cluster vars (palette / base roles / semantic). Pass `config` so the
+  // color-scheme removal is #501-gated on THIS instance's ownership.
+  clearAppliedColorStyles(resolvedClusters, undefined, config);
   // Tabs — clear all cssVars for items in spacing/font/size tabs so the
   // stylesheet defaults take effect again.
   const root = document.documentElement;
