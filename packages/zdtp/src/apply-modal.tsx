@@ -78,15 +78,19 @@ export interface ApplyModalProps {
 /**
  * Shape of a per-file result block in the API response.
  *
- * The handler ships `{ ok, updated: [...], unknownCssVars, unchangedCssVars }`;
- * each `updated` entry matches this shape. We keep every field optional so a
- * response that predates the latest handler still renders cleanly.
+ * The handler ships `{ ok, updated: [...], unknownCssVars, unchangedCssVars,
+ * unknownOutsideBlockCssVars }`; each `updated` entry matches this shape. We
+ * keep every field optional so a response that predates the latest handler
+ * still renders cleanly.
  */
 interface ApplyFileResult {
   file?: string;
   changed?: string[];
   unknown?: string[];
   unchanged?: string[];
+  /** Subset of `unknown` (#508) — declared in the file but outside the
+   *  scanned `:root`/`@theme` blocks, so nothing was rewritten. */
+  unknownOutsideBlock?: string[];
 }
 
 interface ApplyResponse {
@@ -94,6 +98,8 @@ interface ApplyResponse {
   updated?: ApplyFileResult[];
   unknownCssVars?: string[];
   unchangedCssVars?: string[];
+  /** Aggregate across all files (#508) — see `ApplyFileResult.unknownOutsideBlock`. */
+  unknownOutsideBlockCssVars?: string[];
   error?: string;
   /** Legacy / fallback shape: results keyed by file name. */
   [file: string]: unknown;
@@ -151,6 +157,7 @@ function normalizeResults(response: ApplyResponse): ApplyFileResult[] {
       key === 'ok' ||
       key === 'unknownCssVars' ||
       key === 'unchangedCssVars' ||
+      key === 'unknownOutsideBlockCssVars' ||
       key === 'error' ||
       value === null ||
       typeof value !== 'object'
@@ -161,8 +168,11 @@ function normalizeResults(response: ApplyResponse): ApplyFileResult[] {
     const changed = Array.isArray(entry.changed) ? (entry.changed as string[]) : undefined;
     const unknown = Array.isArray(entry.unknown) ? (entry.unknown as string[]) : undefined;
     const unchanged = Array.isArray(entry.unchanged) ? (entry.unchanged as string[]) : undefined;
-    if (changed || unknown || unchanged) {
-      out.push({ file: key, changed, unknown, unchanged });
+    const unknownOutsideBlock = Array.isArray(entry.unknownOutsideBlock)
+      ? (entry.unknownOutsideBlock as string[])
+      : undefined;
+    if (changed || unknown || unchanged || unknownOutsideBlock) {
+      out.push({ file: key, changed, unknown, unchanged, unknownOutsideBlock });
     }
   }
   return out;
@@ -551,6 +561,11 @@ export function ApplyModal(props: ApplyModalProps) {
                 ? (phase.response.unknownCssVars as string[])
                 : []
             }
+            unknownOutsideBlockCssVars={
+              Array.isArray(phase.response.unknownOutsideBlockCssVars)
+                ? (phase.response.unknownOutsideBlockCssVars as string[])
+                : []
+            }
             previewJson={phase.previewJson}
             copyLabel={copyLabel}
             onCopy={() => handleCopyPreApplyState(phase.previewJson)}
@@ -770,6 +785,7 @@ interface SuccessBodyProps {
   cls: ModalClasses;
   results: ApplyFileResult[];
   unknownCssVars: string[];
+  unknownOutsideBlockCssVars: string[];
   previewJson: string;
   copyLabel: CopyLabel;
   onCopy: () => void;
@@ -779,6 +795,7 @@ function SuccessBody({
   cls,
   results,
   unknownCssVars,
+  unknownOutsideBlockCssVars,
   previewJson,
   copyLabel,
   onCopy,
@@ -800,6 +817,11 @@ function SuccessBody({
             <FileResultList cls={cls} label="changed" values={result.changed} />
             <FileResultList cls={cls} label="unknown" values={result.unknown} />
             <FileResultList cls={cls} label="unchanged" values={result.unchanged} />
+            <FileResultList
+              cls={cls}
+              label="found outside scanned block (not rewritable)"
+              values={result.unknownOutsideBlock}
+            />
           </div>
         ))
       )}
@@ -808,6 +830,17 @@ function SuccessBody({
         <div className={cls.statusWarning}>
           {unknownCssVars.length} cssVar{unknownCssVars.length === 1 ? '' : 's'} did not match any
           entry in the target file(s). Check the list above.
+        </div>
+      )}
+
+      {unknownOutsideBlockCssVars.length > 0 && (
+        <div className={cls.statusWarning}>
+          {unknownOutsideBlockCssVars.length} of those cssVar
+          {unknownOutsideBlockCssVars.length === 1 ? '' : 's'}{' '}
+          {unknownOutsideBlockCssVars.length === 1 ? 'is' : 'are'} already declared in the file —
+          just outside the first top-level :root or @theme block (nested under
+          @media/@layer/@supports, a grouped selector, or a second :root/@theme block) — so
+          Apply could not rewrite {unknownOutsideBlockCssVars.length === 1 ? 'it' : 'them'} there.
         </div>
       )}
 

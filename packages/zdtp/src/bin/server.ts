@@ -121,6 +121,8 @@ function logApplyOutcome(quiet: boolean, payload: string): void {
     const parsed = JSON.parse(payload) as {
       ok?: boolean;
       updated?: Array<{ file: string; changed?: string[] }>;
+      unknownCssVars?: string[];
+      unknownOutsideBlockCssVars?: string[];
     };
     if (!parsed.ok || !Array.isArray(parsed.updated)) return;
     const totalTokens = parsed.updated.reduce(
@@ -135,6 +137,25 @@ function logApplyOutcome(quiet: boolean, payload: string): void {
       `[design-token-panel] applied ${totalTokens} tokens to ${fileCount} files ` +
         `(changed: ${changedFiles.length > 0 ? changedFiles.join(', ') : 'none'})`,
     );
+    // #508: surface unknown cssVars (silently ignored before this fix) and
+    // split out the "declared but outside a scanned block" subset so a
+    // console-only workflow (no panel UI) still gets the diagnostic.
+    if (Array.isArray(parsed.unknownCssVars) && parsed.unknownCssVars.length > 0) {
+      console.log(
+        `[design-token-panel] unknown: ${parsed.unknownCssVars.length} cssVar(s) not found ` +
+          `(${parsed.unknownCssVars.join(', ')})`,
+      );
+    }
+    if (
+      Array.isArray(parsed.unknownOutsideBlockCssVars) &&
+      parsed.unknownOutsideBlockCssVars.length > 0
+    ) {
+      console.log(
+        `[design-token-panel] outside scanned block: ${parsed.unknownOutsideBlockCssVars.length} ` +
+          `of those cssVar(s) are declared in the file but outside the scanned :root/@theme ` +
+          `block(s), so they were not rewritable (${parsed.unknownOutsideBlockCssVars.join(', ')})`,
+      );
+    }
   } catch {
     // Non-JSON or malformed apply response — skip the friendly summary log.
   }

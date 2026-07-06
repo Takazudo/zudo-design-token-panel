@@ -33,6 +33,12 @@ export interface PerFileResult {
   changed: string[];
   unchanged: string[];
   unknown: string[];
+  /**
+   * Subset of `unknown` (#508): declared somewhere in the file but outside
+   * the scanned `:root`/`@theme` blocks — see `ApplyResult.unknownOutsideBlock`
+   * in `apply-token-overrides.ts` for the full classification rules.
+   */
+  unknownOutsideBlock: string[];
 }
 
 // ----- Helpers ----------------------------------------------------------------
@@ -47,6 +53,7 @@ interface ComputedRewrite {
   changed: string[];
   unchanged: string[];
   unknown: string[];
+  unknownOutsideBlock: string[];
 }
 
 function jsonResponse(data: Record<string, unknown>, status = 200): Response {
@@ -71,6 +78,7 @@ async function computeRewrite(
     changed: result.changed,
     unchanged: result.unchanged,
     unknown: result.unknown,
+    unknownOutsideBlock: result.unknownOutsideBlock,
   };
 }
 
@@ -259,6 +267,9 @@ export function createApplyHandler(
 
     const unknownCssVars: string[] = computed.flatMap((r) => r.unknown);
     const unchangedCssVars: string[] = computed.flatMap((r) => r.unchanged);
+    // #508: subset of unknownCssVars that IS declared somewhere in its file,
+    // just outside the scanned :root/@theme blocks.
+    const unknownOutsideBlockCssVars: string[] = computed.flatMap((r) => r.unknownOutsideBlock);
 
     // Normalise `file` paths in the response to repo-relative form.
     const updated: PerFileResult[] = computed.map((r) => ({
@@ -266,6 +277,7 @@ export function createApplyHandler(
       changed: r.changed,
       unchanged: r.unchanged,
       unknown: r.unknown,
+      unknownOutsideBlock: r.unknownOutsideBlock,
     }));
 
     return jsonResponse({
@@ -273,6 +285,7 @@ export function createApplyHandler(
       updated,
       unknownCssVars,
       unchangedCssVars,
+      unknownOutsideBlockCssVars,
     });
   };
 }

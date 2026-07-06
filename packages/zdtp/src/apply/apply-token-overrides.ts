@@ -32,6 +32,10 @@
  *   as `unchanged` on the second call and produces byte-identical output. The
  *   two non-overlapping regions are spliced back in DESCENDING start order so
  *   the earlier region's offsets stay valid through the later region's splice.
+ * - `unknownOutsideBlock` (#508): a whole-file scan (ignoring the "first
+ *   block of each kind" and "no nesting" restrictions above) reclassifies any
+ *   `unknown` key that IS declared somewhere in the file, so callers can tell
+ *   "declared, but outside a scanned block" apart from "genuinely absent".
  *
  * Known limitations (if a richer transform is ever needed, swap this module
  * for a real CSS parser such as postcss):
@@ -61,6 +65,18 @@ export interface ApplyResult {
    *  top-level `:root` block or the first top-level `@theme` block (the name
    *  is absent, or neither block exists). */
   unknown: string[];
+  /**
+   * Subset of `unknown` (#508): cssVar names that ARE declared somewhere in
+   * `source` — found by a whole-file scan, not restricted to the two scanned
+   * blocks — but outside both of them, so nothing was rewritten. Typical
+   * causes: the declaration sits in a nested block (`@media`/`@layer`/
+   * `@supports`), a grouped selector (`:root, html { ... }`), or a SECOND
+   * top-level `:root`/`@theme` block (the scanner only reads the first of
+   * each kind). Lets callers distinguish "declared, but Apply doesn't rewrite
+   * this location" from "genuinely absent / typo'd name" — the remaining
+   * `unknown` entries not in this list.
+   */
+  unknownOutsideBlock: string[];
 }
 
 /**
@@ -348,6 +364,42 @@ export function maskComments(input: string): string {
 }
 
 /**
+ * Build the per-cssVar declaration regex shared by {@link replaceOne} (scoped
+ * to one block's content) and {@link isDeclaredSomewhereInSource} (#508,
+ * scoped to the whole file). The name may be supplied with or without the
+ * leading `--`.
+ *
+ * Three capture groups so callers can re-emit the original whitespace
+ * byte-for-byte:
+ *   1: the `--name:` prefix
+ *   2: whitespace between `:` and the value
+ *   3: the value, non-greedy so it stops at the first `;`
+ * The lookbehind (?<![\w-]) prevents a suffix match: searching for `--foo`
+ * must not match `--x--foo` when its tail matches (F25 suffix-collision fix).
+ */
+function buildDeclarationRegex(cssVarName: string): RegExp {
+  const bareName = cssVarName.startsWith('--') ? cssVarName.slice(2) : cssVarName;
+  const escaped = escapeRegExp(bareName);
+  return new RegExp('(?<![\\w-])(--' + escaped + ':)(\\s*)([\\s\\S]+?);');
+}
+
+/**
+ * Whether `cssVarName` has a live (non-commented) declaration ANYWHERE in
+ * `source` (#508) — unlike {@link replaceOne}, this is not restricted to a
+ * single scanned block's content, so it also matches declarations nested
+ * under `@media`/`@layer`/`@supports`, inside a grouped selector like
+ * `:root, html { ... }`, or inside a second top-level `:root`/`@theme` block.
+ *
+ * Only meaningful for keys already routed to `unknown`: if the var were
+ * inside a scanned block, `replaceOne` would already have matched it there.
+ * A `true` result for an `unknown` key means "declared, but Apply doesn't
+ * rewrite this location" rather than "genuinely absent / typo'd name".
+ */
+function isDeclaredSomewhereInSource(source: string, cssVarName: string): boolean {
+  return buildDeclarationRegex(cssVarName).test(maskComments(source));
+}
+
+/**
  * Replace the value of a single custom property inside `content`. The name
  * may be supplied with or without the leading `--`. Returns the updated
  * content along with a status flag used to populate `changed` / `unchanged`
@@ -363,15 +415,7 @@ export function replaceOne(
   cssVarName: string,
   newValue: string,
 ): SingleReplaceResult {
-  const bareName = cssVarName.startsWith('--') ? cssVarName.slice(2) : cssVarName;
-  const escaped = escapeRegExp(bareName);
-  // Three capture groups so we can re-emit the original whitespace byte-for-byte:
-  //   1: the `--name:` prefix
-  //   2: whitespace between `:` and the value
-  //   3: the value, non-greedy so it stops at the first `;`
-  // The lookbehind (?<![\w-]) prevents a suffix match: searching for `--foo`
-  // must not rewrite `--x--foo` when its tail matches (F25 suffix-collision fix).
-  const re = new RegExp('(?<![\\w-])(--' + escaped + ':)(\\s*)([\\s\\S]+?);');
+  const re = buildDeclarationRegex(cssVarName);
   const masked = maskComments(content);
   const match = re.exec(masked);
   if (!match) return { content, status: 'unknown' };
@@ -437,6 +481,7 @@ export function applyTokenOverrides(
       changed: [],
       unchanged: [],
       unknown: [...keys],
+      unknownOutsideBlock: keys.filter((key) => isDeclaredSomewhereInSource(source, key)),
     };
   }
 
@@ -495,7 +540,15 @@ export function applyTokenOverrides(
     updated = updated.slice(0, region.start) + region.content + updated.slice(region.end);
   }
 
-  return { updated, changed, unchanged, unknown };
+  // #508: classify each `unknown` key against the WHOLE original source (not
+  // just the two scanned block contents) so "declared but outside a scanned
+  // block" can be distinguished from "genuinely absent". Scanning `source`
+  // rather than `updated` is deliberate — `updated`'s scanned-block regions
+  // may have just been rewritten, but any occurrence outside them is
+  // unaffected either way, so the two are equivalent here.
+  const unknownOutsideBlock = unknown.filter((key) => isDeclaredSomewhereInSource(source, key));
+
+  return { updated, changed, unchanged, unknown, unknownOutsideBlock };
 }
 
 /**

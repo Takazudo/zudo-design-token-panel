@@ -385,4 +385,119 @@ describe('createApplyHandler', () => {
 
     expect(renameCount).toBeGreaterThan(0);
   });
+
+  // ----- unknownOutsideBlock diagnostic (#508) -------------------------------
+
+  describe('unknownOutsideBlock diagnostic (#508)', () => {
+    it('flags a var declared only in a nested @media { :root { ... } } block', async () => {
+      const rel = 'tokens/nested.css';
+      const absPath = join(tmpRepo, rel);
+      const src =
+        ':root {\n  --zd-p5: #111111;\n}\n' +
+        '@media (prefers-color-scheme: dark) {\n  :root {\n    --zd-nested-only: #222222;\n  }\n}\n';
+      await fs.writeFile(absPath, src, 'utf-8');
+
+      const nestedHandler = createApplyHandler({
+        rootDir: tmpRepo,
+        writeRoot: resolve(tmpRepo, 'tokens'),
+        routing: { zd: rel },
+      });
+
+      const res = await nestedHandler(
+        makeRequest({ tokens: { '--zd-nested-only': '#333333' } }),
+      );
+      expect(res.status).toBe(200);
+      const json = await readResponseJson(res);
+      expect(json.ok).toBe(true);
+      expect(json.unknownCssVars).toEqual(['--zd-nested-only']);
+      expect(json.unknownOutsideBlockCssVars).toEqual(['--zd-nested-only']);
+      expect(json.updated).toEqual([
+        expect.objectContaining({
+          file: rel,
+          unknown: ['--zd-nested-only'],
+          unknownOutsideBlock: ['--zd-nested-only'],
+        }),
+      ]);
+
+      // File must remain unchanged — nothing was rewritable.
+      const after = await fs.readFile(absPath, 'utf-8');
+      expect(after).toBe(src);
+    });
+
+    it('flags a var declared only in a grouped :root, html {} selector', async () => {
+      const rel = 'tokens/grouped.css';
+      const absPath = join(tmpRepo, rel);
+      // A genuine top-level :root block keeps the file 409-free; the target
+      // var lives ONLY in the trailing grouped selector, which the scanner
+      // does not recognize as a `:root` block.
+      const src =
+        ':root {\n  --zd-p5: #111111;\n}\n:root, html {\n  --zd-grouped-only: #444444;\n}\n';
+      await fs.writeFile(absPath, src, 'utf-8');
+
+      const groupedHandler = createApplyHandler({
+        rootDir: tmpRepo,
+        writeRoot: resolve(tmpRepo, 'tokens'),
+        routing: { zd: rel },
+      });
+
+      const res = await groupedHandler(
+        makeRequest({ tokens: { '--zd-grouped-only': '#555555' } }),
+      );
+      expect(res.status).toBe(200);
+      const json = await readResponseJson(res);
+      expect(json.ok).toBe(true);
+      expect(json.unknownCssVars).toEqual(['--zd-grouped-only']);
+      expect(json.unknownOutsideBlockCssVars).toEqual(['--zd-grouped-only']);
+    });
+
+    it('flags a var declared only in a SECOND top-level :root or @theme block', async () => {
+      const rel = 'tokens/second-block.css';
+      const absPath = join(tmpRepo, rel);
+      const src =
+        ':root {\n  --zd-p5: #111111;\n}\n' +
+        ':root {\n  --zd-second-root-only: #222222;\n}\n' +
+        '@theme {\n  --zd-first-theme: 1rem;\n}\n' +
+        '@theme {\n  --zd-second-theme-only: 2rem;\n}\n';
+      await fs.writeFile(absPath, src, 'utf-8');
+
+      const secondBlockHandler = createApplyHandler({
+        rootDir: tmpRepo,
+        writeRoot: resolve(tmpRepo, 'tokens'),
+        routing: { zd: rel },
+      });
+
+      const res = await secondBlockHandler(
+        makeRequest({
+          tokens: {
+            '--zd-second-root-only': '#333333',
+            '--zd-second-theme-only': '3rem',
+          },
+        }),
+      );
+      expect(res.status).toBe(200);
+      const json = await readResponseJson(res);
+      expect(json.ok).toBe(true);
+      expect(json.unknownCssVars).toEqual(
+        expect.arrayContaining(['--zd-second-root-only', '--zd-second-theme-only']),
+      );
+      expect(json.unknownOutsideBlockCssVars).toEqual(
+        expect.arrayContaining(['--zd-second-root-only', '--zd-second-theme-only']),
+      );
+    });
+
+    it('leaves a truly-absent var as plain unknown (not in unknownOutsideBlockCssVars)', async () => {
+      const res = await handler(makeRequest({ tokens: { '--zd-totally-missing': '#666666' } }));
+      expect(res.status).toBe(200);
+      const json = await readResponseJson(res);
+      expect(json.ok).toBe(true);
+      expect(json.unknownCssVars).toEqual(['--zd-totally-missing']);
+      expect(json.unknownOutsideBlockCssVars).toEqual([]);
+      expect(json.updated).toEqual([
+        expect.objectContaining({
+          unknown: ['--zd-totally-missing'],
+          unknownOutsideBlock: [],
+        }),
+      ]);
+    });
+  });
 });

@@ -637,3 +637,79 @@ describe('neither :root nor @theme block', () => {
     expect(hasApplicableTokenBlock('.not-root { color: red; }')).toBe(false);
   });
 });
+
+// ===========================================================================
+// unknownOutsideBlock — declared-but-outside-scanned-block diagnostic (#508)
+// ===========================================================================
+
+describe('unknownOutsideBlock diagnostic (#508)', () => {
+  it('classifies a var declared only inside a nested @media { :root { ... } } block', () => {
+    const src = '@media (max-width:600px) {\n  :root {\n    --a: 2;\n  }\n}\n';
+    const { unknown, unknownOutsideBlock } = applyTokenOverrides(src, { '--a': '9' });
+    expect(unknown).toEqual(['--a']);
+    expect(unknownOutsideBlock).toEqual(['--a']);
+  });
+
+  it('classifies a var declared only in a grouped :root, html {} selector', () => {
+    const src = ':root, html {\n  --x: 1;\n}\n';
+    const { unknown, unknownOutsideBlock } = applyTokenOverrides(src, { '--x': '2' });
+    expect(unknown).toEqual(['--x']);
+    expect(unknownOutsideBlock).toEqual(['--x']);
+  });
+
+  it('classifies a var declared only in a SECOND top-level :root block', () => {
+    const src = ':root {\n  --a: 1;\n}\n:root {\n  --only-second: 2;\n}\n';
+    const { unknown, unknownOutsideBlock } = applyTokenOverrides(src, { '--only-second': '9' });
+    expect(unknown).toEqual(['--only-second']);
+    expect(unknownOutsideBlock).toEqual(['--only-second']);
+  });
+
+  it('classifies a var declared only in a SECOND top-level @theme block', () => {
+    const src = '@theme {\n  --a: 1;\n}\n@theme {\n  --only-second: 2;\n}\n';
+    const { unknown, unknownOutsideBlock } = applyTokenOverrides(src, { '--only-second': '9' });
+    expect(unknown).toEqual(['--only-second']);
+    expect(unknownOutsideBlock).toEqual(['--only-second']);
+  });
+
+  it('leaves a truly-absent var as plain unknown (not in unknownOutsideBlock)', () => {
+    const src = root('  --exists: 1;\n');
+    const { unknown, unknownOutsideBlock } = applyTokenOverrides(src, { '--missing': '2' });
+    expect(unknown).toEqual(['--missing']);
+    expect(unknownOutsideBlock).toEqual([]);
+  });
+
+  it('leaves a truly-absent var as plain unknown when neither :root nor @theme exists', () => {
+    const src = '.some-class { color: red; }';
+    const { unknown, unknownOutsideBlock } = applyTokenOverrides(src, { '--missing': '2' });
+    expect(unknown).toEqual(['--missing']);
+    expect(unknownOutsideBlock).toEqual([]);
+  });
+
+  it('does not flag a var that WAS successfully rewritten as outside-block', () => {
+    const src = root('  --a: 1;\n');
+    const { changed, unknown, unknownOutsideBlock } = applyTokenOverrides(src, { '--a': '2' });
+    expect(changed).toEqual(['--a']);
+    expect(unknown).toEqual([]);
+    expect(unknownOutsideBlock).toEqual([]);
+  });
+
+  it('mixes genuinely-absent and outside-block keys correctly in the same call', () => {
+    const src =
+      ':root {\n  --a: 1;\n}\n@media screen {\n  :root {\n    --outside: 2;\n  }\n}\n';
+    const { unknown, unknownOutsideBlock } = applyTokenOverrides(src, {
+      '--a': '9',
+      '--outside': '3',
+      '--missing': '4',
+    });
+    expect(unknown).toEqual(expect.arrayContaining(['--outside', '--missing']));
+    expect(unknown).not.toContain('--a');
+    expect(unknownOutsideBlock).toEqual(['--outside']);
+  });
+
+  it('does not confuse a commented-out declaration outside the scanned block with a live one', () => {
+    const src = ':root {\n  --a: 1;\n}\n/* --commented: 2; */\n';
+    const { unknown, unknownOutsideBlock } = applyTokenOverrides(src, { '--commented': '9' });
+    expect(unknown).toEqual(['--commented']);
+    expect(unknownOutsideBlock).toEqual([]);
+  });
+});
