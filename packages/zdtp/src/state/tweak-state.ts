@@ -1772,9 +1772,22 @@ function isValidColorShape(s: unknown, paletteSize: number): s is Partial<ColorT
  * the legacy index mapping (`number` / `'bg'` / `'fg'`, pre-#459) plus the
  * `{ literal }` / `{ literal: { light, dark } }` / `{ ref }` object variants
  * added in #459 and carried through the external serde in #462.
+ *
+ * `paletteSize` gates the `number` branch to an in-range INTEGER index —
+ * mirrors `parseSemanticExternalValue` in `utils/design-token-serde.ts`,
+ * which already applies this same gate on the JSON-import path (#462). A
+ * legacy palette-index entry persisted before a cluster went ramp-native
+ * (paletteSize dropped to 0, or shrank) would otherwise survive hydration
+ * and index a palette that no longer has that slot — see #497. In
+ * particular, ANY number is rejected when `paletteSize === 0`.
  */
-function parsePersistedSemanticValue(val: unknown): SemanticValue | undefined {
-  if (typeof val === 'number') return val;
+function parsePersistedSemanticValue(
+  val: unknown,
+  paletteSize: number,
+): SemanticValue | undefined {
+  if (typeof val === 'number') {
+    return Number.isInteger(val) && val >= 0 && val < paletteSize ? val : undefined;
+  }
   if (val === 'bg' || val === 'fg') return val;
   if (!val || typeof val !== 'object' || Array.isArray(val)) return undefined;
 
@@ -1836,15 +1849,22 @@ function parsePersistedSemanticValue(val: unknown): SemanticValue | undefined {
  * was already wide enough (untyped at the JSON boundary) to carry the new
  * variants, so widening what THIS function accepts is the migration; the key
  * itself doesn't need to change.
+ *
+ * `paletteSize` is the LIVE cluster's palette size (not necessarily the size
+ * the payload was written under, #497) — forwarded to
+ * `parsePersistedSemanticValue` so a stale numeric index surviving a
+ * ramp-native migration falls back to `defaults[key]` instead of merging in
+ * verbatim.
  */
 function hydrateSemanticMappings(
   raw: unknown,
   defaults: Record<string, SemanticValue>,
+  paletteSize: number,
 ): Record<string, SemanticValue> {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ...defaults };
   const out: Record<string, SemanticValue> = { ...defaults };
   for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
-    const parsed = parsePersistedSemanticValue(val);
+    const parsed = parsePersistedSemanticValue(val, paletteSize);
     if (parsed !== undefined) {
       out[key] = parsed;
     }
@@ -1854,10 +1874,18 @@ function hydrateSemanticMappings(
   return out;
 }
 
-/** Fill missing fields on a `ColorTweakState`-shaped object using defaults. */
+/**
+ * Fill missing fields on a `ColorTweakState`-shaped object using defaults.
+ *
+ * `paletteSize` must be the LIVE cluster's palette size, passed explicitly
+ * by every caller — it is NOT inferred from `defaults.palette.length`,
+ * because that invariant (defaults sized to match the live cluster) is not
+ * enforced anywhere the callers below construct `defaults` (#497).
+ */
 function hydrateColorState(
   partial: Partial<ColorTweakState>,
   defaults: ColorTweakState,
+  paletteSize: number,
 ): ColorTweakState {
   // palette is loaded from untrusted persisted
   // storage. Validate that every element is a string before casting; a
@@ -1889,7 +1917,11 @@ function hydrateColorState(
       typeof partial.selectionBg === 'number' ? partial.selectionBg : defaults.selectionBg,
     selectionFg:
       typeof partial.selectionFg === 'number' ? partial.selectionFg : defaults.selectionFg,
-    semanticMappings: hydrateSemanticMappings(partial.semanticMappings, defaults.semanticMappings),
+    semanticMappings: hydrateSemanticMappings(
+      partial.semanticMappings,
+      defaults.semanticMappings,
+      paletteSize,
+    ),
     shikiTheme:
       typeof partial.shikiTheme === 'string' && partial.shikiTheme.length > 0
         ? partial.shikiTheme
@@ -2077,7 +2109,7 @@ function hydrateV2OrV3Object(
   // map.
   const renameMap = cfg.legacyIdRenameMap ?? {};
   const next: TweakState = {
-    color: hydrateColorState(obj.color as Partial<ColorTweakState>, defaults),
+    color: hydrateColorState(obj.color as Partial<ColorTweakState>, defaults, cluster.paletteSize),
     // New sections added after v1 migration — tolerate their absence so
     // older v2 payloads (Color-only) still load cleanly.
     spacing: hydrateOverrides(obj.spacing),
@@ -2103,6 +2135,7 @@ function hydrateV2OrV3Object(
     next.secondary = hydrateColorState(
       obj.secondary as Partial<ColorTweakState>,
       initSecondaryDefaults(secondaryCluster),
+      secondaryCluster.paletteSize,
     );
   }
   // v3 extension: generic tab overrides keyed by tab id.
@@ -2212,7 +2245,7 @@ export function loadPersistedState(
       if (!partial.shikiTheme) {
         partial.shikiTheme = defaults.shikiTheme;
       }
-      const color = hydrateColorState(partial, defaults);
+      const color = hydrateColorState(partial, defaults, cluster.paletteSize);
       const migrated: TweakState = {
         color,
         spacing: emptyOverrides(),
