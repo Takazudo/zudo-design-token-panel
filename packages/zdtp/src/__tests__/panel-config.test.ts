@@ -1152,6 +1152,151 @@ describe('panel-config — assertValidPanelConfig host-tabs validation', () => {
 });
 
 // ---------------------------------------------------------------------------
+// notesExtras validation (host-configurable "token notes" tab, #515)
+// ---------------------------------------------------------------------------
+
+describe('panel-config — notesExtras validation (#515)', () => {
+  function makeBaseConfig(extra: Partial<PanelConfig> = {}): PanelConfig {
+    return {
+      storagePrefix: 'p',
+      consoleNamespace: 'p',
+      modalClassPrefix: 'p-modal',
+      schemaId: 'p/v1',
+      exportFilenameBase: 'p',
+      tabs: [],
+      ...extra,
+    };
+  }
+
+  function makeNotesTab(overrides: Record<string, unknown> = {}): TabConfig {
+    return {
+      id: 'notes',
+      label: 'Notes',
+      tiers: [],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      notesExtras: { title: 'Welcome', html: '<p>hello</p>' } as any,
+      ...overrides,
+    } as TabConfig;
+  }
+
+  it('accepts a fully-valid notes tab', () => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [makeNotesTab()] })),
+    ).not.toThrow();
+  });
+
+  it('rejects a notes tab with notesExtras omitted', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({ tabs: [{ id: 'notes', label: 'Notes', tiers: [] }] }),
+      ),
+    ).toThrow(/notesExtras must be a plain object with \{ title, html \}/);
+  });
+
+  it('rejects a notes tab whose notesExtras is not a plain object', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({ tabs: [makeNotesTab({ notesExtras: 'nope' })] }),
+      ),
+    ).toThrow(/notesExtras must be a plain object with \{ title, html \}/);
+  });
+
+  it('rejects a notes tab with an empty title', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          tabs: [makeNotesTab({ notesExtras: { title: '', html: '<p>hi</p>' } })],
+        }),
+      ),
+    ).toThrow(/notesExtras\.title must be a non-empty string/);
+  });
+
+  it('rejects a notes tab with a non-string title', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          tabs: [makeNotesTab({ notesExtras: { title: 42, html: '<p>hi</p>' } })],
+        }),
+      ),
+    ).toThrow(/notesExtras\.title must be a non-empty string/);
+  });
+
+  it('rejects a notes tab with an empty html', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          tabs: [makeNotesTab({ notesExtras: { title: 'Welcome', html: '' } })],
+        }),
+      ),
+    ).toThrow(/notesExtras\.html must be a non-empty string/);
+  });
+
+  it('rejects a notes tab with a non-string html', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          tabs: [makeNotesTab({ notesExtras: { title: 'Welcome', html: null } })],
+        }),
+      ),
+    ).toThrow(/notesExtras\.html must be a non-empty string/);
+  });
+
+  it('rejects a notes tab with non-empty tiers', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          tabs: [
+            makeNotesTab({
+              tiers: [{ id: 'raw', label: 'Raw', items: [] }],
+            }),
+          ],
+        }),
+      ),
+    ).toThrow(/PanelConfig\.tabs\["notes"\]\.tiers must be empty/);
+  });
+
+  it('rejects a notes tab that also carries colorExtras', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          tabs: [
+            makeNotesTab({
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              colorExtras: {
+                id: 'x',
+                defaultShikiTheme: 'dracula',
+                baseRoles: {},
+                baseDefaults: {},
+                colorSchemes: {},
+                panelSettings: { colorScheme: 'default', colorMode: false },
+              } as any,
+            }),
+          ],
+        }),
+      ),
+    ).toThrow(/PanelConfig\.tabs\["notes"\]\.colorExtras must not be set/);
+  });
+
+  it('rejects notesExtras set on a non-notes tab', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          tabs: [
+            {
+              id: 'spacing',
+              label: 'Spacing',
+              tiers: [],
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              notesExtras: { title: 'Welcome', html: '<p>hi</p>' } as any,
+            },
+          ],
+        }),
+      ),
+    ).toThrow(/notesExtras must only be set on a tab with id "notes"/);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // S8 (#469): cross-tab ramp-source (`referencesRamps`) validation
 // ---------------------------------------------------------------------------
 //
