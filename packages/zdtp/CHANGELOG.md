@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.7
+
+### Fixed
+
+- fix(server): coalesce same-file token groups in createApplyHandler ([#527](https://github.com/Takazudo/zudo-design-token-panel/pull/527)) (1d84c94)
+
+### Other Changes
+
+- chore(deps): resolve 19 pnpm audit security advisories ([#525](https://github.com/Takazudo/zudo-design-token-panel/pull/525)) (80c9a0e)
+
 ## 0.4.6
 
 ### Features
