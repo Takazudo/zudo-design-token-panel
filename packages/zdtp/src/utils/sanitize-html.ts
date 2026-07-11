@@ -4,9 +4,11 @@
  * Security boundary: a strict ALLOWLIST of tags and attributes, not a
  * blacklist — anything not explicitly permitted is stripped, including
  * tags/attributes a blacklist would never have anticipated (custom elements,
- * future HTML, namespaced foreign-content attributes). This is the ONLY
- * sanitizer in the package and it is the thing standing between a host's
- * `notesExtras.html` string and `dangerouslySetInnerHTML` in `tabs/notes-tab.tsx`.
+ * future HTML, namespaced foreign-content attributes). This is the package's
+ * only HTML sanitizer (see `controls/sanitize-css-value.ts` for the separate
+ * CSS-value sanitizer used elsewhere) and it is the thing standing between a
+ * host's `notesExtras.html` string and `dangerouslySetInnerHTML` in
+ * `tabs/notes-tab.tsx`.
  *
  * Implementation: parse with the browser's own `DOMParser` (dependency-free —
  * no external sanitizer library), then rebuild a FRESH tree by walking the

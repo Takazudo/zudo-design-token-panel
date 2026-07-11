@@ -1,3 +1,4 @@
+import { useMemo } from 'preact/compat';
 import type { TabConfig } from '../tokens/tier-model';
 import { sanitizeHtml } from '../utils/sanitize-html';
 
@@ -26,6 +27,15 @@ interface NotesTabProps {
  */
 export default function NotesTab({ tab }: NotesTabProps) {
   const notesExtras = tab.notesExtras;
+  // panel.tsx keeps every tab body mounted (hidden, not unmounted) while
+  // inactive, so DesignTokenTweakPanel's frequent re-renders (drag, resize,
+  // density, any OTHER tab's token tweak) would otherwise re-run the
+  // DOMParser walk on every one of them. `notesExtras.html` is a fixed
+  // config string, so memoize on it.
+  const safeHtml = useMemo(
+    () => (notesExtras ? sanitizeHtml(notesExtras.html) : ''),
+    [notesExtras],
+  );
   if (!notesExtras) return null;
 
   return (
@@ -33,10 +43,7 @@ export default function NotesTab({ tab }: NotesTabProps) {
       <div role="heading" aria-level={3} className="tokenpanel-notes-heading">
         {notesExtras.title}
       </div>
-      <div
-        className="tokenpanel-notes-body"
-        dangerouslySetInnerHTML={{ __html: sanitizeHtml(notesExtras.html) }}
-      />
+      <div className="tokenpanel-notes-body" dangerouslySetInnerHTML={{ __html: safeHtml }} />
     </div>
   );
 }

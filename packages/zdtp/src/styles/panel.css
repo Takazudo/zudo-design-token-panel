@@ -355,6 +355,15 @@
   border-collapse: collapse !important;
   font-size: 13px !important;
 }
+:where(.tokenpanel-shell) .tokenpanel-notes-body thead {
+  display: table-header-group !important;
+}
+:where(.tokenpanel-shell) .tokenpanel-notes-body tbody {
+  display: table-row-group !important;
+}
+:where(.tokenpanel-shell) .tokenpanel-notes-body tr {
+  display: table-row !important;
+}
 :where(.tokenpanel-shell) .tokenpanel-notes-body th,
 :where(.tokenpanel-shell) .tokenpanel-notes-body td {
   display: table-cell !important;

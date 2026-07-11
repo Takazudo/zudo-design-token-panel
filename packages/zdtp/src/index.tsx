@@ -356,6 +356,7 @@ export type {
   TierConfig,
   TabConfig,
   ColorClusterExtras,
+  NotesExtras,
 } from './tokens/tier-model';
 export {
   isLengthKind,
