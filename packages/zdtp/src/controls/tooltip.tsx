@@ -184,7 +184,20 @@ export function TooltipProvider({ children }: TooltipProviderProps) {
     if (typeof ResizeObserver !== 'undefined') {
       const shell = trigger.closest<HTMLElement>('.tokenpanel-shell');
       if (shell) {
-        shellObserver = new ResizeObserver(() => hideAll());
+        // ResizeObserver always delivers one "initial" callback right after
+        // observe() — even when nothing has actually resized — because it
+        // has no prior size to diff the newly-observed target against. Skip
+        // that first delivery (it fires on every hover, not just a resize)
+        // and only hideAll() on a genuine SUBSEQUENT delivery, which means
+        // the shell's size changed after observation began.
+        let primed = false;
+        shellObserver = new ResizeObserver(() => {
+          if (!primed) {
+            primed = true;
+            return;
+          }
+          hideAll();
+        });
         shellObserver.observe(shell);
       }
     }

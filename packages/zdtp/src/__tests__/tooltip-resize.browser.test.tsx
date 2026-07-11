@@ -16,6 +16,12 @@
  * existing scroll-hide behavior), so a stale position is never shown; the
  * user sees it again, correctly positioned, only on the next hover.
  *
+ * Caveat that shaped these tests: ResizeObserver always delivers one
+ * "initial" callback right after `observe()`, even with zero actual resize
+ * (no prior size to diff against). tooltip.tsx guards against that with a
+ * `primed` flag so a bare hover doesn't hide the tooltip it just showed —
+ * the first test below is the regression test for that guard.
+ *
  * This must run against a REAL ResizeObserver (Chromium, via the `browser`
  * vitest project) — jsdom does not implement ResizeObserver at all, so the
  * unit-test suite (controls/__tests__/tooltip.test.tsx) can only exercise
@@ -111,6 +117,30 @@ afterEach(async () => {
 });
 
 describe('tooltip — hides on actual panel grip-drag resize (#516)', () => {
+  it('hovering with no resize at all keeps the tooltip visible (ResizeObserver initial-callback guard)', async () => {
+    // ResizeObserver always delivers one "initial" callback right after
+    // observe() — even with zero actual resize — because it has no prior
+    // size to diff the newly-observed target against. A naive
+    // `new ResizeObserver(() => hideAll())` would hide the tooltip on every
+    // hover, not just on a real resize. This is the regression test for
+    // that bug: it fails without the guard in tooltip.tsx and passes with
+    // it. Real Chromium is required here — the initial delivery is
+    // asynchronous (fires ~1 frame after observe()), so a synchronous
+    // assertion right after mouseenter (as in the tests below) would not
+    // catch this; flushEffects() below gives it time to land.
+    await flushEffects();
+    const trigger = getFirstTrigger();
+
+    act(() => {
+      trigger.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    });
+    expect(isTooltipVisible()).toBe(true);
+
+    await flushEffects();
+
+    expect(isTooltipVisible()).toBe(true);
+  });
+
   it('an in-progress grip-drag resize hides a visible tooltip', async () => {
     await flushEffects();
     const trigger = getFirstTrigger();
@@ -118,6 +148,13 @@ describe('tooltip — hides on actual panel grip-drag resize (#516)', () => {
     act(() => {
       trigger.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
     });
+    expect(isTooltipVisible()).toBe(true);
+
+    // Let the ResizeObserver's guaranteed initial-observation delivery land
+    // BEFORE any drag happens, so the "hidden" assertion below is
+    // attributable to the actual resize, not the initial delivery (which
+    // the guard above already proves is a no-op).
+    await flushEffects();
     expect(isTooltipVisible()).toBe(true);
 
     // Real grip-drag: mousedown on the resize handle, then mousemove — this
@@ -161,6 +198,11 @@ describe('tooltip — hides on actual panel grip-drag resize (#516)', () => {
     act(() => {
       trigger.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
     });
+    expect(isTooltipVisible()).toBe(true);
+
+    // Let the ResizeObserver's guaranteed initial-observation delivery land
+    // before the drag, same rationale as the test above.
+    await flushEffects();
     expect(isTooltipVisible()).toBe(true);
 
     const grip = getResizeHandle();

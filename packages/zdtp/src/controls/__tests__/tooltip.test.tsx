@@ -220,6 +220,12 @@ describe('useTooltip — panel-shell ResizeObserver hides tooltip', () => {
   // with a hand-rolled stand-in that records `observe`/`disconnect` calls and
   // lets a test fire the callback on demand. Real browser coverage lives in
   // the `.browser.test.tsx` grip-drag test.
+  //
+  // Per spec, a real ResizeObserver delivers one "initial" callback right
+  // after observe() — even when nothing has actually resized — because it
+  // has no prior size to diff the newly-observed target against. `observe()`
+  // below fires that delivery synchronously so tests exercise the same
+  // initial-callback shape tooltip.tsx's `primed` guard has to survive.
   class MockResizeObserver {
     static instances: MockResizeObserver[] = [];
     callback: ResizeObserverCallback;
@@ -233,6 +239,7 @@ describe('useTooltip — panel-shell ResizeObserver hides tooltip', () => {
 
     observe(target: Element): void {
       this.observed.push(target);
+      this.fire(); // simulate the spec-guaranteed initial delivery
     }
 
     unobserve(): void {}
@@ -283,14 +290,26 @@ describe('useTooltip — panel-shell ResizeObserver hides tooltip', () => {
     expect(MockResizeObserver.instances[0].observed).toEqual([shell]);
   });
 
-  it('hides the tooltip when the observed shell reports a resize', () => {
+  it('does NOT hide the tooltip on the ResizeObserver initial-observation delivery (no actual resize)', () => {
     renderShellFixture();
     act(() => {
       getTrigger().dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
     });
+    // observe() (invoked from the effect above) already synchronously fired
+    // the spec-guaranteed initial delivery — a bare `hideAll()` on every
+    // delivery would hide the tooltip right here, on every hover, with no
+    // resize ever having happened. Assert it survived.
     expect(getTooltip().getAttribute('data-show')).toBe('true');
+  });
+
+  it('hides the tooltip on a genuine second delivery (an actual resize)', () => {
+    renderShellFixture();
     act(() => {
-      MockResizeObserver.instances[0].fire();
+      getTrigger().dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    });
+    expect(getTooltip().getAttribute('data-show')).toBe('true'); // survives the initial delivery
+    act(() => {
+      MockResizeObserver.instances[0].fire(); // a second, genuine delivery
     });
     expect(getTooltip().getAttribute('data-show')).toBe('false');
   });
