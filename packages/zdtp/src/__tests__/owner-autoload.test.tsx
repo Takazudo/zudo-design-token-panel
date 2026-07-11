@@ -36,7 +36,7 @@ const ELPATH_ENABLED_KEY = `${DEFAULT_CFG.storagePrefix}-elpath-enabled`;
 const OPEN_KEY = getOpenKey(DEFAULT_CFG);
 
 /** Text unique to the open-panel header in panel.tsx. */
-const OPEN_PANEL_HEADER_TEXT = 'Design Tokens';
+const OPEN_PANEL_HEADER_TEXT = 'zdtp';
 
 // ---------------------------------------------------------------------------
 // Helpers

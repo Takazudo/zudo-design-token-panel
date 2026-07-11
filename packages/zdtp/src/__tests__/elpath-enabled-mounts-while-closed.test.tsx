@@ -31,7 +31,7 @@ import { flushEffects } from './_test-helpers';
 const PANEL_ROOT_ID = panelRootId(getPanelConfig());
 const STORAGE_KEY_VISIBLE = storageKey_visible(getPanelConfig());
 const ELPATH_ENABLED_KEY = `${getPanelConfig().storagePrefix}-elpath-enabled`;
-const OPEN_PANEL_HEADER_TEXT = 'Design Tokens';
+const OPEN_PANEL_HEADER_TEXT = 'zdtp';
 
 /** Re-import the adapter fresh so its module-init binds the astro lifecycle. */
 async function freshAdapterImport(): Promise<void> {

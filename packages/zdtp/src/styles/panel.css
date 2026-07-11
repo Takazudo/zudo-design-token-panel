@@ -72,12 +72,16 @@
  * ========================================================================= */
 
 .tokenpanel-shell {
+  /* Named query container (#518) — the shell always receives an explicit
+   * inline width (resize-drag state or the default-size calc), so
+   * inline-size containment is safe: no intrinsic-size feedback loop. */
+  container: tokenpanel / inline-size;
   z-index: var(--tokentweak-z-shell);
   display: flex;
   flex-direction: column;
   border: 1px solid var(--tokentweak-color-muted);
   background-color: var(--tokentweak-color-surface);
-  border-radius: var(--radius-tokentweak);
+  border-radius: 0;
   box-shadow: 0 4px 24px rgb(0 0 0 / 0.25);
 }
 
@@ -109,7 +113,7 @@
   );
   -webkit-mask-image: linear-gradient(135deg, transparent 50%, #000 50%);
   mask-image: linear-gradient(135deg, transparent 50%, #000 50%);
-  border-bottom-right-radius: var(--radius-tokentweak);
+  border-bottom-right-radius: 0;
   transition: opacity 150ms ease;
   opacity: 0.7;
 }
@@ -126,6 +130,8 @@
   padding-block: var(--tokentweak-gap-xs);
   border-bottom: 1px solid var(--tokentweak-color-muted);
   flex-shrink: 0;
+  /* Anchor for .tokenpanel-actions-popover (#518). */
+  position: relative;
 }
 
 .tokenpanel-title {
@@ -133,6 +139,11 @@
   font-weight: 600;
   font-size: 14px;
   flex-shrink: 0;
+  /* Never wraps or pushes at narrow container widths — truncates instead. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .tokenpanel-action-link {
@@ -143,6 +154,10 @@
   padding: 0;
   cursor: pointer;
   transition: color 150ms ease;
+  /* Never mid-word wraps at narrow container widths (the "Load from JSON…"
+   * 3-line-wrap bug, #518). */
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .tokenpanel-action-link:hover {
   color: var(--tokentweak-color-accent-hover);
@@ -151,6 +166,64 @@
   outline: 2px solid var(--tokentweak-color-accent);
   outline-offset: 2px;
   border-radius: 2px;
+}
+
+/* ===========================================================================
+ * Actions kebab — narrow-panel replacement for the four .tokenpanel-action-link
+ * buttons above (#518). Hidden by default; shown by the <480px @container
+ * rule further down. Always rendered (not conditionally mounted on width) so
+ * visibility is pure CSS, matching the header action links it replaces.
+ * ========================================================================= */
+
+.tokenpanel-actions-menu-btn {
+  display: none;
+  color: var(--tokentweak-color-muted);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  transition: color 150ms ease;
+}
+.tokenpanel-actions-menu-btn:hover {
+  color: var(--tokentweak-color-fg);
+}
+.tokenpanel-actions-menu-btn:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Popover body — a plain list of the same .tokenpanel-action-link buttons
+ * (controls/actions-menu-popover.tsx), not an ARIA menu. Anchored to
+ * .tokenpanel-header's `position: relative` above. */
+.tokenpanel-actions-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: var(--tokentweak-pad-xl);
+  /* Reuses the color-picker tier — the shared semantic scale (Invariant H,
+   * styles/z-index-tokens.ts) has no dedicated slot for shell-nested popovers,
+   * and color-tab.tsx's palette-options listbox already reuses it the same way. */
+  z-index: var(--tokentweak-z-color-picker);
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  background: var(--tokentweak-color-surface);
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
+  padding: 4px;
+}
+.tokenpanel-actions-popover .tokenpanel-action-link {
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.tokenpanel-actions-popover .tokenpanel-action-link:hover {
+  background: rgb(from var(--tokentweak-color-fg) r g b / 0.06);
 }
 
 .tokenpanel-spacer {
@@ -192,6 +265,17 @@
   gap: 2px;
   flex: 1;
   min-width: 0;
+  /* Scroll horizontally instead of colliding with the density slider (#518).
+   * Scrollbar hidden; .has-overflow adds a right-edge fade hint. */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tokenpanel-tabbar-tabs::-webkit-scrollbar {
+  display: none;
+}
+.tokenpanel-tabbar-tabs.has-overflow {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
 }
 
 .tokenpanel-tab-button {
@@ -203,6 +287,9 @@
   cursor: pointer;
   border-bottom: 2px solid transparent;
   color: var(--tokentweak-color-muted);
+  /* A tab label never wraps (#518). */
+  white-space: nowrap;
+  flex-shrink: 0;
   transition:
     color 150ms ease,
     border-color 150ms ease;
@@ -241,6 +328,36 @@
   width: 80px;
   accent-color: var(--tokentweak-color-accent);
   cursor: pointer;
+}
+
+/* ===========================================================================
+ * Container-query responsive breakpoints (#518)
+ *
+ * Driven by the shell's own inline-size (`container: tokenpanel / inline-size`
+ * declared on .tokenpanel-shell above), never the viewport — a narrow panel
+ * degrades identically regardless of window width.
+ *
+ * Browser floor: container queries are Baseline 2023 (Safari 16+). The panel
+ * is a developer tool for developers on evergreen browsers, so older browsers
+ * simply keep the wide layout above with no JS fallback (see package README).
+ * ========================================================================= */
+@container tokenpanel (max-width: 479px) {
+  .tokenpanel-header > .tokenpanel-action-link {
+    display: none;
+  }
+  .tokenpanel-actions-menu-btn {
+    display: inline-flex;
+  }
+}
+@container tokenpanel (max-width: 379px) {
+  .tokenpanel-density-label {
+    display: none;
+  }
+}
+@container tokenpanel (max-width: 299px) {
+  .tokenpanel-density-slider {
+    width: 56px;
+  }
 }
 
 /* ===========================================================================
