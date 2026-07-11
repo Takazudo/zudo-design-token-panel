@@ -31,10 +31,13 @@ allowBuilds:
 # ship in the published @takazudo/zdtp package (which publishes only built dist/).
 # The `pkg@<vulnerable` selector scopes each override to just the affected versions,
 # leaving any already-patched copies untouched.
-#   uuid  <11.1.1  — via doc>mermaid (mermaid accepts ^11.1.0 || ^12 || ^13 || ^14)
-#   ws    <8.20.1  — via vitest>jsdom>ws and wrangler>miniflare>ws
-#   yaml  <2.8.3   — via doc>@astrojs/check>...>yaml-language-server>yaml
+#   uuid    <11.1.1  — via doc>mermaid (mermaid accepts ^11.1.0 || ^12 || ^13 || ^14)
+#   ws      <8.21.0  — via vitest>jsdom>ws and wrangler>miniflare>ws
+#   yaml    <2.8.3   — via doc>@astrojs/check>...>yaml-language-server>yaml
+#   esbuild <0.28.1  — via vite (vite 7.x caps esbuild at ^0.27; only vite 8 moves to
+#                      ^0.28, so no in-range bump of the direct vite dep reaches the fix)
 overrides:
   "uuid@<11.1.1": ">=11.1.1"
-  "ws@<8.20.1": ">=8.20.1"
+  "ws@<8.21.0": ">=8.21.0"
   "yaml@<2.8.3": ">=2.8.3"
+  "esbuild@<0.28.1": ">=0.28.1"
