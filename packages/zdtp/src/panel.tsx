@@ -13,6 +13,7 @@ import SizeTab from './tabs/size-tab';
 import SpacingTab from './tabs/spacing-tab';
 import GenericTab from './tabs/generic-tab';
 import PaletteTab from './tabs/palette/palette-tab';
+import NotesTab from './tabs/notes-tab';
 import { TooltipProvider } from './controls/tooltip';
 import {
   getPanelConfig,
@@ -58,8 +59,12 @@ import {
 
 // --- Tab configuration ---
 
-// Reserved tab ids dispatched to their dedicated components.
-const RESERVED_TAB_IDS = ['color', 'font', 'spacing', 'size', 'palette'] as const;
+// Reserved tab ids dispatched to their dedicated components. 'notes' (#515)
+// is a special-cased reserved id too — it renders NotesTab instead of a
+// tier-driven token editor and carries no state/persist props (see the
+// tab-body dispatch below and utils/design-token-serde.ts's OWN separate
+// RESERVED_TAB_IDS Set, which independently excludes it from export/import).
+const RESERVED_TAB_IDS = ['color', 'font', 'spacing', 'size', 'palette', 'notes'] as const;
 type ReservedTabId = (typeof RESERVED_TAB_IDS)[number];
 
 const DEFAULT_TAB_ID: ReservedTabId = 'color';
@@ -149,7 +154,14 @@ export default function DesignTokenTweakPanel({
   const gearBtnRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<TweakState | null>(null);
   // activeTab holds a string to support host-supplied non-reserved tab ids.
-  const [activeTab, setActiveTab] = useState<string>(DEFAULT_TAB_ID);
+  // Lands on the FIRST configured tab (instanceConfig.tabs[0]) rather than
+  // the hardcoded 'color' — a host makes ANY tab (e.g. 'notes', #515) the
+  // landing view simply by ordering it first in tabs[]. Falls back to
+  // DEFAULT_TAB_ID only when tabs is empty (the DEFAULT_PANEL_CONFIG stub,
+  // or a misconfigured host) so the panel never lands on an undefined tab id.
+  const [activeTab, setActiveTab] = useState<string>(
+    instanceConfig.tabs[0]?.id ?? DEFAULT_TAB_ID,
+  );
   const [position, setPosition] = useState<PanelPosition>(DEFAULT_POSITION);
   const [size, setSize] = useState<PanelSize>(defaultSize);
   const [density, setDensity] = useState<PanelDensity>(DEFAULT_DENSITY);
@@ -856,6 +868,12 @@ export default function DesignTokenTweakPanel({
                       }))
                     }
                   />
+                )}
+                {tab.id === 'notes' && tabConfigById['notes'] && (
+                  // No state/persist props — the notes tab carries no token
+                  // overrides (#515): it's excluded from state.tabs, apply
+                  // routing, and export/import serde by construction.
+                  <NotesTab tab={tabConfigById['notes']} />
                 )}
                 {!isReserved && tabConfigById[tab.id] && state && (
                   <GenericTab
