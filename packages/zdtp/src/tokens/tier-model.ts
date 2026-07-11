@@ -179,4 +179,14 @@ export interface TabConfig {
   label: string;
   tiers: readonly TierConfig[];
   colorExtras?: ColorClusterExtras;
+  /**
+   * Host-configurable "token notes" content — ONLY valid on the reserved
+   * `id: 'notes'` pseudo-tab (#515). That tab renders `title` as a section
+   * heading and `html` (sanitized by `utils/sanitize-html.ts`) as its body,
+   * instead of a tier-driven token editor. `assertValidPanelConfig` enforces
+   * the full contract: required + non-empty on `id: 'notes'`, forbidden on
+   * every other tab id, and `id: 'notes'` tabs must ship `tiers: []` and no
+   * `colorExtras`.
+   */
+  notesExtras?: { title: string; html: string };
 }
