@@ -138,8 +138,12 @@
   color: var(--tokentweak-color-fg);
   font-weight: 600;
   font-size: 14px;
-  flex-shrink: 0;
-  /* Never wraps or pushes at narrow container widths — truncates instead. */
+  /* Never wraps or pushes at narrow container widths — truncates instead.
+   * Needs flex-shrink: 1 (not the header's usual 0) + min-width: 0 so the
+   * item can actually shrink below its content width before ellipsis kicks
+   * in — every sibling in the header keeps flex-shrink: 0, so the title
+   * absorbs 100% of any width deficit rather than pushing them. */
+  flex-shrink: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

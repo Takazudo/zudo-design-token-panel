@@ -67,7 +67,15 @@ const DEFAULT_TAB_ID: ReservedTabId = 'color';
 
 // Kebab-menu container-query breakpoint (px) — must match the
 // `@container tokenpanel (max-width: 479px)` rule in styles/panel.css (#518).
-const ACTIONS_MENU_BREAKPOINT_PX = 480;
+// `@container` always evaluates the query container's CONTENT box (excludes
+// border/padding, regardless of box-sizing — confirmed against the CSS
+// Containment spec), while `size.width` below is the shell's BORDER box
+// (.tokenpanel-shell is box-sizing: border-box with a 1px border on each
+// side). Add that 2px back so this JS comparison agrees with the CSS
+// breakpoint at the same border-box width — omitting it left a ~2px dead
+// zone (480–481px) where the kebab was still visible per CSS but every
+// open attempt was immediately auto-closed by the width-close effect below.
+const ACTIONS_MENU_BREAKPOINT_PX = 480 + 2;
 
 // --- Panel sizing ---
 
@@ -588,6 +596,20 @@ export default function DesignTokenTweakPanel({
     setState(freshTweakState(instanceConfig));
   }, [instanceConfig]);
 
+  // Single source of truth for the four header actions (#518) — rendered
+  // both as the always-visible .tokenpanel-action-link header links AND
+  // inside the narrow-panel kebab popover, so a label/handler change only
+  // needs one edit instead of two synchronized ones.
+  const panelActions = useMemo(
+    (): readonly ActionsMenuAction[] => [
+      { label: 'Export', onSelect: () => setShowExport(true) },
+      { label: 'Load from JSON…', onSelect: () => setShowImport(true) },
+      { label: 'Apply', onSelect: () => setShowApply(true) },
+      { label: 'Reset', onSelect: handleResetAll },
+    ],
+    [handleResetAll],
+  );
+
   const handleApplied = useCallback(() => {
     // After a successful apply the on-disk CSS now matches the current tweak,
     // so drop the persisted override envelope and any inline overrides — the
@@ -682,15 +704,6 @@ export default function DesignTokenTweakPanel({
 
         const panelPos = { position: 'fixed' as const, top: position.top, left: position.left };
 
-        // Same four actions as the header links below, collapsed into the
-        // kebab popover at narrow container widths (#518).
-        const actionsMenuActions: readonly ActionsMenuAction[] = [
-          { label: 'Export', onSelect: () => setShowExport(true) },
-          { label: 'Load from JSON…', onSelect: () => setShowImport(true) },
-          { label: 'Apply', onSelect: () => setShowApply(true) },
-          { label: 'Reset', onSelect: handleResetAll },
-        ];
-
         return (
           <>
             <div
@@ -714,27 +727,15 @@ export default function DesignTokenTweakPanel({
           onMouseDown={handleDragStart}
         >
           <span className="tokenpanel-title">zdtp</span>
-          <RoleButton
-            onClick={() => setShowExport(true)}
-            className="tokenpanel-action-link"
-          >
-            Export
-          </RoleButton>
-          <RoleButton
-            onClick={() => setShowImport(true)}
-            className="tokenpanel-action-link"
-          >
-            Load from JSON…
-          </RoleButton>
-          <RoleButton
-            onClick={() => setShowApply(true)}
-            className="tokenpanel-action-link"
-          >
-            Apply
-          </RoleButton>
-          <RoleButton onClick={handleResetAll} className="tokenpanel-action-link">
-            Reset
-          </RoleButton>
+          {panelActions.map((action) => (
+            <RoleButton
+              key={action.label}
+              onClick={action.onSelect}
+              className="tokenpanel-action-link"
+            >
+              {action.label}
+            </RoleButton>
+          ))}
           {/* Actions kebab — narrow-panel replacement for the four action
               links above (#518). Always rendered so the @container rule in
               styles/panel.css can show/hide it with pure CSS; no JS width
@@ -765,7 +766,7 @@ export default function DesignTokenTweakPanel({
           {showActionsMenu && (
             <ActionsMenuPopover
               anchorRef={actionsMenuBtnRef}
-              actions={actionsMenuActions}
+              actions={panelActions}
               onClose={() => setShowActionsMenu(false)}
             />
           )}
