@@ -25,15 +25,24 @@ import type { ComponentChildren, JSX } from 'preact';
 // Types
 // ---------------------------------------------------------------------------
 
+/**
+ * Opt-in tooltip presentation variant. `'help'` applies the wrapped,
+ * bounded-width `.tokenpanel-tooltip--help` class (see panel.css) instead of
+ * the default single-line `nowrap` tooltip — used by `controls/help-icon.tsx`
+ * for the multi-sentence Literal / Per-mode explainer tips.
+ */
+export type TooltipVariant = 'help';
+
 interface TooltipState {
   visible: boolean;
   text: string;
   /** The element that is currently triggering the tooltip. */
   triggerEl: HTMLElement | null;
+  variant?: TooltipVariant;
 }
 
 interface TooltipContextValue {
-  show: (el: HTMLElement, text: string) => void;
+  show: (el: HTMLElement, text: string, variant?: TooltipVariant) => void;
   hide: (el: HTMLElement) => void;
 }
 
@@ -78,13 +87,16 @@ function TooltipElement({ state }: TooltipElementProps) {
     tip.style.top = `${top}px`;
   });
 
+  const className =
+    state.variant === 'help' ? 'tokenpanel-tooltip tokenpanel-tooltip--help' : 'tokenpanel-tooltip';
+
   return (
     <div
       ref={elRef}
       role="tooltip"
       aria-hidden={state.visible ? 'false' : 'true'}
       data-show={state.visible ? 'true' : 'false'}
-      className="tokenpanel-tooltip"
+      className={className}
     >
       {state.text}
     </div>
@@ -115,9 +127,9 @@ export function TooltipProvider({ children }: TooltipProviderProps) {
 
   const currentTriggerRef = useRef<HTMLElement | null>(null);
 
-  const show = useCallback((el: HTMLElement, text: string) => {
+  const show = useCallback((el: HTMLElement, text: string, variant?: TooltipVariant) => {
     currentTriggerRef.current = el;
-    setTooltipState({ visible: true, text, triggerEl: el });
+    setTooltipState({ visible: true, text, triggerEl: el, variant });
   }, []);
 
   const hide = useCallback((el: HTMLElement) => {
@@ -221,27 +233,43 @@ export function TooltipProvider({ children }: TooltipProviderProps) {
 // Hook
 // ---------------------------------------------------------------------------
 
+export interface UseTooltipOptions {
+  /** Opt into a presentation variant — see `TooltipVariant` above. Omit for
+   *  the default single-line `nowrap` tooltip. */
+  variant?: TooltipVariant;
+}
+
 /**
  * Returns event handler props to spread onto the tooltip trigger element.
  *
  * @param text - The full text to show in the tooltip.
+ * @param opts - Optional presentation variant (see `UseTooltipOptions`).
  * @returns An object of `onMouseEnter`, `onMouseLeave`, `onFocusIn`, `onFocusOut`
- *          handlers to spread onto the trigger element.
+ *          handlers to spread onto the trigger element, plus imperative
+ *          `show`/`hide` escape hatches for callers that need to
+ *          show/keep-open the tooltip outside of a raw hover/focus event
+ *          (e.g. `controls/help-icon.tsx`'s click-to-pin behavior).
  */
-export function useTooltip(text: string): {
+export function useTooltip(
+  text: string,
+  opts?: UseTooltipOptions,
+): {
   onMouseEnter: JSX.MouseEventHandler<HTMLElement>;
   onMouseLeave: JSX.MouseEventHandler<HTMLElement>;
   onFocusIn: JSX.FocusEventHandler<HTMLElement>;
   onFocusOut: JSX.FocusEventHandler<HTMLElement>;
+  show: (el: HTMLElement) => void;
+  hide: (el: HTMLElement) => void;
 } {
   const ctx = useContext(TooltipContext);
+  const variant = opts?.variant;
 
   const onMouseEnter: JSX.MouseEventHandler<HTMLElement> = useCallback(
     (e) => {
       if (!ctx) return;
-      ctx.show(e.currentTarget as HTMLElement, text);
+      ctx.show(e.currentTarget as HTMLElement, text, variant);
     },
-    [ctx, text],
+    [ctx, text, variant],
   );
 
   const onMouseLeave: JSX.MouseEventHandler<HTMLElement> = useCallback(
@@ -255,9 +283,9 @@ export function useTooltip(text: string): {
   const onFocusIn: JSX.FocusEventHandler<HTMLElement> = useCallback(
     (e) => {
       if (!ctx) return;
-      ctx.show(e.currentTarget as HTMLElement, text);
+      ctx.show(e.currentTarget as HTMLElement, text, variant);
     },
-    [ctx, text],
+    [ctx, text, variant],
   );
 
   const onFocusOut: JSX.FocusEventHandler<HTMLElement> = useCallback(
@@ -268,5 +296,21 @@ export function useTooltip(text: string): {
     [ctx, text],
   );
 
-  return { onMouseEnter, onMouseLeave, onFocusIn, onFocusOut };
+  const show = useCallback(
+    (el: HTMLElement) => {
+      if (!ctx) return;
+      ctx.show(el, text, variant);
+    },
+    [ctx, text, variant],
+  );
+
+  const hide = useCallback(
+    (el: HTMLElement) => {
+      if (!ctx) return;
+      ctx.hide(el);
+    },
+    [ctx],
+  );
+
+  return { onMouseEnter, onMouseLeave, onFocusIn, onFocusOut, show, hide };
 }
