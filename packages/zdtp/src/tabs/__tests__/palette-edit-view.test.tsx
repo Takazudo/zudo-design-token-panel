@@ -198,6 +198,21 @@ function getNodeHit(channel: 'l' | 'c' | 'h', index: number): SVGCircleElement {
   return el;
 }
 
+/**
+ * Click a group's collapsed header to toggle it. Groups start collapsed (#517),
+ * so a test that needs the swatch strip or curve editor must open the group
+ * first. Single-open accordion: opening one closes any other.
+ */
+function openGroup(tierId: string): void {
+  const header = container.querySelector<HTMLElement>(
+    `[data-testid="palette-edit-group-header-${tierId}"]`,
+  );
+  if (!header) throw new Error(`group header ${tierId} not found`);
+  act(() => {
+    header.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Grouped grid + heading structure
 // ---------------------------------------------------------------------------
@@ -223,42 +238,135 @@ describe('PaletteEditView — grouped grid', () => {
     ).toBe(2);
   });
 
-  it('renders one swatch per step in each group', () => {
+  it('renders one swatch per step in the opened group (only the open group shows swatches)', () => {
     renderView();
-    const graySwatches = container.querySelectorAll(
-      '[data-testid="palette-edit-swatches-gray"] [data-testid^="palette-edit-swatch-"]',
-    );
-    const brandSwatches = container.querySelectorAll(
-      '[data-testid="palette-edit-swatches-brand"] [data-testid^="palette-edit-swatch-"]',
-    );
-    expect(graySwatches.length).toBe(3);
-    expect(brandSwatches.length).toBe(2);
+    // Collapsed by default → no swatch strips at all.
+    expect(
+      container.querySelectorAll('[data-testid^="palette-edit-swatch-"]').length,
+    ).toBe(0);
+
+    openGroup('gray');
+    expect(
+      container.querySelectorAll(
+        '[data-testid="palette-edit-swatches-gray"] [data-testid^="palette-edit-swatch-"]',
+      ).length,
+    ).toBe(3);
+
+    // Single-open: opening brand closes gray, so only brand's strip remains.
+    openGroup('brand');
+    expect(
+      container.querySelectorAll(
+        '[data-testid="palette-edit-swatches-brand"] [data-testid^="palette-edit-swatch-"]',
+      ).length,
+    ).toBe(2);
+    expect(
+      container.querySelectorAll(
+        '[data-testid="palette-edit-swatches-gray"] [data-testid^="palette-edit-swatch-"]',
+      ).length,
+    ).toBe(0);
   });
 
-  it('reveals the curve editor only for the active group (first by default)', () => {
+  it('renders every group collapsed by default — no curve editor visible', () => {
     renderView();
+    expect(
+      container.querySelector('[data-testid="palette-edit-editor-gray"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="palette-edit-editor-brand"]'),
+    ).toBeNull();
+    // Both headers report collapsed via aria-expanded.
+    expect(
+      container
+        .querySelector('[data-testid="palette-edit-group-header-gray"]')
+        ?.getAttribute('aria-expanded'),
+    ).toBe('false');
+    expect(
+      container
+        .querySelector('[data-testid="palette-edit-group-header-brand"]')
+        ?.getAttribute('aria-expanded'),
+    ).toBe('false');
+  });
+
+  it('opening a group reveals only that group\'s curve editor', () => {
+    renderView();
+    openGroup('gray');
     expect(
       container.querySelector('[data-testid="palette-edit-editor-gray"]'),
     ).not.toBeNull();
     expect(
       container.querySelector('[data-testid="palette-edit-editor-brand"]'),
     ).toBeNull();
+    expect(
+      container
+        .querySelector('[data-testid="palette-edit-group-header-gray"]')
+        ?.getAttribute('aria-expanded'),
+    ).toBe('true');
   });
 
-  it('selecting a step in another group moves the editor to that group', () => {
+  it('opening another group closes the previously open one (single-open accordion)', () => {
     renderView();
-    const brandSwatch = container.querySelector<HTMLElement>(
-      '[data-testid="palette-edit-swatch-brand-1"]',
+    openGroup('gray');
+    expect(
+      container.querySelector('[data-testid="palette-edit-editor-gray"]'),
+    ).not.toBeNull();
+
+    openGroup('brand');
+    expect(
+      container.querySelector('[data-testid="palette-edit-editor-brand"]'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="palette-edit-editor-gray"]'),
+    ).toBeNull();
+  });
+
+  it('re-clicking an open group header closes it, and it can be reopened', () => {
+    renderView();
+    openGroup('gray');
+    expect(
+      container.querySelector('[data-testid="palette-edit-editor-gray"]'),
+    ).not.toBeNull();
+
+    // Toggle closed.
+    openGroup('gray');
+    expect(
+      container.querySelector('[data-testid="palette-edit-editor-gray"]'),
+    ).toBeNull();
+    expect(
+      container
+        .querySelector('[data-testid="palette-edit-group-header-gray"]')
+        ?.getAttribute('aria-expanded'),
+    ).toBe('false');
+
+    // Reopen cleanly.
+    openGroup('gray');
+    expect(
+      container.querySelector('[data-testid="palette-edit-editor-gray"]'),
+    ).not.toBeNull();
+  });
+
+  it('switching groups resets selectedIndex so the new group\'s selection stays in range', () => {
+    renderView();
+    openGroup('gray');
+    // Select gray-2 (index 2) — valid in gray (3 steps).
+    const gray2 = container.querySelector<HTMLElement>(
+      '[data-testid="palette-edit-swatch-gray-2"]',
     );
     act(() => {
-      brandSwatch!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      gray2!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
+    expect(gray2!.getAttribute('aria-pressed')).toBe('true');
+
+    // Switch to brand (only 2 steps) — index 2 would be out of range.
+    openGroup('brand');
+    // Selection reset to step 0: brand-0 is selected, not an out-of-range index.
     expect(
-      container.querySelector('[data-testid="palette-edit-editor-brand"]'),
-    ).not.toBeNull();
-    expect(
-      container.querySelector('[data-testid="palette-edit-editor-gray"]'),
-    ).toBeNull();
+      container
+        .querySelector('[data-testid="palette-edit-swatch-brand-0"]')
+        ?.getAttribute('aria-pressed'),
+    ).toBe('true');
+    // Readout reflects brand-0, confirming the clamp landed on a real step.
+    const token = container.querySelector('[data-testid="palette-readout-token"]');
+    expect(token?.textContent).toContain('--palette-brand-0');
   });
 });
 
@@ -267,8 +375,9 @@ describe('PaletteEditView — grouped grid', () => {
 // ---------------------------------------------------------------------------
 
 describe('PaletteEditView — DOM hygiene', () => {
-  it('uses no native button or banned semantic tags', () => {
+  it('uses no native button or banned semantic tags (collapsed or open)', () => {
     renderView();
+    openGroup('gray'); // exercise the richer open DOM (headers + editor)
     for (const tag of [
       'button', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'ul', 'ol', 'li',
       'a', 'table', 'details', 'summary',
@@ -277,13 +386,95 @@ describe('PaletteEditView — DOM hygiene', () => {
     }
   });
 
+  it('group headers are div[role="button"] with tabIndex and aria-expanded', () => {
+    renderView();
+    const header = container.querySelector('[data-testid="palette-edit-group-header-gray"]');
+    expect(header?.tagName.toLowerCase()).toBe('div');
+    expect(header?.getAttribute('role')).toBe('button');
+    expect(header?.getAttribute('tabindex')).toBe('0');
+    expect(header?.getAttribute('aria-expanded')).toBe('false'); // collapsed by default
+  });
+
   it('swatches are div[role="button"] with tabIndex and aria-pressed', () => {
     renderView();
+    openGroup('gray');
     const swatch = container.querySelector('[data-testid="palette-edit-swatch-gray-0"]');
     expect(swatch?.tagName.toLowerCase()).toBe('div');
     expect(swatch?.getAttribute('role')).toBe('button');
     expect(swatch?.getAttribute('tabindex')).toBe('0');
-    expect(swatch?.getAttribute('aria-pressed')).toBe('true'); // first step selected
+    expect(swatch?.getAttribute('aria-pressed')).toBe('true'); // step 0 selected on open
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Collapsed headers + preview chips
+// ---------------------------------------------------------------------------
+
+describe('PaletteEditView — collapsed headers + preview chips', () => {
+  it('each collapsed header shows a chevron and one preview chip per step', () => {
+    renderView();
+    const grayChips = container.querySelectorAll(
+      '[data-testid="palette-edit-group-header-gray"] .tokenpanel-palette-edit-preview-chip',
+    );
+    const brandChips = container.querySelectorAll(
+      '[data-testid="palette-edit-group-header-brand"] .tokenpanel-palette-edit-preview-chip',
+    );
+    expect(grayChips.length).toBe(3);
+    expect(brandChips.length).toBe(2);
+    // Chevron SVG present in the header.
+    expect(
+      container.querySelector(
+        '[data-testid="palette-edit-group-header-gray"] .tokenpanel-palette-edit-group-chevron svg',
+      ),
+    ).not.toBeNull();
+  });
+
+  it('the preview-chip strip is decorative (aria-hidden)', () => {
+    renderView();
+    const preview = container.querySelector(
+      '[data-testid="palette-edit-group-header-gray"] .tokenpanel-palette-edit-group-preview',
+    );
+    expect(preview?.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('Enter and Space on a header toggle it open', () => {
+    renderView();
+    const grayHeader = container.querySelector<HTMLElement>(
+      '[data-testid="palette-edit-group-header-gray"]',
+    );
+    act(() => {
+      grayHeader!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    expect(
+      container.querySelector('[data-testid="palette-edit-editor-gray"]'),
+    ).not.toBeNull();
+    expect(grayHeader!.getAttribute('aria-expanded')).toBe('true');
+
+    // Space toggles it back closed.
+    act(() => {
+      grayHeader!.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+    });
+    expect(
+      container.querySelector('[data-testid="palette-edit-editor-gray"]'),
+    ).toBeNull();
+  });
+
+  it('preview chip color tracks override state', () => {
+    renderView();
+    const chipDefault = container.querySelector<HTMLElement>(
+      '[data-testid="palette-edit-group-header-gray"] .tokenpanel-palette-edit-preview-chip',
+    )!.style.background;
+
+    // Override gray-0 to a visibly different color; its chip must repaint.
+    renderView({ overrides: { gray: { 'gray-0': 'oklch(50% 0.2 20)' } } });
+    const chipOverridden = container.querySelector<HTMLElement>(
+      '[data-testid="palette-edit-group-header-gray"] .tokenpanel-palette-edit-preview-chip',
+    )!.style.background;
+
+    expect(chipOverridden).not.toBe('');
+    expect(chipOverridden).not.toBe(chipDefault);
+    // Fill is a resolved hex, never a host-overridable CSS var.
+    expect(chipOverridden).not.toContain('var(');
   });
 });
 
@@ -292,8 +483,9 @@ describe('PaletteEditView — DOM hygiene', () => {
 // ---------------------------------------------------------------------------
 
 describe('PaletteEditView — channel toggle', () => {
-  it('all three channels visible by default', () => {
+  it('all three channels visible when a group is open', () => {
     renderView();
+    openGroup('gray');
     for (const ch of ['l', 'c', 'h'] as const) {
       expect(
         container.querySelector(`[data-testid="palette-chart-curve-${ch}"]`),
@@ -303,6 +495,7 @@ describe('PaletteEditView — channel toggle', () => {
 
   it('toggling a channel off hides that curve', () => {
     renderView();
+    openGroup('gray');
     const cToggle = container.querySelector<HTMLElement>(
       '[data-testid="palette-edit-channel-c"]',
     );
@@ -325,6 +518,7 @@ describe('PaletteEditView — channel toggle', () => {
 describe('PaletteEditView — readout', () => {
   it('shows OKLCH / Hex / RGB rows for the selected step', () => {
     renderView();
+    openGroup('gray');
     expect(container.querySelector('[data-testid="palette-readout-oklch"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="palette-readout-hex"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="palette-readout-rgb"]')).not.toBeNull();
@@ -335,6 +529,7 @@ describe('PaletteEditView — readout', () => {
 
   it('readout updates when a different step is selected', () => {
     renderView();
+    openGroup('gray');
     const swatch = container.querySelector<HTMLElement>(
       '[data-testid="palette-edit-swatch-gray-1"]',
     );
@@ -353,6 +548,7 @@ describe('PaletteEditView — readout', () => {
 describe('PaletteEditView — out-of-gamut', () => {
   it('flags an out-of-gamut step with the dashed marker', () => {
     renderView();
+    openGroup('gray');
     const oog = container.querySelector('[data-testid="palette-edit-swatch-gray-2"]');
     const inGamut = container.querySelector('[data-testid="palette-edit-swatch-gray-0"]');
     expect(oog?.getAttribute('data-out-of-gamut')).toBe('true');
@@ -369,6 +565,7 @@ describe('PaletteEditView — batched commit', () => {
     const onCommitBatch = vi.fn();
     const onChange = vi.fn();
     renderView({ onCommitBatch, onChange });
+    openGroup('gray');
 
     const svg = primeChannelSvg('l');
     const node = getNodeHit('l', 1); // gray-1, L channel
@@ -408,6 +605,7 @@ describe('PaletteEditView — batched commit', () => {
   it('whole-curve drag commits every changed step in one batch', () => {
     const onCommitBatch = vi.fn();
     renderView({ onCommitBatch });
+    openGroup('gray');
 
     const svg = primeChannelSvg('l');
     const hitLine = container.querySelector<SVGPolylineElement>(
@@ -434,6 +632,7 @@ describe('PaletteEditView — batched commit', () => {
     // out of gamut. Simpler: drag gray-2 (already OOG) L down and confirm the
     // committed chroma is preserved (not clamped to a smaller value).
     renderView({ onCommitBatch });
+    openGroup('gray');
 
     const svg = primeChannelSvg('l');
     const node = getNodeHit('l', 2); // gray-2 (chroma 0.35, out of gamut)
@@ -455,6 +654,7 @@ describe('PaletteEditView — batched commit', () => {
   it('falls back to per-item onChange when no onCommitBatch is wired', () => {
     const onChange = vi.fn();
     renderView({ onChange }); // no onCommitBatch
+    openGroup('gray');
 
     const svg = primeChannelSvg('l');
     const node = getNodeHit('l', 1);

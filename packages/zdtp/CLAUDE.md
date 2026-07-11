@@ -95,6 +95,18 @@ This panel is a **developer tool**. The user is a developer who wants to see all
 
 The `TabConfig.advancedTiers` field (which previously hid tiers behind a disclosure) **is being removed in #148**. Do not add new uses of it. Example manifests must not reference it.
 
+#### Scoped exception — Palette Edit-view group accordion (#517)
+
+The Palette tab's **Edit view** is the ONE documented exception to the rule above. Its group organizer (`tabs/palette/palette-edit-view.tsx`) is a **ramp editor**, not a token list: each group is a boxed accordion row (chevron + label + decorative preview chips) that expands to reveal that group's OKLCH curve editor + interactive swatch strip. All groups start **collapsed**; opening one closes the others (single-open accordion, `activeTierId: string | null` defaulting to `null`).
+
+Why this is allowed where flat token lists are not:
+
+- It is an **editing surface**, not a read-only token inventory. Only one ramp is edited at a time; collapsing the others keeps the curve editor focused and the panel short.
+- **Color visibility is preserved.** Each collapsed header shows an `aria-hidden` strip of preview chips — one per step, computed with the same `resolveItemOklcha` / `oklchaToHex` helpers the real swatches use. No color information is hidden; only the interactive editing UI (swatch strip + curve editor) collapses. The chips are decorative (`pointer-events: none`); the accessible, labelled color info lives on the real swatches once a group is opened.
+- The header still satisfies DOM hygiene: `div[role="button"] tabIndex={0}` with `aria-expanded` + Enter/Space handlers, and exactly one `div[role="heading" aria-level={3}]` per group (one-tier-one-heading preserved). The heading uses an in-flow class (`.tokenpanel-palette-edit-group-heading`), NOT the absolute-positioned `.tokenpanel-tab-section-heading` float trick, which cannot live inside a clickable row.
+
+This exception is **narrow**: it applies ONLY to the Palette Edit-view ramp-group organizer. Every other token list in the panel — Color, Font, Size, Easing, Spacing, and the Palette **Check** view — stays flat and never collapses by default. Do NOT cite this exception to add `<details>` / `<summary>` or any collapse-by-default disclosure elsewhere. Accordion state is transient and never persisted.
+
 ### One-tier-one-heading policy
 
 Each tier renders exactly **one** `<div role="heading" aria-level={3}>` (the tier-section heading). The panel does NOT render a second-level heading inside a tier.
