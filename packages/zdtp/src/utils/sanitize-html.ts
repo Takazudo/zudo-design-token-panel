@@ -54,7 +54,17 @@ const ALLOWED_TAGS: ReadonlySet<string> = new Set([
   'blockquote',
 ]);
 
-/** Attributes the notes body may carry, on any allowed tag. */
+/** Attributes the notes body may carry, on any allowed tag.
+ *
+ * `class` is intentionally allowed so a host can style its own prose. Note the
+ * accepted trade-off: `notesExtras.html` is host-supplied panel CONFIG (not
+ * arbitrary end-user input), so it is semi-trusted — a host that wanted to
+ * spoof the panel chrome by injecting `tokenpanel-*` classes could already do
+ * far worse in its own config. `id`/`name` are deliberately NOT allowed (DOM
+ * clobbering). Likewise `href`/`src` permit any allowlisted-scheme URL
+ * (http/https/mailto): an `<img src="http://...">` in a note beacons the
+ * viewer's IP on render — accepted for host-authored notes; no `target`/`rel`
+ * is allowed so `<a>` cannot reverse-tabnab. */
 const ALLOWED_ATTRS: ReadonlySet<string> = new Set(['href', 'src', 'alt', 'title', 'class']);
 
 /** Void elements per the allowlist — never carry children. */

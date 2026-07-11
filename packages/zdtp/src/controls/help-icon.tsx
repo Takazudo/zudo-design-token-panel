@@ -24,6 +24,11 @@
  * A is next clicked or Escape is pressed, even though its tooltip is no
  * longer the one on screen. Acceptable for this panel's single-tooltip
  * architecture; not worth a cross-instance pin registry for a "?" hint.
+ * The same applies to a panel/window resize: `tooltip.tsx` hides the shared
+ * tooltip on resize (its ResizeObserver + window-resize handlers), but this
+ * component's local `pinned` state only clears on click/Escape — so after a
+ * resize the icon may briefly keep `is-pinned`/`aria-pressed` with no tooltip
+ * visible until the next activation. Same accepted single-tooltip trade-off.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
