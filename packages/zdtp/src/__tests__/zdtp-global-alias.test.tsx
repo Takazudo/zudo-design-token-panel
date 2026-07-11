@@ -21,7 +21,7 @@ const PANEL_ROOT_ID = panelRootId(DEFAULT_CFG);
 const AUTOLOAD_KEY = storageKey_autoload(DEFAULT_CFG);
 
 /** Text unique to the open-panel header in panel.tsx. */
-const OPEN_PANEL_HEADER_TEXT = 'Design Tokens';
+const OPEN_PANEL_HEADER_TEXT = 'zdtp';
 
 interface ZdtpGlobalApi {
   show: () => void;
