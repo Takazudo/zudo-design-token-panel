@@ -142,6 +142,35 @@ function Swatch({ item, index, oklcha, isSelected, onSelect }: SwatchProps) {
 }
 
 // ---------------------------------------------------------------------------
+// Group preview chips (collapsed-header color affordance)
+// ---------------------------------------------------------------------------
+
+interface GroupPreviewChipsProps {
+  /** Effective (override + transient) colors for the group's steps. */
+  colors: Oklcha[];
+}
+
+/**
+ * Decorative color chips in a group's collapsed header. They keep the group's
+ * colors visible while its swatch strip is collapsed (the scoped disclosure
+ * exception). aria-hidden + pointer-events:none — the real, labelled swatches
+ * live inside the open group; these chips carry no accessible info.
+ */
+function GroupPreviewChips({ colors }: GroupPreviewChipsProps) {
+  return (
+    <div className="tokenpanel-palette-edit-group-preview" aria-hidden="true">
+      {colors.map((oklcha, i) => (
+        <div
+          key={i}
+          className="tokenpanel-palette-edit-preview-chip"
+          style={{ background: oklchaToHex(oklcha) }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Channel toggle (L / C / H)
 // ---------------------------------------------------------------------------
 
@@ -190,9 +219,13 @@ function ChannelToggle({ visible, onToggle }: ChannelToggleProps) {
 
 export default function PaletteEditView({ tab, overrides, onChange, onCommitBatch }: PaletteEditViewProps) {
   const tiers = groupPaletteTiers(tab);
-  const firstTier = tiers[0];
 
-  const [activeTierId, setActiveTierId] = useState<string>(firstTier?.id ?? '');
+  // Single-open accordion. `null` = every group collapsed (the initial state):
+  // the Edit view opens with ALL groups closed so the boxed headers read as
+  // equally expandable (#517). This intentionally collapses the swatch strip too
+  // — the documented scoped exception to the no-progressive-disclosure policy
+  // (see packages/zdtp/CLAUDE.md). Accordion state is transient — never persisted.
+  const [activeTierId, setActiveTierId] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
   const [visibleChannels, setVisibleChannels] = useState<VisibleChannels>({
     l: true,
@@ -220,7 +253,7 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
     setVisibleChannels((prev) => ({ ...prev, [channel]: !prev[channel] }));
   }, []);
 
-  const activeTier = tiers.find((t) => t.id === activeTierId) ?? firstTier;
+  const activeTier = tiers.find((t) => t.id === activeTierId) ?? null;
 
   // Resolve the active group's colors, overlaying any in-flight transient edits.
   const activeColors: Oklcha[] = useMemo(() => {
@@ -232,6 +265,16 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
     });
     // overrides + transient + activeTier are the full inputs.
   }, [activeTier, overrides, transient]);
+
+  // ── Accordion (single-open groups) ──────────────────────────────────────────
+
+  const handleToggleGroup = useCallback((tierId: string) => {
+    // Re-click closes; a different group switches. Opening OR switching resets
+    // the selection to step 0 so an index carried over from a longer group can
+    // never be out of range in a shorter one.
+    setActiveTierId((prev) => (prev === tierId ? null : tierId));
+    setSelectedIndex(0);
+  }, []);
 
   // ── Selection ──────────────────────────────────────────────────────────────
 
@@ -315,56 +358,94 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
     <div className="tokenpanel-palette-edit-view" data-testid="palette-edit-view">
       {tiers.map((tier) => {
         const isActive = tier.id === activeTierId;
+        // Chips track live color: the open group overlays in-flight transient
+        // edits; collapsed groups resolve straight from overrides.
+        const chipColors = isActive
+          ? activeColors
+          : tier.items.map((item) => resolveItemOklcha(item, tier.id, overrides));
         return (
           <div
             key={tier.id}
             className={
               isActive
-                ? 'tokenpanel-tab-section tokenpanel-palette-edit-group is-active'
-                : 'tokenpanel-tab-section tokenpanel-palette-edit-group'
+                ? 'tokenpanel-palette-edit-group is-active'
+                : 'tokenpanel-palette-edit-group'
             }
             data-testid={`palette-edit-tier-${tier.id}`}
           >
-            <div role="heading" aria-level={3} className="tokenpanel-tab-section-heading">
-              {tier.label}
-            </div>
-
-            <div className="tokenpanel-palette-edit-swatches" data-testid={`palette-edit-swatches-${tier.id}`}>
-              {tier.items.map((item, index) => {
-                // Active group uses live (transient-aware) colors; inactive
-                // groups resolve straight from overrides.
-                const oklcha = isActive
-                  ? activeColors[index]
-                  : resolveItemOklcha(item, tier.id, overrides);
-                return (
-                  <Swatch
-                    key={item.id}
-                    item={item}
-                    index={index}
-                    oklcha={oklcha}
-                    isSelected={isActive && index === selectedIndex}
-                    onSelect={(i) => handleSelectGroup(tier.id, i)}
-                  />
-                );
-              })}
+            <div
+              role="button"
+              tabIndex={0}
+              aria-expanded={isActive}
+              className="tokenpanel-palette-edit-group-header"
+              onClick={() => handleToggleGroup(tier.id)}
+              onKeyDown={(e: KeyboardEvent) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleToggleGroup(tier.id);
+                }
+              }}
+              data-testid={`palette-edit-group-header-${tier.id}`}
+            >
+              <div
+                className={
+                  isActive
+                    ? 'tokenpanel-palette-edit-group-chevron is-open'
+                    : 'tokenpanel-palette-edit-group-chevron'
+                }
+                aria-hidden="true"
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </div>
+              <div role="heading" aria-level={3} className="tokenpanel-palette-edit-group-heading">
+                {tier.label}
+              </div>
+              <GroupPreviewChips colors={chipColors} />
             </div>
 
             {isActive && (
-              <ActiveGroupEditor
-                tier={tier}
-                colors={activeColors}
-                selectedIndex={selectedIndex}
-                visibleChannels={visibleChannels}
-                selectedItem={selectedItem}
-                selectedOklcha={selectedOklcha}
-                selectedValue={selectedValue}
-                onChartChange={handleChartChange}
-                onChartSelectIndex={handleChartSelectIndex}
-                onToggleChannel={handleToggleChannel}
-                onChangeStart={handleChangeStart}
-                onChangeEnd={handleChangeEnd}
-                onDirectEdit={handleDirectEdit}
-              />
+              <div className="tokenpanel-palette-edit-group-body">
+                <div
+                  className="tokenpanel-palette-edit-swatches"
+                  data-testid={`palette-edit-swatches-${tier.id}`}
+                >
+                  {tier.items.map((item, index) => (
+                    <Swatch
+                      key={item.id}
+                      item={item}
+                      index={index}
+                      oklcha={activeColors[index]}
+                      isSelected={index === selectedIndex}
+                      onSelect={(i) => handleSelectGroup(tier.id, i)}
+                    />
+                  ))}
+                </div>
+
+                <ActiveGroupEditor
+                  tier={tier}
+                  colors={activeColors}
+                  selectedIndex={selectedIndex}
+                  visibleChannels={visibleChannels}
+                  selectedItem={selectedItem}
+                  selectedOklcha={selectedOklcha}
+                  selectedValue={selectedValue}
+                  onChartChange={handleChartChange}
+                  onChartSelectIndex={handleChartSelectIndex}
+                  onToggleChannel={handleToggleChannel}
+                  onChangeStart={handleChangeStart}
+                  onChangeEnd={handleChangeEnd}
+                  onDirectEdit={handleDirectEdit}
+                />
+              </div>
             )}
           </div>
         );

@@ -59,7 +59,7 @@ if (PANEL_ROOT_ID !== 'zudo-design-token-panel-root') {
 }
 
 /** Tag used in the panel header — see panel.tsx. */
-const OPEN_PANEL_HEADER_TEXT = 'Design Tokens';
+const OPEN_PANEL_HEADER_TEXT = 'zdtp';
 
 describe('design-token-panel adapter — auto-mount with visibility flag', () => {
   beforeEach(() => {

@@ -6,7 +6,21 @@ import type { ColorScheme } from '../config/color-schemes';
 // ---------------------------------------------------------------------------
 
 export type TierValueKind =
-  | { kind: 'length'; step: number; unit: string }
+  | {
+      kind: 'length';
+      step: number;
+      unit: string;
+      /**
+       * Optional list of unit suffixes this row may cycle through by
+       * clicking the unit label (#519). 2+ entries opts the row into an
+       * interactive, click/Enter/Space-cycling unit suffix (wrapping through
+       * the list); omitted or a single entry keeps today's static,
+       * non-interactive unit span, pixel-identical. This kind is reused for
+       * ms durations and unitless values too — only declare `units` when
+       * cycling between those suffixes is valid CSS for the token.
+       */
+      units?: readonly string[];
+    }
   | { kind: 'number'; step: number }
   | { kind: 'select'; options: readonly string[] }
   | { kind: 'text' }
@@ -171,6 +185,24 @@ export interface ColorClusterExtras {
 }
 
 // ---------------------------------------------------------------------------
+// Notes tab extras (host-configurable "token notes" content, #515)
+// ---------------------------------------------------------------------------
+
+/**
+ * Host-configurable "token notes" content — ONLY valid on the reserved
+ * `id: 'notes'` pseudo-tab (#515). That tab renders `title` as a section
+ * heading and `html` (sanitized by `utils/sanitize-html.ts`) as its body,
+ * instead of a tier-driven token editor. `assertValidPanelConfig` enforces
+ * the full contract: required + non-empty on `id: 'notes'`, forbidden on
+ * every other tab id, and `id: 'notes'` tabs must ship `tiers: []` and no
+ * `colorExtras`.
+ */
+export interface NotesExtras {
+  title: string;
+  html: string;
+}
+
+// ---------------------------------------------------------------------------
 // Tab config
 // ---------------------------------------------------------------------------
 
@@ -179,4 +211,5 @@ export interface TabConfig {
   label: string;
   tiers: readonly TierConfig[];
   colorExtras?: ColorClusterExtras;
+  notesExtras?: NotesExtras;
 }

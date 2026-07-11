@@ -923,6 +923,102 @@ export function exportFilename(cfg: PanelConfig): string {
   return `${cfg.exportFilenameBase}.json`;
 }
 
+// ---------------------------------------------------------------------------
+// Fixed-name global open API (issue #523)
+// ---------------------------------------------------------------------------
+//
+// `window.zdtp = { show, hide, toggle }` — an ADDITIVE alias on top of the
+// existing `window[consoleNamespace].*` console API (which stays fully
+// intact; see PORTABLE-CONTRACT.md §10). `consoleNamespace` is a REQUIRED
+// host-chosen config field, so historically every consumer had to know its
+// own namespace before it could open the panel from the console. This fixed
+// name needs no config lookup: `zdtp.show()` works as soon as either the
+// package-root module has loaded (non-Astro hosts) or the Astro
+// host-adapter script has run (before the panel bundle itself loads).
+//
+// Two independent call sites install this alias — `src/index.tsx` (package
+// root, for hosts that import the panel directly) and
+// `src/astro/host-adapter.ts` (for Astro hosts, installed eagerly alongside
+// `installConsoleApi`, wrapping the same lazy `loadPanelModule` + handle
+// pattern the console API uses). Both route through this single installer so
+// the "never clobber a host-defined `window.zdtp`, never double-install"
+// guard logic lives in one place.
+
+/** Shape of the fixed-name global alias installed at `window.zdtp`. */
+export interface ZdtpGlobalApi {
+  show: () => void | Promise<void>;
+  hide: () => void | Promise<void>;
+  toggle: () => void | Promise<void>;
+}
+
+/**
+ * Marks a `window.zdtp` object as one this package installed, so a later
+ * install call (from the other call site, or a re-run of the same one — e.g.
+ * an Astro view-transition re-executing the adapter `<script>`) can tell
+ * "our own idempotent re-install" apart from "a host defined `window.zdtp`
+ * for its own purposes". A symbol key is invisible to `Object.keys` /
+ * `JSON.stringify`, so it never leaks into a developer's
+ * `console.log(window.zdtp)`.
+ *
+ * `Symbol.for` (not a bare `Symbol()`) for the same reason `REGISTRY_SYMBOL`
+ * above uses the global symbol registry: a Vite/Astro multi-entry build can
+ * duplicate this module into more than one chunk, and both `index.tsx` and
+ * `host-adapter.ts` must recognise each other's install regardless of which
+ * chunk they resolved through.
+ */
+const ZDTP_GLOBAL_ALIAS_MARKER = Symbol.for('@takazudo/zdtp:global-alias-marker');
+
+/**
+ * Install `window.zdtp = { show, hide, toggle }`, the fixed-name console
+ * sugar for the common single-panel case (issue #523).
+ *
+ * Guard rules:
+ *  - A pre-existing `window.zdtp` WITHOUT this package's marker is assumed to
+ *    be host-defined — never overwritten. Logs a `console.warn` so the host
+ *    can see why `zdtp.show()` did not appear.
+ *  - A pre-existing `window.zdtp` WITH the marker means this package already
+ *    installed the alias (from the other call site, or an earlier run of this
+ *    same one). First install wins — the call is a silent no-op. In the Astro
+ *    flow this manifests as "the adapter wins": its bootstrap script always
+ *    runs (and installs the alias) before the panel module's lazy dynamic
+ *    import can resolve and reach the package-root install site.
+ *
+ * `show` / `hide` / `toggle` are caller-supplied closures, so which instance
+ * they target is up to the caller — the package-root install site (below,
+ * `index.tsx`) wraps `showDesignTokenPanel()` etc., which re-resolve
+ * `getPanelConfig()` (the CURRENT default instance) on every call; the Astro
+ * host-adapter install site instead binds to the specific `PanelInstanceHandle`
+ * captured at its own install time, which does NOT track a later change of
+ * default (see PORTABLE-CONTRACT.md §6.5 for the full nuance). Either way,
+ * for a multi-instance page use `configurePanel(cfg).open()` etc. on the
+ * specific instance's own handle instead of relying on this alias.
+ */
+export function installZdtpGlobalAlias(api: ZdtpGlobalApi): void {
+  if (typeof window === 'undefined') return;
+  const win = window as unknown as Record<string, unknown>;
+  const existing = win.zdtp;
+  if (existing !== undefined) {
+    // `existing` may be any host-supplied value, including `null` or another
+    // primitive — guard the property read so a host that (unusually) set
+    // `window.zdtp = null` hits the host-defined warn path below instead of
+    // throwing when reading a symbol property off `null`/a primitive.
+    const alreadyOurs =
+      (typeof existing === 'object' || typeof existing === 'function') &&
+      existing !== null &&
+      (existing as Record<symbol, unknown>)[ZDTP_GLOBAL_ALIAS_MARKER] === true;
+    if (alreadyOurs) return;
+    console.warn(
+      '[design-token-panel] window.zdtp already exists and was not installed by this package. ' +
+        'Skipping the zdtp.show() / zdtp.hide() / zdtp.toggle() global alias to avoid clobbering ' +
+        'it. Use window[consoleNamespace].* or the configurePanel(cfg) handle instead.',
+    );
+    return;
+  }
+  const alias: ZdtpGlobalApi & Record<symbol, unknown> = { ...api };
+  alias[ZDTP_GLOBAL_ALIAS_MARKER] = true;
+  win.zdtp = alias;
+}
+
 /**
  * Runtime validation at the host-adapter trust boundary. The Astro inline
  * `<script type="application/json">` payload is untrusted-by-the-types:
@@ -1194,6 +1290,43 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>, allTabs: un
         throw new Error(
           `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].items["${it.id}"].cssVar must be non-empty after "--"`,
         );
+      }
+
+      // Rule: length-kind `type.units` (opt-in click-to-cycle unit suffix,
+      // #519) — when present, must be an array of non-empty, non-duplicate
+      // unit strings. Only checked for `kind: 'length'` items; the field is
+      // not part of any other kind's shape. A present-but-single-entry (or
+      // empty) array is intentionally NOT rejected here — per the #519
+      // design, fewer than 2 entries means "not opted into cycling yet",
+      // which the editor renders as today's static, non-interactive span.
+      const itType = it.type;
+      if (
+        itType !== null &&
+        typeof itType === 'object' &&
+        !Array.isArray(itType) &&
+        (itType as Record<string, unknown>).kind === 'length' &&
+        (itType as Record<string, unknown>).units !== undefined
+      ) {
+        const units = (itType as Record<string, unknown>).units;
+        if (!Array.isArray(units)) {
+          throw new Error(
+            `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].items["${it.id}"].type.units must be an array`,
+          );
+        }
+        const seenUnits = new Set<string>();
+        for (const u of units) {
+          if (typeof u !== 'string' || u.length === 0) {
+            throw new Error(
+              `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].items["${it.id}"].type.units entries must be non-empty strings (got ${JSON.stringify(u)})`,
+            );
+          }
+          if (seenUnits.has(u)) {
+            throw new Error(
+              `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].items["${it.id}"].type.units: duplicate unit ${JSON.stringify(u)}`,
+            );
+          }
+          seenUnits.add(u);
+        }
       }
     }
   }
@@ -1541,6 +1674,49 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>, allTabs: un
         }
       }
     }
+  }
+
+  // notesExtras validation block (host-configurable "token notes" tab, #515).
+  // Strict special-tab contract: a tab with id:'notes' MUST carry a valid
+  // notesExtras (non-empty title + html), MUST NOT declare any tiers, and
+  // MUST NOT carry colorExtras — this keeps the notes tab out of every
+  // generic token code path (state init, apply routing, serde) by
+  // construction rather than relying on downstream code to skip it
+  // correctly. Conversely, no OTHER tab may set notesExtras — it is not a
+  // generic per-tab extras bag like colorExtras will eventually become.
+  if (tabId === 'notes') {
+    if ((tab.tiers as unknown[]).length > 0) {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["notes"].tiers must be empty — the notes tab does not hold token tiers`,
+      );
+    }
+    if (tab.colorExtras !== undefined) {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["notes"].colorExtras must not be set — the notes tab does not carry token config`,
+      );
+    }
+    if (
+      tab.notesExtras === undefined ||
+      tab.notesExtras === null ||
+      typeof tab.notesExtras !== 'object' ||
+      Array.isArray(tab.notesExtras)
+    ) {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["notes"].notesExtras must be a plain object with { title, html }`,
+      );
+    }
+    const notesExtras = tab.notesExtras as Record<string, unknown>;
+    for (const key of ['title', 'html'] as const) {
+      if (typeof notesExtras[key] !== 'string' || (notesExtras[key] as string).length === 0) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["notes"].notesExtras.${key} must be a non-empty string (got ${typeof notesExtras[key]})`,
+        );
+      }
+    }
+  } else if (tab.notesExtras !== undefined) {
+    throw new Error(
+      `[design-token-panel] PanelConfig.tabs["${tabId}"].notesExtras must only be set on a tab with id "notes"`,
+    );
   }
 }
 

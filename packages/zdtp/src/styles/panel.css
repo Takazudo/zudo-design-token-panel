@@ -72,12 +72,16 @@
  * ========================================================================= */
 
 .tokenpanel-shell {
+  /* Named query container (#518) — the shell always receives an explicit
+   * inline width (resize-drag state or the default-size calc), so
+   * inline-size containment is safe: no intrinsic-size feedback loop. */
+  container: tokenpanel / inline-size;
   z-index: var(--tokentweak-z-shell);
   display: flex;
   flex-direction: column;
   border: 1px solid var(--tokentweak-color-muted);
   background-color: var(--tokentweak-color-surface);
-  border-radius: var(--radius-tokentweak);
+  border-radius: 0;
   box-shadow: 0 4px 24px rgb(0 0 0 / 0.25);
 }
 
@@ -109,7 +113,7 @@
   );
   -webkit-mask-image: linear-gradient(135deg, transparent 50%, #000 50%);
   mask-image: linear-gradient(135deg, transparent 50%, #000 50%);
-  border-bottom-right-radius: var(--radius-tokentweak);
+  border-bottom-right-radius: 0;
   transition: opacity 150ms ease;
   opacity: 0.7;
 }
@@ -126,13 +130,24 @@
   padding-block: var(--tokentweak-gap-xs);
   border-bottom: 1px solid var(--tokentweak-color-muted);
   flex-shrink: 0;
+  /* Anchor for .tokenpanel-actions-popover (#518). */
+  position: relative;
 }
 
 .tokenpanel-title {
   color: var(--tokentweak-color-fg);
   font-weight: 600;
   font-size: 14px;
-  flex-shrink: 0;
+  /* Never wraps or pushes at narrow container widths — truncates instead.
+   * Needs flex-shrink: 1 (not the header's usual 0) + min-width: 0 so the
+   * item can actually shrink below its content width before ellipsis kicks
+   * in — every sibling in the header keeps flex-shrink: 0, so the title
+   * absorbs 100% of any width deficit rather than pushing them. */
+  flex-shrink: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .tokenpanel-action-link {
@@ -143,6 +158,10 @@
   padding: 0;
   cursor: pointer;
   transition: color 150ms ease;
+  /* Never mid-word wraps at narrow container widths (the "Load from JSON…"
+   * 3-line-wrap bug, #518). */
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .tokenpanel-action-link:hover {
   color: var(--tokentweak-color-accent-hover);
@@ -151,6 +170,64 @@
   outline: 2px solid var(--tokentweak-color-accent);
   outline-offset: 2px;
   border-radius: 2px;
+}
+
+/* ===========================================================================
+ * Actions kebab — narrow-panel replacement for the four .tokenpanel-action-link
+ * buttons above (#518). Hidden by default; shown by the <480px @container
+ * rule further down. Always rendered (not conditionally mounted on width) so
+ * visibility is pure CSS, matching the header action links it replaces.
+ * ========================================================================= */
+
+.tokenpanel-actions-menu-btn {
+  display: none;
+  color: var(--tokentweak-color-muted);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  transition: color 150ms ease;
+}
+.tokenpanel-actions-menu-btn:hover {
+  color: var(--tokentweak-color-fg);
+}
+.tokenpanel-actions-menu-btn:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Popover body — a plain list of the same .tokenpanel-action-link buttons
+ * (controls/actions-menu-popover.tsx), not an ARIA menu. Anchored to
+ * .tokenpanel-header's `position: relative` above. */
+.tokenpanel-actions-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: var(--tokentweak-pad-xl);
+  /* Reuses the color-picker tier — the shared semantic scale (Invariant H,
+   * styles/z-index-tokens.ts) has no dedicated slot for shell-nested popovers,
+   * and color-tab.tsx's palette-options listbox already reuses it the same way. */
+  z-index: var(--tokentweak-z-color-picker);
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  background: var(--tokentweak-color-surface);
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
+  padding: 4px;
+}
+.tokenpanel-actions-popover .tokenpanel-action-link {
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.tokenpanel-actions-popover .tokenpanel-action-link:hover {
+  background: rgb(from var(--tokentweak-color-fg) r g b / 0.06);
 }
 
 .tokenpanel-spacer {
@@ -192,6 +269,17 @@
   gap: 2px;
   flex: 1;
   min-width: 0;
+  /* Scroll horizontally instead of colliding with the density slider (#518).
+   * Scrollbar hidden; .has-overflow adds a right-edge fade hint. */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tokenpanel-tabbar-tabs::-webkit-scrollbar {
+  display: none;
+}
+.tokenpanel-tabbar-tabs.has-overflow {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
 }
 
 .tokenpanel-tab-button {
@@ -203,6 +291,9 @@
   cursor: pointer;
   border-bottom: 2px solid transparent;
   color: var(--tokentweak-color-muted);
+  /* A tab label never wraps (#518). */
+  white-space: nowrap;
+  flex-shrink: 0;
   transition:
     color 150ms ease,
     border-color 150ms ease;
@@ -244,6 +335,36 @@
 }
 
 /* ===========================================================================
+ * Container-query responsive breakpoints (#518)
+ *
+ * Driven by the shell's own inline-size (`container: tokenpanel / inline-size`
+ * declared on .tokenpanel-shell above), never the viewport — a narrow panel
+ * degrades identically regardless of window width.
+ *
+ * Browser floor: container queries are Baseline 2023 (Safari 16+). The panel
+ * is a developer tool for developers on evergreen browsers, so older browsers
+ * simply keep the wide layout above with no JS fallback (see package README).
+ * ========================================================================= */
+@container tokenpanel (max-width: 479px) {
+  .tokenpanel-header > .tokenpanel-action-link {
+    display: none;
+  }
+  .tokenpanel-actions-menu-btn {
+    display: inline-flex;
+  }
+}
+@container tokenpanel (max-width: 379px) {
+  .tokenpanel-density-label {
+    display: none;
+  }
+}
+@container tokenpanel (max-width: 299px) {
+  .tokenpanel-density-slider {
+    width: 56px;
+  }
+}
+
+/* ===========================================================================
  * Tab body container
  * ========================================================================= */
 
@@ -253,6 +374,188 @@
   overflow-y: auto;
   padding-inline: var(--tokentweak-pad-xl);
   padding-block: var(--tokentweak-gap-sm);
+}
+
+/* ===========================================================================
+ * Notes tab (#515) — host-configurable "token notes" landing view.
+ *
+ * `.tokenpanel-notes-heading` is the tab's title (rendered as
+ * div[role=heading][aria-level=3], never an hN tag — see
+ * packages/zdtp/CLAUDE.md "Panel DOM hygiene"). `.tokenpanel-notes-body`
+ * wraps HOST-AUTHORED, sanitized HTML (utils/sanitize-html.ts is the
+ * security boundary, not this CSS) — the panel's own DOM-hygiene tag ban
+ * does NOT apply inside this container, since that content is prose, not
+ * panel chrome. The defensive resets below exist so a HOSTILE host page
+ * (`h1 { font-size: 4rem !important }` or similar tag-name resets) cannot
+ * warp the note's rendered typography — this mirrors the
+ * `:where(.tokenpanel-shell) svg { ... !important }` recipe further down
+ * this file (see packages/zdtp/CLAUDE.md "SVG defensive reset" for the full
+ * cascade-order rationale: the panel's CSS is injected after host CSS, so a
+ * later !important at equal specificity wins).
+ * ========================================================================= */
+
+.tokenpanel-notes-heading {
+  margin: 0 0 var(--tokentweak-gap-2xs) 0;
+  color: var(--tokentweak-color-fg);
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.tokenpanel-notes-body {
+  color: var(--tokentweak-color-fg);
+  font-size: 13px;
+  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+  gap: var(--tokentweak-gap-2xs);
+}
+
+:where(.tokenpanel-shell) .tokenpanel-notes-body h1,
+:where(.tokenpanel-shell) .tokenpanel-notes-body h2,
+:where(.tokenpanel-shell) .tokenpanel-notes-body h3,
+:where(.tokenpanel-shell) .tokenpanel-notes-body h4,
+:where(.tokenpanel-shell) .tokenpanel-notes-body h5,
+:where(.tokenpanel-shell) .tokenpanel-notes-body h6 {
+  display: block !important;
+  margin: var(--tokentweak-gap-2xs) 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: none !important;
+  color: var(--tokentweak-color-fg) !important;
+  font-family: inherit !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  line-height: 1.4 !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+}
+
+:where(.tokenpanel-shell) .tokenpanel-notes-body p {
+  display: block !important;
+  margin: 0 0 var(--tokentweak-gap-2xs) 0 !important;
+  padding: 0 !important;
+  color: var(--tokentweak-color-fg) !important;
+  font-size: 13px !important;
+  line-height: 1.6 !important;
+  font-weight: 400 !important;
+  font-style: normal !important;
+}
+
+:where(.tokenpanel-shell) .tokenpanel-notes-body ul,
+:where(.tokenpanel-shell) .tokenpanel-notes-body ol {
+  display: block !important;
+  margin: 0 0 var(--tokentweak-gap-2xs) 0 !important;
+  padding: 0 0 0 20px !important;
+  color: var(--tokentweak-color-fg) !important;
+  list-style: revert !important;
+}
+
+:where(.tokenpanel-shell) .tokenpanel-notes-body li {
+  display: list-item !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+:where(.tokenpanel-shell) .tokenpanel-notes-body a {
+  color: var(--tokentweak-color-accent) !important;
+  text-decoration: underline !important;
+  cursor: pointer !important;
+  background: none !important;
+}
+:where(.tokenpanel-shell) .tokenpanel-notes-body a:hover,
+:where(.tokenpanel-shell) .tokenpanel-notes-body a:focus-visible {
+  color: var(--tokentweak-color-accent-hover) !important;
+}
+
+:where(.tokenpanel-shell) .tokenpanel-notes-body table {
+  display: table !important;
+  width: 100% !important;
+  margin: 0 0 var(--tokentweak-gap-2xs) 0 !important;
+  border-collapse: collapse !important;
+  font-size: 13px !important;
+}
+:where(.tokenpanel-shell) .tokenpanel-notes-body thead {
+  display: table-header-group !important;
+}
+:where(.tokenpanel-shell) .tokenpanel-notes-body tbody {
+  display: table-row-group !important;
+}
+:where(.tokenpanel-shell) .tokenpanel-notes-body tr {
+  display: table-row !important;
+}
+:where(.tokenpanel-shell) .tokenpanel-notes-body th,
+:where(.tokenpanel-shell) .tokenpanel-notes-body td {
+  display: table-cell !important;
+  border: 1px solid var(--tokentweak-color-muted) !important;
+  padding: var(--tokentweak-pad-2xs) var(--tokentweak-pad-xs) !important;
+  text-align: left !important;
+  color: var(--tokentweak-color-fg) !important;
+  font-weight: 400 !important;
+}
+:where(.tokenpanel-shell) .tokenpanel-notes-body th {
+  font-weight: 600 !important;
+}
+
+:where(.tokenpanel-shell) .tokenpanel-notes-body blockquote {
+  display: block !important;
+  margin: 0 0 var(--tokentweak-gap-2xs) 0 !important;
+  padding: var(--tokentweak-pad-xs) var(--tokentweak-pad-md) !important;
+  border: 0 !important;
+  border-left: 3px solid var(--tokentweak-color-muted) !important;
+  color: var(--tokentweak-color-muted) !important;
+  font-style: normal !important;
+}
+
+:where(.tokenpanel-shell) .tokenpanel-notes-body pre,
+:where(.tokenpanel-shell) .tokenpanel-notes-body code {
+  font-family: var(--tokentweak-font-mono) !important;
+  font-size: 12px !important;
+  color: var(--tokentweak-color-code-fg) !important;
+  background: var(--tokentweak-color-code-bg) !important;
+}
+:where(.tokenpanel-shell) .tokenpanel-notes-body code {
+  display: inline !important;
+  padding: 1px 4px !important;
+  border-radius: 3px !important;
+}
+:where(.tokenpanel-shell) .tokenpanel-notes-body pre {
+  display: block !important;
+  margin: 0 0 var(--tokentweak-gap-2xs) 0 !important;
+  padding: var(--tokentweak-pad-sm) !important;
+  border-radius: 6px !important;
+  overflow-x: auto !important;
+  white-space: pre !important;
+}
+:where(.tokenpanel-shell) .tokenpanel-notes-body pre code {
+  padding: 0 !important;
+  background: none !important;
+}
+
+:where(.tokenpanel-shell) .tokenpanel-notes-body hr {
+  display: block !important;
+  margin: var(--tokentweak-gap-2xs) 0 !important;
+  height: 0 !important;
+  border: 0 !important;
+  border-top: 1px solid var(--tokentweak-color-muted) !important;
+}
+
+:where(.tokenpanel-shell) .tokenpanel-notes-body img {
+  max-width: 100% !important;
+  height: auto !important;
+  display: block !important;
+}
+
+:where(.tokenpanel-shell) .tokenpanel-notes-body strong,
+:where(.tokenpanel-shell) .tokenpanel-notes-body b {
+  font-weight: 700 !important;
+  font-style: normal !important;
+}
+:where(.tokenpanel-shell) .tokenpanel-notes-body em,
+:where(.tokenpanel-shell) .tokenpanel-notes-body i {
+  font-style: italic !important;
+  font-weight: inherit !important;
 }
 
 /* ===========================================================================
@@ -527,6 +830,60 @@
   transform: translateY(0);
 }
 
+/* Help variant (#520) — wrapped, multi-sentence explainer text (Literal /
+ * Per-mode help icons) instead of the default single-line nowrap tooltip.
+ * Applied ON TOP OF .tokenpanel-tooltip, never replacing it — do not mutate
+ * the base rule above, which other (short, single-line) tooltip callers
+ * still rely on being nowrap. */
+.tokenpanel-tooltip--help {
+  white-space: normal;
+  max-width: 250px;
+}
+
+/* ===========================================================================
+ * Help icon ("?" badge) — controls/help-icon.tsx (#520)
+ *
+ * Small round "?" badge, sibling of the control it explains (never nested
+ * inside a <label>, so activating it can't toggle a neighboring checkbox).
+ * Sized to match the other 16px row-trailing icon toggles
+ * (.tokenpanel-highlight-toggle, .tokenpanel-elpath-toggle) with the same
+ * 24px hit-area-floor trick.
+ * ========================================================================= */
+
+.tokenpanel-help-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1px solid var(--tokentweak-color-muted);
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+.tokenpanel-help-icon:hover,
+.tokenpanel-help-icon.is-pinned {
+  color: var(--tokentweak-color-fg);
+  border-color: var(--tokentweak-color-fg);
+  background-color: rgb(from var(--tokentweak-color-fg) r g b / 0.1);
+}
+.tokenpanel-help-icon:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+}
+.tokenpanel-help-icon::after {
+  content: '';
+  position: absolute;
+  inset: -5px; /* 24px hit area floor (WCAG 2.2 AA) for a 15px visual badge */
+}
+
 /* ===========================================================================
  * Popover (ColorPicker host, PaletteSelector listbox)
  * ========================================================================= */
@@ -765,6 +1122,25 @@
   user-select: none;
   font-size: 12px;
   width: 32px;
+}
+
+/* Opt-in click-to-cycle unit suffix (#519) — only applied to rows whose
+ * TierValueKind declares 2+ `units`. Non-opted rows keep the plain
+ * .tokenpanel-row-unit span above untouched, pixel-identical. */
+.tokenpanel-row-unit--interactive {
+  cursor: pointer;
+  border-radius: 2px;
+}
+.tokenpanel-row-unit--interactive:hover {
+  color: var(--tokentweak-color-fg);
+}
+.tokenpanel-row-unit--interactive:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+}
+.tokenpanel-row-unit--interactive[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.6;
 }
 
 .tokenpanel-row-select {

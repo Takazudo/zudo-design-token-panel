@@ -40,7 +40,7 @@ import { flushEffects } from './_test-helpers';
 const REGISTRY_SYMBOL = Symbol.for('@takazudo/zdtp:singleton');
 const DEFAULT_PREFIX = 'zudo-design-token-panel';
 /** Tier-section heading text is body-only — distinct from the tab BUTTON label. */
-const PANEL_TOOLBAR_SENTINEL = 'Design Tokens';
+const PANEL_TOOLBAR_SENTINEL = 'zdtp';
 
 interface InstanceBindingRecord {
   cleanups: Array<() => void>;

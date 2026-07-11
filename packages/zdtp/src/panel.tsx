@@ -3,6 +3,7 @@ import { ExportModal } from './export-modal';
 import { ImportModal } from './import-modal';
 import { ApplyModal } from './apply-modal';
 import { RoleButton } from './controls/role-button';
+import { ActionsMenuPopover, type ActionsMenuAction } from './controls/actions-menu-popover';
 import { HighlightSettingsPopover } from './highlight/highlight-settings-popover';
 import { HighlightOrchestrator } from './highlight/highlight-orchestrator';
 import { ElementPathOrchestrator } from './element-path/element-path-orchestrator';
@@ -13,6 +14,7 @@ import SizeTab from './tabs/size-tab';
 import SpacingTab from './tabs/spacing-tab';
 import GenericTab from './tabs/generic-tab';
 import PaletteTab from './tabs/palette/palette-tab';
+import NotesTab from './tabs/notes-tab';
 import { TooltipProvider } from './controls/tooltip';
 import {
   getPanelConfig,
@@ -58,11 +60,27 @@ import {
 
 // --- Tab configuration ---
 
-// Reserved tab ids dispatched to their dedicated components.
-const RESERVED_TAB_IDS = ['color', 'font', 'spacing', 'size', 'palette'] as const;
+// Reserved tab ids dispatched to their dedicated components. 'notes' (#515)
+// is a special-cased reserved id too — it renders NotesTab instead of a
+// tier-driven token editor and carries no state/persist props (see the
+// tab-body dispatch below and utils/design-token-serde.ts's OWN separate
+// RESERVED_TAB_IDS Set, which independently excludes it from export/import).
+const RESERVED_TAB_IDS = ['color', 'font', 'spacing', 'size', 'palette', 'notes'] as const;
 type ReservedTabId = (typeof RESERVED_TAB_IDS)[number];
 
 const DEFAULT_TAB_ID: ReservedTabId = 'color';
+
+// Kebab-menu container-query breakpoint (px) — must match the
+// `@container tokenpanel (max-width: 479px)` rule in styles/panel.css (#518).
+// `@container` always evaluates the query container's CONTENT box (excludes
+// border/padding, regardless of box-sizing — confirmed against the CSS
+// Containment spec), while `size.width` below is the shell's BORDER box
+// (.tokenpanel-shell is box-sizing: border-box with a 1px border on each
+// side). Add that 2px back so this JS comparison agrees with the CSS
+// breakpoint at the same border-box width — omitting it left a ~2px dead
+// zone (480–481px) where the kebab was still visible per CSS but every
+// open attempt was immediately auto-closed by the width-close effect below.
+const ACTIONS_MENU_BREAKPOINT_PX = 480 + 2;
 
 // --- Panel sizing ---
 
@@ -147,9 +165,22 @@ export default function DesignTokenTweakPanel({
   const [showApply, setShowApply] = useState(false);
   const [showHighlightSettings, setShowHighlightSettings] = useState(false);
   const gearBtnRef = useRef<HTMLDivElement>(null);
+  // Actions kebab (narrow-panel replacement for the header action links, #518).
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
+  const actionsMenuBtnRef = useRef<HTMLDivElement>(null);
+  // Tabs strip — measures scroll overflow for the right-edge fade hint (#518).
+  const tabsStripRef = useRef<HTMLDivElement>(null);
+  const [tabsHaveOverflow, setTabsHaveOverflow] = useState(false);
   const [state, setState] = useState<TweakState | null>(null);
   // activeTab holds a string to support host-supplied non-reserved tab ids.
-  const [activeTab, setActiveTab] = useState<string>(DEFAULT_TAB_ID);
+  // Lands on the FIRST configured tab (instanceConfig.tabs[0]) rather than
+  // the hardcoded 'color' — a host makes ANY tab (e.g. 'notes', #515) the
+  // landing view simply by ordering it first in tabs[]. Falls back to
+  // DEFAULT_TAB_ID only when tabs is empty (the DEFAULT_PANEL_CONFIG stub,
+  // or a misconfigured host) so the panel never lands on an undefined tab id.
+  const [activeTab, setActiveTab] = useState<string>(
+    instanceConfig.tabs[0]?.id ?? DEFAULT_TAB_ID,
+  );
   const [position, setPosition] = useState<PanelPosition>(DEFAULT_POSITION);
   const [size, setSize] = useState<PanelSize>(defaultSize);
   const [density, setDensity] = useState<PanelDensity>(DEFAULT_DENSITY);
@@ -362,6 +393,19 @@ export default function DesignTokenTweakPanel({
     setState(freshTweakState(instanceConfig));
   }, [open, state, instanceConfig]);
 
+  // Close the actions kebab popover when a resize drag carries the panel back
+  // across the wide-layout breakpoint (#518) — the trigger itself disappears
+  // via the @container rule, but the popover's own open state is JS-managed
+  // (usePopoverClose) and would otherwise stay open, invisible-anchor, until
+  // the next outside click/Escape. `size.width` already tracks the shell's
+  // inline width (the resize grip is JS-driven via setSize, not native CSS
+  // `resize`), so no separate ResizeObserver is needed for this check.
+  useEffect(() => {
+    if (showActionsMenu && size.width >= ACTIONS_MENU_BREAKPOINT_PX) {
+      setShowActionsMenu(false);
+    }
+  }, [size.width, showActionsMenu]);
+
   // Drag handler for panel header (stable — reads position from ref)
   const handleDragStart = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     // Skip if target is a button (or role=button/tab div), select, or inside one
@@ -564,6 +608,20 @@ export default function DesignTokenTweakPanel({
     setState(freshTweakState(instanceConfig));
   }, [instanceConfig]);
 
+  // Single source of truth for the four header actions (#518) — rendered
+  // both as the always-visible .tokenpanel-action-link header links AND
+  // inside the narrow-panel kebab popover, so a label/handler change only
+  // needs one edit instead of two synchronized ones.
+  const panelActions = useMemo(
+    (): readonly ActionsMenuAction[] => [
+      { label: 'Export', onSelect: () => setShowExport(true) },
+      { label: 'Load from JSON…', onSelect: () => setShowImport(true) },
+      { label: 'Apply', onSelect: () => setShowApply(true) },
+      { label: 'Reset', onSelect: handleResetAll },
+    ],
+    [handleResetAll],
+  );
+
   const handleApplied = useCallback(() => {
     // After a successful apply the on-disk CSS now matches the current tweak,
     // so drop the persisted override envelope and any inline overrides — the
@@ -618,6 +676,37 @@ export default function DesignTokenTweakPanel({
     [activeTab, activeTabs],
   );
 
+  // Toggle the tabs strip's right-edge fade hint when it actually has
+  // scrollable overflow. Driven by a ResizeObserver on the strip itself (+ its
+  // own scroll events) rather than `window.resize`: a grip-driven panel
+  // resize changes the strip's layout size without ever firing a window
+  // resize event, so a window listener would miss it (#518).
+  useEffect(() => {
+    if (!open) return;
+    const el = tabsStripRef.current;
+    if (!el) return;
+    function updateOverflow() {
+      if (!el) return;
+      const hasOverflow =
+        el.scrollWidth > el.clientWidth && el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+      setTabsHaveOverflow(hasOverflow);
+    }
+    updateOverflow();
+    if (typeof ResizeObserver === 'undefined') {
+      // jsdom (unit tests) has no ResizeObserver — the initial synchronous
+      // check above still runs; only the live-resize tracking is skipped.
+      el.addEventListener('scroll', updateOverflow);
+      return () => el.removeEventListener('scroll', updateOverflow);
+    }
+    const observer = new ResizeObserver(updateOverflow);
+    observer.observe(el);
+    el.addEventListener('scroll', updateOverflow);
+    return () => {
+      observer.disconnect();
+      el.removeEventListener('scroll', updateOverflow);
+    };
+  }, [open, activeTabs]);
+
   return (
     <HighlightOrchestrator>
       <ElementPathOrchestrator>
@@ -649,28 +738,50 @@ export default function DesignTokenTweakPanel({
           style={{ cursor: 'move' }}
           onMouseDown={handleDragStart}
         >
-          <span className="tokenpanel-title">Design Tokens</span>
-          <RoleButton
-            onClick={() => setShowExport(true)}
-            className="tokenpanel-action-link"
+          <span className="tokenpanel-title">zdtp</span>
+          {panelActions.map((action) => (
+            <RoleButton
+              key={action.label}
+              onClick={action.onSelect}
+              className="tokenpanel-action-link"
+            >
+              {action.label}
+            </RoleButton>
+          ))}
+          {/* Actions kebab — narrow-panel replacement for the four action
+              links above (#518). Always rendered so the @container rule in
+              styles/panel.css can show/hide it with pure CSS; no JS width
+              tracking. Inline div (not RoleButton) so we can attach a ref for
+              popover anchoring, matching the gear button below. */}
+          <div
+            ref={actionsMenuBtnRef}
+            role="button"
+            tabIndex={0}
+            className="tokenpanel-actions-menu-btn"
+            aria-label="Panel actions"
+            aria-expanded={showActionsMenu}
+            aria-haspopup="dialog"
+            onClick={() => setShowActionsMenu((v) => !v)}
+            onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setShowActionsMenu((v) => !v);
+              }
+            }}
           >
-            Export
-          </RoleButton>
-          <RoleButton
-            onClick={() => setShowImport(true)}
-            className="tokenpanel-action-link"
-          >
-            Load from JSON…
-          </RoleButton>
-          <RoleButton
-            onClick={() => setShowApply(true)}
-            className="tokenpanel-action-link"
-          >
-            Apply
-          </RoleButton>
-          <RoleButton onClick={handleResetAll} className="tokenpanel-action-link">
-            Reset
-          </RoleButton>
+            <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="5" r="2" />
+              <circle cx="12" cy="12" r="2" />
+              <circle cx="12" cy="19" r="2" />
+            </svg>
+          </div>
+          {showActionsMenu && (
+            <ActionsMenuPopover
+              anchorRef={actionsMenuBtnRef}
+              actions={panelActions}
+              onClose={() => setShowActionsMenu(false)}
+            />
+          )}
           <div className="tokenpanel-spacer" />
           {/* Element-path-copy toggle — enable, then Alt+click any element to copy its path */}
           <ElementPathToggleButton />
@@ -735,9 +846,14 @@ export default function DesignTokenTweakPanel({
             tablist only ever has `role=tab` children. */}
         <div className="tokenpanel-tabbar">
           <div
+            ref={tabsStripRef}
             role="tablist"
             aria-label="Design token categories"
-            className="tokenpanel-tabbar-tabs"
+            className={
+              tabsHaveOverflow
+                ? 'tokenpanel-tabbar-tabs has-overflow'
+                : 'tokenpanel-tabbar-tabs'
+            }
           >
             {activeTabs.map((tab) => {
               const isSelected = activeTab === tab.id;
@@ -856,6 +972,12 @@ export default function DesignTokenTweakPanel({
                       }))
                     }
                   />
+                )}
+                {tab.id === 'notes' && tabConfigById['notes'] && (
+                  // No state/persist props — the notes tab carries no token
+                  // overrides (#515): it's excluded from state.tabs, apply
+                  // routing, and export/import serde by construction.
+                  <NotesTab tab={tabConfigById['notes']} />
                 )}
                 {!isReserved && tabConfigById[tab.id] && state && (
                   <GenericTab

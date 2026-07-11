@@ -56,7 +56,8 @@ From that point on, every page load in that browser will:
 3. Arm the Alt+click element-path inspector — hover over any element and
    click to copy a detailed selector block to the clipboard.
 4. Leave the `window.myapp.{show,hide,toggle}DesignPanel()` console helpers
-   available, just as always.
+   — and the fixed-name `zdtp.{show,hide,toggle}()` global — available, just
+   as always.
 
 ## Opt out
 
@@ -73,9 +74,10 @@ next page load will be panel-free again.
 ## Auto-remember: the first open arms autoload
 
 Opening the panel by any means — `showDesignPanel()`, `toggleDesignPanel()`,
-or the panel header's close/re-open button — **automatically sets the
-`:autoload` flag**. You do not need to call `enableAutoload()` explicitly
-if you have already opened the panel. The flag is set on first open and
+the fixed-name `zdtp.show()` / `zdtp.toggle()` global, or the panel header's
+close/re-open button — **automatically sets the `:autoload` flag**. You do
+not need to call `enableAutoload()` explicitly if you have already opened
+the panel through any of these paths. The flag is set on first open and
 persists across page loads.
 
 ## The footgun: visible open-triggers become public opt-ins

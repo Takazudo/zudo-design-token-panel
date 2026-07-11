@@ -407,6 +407,26 @@ window[consoleNamespace].toggleDesignPanel = () => Promise<void>;
 Each helper lazy-imports the adapter module and forwards to its corresponding synchronous public function.
 </Tip>
 
+### The fixed-name `window.zdtp` global
+
+`consoleNamespace` is a **required** field on `PanelConfig`, so the console API above always lives under a host-chosen name. `window.zdtp` is an additive, fixed-name alias for the three open/close verbs — no namespace lookup required:
+
+```ts
+window.zdtp.show   = () => void | Promise<void>;
+window.zdtp.hide   = () => void | Promise<void>;
+window.zdtp.toggle = () => void | Promise<void>;
+```
+
+- **Scope:** `show` / `hide` / `toggle` only — there is no `window.zdtp.enableAutoload`; owner-autoload stays on `window[consoleNamespace].*` and the package-root `enableAutoload()` / `disableAutoload()` exports.
+- **Install sites:** the package-root module installs a synchronous alias at module init (non-Astro hosts); the Astro host adapter installs an async-wrapped alias eagerly from its own bootstrap, alongside the console API above — so `zdtp.show()` works even before the panel bundle has loaded.
+- **Never clobbers a host-defined `window.zdtp`.** If a page already defines its own `window.zdtp`, the install is skipped with a `console.warn` (including when a host happens to pick `consoleNamespace: 'zdtp'` itself).
+- **Targets the default instance,** exactly like `showDesignTokenPanel()` / `hideDesignTokenPanel()` / `toggleDesignPanel()` above. For a specific instance on a multi-instance page, call `configurePanel(cfg)`'s returned [`PanelInstanceHandle`](#panelinstancehandle) directly.
+- Opening via `zdtp.show()` arms the owner-autoload flag exactly like `showDesignTokenPanel()` — see [Owner-autoload recipe](/docs/recipes/owner-autoload).
+
+<Tip title="No enableAutoload here">
+`window.zdtp` deliberately mirrors only the three open/close verbs, not the full owner-autoload surface. Reach for `window[consoleNamespace].enableAutoload()` / `disableAutoload()` (or the package-root exports) for that.
+</Tip>
+
 ### `setLifecycleAdapter(adapter)`
 
 ```ts

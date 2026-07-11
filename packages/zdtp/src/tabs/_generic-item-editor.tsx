@@ -17,6 +17,8 @@ import type { TierItem, TierValueKind } from '../tokens/tier-model';
 import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
 import TokenLabel from '../controls/token-label';
 import ColorField from '../components/color-picker/color-field';
+import { RoleButton } from '../controls/role-button';
+import { deriveCyclableUnit, nextCyclableUnit } from '../utils/unit-cycle';
 
 export interface GenericItemEditorProps {
   item: TierItem;
@@ -55,6 +57,15 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
     case 'length':
     case 'number': {
       const unit = type.kind === 'length' ? type.unit : '';
+      // Opt-in click-to-cycle unit suffix (#519) — single source of the
+      // opt-in/divergence policy, shared with generic-tab.tsx's parallel
+      // editor.
+      const { cyclableUnits, isCyclableUnit, effectiveUnit, parsedMagnitude } = deriveCyclableUnit(
+        unit,
+        type.kind === 'length' ? type.units : undefined,
+        value,
+      );
+
       const numeric = parseFloat(value);
       const numericForDraft = Number.isFinite(numeric) ? numeric : 0;
 
@@ -75,7 +86,10 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
         const n = parseFloat(raw);
         // Commit every parseable value; skip unparseable mid-typing drafts.
         if (!Number.isFinite(n)) return;
-        onChange(item.id, unit ? `${n}${unit}` : String(n));
+        // Preserve the currently displayed/cycled suffix rather than always
+        // reverting to `type.unit` — otherwise editing the number after
+        // cycling to a non-default unit would silently snap the unit back.
+        onChange(item.id, effectiveUnit ? `${n}${effectiveUnit}` : String(n));
       };
 
       // On blur: revert unparseable drafts to last-known-good. No clamping.
@@ -90,6 +104,17 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
 
       // Effective readonly: either item is readonly OR pill is active
       const effectiveReadonly = isReadonly || (pill !== undefined && isPill);
+
+      const handleCycleUnit = () => {
+        if (cyclableUnits === undefined || cyclableUnits.length < 2) return;
+        const next = nextCyclableUnit(cyclableUnits, effectiveUnit);
+        // Reuse the SAME parse that produced `effectiveUnit` for the emitted
+        // magnitude (falling back to the number input's own last-known-good
+        // draft only when the stored value didn't parse as a length at all)
+        // so the suffix-detection parse and the emitted magnitude agree.
+        const magnitude = parsedMagnitude ?? numericForDraft;
+        onChange(item.id, `${magnitude}${next}`);
+      };
 
       const numberRow = (
         <div className="tokenpanel-row--stacked" data-testid={`tier-item-${item.id}`}>
@@ -106,7 +131,18 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
                 className="tokenpanel-row-number-input"
                 aria-label={`${item.cssVar} value`}
               />
-              {unit && <span className="tokenpanel-row-unit">{unit}</span>}
+              {isCyclableUnit ? (
+                <RoleButton
+                  onClick={handleCycleUnit}
+                  className="tokenpanel-row-unit tokenpanel-row-unit--interactive"
+                  aria-disabled={effectiveReadonly}
+                  aria-label={`${item.cssVar} unit`}
+                >
+                  {effectiveUnit}
+                </RoleButton>
+              ) : (
+                unit && <span className="tokenpanel-row-unit">{unit}</span>
+              )}
             </div>
             <HighlightToggleButton cssVar={item.cssVar} />
           </div>

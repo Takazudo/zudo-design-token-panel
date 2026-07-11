@@ -113,6 +113,7 @@ function toTierItem(t: TokenDef): TierItem {
       kind: "length" as const,
       step: t.step,
       unit: t.unit,
+      ...(t.units ? { units: t.units } : {}),
     };
   }
   const item: TierItem = {
@@ -273,6 +274,38 @@ const SIZE_TAB: TabConfig = {
   ],
 };
 
+// ---------------------------------------------------------------------------
+// Notes tab (#515) — host-configurable "token notes" demo.
+//
+// Appended at the END of `tabs` (not first) so this demo config keeps landing
+// on the Color tab, matching every other zdtp-consuming site today. A host
+// wanting `notes` as the LANDING view instead lists it first in `tabs[]` —
+// panel.tsx's initial `activeTab` is `instanceConfig.tabs[0]?.id`.
+// ---------------------------------------------------------------------------
+
+const NOTES_TAB: TabConfig = {
+  id: "notes",
+  label: "Notes",
+  tiers: [],
+  notesExtras: {
+    title: "About this panel",
+    html:
+      "<p>This tab is <strong>host-configured</strong> — the title and body " +
+      "you're reading come from <code>TabConfig.notesExtras</code> in " +
+      "<code>doc/src/config/design-token-panel-config.ts</code>, not from " +
+      "the zdtp package itself.</p>" +
+      "<p>The HTML you write here is passed through a strict allowlist " +
+      "sanitizer before it's rendered, so it's safe to paste content from " +
+      "any source. Supported markup:</p>" +
+      "<ul>" +
+      "<li>Headings, paragraphs, and <em>emphasis</em></li>" +
+      "<li>Lists, tables, and blockquotes</li>" +
+      '<li>Links, e.g. <a href="/docs/reference/configure-panel/">the configurePanel reference</a></li>' +
+      "<li><code>Inline code</code> and code blocks</li>" +
+      "</ul>",
+  },
+};
+
 export const designTokenPanelConfig: PanelConfig = {
   // Scoped to zdtp-doc to avoid localStorage collisions when multiple
   // zudo-doc projects run in the same browser.
@@ -283,6 +316,6 @@ export const designTokenPanelConfig: PanelConfig = {
   // exported JSON files remain importable across panel versions.
   schemaId: DESIGN_TOKEN_SCHEMA,
   exportFilenameBase: "zdtp-doc-design-tokens",
-  tabs: [COLOR_TAB, FONT_TAB, SPACING_TAB, SIZE_TAB],
+  tabs: [COLOR_TAB, FONT_TAB, SPACING_TAB, SIZE_TAB, NOTES_TAB],
   colorPresets: {},
 };

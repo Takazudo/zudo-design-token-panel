@@ -134,9 +134,12 @@ function getTabItems(tabId: string, cfg: PanelConfig = getPanelConfig()): readon
 
 /**
  * Tab ids handled by a dedicated serde slice — the four reserved external tab
- * ids plus `color-secondary` (carried by `state.secondary`, not `state.tabs`).
- * Everything else configured in `cfg.tabs` is a host-coined GENERIC tab whose
- * overrides live in `state.tabs[id]` and round-trip under `tabs[id].raw`.
+ * ids plus `color-secondary` (carried by `state.secondary`, not `state.tabs`)
+ * — plus `notes` (#515), which carries no token overrides at all and is
+ * excluded from serde entirely (not given a dedicated slice; simply skipped
+ * by every `RESERVED_TAB_IDS.has(tab.id)` guard below). Everything else
+ * configured in `cfg.tabs` is a host-coined GENERIC tab whose overrides live
+ * in `state.tabs[id]` and round-trip under `tabs[id].raw`.
  */
 const RESERVED_TAB_IDS: ReadonlySet<string> = new Set([
   'color',
@@ -144,6 +147,7 @@ const RESERVED_TAB_IDS: ReadonlySet<string> = new Set([
   'spacing',
   'font',
   'size',
+  'notes',
 ]);
 
 /**

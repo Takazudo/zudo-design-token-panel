@@ -714,6 +714,85 @@ describe('panel-config — assertValidPanelConfig host-tabs validation', () => {
     ).toThrow(/mixed item kinds/);
   });
 
+  // Click-to-cycle unit suffix — type.units validation (#519) ----------------
+
+  /** Build a single-tab, single-tier config with one length item carrying `units`. */
+  function makeUnitsTab(units: unknown): TabConfig {
+    return {
+      id: 'units-tab',
+      label: 'Units Tab',
+      tiers: [
+        {
+          id: 'values',
+          label: 'Values',
+          items: [
+            {
+              id: 'length-item',
+              cssVar: '--units-tab-length-item',
+              label: 'Length item',
+              default: '1rem',
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              type: { kind: 'length', step: 0.25, unit: 'rem', units } as any,
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  it('accepts a length item with 2+ valid units', () => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [makeUnitsTab(['rem', 'em', 'px'])] })),
+    ).not.toThrow();
+  });
+
+  it('accepts a length item with units omitted (default: static unit span)', () => {
+    const tab: TabConfig = {
+      id: 'units-tab',
+      label: 'Units Tab',
+      tiers: [
+        {
+          id: 'values',
+          label: 'Values',
+          items: [
+            {
+              id: 'length-item',
+              cssVar: '--units-tab-length-item',
+              label: 'Length item',
+              default: '1rem',
+              type: { kind: 'length', step: 0.25, unit: 'rem' },
+            },
+          ],
+        },
+      ],
+    };
+    expect(() => assertValidPanelConfig(makeBaseConfig({ tabs: [tab] }))).not.toThrow();
+  });
+
+  it('rejects type.units when not an array', () => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [makeUnitsTab('rem')] })),
+    ).toThrow(/type\.units must be an array/);
+  });
+
+  it('rejects type.units containing an empty string', () => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [makeUnitsTab(['rem', ''])] })),
+    ).toThrow(/type\.units entries must be non-empty strings/);
+  });
+
+  it('rejects type.units containing a non-string entry', () => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [makeUnitsTab(['rem', 1])] })),
+    ).toThrow(/type\.units entries must be non-empty strings/);
+  });
+
+  it('rejects type.units with a duplicate unit', () => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [makeUnitsTab(['rem', 'px', 'rem'])] })),
+    ).toThrow(/type\.units: duplicate unit "rem"/);
+  });
+
   // F4: palette cssVar 0-based contiguity check (issue #440) ----------------
 
   /**
@@ -1148,6 +1227,151 @@ describe('panel-config — assertValidPanelConfig host-tabs validation', () => {
         }),
       ),
     ).toThrow(/colorExtras\.semanticDefaults\["danger"\] must be a valid SemanticValue/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// notesExtras validation (host-configurable "token notes" tab, #515)
+// ---------------------------------------------------------------------------
+
+describe('panel-config — notesExtras validation (#515)', () => {
+  function makeBaseConfig(extra: Partial<PanelConfig> = {}): PanelConfig {
+    return {
+      storagePrefix: 'p',
+      consoleNamespace: 'p',
+      modalClassPrefix: 'p-modal',
+      schemaId: 'p/v1',
+      exportFilenameBase: 'p',
+      tabs: [],
+      ...extra,
+    };
+  }
+
+  function makeNotesTab(overrides: Record<string, unknown> = {}): TabConfig {
+    return {
+      id: 'notes',
+      label: 'Notes',
+      tiers: [],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      notesExtras: { title: 'Welcome', html: '<p>hello</p>' } as any,
+      ...overrides,
+    } as TabConfig;
+  }
+
+  it('accepts a fully-valid notes tab', () => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [makeNotesTab()] })),
+    ).not.toThrow();
+  });
+
+  it('rejects a notes tab with notesExtras omitted', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({ tabs: [{ id: 'notes', label: 'Notes', tiers: [] }] }),
+      ),
+    ).toThrow(/notesExtras must be a plain object with \{ title, html \}/);
+  });
+
+  it('rejects a notes tab whose notesExtras is not a plain object', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({ tabs: [makeNotesTab({ notesExtras: 'nope' })] }),
+      ),
+    ).toThrow(/notesExtras must be a plain object with \{ title, html \}/);
+  });
+
+  it('rejects a notes tab with an empty title', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          tabs: [makeNotesTab({ notesExtras: { title: '', html: '<p>hi</p>' } })],
+        }),
+      ),
+    ).toThrow(/notesExtras\.title must be a non-empty string/);
+  });
+
+  it('rejects a notes tab with a non-string title', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          tabs: [makeNotesTab({ notesExtras: { title: 42, html: '<p>hi</p>' } })],
+        }),
+      ),
+    ).toThrow(/notesExtras\.title must be a non-empty string/);
+  });
+
+  it('rejects a notes tab with an empty html', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          tabs: [makeNotesTab({ notesExtras: { title: 'Welcome', html: '' } })],
+        }),
+      ),
+    ).toThrow(/notesExtras\.html must be a non-empty string/);
+  });
+
+  it('rejects a notes tab with a non-string html', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          tabs: [makeNotesTab({ notesExtras: { title: 'Welcome', html: null } })],
+        }),
+      ),
+    ).toThrow(/notesExtras\.html must be a non-empty string/);
+  });
+
+  it('rejects a notes tab with non-empty tiers', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          tabs: [
+            makeNotesTab({
+              tiers: [{ id: 'raw', label: 'Raw', items: [] }],
+            }),
+          ],
+        }),
+      ),
+    ).toThrow(/PanelConfig\.tabs\["notes"\]\.tiers must be empty/);
+  });
+
+  it('rejects a notes tab that also carries colorExtras', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          tabs: [
+            makeNotesTab({
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              colorExtras: {
+                id: 'x',
+                defaultShikiTheme: 'dracula',
+                baseRoles: {},
+                baseDefaults: {},
+                colorSchemes: {},
+                panelSettings: { colorScheme: 'default', colorMode: false },
+              } as any,
+            }),
+          ],
+        }),
+      ),
+    ).toThrow(/PanelConfig\.tabs\["notes"\]\.colorExtras must not be set/);
+  });
+
+  it('rejects notesExtras set on a non-notes tab', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({
+          tabs: [
+            {
+              id: 'spacing',
+              label: 'Spacing',
+              tiers: [],
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              notesExtras: { title: 'Welcome', html: '<p>hi</p>' } as any,
+            },
+          ],
+        }),
+      ),
+    ).toThrow(/notesExtras must only be set on a tab with id "notes"/);
   });
 });
 

@@ -27,6 +27,7 @@ What stays the same:
 
 - The `PanelConfig` shape and all of its fields.
 - The console API — `window.<consoleNamespace>.{show,hide,toggle}DesignPanel()` — installed identically by every host.
+- The fixed-name `window.zdtp.{show,hide,toggle}()` global — a `consoleNamespace`-agnostic alias installed identically by every host, layered on top of the namespaced console API.
 - Storage-key derivation under `storagePrefix`.
 - Apply-pipeline behaviour — POST to `applyEndpoint` is identical regardless of host.
 
@@ -86,7 +87,7 @@ configurePanel(myPanelConfig);
 createRoot(document.getElementById('root')!).render(<App />);
 ```
 
-Open devtools, run `window.myapp.toggleDesignPanel()`, and the panel mounts.
+Open devtools, run `window.myapp.toggleDesignPanel()` (or the namespace-agnostic `zdtp.toggle()`), and the panel mounts.
 
 Worked example: [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-vite-react).
 

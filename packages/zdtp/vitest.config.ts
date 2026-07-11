@@ -58,6 +58,11 @@ export default mergeConfig(
               enabled: true,
               headless: true,
               provider: playwright(),
+              // Wide viewport so container-query tests that seed a wide panel
+              // (e.g. 700px in panel-header-responsive) aren't shrunk by
+              // clampSize's `window.innerWidth - margin` cap (floor 320px).
+              // A real desktop user always has a viewport wider than the panel.
+              viewport: { width: 1280, height: 800 },
               instances: [{ browser: 'chromium' }],
             },
           },

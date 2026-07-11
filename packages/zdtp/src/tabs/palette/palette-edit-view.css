@@ -11,10 +11,97 @@
   gap: 14px;
 }
 
+/* ── Collapsible group box (#517) ──
+ * Each group is a boxed accordion row. Collapsed = just the clickable header
+ * (chevron + label + preview chips). Open = header + body (swatch strip +
+ * curve editor). Single-open: opening one closes the others. */
 .tokenpanel-palette-edit-group {
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: var(--radius-tokentweak);
+  /* Clip the header/body corners to the box radius. */
+  overflow: hidden;
+}
+
+/* ── Group header (collapse toggle row) ── */
+.tokenpanel-palette-edit-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tokenpanel-palette-edit-group-header:focus-visible {
+  /* Inset so the ring stays inside the clipped box. */
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: -2px;
+}
+
+/* Open group: divider between the header and the body below it. */
+.tokenpanel-palette-edit-group.is-active .tokenpanel-palette-edit-group-header {
+  border-bottom: 1px solid var(--tokentweak-color-muted);
+}
+
+/* Chevron: > when collapsed, v when open. Rotating the wrapper (not the SVG)
+ * keeps the transform off the host-facing svg defensive reset. transform is
+ * compositor-cheap; 150ms micro-interaction. */
+.tokenpanel-palette-edit-group-chevron {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--tokentweak-color-muted);
+  transform: rotate(-90deg);
+  transition: transform 0.15s ease;
+}
+
+.tokenpanel-palette-edit-group-chevron.is-open {
+  transform: rotate(0deg);
+}
+
+/* In-flow heading (NOT the floating-on-border .tokenpanel-tab-section-heading
+ * trick — that absolute positioning can't live inside a clickable flex row). */
+.tokenpanel-palette-edit-group-heading {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  color: var(--tokentweak-color-fg);
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 20px;
+  text-transform: none;
+  letter-spacing: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Collapsed-header preview chips (decorative) ── */
+.tokenpanel-palette-edit-group-preview {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.tokenpanel-palette-edit-preview-chip {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid rgb(from var(--tokentweak-color-fg) r g b / 0.12);
+  pointer-events: none;
+}
+
+/* ── Open group body (swatch strip + editor) ── */
+.tokenpanel-palette-edit-group-body {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  padding: 10px;
 }
 
 /* ── Step swatch row ── */
@@ -64,7 +151,7 @@
 
 /* ── Per-group editor ── */
 .tokenpanel-palette-edit-editor {
-  margin-top: 6px;
+  /* Spacing from the swatch strip is owned by the group body's flex `gap`. */
   border: 1px solid var(--tokentweak-color-muted);
   border-radius: var(--radius-tokentweak);
   background: var(--tokentweak-color-surface);

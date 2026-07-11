@@ -103,6 +103,20 @@ async function renderPaletteTab(
   });
 }
 
+/**
+ * Palette Edit groups start collapsed (#517). Click a group's header to open it
+ * so its swatch strip + curve editor render. Single-open accordion.
+ */
+async function openGroup(tierId: string): Promise<void> {
+  const header = container.querySelector<HTMLElement>(
+    `[data-testid="palette-edit-group-header-${tierId}"]`,
+  );
+  if (!header) throw new Error(`group header ${tierId} not found`);
+  await act(() => {
+    header.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+}
+
 // ---------------------------------------------------------------------------
 // 1. Renders Palette tab in edit mode — swatch grid visible
 // ---------------------------------------------------------------------------
@@ -122,14 +136,28 @@ describe('PaletteTab browser — edit mode renders', () => {
     expect(checkView).toBeNull();
   });
 
-  it('renders swatches for the warm group', async () => {
+  it('all groups collapsed by default — no swatch strip until a group is opened', async () => {
     await renderPaletteTab();
+    // Collapsed: no interactive swatches, but each header shows preview chips.
+    expect(container.querySelectorAll('[data-testid^="palette-edit-swatch-"]').length).toBe(0);
+    const warmHeader = container.querySelector('[data-testid="palette-edit-group-header-warm"]');
+    expect(warmHeader?.getAttribute('aria-expanded')).toBe('false');
+    const warmChips = container.querySelectorAll(
+      '[data-testid="palette-edit-group-header-warm"] .tokenpanel-palette-edit-preview-chip',
+    );
+    expect(warmChips.length).toBe(2);
+  });
+
+  it('renders swatches for the warm group once opened', async () => {
+    await renderPaletteTab();
+    await openGroup('warm');
     const swatches = container.querySelectorAll('[data-testid^="palette-edit-swatch-warm"]');
     expect(swatches.length).toBe(2);
   });
 
   it('swatches have a background color set (hex fill from oklch)', async () => {
     await renderPaletteTab();
+    await openGroup('warm');
     // In real Chromium, background is computed from the oklch→hex conversion
     // done inside the swatch component. Check that style is non-empty.
     const swatch = container.querySelector<HTMLElement>('[data-testid="palette-edit-swatch-warm-1"]');
@@ -308,9 +336,23 @@ describe('PaletteTab browser — DOM hygiene', () => {
     }
   });
 
+  it('group headers are div[role="button"] with aria-expanded, not native button', async () => {
+    await renderPaletteTab();
+    const headers = container.querySelectorAll('[data-testid^="palette-edit-group-header-"]');
+    expect(headers.length).toBe(2); // warm + cool
+    for (const header of Array.from(headers)) {
+      expect(header.tagName.toLowerCase()).toBe('div');
+      expect(header.getAttribute('role')).toBe('button');
+      expect(header.getAttribute('tabindex')).toBe('0');
+      expect(header.getAttribute('aria-expanded')).toBe('false');
+    }
+  });
+
   it('swatch buttons are div[role="button"] not native button', async () => {
     await renderPaletteTab();
+    await openGroup('warm');
     const swatches = container.querySelectorAll('[data-testid^="palette-edit-swatch-"]');
+    expect(swatches.length).toBeGreaterThan(0);
     for (const swatch of Array.from(swatches)) {
       expect(swatch.tagName.toLowerCase()).toBe('div');
       expect(swatch.getAttribute('role')).toBe('button');
@@ -330,12 +372,22 @@ describe('PaletteTab browser — DOM hygiene', () => {
     }
   });
 
-  it('no host-leaking color var in inline styles (no var() on swatch backgrounds)', async () => {
-    // Swatch fills are hardcoded hex (oklchaToHex), NOT CSS vars that could be
-    // overridden by host stylesheets. This guards against accidental CSS var
-    // leakage through the swatch fill path.
+  it('no host-leaking color var in inline styles (no var() on swatch or chip backgrounds)', async () => {
+    // Swatch + preview-chip fills are hardcoded hex (oklchaToHex), NOT CSS vars
+    // that could be overridden by host stylesheets. This guards against
+    // accidental CSS var leakage through either fill path.
     await renderPaletteTab();
+    // Preview chips render in the collapsed headers.
+    const chips = container.querySelectorAll<HTMLElement>('.tokenpanel-palette-edit-preview-chip');
+    expect(chips.length).toBeGreaterThan(0);
+    for (const chip of Array.from(chips)) {
+      const bg = chip.style.background || chip.style.backgroundColor;
+      expect(bg).not.toContain('var(');
+    }
+    // Open a group and check the interactive swatch fills too.
+    await openGroup('warm');
     const swatches = container.querySelectorAll<HTMLElement>('[data-testid^="palette-edit-swatch-"]');
+    expect(swatches.length).toBeGreaterThan(0);
     for (const swatch of Array.from(swatches)) {
       const bg = swatch.style.background || swatch.style.backgroundColor;
       // Must NOT be a CSS var reference
@@ -349,10 +401,11 @@ describe('PaletteTab browser — DOM hygiene', () => {
 // ---------------------------------------------------------------------------
 
 describe('PaletteTab browser — layout at narrow and wide widths', () => {
-  it('renders without horizontal overflow at 360px panel width', async () => {
+  it('renders without horizontal overflow at 360px panel width (group open)', async () => {
     container.style.width = '360px';
     container.style.overflow = 'hidden';
     await renderPaletteTab();
+    await openGroup('warm');
 
     const root = container.querySelector<HTMLElement>('[data-testid="palette-tab"]');
     expect(root).not.toBeNull();
@@ -363,10 +416,11 @@ describe('PaletteTab browser — layout at narrow and wide widths', () => {
     expect(hasOverflow).toBe(false);
   });
 
-  it('renders without horizontal overflow at 800px panel width', async () => {
+  it('renders without horizontal overflow at 800px panel width (group open)', async () => {
     container.style.width = '800px';
     container.style.overflow = 'hidden';
     await renderPaletteTab();
+    await openGroup('warm');
 
     const root = container.querySelector<HTMLElement>('[data-testid="palette-tab"]');
     expect(root).not.toBeNull();
@@ -377,6 +431,7 @@ describe('PaletteTab browser — layout at narrow and wide widths', () => {
   it('swatch grid adapts to narrow container (all swatches visible)', async () => {
     container.style.width = '360px';
     await renderPaletteTab();
+    await openGroup('warm');
 
     const swatches = container.querySelectorAll<HTMLElement>('[data-testid^="palette-edit-swatch-"]');
     expect(swatches.length).toBeGreaterThan(0);
@@ -392,6 +447,7 @@ describe('PaletteTab browser — layout at narrow and wide widths', () => {
   it('PaletteChart SVG is visible at 360px (counter-scaling holds)', async () => {
     container.style.width = '360px';
     await renderPaletteTab();
+    await openGroup('warm');
 
     // The active group's chart editor should be present
     const editor = container.querySelector('[data-testid^="palette-edit-editor-"]');
@@ -436,6 +492,7 @@ describe('PaletteTab browser — chart drag interaction', () => {
     // gesture produces no value change.
     container.style.width = '600px';
     await renderPaletteTab(PALETTE_TAB, {}, onChange);
+    await openGroup('warm');
 
     const chart = container.querySelector('.tokenpanel-palette-chart');
     expect(chart).not.toBeNull();

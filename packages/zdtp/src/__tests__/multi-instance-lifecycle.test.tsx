@@ -16,7 +16,7 @@
  *      uses `toggle-${storagePrefix}` (or `config.toggleEvent`).
  *
  * The probes mirror the single-panel regression tests
- * (`toggle-event-after-close.test.tsx`): mount + open ⇒ the "Design Tokens"
+ * (`toggle-event-after-close.test.tsx`): mount + open ⇒ the "zdtp"
  * header sentinel appears inside the instance's root; close ⇒ it disappears.
  */
 
@@ -32,7 +32,7 @@ import {
 } from '../config/panel-config';
 import { flushEffects } from './_test-helpers';
 
-const OPEN_PANEL_HEADER_TEXT = 'Design Tokens';
+const OPEN_PANEL_HEADER_TEXT = 'zdtp';
 const DEFAULT_TOGGLE_EVENT = 'toggle-design-token-panel';
 
 function makeConfig(prefix: string, overrides: Partial<PanelConfig> = {}): PanelConfig {

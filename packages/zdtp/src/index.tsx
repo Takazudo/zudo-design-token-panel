@@ -65,6 +65,7 @@ import {
   getAllPanelConfigs,
   getPanelConfig,
   getPanelConfigByPrefix,
+  installZdtpGlobalAlias,
   openStateChangedEventName,
   panelRootId,
   registerPostConfigureHook,
@@ -356,6 +357,7 @@ export type {
   TierConfig,
   TabConfig,
   ColorClusterExtras,
+  NotesExtras,
 } from './tokens/tier-model';
 export {
   isLengthKind,
@@ -1121,6 +1123,18 @@ if (typeof window !== 'undefined') {
   // Configured instances are bound at configure time via the `configured`
   // lifecycle hook above.
   bindInstance(getPanelConfig());
+
+  // Fixed-name global open API (issue #523). Covers non-Astro hosts that
+  // import this package directly (no `astro/host-adapter.ts` in the picture).
+  // The Astro host adapter installs its own async-wrapped alias eagerly at
+  // its own bootstrap time, ahead of this module even loading — see
+  // `installZdtpGlobalAlias`'s JSDoc for the "first install wins" guard that
+  // keeps the two call sites from clobbering each other.
+  installZdtpGlobalAlias({
+    show: showDesignTokenPanel,
+    hide: hideDesignTokenPanel,
+    toggle: toggleDesignPanel,
+  });
 
   if (!state.bound) {
     state.bound = true;
