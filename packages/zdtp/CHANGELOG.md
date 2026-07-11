@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.4.6
+
+### Features
+
+- Notes tab — host-configurable token notes as the panel's top page ([#515](https://github.com/Takazudo/zudo-design-token-panel/issues/515)) (4169a05)
+- Palette tab: groups collapsed by default with boxed toggle headers ([#517](https://github.com/Takazudo/zudo-design-token-panel/issues/517)) (2ff5a1e)
+- Container-query responsive header & tabs at narrow panel widths, plus "zdtp" panel title + square corners ([#518](https://github.com/Takazudo/zudo-design-token-panel/issues/518)) (25dff1a)
+- Click-to-cycle unit suffix on value inputs ([#519](https://github.com/Takazudo/zudo-design-token-panel/issues/519)) (b05581d)
+- "?" help tooltips for Literal and Per-mode rows in the Color tab ([#520](https://github.com/Takazudo/zudo-design-token-panel/issues/520)) (c85fd69)
+- `zdtp.show()` — fixed-name global open API ([#523](https://github.com/Takazudo/zudo-design-token-panel/issues/523)) (9b3c636)
+
+### Fixed
+
+- Tooltip repositions correctly after panel resize (ResizeObserver initial-delivery fix) ([#516](https://github.com/Takazudo/zudo-design-token-panel/issues/516)) (d10fe16)
+- Closed a C0-control URL-scheme bypass in the notes-tab HTML sanitizer ([#515](https://github.com/Takazudo/zudo-design-token-panel/issues/515)) (19f7147)
+- Corrected kebab-close dead zone + title truncation in the responsive header ([#518](https://github.com/Takazudo/zudo-design-token-panel/issues/518)) (bfc4b81)
+- `window.zdtp` guards against a null instance and clarifies multi-instance behavior ([#523](https://github.com/Takazudo/zudo-design-token-panel/issues/523)) (bcc71aa)
+
+### Other Changes
+
+- docs: notes-tab demo in doc-site manifest; help-icon resize-pin trade-off + sanitizer intent documented (82cf7d8, fe1b477)
+- test: VRT baselines re-recorded for zdtp title + square corners; broad coverage added for notes tab, help icons, unit cycling
+- chore: removed consumed `_temp-resource/` prototype scaffold (ccbd18a)
+
 ## 0.4.5
 
 ### Features
