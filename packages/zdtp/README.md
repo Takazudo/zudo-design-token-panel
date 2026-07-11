@@ -1035,7 +1035,7 @@ zdtp.toggle(); // toggle open/closed
 
 - **`show` / `hide` / `toggle` only.** There is no `zdtp.enableAutoload()` — owner-autoload (§10.1) stays on `window[consoleNamespace].*` and the package-root `enableAutoload()` / `disableAutoload()` exports.
 - **`window[consoleNamespace].*` is unchanged** — `window.zdtp` is sugar layered on top of it, not a replacement. Both stay available side by side.
-- **Targets the default instance**, exactly like the package-root `showDesignTokenPanel()` / `hideDesignTokenPanel()` / `toggleDesignPanel()` exports and `window[consoleNamespace].*` itself. For a page with more than one panel instance, use `configurePanel(cfg)`'s returned handle (§5.2) instead.
+- **Targets the default instance**, exactly like the package-root `showDesignTokenPanel()` / `hideDesignTokenPanel()` / `toggleDesignPanel()` exports and `window[consoleNamespace].*` itself. On an Astro host specifically, the alias binds to whichever instance's adapter script installs it first, rather than re-resolving "the current default" on every call — see `PORTABLE-CONTRACT.md` §6.5 for the exact per-install-site rule. For a page with more than one panel instance, use `configurePanel(cfg)`'s returned handle (§5.2) instead — it is unambiguous regardless of install order.
 - **Available on both integration paths:**
   - Non-Astro hosts get it as soon as `@takazudo/zdtp`'s package-root module has loaded (it installs the alias at module init).
   - Astro hosts get it as soon as the host-adapter `<script>` has run — **before** the panel bundle itself has loaded. The first `zdtp.*` call lazy-imports the bundle, exactly like `window[consoleNamespace].*`.

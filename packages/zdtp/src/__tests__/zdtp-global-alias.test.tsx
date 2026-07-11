@@ -131,6 +131,18 @@ describe('window.zdtp fixed-name global alias — package-root install (#523)', 
     );
   });
 
+  it('does not clobber (and does not crash on) a host-defined window.zdtp = null', async () => {
+    (window as unknown as Record<string, unknown>).zdtp = null;
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await expect(freshImport()).resolves.toBeDefined();
+
+    expect((window as unknown as Record<string, unknown>).zdtp).toBeNull();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('window.zdtp already exists and was not installed by this package'),
+    );
+  });
+
   it('does not reinstall a fresh alias object across repeated module re-imports (idempotent)', async () => {
     await freshImport();
     const first = zdtpGlobal();

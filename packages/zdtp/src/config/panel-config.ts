@@ -983,17 +983,29 @@ const ZDTP_GLOBAL_ALIAS_MARKER = Symbol.for('@takazudo/zdtp:global-alias-marker'
  *    runs (and installs the alias) before the panel module's lazy dynamic
  *    import can resolve and reach the package-root install site.
  *
- * `show` / `hide` / `toggle` target the default/most-recently-configured
- * instance, exactly like the package-root `showDesignTokenPanel()` /
- * `hideDesignTokenPanel()` / `toggleDesignPanel()` exports this alias wraps —
- * for a multi-instance page, use `configurePanel(cfg).open()` etc. instead.
+ * `show` / `hide` / `toggle` are caller-supplied closures, so which instance
+ * they target is up to the caller — the package-root install site (below,
+ * `index.tsx`) wraps `showDesignTokenPanel()` etc., which re-resolve
+ * `getPanelConfig()` (the CURRENT default instance) on every call; the Astro
+ * host-adapter install site instead binds to the specific `PanelInstanceHandle`
+ * captured at its own install time, which does NOT track a later change of
+ * default (see PORTABLE-CONTRACT.md §6.5 for the full nuance). Either way,
+ * for a multi-instance page use `configurePanel(cfg).open()` etc. on the
+ * specific instance's own handle instead of relying on this alias.
  */
 export function installZdtpGlobalAlias(api: ZdtpGlobalApi): void {
   if (typeof window === 'undefined') return;
   const win = window as unknown as Record<string, unknown>;
   const existing = win.zdtp;
   if (existing !== undefined) {
-    const alreadyOurs = (existing as Record<symbol, unknown>)[ZDTP_GLOBAL_ALIAS_MARKER] === true;
+    // `existing` may be any host-supplied value, including `null` or another
+    // primitive — guard the property read so a host that (unusually) set
+    // `window.zdtp = null` hits the host-defined warn path below instead of
+    // throwing when reading a symbol property off `null`/a primitive.
+    const alreadyOurs =
+      (typeof existing === 'object' || typeof existing === 'function') &&
+      existing !== null &&
+      (existing as Record<symbol, unknown>)[ZDTP_GLOBAL_ALIAS_MARKER] === true;
     if (alreadyOurs) return;
     console.warn(
       '[design-token-panel] window.zdtp already exists and was not installed by this package. ' +

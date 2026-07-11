@@ -891,12 +891,20 @@ window.zdtp.toggle = () => void | Promise<void>;  // toggle the panel
 - **`window[consoleNamespace].*` is unaffected.** It stays fully intact as
   the multi-tenant, per-namespace API; `window.zdtp` is sugar for the common
   single-panel case layered on top, not a replacement.
-- **Targets the default instance.** Exactly like the package-root
+- **Targets the default instance — with one install-site nuance.** On a
+  non-Astro host, `window.zdtp.*` wraps the package-root
   `showDesignTokenPanel()` / `hideDesignTokenPanel()` / `toggleDesignPanel()`
-  exports this alias wraps, `window.zdtp.*` always drives the
-  default/most-recently-configured instance. On a multi-instance page, use
-  `configurePanel(cfg)`'s returned handle (`handle.open()` / `.close()` /
-  `.toggle()`) to target a specific instance instead.
+  exports, which re-resolve `getPanelConfig()` (the current default instance)
+  on every call — so it always tracks whichever instance is CURRENTLY the
+  default, even if that changes after install. On an Astro host, the adapter
+  binds `window.zdtp.*` to the specific `PanelInstanceHandle` captured at
+  install time (whichever instance's adapter script installs the alias
+  first — see the next point); it does NOT re-resolve the default on each
+  call, so on a page with more than one `<DesignTokenPanelHost>` instance the
+  alias keeps targeting that first instance even after a later-configured
+  instance becomes the registry's default. Either way, on a multi-instance
+  page use `configurePanel(cfg)`'s returned handle (`handle.open()` /
+  `.close()` / `.toggle()`) to target a SPECIFIC instance unambiguously.
 - **Install sites and timing.** Two independent call sites install this
   alias, both routing through one shared installer so neither clobbers the
   other:
