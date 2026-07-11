@@ -213,6 +213,60 @@ describe('createApplyHandler', () => {
     expect(secondaryCss).toContain('--secondary-pa8: #aa3333;');
   });
 
+  // ----- same-file coalescing (two prefixes → one file, #526) ---------------
+
+  describe('two routing prefixes targeting the same file (#526)', () => {
+    it('lands both prefixes’ edits when they route to one file', async () => {
+      // Regression for #526: with `palette` and `color` both mapped to
+      // `tokens/colors.css`, `routeTokensToFiles` emits two groups for the one
+      // file. Before the fix both groups were computed from the same pre-write
+      // content, so the second write clobbered the first — last prefix in
+      // routing order wins, every other same-file group silently discarded.
+      const rel = 'tokens/colors.css';
+      const absPath = join(tmpRepo, rel);
+      const src = ':root {\n  --palette-blue-500: #3b82f6;\n  --color-brand: #111111;\n}\n';
+      await fs.writeFile(absPath, src, 'utf-8');
+
+      const sameFileHandler = createApplyHandler({
+        rootDir: tmpRepo,
+        writeRoot: resolve(tmpRepo, 'tokens'),
+        routing: {
+          palette: rel,
+          color: rel,
+        },
+      });
+
+      const res = await sameFileHandler(
+        makeRequest({
+          tokens: {
+            '--palette-blue-500': '#2563eb',
+            '--color-brand': '#eeeeee',
+          },
+        }),
+      );
+      expect(res.status).toBe(200);
+      const json = await readResponseJson(res);
+      expect(json.ok).toBe(true);
+
+      // BOTH edits must survive on disk — the palette group is no longer
+      // clobbered by the color group's stale-content write.
+      const after = await fs.readFile(absPath, 'utf-8');
+      expect(after).toContain('--palette-blue-500: #2563eb;');
+      expect(after).toContain('--color-brand: #eeeeee;');
+
+      // Honest per-physical-file response shape: exactly ONE row for the file,
+      // carrying both changed vars (no duplicate `file` keys in `updated[]`).
+      const updated = json.updated as Array<{ file: string; changed: string[] }>;
+      expect(updated).toHaveLength(1);
+      expect(updated[0].file).toBe(rel);
+      expect(updated[0].changed).toEqual(
+        expect.arrayContaining(['--palette-blue-500', '--color-brand']),
+      );
+      expect(json.unknownCssVars).toEqual([]);
+      expect(json.unchangedCssVars).toEqual([]);
+    });
+  });
+
   // ----- @theme block support (Tailwind v4, #507 / repro of #496) -----------
 
   it('rewrites vars across a mixed :root + @theme file (Tailwind v4, #496 repro)', async () => {

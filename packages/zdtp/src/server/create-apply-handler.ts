@@ -190,18 +190,36 @@ export function createApplyHandler(
     }
 
     // Resolve + path-safety check up-front so we never start a partial apply.
-    const resolved: Array<{
-      absPath: string;
-      relPath: string;
-      groupTokens: Record<string, string>;
-    }> = [];
+    // Coalesce groups that resolve to the SAME physical file into ONE
+    // read→compute→write unit. Two routing prefixes can legitimately map to a
+    // single CSS file (e.g. `palette` and `color` both → `tokens/colors.css`);
+    // left as separate groups each would be computed from the same pre-write
+    // content and the second write would silently clobber the first (#526).
+    // Keying on the resolved absPath (not the raw relativePath) also collapses
+    // spelling variants like `tokens/x.css` vs `./tokens/x.css` onto one file.
+    const resolvedByAbsPath = new Map<
+      string,
+      { absPath: string; relPath: string; groupTokens: Record<string, string> }
+    >();
     for (const group of groups) {
       const absPath = resolve(rootDir, group.relativePath);
       if (!isPathSafe(writeRoot, absPath)) {
         return jsonResponse({ ok: false, error: `Path not allowed: ${group.relativePath}` }, 400);
       }
-      resolved.push({ absPath, relPath: group.relativePath, groupTokens: group.tokens });
+      const existing = resolvedByAbsPath.get(absPath);
+      if (existing) {
+        // Each cssVar is classified to exactly one prefix, so token maps merged
+        // across same-file groups never collide on a key.
+        Object.assign(existing.groupTokens, group.tokens);
+      } else {
+        resolvedByAbsPath.set(absPath, {
+          absPath,
+          relPath: group.relativePath,
+          groupTokens: { ...group.tokens },
+        });
+      }
     }
+    const resolved = Array.from(resolvedByAbsPath.values());
 
     // Compute every file's rewrite IN MEMORY first. If any compute step
     // throws (no :root block, IO error, etc.) we return an error before
