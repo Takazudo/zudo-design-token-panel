@@ -1291,6 +1291,43 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>, allTabs: un
           `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].items["${it.id}"].cssVar must be non-empty after "--"`,
         );
       }
+
+      // Rule: length-kind `type.units` (opt-in click-to-cycle unit suffix,
+      // #519) — when present, must be an array of non-empty, non-duplicate
+      // unit strings. Only checked for `kind: 'length'` items; the field is
+      // not part of any other kind's shape. A present-but-single-entry (or
+      // empty) array is intentionally NOT rejected here — per the #519
+      // design, fewer than 2 entries means "not opted into cycling yet",
+      // which the editor renders as today's static, non-interactive span.
+      const itType = it.type;
+      if (
+        itType !== null &&
+        typeof itType === 'object' &&
+        !Array.isArray(itType) &&
+        (itType as Record<string, unknown>).kind === 'length' &&
+        (itType as Record<string, unknown>).units !== undefined
+      ) {
+        const units = (itType as Record<string, unknown>).units;
+        if (!Array.isArray(units)) {
+          throw new Error(
+            `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].items["${it.id}"].type.units must be an array`,
+          );
+        }
+        const seenUnits = new Set<string>();
+        for (const u of units) {
+          if (typeof u !== 'string' || u.length === 0) {
+            throw new Error(
+              `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].items["${it.id}"].type.units entries must be non-empty strings (got ${JSON.stringify(u)})`,
+            );
+          }
+          if (seenUnits.has(u)) {
+            throw new Error(
+              `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].items["${it.id}"].type.units: duplicate unit ${JSON.stringify(u)}`,
+            );
+          }
+          seenUnits.add(u);
+        }
+      }
     }
   }
 

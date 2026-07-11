@@ -20,8 +20,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
 import GenericTab from '../generic-tab';
-import type { TabConfig } from '../../tokens/tier-model';
-import type { TabOverrides } from '../../apply/tier-resolver';
+import GenericItemEditor from '../_generic-item-editor';
+import type { TabConfig, TierItem } from '../../tokens/tier-model';
+import {
+  emitTierItemCssValue,
+  resolveTierItemValue,
+  type TabOverrides,
+} from '../../apply/tier-resolver';
 import { TooltipProvider } from '../../controls/tooltip';
 
 // ---------------------------------------------------------------------------
@@ -134,6 +139,81 @@ const MIXED_KINDS_TAB: TabConfig = {
           label: 'Mask Image',
           default: 'none',
           type: { kind: 'mask-image' },
+        },
+      ],
+    },
+  ],
+};
+
+/** A tab exercising the click-to-cycle unit suffix (#519). */
+const CYCLABLE_UNIT_TAB: TabConfig = {
+  id: 'cyclable',
+  label: 'Cyclable',
+  tiers: [
+    {
+      id: 'values',
+      label: 'Values',
+      items: [
+        {
+          id: 'cyclable-item',
+          cssVar: '--test-cyclable',
+          label: 'Cyclable',
+          default: '1rem',
+          type: { kind: 'length', step: 0.25, unit: 'rem', units: ['rem', 'em', 'px'] },
+        },
+        {
+          id: 'diverged-item',
+          cssVar: '--test-diverged',
+          label: 'Diverged',
+          // Stored suffix ("vw") diverges from the declared `units` list —
+          // e.g. imported data or a manifest change (#519 divergence case).
+          default: '2vw',
+          type: { kind: 'length', step: 0.25, unit: 'rem', units: ['rem', 'em', 'px'] },
+        },
+        {
+          id: 'readonly-cyclable-item',
+          cssVar: '--test-readonly-cyclable',
+          label: 'Readonly Cyclable',
+          default: '1rem',
+          type: { kind: 'length', step: 0.25, unit: 'rem', units: ['rem', 'em', 'px'] },
+          readonly: true,
+        },
+        {
+          id: 'duration-item',
+          cssVar: '--test-duration',
+          label: 'Duration',
+          default: '150ms',
+          // Reuses the shared `length` kind for a ms duration — NOT opted
+          // into unit cycling (`units` omitted): cycling ms into rem/em/px
+          // would emit invalid CSS.
+          type: { kind: 'length', step: 10, unit: 'ms' },
+        },
+        {
+          id: 'unitless-item',
+          cssVar: '--test-unitless',
+          label: 'Unitless',
+          default: '1.5',
+          type: { kind: 'length', step: 0.05, unit: '' },
+        },
+        {
+          id: 'unitless-cyclable-item',
+          cssVar: '--test-unitless-cyclable',
+          label: 'Unitless Cyclable',
+          // No suffix at all — a degenerate case for an opted-in row (#519
+          // review finding #3): must fall back to units[0] for display
+          // rather than rendering an empty, zero-width interactive button.
+          default: '1.5',
+          type: { kind: 'length', step: 0.05, unit: 'rem', units: ['rem', 'em', 'px'] },
+        },
+        {
+          id: 'leading-dot-item',
+          cssVar: '--test-leading-dot',
+          label: 'Leading Dot',
+          // Leading-dot decimal ("valid CSS, .5px" style) whose suffix
+          // diverges from the declared unit — regression case for #519
+          // review finding #2 (parse/emit must agree on this shape).
+          default: '.5px',
+          type: { kind: 'length', step: 0.05, unit: 'rem', units: ['rem', 'em', 'px'] },
         },
       ],
     },
@@ -757,5 +837,286 @@ describe('GenericTab — oklch color items use ColorField (S4 #378)', () => {
 
     const picker = container.querySelector('.tokenpanel-color-picker');
     expect(picker).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Click-to-cycle unit suffix on value inputs (#519)
+// ---------------------------------------------------------------------------
+
+describe('GenericTab — click-to-cycle unit suffix (#519)', () => {
+  it('non-opted length item (no `units`) renders a plain, non-interactive span', async () => {
+    await renderGenericTab(MIXED_KINDS_TAB);
+
+    const unitEl = container.querySelector('[data-testid="tier-item-length-item"] .tokenpanel-row-unit');
+    expect(unitEl).not.toBeNull();
+    expect(unitEl!.tagName).toBe('SPAN');
+    expect(unitEl!.getAttribute('role')).toBeNull();
+    expect(unitEl!.className).toBe('tokenpanel-row-unit');
+  });
+
+  it('ms-duration length item (no `units`) stays a static span', async () => {
+    await renderGenericTab(CYCLABLE_UNIT_TAB);
+
+    const unitEl = container.querySelector('[data-testid="tier-item-duration-item"] .tokenpanel-row-unit');
+    expect(unitEl!.tagName).toBe('SPAN');
+    expect(unitEl!.getAttribute('role')).toBeNull();
+    expect(unitEl!.textContent).toBe('ms');
+  });
+
+  it('unitless length item (no `units`) renders no unit element at all — unchanged', async () => {
+    await renderGenericTab(CYCLABLE_UNIT_TAB);
+
+    const item = container.querySelector('[data-testid="tier-item-unitless-item"]');
+    const unitEl = item?.querySelector('.tokenpanel-row-unit');
+    expect(unitEl).toBeNull();
+  });
+
+  it('opted-in length item renders an interactive role=button unit suffix with a distinct aria-label', async () => {
+    await renderGenericTab(CYCLABLE_UNIT_TAB);
+
+    const unitEl = container.querySelector(
+      '[data-testid="tier-item-cyclable-item"] .tokenpanel-row-unit',
+    );
+    expect(unitEl).not.toBeNull();
+    expect(unitEl!.getAttribute('role')).toBe('button');
+    expect(unitEl!.getAttribute('tabindex')).toBe('0');
+    expect(unitEl!.textContent).toBe('rem');
+    // Distinct from the number input's aria-label ("--test-cyclable value")
+    // so it doesn't collide with the input's accessible name.
+    expect(unitEl!.getAttribute('aria-label')).toBe('--test-cyclable unit');
+  });
+
+  it('clicking the unit cycles rem -> em -> px -> rem, keeping the magnitude unchanged', async () => {
+    let onChange = vi.fn();
+    const clickUnit = () => {
+      const unitEl = container.querySelector<HTMLElement>(
+        '[data-testid="tier-item-cyclable-item"] .tokenpanel-row-unit',
+      )!;
+      act(() => {
+        unitEl.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+    };
+
+    await renderGenericTab(CYCLABLE_UNIT_TAB, {}, onChange);
+    clickUnit();
+    expect(onChange).toHaveBeenCalledWith('values', 'cyclable-item', '1em');
+
+    onChange = vi.fn();
+    await renderGenericTab(CYCLABLE_UNIT_TAB, { values: { 'cyclable-item': '1em' } }, onChange);
+    clickUnit();
+    expect(onChange).toHaveBeenCalledWith('values', 'cyclable-item', '1px');
+
+    onChange = vi.fn();
+    await renderGenericTab(CYCLABLE_UNIT_TAB, { values: { 'cyclable-item': '1px' } }, onChange);
+    clickUnit();
+    expect(onChange).toHaveBeenCalledWith('values', 'cyclable-item', '1rem');
+  });
+
+  it('Enter key on the unit cycles the unit', async () => {
+    const onChange = vi.fn();
+    await renderGenericTab(CYCLABLE_UNIT_TAB, {}, onChange);
+
+    const unitEl = container.querySelector<HTMLElement>(
+      '[data-testid="tier-item-cyclable-item"] .tokenpanel-row-unit',
+    )!;
+    act(() => {
+      unitEl.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    expect(onChange).toHaveBeenCalledWith('values', 'cyclable-item', '1em');
+  });
+
+  it('Space key on the unit cycles the unit', async () => {
+    const onChange = vi.fn();
+    await renderGenericTab(CYCLABLE_UNIT_TAB, {}, onChange);
+
+    const unitEl = container.querySelector<HTMLElement>(
+      '[data-testid="tier-item-cyclable-item"] .tokenpanel-row-unit',
+    )!;
+    act(() => {
+      unitEl.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+    });
+    expect(onChange).toHaveBeenCalledWith('values', 'cyclable-item', '1em');
+  });
+
+  it('shows the ACTUAL stored suffix when it diverges from the declared units list', async () => {
+    await renderGenericTab(CYCLABLE_UNIT_TAB);
+
+    const unitEl = container.querySelector(
+      '[data-testid="tier-item-diverged-item"] .tokenpanel-row-unit',
+    );
+    expect(unitEl!.textContent).toBe('vw');
+  });
+
+  it('first activation on a diverged suffix cycles to units[0]', async () => {
+    const onChange = vi.fn();
+    await renderGenericTab(CYCLABLE_UNIT_TAB, {}, onChange);
+
+    const unitEl = container.querySelector<HTMLElement>(
+      '[data-testid="tier-item-diverged-item"] .tokenpanel-row-unit',
+    )!;
+    act(() => {
+      unitEl.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(onChange).toHaveBeenCalledWith('values', 'diverged-item', '2rem');
+  });
+
+  it('typing a new number after cycling preserves the cycled unit (not type.unit)', async () => {
+    const onChange = vi.fn();
+    await renderGenericTab(CYCLABLE_UNIT_TAB, { values: { 'cyclable-item': '1px' } }, onChange);
+
+    const input = container.querySelector<HTMLInputElement>(
+      '[data-testid="tier-item-cyclable-item"] input[type="text"]',
+    )!;
+    simulateInputEvent(input, '5');
+
+    const calls = onChange.mock.calls.filter(([, itemId]) => itemId === 'cyclable-item');
+    expect(calls.at(-1)).toEqual(['values', 'cyclable-item', '5px']);
+  });
+
+  it('readonly opted-in item is aria-disabled and ignores click', async () => {
+    const onChange = vi.fn();
+    await renderGenericTab(CYCLABLE_UNIT_TAB, {}, onChange);
+
+    const unitEl = container.querySelector<HTMLElement>(
+      '[data-testid="tier-item-readonly-cyclable-item"] .tokenpanel-row-unit',
+    )!;
+    expect(unitEl.getAttribute('aria-disabled')).toBe('true');
+
+    act(() => {
+      unitEl.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    const calls = onChange.mock.calls.filter(([, itemId]) => itemId === 'readonly-cyclable-item');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('falls back to units[0] for display when the stored value has no unit suffix at all (degenerate case)', async () => {
+    await renderGenericTab(CYCLABLE_UNIT_TAB);
+
+    const unitEl = container.querySelector<HTMLElement>(
+      '[data-testid="tier-item-unitless-cyclable-item"] .tokenpanel-row-unit',
+    )!;
+    // Must never render an empty, zero-width interactive button.
+    expect(unitEl.textContent).toBe('rem');
+  });
+
+  it('detects the actual suffix of a leading-dot decimal value ("valid CSS, .5px" style) instead of falling back to the declared unit', async () => {
+    await renderGenericTab(CYCLABLE_UNIT_TAB);
+
+    const unitEl = container.querySelector<HTMLElement>(
+      '[data-testid="tier-item-leading-dot-item"] .tokenpanel-row-unit',
+    )!;
+    expect(unitEl.textContent).toBe('px');
+  });
+
+  it('cycling a leading-dot decimal value emits a magnitude consistent with the detected suffix (parse/emit agreement)', async () => {
+    const onChange = vi.fn();
+    await renderGenericTab(CYCLABLE_UNIT_TAB, {}, onChange);
+
+    const unitEl = container.querySelector<HTMLElement>(
+      '[data-testid="tier-item-leading-dot-item"] .tokenpanel-row-unit',
+    )!;
+    act(() => {
+      unitEl.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    // px -> rem (wraps); magnitude 0.5 parsed the same way for both the
+    // displayed suffix ("px") and the emitted value.
+    expect(onChange).toHaveBeenCalledWith('values', 'leading-dot-item', '0.5rem');
+  });
+});
+
+describe('GenericTab — click-to-cycle unit round-trips through persistence + apply pipeline (#519)', () => {
+  it('a post-cycle value committed via onChange resolves and emits unchanged through the tier resolver', async () => {
+    const onChange = vi.fn();
+    await renderGenericTab(CYCLABLE_UNIT_TAB, {}, onChange);
+
+    const unitEl = container.querySelector<HTMLElement>(
+      '[data-testid="tier-item-cyclable-item"] .tokenpanel-row-unit',
+    )!;
+    act(() => {
+      unitEl.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    const [, , postCycleValue] = onChange.mock.calls[0];
+    expect(postCycleValue).toBe('1em');
+
+    // Persistence (localStorage state-v4 and export/import JSON) is a plain
+    // JSON.stringify/parse of TabOverrides — no apply-pipeline change was
+    // needed for #519, so a round-trip through JSON must leave the value
+    // byte-identical.
+    const overrides: TabOverrides = JSON.parse(
+      JSON.stringify({ values: { 'cyclable-item': postCycleValue } }),
+    );
+
+    const resolved = resolveTierItemValue(CYCLABLE_UNIT_TAB, 'values', 'cyclable-item', overrides);
+    expect(emitTierItemCssValue(resolved)).toBe('1em');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GenericItemEditor — direct render (the production call site shared by
+// FontTab / SpacingTab / SizeTab, distinct from GenericTab's duplicated
+// editor above) (#519)
+// ---------------------------------------------------------------------------
+
+describe('GenericItemEditor — click-to-cycle unit suffix (#519, direct render)', () => {
+  const CYCLABLE_ITEM: TierItem = {
+    id: 'editor-cyclable-item',
+    cssVar: '--test-editor-cyclable',
+    label: 'Cyclable',
+    default: '1rem',
+    type: { kind: 'length', step: 0.25, unit: 'rem', units: ['rem', 'em', 'px'] },
+  };
+
+  const STATIC_ITEM: TierItem = {
+    id: 'editor-static-item',
+    cssVar: '--test-editor-static',
+    label: 'Static',
+    default: '1rem',
+    type: { kind: 'length', step: 0.25, unit: 'rem' },
+  };
+
+  async function renderEditor(
+    item: TierItem,
+    value: string,
+    onChange: (itemId: string, next: string) => void = () => undefined,
+  ): Promise<void> {
+    await act(() => {
+      render(<GenericItemEditor item={item} value={value} onChange={onChange} />, container);
+    });
+  }
+
+  it('renders an interactive role=button unit suffix for an opted-in item', async () => {
+    await renderEditor(CYCLABLE_ITEM, '1rem');
+
+    const unitEl = container.querySelector(
+      `[data-testid="tier-item-${CYCLABLE_ITEM.id}"] .tokenpanel-row-unit`,
+    );
+    expect(unitEl).not.toBeNull();
+    expect(unitEl!.getAttribute('role')).toBe('button');
+    expect(unitEl!.textContent).toBe('rem');
+  });
+
+  it('clicking cycles the unit while keeping the magnitude unchanged', async () => {
+    const onChange = vi.fn();
+    await renderEditor(CYCLABLE_ITEM, '1rem', onChange);
+
+    const unitEl = container.querySelector<HTMLElement>(
+      `[data-testid="tier-item-${CYCLABLE_ITEM.id}"] .tokenpanel-row-unit`,
+    )!;
+    act(() => {
+      unitEl.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(onChange).toHaveBeenCalledWith('editor-cyclable-item', '1em');
+  });
+
+  it('non-opted length item (no `units`) stays a plain static span — DOM-identical to today', async () => {
+    await renderEditor(STATIC_ITEM, '1rem');
+
+    const unitEl = container.querySelector(
+      `[data-testid="tier-item-${STATIC_ITEM.id}"] .tokenpanel-row-unit`,
+    );
+    expect(unitEl!.tagName).toBe('SPAN');
+    expect(unitEl!.getAttribute('role')).toBeNull();
+    expect(unitEl!.className).toBe('tokenpanel-row-unit');
   });
 });

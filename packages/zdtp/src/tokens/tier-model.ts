@@ -6,7 +6,21 @@ import type { ColorScheme } from '../config/color-schemes';
 // ---------------------------------------------------------------------------
 
 export type TierValueKind =
-  | { kind: 'length'; step: number; unit: string }
+  | {
+      kind: 'length';
+      step: number;
+      unit: string;
+      /**
+       * Optional list of unit suffixes this row may cycle through by
+       * clicking the unit label (#519). 2+ entries opts the row into an
+       * interactive, click/Enter/Space-cycling unit suffix (wrapping through
+       * the list); omitted or a single entry keeps today's static,
+       * non-interactive unit span, pixel-identical. This kind is reused for
+       * ms durations and unitless values too — only declare `units` when
+       * cycling between those suffixes is valid CSS for the token.
+       */
+      units?: readonly string[];
+    }
   | { kind: 'number'; step: number }
   | { kind: 'select'; options: readonly string[] }
   | { kind: 'text' }

@@ -113,6 +113,7 @@ function toTierItem(t: TokenDef): TierItem {
       kind: "length" as const,
       step: t.step,
       unit: t.unit,
+      ...(t.units ? { units: t.units } : {}),
     };
   }
   const item: TierItem = {

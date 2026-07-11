@@ -767,6 +767,25 @@
   width: 32px;
 }
 
+/* Opt-in click-to-cycle unit suffix (#519) — only applied to rows whose
+ * TierValueKind declares 2+ `units`. Non-opted rows keep the plain
+ * .tokenpanel-row-unit span above untouched, pixel-identical. */
+.tokenpanel-row-unit--interactive {
+  cursor: pointer;
+  border-radius: 2px;
+}
+.tokenpanel-row-unit--interactive:hover {
+  color: var(--tokentweak-color-fg);
+}
+.tokenpanel-row-unit--interactive:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+}
+.tokenpanel-row-unit--interactive[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.6;
+}
+
 .tokenpanel-row-select {
   background-color: var(--tokentweak-color-surface);
   color: var(--tokentweak-color-fg);
