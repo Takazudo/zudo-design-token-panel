@@ -112,14 +112,15 @@ export const FONT_TOKENS: readonly TokenDef[] = [
   { id: "font-mono", cssVar: "--font-mono", label: "font-mono", group: "font-family", default: "ui-monospace, monospace",  step: 1, unit: "", control: "text" },
 
   // --- Tier 1 abstract scale (was "Advanced" disclosure in v1 of the panel;
-  //     now lives in its own font-scale tier). ---
-  { id: "text-scale-2xs", cssVar: "--text-scale-2xs", label: "text-scale-2xs", group: "font-scale", default: "0.75rem",  step: 0.05, unit: "rem" },
-  { id: "text-scale-xs",  cssVar: "--text-scale-xs",  label: "text-scale-xs",  group: "font-scale", default: "0.875rem", step: 0.05, unit: "rem" },
-  { id: "text-scale-sm",  cssVar: "--text-scale-sm",  label: "text-scale-sm",  group: "font-scale", default: "1rem",     step: 0.05, unit: "rem" },
-  { id: "text-scale-md",  cssVar: "--text-scale-md",  label: "text-scale-md",  group: "font-scale", default: "1.2rem",   step: 0.05, unit: "rem" },
-  { id: "text-scale-lg",  cssVar: "--text-scale-lg",  label: "text-scale-lg",  group: "font-scale", default: "1.4rem",   step: 0.05, unit: "rem" },
-  { id: "text-scale-xl",  cssVar: "--text-scale-xl",  label: "text-scale-xl",  group: "font-scale", default: "3rem",     step: 0.05, unit: "rem" },
-  { id: "text-scale-2xl", cssVar: "--text-scale-2xl", label: "text-scale-2xl", group: "font-scale", default: "3.75rem",  step: 0.05, unit: "rem" },
+  //     now lives in its own font-scale tier). Opted into the click-to-cycle
+  //     unit suffix (#519) so the doc site demonstrates it. ---
+  { id: "text-scale-2xs", cssVar: "--text-scale-2xs", label: "text-scale-2xs", group: "font-scale", default: "0.75rem",  step: 0.05, unit: "rem", units: ["rem", "em", "px"] },
+  { id: "text-scale-xs",  cssVar: "--text-scale-xs",  label: "text-scale-xs",  group: "font-scale", default: "0.875rem", step: 0.05, unit: "rem", units: ["rem", "em", "px"] },
+  { id: "text-scale-sm",  cssVar: "--text-scale-sm",  label: "text-scale-sm",  group: "font-scale", default: "1rem",     step: 0.05, unit: "rem", units: ["rem", "em", "px"] },
+  { id: "text-scale-md",  cssVar: "--text-scale-md",  label: "text-scale-md",  group: "font-scale", default: "1.2rem",   step: 0.05, unit: "rem", units: ["rem", "em", "px"] },
+  { id: "text-scale-lg",  cssVar: "--text-scale-lg",  label: "text-scale-lg",  group: "font-scale", default: "1.4rem",   step: 0.05, unit: "rem", units: ["rem", "em", "px"] },
+  { id: "text-scale-xl",  cssVar: "--text-scale-xl",  label: "text-scale-xl",  group: "font-scale", default: "3rem",     step: 0.05, unit: "rem", units: ["rem", "em", "px"] },
+  { id: "text-scale-2xl", cssVar: "--text-scale-2xl", label: "text-scale-2xl", group: "font-scale", default: "3.75rem",  step: 0.05, unit: "rem", units: ["rem", "em", "px"] },
 ];
 
 /**

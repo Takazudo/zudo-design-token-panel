@@ -63,6 +63,14 @@ export interface TokenDef {
   step: number;
   /** Unit suffix (e.g. `rem`, `px`). Read-only rows may use an empty string. */
   unit: string;
+  /**
+   * Optional list of unit suffixes this row may cycle through by clicking
+   * the unit label (#519). 2+ entries opts in; omitted/single-entry keeps
+   * today's static, non-interactive unit suffix. Mirrors `TierValueKind`'s
+   * `length.units` — the default-slider mapping in a host's
+   * `toTierItem()`-style helper should pass it straight through.
+   */
+  units?: readonly string[];
   /** Read-only tokens are displayed but not editable (e.g. `clamp()` expressions). */
   readonly?: true;
   /** Which control renders this token. Defaults to `"slider"` when absent. */

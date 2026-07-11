@@ -714,6 +714,85 @@ describe('panel-config — assertValidPanelConfig host-tabs validation', () => {
     ).toThrow(/mixed item kinds/);
   });
 
+  // Click-to-cycle unit suffix — type.units validation (#519) ----------------
+
+  /** Build a single-tab, single-tier config with one length item carrying `units`. */
+  function makeUnitsTab(units: unknown): TabConfig {
+    return {
+      id: 'units-tab',
+      label: 'Units Tab',
+      tiers: [
+        {
+          id: 'values',
+          label: 'Values',
+          items: [
+            {
+              id: 'length-item',
+              cssVar: '--units-tab-length-item',
+              label: 'Length item',
+              default: '1rem',
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              type: { kind: 'length', step: 0.25, unit: 'rem', units } as any,
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  it('accepts a length item with 2+ valid units', () => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [makeUnitsTab(['rem', 'em', 'px'])] })),
+    ).not.toThrow();
+  });
+
+  it('accepts a length item with units omitted (default: static unit span)', () => {
+    const tab: TabConfig = {
+      id: 'units-tab',
+      label: 'Units Tab',
+      tiers: [
+        {
+          id: 'values',
+          label: 'Values',
+          items: [
+            {
+              id: 'length-item',
+              cssVar: '--units-tab-length-item',
+              label: 'Length item',
+              default: '1rem',
+              type: { kind: 'length', step: 0.25, unit: 'rem' },
+            },
+          ],
+        },
+      ],
+    };
+    expect(() => assertValidPanelConfig(makeBaseConfig({ tabs: [tab] }))).not.toThrow();
+  });
+
+  it('rejects type.units when not an array', () => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [makeUnitsTab('rem')] })),
+    ).toThrow(/type\.units must be an array/);
+  });
+
+  it('rejects type.units containing an empty string', () => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [makeUnitsTab(['rem', ''])] })),
+    ).toThrow(/type\.units entries must be non-empty strings/);
+  });
+
+  it('rejects type.units containing a non-string entry', () => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [makeUnitsTab(['rem', 1])] })),
+    ).toThrow(/type\.units entries must be non-empty strings/);
+  });
+
+  it('rejects type.units with a duplicate unit', () => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [makeUnitsTab(['rem', 'px', 'rem'])] })),
+    ).toThrow(/type\.units: duplicate unit "rem"/);
+  });
+
   // F4: palette cssVar 0-based contiguity check (issue #440) ----------------
 
   /**
