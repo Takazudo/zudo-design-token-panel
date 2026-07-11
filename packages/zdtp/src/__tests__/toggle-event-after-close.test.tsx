@@ -48,7 +48,7 @@ import {
 import { flushEffects } from './_test-helpers';
 
 const PANEL_ROOT_ID = panelRootId(getPanelConfig());
-const OPEN_PANEL_HEADER_TEXT = 'Design Tokens';
+const OPEN_PANEL_HEADER_TEXT = 'zdtp';
 const TOGGLE_EVENT = 'toggle-design-token-panel';
 
 describe('design-token-panel — toggle event after close', () => {

@@ -40,7 +40,7 @@ function makeConfig(prefix: string, overrides: Partial<PanelConfig> = {}): Panel
   };
 }
 
-const OPEN_PANEL_HEADER_TEXT = 'Design Tokens';
+const OPEN_PANEL_HEADER_TEXT = 'zdtp';
 
 async function waitForEffectFlush(): Promise<void> {
   await new Promise<void>((resolve) =>

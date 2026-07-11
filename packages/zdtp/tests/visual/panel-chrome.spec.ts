@@ -26,7 +26,7 @@ const PANEL_CHROME_HTML = `
 
   <!-- Header: title + spacer + close btn -->
   <div class="tokenpanel-header">
-    <span class="tokenpanel-title">Design Tokens</span>
+    <span class="tokenpanel-title">zdtp</span>
     <div class="tokenpanel-spacer"></div>
     <div class="tokenpanel-close-btn" role="button" tabindex="0" aria-label="Close panel">
       <!-- × glyph; SVG path drawn with currentColor so fill defensive reset applies -->

@@ -53,6 +53,8 @@ The package builds against Preact (declared as a `peerDependency`) and ships its
 
 > Visual: a screenshot or short capture would go here. Skipped in the v1 README — a placeholder is worse than nothing. See the external example repos linked in §15 for live demos.
 
+**Browser floor:** the panel's own header/tabbar chrome adapts to the panel's *width* (not the viewport) via CSS container queries, which are Baseline 2023 (Safari 16+). The panel is a developer tool used on evergreen browsers, so older browsers simply keep the wide-layout chrome with no JS fallback.
+
 ---
 
 ## 2. Install

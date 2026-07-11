@@ -37,7 +37,7 @@ import { flushEffects } from './_test-helpers';
 
 const STORAGE_KEY_VISIBLE = storageKey_visible(getPanelConfig());
 const PANEL_ROOT_ID = panelRootId(getPanelConfig());
-const OPEN_PANEL_HEADER_TEXT = 'Design Tokens';
+const OPEN_PANEL_HEADER_TEXT = 'zdtp';
 const TOGGLE_EVENT = 'toggle-design-token-panel';
 
 describe('panel close — storage sync', () => {

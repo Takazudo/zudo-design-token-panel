@@ -33,7 +33,7 @@ import { __resetPanelConfigForTests, getPanelConfig, panelRootId } from '../conf
 import { flushEffects } from './_test-helpers';
 
 const PANEL_ROOT_ID = panelRootId(getPanelConfig());
-const OPEN_PANEL_HEADER_TEXT = 'Design Tokens';
+const OPEN_PANEL_HEADER_TEXT = 'zdtp';
 
 describe('design-token-panel — programmatic show after hide', () => {
   beforeEach(() => {
