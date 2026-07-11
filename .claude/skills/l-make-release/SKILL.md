@@ -30,6 +30,24 @@ and GitHub Release. Do **not** add a second "push the tag now?" prompt; the user
 already decided at Step 3. The only thing that can halt the flow after Step 3 is a
 **validation failure** (Step 7) — see Boundaries.
 
+**Autonomy after the gate.** Once Step 3 is confirmed, run the whole flow to
+completion without pausing to ask the user to confirm any routine step — never
+prompt "push the tag now?", "commit looks right?", "proceed to publish?", or the
+like. **Surface-and-proceed** for anything advisory or cosmetic: an `attw` complaint,
+a `node_modules`-only dependency reconciliation, a `dist-tag` warning (Step 10), or a
+`pnpm-lock.yaml` that ends up unchanged. The flow stops and hands control back to the
+user **only** for a genuine careful-handling problem — one that is hard to reverse or
+truly ambiguous:
+
+- a **publint** failure (Step 7) — blocks *before* the tag is pushed;
+- a **CI failure** on the bump commit (Step 6), or a **Release-workflow failure**
+  after the tag push (Step 8);
+- **structural** (non-version) `pnpm-lock.yaml` drift (Step 4c);
+- a **moved-HEAD** resume ambiguity (Step 1) — the bump commit is not `HEAD`.
+
+For those, stop and surface the specifics so the user can decide. For everything
+else, keep going.
+
 If the trigger was a loose phrase, restate the proposed bump plainly at Step 3 so
 the user can catch a wrong version strategy before anything is written.
 
