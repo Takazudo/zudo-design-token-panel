@@ -700,6 +700,56 @@ describe('serialize/deserialize — generic (custom-id) tabs', () => {
 });
 
 // ---------------------------------------------------------------------------
+// serialize / deserialize — notes tab is explicitly excluded (#515)
+// ---------------------------------------------------------------------------
+
+/** A configured `id: 'notes'` tab — carries no token tiers, only notesExtras. */
+const NOTES_TAB: TabConfig = {
+  id: 'notes',
+  label: 'Notes',
+  tiers: [],
+  notesExtras: { title: 'Welcome', html: '<p>hello</p>' },
+};
+
+/** Install the fixture config WITH the reserved `notes` tab appended. */
+function installWithNotesTab(): void {
+  installFixturePanelConfig({ tabs: [...FIXTURE_TABS, NOTES_TAB] });
+}
+
+describe('serialize/deserialize — notes tab exclusion (#515)', () => {
+  beforeEach(() => {
+    installWithNotesTab();
+  });
+
+  it('serialize never emits a tabs["notes"] entry, even under includeDefaults', () => {
+    const json = serialize(makeState(), { colorDefaults: COLOR_BASELINE, includeDefaults: true });
+    expect(json.tabs?.['notes']).toBeUndefined();
+  });
+
+  it('serialize ignores a stray state.tabs["notes"] entry (notes has no generic-tab slice)', () => {
+    // The notes tab is dispatched to NotesTab, not GenericTab, so persistTab('notes', ...)
+    // is never reachable in practice — this proves the serde layer is ALSO defensive
+    // against a stray entry, not merely relying on the UI never producing one.
+    const state = makeState({ tabs: { notes: { someTier: { someItem: 'x' } } } });
+    const json = serialize(state, { colorDefaults: COLOR_BASELINE });
+    expect(json.tabs?.['notes']).toBeUndefined();
+  });
+
+  it('deserialize ignores a tabs["notes"] payload entirely — no state.tabs.notes, no unknownTokens', () => {
+    const payload: DesignTokenJsonV2 = {
+      $schema: SCHEMA_V2,
+      exportedAt: new Date().toISOString(),
+      tabs: {
+        notes: { raw: { '--whatever': '1' } },
+      },
+    };
+    const { state, unknownTokens } = deserialize(payload, { colorDefaults: COLOR_BASELINE });
+    expect(state.tabs).toBeUndefined();
+    expect(unknownTokens).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // F29: serialize() must not drop 'bg'/'fg' semantic mappings
 // ---------------------------------------------------------------------------
 
