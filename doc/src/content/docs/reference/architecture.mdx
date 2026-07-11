@@ -11,7 +11,7 @@ The design-token panel is split into three layers connected through narrow, JSON
 There are three concerns the package keeps in three separate layers:
 
 1. **Panel UI** — the Preact island that renders the side panel, owns tab and control state, and writes overrides to `:root` via `setProperty`. Lives entirely in the browser.
-2. **Host-adapter** — the thin shim a host imports as a side effect. It reads the inline JSON config, calls `configurePanel(...)`, installs `window.<consoleNamespace>.*`, and gates the lazy-load of the panel module.
+2. **Host-adapter** — the thin shim a host imports as a side effect. It reads the inline JSON config, calls `configurePanel(...)`, installs `window.<consoleNamespace>.*` plus the fixed-name `window.zdtp.{show,hide,toggle}()` alias, and gates the lazy-load of the panel module.
 3. **Apply-pipeline** — the optional path from the panel's Apply button back to disk. It is the in-package payload builder plus the standalone Node bin server (`zdtp-server`) that owns the file rewrites.
 
 ```

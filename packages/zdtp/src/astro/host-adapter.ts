@@ -52,6 +52,7 @@ import {
   assertValidPanelConfig,
   configurePanel,
   getPanelConfig,
+  installZdtpGlobalAlias,
   storageKey_stateV2,
   storageKey_stateV3,
   storageKey_stateV4,
@@ -334,6 +335,37 @@ function installConsoleApi(
   win[namespace] = existing;
 }
 
+/**
+ * Install the fixed-name `window.zdtp = { show, hide, toggle }` global
+ * (issue #523), bound to THIS instance's handle — mirrors
+ * `installConsoleApi`'s per-instance binding rationale above. Each wrapper
+ * `await`s `loadPanelModule(state)` first so the per-instance lifecycle hooks
+ * are installed (and, for `show`, so `handle.open()` routes through
+ * `showInstance` and arms autoload — see `index.tsx`) before the handle
+ * method fires.
+ *
+ * Called eagerly from `bootstrap()`, so the global is available in the
+ * console immediately — before the panel bundle itself has loaded.
+ * `installZdtpGlobalAlias` owns the never-clobber / no-double-install guard
+ * shared with the package-root install site in `index.tsx`.
+ */
+function installZdtpAlias(state: DesignTokenPanelAdapterState, handle: PanelInstanceHandle): void {
+  installZdtpGlobalAlias({
+    show: async () => {
+      await loadPanelModule(state);
+      handle.open();
+    },
+    hide: async () => {
+      await loadPanelModule(state);
+      handle.close();
+    },
+    toggle: async () => {
+      await loadPanelModule(state);
+      handle.toggle();
+    },
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Bootstrap (synchronous at module init)
 // ---------------------------------------------------------------------------
@@ -369,6 +401,12 @@ function installConsoleApi(
   //    probes, since the console handlers are idempotent (re-assigning the
   //    same closures is a no-op semantically). Bind to this instance's handle.
   installConsoleApi(win, cfg.consoleNamespace, state, handle, cfg);
+
+  // 2b. Install the fixed-name `window.zdtp` global alias (issue #523),
+  //     bound to this same instance's handle. Also every-time / idempotent —
+  //     `installZdtpGlobalAlias` itself no-ops past the first successful
+  //     install (see its JSDoc).
+  installZdtpAlias(state, handle);
 
   if (state.bound) return;
   state.bound = true;

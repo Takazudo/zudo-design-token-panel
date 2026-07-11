@@ -326,6 +326,22 @@ That is the entire integration. `<DesignTokenPanelHost>` emits a JSON `<script>`
 window.myapp.toggleDesignPanel();
 ```
 
+Or use the fixed-name `zdtp` global — no need to remember your own
+`consoleNamespace`:
+
+```js
+// In the browser devtools console — works regardless of consoleNamespace
+zdtp.show();
+zdtp.hide();
+zdtp.toggle();
+```
+
+`zdtp.show()` / `hide()` / `toggle()` are console sugar for the exact same
+open/close verbs `window.myapp.*` exposes (see §10 for the full contract) —
+`window.myapp.*` keeps working unchanged. On an Astro page, `zdtp.*` is
+available as soon as the host-adapter script has run, even before the panel
+bundle itself has loaded.
+
 Or wire a hidden keyboard shortcut / dev-only button to call the same helper.
 
 ### 4.1.4 Stylesheet (self-injected — no consumer import required)
@@ -471,6 +487,13 @@ export interface PanelInstanceHandle {
   destroy(): void;
 }
 ```
+
+`open()` / `close()` / `toggle()` are the same primitives both
+`window.myapp.*` (§10) and the fixed-name `window.zdtp.*` global (§10) wrap
+for the **default** (most-recently-configured) instance. On a page with more
+than one instance, call `handle.open()` / `.close()` / `.toggle()` directly
+on the specific instance's handle — `window.zdtp.*` always targets the
+default instance only.
 
 ### 5.3 Field summary
 
@@ -999,6 +1022,27 @@ window.myapp.disableAutoload(); // disarm owner-mode; unmounts the panel
 ```
 
 All helpers are **async** — the first call lazy-imports the panel module. Subsequent calls share the memoised module promise and resolve synchronously after the first import completes.
+
+### Fixed-name global: `window.zdtp`
+
+`consoleNamespace` is a **required** field on `PanelConfig` — every consumer picks its own value, so `window[consoleNamespace].*` needs the host's chosen namespace before you can open the panel from the console. `window.zdtp` is an additive, fixed-name alias that needs none:
+
+```ts
+zdtp.show();   // open the panel (lazy-loads the bundle on first call, same as showDesignPanel())
+zdtp.hide();   // close the panel
+zdtp.toggle(); // toggle open/closed
+```
+
+- **`show` / `hide` / `toggle` only.** There is no `zdtp.enableAutoload()` — owner-autoload (§10.1) stays on `window[consoleNamespace].*` and the package-root `enableAutoload()` / `disableAutoload()` exports.
+- **`window[consoleNamespace].*` is unchanged** — `window.zdtp` is sugar layered on top of it, not a replacement. Both stay available side by side.
+- **Targets the default instance**, exactly like the package-root `showDesignTokenPanel()` / `hideDesignTokenPanel()` / `toggleDesignPanel()` exports and `window[consoleNamespace].*` itself. On an Astro host specifically, the alias binds to whichever instance's adapter script installs it first, rather than re-resolving "the current default" on every call — see `PORTABLE-CONTRACT.md` §6.5 for the exact per-install-site rule. For a page with more than one panel instance, use `configurePanel(cfg)`'s returned handle (§5.2) instead — it is unambiguous regardless of install order.
+- **Available on both integration paths:**
+  - Non-Astro hosts get it as soon as `@takazudo/zdtp`'s package-root module has loaded (it installs the alias at module init).
+  - Astro hosts get it as soon as the host-adapter `<script>` has run — **before** the panel bundle itself has loaded. The first `zdtp.*` call lazy-imports the bundle, exactly like `window[consoleNamespace].*`.
+- **Never clobbers a host-defined `window.zdtp`.** If your page already has its own `window.zdtp` for something unrelated, the package leaves it alone and logs a `console.warn` instead of overwriting it — including the edge case of choosing `consoleNamespace: 'zdtp'` yourself.
+- **Auto-remember applies too** — `zdtp.show()` arms the `:autoload` flag exactly like `showDesignPanel()` (§10.1's Auto-remember footgun note applies here as well).
+
+See `PORTABLE-CONTRACT.md` §6.5 for the full install-site and no-clobber/no-double-install contract.
 
 ### Backward-compatible: the on-demand flow is unchanged
 
