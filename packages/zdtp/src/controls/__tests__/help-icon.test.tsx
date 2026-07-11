@@ -52,6 +52,48 @@ function getTooltip(): HTMLElement {
   return document.querySelector('.tokenpanel-tooltip') as HTMLElement;
 }
 
+function fireMouseEnter(): void {
+  act(() => {
+    getIcon().dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+  });
+}
+
+function fireMouseLeave(): void {
+  act(() => {
+    getIcon().dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+  });
+}
+
+function fireFocusIn(): void {
+  act(() => {
+    getIcon().dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+  });
+}
+
+function fireFocusOut(): void {
+  act(() => {
+    getIcon().dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+  });
+}
+
+function fireClick(): void {
+  act(() => {
+    getIcon().click();
+  });
+}
+
+function fireKeyDown(key: string): void {
+  act(() => {
+    getIcon().dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+  });
+}
+
+function fireEscapeOnDocument(): void {
+  act(() => {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  });
+}
+
 // ---------------------------------------------------------------------------
 // 1. Chrome-button policy
 // ---------------------------------------------------------------------------
@@ -84,9 +126,7 @@ describe('HelpIcon — chrome-button policy', () => {
 describe('HelpIcon — hover/focus shows the help-variant tooltip', () => {
   it('shows the tooltip with the help-variant class and exact text on mouseenter', () => {
     renderIcon('Wrapped explainer text.');
-    act(() => {
-      getIcon().dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
-    });
+    fireMouseEnter();
     const tip = getTooltip();
     expect(tip.getAttribute('data-show')).toBe('true');
     expect(tip.className).toContain('tokenpanel-tooltip--help');
@@ -95,16 +135,16 @@ describe('HelpIcon — hover/focus shows the help-variant tooltip', () => {
 
   it('hides the tooltip on mouseleave when not pinned', () => {
     renderIcon();
-    act(() => getIcon().dispatchEvent(new MouseEvent('mouseenter', { bubbles: true })));
-    act(() => getIcon().dispatchEvent(new MouseEvent('mouseleave', { bubbles: true })));
+    fireMouseEnter();
+    fireMouseLeave();
     expect(getTooltip().getAttribute('data-show')).toBe('false');
   });
 
   it('shows the tooltip on focusin and hides it on focusout when not pinned', () => {
     renderIcon();
-    act(() => getIcon().dispatchEvent(new FocusEvent('focusin', { bubbles: true })));
+    fireFocusIn();
     expect(getTooltip().getAttribute('data-show')).toBe('true');
-    act(() => getIcon().dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
+    fireFocusOut();
     expect(getTooltip().getAttribute('data-show')).toBe('false');
   });
 });
@@ -116,74 +156,60 @@ describe('HelpIcon — hover/focus shows the help-variant tooltip', () => {
 describe('HelpIcon — click/Enter/Space pins the tooltip, second activation or Escape unpins', () => {
   it('click pins the tooltip open and sets aria-pressed=true', () => {
     renderIcon();
-    act(() => getIcon().click());
+    fireClick();
     expect(getTooltip().getAttribute('data-show')).toBe('true');
     expect(getIcon().getAttribute('aria-pressed')).toBe('true');
   });
 
   it('mouseleave does NOT hide the tooltip while pinned', () => {
     renderIcon();
-    act(() => getIcon().dispatchEvent(new MouseEvent('mouseenter', { bubbles: true })));
-    act(() => getIcon().click());
-    act(() => getIcon().dispatchEvent(new MouseEvent('mouseleave', { bubbles: true })));
+    fireMouseEnter();
+    fireClick();
+    fireMouseLeave();
     expect(getTooltip().getAttribute('data-show')).toBe('true');
   });
 
   it('focusout does NOT hide the tooltip while pinned', () => {
     renderIcon();
-    act(() => getIcon().dispatchEvent(new FocusEvent('focusin', { bubbles: true })));
-    act(() => getIcon().click());
-    act(() => getIcon().dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
+    fireFocusIn();
+    fireClick();
+    fireFocusOut();
     expect(getTooltip().getAttribute('data-show')).toBe('true');
   });
 
   it('a second click unpins and hides the tooltip', () => {
     renderIcon();
-    act(() => getIcon().click());
-    act(() => getIcon().click());
+    fireClick();
+    fireClick();
     expect(getTooltip().getAttribute('data-show')).toBe('false');
     expect(getIcon().getAttribute('aria-pressed')).toBe('false');
   });
 
   it('Enter key pins the tooltip like a click', () => {
     renderIcon();
-    act(() => {
-      getIcon().dispatchEvent(
-        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
-      );
-    });
+    fireKeyDown('Enter');
     expect(getTooltip().getAttribute('data-show')).toBe('true');
     expect(getIcon().getAttribute('aria-pressed')).toBe('true');
   });
 
   it('Space key pins the tooltip like a click', () => {
     renderIcon();
-    act(() => {
-      getIcon().dispatchEvent(
-        new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }),
-      );
-    });
+    fireKeyDown(' ');
     expect(getTooltip().getAttribute('data-show')).toBe('true');
   });
 
   it('Escape unpins a pinned tooltip and resets aria-pressed', () => {
     renderIcon();
-    act(() => getIcon().click());
+    fireClick();
     expect(getTooltip().getAttribute('data-show')).toBe('true');
-    act(() => {
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    });
+    fireEscapeOnDocument();
     expect(getTooltip().getAttribute('data-show')).toBe('false');
     expect(getIcon().getAttribute('aria-pressed')).toBe('false');
   });
 
   it('Escape while NOT pinned does not throw and leaves the tooltip hidden', () => {
     renderIcon();
-    expect(() => {
-      act(() => {
-        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-      });
-    }).not.toThrow();
+    expect(() => fireEscapeOnDocument()).not.toThrow();
     expect(getTooltip().getAttribute('data-show')).toBe('false');
   });
 });
