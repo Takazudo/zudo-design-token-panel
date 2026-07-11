@@ -17,6 +17,13 @@
  * `<select>`, or after a `<label>` wrapping a checkbox) — never nested
  * inside a `<label>`, where a click would also toggle the label's own
  * control.
+ *
+ * Known trade-off: `tooltip.tsx` renders a single shared tooltip DOM node,
+ * so pinning icon A then hovering/pinning icon B silently replaces A's
+ * visible content with B's — A's `pinned`/`is-pinned` state persists until
+ * A is next clicked or Escape is pressed, even though its tooltip is no
+ * longer the one on screen. Acceptable for this panel's single-tooltip
+ * architecture; not worth a cross-instance pin registry for a "?" hint.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
@@ -47,7 +54,14 @@ export interface HelpIconProps {
 }
 
 export function HelpIcon({ text, ariaLabel }: HelpIconProps): JSX.Element {
-  const tooltip = useTooltip(text, { variant: 'help' });
+  // Destructured (rather than keeping the returned object as one `tooltip`
+  // value) so the useCallback deps below are the individually-memoized
+  // handlers/show/hide themselves, not a fresh object literal useTooltip
+  // returns on every render — a dep on the whole object would defeat the
+  // memoization below.
+  const { onMouseEnter, onMouseLeave, onFocusIn, onFocusOut, show, hide } = useTooltip(text, {
+    variant: 'help',
+  });
   const [pinned, setPinned] = useState(false);
   const elRef = useRef<HTMLDivElement>(null);
 
@@ -57,15 +71,11 @@ export function HelpIcon({ text, ariaLabel }: HelpIconProps): JSX.Element {
     setPinned(next);
     if (!el) return;
     if (next) {
-      tooltip.show(el);
+      show(el);
     } else {
-      tooltip.hide(el);
+      hide(el);
     }
-  }, [pinned, tooltip]);
-
-  const handleClick = useCallback(() => {
-    handleActivate();
-  }, [handleActivate]);
+  }, [pinned, show, hide]);
 
   const handleKeyDown = useCallback(
     (e: JSX.TargetedKeyboardEvent<HTMLDivElement>) => {
@@ -82,17 +92,17 @@ export function HelpIcon({ text, ariaLabel }: HelpIconProps): JSX.Element {
   const handleMouseLeave = useCallback(
     (e: JSX.TargetedMouseEvent<HTMLElement>) => {
       if (pinned) return;
-      tooltip.onMouseLeave(e);
+      onMouseLeave(e);
     },
-    [pinned, tooltip],
+    [pinned, onMouseLeave],
   );
 
   const handleFocusOut = useCallback(
     (e: JSX.TargetedFocusEvent<HTMLElement>) => {
       if (pinned) return;
-      tooltip.onFocusOut(e);
+      onFocusOut(e);
     },
-    [pinned, tooltip],
+    [pinned, onFocusOut],
   );
 
   // Escape unpins from anywhere on the page — mirrors TooltipProvider's own
@@ -116,11 +126,11 @@ export function HelpIcon({ text, ariaLabel }: HelpIconProps): JSX.Element {
       className={pinned ? 'tokenpanel-help-icon is-pinned' : 'tokenpanel-help-icon'}
       aria-label={ariaLabel}
       aria-pressed={pinned}
-      onClick={handleClick}
+      onClick={handleActivate}
       onKeyDown={handleKeyDown}
-      onMouseEnter={tooltip.onMouseEnter}
+      onMouseEnter={onMouseEnter}
       onMouseLeave={handleMouseLeave}
-      onFocusIn={tooltip.onFocusIn}
+      onFocusIn={onFocusIn}
       onFocusOut={handleFocusOut}
     >
       ?
