@@ -71,14 +71,24 @@ const ALLOWED_URL_SCHEMES: ReadonlySet<string> = new Set(['http', 'https', 'mail
  * scheme at all) are always safe. Anything WITH a scheme must match the
  * allowlist above.
  *
- * Browsers strip ASCII tab/newline/carriage-return characters from a URL
- * before resolving its scheme (a documented WHATWG URL-parsing quirk) — a
- * naive `^scheme:` regex check on the raw string would miss
- * `"java\tscript:alert(1)"`, which a real browser parses as `javascript:`.
- * Stripping those characters first closes that bypass.
+ * The WHATWG URL "basic URL parser" strips (1) any LEADING or TRAILING C0
+ * control (U+0000-U+001F) or space, and (2) ASCII tab/newline/CR from
+ * ANYWHERE in the string, before resolving a scheme — so a real browser
+ * parses both `"java\tscript:alert(1)"` (mid-string tab) AND
+ * `"\x08javascript:alert(1)"` (a leading backspace, not tab/newline/CR) as
+ * `javascript:`. A naive `.trim()` only strips JS whitespace (tab/LF/CR/
+ * space/FF/VT/Unicode-space) — it leaves U+0008 and most other C0 controls
+ * in place, so a leading backspace would defeat a trim-then-match check:
+ * this function would see "no scheme" and wave the URL through as a safe
+ * relative reference while the browser resolves the dangerous scheme behind
+ * it. Fix: strip EVERY C0 control character from anywhere in the string
+ * (broader than the spec's edge-only rule for non-tab/newline controls, but
+ * that's the safe direction for a security boundary to err in — worst case
+ * an unusual-but-harmless URL gets rejected, never the reverse) before
+ * checking for a scheme.
  */
 function isSafeUrl(raw: string): boolean {
-  const value = raw.replace(/[\t\n\r]/g, '').trim();
+  const value = raw.replace(/[\x00-\x1f]/g, '').trim();
   if (value.length === 0) return false;
   if (value.startsWith('#') || value.startsWith('/') || value.startsWith('.')) return true;
   const schemeMatch = value.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/);

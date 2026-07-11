@@ -70,6 +70,15 @@ describe('sanitizeHtml — data: and namespaced URLs', () => {
     expect(sanitizeHtml('<a href="java\tscript:alert(1)">x</a>')).not.toMatch(/href=/);
   });
 
+  it('strips a javascript: href hidden behind a leading C0 control character', () => {
+    // Browsers strip ANY leading C0 control (U+0000-U+001F), not just
+    // tab/newline/CR, before resolving a URL's scheme — a leading backspace
+    // (U+0008) here still resolves to the javascript: scheme in a real
+    // browser even though it isn't whitespace a naive .trim() would catch.
+    expect(sanitizeHtml('<a href="\x08javascript:alert(1)">x</a>')).not.toMatch(/href=/);
+    expect(sanitizeHtml('<a href="\x01\x02javascript:alert(1)">x</a>')).not.toMatch(/href=/);
+  });
+
   it('strips a custom/namespaced URL scheme', () => {
     expect(sanitizeHtml('<a href="custom-scheme:payload">x</a>')).not.toMatch(/href=/);
   });
