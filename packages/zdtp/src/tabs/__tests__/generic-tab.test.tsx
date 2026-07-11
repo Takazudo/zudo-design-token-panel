@@ -195,6 +195,26 @@ const CYCLABLE_UNIT_TAB: TabConfig = {
           default: '1.5',
           type: { kind: 'length', step: 0.05, unit: '' },
         },
+        {
+          id: 'unitless-cyclable-item',
+          cssVar: '--test-unitless-cyclable',
+          label: 'Unitless Cyclable',
+          // No suffix at all — a degenerate case for an opted-in row (#519
+          // review finding #3): must fall back to units[0] for display
+          // rather than rendering an empty, zero-width interactive button.
+          default: '1.5',
+          type: { kind: 'length', step: 0.05, unit: 'rem', units: ['rem', 'em', 'px'] },
+        },
+        {
+          id: 'leading-dot-item',
+          cssVar: '--test-leading-dot',
+          label: 'Leading Dot',
+          // Leading-dot decimal ("valid CSS, .5px" style) whose suffix
+          // diverges from the declared unit — regression case for #519
+          // review finding #2 (parse/emit must agree on this shape).
+          default: '.5px',
+          type: { kind: 'length', step: 0.05, unit: 'rem', units: ['rem', 'em', 'px'] },
+        },
       ],
     },
   ],
@@ -968,6 +988,40 @@ describe('GenericTab — click-to-cycle unit suffix (#519)', () => {
     });
     const calls = onChange.mock.calls.filter(([, itemId]) => itemId === 'readonly-cyclable-item');
     expect(calls).toHaveLength(0);
+  });
+
+  it('falls back to units[0] for display when the stored value has no unit suffix at all (degenerate case)', async () => {
+    await renderGenericTab(CYCLABLE_UNIT_TAB);
+
+    const unitEl = container.querySelector<HTMLElement>(
+      '[data-testid="tier-item-unitless-cyclable-item"] .tokenpanel-row-unit',
+    )!;
+    // Must never render an empty, zero-width interactive button.
+    expect(unitEl.textContent).toBe('rem');
+  });
+
+  it('detects the actual suffix of a leading-dot decimal value ("valid CSS, .5px" style) instead of falling back to the declared unit', async () => {
+    await renderGenericTab(CYCLABLE_UNIT_TAB);
+
+    const unitEl = container.querySelector<HTMLElement>(
+      '[data-testid="tier-item-leading-dot-item"] .tokenpanel-row-unit',
+    )!;
+    expect(unitEl.textContent).toBe('px');
+  });
+
+  it('cycling a leading-dot decimal value emits a magnitude consistent with the detected suffix (parse/emit agreement)', async () => {
+    const onChange = vi.fn();
+    await renderGenericTab(CYCLABLE_UNIT_TAB, {}, onChange);
+
+    const unitEl = container.querySelector<HTMLElement>(
+      '[data-testid="tier-item-leading-dot-item"] .tokenpanel-row-unit',
+    )!;
+    act(() => {
+      unitEl.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    // px -> rem (wraps); magnitude 0.5 parsed the same way for both the
+    // displayed suffix ("px") and the emitted value.
+    expect(onChange).toHaveBeenCalledWith('values', 'leading-dot-item', '0.5rem');
   });
 });
 

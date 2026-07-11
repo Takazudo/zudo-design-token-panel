@@ -1199,7 +1199,10 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>, allTabs: un
       // Rule: length-kind `type.units` (opt-in click-to-cycle unit suffix,
       // #519) — when present, must be an array of non-empty, non-duplicate
       // unit strings. Only checked for `kind: 'length'` items; the field is
-      // not part of any other kind's shape.
+      // not part of any other kind's shape. A present-but-single-entry (or
+      // empty) array is intentionally NOT rejected here — per the #519
+      // design, fewer than 2 entries means "not opted into cycling yet",
+      // which the editor renders as today's static, non-interactive span.
       const itType = it.type;
       if (
         itType !== null &&

@@ -24,7 +24,7 @@ import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
 import TokenLabel from '../controls/token-label';
 import ColorField from '../components/color-picker/color-field';
 import { RoleButton } from '../controls/role-button';
-import { splitLengthValue, nextCyclableUnit } from '../utils/unit-cycle';
+import { deriveCyclableUnit, nextCyclableUnit } from '../utils/unit-cycle';
 
 // ---------------------------------------------------------------------------
 // Item editor dispatch
@@ -84,19 +84,14 @@ function ItemEditor({ tab, tier, item, value, overrides, onChange, onRefChange }
     case 'length':
     case 'number': {
       const unit = type.kind === 'length' ? type.unit : '';
-      // Opt-in click-to-cycle unit suffix (#519): 2+ declared `units` makes
-      // the suffix interactive; absent/single-entry keeps the static span.
-      const cyclableUnits = type.kind === 'length' ? type.units : undefined;
-      const isCyclableUnit = cyclableUnits !== undefined && cyclableUnits.length >= 2;
-      // Parse the ACTUAL stored suffix rather than assuming `type.unit` — a
-      // stored value can diverge from the declared unit (imported data, a
-      // manifest change). Only relevant when cycling is enabled.
-      const parsedLength = type.kind === 'length' ? splitLengthValue(value) : null;
-      const effectiveUnit = isCyclableUnit
-        ? parsedLength !== null
-          ? parsedLength.suffix
-          : unit
-        : unit;
+      // Opt-in click-to-cycle unit suffix (#519) — single source of the
+      // opt-in/divergence policy, shared with _generic-item-editor.tsx's
+      // parallel editor.
+      const { cyclableUnits, isCyclableUnit, effectiveUnit, parsedMagnitude } = deriveCyclableUnit(
+        unit,
+        type.kind === 'length' ? type.units : undefined,
+        value,
+      );
 
       const numeric = parseFloat(value);
       const numericForDraft = Number.isFinite(numeric) ? numeric : 0;
@@ -136,7 +131,12 @@ function ItemEditor({ tab, tier, item, value, overrides, onChange, onRefChange }
       const handleCycleUnit = () => {
         if (cyclableUnits === undefined || cyclableUnits.length < 2) return;
         const next = nextCyclableUnit(cyclableUnits, effectiveUnit);
-        onChange(item.id, `${numericForDraft}${next}`);
+        // Reuse the SAME parse that produced `effectiveUnit` for the emitted
+        // magnitude (falling back to the number input's own last-known-good
+        // draft only when the stored value didn't parse as a length at all)
+        // so the suffix-detection parse and the emitted magnitude agree.
+        const magnitude = parsedMagnitude ?? numericForDraft;
+        onChange(item.id, `${magnitude}${next}`);
       };
 
       return (
