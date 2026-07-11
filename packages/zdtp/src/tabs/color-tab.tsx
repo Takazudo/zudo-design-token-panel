@@ -61,6 +61,7 @@ import type { PersistColor, PersistSecondary } from '../state/persist';
 import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
 import { TokenLabel } from '../controls/token-label';
 import { useTooltip } from '../controls/tooltip';
+import { HelpIcon, PER_MODE_HELP_TEXT } from '../controls/help-icon';
 import TierRefSelector, {
   type TierRefSelectorValue,
   type TierRefTarget,
@@ -662,6 +663,9 @@ const SemanticLiteralRow = memo(function SemanticLiteralRow({
         />
         Per-mode
       </label>
+      {/* Sibling of the label above, never nested inside it — activating
+       *  the icon must not toggle the Per-mode checkbox. */}
+      <HelpIcon text={PER_MODE_HELP_TEXT} ariaLabel={`${label} per-mode help`} />
       {typeof value.literal === 'object' && value.literal !== null ? (
         <div className="tokenpanel-per-mode-fields">
           <ColorField
