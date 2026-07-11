@@ -1675,6 +1675,49 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>, allTabs: un
       }
     }
   }
+
+  // notesExtras validation block (host-configurable "token notes" tab, #515).
+  // Strict special-tab contract: a tab with id:'notes' MUST carry a valid
+  // notesExtras (non-empty title + html), MUST NOT declare any tiers, and
+  // MUST NOT carry colorExtras — this keeps the notes tab out of every
+  // generic token code path (state init, apply routing, serde) by
+  // construction rather than relying on downstream code to skip it
+  // correctly. Conversely, no OTHER tab may set notesExtras — it is not a
+  // generic per-tab extras bag like colorExtras will eventually become.
+  if (tabId === 'notes') {
+    if ((tab.tiers as unknown[]).length > 0) {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["notes"].tiers must be empty — the notes tab does not hold token tiers`,
+      );
+    }
+    if (tab.colorExtras !== undefined) {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["notes"].colorExtras must not be set — the notes tab does not carry token config`,
+      );
+    }
+    if (
+      tab.notesExtras === undefined ||
+      tab.notesExtras === null ||
+      typeof tab.notesExtras !== 'object' ||
+      Array.isArray(tab.notesExtras)
+    ) {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["notes"].notesExtras must be a plain object with { title, html }`,
+      );
+    }
+    const notesExtras = tab.notesExtras as Record<string, unknown>;
+    for (const key of ['title', 'html'] as const) {
+      if (typeof notesExtras[key] !== 'string' || (notesExtras[key] as string).length === 0) {
+        throw new Error(
+          `[design-token-panel] PanelConfig.tabs["notes"].notesExtras.${key} must be a non-empty string (got ${typeof notesExtras[key]})`,
+        );
+      }
+    }
+  } else if (tab.notesExtras !== undefined) {
+    throw new Error(
+      `[design-token-panel] PanelConfig.tabs["${tabId}"].notesExtras must only be set on a tab with id "notes"`,
+    );
+  }
 }
 
 /**

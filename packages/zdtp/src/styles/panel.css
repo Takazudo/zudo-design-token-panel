@@ -256,6 +256,188 @@
 }
 
 /* ===========================================================================
+ * Notes tab (#515) — host-configurable "token notes" landing view.
+ *
+ * `.tokenpanel-notes-heading` is the tab's title (rendered as
+ * div[role=heading][aria-level=3], never an hN tag — see
+ * packages/zdtp/CLAUDE.md "Panel DOM hygiene"). `.tokenpanel-notes-body`
+ * wraps HOST-AUTHORED, sanitized HTML (utils/sanitize-html.ts is the
+ * security boundary, not this CSS) — the panel's own DOM-hygiene tag ban
+ * does NOT apply inside this container, since that content is prose, not
+ * panel chrome. The defensive resets below exist so a HOSTILE host page
+ * (`h1 { font-size: 4rem !important }` or similar tag-name resets) cannot
+ * warp the note's rendered typography — this mirrors the
+ * `:where(.tokenpanel-shell) svg { ... !important }` recipe further down
+ * this file (see packages/zdtp/CLAUDE.md "SVG defensive reset" for the full
+ * cascade-order rationale: the panel's CSS is injected after host CSS, so a
+ * later !important at equal specificity wins).
+ * ========================================================================= */
+
+.tokenpanel-notes-heading {
+  margin: 0 0 var(--tokentweak-gap-2xs) 0;
+  color: var(--tokentweak-color-fg);
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.tokenpanel-notes-body {
+  color: var(--tokentweak-color-fg);
+  font-size: 13px;
+  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+  gap: var(--tokentweak-gap-2xs);
+}
+
+:where(.tokenpanel-shell) .tokenpanel-notes-body h1,
+:where(.tokenpanel-shell) .tokenpanel-notes-body h2,
+:where(.tokenpanel-shell) .tokenpanel-notes-body h3,
+:where(.tokenpanel-shell) .tokenpanel-notes-body h4,
+:where(.tokenpanel-shell) .tokenpanel-notes-body h5,
+:where(.tokenpanel-shell) .tokenpanel-notes-body h6 {
+  display: block !important;
+  margin: var(--tokentweak-gap-2xs) 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: none !important;
+  color: var(--tokentweak-color-fg) !important;
+  font-family: inherit !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  line-height: 1.4 !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+}
+
+:where(.tokenpanel-shell) .tokenpanel-notes-body p {
+  display: block !important;
+  margin: 0 0 var(--tokentweak-gap-2xs) 0 !important;
+  padding: 0 !important;
+  color: var(--tokentweak-color-fg) !important;
+  font-size: 13px !important;
+  line-height: 1.6 !important;
+  font-weight: 400 !important;
+  font-style: normal !important;
+}
+
+:where(.tokenpanel-shell) .tokenpanel-notes-body ul,
+:where(.tokenpanel-shell) .tokenpanel-notes-body ol {
+  display: block !important;
+  margin: 0 0 var(--tokentweak-gap-2xs) 0 !important;
+  padding: 0 0 0 20px !important;
+  color: var(--tokentweak-color-fg) !important;
+  list-style: revert !important;
+}
+
+:where(.tokenpanel-shell) .tokenpanel-notes-body li {
+  display: list-item !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+:where(.tokenpanel-shell) .tokenpanel-notes-body a {
+  color: var(--tokentweak-color-accent) !important;
+  text-decoration: underline !important;
+  cursor: pointer !important;
+  background: none !important;
+}
+:where(.tokenpanel-shell) .tokenpanel-notes-body a:hover,
+:where(.tokenpanel-shell) .tokenpanel-notes-body a:focus-visible {
+  color: var(--tokentweak-color-accent-hover) !important;
+}
+
+:where(.tokenpanel-shell) .tokenpanel-notes-body table {
+  display: table !important;
+  width: 100% !important;
+  margin: 0 0 var(--tokentweak-gap-2xs) 0 !important;
+  border-collapse: collapse !important;
+  font-size: 13px !important;
+}
+:where(.tokenpanel-shell) .tokenpanel-notes-body thead {
+  display: table-header-group !important;
+}
+:where(.tokenpanel-shell) .tokenpanel-notes-body tbody {
+  display: table-row-group !important;
+}
+:where(.tokenpanel-shell) .tokenpanel-notes-body tr {
+  display: table-row !important;
+}
+:where(.tokenpanel-shell) .tokenpanel-notes-body th,
+:where(.tokenpanel-shell) .tokenpanel-notes-body td {
+  display: table-cell !important;
+  border: 1px solid var(--tokentweak-color-muted) !important;
+  padding: var(--tokentweak-pad-2xs) var(--tokentweak-pad-xs) !important;
+  text-align: left !important;
+  color: var(--tokentweak-color-fg) !important;
+  font-weight: 400 !important;
+}
+:where(.tokenpanel-shell) .tokenpanel-notes-body th {
+  font-weight: 600 !important;
+}
+
+:where(.tokenpanel-shell) .tokenpanel-notes-body blockquote {
+  display: block !important;
+  margin: 0 0 var(--tokentweak-gap-2xs) 0 !important;
+  padding: var(--tokentweak-pad-xs) var(--tokentweak-pad-md) !important;
+  border: 0 !important;
+  border-left: 3px solid var(--tokentweak-color-muted) !important;
+  color: var(--tokentweak-color-muted) !important;
+  font-style: normal !important;
+}
+
+:where(.tokenpanel-shell) .tokenpanel-notes-body pre,
+:where(.tokenpanel-shell) .tokenpanel-notes-body code {
+  font-family: var(--tokentweak-font-mono) !important;
+  font-size: 12px !important;
+  color: var(--tokentweak-color-code-fg) !important;
+  background: var(--tokentweak-color-code-bg) !important;
+}
+:where(.tokenpanel-shell) .tokenpanel-notes-body code {
+  display: inline !important;
+  padding: 1px 4px !important;
+  border-radius: 3px !important;
+}
+:where(.tokenpanel-shell) .tokenpanel-notes-body pre {
+  display: block !important;
+  margin: 0 0 var(--tokentweak-gap-2xs) 0 !important;
+  padding: var(--tokentweak-pad-sm) !important;
+  border-radius: 6px !important;
+  overflow-x: auto !important;
+  white-space: pre !important;
+}
+:where(.tokenpanel-shell) .tokenpanel-notes-body pre code {
+  padding: 0 !important;
+  background: none !important;
+}
+
+:where(.tokenpanel-shell) .tokenpanel-notes-body hr {
+  display: block !important;
+  margin: var(--tokentweak-gap-2xs) 0 !important;
+  height: 0 !important;
+  border: 0 !important;
+  border-top: 1px solid var(--tokentweak-color-muted) !important;
+}
+
+:where(.tokenpanel-shell) .tokenpanel-notes-body img {
+  max-width: 100% !important;
+  height: auto !important;
+  display: block !important;
+}
+
+:where(.tokenpanel-shell) .tokenpanel-notes-body strong,
+:where(.tokenpanel-shell) .tokenpanel-notes-body b {
+  font-weight: 700 !important;
+  font-style: normal !important;
+}
+:where(.tokenpanel-shell) .tokenpanel-notes-body em,
+:where(.tokenpanel-shell) .tokenpanel-notes-body i {
+  font-style: italic !important;
+  font-weight: inherit !important;
+}
+
+/* ===========================================================================
  * Empty-state
  * ===========================================================================
  *
