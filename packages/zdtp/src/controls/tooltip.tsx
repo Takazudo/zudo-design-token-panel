@@ -158,6 +158,56 @@ export function TooltipProvider({ children }: TooltipProviderProps) {
     return () => window.removeEventListener('scroll', onScroll, true);
   }, [hideAll]);
 
+  // Resize also invalidates the cached position, but unlike scroll it has no
+  // native capture-phase event that always fires: panel.tsx's grip-drag
+  // writes width/height straight onto `.tokenpanel-shell` without a Preact
+  // re-render (perf choice — see handleResizeStart), and the debounced
+  // window-resize handler there skips setSize/setPosition entirely when no
+  // clamping is needed. So mirror the scroll-hide UX with two listeners,
+  // both scoped to "a tooltip is currently visible": a ResizeObserver on the
+  // trigger's panel shell (fires on the grip-drag's direct style mutation
+  // regardless of why the shell resized) and a window 'resize' listener
+  // (covers viewport-driven resizes). Do NOT observe document.body — the
+  // panel is `position: fixed`, so resizing it never resizes the body, and a
+  // body observer would silently never fire.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const trigger = tooltipState.triggerEl;
+    if (!tooltipState.visible || !trigger) return;
+
+    function onWindowResize() {
+      hideAll();
+    }
+    window.addEventListener('resize', onWindowResize);
+
+    let shellObserver: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== 'undefined') {
+      const shell = trigger.closest<HTMLElement>('.tokenpanel-shell');
+      if (shell) {
+        // ResizeObserver always delivers one "initial" callback right after
+        // observe() — even when nothing has actually resized — because it
+        // has no prior size to diff the newly-observed target against. Skip
+        // that first delivery (it fires on every hover, not just a resize)
+        // and only hideAll() on a genuine SUBSEQUENT delivery, which means
+        // the shell's size changed after observation began.
+        let primed = false;
+        shellObserver = new ResizeObserver(() => {
+          if (!primed) {
+            primed = true;
+            return;
+          }
+          hideAll();
+        });
+        shellObserver.observe(shell);
+      }
+    }
+
+    return () => {
+      window.removeEventListener('resize', onWindowResize);
+      shellObserver?.disconnect();
+    };
+  }, [tooltipState.visible, tooltipState.triggerEl, hideAll]);
+
   return (
     <TooltipContext.Provider value={{ show, hide }}>
       {children}
