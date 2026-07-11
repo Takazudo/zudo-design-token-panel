@@ -233,7 +233,10 @@ describe('narrow panel (<480px container width)', () => {
     await flushEffects();
     expect(getPopover()).not.toBeNull();
 
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    // cancelable:true is required — the dismiss-layer arbiter calls
+    // preventDefault() to signal "handled"; on a non-cancelable synthetic event
+    // that is a no-op and the panel's bubble-phase listener would still fire.
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
     await flushEffects();
 
     expect(getPopover()).toBeNull();
