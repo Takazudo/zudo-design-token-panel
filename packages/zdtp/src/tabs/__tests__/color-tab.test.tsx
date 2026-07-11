@@ -1520,6 +1520,118 @@ describe('S9 — ColorTab resolves cross-tab refs against `instanceConfig`, not 
 });
 
 // ---------------------------------------------------------------------------
+// Help icons for Literal / Per-mode (issue #520)
+//
+// SemanticLiteralRow (no referencesRamps — the LITERAL_SEMANTIC_TAB fixture
+// above) has no <select>, so it only ever gets the Per-mode help icon.
+// SemanticRefOrLiteralRow (referencesRamps declared — the S9
+// INSTANCE_SEMANTIC_COLOR_TAB fixture above) wraps TierRefSelector in
+// grouped mode, so it gets the Literal help icon right after the <select>
+// plus the Per-mode icon once the row is in literal mode.
+// ---------------------------------------------------------------------------
+
+describe('ColorTab — Literal/Per-mode help icons (#520)', () => {
+  beforeEach(() => {
+    localStorage.setItem('tokenpanel.colorPicker.mode', 'oklch');
+  });
+  afterEach(() => {
+    localStorage.removeItem('tokenpanel.colorPicker.mode');
+  });
+
+  it('SemanticLiteralRow (single-mode) shows exactly one help icon — Per-mode, not Literal (no select in this row)', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx, { tab: LITERAL_SEMANTIC_TAB, colorState: makeLiteralColorState() });
+
+    const row = container.querySelector(
+      '[data-testid="tokenpanel-semantic-literal-danger"]',
+    ) as HTMLElement;
+    const icons = row.querySelectorAll('.tokenpanel-help-icon');
+    expect(icons.length).toBe(1);
+    expect(icons[0].getAttribute('aria-label')).toBe('--lit-danger per-mode help');
+  });
+
+  it('SemanticLiteralRow (per-mode) still shows exactly one help icon', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx, { tab: LITERAL_SEMANTIC_TAB, colorState: makePerModeColorState() });
+
+    const row = container.querySelector(
+      '[data-testid="tokenpanel-semantic-literal-danger"]',
+    ) as HTMLElement;
+    expect(row.querySelectorAll('.tokenpanel-help-icon').length).toBe(1);
+  });
+
+  it('the Per-mode help icon is a sibling of the "Per-mode" <label>, never nested inside it, and clicking it does not toggle the checkbox', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx, { tab: LITERAL_SEMANTIC_TAB, colorState: makeLiteralColorState() });
+
+    const row = container.querySelector(
+      '[data-testid="tokenpanel-semantic-literal-danger"]',
+    ) as HTMLElement;
+    const label = row.querySelector('.tokenpanel-per-mode-toggle') as HTMLElement;
+    const checkbox = label.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    const icon = row.querySelector('.tokenpanel-help-icon') as HTMLElement;
+    expect(label.contains(icon)).toBe(false);
+    expect(icon.parentElement).toBe(label.parentElement);
+
+    expect(checkbox.checked).toBe(false);
+    act(() => icon.click());
+    expect(checkbox.checked).toBe(false);
+  });
+
+  it('SemanticRefOrLiteralRow (grouped, ref-mode) shows the Literal help icon right after the <select>', () => {
+    installFixturePanelConfig(INSTANCE_A_CONFIG);
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx, {
+      tab: INSTANCE_SEMANTIC_COLOR_TAB,
+      colorState: makeInstanceRefState('a-only'),
+    });
+
+    const row = container.querySelector(
+      '[data-testid="tokenpanel-semantic-ref-surface"]',
+    ) as HTMLElement;
+    const select = getSurfaceRefSelect();
+    const icons = row.querySelectorAll('.tokenpanel-help-icon');
+    expect(icons.length).toBe(1);
+    expect(select.nextElementSibling).toBe(icons[0]);
+    expect(icons[0].getAttribute('aria-label')).toBe('--zd-surface literal help');
+  });
+
+  it('SemanticRefOrLiteralRow (grouped, literal-mode) shows both the Literal and Per-mode help icons', () => {
+    installFixturePanelConfig(INSTANCE_A_CONFIG);
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx, {
+      tab: INSTANCE_SEMANTIC_COLOR_TAB,
+      colorState: {
+        ...makeInstanceRefState('a-only'),
+        semanticMappings: { surface: { literal: 'oklch(0.5 0.1 200)' } },
+      },
+    });
+
+    const row = container.querySelector(
+      '[data-testid="tokenpanel-semantic-ref-surface"]',
+    ) as HTMLElement;
+    expect(row.querySelectorAll('.tokenpanel-help-icon').length).toBe(2);
+  });
+
+  it('renders no <button> elements or banned semantic tags with both help icons present', () => {
+    installFixturePanelConfig(INSTANCE_A_CONFIG);
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx, {
+      tab: INSTANCE_SEMANTIC_COLOR_TAB,
+      colorState: {
+        ...makeInstanceRefState('a-only'),
+        semanticMappings: { surface: { literal: 'oklch(0.5 0.1 200)' } },
+      },
+    });
+
+    expect(container.querySelector('button')).toBeNull();
+    expect(
+      container.querySelector('h1,h2,h3,h4,h5,h6,ul,ol,li,table,a,details,summary'),
+    ).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // S9 follow-up (audit / codex-review) — loading a Scheme preset must seed
 // against the passed `instanceConfig`'s cluster, not the global active primary
 // cluster. Regression guard for the #491 seam: ColorTab threaded

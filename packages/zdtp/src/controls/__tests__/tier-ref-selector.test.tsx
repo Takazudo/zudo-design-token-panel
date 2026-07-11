@@ -615,7 +615,86 @@ describe('TierRefSelector — per-mode literal editor', () => {
 });
 
 // ===========================================================================
-// 4. DOM hygiene (CLAUDE.md panel policy)
+// 4. Help icons (issue #520) — "?" tooltips explaining Literal / Per-mode
+// ===========================================================================
+
+describe('TierRefSelector — help icons (#520)', () => {
+  it('grouped mode renders exactly one Literal help icon immediately after the <select>, even in ref-mode', () => {
+    renderGroupedSelector({ ref: { tab: 'palette', tier: 'base', item: 'base-3' } }, vi.fn());
+    const select = getSelect();
+    const icons = container.querySelectorAll('.tokenpanel-help-icon');
+    expect(icons.length).toBe(1);
+    expect(select.nextElementSibling).toBe(icons[0]);
+    expect(icons[0].getAttribute('aria-label')).toBe('Surface literal help');
+  });
+
+  it('grouped + single-mode literal renders the Literal icon AND a Per-mode icon (2 total)', () => {
+    renderGroupedSelector({ literal: 'oklch(0.5 0.1 200)' }, vi.fn());
+    const icons = Array.from(container.querySelectorAll('.tokenpanel-help-icon'));
+    expect(icons.length).toBe(2);
+    expect(icons.map((el) => el.getAttribute('aria-label'))).toEqual([
+      'Surface literal help',
+      'Surface per-mode help',
+    ]);
+  });
+
+  it('grouped + per-mode (light/dark) literal still renders both help icons', () => {
+    renderGroupedSelector(
+      { literal: { light: 'oklch(0.9 0 0)', dark: 'oklch(0.2 0 0)' } },
+      vi.fn(),
+    );
+    expect(container.querySelectorAll('.tokenpanel-help-icon').length).toBe(2);
+  });
+
+  it('flat/intra-tab mode never shows any help icon — "Literal…" there means "revert to tier default", a different concept', () => {
+    renderFlatSelector({ ref: { tier: 'raw', item: 'ease-out' } }, vi.fn());
+    expect(container.querySelector('.tokenpanel-help-icon')).toBeNull();
+  });
+
+  it('flat/intra-tab mode shows no help icon even when the value is { literal }', () => {
+    renderFlatSelector({ literal: 'whatever' }, vi.fn());
+    expect(container.querySelector('.tokenpanel-help-icon')).toBeNull();
+  });
+
+  it('the Per-mode help icon is a DOM sibling of the "Per-mode" <label>, never nested inside it', () => {
+    renderGroupedSelector({ literal: 'oklch(0.5 0.1 200)' }, vi.fn());
+    const label = container.querySelector('.tokenpanel-per-mode-toggle') as HTMLElement;
+    const perModeIcon = container.querySelector(
+      '.tokenpanel-help-icon[aria-label="Surface per-mode help"]',
+    ) as HTMLElement;
+    expect(perModeIcon).not.toBeNull();
+    expect(label.contains(perModeIcon)).toBe(false);
+    expect(perModeIcon.parentElement).toBe(label.parentElement);
+  });
+
+  it('clicking the Per-mode help icon does NOT toggle the Per-mode checkbox', () => {
+    const onChange = vi.fn();
+    renderGroupedSelector({ literal: 'oklch(0.5 0.1 200)' }, onChange);
+    const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    expect(checkbox.checked).toBe(false);
+    const perModeIcon = container.querySelector(
+      '.tokenpanel-help-icon[aria-label="Surface per-mode help"]',
+    ) as HTMLElement;
+    act(() => perModeIcon.click());
+    expect(onChange).not.toHaveBeenCalled();
+    expect(checkbox.checked).toBe(false);
+  });
+
+  it('help icons render as div[role=button], never a native <button> (chrome-button policy)', () => {
+    renderGroupedSelector({ literal: 'oklch(0.5 0.1 200)' }, vi.fn());
+    const icons = Array.from(container.querySelectorAll('.tokenpanel-help-icon'));
+    expect(icons.length).toBeGreaterThan(0);
+    for (const icon of icons) {
+      expect(icon.tagName.toLowerCase()).toBe('div');
+      expect(icon.getAttribute('role')).toBe('button');
+      expect((icon as HTMLElement).tabIndex).toBe(0);
+    }
+    expect(container.querySelector('button')).toBeNull();
+  });
+});
+
+// ===========================================================================
+// 5. DOM hygiene (CLAUDE.md panel policy)
 // ===========================================================================
 
 describe('TierRefSelector — DOM hygiene', () => {

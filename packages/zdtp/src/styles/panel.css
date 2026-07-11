@@ -830,6 +830,60 @@
   transform: translateY(0);
 }
 
+/* Help variant (#520) — wrapped, multi-sentence explainer text (Literal /
+ * Per-mode help icons) instead of the default single-line nowrap tooltip.
+ * Applied ON TOP OF .tokenpanel-tooltip, never replacing it — do not mutate
+ * the base rule above, which other (short, single-line) tooltip callers
+ * still rely on being nowrap. */
+.tokenpanel-tooltip--help {
+  white-space: normal;
+  max-width: 250px;
+}
+
+/* ===========================================================================
+ * Help icon ("?" badge) — controls/help-icon.tsx (#520)
+ *
+ * Small round "?" badge, sibling of the control it explains (never nested
+ * inside a <label>, so activating it can't toggle a neighboring checkbox).
+ * Sized to match the other 16px row-trailing icon toggles
+ * (.tokenpanel-highlight-toggle, .tokenpanel-elpath-toggle) with the same
+ * 24px hit-area-floor trick.
+ * ========================================================================= */
+
+.tokenpanel-help-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1px solid var(--tokentweak-color-muted);
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+.tokenpanel-help-icon:hover,
+.tokenpanel-help-icon.is-pinned {
+  color: var(--tokentweak-color-fg);
+  border-color: var(--tokentweak-color-fg);
+  background-color: rgb(from var(--tokentweak-color-fg) r g b / 0.1);
+}
+.tokenpanel-help-icon:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+}
+.tokenpanel-help-icon::after {
+  content: '';
+  position: absolute;
+  inset: -5px; /* 24px hit area floor (WCAG 2.2 AA) for a 15px visual badge */
+}
+
 /* ===========================================================================
  * Popover (ColorPicker host, PaletteSelector listbox)
  * ========================================================================= */

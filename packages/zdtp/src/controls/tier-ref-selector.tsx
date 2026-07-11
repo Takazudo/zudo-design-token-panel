@@ -1,6 +1,7 @@
 import { memo } from 'preact/compat';
 import type { TabConfig, TierConfig, TierItem } from '../tokens/tier-model';
 import ColorField from '../components/color-picker/color-field';
+import { HelpIcon, LITERAL_HELP_TEXT, PER_MODE_HELP_TEXT } from './help-icon';
 import { resolvePerModeLiteral } from '../state/tweak-state';
 
 // ---------------------------------------------------------------------------
@@ -377,6 +378,16 @@ function TierRefSelector({
         <option value={LITERAL_OPTION_VALUE}>Literal…</option>
       </select>
       {/*
+       * Literal help icon: explains what picking "Literal…" above means.
+       * Gated strictly on isGrouped — on flat/intra-tab tiers
+       * (font/spacing/size/generic-tab) the same "Literal…" option means
+       * "revert to the tier's default ref", a different concept that this
+       * copy does not describe, so no icon renders there.
+       */}
+      {isGrouped && (
+        <HelpIcon text={LITERAL_HELP_TEXT} ariaLabel={`${rowLabel} literal help`} />
+      )}
+      {/*
        * The editable literal swatch (single-mode, or the per-mode light/dark
        * pair, S12 #473) only ever appears in grouped (ramp) mode —
        * flat/intra-tab tiers (font/spacing/size/generic-tab) treat
@@ -394,6 +405,9 @@ function TierRefSelector({
             />
             Per-mode
           </label>
+          {/* Sibling of the label above, never nested inside it — activating
+           *  the icon must not toggle the Per-mode checkbox. */}
+          <HelpIcon text={PER_MODE_HELP_TEXT} ariaLabel={`${rowLabel} per-mode help`} />
           {typeof value.literal === 'object' && value.literal !== null ? (
             <>
               <ColorField
