@@ -923,6 +923,90 @@ export function exportFilename(cfg: PanelConfig): string {
   return `${cfg.exportFilenameBase}.json`;
 }
 
+// ---------------------------------------------------------------------------
+// Fixed-name global open API (issue #523)
+// ---------------------------------------------------------------------------
+//
+// `window.zdtp = { show, hide, toggle }` — an ADDITIVE alias on top of the
+// existing `window[consoleNamespace].*` console API (which stays fully
+// intact; see PORTABLE-CONTRACT.md §10). `consoleNamespace` is a REQUIRED
+// host-chosen config field, so historically every consumer had to know its
+// own namespace before it could open the panel from the console. This fixed
+// name needs no config lookup: `zdtp.show()` works as soon as either the
+// package-root module has loaded (non-Astro hosts) or the Astro
+// host-adapter script has run (before the panel bundle itself loads).
+//
+// Two independent call sites install this alias — `src/index.tsx` (package
+// root, for hosts that import the panel directly) and
+// `src/astro/host-adapter.ts` (for Astro hosts, installed eagerly alongside
+// `installConsoleApi`, wrapping the same lazy `loadPanelModule` + handle
+// pattern the console API uses). Both route through this single installer so
+// the "never clobber a host-defined `window.zdtp`, never double-install"
+// guard logic lives in one place.
+
+/** Shape of the fixed-name global alias installed at `window.zdtp`. */
+export interface ZdtpGlobalApi {
+  show: () => void | Promise<void>;
+  hide: () => void | Promise<void>;
+  toggle: () => void | Promise<void>;
+}
+
+/**
+ * Marks a `window.zdtp` object as one this package installed, so a later
+ * install call (from the other call site, or a re-run of the same one — e.g.
+ * an Astro view-transition re-executing the adapter `<script>`) can tell
+ * "our own idempotent re-install" apart from "a host defined `window.zdtp`
+ * for its own purposes". A symbol key is invisible to `Object.keys` /
+ * `JSON.stringify`, so it never leaks into a developer's
+ * `console.log(window.zdtp)`.
+ *
+ * `Symbol.for` (not a bare `Symbol()`) for the same reason `REGISTRY_SYMBOL`
+ * above uses the global symbol registry: a Vite/Astro multi-entry build can
+ * duplicate this module into more than one chunk, and both `index.tsx` and
+ * `host-adapter.ts` must recognise each other's install regardless of which
+ * chunk they resolved through.
+ */
+const ZDTP_GLOBAL_ALIAS_MARKER = Symbol.for('@takazudo/zdtp:global-alias-marker');
+
+/**
+ * Install `window.zdtp = { show, hide, toggle }`, the fixed-name console
+ * sugar for the common single-panel case (issue #523).
+ *
+ * Guard rules:
+ *  - A pre-existing `window.zdtp` WITHOUT this package's marker is assumed to
+ *    be host-defined — never overwritten. Logs a `console.warn` so the host
+ *    can see why `zdtp.show()` did not appear.
+ *  - A pre-existing `window.zdtp` WITH the marker means this package already
+ *    installed the alias (from the other call site, or an earlier run of this
+ *    same one). First install wins — the call is a silent no-op. In the Astro
+ *    flow this manifests as "the adapter wins": its bootstrap script always
+ *    runs (and installs the alias) before the panel module's lazy dynamic
+ *    import can resolve and reach the package-root install site.
+ *
+ * `show` / `hide` / `toggle` target the default/most-recently-configured
+ * instance, exactly like the package-root `showDesignTokenPanel()` /
+ * `hideDesignTokenPanel()` / `toggleDesignPanel()` exports this alias wraps —
+ * for a multi-instance page, use `configurePanel(cfg).open()` etc. instead.
+ */
+export function installZdtpGlobalAlias(api: ZdtpGlobalApi): void {
+  if (typeof window === 'undefined') return;
+  const win = window as unknown as Record<string, unknown>;
+  const existing = win.zdtp;
+  if (existing !== undefined) {
+    const alreadyOurs = (existing as Record<symbol, unknown>)[ZDTP_GLOBAL_ALIAS_MARKER] === true;
+    if (alreadyOurs) return;
+    console.warn(
+      '[design-token-panel] window.zdtp already exists and was not installed by this package. ' +
+        'Skipping the zdtp.show() / zdtp.hide() / zdtp.toggle() global alias to avoid clobbering ' +
+        'it. Use window[consoleNamespace].* or the configurePanel(cfg) handle instead.',
+    );
+    return;
+  }
+  const alias: ZdtpGlobalApi & Record<symbol, unknown> = { ...api };
+  alias[ZDTP_GLOBAL_ALIAS_MARKER] = true;
+  win.zdtp = alias;
+}
+
 /**
  * Runtime validation at the host-adapter trust boundary. The Astro inline
  * `<script type="application/json">` payload is untrusted-by-the-types:

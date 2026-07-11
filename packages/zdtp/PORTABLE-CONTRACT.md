@@ -870,6 +870,60 @@ window[consoleNamespace].enableAutoload    = () => Promise<void>;  // owner-auto
 window[consoleNamespace].disableAutoload   = () => Promise<void>;  // owner-autoload teardown
 ```
 
+### 6.5 Fixed-name global open API (`window.zdtp`)
+
+`consoleNamespace` above is a REQUIRED host-chosen field — every consumer
+historically had to know its own namespace before it could open the panel
+from the console. `window.zdtp` is an ADDITIVE, fixed-name alias for the
+three open/close verbs, so `zdtp.show()` works in the console of any page
+that runs this package, without looking up the host's namespace first:
+
+```ts
+window.zdtp.show   = () => void | Promise<void>;  // open the panel
+window.zdtp.hide   = () => void | Promise<void>;  // close the panel
+window.zdtp.toggle = () => void | Promise<void>;  // toggle the panel
+```
+
+- **Scope: `show` / `hide` / `toggle` only.** `enableAutoload()` /
+  `disableAutoload()` stay on `window[consoleNamespace].*` (§6.4) and the
+  package-root exports (README.md §10) — there is no
+  `window.zdtp.enableAutoload`.
+- **`window[consoleNamespace].*` is unaffected.** It stays fully intact as
+  the multi-tenant, per-namespace API; `window.zdtp` is sugar for the common
+  single-panel case layered on top, not a replacement.
+- **Targets the default instance.** Exactly like the package-root
+  `showDesignTokenPanel()` / `hideDesignTokenPanel()` / `toggleDesignPanel()`
+  exports this alias wraps, `window.zdtp.*` always drives the
+  default/most-recently-configured instance. On a multi-instance page, use
+  `configurePanel(cfg)`'s returned handle (`handle.open()` / `.close()` /
+  `.toggle()`) to target a specific instance instead.
+- **Install sites and timing.** Two independent call sites install this
+  alias, both routing through one shared installer so neither clobbers the
+  other:
+  - The package-root module (`index.tsx`) installs a synchronous alias at
+    its own module-init bootstrap — covers non-Astro hosts that import the
+    package directly.
+  - The Astro host adapter installs an async-wrapped alias eagerly from its
+    own `<script>` bootstrap, alongside `installConsoleApi` (§6.4) — so
+    `zdtp.show()` is callable in the console BEFORE the panel bundle itself
+    has loaded. Each wrapper lazily imports the panel module (the same gate
+    the console API uses) on first call, then drives the captured instance
+    handle.
+  - In the Astro flow the adapter's bootstrap script always runs before the
+    panel module's lazy dynamic import can resolve, so the adapter's alias
+    always installs first ("first install wins" — see the next point). The
+    package-root install site is therefore reached only by non-Astro hosts.
+- **Never clobbers a host-defined `window.zdtp`.** If `window.zdtp` already
+  exists and was not installed by this package, the install is skipped with
+  a `console.warn` — the host's own global is left untouched. (This also
+  covers the edge case of a host that picks `consoleNamespace: 'zdtp'`: the
+  namespace object installed at §6.4 is not this package's alias marker, so
+  the second install site treats it as host-owned and skips.)
+- **Auto-remember carries over for free.** `zdtp.show()` routes through the
+  same `showDesignTokenPanel()` / `handle.open()` core as every other open
+  path, so it arms `${storagePrefix}:autoload = '1'` exactly like
+  `showDesignPanel()` (§6.2) — no separate wiring needed.
+
 ---
 
 ## 7. CSS contract
@@ -1115,6 +1169,7 @@ Cross-reference table — what each section pins down.
 | Reference-implementation algorithm + native-implementation guidance                         | §5.2, §5.3    |
 | Routing config single-source                                                                | §5.4          |
 | Astro `<DesignTokenPanelHost>` prop, lazy-load gate (4-signal), owner-autoload, console API | §6            |
+| Fixed-name global open API (`window.zdtp.show/hide/toggle`)                                 | §6.5          |
 | `--tokentweak-*` namespace and Tailwind-free CSS contract                                   | §7.1          |
 | Modal class prefix and `data-design-token-panel-modal` selector contract                    | §7.3          |
 | Self-contained panel chrome palette (no host theme reads)                                  | §7.4          |

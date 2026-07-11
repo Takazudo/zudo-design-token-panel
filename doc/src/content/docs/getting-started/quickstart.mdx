@@ -23,7 +23,7 @@ configurePanel({
 });
 ```
 
-Once configured, the package installs three async helpers on `window.<consoleNamespace>` — `showDesignPanel()`, `hideDesignPanel()`, `toggleDesignPanel()`. Calling any of them lazy-imports the panel module and mounts the UI.
+Once configured, the package installs three async helpers on `window.<consoleNamespace>` — `showDesignPanel()`, `hideDesignPanel()`, `toggleDesignPanel()`. Calling any of them lazy-imports the panel module and mounts the UI. The package also installs a fixed-name `window.zdtp` global (`zdtp.show()` / `zdtp.hide()` / `zdtp.toggle()`) so you never need to remember your own `consoleNamespace` just to pop the panel open — see [Lifecycle helpers](/docs/reference/configure-panel#lifecycle-helpers) for the full picture.
 
 <Info title="Astro hosts call this for you">
   When you drop `<DesignTokenPanelHost config={myPanelConfig} />` into an Astro layout, the host adapter reads the inline JSON config and calls `configurePanel(...)` on your behalf. You don't need to call it manually. For Vite + React or Next.js, you call it yourself before importing the panel module.
@@ -115,6 +115,8 @@ Then, in the browser devtools console:
 
 ```js
 window.myapp.toggleDesignPanel();
+// or, without remembering your own consoleNamespace:
+zdtp.toggle();
 ```
 
 The first call lazy-imports the panel module and mounts it. Subsequent calls share the memoised module promise.
