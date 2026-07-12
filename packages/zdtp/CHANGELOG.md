@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.8
+
+### Features
+
+- DOM Tweaker — live Tailwind class editor with element picker, suggestions, edit-session state, confirmation gates, and runtime orchestration ([#539](https://github.com/Takazudo/zudo-design-token-panel/pull/539)) (46f4524, 67e695e, b8bafeb, 5de9ae8, 6e4baab, 376d390, eef4c2, 75f14c7)
+
+### Other Changes
+
+- docs(zdtp): add DOM Tweaker reference ([#539](https://github.com/Takazudo/zudo-design-token-panel/pull/539)) (b2b2ed3)
+- chore(dom-tweaker): remove consumed prototype resource ([#539](https://github.com/Takazudo/zudo-design-token-panel/pull/539)) (9a0ac51)
+- docs(l-make-release): add autonomy-after-the-gate principle (7f64206)
+
 ## 0.4.7
 
 ### Fixed
