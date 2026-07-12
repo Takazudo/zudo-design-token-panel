@@ -22,7 +22,20 @@
  * and packages/zdtp/CLAUDE.md §SVG defensive reset.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { render } from 'preact';
+import type { ComponentChild } from 'preact';
+import { act } from 'preact/test-utils';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { PanelConfig } from '../config/panel-config';
+import { __resetDismissLayersForTests } from '../controls/dismiss-layer';
+import { DOM_TWEAKER_PORTAL_MOUNT_ID } from '../highlight/find-elements';
+import { ClassEditorPopup } from '../dom-tweaker/lazy/class-editor-popup';
+import { DiffExportModal } from '../dom-tweaker/lazy/diff-export-modal';
+import {
+  EditIconButton,
+  PinnedSelectionOverlay,
+} from '../dom-tweaker/lazy/pinned-selection-overlay';
+import { DOM_TWEAKER_STYLE_ID } from '../dom-tweaker/lazy/style-injection';
 
 // ---------------------------------------------------------------------------
 // Hostile CSS fixture
@@ -70,6 +83,7 @@ const HOSTILE_CSS = `
 
 let injectedStyles: HTMLStyleElement[] = [];
 let injectedElements: Element[] = [];
+let renderedContainers: HTMLElement[] = [];
 
 function injectStyle(css: string): HTMLStyleElement {
   const el = document.createElement('style');
@@ -98,6 +112,48 @@ function createSvgInside(parent: HTMLElement): SVGSVGElement {
   return svg;
 }
 
+function renderInDomTweakerMount(children: ComponentChild): HTMLDivElement {
+  const mount = createElement('') as HTMLDivElement;
+  mount.id = DOM_TWEAKER_PORTAL_MOUNT_ID;
+  renderedContainers.push(mount);
+  act(() => {
+    render(children, mount);
+  });
+  return mount;
+}
+
+function inputText(input: HTMLInputElement, value: string): void {
+  input.value = value;
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function key(target: Element, keyName: string): void {
+  target.dispatchEvent(
+    new KeyboardEvent('keydown', {
+      key: keyName,
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
+}
+
+async function frame(): Promise<void> {
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+function domTweakerTestConfig(): PanelConfig {
+  return {
+    storagePrefix: 'hostile-dom-tweaker',
+    consoleNamespace: 'hostileDomTweaker',
+    modalClassPrefix: 'zudo-design-token-panel-modal',
+    schemaId: 'hostile-dom-tweaker/v1',
+    exportFilenameBase: 'hostile-dom-tweaker',
+    tabs: [],
+    domTweaker: {},
+  };
+}
+
 // Import panel CSS as an inline string so computed styles resolve in the browser.
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore — ?inline is a Vite-specific query not typed in tsconfig
@@ -109,10 +165,19 @@ async function injectPanelCss(): Promise<void> {
 }
 
 function cleanupAll(): void {
+  for (const container of renderedContainers) {
+    act(() => {
+      render(null, container);
+    });
+  }
+  renderedContainers = [];
+  __resetDismissLayersForTests();
+  document.getElementById(DOM_TWEAKER_STYLE_ID)?.remove();
   for (const el of injectedStyles) el.remove();
   for (const el of injectedElements) el.remove();
   injectedStyles = [];
   injectedElements = [];
+  renderedContainers = [];
 }
 
 beforeEach(() => {
@@ -262,6 +327,187 @@ describe('F33 — panel chrome survives full hostile CSS environment', () => {
       const btn = createElement('tokenpanel-close-btn', 'div', shell);
       // Hostile p/ul/li/table { padding: 2rem !important } — div, not matched.
       expect(getComputedStyle(btn).paddingTop).toBe('0px');
+    });
+  });
+
+  describe('DOM Tweaker lazy surfaces', () => {
+    it('keeps the pinned overlay, edit icon, and class popover isolated and interactive', async () => {
+      await setupHostile();
+
+      const target = createElement('host-target');
+      target.style.cssText = [
+        'position:fixed',
+        'left:40px',
+        'top:50px',
+        'width:120px',
+        'height:60px',
+      ].join(';');
+
+      const onOpenEditor = vi.fn();
+      const onAddClass = vi.fn();
+      const onRemoveClass = vi.fn();
+      const onClose = vi.fn();
+
+      renderInDomTweakerMount(
+        <>
+          <PinnedSelectionOverlay target={target} />
+          <EditIconButton target={target} onOpenEditor={onOpenEditor} />
+          <ClassEditorPopup
+            target={target}
+            selectorSummary="div.host-target"
+            currentClasses={['px-2', 'rounded-md']}
+            suggestions={['px-24', 'rounded-full']}
+            onAddClass={onAddClass}
+            onRemoveClass={onRemoveClass}
+            onClose={onClose}
+          />
+        </>,
+      );
+      await frame();
+
+      const overlay = document.querySelector<HTMLElement>(
+        '.tokenpanel-domtweaker-pinned-box',
+      )!;
+      const editIcon = document.querySelector<HTMLElement>(
+        '.tokenpanel-domtweaker-edit-button',
+      )!;
+      const popover = document.querySelector<HTMLElement>(
+        '.tokenpanel-domtweaker-popover',
+      )!;
+      const title = popover.querySelector<HTMLElement>(
+        '.tokenpanel-domtweaker-popover__title',
+      )!;
+      const input = popover.querySelector<HTMLInputElement>(
+        '.tokenpanel-domtweaker-popover__input',
+      )!;
+
+      const overlayRect = overlay.getBoundingClientRect();
+      expect(getComputedStyle(overlay).boxSizing).toBe('border-box');
+      expect(getComputedStyle(overlay).position).toBe('fixed');
+      expect(getComputedStyle(overlay).pointerEvents).toBe('none');
+      expect(overlayRect.left).toBe(40);
+      expect(overlayRect.top).toBe(50);
+      expect(overlayRect.width).toBe(120);
+      expect(overlayRect.height).toBe(60);
+
+      const editIconStyle = getComputedStyle(editIcon);
+      const editIconRect = editIcon.getBoundingClientRect();
+      expect(editIconStyle.boxSizing).toBe('border-box');
+      expect(editIconStyle.position).toBe('fixed');
+      // Fixed positioning blockifies the authored inline-flex value.
+      expect(editIconStyle.display).toBe('flex');
+      expect(editIconStyle.alignItems).toBe('center');
+      expect(editIconStyle.fontSize).toBe('14px');
+      expect(editIconStyle.backgroundColor).toBe('rgb(214, 154, 102)');
+      expect(editIconRect.width).toBe(28);
+      expect(editIconRect.height).toBe(28);
+
+      const popoverStyle = getComputedStyle(popover);
+      expect(popoverStyle.boxSizing).toBe('border-box');
+      expect(popoverStyle.position).toBe('fixed');
+      expect(popoverStyle.width).toBe('320px');
+      expect(popoverStyle.padding).toBe('12px');
+      expect(popoverStyle.fontSize).toBe('14px');
+      expect(popoverStyle.backgroundColor).toBe('rgb(28, 28, 28)');
+      expect(title.tagName).toBe('DIV');
+      expect(getComputedStyle(title).fontSize).toBe('16px');
+      input.focus();
+      expect(document.activeElement).toBe(input);
+      expect(getComputedStyle(input).boxShadow).not.toBe('none');
+
+      act(() => {
+        editIcon.click();
+      });
+      expect(onOpenEditor).toHaveBeenCalledTimes(1);
+
+      act(() => {
+        popover.querySelector<HTMLElement>('[aria-label="Remove rounded-md"]')!.click();
+      });
+      expect(onRemoveClass).toHaveBeenCalledWith('rounded-md');
+
+      act(() => {
+        inputText(input, 'hostile-safe-class');
+      });
+      await frame();
+      act(() => {
+        key(input, 'Enter');
+      });
+      expect(onAddClass).toHaveBeenCalledWith('hostile-safe-class');
+
+      act(() => {
+        popover.querySelector<HTMLElement>('[aria-label="Close class editor"]')!.click();
+      });
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the diff modal isolated, focus-visible, and functional', async () => {
+      await setupHostile();
+
+      const diffText = [
+        'selector: #cta',
+        'before: "px-2"',
+        'after: "px-24"',
+        'diff: -px-2 +px-24',
+      ].join('\n');
+      const onCopy = vi.fn(async () => undefined);
+      const onResetAll = vi.fn();
+      const onClose = vi.fn();
+
+      renderInDomTweakerMount(
+        <DiffExportModal
+          diffText={diffText}
+          onCopy={onCopy}
+          onResetAll={onResetAll}
+          onClose={onClose}
+          instanceConfig={domTweakerTestConfig()}
+        />,
+      );
+      await frame();
+
+      const dialog = document.querySelector<HTMLDialogElement>(
+        '[data-design-token-panel-modal-variant="dom-tweaker-diff"]',
+      )!;
+      const title = dialog.querySelector<HTMLElement>('[class*="__title"]')!;
+      const textarea = dialog.querySelector<HTMLTextAreaElement>(
+        '.tokenpanel-domtweaker-diff-textarea',
+      )!;
+      const buttons = Array.from(dialog.querySelectorAll<HTMLElement>('[role="button"]'));
+      const copyButton = buttons.find((button) => button.textContent === 'Copy')!;
+
+      const dialogStyle = getComputedStyle(dialog);
+      expect(dialog.open).toBe(true);
+      expect(dialogStyle.boxSizing).toBe('border-box');
+      expect(dialogStyle.position).toBe('fixed');
+      expect(dialogStyle.maxWidth).toBe('736px');
+      expect(dialogStyle.padding).toBe('24px');
+      expect(dialogStyle.backgroundColor).toBe('rgb(28, 28, 28)');
+      expect(title.tagName).toBe('DIV');
+      expect(getComputedStyle(title).fontSize).toBe('22px');
+      expect(getComputedStyle(textarea).boxSizing).toBe('border-box');
+      expect(getComputedStyle(textarea).fontSize).toBe('12px');
+      expect(textarea.value).toBe(diffText);
+
+      copyButton.focus();
+      expect(document.activeElement).toBe(copyButton);
+      expect(getComputedStyle(copyButton).outlineStyle).toBe('solid');
+      expect(getComputedStyle(copyButton).outlineWidth).toBe('2px');
+
+      act(() => {
+        copyButton.click();
+      });
+      await Promise.resolve();
+      expect(onCopy).toHaveBeenCalledWith(diffText);
+
+      act(() => {
+        buttons.find((button) => button.textContent === 'Reset all')!.click();
+      });
+      expect(onResetAll).toHaveBeenCalledTimes(1);
+
+      act(() => {
+        buttons.find((button) => button.textContent === 'Close')!.click();
+      });
+      await Promise.resolve();
+      expect(onClose).toHaveBeenCalledTimes(1);
     });
   });
 });

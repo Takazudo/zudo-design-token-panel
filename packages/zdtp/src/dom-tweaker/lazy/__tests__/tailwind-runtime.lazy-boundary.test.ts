@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 const packageRoot = fileURLToPath(new URL('../../../../', import.meta.url));
 const srcRoot = path.join(packageRoot, 'src');
 const distRoot = path.join(packageRoot, 'dist');
+const distCss = path.join(distRoot, 'zdtp.css');
 const lazyBoundarySegment = `${path.sep}dom-tweaker${path.sep}lazy${path.sep}`;
 const forbiddenDependencyPattern = /@tailwindcss\/browser|tailwind-merge/;
 
@@ -32,6 +33,15 @@ describe('DOM Tweaker Tailwind runtime lazy boundary', () => {
       .map((file) => path.relative(distRoot, file));
 
     expect(offenders).toEqual([]);
+  });
+
+  it('keeps DOM Tweaker lazy selectors out of the eager dist stylesheet', () => {
+    if (!existsSync(distRoot)) {
+      return;
+    }
+
+    expect(existsSync(distCss), 'run the package build before the dist boundary proof').toBe(true);
+    expect(readFileSync(distCss, 'utf8')).not.toMatch(/tokenpanel-domtweaker/);
   });
 });
 

@@ -72,6 +72,7 @@ describe('DomTweakerToggleButton panel integration', () => {
 
     let toggle = container.querySelector<HTMLElement>('.tokenpanel-domtweaker-toggle');
     expect(toggle).not.toBeNull();
+    expect(toggle!.classList.contains('tokenpanel-tweaker-toggle')).toBe(true);
     expect(localStorage.getItem('domtweak-visible-domtweaker-enabled')).toBeNull();
 
     toggle!.click();
