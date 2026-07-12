@@ -1,14 +1,14 @@
 ---
 title: configurePanel
 sidebar_position: 2
-description: Multi-instance init, the PanelConfig shape with tabs-based manifest, PanelInstanceHandle, applySink, and the lifecycle helpers (show / hide / toggle / reapply).
+description: Multi-instance init, the PanelConfig shape with tabs-based manifest, DOM Tweaker, PanelInstanceHandle, applySink, and the lifecycle helpers (show / hide / toggle / reapply).
 ---
 
 The package's entire portable contract enters through a single setup function.
 `configurePanel({...})` supports **multiple independent panel instances** — call it with distinct `storagePrefix` values to register separate instances.
 Each call returns a `PanelInstanceHandle`.
 
-This page pins the public shape of `PanelConfig`, the `configurePanel` call, `PanelInstanceHandle`, the `applySink` contract, and the runtime lifecycle helpers.
+This page pins the public shape of `PanelConfig`, the `configurePanel` call, `PanelInstanceHandle`, the `domTweaker` and `applySink` contracts, and the runtime lifecycle helpers.
 
 ## `configurePanel(config)`
 
@@ -41,6 +41,9 @@ const handle = configurePanel({
   applyEndpoint: 'http://localhost:4321/_dev/apply-tokens',
   applyRouting: {
     'myapp-spacing': 'src/styles/spacing.css',
+  },
+  domTweaker: {
+    themeCss: '@theme { --color-brand: #7c3aed; }',
   },
 });
 
@@ -86,6 +89,11 @@ Two `configurePanel` calls with the same `storagePrefix` and equal config return
 ## `PanelConfig` interface
 
 ```ts
+export interface DomTweakerConfig {
+  /** Optional host Tailwind v4 theme CSS used by the lazy runtime and suggestions. */
+  themeCss?: string;
+}
+
 export interface PanelConfig {
   /** Base for every derived storage key. Also the instance id. */
   storagePrefix: string;
@@ -128,6 +136,11 @@ export interface PanelConfig {
    */
   applyRouting?: Record<string, string>;
   /**
+   * Optional DOM Tweaker feature config. Presence enables the header toggle
+   * and persisted revival path. The object must contain pure JSON data.
+   */
+  domTweaker?: DomTweakerConfig;
+  /**
    * Optional apply sink. Routes this instance's CSS-var writes off :root.
    * Not JSON-serializable — supply via a custom adapter, not inline Astro config.
    * See the applySink section below.
@@ -158,12 +171,39 @@ export interface PanelConfig {
 | `colorPresets` | `Record<string, ColorScheme>` | no | Host-supplied scheme presets — see [Color cluster](/docs/reference/color-cluster#host-supplied-scheme-presets). |
 | `applyEndpoint` | `string` | no | Apply POST target — see [Apply pipeline](/docs/reference/apply-pipeline). |
 | `applyRouting` | `Record<string, string>` | no | Apply routing map — see [Apply pipeline](/docs/reference/apply-pipeline). |
+| `domTweaker` | `DomTweakerConfig` | no | Opts into the dev-time Tailwind class editor. Omit it to hide the feature — see [DOM Tweaker](/docs/reference/dom-tweaker). |
 | `applySink` | `ApplySink` | no | Optional CSS-var write target. Not JSON-serializable. See below. |
 | `legacyIdRenameMap` | `Record<string, string \| null>` | no | Migration map for persisted id renames and drops. |
 
 <Info title="JSON-serializable invariant">
 Every field on `PanelConfig` (including nested `tabs` content) other than `applySink` must round-trip through `JSON.stringify` without loss. The Astro host-adapter parses the inline `<script type="application/json">` payload on every page; function fields, class instances, and `Symbol` keys silently disappear and surface later as cryptic runtime errors.
 </Info>
+
+## `domTweaker` — optional dev-time class editor
+
+`PanelConfig.domTweaker` is enabled by presence. An empty object enables the header toggle with the bundled Tailwind suggestions; omit the field entirely to hide the toggle and ignore any persisted DOM Tweaker enabled state.
+
+```ts
+configurePanel({
+  // ...required fields...
+  domTweaker: {
+    themeCss: `
+      @theme {
+        --color-brand: oklch(0.62 0.2 285);
+        --spacing-card: 1.5rem;
+      }
+    `,
+  },
+});
+```
+
+The config object is deliberately narrow and JSON-serializable:
+
+- `themeCss`, when supplied, must be a string containing host Tailwind v4 token/theme declarations. It feeds both the lazy Tailwind runtime and host-theme suggestions.
+- Every `@import` occurrence is rejected. DOM Tweaker controls its own no-preflight Tailwind input and does not accept imported stylesheets through this bridge.
+- Unknown fields, functions, arrays, `null`, and non-string `themeCss` values are rejected by `configurePanel` validation.
+
+See [DOM Tweaker](/docs/reference/dom-tweaker) for the editing workflow, development-only positioning, `themeCss` bridge, and runtime limitations.
 
 ## `applySink` — optional CSS-var write target
 
@@ -242,6 +282,7 @@ window.dispatchEvent(new CustomEvent('my-custom-event'));
 | `open` | `${storagePrefix}-open` | Mirror of the panel's open boolean state. |
 | `position` | `${storagePrefix}-position` | Drag position `{ top, right }` so the panel reappears where the user left it. |
 | `visible` | `${storagePrefix}:visible` | Adapter-level visibility-intent flag. |
+| `domtweaker-enabled` | `${storagePrefix}-domtweaker-enabled` | DOM Tweaker enabled bit. Meaningful only when `PanelConfig.domTweaker` is present. |
 
 <Note title="Colon, not dash, for `visible`">
 The `visible` key uses a `:` separator; every other derived key uses `-`. This is a historical artifact preserved for storage-key continuity.
@@ -361,6 +402,9 @@ const handle = configurePanel({
     'myapp-p': 'src/styles/color.css',
     'myapp-color': 'src/styles/color.css',
     'myapp-spacing': 'src/styles/spacing.css',
+  },
+  domTweaker: {
+    themeCss: '@theme { --color-brand: #38bdf8; }',
   },
 });
 // handle.instanceId === 'myapp-design-token-panel'

@@ -65,6 +65,19 @@ import { structuralEqual } from '../utils/structural-equal';
 export type ApplyRoutingMap = Record<string, string>;
 
 /**
+ * DOM Tweaker opt-in config.
+ *
+ * Presence enables the eager-side DOM Tweaker scaffold. The object must stay
+ * pure JSON data because Astro serialises `PanelConfig` through an inline JSON
+ * script. `themeCss` is host-supplied Tailwind v4 theme CSS used by the lazy
+ * side to derive suggestions; `@import` is deliberately rejected by the
+ * validator so the lazy boundary never receives network-loading CSS.
+ */
+export interface DomTweakerConfig {
+  themeCss?: string;
+}
+
+/**
  * Apply sink interface — allows routing CSS-var writes somewhere other than
  * the host `:root` (e.g. a shadow root, an iframe document, or a spy in
  * tests).
@@ -134,6 +147,15 @@ export interface PanelConfig {
    * routing map).
    */
   applyRouting?: ApplyRoutingMap;
+  /**
+   * Optional DOM Tweaker feature config.
+   *
+   * Presence enables the header toggle and persisted revival path. The value
+   * is JSON-serializable only; the lazy DOM Tweaker boundary receives the
+   * specific scalar config values it needs instead of reading module-global
+   * panel config.
+   */
+  domTweaker?: DomTweakerConfig;
   /**
    * Host-supplied tab configuration for the data-driven tab strip.
    *
@@ -1079,6 +1101,35 @@ export function assertValidPanelConfig(value: unknown): asserts value is PanelCo
       if (typeof v !== 'string') {
         throw new Error(
           `[design-token-panel] PanelConfig.applyRouting[${JSON.stringify(k)}] must be a string`,
+        );
+      }
+    }
+  }
+  if (cfg.domTweaker !== undefined) {
+    if (
+      cfg.domTweaker === null ||
+      typeof cfg.domTweaker !== 'object' ||
+      Array.isArray(cfg.domTweaker)
+    ) {
+      throw new Error('[design-token-panel] PanelConfig.domTweaker must be a plain object');
+    }
+    const domTweaker = cfg.domTweaker as Record<string, unknown>;
+    for (const key of Object.keys(domTweaker)) {
+      if (key !== 'themeCss') {
+        throw new Error(
+          `[design-token-panel] PanelConfig.domTweaker.${key} is not a supported field`,
+        );
+      }
+    }
+    if (domTweaker.themeCss !== undefined) {
+      if (typeof domTweaker.themeCss !== 'string') {
+        throw new Error(
+          `[design-token-panel] PanelConfig.domTweaker.themeCss must be a string when set (got ${typeof domTweaker.themeCss})`,
+        );
+      }
+      if (/@import/i.test(domTweaker.themeCss)) {
+        throw new Error(
+          '[design-token-panel] PanelConfig.domTweaker.themeCss must not contain @import',
         );
       }
     }

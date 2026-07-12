@@ -87,6 +87,16 @@ export interface PanelConfig {
    */
   applyRouting?: Record<string, string>;
   /**
+   * Optional DOM Tweaker feature block. Presence enables the eager header
+   * toggle and persisted closed-shell revival path. The object is pure JSON
+   * data; `themeCss`, when set, must be a string and must not contain
+   * `@import`.
+   */
+  domTweaker?: {
+    /** Optional host Tailwind v4 theme CSS used by the lazy side for suggestions. */
+    themeCss?: string;
+  };
+  /**
    * Optional apply sink. Routes this instance's CSS-var writes and clears
    * through the caller-supplied object instead of `document.documentElement`.
    * See §3.5 for the full sink contract.
@@ -187,6 +197,9 @@ Required behaviours:
   for the Astro frontmatter → island prop handoff (§6): Astro stringifies
   props, so functions / class instances do not survive. `applySink` carries
   function references and MUST NOT be included in the Astro JSON config.
+  `domTweaker`, when present, is part of this pure-data surface: it may only
+  contain the optional string `themeCss` field. `themeCss` MUST NOT contain
+  any `@import` occurrence.
 - **No default `PanelConfig` baked into the package.** Hosts MUST configure
   the panel explicitly via `<DesignTokenPanelHost config={...} />` or a
   direct `configurePanel({...})` call. The package ships zero baked-in
@@ -249,6 +262,7 @@ derives the keys at runtime from this single base.
 | `position`  | `${storagePrefix}-position` | panel                | Drag position (`{ top, right }`) so the panel reappears where the user left it.                                                                              |
 | `visible`   | `${storagePrefix}:visible`  | adapter              | Adapter-level visibility-intent flag, owned by the lazy-load gate (§6).                                                                                      |
 | `autoload`  | `${storagePrefix}:autoload` | autoload-state       | Owner-mode autoload flag. `'1'` means "load the panel bundle eagerly and mount CLOSED on every page load." Managed by `enableAutoload()` / `disableAutoload()`. See §6.2. |
+| `domtweaker-enabled` | `${storagePrefix}-domtweaker-enabled` | dom-tweaker-state | DOM Tweaker enabled bit. `'1'` means "mount the closed shell and load the DOM Tweaker lazy boundary." Only meaningful when `PanelConfig.domTweaker` is present. |
 
 **Constraint — colon, not dash, for `visible` and `autoload`.** Both adapter-
 level flags use a `:` separator; every other derived key uses `-`. The colon
@@ -267,6 +281,7 @@ myapp-design-token-panel-open
 myapp-design-token-panel-position
 myapp-design-token-panel:visible
 myapp-design-token-panel:autoload
+myapp-design-token-panel-domtweaker-enabled
 ```
 
 Unit tests in the package verify these derivations with literal-equality
@@ -776,7 +791,7 @@ This is the reason the JSON-serializable constraint in §4.2 is non-negotiable.
 
 ### 6.2 Lazy-load gate
 
-The host adapter fires one eager `loadPanelModule()` call when any of four
+The host adapter fires one eager `loadPanelModule()` call when any of five
 signals is present in `localStorage` at page load:
 
 ```ts
@@ -784,7 +799,8 @@ if (
   wasVisible()            ||   // panel was open last visit
   hasPersistedOverrides() ||   // user has saved token tweaks
   shouldAutoload()        ||   // owner-autoload flag set (NEW)
-  loadElementPathEnabled()     // element-path inspector enabled (NEW)
+  loadElementPathEnabled() ||   // element-path inspector enabled
+  loadDomTweakerEnabled()      // DOM Tweaker enabled and configured
 ) {
   void loadPanelModule();
 }
@@ -805,8 +821,12 @@ if (
   key. Returns `true` when the inspector was left enabled. Ensures the Preact
   shell is mounted (the inspector runs inside it) even when the panel UI is
   hidden and no token overrides are persisted.
+- `loadDomTweakerEnabled()` — reads the DOM Tweaker persistence key. Returns
+  `true` when `PanelConfig.domTweaker` is present and the tweaker was left
+  enabled. Ensures the Preact shell is mounted and the lazy boundary is
+  imported even when the panel UI is hidden.
 
-When none of the four signals is present — the common case for first-time
+When none of the five signals is present — the common case for first-time
 visitors and general site visitors on a public site with owner-autoload — the
 panel bundle is NOT fetched and the page is completely free of panel JS.
 
@@ -818,6 +838,24 @@ panel bundle is NOT fetched and the page is completely free of panel JS.
 | `hasPersistedOverrides` | `${storagePrefix}-state-v3` (falls back to `-state-v2`) | tweak-state |
 | `shouldAutoload` | `${storagePrefix}:autoload` | autoload-state |
 | `loadElementPathEnabled` | `${storagePrefix}-elpath-enabled` | element-path-state |
+| `loadDomTweakerEnabled` | `${storagePrefix}-domtweaker-enabled` | dom-tweaker-state |
+
+#### DOM Tweaker config and runtime invariants
+
+- `PanelConfig.domTweaker` is disabled by omission. When absent, the header
+  toggle is hidden and the persisted `-domtweaker-enabled` key is ignored by
+  the lazy-load gate.
+- `PanelConfig.domTweaker` is a plain JSON object. The only supported field is
+  `themeCss?: string`; unknown fields, functions, non-string `themeCss`, and
+  any `@import` occurrence in `themeCss` are rejected by
+  `assertValidPanelConfig`.
+- The eager side passes `storagePrefix`, `themeCss`, and `consoleNamespace`
+  explicitly into the lazy DOM Tweaker boundary. The lazy boundary MUST NOT
+  read module-global `PanelConfig`.
+- The DOM Tweaker runtime/bridge/portal are document-global. At most one panel
+  instance can have DOM Tweaker active in a document. First activation wins;
+  a second instance's toggle is inert and emits a `console.warn` tagged with
+  that second instance's `consoleNamespace`.
 
 #### Owner-autoload `enableAutoload` / `disableAutoload` contract
 

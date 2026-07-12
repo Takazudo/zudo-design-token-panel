@@ -19,8 +19,9 @@
  *      and host theme changes must not bleed into the panel chrome.
  *   G. The panel's two CSS delivery paths (the `dist/zdtp.css` / `./styles`
  *      export and the self-injected `<style>` string) cannot diverge: all
- *      component CSS flows through a single `panel.css` `@import` aggregate,
- *      with no side-effect `.css` imports outside `index.tsx` (guards #413).
+ *      eager component CSS flows through a single `panel.css` `@import`
+ *      aggregate. DOM Tweaker's explicitly lazy stylesheet is delivered by
+ *      its lazy JS boundary instead (guards #413 and #537).
  *   H. The ramp-native Tier-2 color editor's example manifest
  *      (`_example-ramp-native-tier2.ts`, #459/#475) is a real, valid
  *      `PanelConfig` — `semantic: true`, `referencesRamps`, and every
@@ -224,17 +225,29 @@ describe('Invariant F — panel CSS does not read host theme vars', () => {
 //    palette-edit-view.css / palette-chart.css rendered for `./styles` consumers
 //    but were missing from the self-injected stylesheet.
 //
-//    Two static guards keep the paths in sync:
-//      G1 — no source file except index.tsx may import a `.css` (side-effect or
-//           `?inline`); every component stylesheet must flow through panel.css.
-//      G2 — panel.css must `@import` every other `.css` file under src/, so the
-//           single aggregate is complete.
+//    DOM Tweaker is the deliberate lazy exception: style-injection.ts imports
+//    dom-tweaker.css?inline from inside the lazy boundary, and dist/zdtp.css
+//    must not contain those selectors. Two static guards keep the eager paths
+//    in sync while preserving that boundary:
+//      G1 — no source file except index.tsx and the named lazy injector may
+//           import a `.css` (side-effect or `?inline`).
+//      G2 — panel.css must `@import` every eager `.css` file under src/.
 // ---------------------------------------------------------------------------
 
 describe('Invariant G — CSS self-inject and ./styles paths stay in sync', () => {
   const SRC_DIR = path.resolve(__dirname, '..');
   const STYLES_DIR = path.resolve(SRC_DIR, 'styles');
   const PANEL_CSS = path.join(STYLES_DIR, 'panel.css');
+  const DOM_TWEAKER_LAZY_CSS = path.join(
+    SRC_DIR,
+    'dom-tweaker',
+    'lazy',
+    'dom-tweaker.css',
+  );
+  const ALLOWED_CSS_IMPORTERS = new Set([
+    'index.tsx',
+    path.join('dom-tweaker', 'lazy', 'style-injection.ts'),
+  ]);
 
   /** Recursively collect files under `dir` matching `pred`, skipping __tests__. */
   function walk(dir: string, pred: (name: string) => boolean): string[] {
@@ -256,24 +269,26 @@ describe('Invariant G — CSS self-inject and ./styles paths stay in sync', () =
     !name.endsWith('.test.tsx') &&
     !name.endsWith('.d.ts');
 
-  // Matches both `import './foo.css'` and `import x from './foo.css?inline'`.
-  const CSS_IMPORT = /\bimport\b[^\n]*['"][^'"]+\.css(?:\?[^'"]*)?['"]/;
+  // Matches JS imports, but not Tailwind input strings such as
+  // `@import "tailwindcss/theme.css"`.
+  const CSS_IMPORT =
+    /(?:^|\n)\s*import(?:\s*\(\s*|\s+(?:[^'"\n]*\s+from\s+)?)["'][^"']+\.css(?:\?[^"']*)?["']/;
 
-  it('only src/index.tsx imports a .css file (everything else flows through panel.css)', () => {
+  it('allows CSS imports only from the eager entry and named lazy injector', () => {
     const offenders = walk(SRC_DIR, isSource)
       .filter((file) => CSS_IMPORT.test(fs.readFileSync(file, 'utf8')))
       .map((file) => path.relative(SRC_DIR, file))
-      .filter((rel) => rel !== 'index.tsx');
+      .filter((rel) => !ALLOWED_CSS_IMPORTERS.has(rel));
     expect(offenders).toEqual([]);
   });
 
-  it('panel.css @imports every other .css file under src/ (complete aggregate)', () => {
+  it('panel.css @imports every eager .css file under src/ (complete aggregate)', () => {
     const panelCss = fs.readFileSync(PANEL_CSS, 'utf8');
     const importTargets = [...panelCss.matchAll(/@import\s+['"]([^'"]+)['"]/g)].map((m) =>
       path.resolve(STYLES_DIR, m[1]),
     );
     const everyOtherCss = walk(SRC_DIR, (name) => name.endsWith('.css')).filter(
-      (file) => file !== PANEL_CSS,
+      (file) => file !== PANEL_CSS && file !== DOM_TWEAKER_LAZY_CSS,
     );
     const missing = everyOtherCss
       .filter((file) => !importTargets.includes(file))
