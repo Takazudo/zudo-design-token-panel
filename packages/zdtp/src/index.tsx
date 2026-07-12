@@ -74,6 +74,7 @@ import {
   type PanelConfig,
 } from './config/panel-config';
 import { loadElementPathEnabled, saveElementPathEnabled } from './element-path/element-path-state';
+import { loadDomTweakerEnabled } from './dom-tweaker/dom-tweaker-state';
 import {
   shouldAutoload as _shouldAutoload,
   setAutoload,
@@ -621,11 +622,11 @@ function unmountForSwap(): void {
 /**
  * Re-materialise the shell on a page load when either (a) the user had the
  * panel visible before navigation, (b) overrides are persisted and need
- * reapplying even while the panel stays hidden, or (c) the Element Path Copy
- * inspector is enabled — its Alt+click "copy selector" gesture must work even
- * when the panel is closed, and the inspector overlay only runs while the
- * Preact shell (and its ElementPathOrchestrator) is mounted. Cases (b) and (c)
- * mount the shell CLOSED via `hideInstance`.
+ * reapplying even while the panel stays hidden, (c) the Element Path Copy
+ * inspector is enabled, or (d) DOM Tweaker is enabled — closed-shell features
+ * must work even when the panel is closed, and their orchestrators only run
+ * while the Preact shell is mounted. Cases (b), (c), and (d) mount the shell
+ * CLOSED via `hideInstance`.
  *
  * Overrides are applied to `:root` first (cheap, no Preact render) so the
  * post-swap paint uses the persisted values immediately instead of waiting
@@ -648,7 +649,12 @@ function reapplyFromStorage(): void {
   for (const cfg of targets) {
     if (wasVisible(cfg)) {
       showInstance(cfg);
-    } else if (hasPersistedOverrides(cfg) || loadElementPathEnabled(cfg) || _shouldAutoload(cfg)) {
+    } else if (
+      hasPersistedOverrides(cfg) ||
+      loadElementPathEnabled(cfg) ||
+      (cfg.domTweaker !== undefined && loadDomTweakerEnabled(cfg)) ||
+      _shouldAutoload(cfg)
+    ) {
       // Gate #2 — per autoload-state.ts contract: owner-mode page loads mount
       // the Preact shell CLOSED so the element-path inspector is available even
       // while the panel UI is hidden.

@@ -4,8 +4,9 @@
  * Tests for the host-adapter owner-autoload wiring added in #419 (S2).
  *
  * Coverage:
- *   1. Eager-load gate fires on each of the 4 signals (wasVisible,
- *      hasPersistedOverrides, shouldAutoload, loadElementPathEnabled).
+ *   1. Eager-load gate fires on each of the 5 signals (wasVisible,
+ *      hasPersistedOverrides, shouldAutoload, loadElementPathEnabled,
+ *      loadDomTweakerEnabled).
  *   2. enableAutoload() / disableAutoload() set/clear the right storage keys,
  *      including the open key on disable.
  *   3. Auto-remember: showDesignPanel() and toggleDesignPanel() write
@@ -53,6 +54,7 @@ const CFG: PanelConfig = {
   colorPresets: {},
   applyEndpoint: undefined,
   applyRouting: undefined,
+  domTweaker: {},
 };
 
 // Derived storage key strings — computed from the static config object, safe
@@ -61,6 +63,7 @@ const AUTOLOAD_KEY = storageKey_autoload(CFG); // 'test-hdal:autoload'
 const VISIBLE_KEY = storageKey_visible(CFG); // 'test-hdal:visible'
 const OPEN_KEY = getOpenKey(CFG); // 'test-hdal-open'
 const ELPATH_KEY = `${CFG.storagePrefix}-elpath-enabled`; // 'test-hdal-elpath-enabled'
+const DOMTWEAKER_KEY = `${CFG.storagePrefix}-domtweaker-enabled`; // 'test-hdal-domtweaker-enabled'
 const STATEV3_KEY = `${CFG.storagePrefix}-state-v3`; // 'test-hdal-state-v3'
 
 /** Set up the inline-config script element the adapter reads on bootstrap. */
@@ -162,6 +165,12 @@ describe('host-adapter owner-autoload wiring (S2 #419)', () => {
 
     it('fires on loadElementPathEnabled signal (elpath-enabled = "1")', async () => {
       localStorage.setItem(ELPATH_KEY, '1');
+      await bootstrapAdapter();
+      expect(adapterState()?.modulePromise).not.toBeNull();
+    });
+
+    it('fires on loadDomTweakerEnabled signal (domtweaker-enabled = "1")', async () => {
+      localStorage.setItem(DOMTWEAKER_KEY, '1');
       await bootstrapAdapter();
       expect(adapterState()?.modulePromise).not.toBeNull();
     });

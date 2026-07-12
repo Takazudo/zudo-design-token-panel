@@ -124,6 +124,72 @@ describe('panel-config — derivation flips with a non-default config', () => {
   });
 });
 
+describe('panel-config — assertValidPanelConfig accepts and rejects domTweaker shapes', () => {
+  function makeBaseConfig(extra: Record<string, unknown> = {}): unknown {
+    return {
+      storagePrefix: 'p',
+      consoleNamespace: 'p',
+      modalClassPrefix: 'p-modal',
+      schemaId: 'p/v1',
+      exportFilenameBase: 'p',
+      tabs: [],
+      ...extra,
+    };
+  }
+
+  it('DEFAULT_PANEL_CONFIG leaves domTweaker disabled by omission', () => {
+    expect(DEFAULT_PANEL_CONFIG.domTweaker).toBeUndefined();
+  });
+
+  it('accepts a config with no domTweaker field', () => {
+    expect(() => assertValidPanelConfig(makeBaseConfig())).not.toThrow();
+  });
+
+  it('accepts an empty domTweaker block', () => {
+    expect(() => assertValidPanelConfig(makeBaseConfig({ domTweaker: {} }))).not.toThrow();
+  });
+
+  it('accepts string themeCss without @import', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({ domTweaker: { themeCss: '@theme { --color-brand: #f0f; }' } }),
+      ),
+    ).not.toThrow();
+  });
+
+  it('rejects domTweaker when it is a function', () => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ domTweaker: () => undefined })),
+    ).toThrow(/PanelConfig\.domTweaker must be a plain object/);
+  });
+
+  it('rejects themeCss when it is a function', () => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ domTweaker: { themeCss: () => undefined } })),
+    ).toThrow(/PanelConfig\.domTweaker\.themeCss must be a string/);
+  });
+
+  it('rejects non-string themeCss', () => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ domTweaker: { themeCss: 123 } })),
+    ).toThrow(/PanelConfig\.domTweaker\.themeCss must be a string/);
+  });
+
+  it('rejects @import in themeCss', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        makeBaseConfig({ domTweaker: { themeCss: '@IMPORT url("https://example.com/x.css");' } }),
+      ),
+    ).toThrow(/PanelConfig\.domTweaker\.themeCss must not contain @import/);
+  });
+
+  it('rejects unknown fields inside domTweaker', () => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ domTweaker: { runtime: 'host-owned' } })),
+    ).toThrow(/PanelConfig\.domTweaker\.runtime is not a supported field/);
+  });
+});
+
 describe('panel-config — configurePanel idempotency (per prefix)', () => {
   const CONFIG_A: PanelConfig = {
     storagePrefix: 'aaa',

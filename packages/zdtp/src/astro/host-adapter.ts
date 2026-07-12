@@ -63,6 +63,7 @@ import {
 import { ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP, getOpenKey } from '../state/tweak-state';
 import { shouldAutoload, setAutoload, clearAutoload } from '../state/autoload-state';
 import { loadElementPathEnabled, saveElementPathEnabled } from '../element-path/element-path-state';
+import { loadDomTweakerEnabled } from '../dom-tweaker/dom-tweaker-state';
 
 interface DesignTokenPanelAdapterState {
   /** Per-`storagePrefix` bind flag — re-runs of the script are no-ops. */
@@ -413,9 +414,10 @@ function installZdtpAlias(state: DesignTokenPanelAdapterState, handle: PanelInst
 
   // 3. Lazy-load gate — eagerly load the panel module when the user had it
   //    open last session OR has persisted token overrides OR the owner-
-  //    autoload flag is set OR the element-path inspector is enabled. Any
-  //    signal means the panel must boot before first paint to avoid an FOUT
-  //    or a broken element-path inspector (which needs the Preact shell).
+  //    autoload flag is set OR the element-path inspector is enabled OR the
+  //    DOM Tweaker is enabled. Any signal means the panel must boot before
+  //    first paint to avoid an FOUT or a broken closed-shell feature
+  //    (element-path / DOM Tweaker both need the Preact shell).
   const visibleKey = storageKey_visible(cfg);
   const stateV2Key = storageKey_stateV2(cfg);
   const stateV3Key = storageKey_stateV3(cfg);
@@ -424,7 +426,8 @@ function installZdtpAlias(state: DesignTokenPanelAdapterState, handle: PanelInst
     wasVisible(visibleKey) ||
     hasPersistedOverrides(stateV2Key, stateV3Key, stateV4Key) ||
     shouldAutoload(cfg) ||
-    loadElementPathEnabled(cfg)
+    loadElementPathEnabled(cfg) ||
+    (cfg.domTweaker !== undefined && loadDomTweakerEnabled(cfg))
   ) {
     void loadPanelModule(state);
   }
