@@ -1,0 +1,74 @@
+/*
+ * Simulated purged Tailwind v4 production output for the DOM Tweaker
+ * confirmation matrix. Only classes present in the fixture's initial markup
+ * are emitted; px-24, bg-brand, and rounded-full must come from the lazy
+ * browser runtime.
+ */
+
+@layer theme, base, components, utilities;
+
+@layer theme {
+  :root {
+    --spacing: 0.25rem;
+    --color-blue-600: #2563eb;
+    --color-blue-700: #1d4ed8;
+    --text-sm: 0.875rem;
+    --radius-md: 0.375rem;
+  }
+}
+
+@layer base {
+  *,
+  ::before,
+  ::after {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+  }
+}
+
+@layer components {
+  body {
+    background: #f3f4f6;
+    color: #111827;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    font-size: 16px;
+  }
+
+  .confirm-btn {
+    border: 1px solid transparent;
+    background: var(--color-blue-600);
+    color: #fff;
+    font: inherit;
+  }
+
+  /*
+   * An application-specific class Tailwind Merge cannot classify. It models
+   * the manual chip-removal escape hatch for conflicts outside Tailwind's
+   * known utility groups.
+   */
+  .legacy-rounded {
+    border-radius: var(--radius-md) !important;
+  }
+}
+
+@layer utilities {
+  .px-2 {
+    padding-inline: calc(var(--spacing) * 2);
+  }
+
+  .py-1 {
+    padding-block: calc(var(--spacing) * 1);
+  }
+
+  .rounded-md {
+    border-radius: var(--radius-md);
+  }
+
+  .text-sm {
+    font-size: var(--text-sm);
+    line-height: 1.4286;
+  }
+}

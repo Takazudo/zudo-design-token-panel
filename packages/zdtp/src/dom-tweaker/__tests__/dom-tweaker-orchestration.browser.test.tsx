@@ -18,6 +18,7 @@ import { DomTweakerOrchestrator } from '../dom-tweaker-orchestrator';
 import { DomTweakerToggleButton } from '../dom-tweaker-toggle-button';
 import { resetAll } from '../lazy/edit-session';
 import { DOM_TWEAKER_STYLE_ID } from '../lazy/style-injection';
+import purgedTailwindCss from './purged-tailwind-fixture.css?inline';
 
 const DOM_TWEAKER_OWNER_SYMBOL = Symbol.for('@takazudo/zdtp:dom-tweaker-owner');
 
@@ -29,6 +30,7 @@ const THEME_CSS = `
 
 let containers: HTMLDivElement[] = [];
 let createdElements: HTMLElement[] = [];
+let createdStyles: HTMLStyleElement[] = [];
 
 function makeConfig(storagePrefix: string): PanelConfig {
   return {
@@ -53,6 +55,14 @@ function createContainer(): HTMLDivElement {
   document.body.append(container);
   containers.push(container);
   return container;
+}
+
+function injectFixtureStyle(css: string): HTMLStyleElement {
+  const style = document.createElement('style');
+  style.textContent = css;
+  document.head.append(style);
+  createdStyles.push(style);
+  return style;
 }
 
 function createFixtureElement(className = 'px-2 rounded-md'): HTMLElement {
@@ -226,11 +236,23 @@ async function pickFixtureElement(target: Element): Promise<void> {
   });
 }
 
+async function commitEditorClass(input: HTMLInputElement, className: string): Promise<void> {
+  act(() => {
+    inputText(input, className);
+  });
+  await frame();
+  act(() => {
+    key(input, 'Enter');
+  });
+  await frame();
+}
+
 beforeEach(() => {
   localStorage.clear();
   document.body.innerHTML = '';
   containers = [];
   createdElements = [];
+  createdStyles = [];
   resetDomTweakerOwnerForTests();
   __resetArmingCoordinatorForTests();
   resetAll();
@@ -246,6 +268,8 @@ afterEach(async () => {
   containers = [];
   for (const el of createdElements) el.remove();
   createdElements = [];
+  for (const style of createdStyles) style.remove();
+  createdStyles = [];
   document.getElementById(DOM_TWEAKER_PORTAL_MOUNT_ID)?.remove();
   document.getElementById(ELPATH_PORTAL_MOUNT_ID)?.remove();
   document.getElementById(DOM_TWEAKER_STYLE_ID)?.remove();
@@ -260,19 +284,44 @@ afterEach(async () => {
 });
 
 describe.sequential('DOM Tweaker orchestration', () => {
-  it('runs the enable → Alt-click → editor → class add → diff export flow', async () => {
-    const cfg = makeConfig('domtweak-flow');
-    const target = createFixtureElement();
+  it('ports the prototype verification matrix against purged production CSS', async () => {
+    injectFixtureStyle(purgedTailwindCss);
+
+    const heading = document.createElement('h1');
+    heading.id = 'preflight-canary';
+    heading.textContent = 'No preflight canary';
+    document.body.append(heading);
+    createdElements.push(heading);
+
+    const purgedControl = createFixtureElement('confirm-btn px-2');
+    purgedControl.id = 'purged-control';
+
+    const target = createFixtureElement(
+      'confirm-btn px-2 py-1 rounded-md legacy-rounded text-sm',
+    );
+    target.id = 'cta';
+    target.style.removeProperty('background');
+
+    const bodyBackground = getComputedStyle(document.body).backgroundColor;
+
+    // Baseline purge proof and no-preflight canary, before lazy runtime start.
+    expect(getComputedStyle(target).paddingLeft).toBe('8px');
+    expect(getComputedStyle(heading).fontSize).toBe('32px');
+    purgedControl.classList.add('px-24');
+    expect(getComputedStyle(purgedControl).paddingLeft).toBe('8px');
+    purgedControl.classList.remove('px-24');
+
+    const cfg = makeConfig('domtweak-confirm-matrix');
     const container = renderDomTweakerHarness(cfg);
     await flushEffects();
-
     await enableDomTweaker(container);
-    await waitForAssertion(() => {
-      expect(getComputedStyle(target).paddingLeft).toBe('8px');
-    });
+
+    // Runtime startup must preserve the purged dist and host page baseline.
+    expect(getComputedStyle(heading).fontSize).toBe('32px');
+    expect(getComputedStyle(target).paddingLeft).toBe('8px');
+    expect(getComputedStyle(document.body).backgroundColor).toBe(bodyBackground);
 
     await pickFixtureElement(target);
-
     act(() => {
       document.querySelector<HTMLElement>('.tokenpanel-domtweaker-edit-button')!.click();
     });
@@ -280,19 +329,55 @@ describe.sequential('DOM Tweaker orchestration', () => {
       expect(document.querySelector('.tokenpanel-domtweaker-popover')).not.toBeNull();
     });
 
-    const input = document.querySelector<HTMLInputElement>('.tokenpanel-domtweaker-popover__input')!;
+    const input = document.querySelector<HTMLInputElement>(
+      '.tokenpanel-domtweaker-popover__input',
+    )!;
+    await commitEditorClass(input, 'px-24');
+    await commitEditorClass(input, 'py-3');
+    await commitEditorClass(input, 'bg-brand');
+
+    await waitForAssertion(() => {
+      expect(getComputedStyle(target).paddingLeft).toBe('96px');
+      expect(getComputedStyle(target).paddingTop).toBe('12px');
+      expect(getComputedStyle(target).backgroundColor).toBe('rgb(124, 58, 237)');
+    });
+
+    // Suggestion keyboard flow adds an unseen class. Tailwind Merge removes
+    // its known rounded-md conflict as part of the add operation.
     act(() => {
-      inputText(input, 'px-24');
+      inputText(input, 'rounded-f');
+    });
+    await waitForAssertion(() => {
+      expect(
+        Array.from(document.querySelectorAll('[role="option"]')).some(
+          (option) => option.textContent === 'rounded-full',
+        ),
+      ).toBe(true);
+    });
+    act(() => {
+      key(input, 'ArrowDown');
     });
     await frame();
     act(() => {
       key(input, 'Enter');
     });
-
     await waitForAssertion(() => {
-      expect(target.classList.contains('px-2')).toBe(false);
-      expect(target.classList.contains('px-24')).toBe(true);
-      expect(getComputedStyle(target).paddingLeft).toBe('96px');
+      expect(target.classList.contains('rounded-full')).toBe(true);
+      expect(target.classList.contains('rounded-md')).toBe(false);
+    });
+
+    // The app-specific important class is outside Tailwind Merge's model, so
+    // it remains a visible conflict until the user takes the chip-removal path.
+    expect(getComputedStyle(target).borderRadius).toBe('6px');
+    const removeLegacy = document.querySelector<HTMLElement>(
+      '[aria-label="Remove legacy-rounded"]',
+    )!;
+    act(() => {
+      removeLegacy.click();
+    });
+    await waitForAssertion(() => {
+      expect(target.classList.contains('legacy-rounded')).toBe(false);
+      expect(Number.parseFloat(getComputedStyle(target).borderRadius)).toBeGreaterThan(1_000);
     });
 
     act(() => {
@@ -300,12 +385,24 @@ describe.sequential('DOM Tweaker orchestration', () => {
     });
 
     await waitForAssertion(() => {
-      const textarea = document.querySelector<HTMLTextAreaElement>(
+      const diff = document.querySelector<HTMLTextAreaElement>(
         '[aria-label="DOM Tweaker session diff"]',
+      )?.value;
+      expect(diff).toContain('selector: #cta');
+      expect(diff).toContain(
+        'before: "confirm-btn px-2 py-1 rounded-md legacy-rounded text-sm"',
       );
-      expect(textarea?.value).toContain('selector:');
-      expect(textarea?.value).toContain('-px-2');
-      expect(textarea?.value).toContain('+px-24');
+      expect(diff).toContain(
+        'after: "confirm-btn text-sm px-24 py-3 bg-brand rounded-full"',
+      );
+      expect(diff).toContain('-px-2');
+      expect(diff).toContain('-py-1');
+      expect(diff).toContain('-rounded-md');
+      expect(diff).toContain('-legacy-rounded');
+      expect(diff).toContain('+px-24');
+      expect(diff).toContain('+py-3');
+      expect(diff).toContain('+bg-brand');
+      expect(diff).toContain('+rounded-full');
     });
   });
 

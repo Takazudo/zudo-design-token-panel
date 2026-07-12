@@ -33,8 +33,8 @@ export function DomTweakerToggleButton(): JSX.Element | null {
       <RoleButton
         className={
           enabled
-            ? `tokenpanel-domtweaker-toggle is-active is-${runtimeStatus}`
-            : `tokenpanel-domtweaker-toggle is-${runtimeStatus}`
+            ? `tokenpanel-tweaker-toggle tokenpanel-domtweaker-toggle is-active is-${runtimeStatus}`
+            : `tokenpanel-tweaker-toggle tokenpanel-domtweaker-toggle is-${runtimeStatus}`
         }
         aria-label={`Toggle DOM Tweaker (${runtimeLabel})`}
         ariaProps={{
