@@ -1,0 +1,78 @@
+---
+title: DOM Tweaker
+description: Use the opt-in dev-time Tailwind v4 class editor to inspect host elements, preview utility changes, and export an AI-handoff diff.
+sidebar_position: 8
+---
+
+## What DOM Tweaker is
+
+DOM Tweaker is an opt-in development tool for trying Tailwind utility classes directly on a host page. It combines an Alt+click element picker, a live class editor, the `@tailwindcss/browser` runtime, and a copyable before/after diff. It changes the current DOM only; it does not rewrite application source files.
+
+<Warning title="Development-time tool">
+Treat `PanelConfig.domTweaker` like `applyEndpoint`: enable it for a developer or owner workflow, not for production visitors. Its underlying `@tailwindcss/browser` runtime is development-oriented and adds a page-level compiler, observers, and injected styles after the feature starts.
+</Warning>
+
+## Workflow
+
+1. Turn on the **DOM Tweaker** toggle in the panel header. The first enable lazily starts the Tailwind browser runtime.
+2. Hold <kbd>Alt</kbd> while moving over the host page, then Alt+click the element you want to change.
+3. The selection stays outlined and an edit icon (✎) appears next to it.
+4. Select the edit icon to open the class editor. Remove existing classes with their chips, or enter a Tailwind class and choose a suggestion. Conflicting utilities are resolved with `tailwind-merge` when a class is added.
+5. The element's `class` attribute changes immediately. The browser runtime compiles utilities that were absent from the host's built CSS, so the result is reflected on the page without a rebuild.
+6. Open **DOM Tweaker diff**, review the selector plus before/after and added/removed classes, then copy the text for an AI handoff.
+
+The exported text is a description of the current page-load session. Give it to an AI coding tool together with the relevant source context so the live experiment can be translated into a durable source change.
+
+## Enabling DOM Tweaker
+
+The feature is disabled by omission. Add `domTweaker` to `PanelConfig` to show its header controls and allow its enabled state to revive on later page loads.
+
+```ts
+import { configurePanel } from '@takazudo/zdtp';
+
+configurePanel({
+  // ...required PanelConfig fields...
+  domTweaker: {},
+});
+```
+
+An empty object uses the bundled suggestion set and Tailwind's default theme. See the [`PanelConfig.domTweaker` reference](/docs/reference/configure-panel) for the exact type and validation rules.
+
+## Bridging a host theme with `themeCss`
+
+Use `domTweaker.themeCss` when the host has Tailwind v4 theme tokens that DOM Tweaker should compile and surface as suggestions.
+
+```ts
+configurePanel({
+  // ...required PanelConfig fields...
+  domTweaker: {
+    themeCss: `
+      @theme {
+        --color-brand: oklch(0.62 0.2 285);
+        --spacing-card: 1.5rem;
+      }
+    `,
+  },
+});
+```
+
+Pass token/theme declarations only, typically one or more `@theme` blocks. Do not pass a stylesheet entry point. `configurePanel` rejects every `@import` occurrence in `themeCss`.
+
+<Note title="Why imports are rejected">
+DOM Tweaker constructs a controlled Tailwind input that imports `tailwindcss/theme.css` and `tailwindcss/utilities.css`, but deliberately leaves out preflight. Rejecting host-supplied `@import` rules prevents the aggregate Tailwind entry or preflight from being pulled back in and resetting the host page.
+</Note>
+
+## Tailwind-only scope in v1
+
+The original design also considered a CSS mode for editing raw declarations. That mode was intentionally not implemented in v1. DOM Tweaker edits Tailwind utility classes only; there is no hidden mode switch or raw-CSS editor to enable.
+
+## Limitations
+
+- **Tailwind v4 hosts only.** The runtime integration uses `@tailwindcss/browser` v4 and does not provide a Tailwind v3 compatibility path.
+- **Strict CSP can block it.** A `style-src` policy that does not allow `unsafe-inline` blocks DOM Tweaker's injected feature and generated utility styles.
+- **No source-file writes in v1.** Diff export copies text to the clipboard for an AI handoff. Unlike the token [Apply pipeline](/docs/reference/apply-pipeline), it does not locate or rewrite template/component files.
+- **Light DOM only.** Shadow-DOM hosts are outside v1 scope; the picker and Tailwind runtime observe the document's light DOM.
+- **The runtime lasts for the page lifetime.** After it starts, turning DOM Tweaker off closes the editor and stops picking, but does not remove the Tailwind runtime, its observers, or injected styles. Reload the page for a full teardown.
+- **The edit session lasts for one page load.** Its baselines and diff records are in memory, not persisted. Reloading or navigating to a fresh document starts a new session.
+- **Framework renders can replace live classes.** If a framework re-render writes a new `class` attribute, it can clobber the current DOM preview. DOM Tweaker's recorded diff entry survives so it can still be copied, but the live element may no longer match that record.
+- **One active instance per document.** DOM Tweaker's runtime, picker bridge, and portal are document-global. If several panel instances opt in, the first active one owns the feature until it is turned off.
