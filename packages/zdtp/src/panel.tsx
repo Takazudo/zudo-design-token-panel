@@ -8,6 +8,8 @@ import { HighlightSettingsPopover } from './highlight/highlight-settings-popover
 import { HighlightOrchestrator } from './highlight/highlight-orchestrator';
 import { ElementPathOrchestrator } from './element-path/element-path-orchestrator';
 import { ElementPathToggleButton } from './element-path/element-path-toggle-button';
+import { DomTweakerOrchestrator } from './dom-tweaker/dom-tweaker-orchestrator';
+import { DomTweakerToggleButton } from './dom-tweaker/dom-tweaker-toggle-button';
 import ColorTab from './tabs/color-tab';
 import FontTab from './tabs/font-tab';
 import SizeTab from './tabs/size-tab';
@@ -710,6 +712,7 @@ export default function DesignTokenTweakPanel({
   return (
     <HighlightOrchestrator>
       <ElementPathOrchestrator>
+      <DomTweakerOrchestrator instanceConfig={instanceConfig}>
       <TooltipProvider>
       {open && (() => {
         const { width: panelW, height: panelH } = computePanelSize(size);
@@ -785,6 +788,9 @@ export default function DesignTokenTweakPanel({
           <div className="tokenpanel-spacer" />
           {/* Element-path-copy toggle — enable, then Alt+click any element to copy its path */}
           <ElementPathToggleButton />
+          {instanceConfig.domTweaker !== undefined && (
+            <DomTweakerToggleButton />
+          )}
           {/* Gear button — inline div so we can attach a ref for popover anchoring */}
           <div
             ref={gearBtnRef}
@@ -1063,6 +1069,7 @@ export default function DesignTokenTweakPanel({
         );
       })()}
       </TooltipProvider>
+      </DomTweakerOrchestrator>
       </ElementPathOrchestrator>
     </HighlightOrchestrator>
   );

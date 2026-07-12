@@ -1851,8 +1851,9 @@ select.tokenpanel-tier-ref-select:focus-visible {
  * registered in panel-tokens.css's var scope so var(--tokentweak-*) resolves.
  * ========================================================================= */
 
-/* Header toggle button — mirrors the gear button, accent when active. */
-.tokenpanel-elpath-toggle {
+/* Header toggle buttons — mirror the gear button, accent when active. */
+.tokenpanel-elpath-toggle,
+.tokenpanel-domtweaker-toggle {
   color: var(--tokentweak-color-muted);
   background: none;
   border: none;
@@ -1864,18 +1865,22 @@ select.tokenpanel-tier-ref-select:focus-visible {
   align-items: center;
   justify-content: center;
 }
-.tokenpanel-elpath-toggle:hover {
+.tokenpanel-elpath-toggle:hover,
+.tokenpanel-domtweaker-toggle:hover {
   color: var(--tokentweak-color-fg);
 }
-.tokenpanel-elpath-toggle:focus-visible {
+.tokenpanel-elpath-toggle:focus-visible,
+.tokenpanel-domtweaker-toggle:focus-visible {
   outline: 2px solid var(--tokentweak-color-accent);
   outline-offset: 2px;
   border-radius: 2px;
 }
-.tokenpanel-elpath-toggle.is-active {
+.tokenpanel-elpath-toggle.is-active,
+.tokenpanel-domtweaker-toggle.is-active {
   color: var(--tokentweak-color-accent);
 }
-:where(.tokenpanel-shell) .tokenpanel-elpath-toggle svg {
+:where(.tokenpanel-shell) .tokenpanel-elpath-toggle svg,
+:where(.tokenpanel-shell) .tokenpanel-domtweaker-toggle svg {
   /* !important required — same reason as .tokenpanel-highlight-toggle svg above:
    * the base :where(.tokenpanel-shell) svg { fill: currentColor !important } rule
    * must be overridden for outline-only (stroke-drawn) icons. Higher specificity
@@ -2032,11 +2037,13 @@ html.tokenpanel-elpath-inspecting * {
   inset: -5px; /* 24px hit area floor (WCAG 2.2 AA) */
 }
 
-/* Element-path toggle (16×16 SVG) → 24×24 target. */
-.tokenpanel-elpath-toggle {
+/* Element-path and DOM Tweaker toggles (16×16 SVG) → 24×24 target. */
+.tokenpanel-elpath-toggle,
+.tokenpanel-domtweaker-toggle {
   position: relative;
 }
-.tokenpanel-elpath-toggle::after {
+.tokenpanel-elpath-toggle::after,
+.tokenpanel-domtweaker-toggle::after {
   content: '';
   position: absolute;
   inset: -4px; /* 24px hit area floor (WCAG 2.2 AA) */
