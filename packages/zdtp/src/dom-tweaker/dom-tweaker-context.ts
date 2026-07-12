@@ -8,6 +8,8 @@
 
 import { createContext } from 'preact';
 
+export type DomTweakerRuntimeStatus = 'idle' | 'loading' | 'ready' | 'error';
+
 export interface DomTweakerContextValue {
   /** Whether DOM Tweaker is enabled for this panel instance. */
   enabled: boolean;
@@ -15,6 +17,10 @@ export interface DomTweakerContextValue {
   setEnabled: (enabled: boolean) => void;
   /** Toggle DOM Tweaker. */
   toggle: () => void;
+  /** Page-lifetime Tailwind runtime status. */
+  runtimeStatus: DomTweakerRuntimeStatus;
+  /** Open the lazy diff-export modal from the header toggle area. */
+  openDiffExport: () => void;
 }
 
 export const DomTweakerContext = createContext<DomTweakerContextValue | null>(null);

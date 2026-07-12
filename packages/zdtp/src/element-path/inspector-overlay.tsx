@@ -50,6 +50,8 @@ const ELEMENT_PATH_PICKER_CLASS_NAMES: AltClickPickerClassNames = {
 export interface InspectorOverlayProps {
   /** Whether inspect mode is enabled. When false the overlay is fully inert. */
   enabled: boolean;
+  /** Called when another real picker feature takes coordinator ownership. */
+  onArmingRevoked?: () => void;
 }
 
 interface ToastState {
@@ -63,7 +65,10 @@ interface ToastState {
 // Component
 // ---------------------------------------------------------------------------
 
-export function InspectorOverlay({ enabled }: InspectorOverlayProps): JSX.Element | null {
+export function InspectorOverlay({
+  enabled,
+  onArmingRevoked,
+}: InspectorOverlayProps): JSX.Element | null {
   const [toast, setToast] = useState<ToastState | null>(null);
 
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -106,6 +111,8 @@ export function InspectorOverlay({ enabled }: InspectorOverlayProps): JSX.Elemen
         enabled={enabled}
         featureId={ELEMENT_PATH_PICKER_FEATURE_ID}
         onElementPicked={copyPathFor}
+        onArmingRevoked={onArmingRevoked}
+        claimArmingOnEnable
         getLabelText={buildSummary}
         ariaLiveMessage={toast?.message ?? ''}
         classNames={ELEMENT_PATH_PICKER_CLASS_NAMES}

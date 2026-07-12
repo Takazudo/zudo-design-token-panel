@@ -30,12 +30,16 @@ import { ELPATH_PORTAL_MOUNT_ID } from '../highlight/find-elements';
 
 interface OverlayPortalProps {
   enabled: boolean;
+  onArmingRevoked: () => void;
 }
 
-function OverlayPortal({ enabled }: OverlayPortalProps) {
+function OverlayPortal({ enabled, onArmingRevoked }: OverlayPortalProps) {
   const mountNode = usePortalMount(ELPATH_PORTAL_MOUNT_ID);
   if (!mountNode) return null;
-  return createPortal(<InspectorOverlay enabled={enabled} />, mountNode);
+  return createPortal(
+    <InspectorOverlay enabled={enabled} onArmingRevoked={onArmingRevoked} />,
+    mountNode,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -66,7 +70,7 @@ export function ElementPathOrchestrator({ children }: { children: ComponentChild
   return (
     <>
       <ElementPathContext.Provider value={ctxValue}>{children}</ElementPathContext.Provider>
-      <OverlayPortal enabled={enabled} />
+      <OverlayPortal enabled={enabled} onArmingRevoked={() => setEnabled(false)} />
     </>
   );
 }
