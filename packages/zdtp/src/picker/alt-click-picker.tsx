@@ -44,6 +44,10 @@ export interface AltClickPickerProps {
   featureId: string;
   /** Called once an armed click picks a host element. */
   onElementPicked: (el: Element) => void;
+  /** Disable the owning feature when another real picker takes ownership. */
+  onArmingRevoked?: () => void;
+  /** Claim coordinator ownership as soon as this feature becomes enabled. */
+  claimArmingOnEnable?: boolean;
   /** Label text shown before the element dimensions. */
   getLabelText?: (el: Element) => string;
   /** Hidden live-region text. Kept in the primitive so announcements stay mounted. */
@@ -83,6 +87,8 @@ export function AltClickPicker({
   enabled,
   featureId,
   onElementPicked,
+  onArmingRevoked,
+  claimArmingOnEnable = false,
   getLabelText = defaultLabelText,
   ariaLiveMessage,
   excludeSelector = PANEL_EXCLUSION_SELECTOR,
@@ -104,6 +110,8 @@ export function AltClickPicker({
   // Last known pointer position so pressing Alt highlights the element already
   // under the cursor immediately (no need to nudge the mouse first).
   const lastMouseRef = useRef<{ x: number; y: number } | null>(null);
+  const onArmingRevokedRef = useRef(onArmingRevoked);
+  onArmingRevokedRef.current = onArmingRevoked;
 
   const classes = useMemo<AltClickPickerClassNames>(
     () => ({ ...DEFAULT_CLASS_NAMES, ...classNames }),
@@ -121,9 +129,15 @@ export function AltClickPicker({
       onArmingRevoked: () => {
         setArmed(false);
         setHoverEl(null);
+        onArmingRevokedRef.current?.();
       },
     });
   }, [featureId]);
+
+  useEffect(() => {
+    if (!enabled || !claimArmingOnEnable) return;
+    requestArming(featureId);
+  }, [claimArmingOnEnable, enabled, featureId]);
 
   // Reset everything when the feature is disabled.
   useEffect(() => {

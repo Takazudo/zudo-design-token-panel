@@ -11,7 +11,7 @@
  */
 
 import { useRef } from 'preact/compat';
-import type { JSX } from 'preact';
+import type { ComponentChildren, JSX } from 'preact';
 import { RoleButton } from './role-button';
 import { usePopoverClose } from '../components/color-picker/index';
 
@@ -27,12 +27,14 @@ interface ActionsMenuPopoverProps {
   anchorRef: React.RefObject<HTMLElement | null>;
   actions: readonly ActionsMenuAction[];
   onClose: () => void;
+  children?: ComponentChildren;
 }
 
 export function ActionsMenuPopover({
   anchorRef,
   actions,
   onClose,
+  children,
 }: ActionsMenuPopoverProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -57,6 +59,7 @@ export function ActionsMenuPopover({
           {action.label}
         </RoleButton>
       ))}
+      {children}
     </div>
   );
 }
