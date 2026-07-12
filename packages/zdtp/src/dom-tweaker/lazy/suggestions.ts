@@ -167,8 +167,8 @@ const STATIC_LAYOUT_AND_EFFECT_UTILITIES = [
 ] as const;
 
 /**
- * Prototype-sized static Tailwind candidate list. This mirrors
- * `_temp-resource/529-dom-tweaker/tweaker.js`'s `buildSuggestions()`.
+ * Prototype-sized static Tailwind candidate list, carried forward from the
+ * DOM Tweaker feasibility prototype's `buildSuggestions()` coverage.
  */
 export function buildStaticSuggestions(): string[] {
   const out = new Set<string>();
