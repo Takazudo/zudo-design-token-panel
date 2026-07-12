@@ -98,7 +98,9 @@
     "preact": "^10.29.1"
   },
   "dependencies": {
-    "culori": "^4.0.2"
+    "@tailwindcss/browser": "4.3.2",
+    "culori": "^4.0.2",
+    "tailwind-merge": "3.6.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
