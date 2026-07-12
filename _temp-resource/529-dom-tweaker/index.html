@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>proto-528: DOM Tweaker feasibility</title>
+<link rel="stylesheet" href="./host.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="masthead flex items-center gap-2 px-4 py-3">
+      <span class="logo-dot"></span>
+      <span class="text-lg font-semibold">Acme Dashboard</span>
+      <span class="text-sm text-gray-600">— simulated host app (purged Tailwind v4 dist)</span>
+    </div>
+
+    <div class="card mt-4 px-4 py-3 rounded-md">
+      <div class="text-lg font-semibold">Pro Plan</div>
+      <div id="desc" class="text-sm text-gray-600 mt-2">
+        Unlimited projects, priority support, and a pony. The buttons below are
+        intentionally cramped (px-2 py-1) — the DOM Tweaker scenario is to widen
+        them live with classes that do NOT exist in this page's CSS.
+      </div>
+      <div class="flex items-center gap-2 mt-4">
+        <button id="cta" class="btn btn-primary px-2 py-1 rounded-md">Upgrade now</button>
+        <button id="docs-btn" class="btn btn-ghost px-2 py-1 rounded-md">Read docs</button>
+      </div>
+    </div>
+
+    <!-- Bare h1: no host CSS touches it. If the runtime injected preflight,
+         its font-size would collapse from 2em to inherit — the canary detects that. -->
+    <h1 id="preflight-canary">Preflight canary (h1, browser default = 2em)</h1>
+  </div>
+
+  <script src="./tweaker.js"></script>
+</body>
+</html>
