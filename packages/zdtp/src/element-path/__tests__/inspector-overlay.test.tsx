@@ -142,7 +142,7 @@ describe('InspectorOverlay', () => {
     act(() => moveOverTarget());
 
     await act(async () => {
-      document.dispatchEvent(new MouseEvent('click', { clientX: 50, clientY: 30, bubbles: true }));
+      document.dispatchEvent(new MouseEvent('click', { clientX: 50, clientY: 30, bubbles: true, cancelable: true }));
       // Flush the copyToClipboard → setToast microtask chain (writeText await +
       // copyToClipboard await + the setToast that follows).
       for (let i = 0; i < 5; i++) await Promise.resolve();
@@ -167,7 +167,7 @@ describe('InspectorOverlay', () => {
     act(() => pressAlt());
     act(() => moveOverTarget());
     act(() => {
-      target.dispatchEvent(new MouseEvent('click', { clientX: 50, clientY: 30, bubbles: true }));
+      target.dispatchEvent(new MouseEvent('click', { clientX: 50, clientY: 30, bubbles: true, cancelable: true }));
     });
 
     expect(hostClick).not.toHaveBeenCalled();
