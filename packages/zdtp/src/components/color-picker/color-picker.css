@@ -157,11 +157,13 @@
 .tokenpanel-color-picker-close-btn {
   position: relative;
   flex-shrink: 0;
+  min-width: 16px;
   color: var(--tokentweak-color-muted);
   cursor: pointer;
   user-select: none;
   padding: var(--tokentweak-pad-2xs);
   border-radius: var(--radius-tokentweak);
+  text-align: center;
   transition: color 120ms ease;
 }
 
