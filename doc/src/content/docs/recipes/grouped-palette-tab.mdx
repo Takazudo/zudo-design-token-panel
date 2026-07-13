@@ -11,8 +11,8 @@ colour tokens and exposes two interaction modes:
 
 - **Edit mode** — an X-Y curve editor for adjusting Lightness/Chroma/Hue across
   each group of steps.
-- **Check mode** — a Left/Right WCAG contrast checker to verify that any two
-  palette steps meet accessibility ratio targets.
+- **Check mode** — a WCAG contrast overview that evaluates every palette colour
+  as foreground against a selected palette colour as the background.
 
 Use this recipe when you want a free-standing set of named colour steps (e.g.
 grayscale, brand, accent) that do not feed a semantic colour-scheme table.
@@ -246,10 +246,20 @@ All palette variables on `:root` are updated live as you drag.
 
 ### Check mode
 
-Click the **Check** toggle to enter WCAG contrast checking. Two colour swatches
-appear (Left and Right) — pick any two palette steps from any group and the
-panel computes the contrast ratio, showing whether the pair meets AA or AAA
-thresholds.
+Use the **Edit** / **Check** segmented switcher at the top of the Palette tab to
+open the WCAG contrast checker. The **Background (base)** column on the left
+lists every palette colour as a selectable row with its swatch and name; the
+selected base row is highlighted.
+
+The **Foreground vs base** column on the right evaluates every palette colour
+against the selected base. Each row shows a live **Aa** sample, the WCAG contrast
+ratio, and a **Fail**, **AA**, or **AAA** verdict chip. The chips use fixed
+semantic colours so their meaning stays consistent across panel themes.
+
+Use the **Flat list** toolbar toggle to switch between grouped and flat listings.
+Enable **Large text** to use the 3.0 AA threshold instead of the 4.5 threshold
+for normal text. The footer summarizes the current result as
+`N of M palette colors pass AA as normal/large text on {base}`.
 
 Use Check mode to validate that your text colours meet contrast requirements
 against your background colours before committing the palette.
