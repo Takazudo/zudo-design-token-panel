@@ -8,7 +8,7 @@
  *
  * 2. Color picker popover — the full 320px picker card in its default (mini)
  *    mode with a real preset grid. Captures:
- *    - Header (drag handle + label + mode-toggle pill + expand button)
+ *    - Header (drag handle + label + mode-toggle pill + expand/close buttons)
  *    - Preview swatch (checkerboard + color overlay)
  *    - Hex input field
  *    - OKLCH preset grid (6 columns, a 4-hue × 6-brightness sample)
@@ -150,7 +150,7 @@ const PICKER_HTML = `
      data-mode-shell="mini"
      style="position:relative; font-family: Menlo, Monaco, Consolas, 'Courier New', monospace;">
 
-  <!-- Header: drag handle + label + mode toggle + expand btn -->
+  <!-- Header: drag handle + label + mode toggle + expand/close buttons -->
   <div class="tokenpanel-color-picker-header">
     <span class="tokenpanel-color-picker-drag-handle" aria-hidden="true">⠿</span>
     <span class="tokenpanel-color-picker-label">--accent</span>
@@ -167,6 +167,8 @@ const PICKER_HTML = `
               fill="none" stroke-linecap="round"/>
       </svg>
     </div>
+    <div class="tokenpanel-color-picker-close-btn" role="button" tabindex="0"
+         aria-label="Close color picker">×</div>
   </div>
 
   <!-- Top row: preview swatch + hex input -->
