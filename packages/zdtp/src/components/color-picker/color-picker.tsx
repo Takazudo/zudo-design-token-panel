@@ -861,6 +861,23 @@ export function ColorPicker({
         >
           {shell === 'mini' ? '⤢' : '⤡'}
         </div>
+
+        {/* Close picker */}
+        <div
+          role="button"
+          tabIndex={0}
+          className="tokenpanel-color-picker-close-btn"
+          aria-label="Close color picker"
+          onClick={onClose}
+          onKeyDown={(e: KeyboardEvent) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onClose();
+            }
+          }}
+        >
+          ×
+        </div>
       </div>
 
       {/* Top row: preview swatch + hex input ───────────────────────────── */}
