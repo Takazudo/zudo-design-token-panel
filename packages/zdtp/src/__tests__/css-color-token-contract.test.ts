@@ -34,6 +34,10 @@ const paletteEditView = fs.readFileSync(
   path.join(PALETTE_CSS_DIR, 'palette-edit-view.css'),
   'utf8',
 );
+const paletteCheckView = fs.readFileSync(
+  path.join(PALETTE_CSS_DIR, 'palette-check-view.css'),
+  'utf8',
+);
 const colorPickerCss = fs.readFileSync(COLOR_PICKER_CSS_PATH, 'utf8');
 
 // ---------------------------------------------------------------------------
@@ -47,6 +51,10 @@ describe('Invariant M1 — no #e05252 raw hex (use var(--tokentweak-color-danger
 
   it('palette-edit-view.css contains no #e05252', () => {
     expect(stripCssComments(paletteEditView)).not.toContain('#e05252');
+  });
+
+  it('palette-check-view.css contains no #e05252', () => {
+    expect(stripCssComments(paletteCheckView)).not.toContain('#e05252');
   });
 
   it('color-picker.css contains no #e05252', () => {

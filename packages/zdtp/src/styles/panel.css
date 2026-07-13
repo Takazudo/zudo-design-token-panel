@@ -37,6 +37,7 @@
 @import '../components/color-picker/color-picker.css';
 @import '../components/palette-chart/palette-chart.css';
 @import '../tabs/palette/palette-edit-view.css';
+@import '../tabs/palette/palette-check-view.css';
 
 /* ===========================================================================
  * Scoped box-sizing reset

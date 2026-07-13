@@ -23,6 +23,10 @@ import PaletteTab from './palette-tab';
 import type { TabConfig } from '../../tokens/tier-model';
 import type { TabOverrides } from '../../apply/tier-resolver';
 
+// Import panel CSS as an inline string so layout assertions exercise production styles.
+// @ts-ignore — ?inline is a Vite-specific query not typed in tsconfig
+const panelCssModule = import('../../styles/panel.css?inline');
+
 // ---------------------------------------------------------------------------
 // Fixture — two-group palette
 // ---------------------------------------------------------------------------
@@ -79,8 +83,14 @@ const PALETTE_TAB: TabConfig = {
 // ---------------------------------------------------------------------------
 
 let container: HTMLDivElement;
+let panelStyle: HTMLStyleElement;
 
-beforeEach(() => {
+beforeEach(async () => {
+  const panelCss: string = ((await panelCssModule) as { default: string }).default;
+  panelStyle = document.createElement('style');
+  panelStyle.textContent = panelCss;
+  document.head.appendChild(panelStyle);
+
   container = document.createElement('div');
   document.body.appendChild(container);
 });
@@ -90,6 +100,7 @@ afterEach(() => {
     render(null, container);
   });
   document.body.removeChild(container);
+  panelStyle.remove();
   document.documentElement.style.cssText = '';
 });
 
@@ -194,6 +205,11 @@ describe('PaletteTab browser — switching to Check mode', () => {
     expect(checkView).not.toBeNull();
     const editView = container.querySelector('[data-testid="palette-edit-view"]');
     expect(editView).toBeNull();
+    expect(getComputedStyle(checkView!).display).toBe('flex');
+
+    const checkCols = container.querySelector('[data-testid="palette-check-left-col"]')?.parentElement;
+    expect(checkCols).not.toBeNull();
+    expect(getComputedStyle(checkCols!).display).toBe('grid');
   });
 
   it('Check mode: left col shows base rows', async () => {
@@ -460,6 +476,20 @@ describe('PaletteTab browser — layout at narrow and wide widths', () => {
 
   it('check mode layout does not overflow at 360px', async () => {
     container.style.width = '360px';
+    container.style.overflow = 'hidden';
+    await renderPaletteTab();
+
+    const checkBtn = container.querySelector<HTMLElement>('[data-testid="palette-mode-check"]');
+    await act(() => {
+      checkBtn!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const hasOverflow = container.scrollWidth > container.clientWidth;
+    expect(hasOverflow).toBe(false);
+  });
+
+  it('check mode layout does not overflow at 800px', async () => {
+    container.style.width = '800px';
     container.style.overflow = 'hidden';
     await renderPaletteTab();
 
