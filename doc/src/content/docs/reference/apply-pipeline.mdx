@@ -197,7 +197,7 @@ The bin rejects cross-origin requests.
 { "ok": false, "error": "No top-level :root { ... } or @theme { ... } block in <file>" }
 ```
 
-The target CSS file has **neither** a top-level `:root` block nor a top-level `@theme` block — see [Which CSS blocks get rewritten](#which-css-blocks-get-rewritten) above. A file with only one of the two (e.g. `@theme`-only, no `:root` at all) does NOT 409; it applies normally against whichever block exists.
+The target CSS file has **neither** a top-level `:root` block nor a top-level `@theme` block — see [Which CSS blocks get rewritten](#apply-to-disk-which-css-blocks-get-rewritten) above. A file with only one of the two (e.g. `@theme`-only, no `:root` at all) does NOT 409; it applies normally against whichever block exists.
 
 ### Response 500 (Internal server error)
 
