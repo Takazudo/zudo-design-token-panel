@@ -54,6 +54,7 @@ import {
   resolvePaletteCssVar,
   resolvePerModeLiteral,
 } from '../state/tweak-state';
+import type { TabOverrides } from '../apply/tier-resolver';
 import { getPanelConfig, type PanelConfig } from '../config/panel-config';
 import { resolveColorClusterFromTab } from '../config/cluster-config';
 import type { TabConfig, TierConfig } from '../tokens/tier-model';
@@ -61,7 +62,7 @@ import type { PersistColor, PersistSecondary } from '../state/persist';
 import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
 import { TokenLabel } from '../controls/token-label';
 import { useTooltip } from '../controls/tooltip';
-import { HelpIcon, PER_MODE_HELP_TEXT } from '../controls/help-icon';
+import { HelpIcon, SEMANTIC_TOKENS_HELP_TEXT } from '../controls/help-icon';
 import TierRefSelector, {
   type TierRefSelectorValue,
   type TierRefTarget,
@@ -617,7 +618,11 @@ const SemanticLiteralRow = memo(function SemanticLiteralRow({
    *  when the user unchecks "Per-mode". Defaults to `'light'`. */
   defaultMode?: 'light' | 'dark';
 }) {
-  const isPerMode = typeof value.literal === 'object' && value.literal !== null;
+  const literalValue = value.literal;
+  const isPerMode = typeof literalValue === 'object' && literalValue !== null;
+  const resolvedPreview = isPerMode
+    ? resolvePerModeLiteral({ literal: literalValue }, defaultMode)
+    : literalValue;
 
   const handleTogglePerMode = useCallback(() => {
     const current = value.literal;
@@ -654,6 +659,12 @@ const SemanticLiteralRow = memo(function SemanticLiteralRow({
   return (
     <div className="tokenpanel-row" data-testid={`tokenpanel-semantic-literal-${idKey}`}>
       <TokenLabel cssVar={cssVar ?? idKey} label={label} />
+      <div
+        className="tokenpanel-semantic-resolved-chip"
+        aria-hidden="true"
+        title={resolvedPreview}
+        style={{ backgroundColor: resolvedPreview }}
+      />
       <label className="tokenpanel-per-mode-toggle">
         <input
           type="checkbox"
@@ -663,25 +674,28 @@ const SemanticLiteralRow = memo(function SemanticLiteralRow({
         />
         Per-mode
       </label>
-      {/* Sibling of the label above, never nested inside it — activating
-       *  the icon must not toggle the Per-mode checkbox. */}
-      <HelpIcon text={PER_MODE_HELP_TEXT} ariaLabel={`${label} per-mode help`} />
       {typeof value.literal === 'object' && value.literal !== null ? (
         <div className="tokenpanel-per-mode-fields">
-          <ColorField
-            value={value.literal.light}
-            onChange={handleLightChange}
-            valueFormat="oklch"
-            label={`${label} (Light)`}
-            cssVar={cssVar}
-          />
-          <ColorField
-            value={value.literal.dark}
-            onChange={handleDarkChange}
-            valueFormat="oklch"
-            label={`${label} (Dark)`}
-            cssVar={cssVar}
-          />
+          <div className="tokenpanel-per-mode-field">
+            <span className="tokenpanel-per-mode-label">Light</span>
+            <ColorField
+              value={value.literal.light}
+              onChange={handleLightChange}
+              valueFormat="oklch"
+              label={`${label} (Light)`}
+              cssVar={cssVar}
+            />
+          </div>
+          <div className="tokenpanel-per-mode-field">
+            <span className="tokenpanel-per-mode-label">Dark</span>
+            <ColorField
+              value={value.literal.dark}
+              onChange={handleDarkChange}
+              valueFormat="oklch"
+              label={`${label} (Dark)`}
+              cssVar={cssVar}
+            />
+          </div>
         </div>
       ) : (
         <ColorField
@@ -755,22 +769,21 @@ const SemanticRefOrLiteralRow = memo(function SemanticRefOrLiteralRow({
 });
 
 /**
- * Resolve a ramp-option preview string for the grouped picker. Looks the
- * target item up by its manifest data (`{tab?,tier,item}`) and returns its
- * `default` — a static preview, not override-aware against the Palette tab's
- * live tweak state (that state isn't threaded into `ColorTab`). Good enough
- * to label options distinctly; wiring a live preview is left for a follow-up
- * (see #471's cross-tab e2e confirmation).
+ * Resolve an override-aware ramp preview for grouped picker labels and the
+ * semantic row's decorative chip. Unknown targets retain the prior fallback
+ * to the referenced item id so an unresolved ref remains visibly unresolved.
  */
 function makeRampPreview(
   currentTab: TabConfig,
   tabs: readonly TabConfig[],
+  tabOverrides: Record<string, TabOverrides>,
 ): (ref: TierRefTarget) => string {
   return (ref) => {
     const targetTab = ref.tab === undefined ? currentTab : tabs.find((t) => t.id === ref.tab);
     const targetTier = targetTab?.tiers.find((t) => t.id === ref.tier);
     const item = targetTier?.items.find((i) => i.id === ref.item);
-    return item?.default ?? ref.item;
+    if (!item) return ref.item;
+    return tabOverrides[ref.tab ?? currentTab.id]?.[ref.tier]?.[ref.item] ?? item.default;
   };
 }
 
@@ -802,6 +815,8 @@ interface ColorTabProps {
    * `getPanelConfig()`, preserving the single-instance path.
    */
   instanceConfig?: PanelConfig;
+  /** Live generic-tab overrides used by ramp preview chips and option labels. */
+  tabOverrides?: Record<string, TabOverrides>;
 }
 
 export default function ColorTab({
@@ -812,6 +827,7 @@ export default function ColorTab({
   secondaryState,
   persistSecondary,
   instanceConfig,
+  tabOverrides = {},
 }: ColorTabProps) {
   // Derive the cluster from the tab's colorExtras + tiers. This provides the
   // same shape that the rest of the panel (apply, clear, state) expects.
@@ -1045,10 +1061,13 @@ export default function ColorTab({
   // Preview-text resolvers for the grouped picker's ramp options — one bound
   // to the primary cluster's own tab (the default "current tab" for
   // same-tab ramp sources), one to the secondary cluster's tab.
-  const previewRampValue = useMemo(() => makeRampPreview(tab, allTabs), [tab, allTabs]);
+  const previewRampValue = useMemo(
+    () => makeRampPreview(tab, allTabs, tabOverrides),
+    [tab, allTabs, tabOverrides],
+  );
   const secondaryPreviewRampValue = useMemo(
-    () => (secondaryTab ? makeRampPreview(secondaryTab, allTabs) : undefined),
-    [secondaryTab, allTabs],
+    () => (secondaryTab ? makeRampPreview(secondaryTab, allTabs, tabOverrides) : undefined),
+    [secondaryTab, allTabs, tabOverrides],
   );
 
   const handleLoadPreset = useCallback(
@@ -1196,8 +1215,16 @@ export default function ColorTab({
 
         {/* Section C: Semantic Token Mappings */}
         <div className="tokenpanel-tab-section">
-          <div role="heading" aria-level={3} className="tokenpanel-tab-section-heading tokenpanel-tab-section-heading--color">
+          <div
+            role="heading"
+            aria-level={3}
+            className="tokenpanel-tab-section-heading tokenpanel-tab-section-heading--color tokenpanel-tab-section-heading--with-help"
+          >
             {primaryLabel} — Semantic Tokens
+            <HelpIcon
+              text={SEMANTIC_TOKENS_HELP_TEXT}
+              ariaLabel={`${primaryLabel} Semantic Tokens help`}
+            />
           </div>
           <div className="tokenpanel-color-base-grid">
             {Object.entries(safeCluster.semanticDefaults).map(([key, defaultVal]) => {
@@ -1312,8 +1339,16 @@ export default function ColorTab({
               className="tokenpanel-tab-section"
               data-testid="tokenpanel-secondary-semantic-section"
             >
-              <div role="heading" aria-level={3} className="tokenpanel-tab-section-heading tokenpanel-tab-section-heading--color">
+              <div
+                role="heading"
+                aria-level={3}
+                className="tokenpanel-tab-section-heading tokenpanel-tab-section-heading--color tokenpanel-tab-section-heading--with-help"
+              >
                 {secondaryLabel} — Semantic Tokens
+                <HelpIcon
+                  text={SEMANTIC_TOKENS_HELP_TEXT}
+                  ariaLabel={`${secondaryLabel} Semantic Tokens help`}
+                />
               </div>
               <div className="tokenpanel-color-base-grid">
                 {Object.entries(secondaryCluster.semanticDefaults).map(([key, defaultVal]) => {

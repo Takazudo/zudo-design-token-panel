@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
 /**
- * Unit tests for HelpIcon (issue #520) — the "?" badge used to explain the
- * Literal / Per-mode concepts in the Color tab's semantic rows.
+ * Unit tests for HelpIcon (issues #520 and #544) — the "?" badge used for
+ * section-level semantic-token help in the Color tab.
  *
  * Test structure:
  *  1. Chrome-button policy — div[role=button], no native <button>.

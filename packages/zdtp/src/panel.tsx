@@ -941,6 +941,7 @@ export default function DesignTokenTweakPanel({
                     secondaryState={state.secondary ?? initSecondaryFromConfig(instanceConfig) ?? null}
                     persistSecondary={persistSecondary}
                     instanceConfig={instanceConfig}
+                    tabOverrides={state.tabs ?? {}}
                   />
                 )}
                 {tab.id === 'spacing' && state && tabConfigById['spacing'] && (
