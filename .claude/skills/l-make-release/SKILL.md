@@ -9,8 +9,10 @@ argument-description: "Optional: major, minor, patch, next, stable — controls 
 End-to-end release orchestrator for the `@takazudo/zdtp` npm package. It bumps the
 version, prepends a changelog section, commits + pushes, waits for CI, validates the
 package, pushes the `v*` tag (which triggers `.github/workflows/release.yml` →
-`pnpm -r publish`), then creates the GitHub Release. The single human gate is the
-Step 3 proposal — confirming it authorizes the whole flow through publish.
+`pnpm -r publish`), then creates the GitHub Release. The Step 3 proposal is the one
+place a human can intervene — but for a routine, unambiguous bump it **auto-proceeds**
+(prints the plan, then runs straight through publish); it only **blocks for
+confirmation** when a signal makes the version strategy genuinely uncertain.
 
 The single published package is `@takazudo/zdtp` (`packages/zdtp/package.json`) —
 the **version source-of-truth**. There are no lockstep packages, no platform/binary
@@ -20,15 +22,48 @@ packages, no Rust binary, and no Homebrew formula. The workspace **root**
 ## Invocation & confirmation
 
 This skill is **model-invocable**: a rough natural-language request like "bump
-version", "cut a release", or "make npm release" may trigger it. **It must never
-mutate anything before the user explicitly confirms.** Steps 1–3 are read-only
-(preconditions, version computation, change analysis); the first mutation is Step 4.
+version", "cut a release", or "make npm release" may trigger it. Steps 1–3 are
+always read-only (preconditions, version computation, change analysis); the first
+mutation is Step 4.
 
-There is **one gate**: the Step 3 proposal (current → new version + categorized
-changelog). Confirming it authorizes the entire flow — bump, push, tag, publish,
-and GitHub Release. Do **not** add a second "push the tag now?" prompt; the user
-already decided at Step 3. The only thing that can halt the flow after Step 3 is a
-**validation failure** (Step 7) — see Boundaries.
+### The Step 3 proposal — auto-proceed by default, block only when a human is needed
+
+Always **print** the Step 3 proposal (current → new version + categorized
+changelog). Whether the skill then **waits** for confirmation depends on how routine
+the bump is. The gate exists to catch a *wrong version strategy* before anything is
+written — so when the strategy is obviously right, there is nothing to confirm and
+the skill must **not** pause.
+
+**Auto-proceed** — print the proposal, then run straight through to publish and
+report — when ALL of these hold (the common case):
+
+- the skill was invoked **deliberately**: the explicit `/l-make-release` slash
+  command, or an explicit bump arg (`patch` / `minor` / `stable` / `next` / `major`);
+- it is a **cold-start** bump — the current version is already tagged/released and
+  the tree is clean (not a moved-HEAD resume);
+- the computed bump has **no strategy conflict** (none of the block conditions below).
+
+  Example (this is the canonical auto-proceed case): an explicit `/l-make-release`
+  with no arg on a clean stable version, resolving to the default clean patch, with
+  no breaking-change commits. Do not pause — just release.
+
+**Block and wait** for explicit confirmation when *any* signal makes the version
+strategy genuinely uncertain:
+
+- a **breaking change** (`feat!:` or `BREAKING CHANGE` in the commit range) is
+  detected but the computed bump is only a **patch** — the user should decide patch
+  vs. minor (on 0.x a breaking change is a minor bump);
+- the current version is a `-next.N` prerelease **and no explicit `stable`/`next`
+  arg was given** — finalizing the prerelease vs. continuing the run-up is ambiguous;
+- the trigger was a **loose, model-inferred phrase** rather than an explicit
+  slash-command/arg invocation — a vague "let's ship it" must never publish
+  unattended;
+- a **moved-HEAD** resume (Step 1) — the bump commit is not `HEAD`.
+
+Either path — auto-proceed, or a confirmed block — authorizes the entire flow: bump,
+push, tag, publish, and GitHub Release. Do **not** add a second "push the tag now?"
+prompt. After Step 3 the only thing that halts the flow is a **validation failure**
+(Step 7) or a CI/Release-workflow failure — see Boundaries.
 
 **Autonomy after the gate.** Once Step 3 is confirmed, run the whole flow to
 completion without pausing to ask the user to confirm any routine step — never
@@ -202,7 +237,7 @@ Apply these rules based on the optional argument:
   `latest`.
   - Example: `0.3.0` → `1.0.0-next.1`, `0.2.0-next.2` → `1.0.0-next.1`
 
-## Step 3: Analyze Changes and Propose — THE GATE
+## Step 3: Analyze Changes and Propose — the conditional gate
 
 Find the latest version tag. Fetch remote tags first — a prior release may have
 created its `v*` tag only on the remote, so the most recent tag can be absent from
@@ -242,10 +277,19 @@ Other Changes:
 - description (hash)
 ```
 
-Only show sections that have entries. **Wait for user confirmation before
-proceeding.** Confirming here authorizes the full flow through `npm publish` and the
-GitHub Release — the only thing that can stop it afterward is a validation failure
-(Step 7).
+Only show sections that have entries. Then apply the **auto-proceed vs. block**
+decision from the "Invocation & confirmation" section above:
+
+- **Routine, unambiguous bump** (deliberate invocation, cold start, no strategy
+  conflict) → do NOT wait. Continue straight to Step 4 and run the flow through
+  publish + GitHub Release.
+- **A block condition holds** (breaking-vs-patch mismatch, `-next.N` with no explicit
+  `stable`/`next` arg, a loose model-inferred trigger, or a moved-HEAD resume) →
+  **wait for user confirmation before proceeding.**
+
+Either way — auto-proceeding, or a confirmed block — authorizes the full flow through
+`npm publish` and the GitHub Release; the only thing that can stop it afterward is a
+validation failure (Step 7).
 
 ## Step 4: Bump + Changelog
 
