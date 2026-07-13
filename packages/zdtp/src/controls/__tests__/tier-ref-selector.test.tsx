@@ -615,81 +615,81 @@ describe('TierRefSelector — per-mode literal editor', () => {
 });
 
 // ===========================================================================
-// 4. Help icons (issue #520) — "?" tooltips explaining Literal / Per-mode
+// 4. Resolved preview chip + per-mode labels (issue #544)
 // ===========================================================================
 
-describe('TierRefSelector — help icons (#520)', () => {
-  it('grouped mode renders exactly one Literal help icon immediately after the <select>, even in ref-mode', () => {
-    renderGroupedSelector({ ref: { tab: 'palette', tier: 'base', item: 'base-3' } }, vi.fn());
-    const select = getSelect();
-    const icons = container.querySelectorAll('.tokenpanel-help-icon');
-    expect(icons.length).toBe(1);
-    expect(select.nextElementSibling).toBe(icons[0]);
-    expect(icons[0].getAttribute('aria-label')).toBe('Surface literal help');
+describe('TierRefSelector — semantic resolved preview chip (#544)', () => {
+  it('grouped ref mode renders the resolved ramp color before the <select>', () => {
+    renderGroupedSelector(
+      { ref: { tab: 'palette', tier: 'base', item: 'base-3' } },
+      vi.fn(),
+    );
+    const chip = container.querySelector('.tokenpanel-semantic-resolved-chip') as HTMLElement;
+    expect(chip).not.toBeNull();
+    expect(chip.style.backgroundColor).toBe('oklch(0.8 0 0)');
+    expect(chip.nextElementSibling).toBe(getSelect());
   });
 
-  it('grouped + single-mode literal renders the Literal icon AND a Per-mode icon (2 total)', () => {
+  it('grouped literal mode renders the single literal color', () => {
     renderGroupedSelector({ literal: 'oklch(0.5 0.1 200)' }, vi.fn());
-    const icons = Array.from(container.querySelectorAll('.tokenpanel-help-icon'));
-    expect(icons.length).toBe(2);
-    expect(icons.map((el) => el.getAttribute('aria-label'))).toEqual([
-      'Surface literal help',
-      'Surface per-mode help',
-    ]);
+    const chip = container.querySelector('.tokenpanel-semantic-resolved-chip') as HTMLElement;
+    expect(chip.style.backgroundColor).toBe('oklch(0.5 0.1 200)');
   });
 
-  it('grouped + per-mode (light/dark) literal still renders both help icons', () => {
+  it('grouped per-mode literal resolves the chip with the configured default mode', () => {
+    renderGroupedSelector(
+      { literal: { light: 'oklch(0.9 0 0)', dark: 'oklch(0.2 0 0)' } },
+      vi.fn(),
+      rampPreviewValueFor,
+      'dark',
+    );
+    const chip = container.querySelector('.tokenpanel-semantic-resolved-chip') as HTMLElement;
+    expect(chip.style.backgroundColor).toBe('oklch(0.2 0 0)');
+  });
+
+  it('flat/intra-tab mode keeps its existing rendering without a color chip', () => {
+    renderFlatSelector({ ref: { tier: 'raw', item: 'ease-out' } }, vi.fn());
+    expect(container.querySelector('.tokenpanel-semantic-resolved-chip')).toBeNull();
+  });
+
+  it('the chip is decorative and never collides with interactive swatch selectors', () => {
+    renderGroupedSelector({ literal: 'oklch(0.5 0.1 200)' }, vi.fn());
+    const chip = container.querySelector('.tokenpanel-semantic-resolved-chip') as HTMLElement;
+    expect(chip.getAttribute('aria-hidden')).toBe('true');
+    expect(chip.getAttribute('role')).toBeNull();
+    expect(chip.getAttribute('data-testid')).toBeNull();
+    expect(chip.classList.contains('tokenpanel-color-field-swatch')).toBe(false);
+    expect(container.querySelectorAll('[data-testid="color-field-swatch"]').length).toBe(1);
+  });
+
+  it('per-mode fields show Light/Dark text while preserving ColorField aria-labels', () => {
     renderGroupedSelector(
       { literal: { light: 'oklch(0.9 0 0)', dark: 'oklch(0.2 0 0)' } },
       vi.fn(),
     );
-    expect(container.querySelectorAll('.tokenpanel-help-icon').length).toBe(2);
+    expect(
+      Array.from(container.querySelectorAll('.tokenpanel-per-mode-label')).map(
+        (label) => label.textContent,
+      ),
+    ).toEqual(['Light', 'Dark']);
+    expect(
+      container.querySelector(
+        '[data-testid="color-field-swatch"][aria-label="Surface (Light): --zd-surface"]',
+      ),
+    ).not.toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="color-field-swatch"][aria-label="Surface (Dark): --zd-surface"]',
+      ),
+    ).not.toBeNull();
   });
 
-  it('flat/intra-tab mode never shows any help icon — "Literal…" there means "revert to tier default", a different concept', () => {
-    renderFlatSelector({ ref: { tier: 'raw', item: 'ease-out' } }, vi.fn());
+  it('renders zero per-row help icons', () => {
+    renderGroupedSelector(
+      { literal: { light: 'oklch(0.9 0 0)', dark: 'oklch(0.2 0 0)' } },
+      vi.fn(),
+    );
     expect(container.querySelector('.tokenpanel-help-icon')).toBeNull();
-  });
-
-  it('flat/intra-tab mode shows no help icon even when the value is { literal }', () => {
-    renderFlatSelector({ literal: 'whatever' }, vi.fn());
-    expect(container.querySelector('.tokenpanel-help-icon')).toBeNull();
-  });
-
-  it('the Per-mode help icon is a DOM sibling of the "Per-mode" <label>, never nested inside it', () => {
-    renderGroupedSelector({ literal: 'oklch(0.5 0.1 200)' }, vi.fn());
-    const label = container.querySelector('.tokenpanel-per-mode-toggle') as HTMLElement;
-    const perModeIcon = container.querySelector(
-      '.tokenpanel-help-icon[aria-label="Surface per-mode help"]',
-    ) as HTMLElement;
-    expect(perModeIcon).not.toBeNull();
-    expect(label.contains(perModeIcon)).toBe(false);
-    expect(perModeIcon.parentElement).toBe(label.parentElement);
-  });
-
-  it('clicking the Per-mode help icon does NOT toggle the Per-mode checkbox', () => {
-    const onChange = vi.fn();
-    renderGroupedSelector({ literal: 'oklch(0.5 0.1 200)' }, onChange);
-    const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
-    expect(checkbox.checked).toBe(false);
-    const perModeIcon = container.querySelector(
-      '.tokenpanel-help-icon[aria-label="Surface per-mode help"]',
-    ) as HTMLElement;
-    act(() => perModeIcon.click());
-    expect(onChange).not.toHaveBeenCalled();
-    expect(checkbox.checked).toBe(false);
-  });
-
-  it('help icons render as div[role=button], never a native <button> (chrome-button policy)', () => {
-    renderGroupedSelector({ literal: 'oklch(0.5 0.1 200)' }, vi.fn());
-    const icons = Array.from(container.querySelectorAll('.tokenpanel-help-icon'));
-    expect(icons.length).toBeGreaterThan(0);
-    for (const icon of icons) {
-      expect(icon.tagName.toLowerCase()).toBe('div');
-      expect(icon.getAttribute('role')).toBe('button');
-      expect((icon as HTMLElement).tabIndex).toBe(0);
-    }
-    expect(container.querySelector('button')).toBeNull();
   });
 });
 
