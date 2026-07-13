@@ -1,0 +1,228 @@
+/* ── PaletteCheckView + Palette mode toggle (#394/#540) — contrast checker ────
+ *
+ * Class prefix: tokenpanel-palette-check- / tokenpanel-palette-mode-
+ * The mode-toggle classes are rendered by palette-tab.tsx.
+ * All chrome colors come from the panel's self-contained --tokentweak-* tokens
+ * (panel-tokens.css) so the view is isolated from the host page.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/* ── Edit/Check segmented toggle ── */
+.tokenpanel-palette-mode-toggle {
+  display: inline-flex;
+  align-self: flex-start;
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.tokenpanel-palette-mode-btn {
+  padding: 4px 16px;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--tokentweak-color-muted);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.tokenpanel-palette-mode-btn + .tokenpanel-palette-mode-btn {
+  border-left: 1px solid var(--tokentweak-color-muted);
+}
+
+.tokenpanel-palette-mode-btn:hover {
+  color: var(--tokentweak-color-fg);
+  background-color: rgb(from var(--tokentweak-color-fg) r g b / 0.06);
+}
+
+.tokenpanel-palette-mode-btn.is-active {
+  background-color: rgb(from var(--tokentweak-color-accent) r g b / 0.16);
+  color: var(--tokentweak-color-accent);
+  font-weight: 600;
+}
+
+.tokenpanel-palette-mode-btn:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: -2px;
+}
+
+/* ── Check view root ── */
+.tokenpanel-palette-check-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tokentweak-gap-xs);
+}
+
+/* ── Toolbar switches ── */
+.tokenpanel-palette-check-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.tokenpanel-palette-check-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.tokenpanel-palette-check-switch input[type='checkbox'] {
+  accent-color: var(--tokentweak-color-accent);
+  margin: 0;
+}
+
+.tokenpanel-palette-check-switch:hover {
+  color: var(--tokentweak-color-fg);
+}
+
+/* ── Two-column body ──
+ * Intrinsically responsive; deliberately does NOT read --tokenpanel-grid-min
+ * (density=wide resolves to 100%, which would stack the side-by-side comparison
+ * columns — the same opt-out rationale as .tokenpanel-color-palette-grid). */
+.tokenpanel-palette-check-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(176px, 1fr));
+  gap: var(--tokentweak-gap-xs);
+  align-items: start;
+}
+
+.tokenpanel-palette-check-col {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.tokenpanel-palette-check-col-cap {
+  margin-bottom: -6px;
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+/* ── Selectable base rows ── */
+.tokenpanel-palette-check-base-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  margin-inline: -8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-tokentweak);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.tokenpanel-palette-check-base-row:hover {
+  background-color: rgb(from var(--tokentweak-color-fg) r g b / 0.06);
+}
+
+.tokenpanel-palette-check-base-row:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: -2px;
+}
+
+.tokenpanel-palette-check-base-row.is-selected {
+  border-color: var(--tokentweak-color-accent);
+  background-color: rgb(from var(--tokentweak-color-accent) r g b / 0.12);
+}
+
+.tokenpanel-palette-check-base-row.is-selected .tokenpanel-palette-check-row-name {
+  color: var(--tokentweak-color-accent);
+}
+
+.tokenpanel-palette-check-swatch {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgb(from var(--tokentweak-color-fg) r g b / 0.16);
+  border-radius: var(--radius-tokentweak);
+}
+
+.tokenpanel-palette-check-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--tokentweak-color-fg);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Candidate rows (Aa sample + ratio + verdict chip) ── */
+.tokenpanel-palette-check-candidate-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.tokenpanel-palette-check-aa-sample {
+  /* color/background come inline from the component (live pair). */
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 24px;
+  border: 1px solid rgb(from var(--tokentweak-color-fg) r g b / 0.12);
+  border-radius: var(--radius-tokentweak);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tokenpanel-palette-check-ratio {
+  flex-shrink: 0;
+  width: 38px;
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.tokenpanel-palette-check-chip {
+  /* Background is the component's fixed WCAG-verdict hex (#394). */
+  flex-shrink: 0;
+  min-width: 36px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: #ffffff;
+  font-family: var(--tokentweak-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-align: center;
+}
+
+/* ── Footer tally ── */
+.tokenpanel-palette-check-footer {
+  padding-top: 12px;
+  border-top: 1px solid rgb(from var(--tokentweak-color-muted) r g b / 0.35);
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 12px;
+}
+
+.tokenpanel-palette-check-tally-count,
+.tokenpanel-palette-check-tally-total {
+  color: var(--tokentweak-color-fg);
+  font-weight: 700;
+}
+
+.tokenpanel-palette-check-tally-mode {
+  color: var(--tokentweak-color-fg);
+}
+
+.tokenpanel-palette-check-tally-base {
+  color: var(--tokentweak-color-accent);
+}

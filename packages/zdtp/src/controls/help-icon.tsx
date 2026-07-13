@@ -1,6 +1,6 @@
 /**
- * HelpIcon — small round "?" badge that explains a nearby control via the
- * shared `.tokenpanel-tooltip--help` variant (issue #520).
+ * HelpIcon — small round "?" badge that explains a panel concept via the
+ * shared `.tokenpanel-tooltip--help` variant (issues #520 and #544).
  *
  * Chrome-button policy (CLAUDE.md): implemented as
  * `<div role="button" tabIndex={0}>` with explicit Enter/Space handling —
@@ -13,10 +13,8 @@
  *    hover, so a tap must be able to reveal and hold the tip. A second
  *    activation, or pressing Escape anywhere on the page, unpins it.
  *
- * Callers place this as a SIBLING of the control it explains (e.g. after a
- * `<select>`, or after a `<label>` wrapping a checkbox) — never nested
- * inside a `<label>`, where a click would also toggle the label's own
- * control.
+ * Callers must never nest this inside a `<label>`, where activating the icon
+ * would also toggle the label's control.
  *
  * Known trade-off: `tooltip.tsx` renders a single shared tooltip DOM node,
  * so pinning icon A then hovering/pinning icon B silently replaces A's
@@ -36,16 +34,12 @@ import type { JSX } from 'preact';
 import { useTooltip } from './tooltip';
 
 // ---------------------------------------------------------------------------
-// Copy — single source of truth for the Literal / Per-mode explainer text
-// shared between `tier-ref-selector.tsx` (grouped/ramp-native rows) and
-// `tabs/color-tab.tsx`'s `SemanticLiteralRow`.
+// Copy — single source of truth for the Color tab's section-level semantic
+// token explainer.
 // ---------------------------------------------------------------------------
 
-export const LITERAL_HELP_TEXT =
-  "Literal sets a fixed color just for this token — it won't update if you edit a palette/ramp swatch later. Pick a ramp option to keep it linked live.";
-
-export const PER_MODE_HELP_TEXT =
-  'Per-mode gives this token two colors — one for light mode, one for dark. The browser picks the right one automatically via CSS light-dark().';
+export const SEMANTIC_TOKENS_HELP_TEXT =
+  'Ramp options stay linked live to palette edits. Literal sets a fixed color that is not linked. Per-mode sets independent light and dark colors emitted with CSS light-dark().';
 
 // ---------------------------------------------------------------------------
 // Component

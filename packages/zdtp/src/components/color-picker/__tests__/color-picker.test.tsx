@@ -4,8 +4,8 @@
  * Unit tests for ColorPicker.
  *
  * Scope:
- *  1. Rendering — dialog, header, mode toggle, expand button, hex input, preview,
- *     slider section, preset grid
+ *  1. Rendering — dialog, header, mode toggle, expand/close buttons, hex input,
+ *     preview, slider section, preset grid
  *  2. Mode toggle — OKLCH ↔ HSL; localStorage persistence; no onChange emit
  *  3. Shell toggle — mini ↔ expanded; grid column count; readout visibility
  *  4. Hex input — commit on valid 6-digit; commit on valid 8-digit; no commit on partial
@@ -170,6 +170,37 @@ describe('ColorPicker — rendering', () => {
     expect(btn).not.toBeNull();
     expect(btn!.getAttribute('role')).toBe('button');
   });
+
+  it('renders an accessible close button', () => {
+    renderPicker();
+    const btn = getDialog().querySelector<HTMLElement>(
+      '.tokenpanel-color-picker-close-btn',
+    );
+    expect(btn).not.toBeNull();
+    expect(btn!.getAttribute('role')).toBe('button');
+    expect(btn!.tabIndex).toBe(0);
+    expect(btn!.getAttribute('aria-label')).toBe('Close color picker');
+  });
+
+  it('calls onClose once when the close button is clicked', () => {
+    const onClose = vi.fn();
+    renderPicker({ onClose });
+    fireClick(getDialog().querySelector('.tokenpanel-color-picker-close-btn')!);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['Enter', ' '])(
+    'calls onClose once when the close button receives %j',
+    (key) => {
+      const onClose = vi.fn();
+      renderPicker({ onClose });
+      fireKey(
+        getDialog().querySelector('.tokenpanel-color-picker-close-btn')!,
+        key,
+      );
+      expect(onClose).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it('renders the hex input with the initial color', () => {
     renderPicker({ color: '#aabbcc' });
