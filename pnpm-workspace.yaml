@@ -10,6 +10,11 @@ strictPeerDependencies: false
 preferFrozenLockfile: true
 engineStrict: true
 
+# doc/ consumes @takazudo/zdtp from the npm registry (pinned 0.4.9), NOT the local
+# workspace package — the docs site must build against the published artifact. Pinned
+# explicitly so a future pnpm default flip to `true` can't silently re-link it.
+linkWorkspacePackages: false
+
 # pnpm 11 defaults minimumReleaseAge to 1440 (24h), which would block CI
 # `pnpm install --frozen-lockfile` on any dep published in the last day. CI must
 # be deterministic, so disable the delay here.

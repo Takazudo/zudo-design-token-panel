@@ -3,6 +3,9 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "zfb dev",
     "build": "zfb build",
@@ -10,20 +13,14 @@
     "check": "zfb check",
     "typecheck": "zfb check",
     "check:html": "html-validate \"dist/**/*.html\"",
-    "check:links": "linkinator ./dist --recurse --skip '^https?://'",
-    "check:asset-prefix": "bash ../scripts/check-deploy-paths.sh",
-    "gen:z-index": "gen-z-index",
-    "check:z-index": "gen-z-index --check",
-    "setup:doc-skill": "bash scripts/setup-doc-skill.sh",
-    "setup:doc-skill-silent": "bash scripts/setup-doc-skill.sh --silent",
-    "b4push": "bash scripts/run-b4push.sh",
-    "gen:doc-history": "doc-history-generate --content-dir src/content/docs --locale ja:src/content/docs-ja --out-dir dist/doc-history"
+    "check:links": "linkinator ./dist --recurse --skip '^https?://'"
   },
   "dependencies": {
-    "@takazudo/zfb": "0.1.0-next.76",
-    "@takazudo/zfb-runtime": "0.1.0-next.76",
-    "@takazudo/zfb-adapter-cloudflare": "0.1.0-next.76",
-    "@takazudo/zudo-doc": "^2.5.1",
+    "@takazudo/zfb": "0.1.0-next.89",
+    "@takazudo/zfb-runtime": "0.1.0-next.89",
+    "@takazudo/zfb-adapter-cloudflare": "0.1.0-next.89",
+    "@takazudo/zfb-md-wasm": "0.1.0-next.89",
+    "@takazudo/zudo-doc": "^4.1.0",
     "zod": "^4.3.6",
     "preact": "^10.29.1",
     "preact-render-to-string": "^6.6.6",
@@ -35,9 +32,8 @@
     "remark-directive": "^3.0.0",
     "katex": "^0.16.38",
     "diff": "^8.0.3",
-    "minisearch": "^7.2.0",
-    "@takazudo/zudo-doc-history-server": "^2.5.1",
-    "@takazudo/zdtp": "workspace:*"
+    "@takazudo/zdtp": "0.4.9",
+    "minisearch": "^7.2.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.0",
@@ -45,8 +41,8 @@
     "typescript": "^5.9.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.2.0",
+    "pagefind": "^1.4.0",
     "html-validate": "^10.0.0",
-    "linkinator": "^6.0.0",
-    "pagefind": "^1.4.0"
+    "linkinator": "^6.0.0"
   }
 }
