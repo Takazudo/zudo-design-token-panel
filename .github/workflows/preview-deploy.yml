@@ -46,12 +46,6 @@ jobs:
       - name: Build doc site (emits doc/dist/_worker.js via the CF adapter)
         run: pnpm build
 
-      - name: Generate doc history
-        run: pnpm --filter doc gen:doc-history
-
-      - name: Write .assetsignore (exclude worker entry from public assets)
-        run: printf '%s\n' '_worker.js' '_zfb_inner.mjs' > doc/dist/.assetsignore
-
       - name: Validate wrangler config (dry-run, no credentials needed)
         run: pnpm exec wrangler deploy --dry-run
 

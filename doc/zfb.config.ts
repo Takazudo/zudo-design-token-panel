@@ -3,7 +3,10 @@ import { zudoDoc } from "@takazudo/zudo-doc/config";
 
 export default defineConfig(
   zudoDoc({
-    siteName: "Doc",
+    siteName: "Zudo Token Panel",
+    siteDescription:
+      "A Preact-based live design-token tweak panel and companion Node bin server for CSS custom properties.",
+    siteUrl: "https://zudo-design-token-panel.takazudomodular.com",
     locales: {
       ja: {
         label: "JA",
@@ -15,7 +18,7 @@ export default defineConfig(
     dynamicPageTransition: true,
     footer: {
       links: [],
-      copyright: "Copyright © 2026 Your Name. Built with zudo-doc.",
+      copyright: "Copyright © 2026 Takeshi Takatsudo. Built with zudo-doc.",
     },
     headerNav: [
       {
@@ -24,11 +27,22 @@ export default defineConfig(
         categoryMatch: "getting-started",
       },
       {
+        label: "Reference",
+        path: "/docs/reference",
+        categoryMatch: "reference",
+      },
+      {
+        label: "Recipes",
+        path: "/docs/recipes",
+        categoryMatch: "recipes",
+      },
+      {
         label: "Changelog",
         path: "/docs/changelog",
         categoryMatch: "changelog",
       },
     ],
+    adapter: "@takazudo/zfb-adapter-cloudflare",
     headerRightItems: [
       {
         type: "trigger",
