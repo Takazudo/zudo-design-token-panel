@@ -1,41 +1,69 @@
 import { defineConfig } from "zfb/config";
-import { zudoDocPreset } from "@takazudo/zudo-doc/preset";
-import { settings } from "./src/config/settings";
-import { buildDocsSchema } from "./src/config/docs-schema";
-import { translations } from "./src/config/i18n";
-import { colorSchemes } from "./src/config/color-schemes";
-import { tagVocabulary } from "./src/config/tag-vocabulary";
+import { zudoDoc } from "@takazudo/zudo-doc/config";
 
-const directiveVocabulary = {
-  note: "Note",
-  tip: "Tip",
-  info: "Info",
-  warning: "Warning",
-  danger: "Danger",
-  caution: "Caution",
-  details: "Details",
-};
-
-export default defineConfig({
-  // ── Host-owned shell fields ──────────────────────────────────────────────
-  framework: "preact",
-  // Pin the dev/preview port — zfb defaults to 3000, but the generated
-  // CLAUDE.md and the Tauri dev wrappers assume 4321.
-  port: 4321,
-  tailwind: { enabled: true },
-  // Public URL prefix for <link rel="stylesheet"> and <script> tags.
-  // The site is served at the domain root, so base is "/" (no prefix) and
-  // copyPublicWithBase keeps its default — public/ assets land at the dist
-  // root, matching the root deploy.
-  base: settings.base,
-
-  // ── Preset-owned fields (content collections, plugins, markdown, …) ────────
-  ...zudoDocPreset({ settings, buildDocsSchema, directiveVocabulary, translations, colorSchemes, tagVocabulary }),
-
-  // Cloudflare adapter — wraps the SSR bundle into `dist/_worker.js` (the
-  // explicit main entry for the Workers static-assets deploy) plus a sidecar
-  // `dist/_zfb_inner.mjs`. Required so `zfb build` emits a worker for the
-  // Cloudflare Workers deploy (see wrangler.toml + .github/workflows). Placed
-  // after the preset spread so it wins regardless of any preset default.
-  adapter: "@takazudo/zfb-adapter-cloudflare",
-});
+export default defineConfig(
+  zudoDoc({
+    siteName: "Zudo Token Panel",
+    siteDescription:
+      "A Preact-based live design-token tweak panel and companion Node bin server for CSS custom properties.",
+    siteUrl: "https://zudo-design-token-panel.takazudomodular.com",
+    locales: {
+      ja: {
+        label: "JA",
+        dir: "src/content/docs-ja",
+      },
+    },
+    // zudo-doc 4.x defaults cjkFriendly to false, but the retained Japanese
+    // content relies on it: emphasis/bold adjacent to CJK text and full-width
+    // parens (e.g. `**…（lone semantic tier）**`) renders literal `*` without it.
+    cjkFriendly: true,
+    designTokenPanel: true,
+    imageEnlarge: true,
+    dynamicPageTransition: true,
+    footer: {
+      links: [],
+      copyright: "Copyright © 2026 Takeshi Takatsudo. Built with zudo-doc.",
+    },
+    headerNav: [
+      {
+        label: "Getting Started",
+        path: "/docs/getting-started",
+        categoryMatch: "getting-started",
+      },
+      {
+        label: "Reference",
+        path: "/docs/reference",
+        categoryMatch: "reference",
+      },
+      {
+        label: "Recipes",
+        path: "/docs/recipes",
+        categoryMatch: "recipes",
+      },
+      {
+        label: "Changelog",
+        path: "/docs/changelog",
+        categoryMatch: "changelog",
+      },
+    ],
+    adapter: "@takazudo/zfb-adapter-cloudflare",
+    headerRightItems: [
+      {
+        type: "trigger",
+        trigger: "design-token-panel",
+      },
+      {
+        type: "component",
+        component: "theme-toggle",
+      },
+      {
+        type: "component",
+        component: "search",
+      },
+      {
+        type: "component",
+        component: "language-switcher",
+      },
+    ],
+  }),
+);

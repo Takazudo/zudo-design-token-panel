@@ -2,7 +2,6 @@
 node_modules
 dist
 .zfb
-# transient zfb bundle artifact (large bundle.mjs + map written during `zfb build`)
 .zfb-build
 
 # macOS
@@ -24,8 +23,3 @@ pnpm-debug.log*
 
 # zudo-doc build artifact (routes-src/ staged here at build time)
 .zudo-doc/
-
-# Generated doc-lookup skill
-.claude/skills/doc-wisdom/SKILL.md
-.claude/skills/doc-wisdom/docs
-.claude/skills/doc-wisdom/docs-ja

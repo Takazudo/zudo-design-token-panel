@@ -2,6 +2,8 @@
 
 Project-scoped rules that apply across the whole monorepo. Subdirectories may have their own `CLAUDE.md` (e.g. `doc/CLAUDE.md` for the docs site) which adds rules specific to that workspace.
 
+For how the docs site's design-token-panel relates to this repo's `packages/zdtp` (never force-link the local workspace copy into `doc/`), see the "zdtp ↔ zudo-doc relationship" section in `doc/CLAUDE.md`.
+
 ## Panel DOM hygiene — no host-stylable semantic tags
 
 The panel is embedded inside a host app. Any semantic HTML element whose default browser styles can be reset or overridden by the host's global CSS must NOT appear in the panel's own markup.
