@@ -42,7 +42,7 @@ run_worker_first = false
 # Workers custom domain + DNS (CNAME) record + TLS cert automatically on
 # `wrangler deploy`. Preconditions: takazudomodular.com is a zone on the SAME
 # Cloudflare account as CLOUDFLARE_ACCOUNT_ID, and the hostname has no
-# pre-existing CNAME. Keep in sync with siteUrl in doc/src/config/settings.ts.
+# pre-existing CNAME. Keep in sync with siteUrl in doc/zfb.config.ts.
 # ---------------------------------------------------------------------------
 [[routes]]
 pattern = "zudo-design-token-panel.takazudomodular.com"
