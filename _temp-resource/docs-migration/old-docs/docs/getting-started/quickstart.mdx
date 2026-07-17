@@ -1,0 +1,169 @@
+---
+title: Quickstart
+description: Configure the panel, declare a minimal tabs manifest, and toggle it from the devtools console.
+sidebar_position: 3
+---
+
+This page is the smallest end-to-end wiring of `@takazudo/zdtp` — just enough code to call `configurePanel({...})`, declare a one-tab manifest, and pop the panel from your browser console. After this, the [Configure Panel reference](/docs/reference/configure-panel) covers every field on `PanelConfig` in depth.
+
+## What you'll wire up
+
+The public surface of the package is a single configure-once init:
+
+```ts
+import { configurePanel, type PanelConfig } from '@takazudo/zdtp';
+
+configurePanel({
+  storagePrefix: 'myapp-design-token-panel',
+  consoleNamespace: 'myapp',
+  modalClassPrefix: 'myapp-design-token-panel-modal',
+  schemaId: 'myapp-design-tokens/v1',
+  exportFilenameBase: 'myapp-design-tokens',
+  tabs: myTabs,
+});
+```
+
+Once configured, the package installs three async helpers on `window.<consoleNamespace>` — `showDesignPanel()`, `hideDesignPanel()`, `toggleDesignPanel()`. Calling any of them lazy-imports the panel module and mounts the UI. The package also installs a fixed-name `window.zdtp` global (`zdtp.show()` / `zdtp.hide()` / `zdtp.toggle()`) so you never need to remember your own `consoleNamespace` just to pop the panel open — see [Lifecycle helpers](/docs/reference/configure-panel#lifecycle-helpers) for the full picture.
+
+<Info title="Astro hosts call this for you">
+  When you drop `<DesignTokenPanelHost config={myPanelConfig} />` into an Astro layout, the host adapter reads the inline JSON config and calls `configurePanel(...)` on your behalf. You don't need to call it manually. For Vite + React or Next.js, you call it yourself before importing the panel module.
+</Info>
+
+## Step 1 — Define a minimal `PanelConfig`
+
+Create a file alongside your source to hold the config. Five identifiers (storage prefix, console namespace, modal class prefix, schema id, export filename) plus your tab array are all the package needs.
+
+```ts
+// src/lib/my-panel-config.ts
+import type { PanelConfig } from '@takazudo/zdtp';
+import { myTabs } from './my-tabs';
+
+export const myPanelConfig: PanelConfig = {
+  storagePrefix: 'myapp-design-token-panel',
+  consoleNamespace: 'myapp',
+  modalClassPrefix: 'myapp-design-token-panel-modal',
+  schemaId: 'myapp-design-tokens/v1',
+  exportFilenameBase: 'myapp-design-tokens',
+  tabs: myTabs,
+};
+```
+
+Pick identifiers that are unambiguous to your app — typically your app slug. The `storagePrefix` value is the only knob that controls every persisted `localStorage` key, so renaming it later loses users' saved tweaks.
+
+## Step 2 — A minimal `tabs` manifest
+
+`PanelConfig.tabs` is a `readonly TabConfig[]` — every tab in the panel strip is one entry in this array. A `TabConfig` holds a stable `id`, a human label, and one or more *tiers* of editable CSS-variable rows.
+
+The simplest useful manifest has a single spacing tab with a single tier and two items:
+
+```ts
+// src/lib/my-tabs.ts
+import type { TabConfig } from '@takazudo/zdtp';
+
+export const myTabs: readonly TabConfig[] = [
+  {
+    id: 'spacing',
+    label: 'Spacing',
+    tiers: [
+      {
+        id: 'base',
+        label: 'Base spacing',
+        items: [
+          {
+            id: 'myapp-spacing-md',
+            cssVar: '--myapp-spacing-md',
+            label: 'Spacing M',
+            group: 'hsp',
+            default: '1rem',
+            type: { kind: 'length', min: 0, max: 4, step: 0.0625, unit: 'rem' },
+          },
+          {
+            id: 'myapp-spacing-lg',
+            cssVar: '--myapp-spacing-lg',
+            label: 'Spacing L',
+            group: 'vsp',
+            default: '2rem',
+            type: { kind: 'length', min: 0, max: 6, step: 0.0625, unit: 'rem' },
+          },
+        ],
+      },
+    ],
+  },
+];
+```
+
+`cssVar` is the CSS custom property the panel writes to `:root` via `setProperty()` — make sure your stylesheet reads from the same variable names. The `type` field is a discriminated union (`'length'`, `'number'`, `'select'`, `'text'`, `'color'`) that controls which editor widget renders for the row.
+
+<Note title="The abstract tier model">
+  Every tab family — spacing, typography, size, color, easing, or any custom domain — uses the same `TabConfig` shape. A tab can have multiple tiers, and a tier can reference another tier's items by id so edits to a raw primitive cascade through semantic roles automatically. For the full mental model and a two-tier cross-reference example, see [The abstract token-tier model](/docs/reference/architecture#the-abstract-token-tier-model).
+</Note>
+
+## Step 3 — Call `configurePanel(...)` and toggle the panel
+
+For a non-Astro host (Vite + React, Next.js, custom Vite SPA), call `configurePanel(...)` once at app boot — typically from your entry module — then open the devtools console:
+
+```ts
+// src/main.ts (Vite + React) or app/layout.tsx (Next.js, with 'use client')
+import { configurePanel } from '@takazudo/zdtp';
+import '@takazudo/zdtp/styles';
+import { myPanelConfig } from './lib/my-panel-config';
+
+configurePanel(myPanelConfig);
+```
+
+Then, in the browser devtools console:
+
+```js
+window.myapp.toggleDesignPanel();
+// or, without remembering your own consoleNamespace:
+zdtp.toggle();
+```
+
+The first call lazy-imports the panel module and mounts it. Subsequent calls share the memoised module promise.
+
+<Tip title="Three async helpers">
+  All three console helpers are `async`. Their signatures: `showDesignPanel(): Promise<void>`, `hideDesignPanel(): Promise<void>`, `toggleDesignPanel(): Promise<void>`. They merge into any pre-existing `window.<consoleNamespace>` object so a host can share the namespace between multiple dev tools.
+</Tip>
+
+For Astro, you don't call `configurePanel(...)` directly — you drop the host component into your layout and the host adapter wires everything up:
+
+```astro
+---
+// src/layouts/Layout.astro
+import DesignTokenPanelHost from '@takazudo/zdtp/astro/DesignTokenPanelHost.astro';
+import '@takazudo/zdtp/styles';
+import { myPanelConfig } from '../lib/my-panel-config';
+---
+
+<!doctype html>
+<html lang="en">
+  <body>
+    <slot />
+    <DesignTokenPanelHost config={myPanelConfig} />
+  </body>
+</html>
+
+<script>
+  void import('@takazudo/zdtp/astro/host-adapter');
+</script>
+```
+
+The `<DesignTokenPanelHost>` component AND the host-adapter `<script>` block are a paired unit — both lines are required, always together. Skipping the script leaves the JSON config payload on the page with no JS to read it.
+
+## Verify the panel mounts
+
+Open the page in a browser, drop into devtools, and run:
+
+```js
+window.myapp.toggleDesignPanel();
+```
+
+You should see a Preact-rendered side panel mount. Drag a slider; the matching `--myapp-*` CSS variable updates on `:root` immediately. Reload the page — the override re-applies before first paint, no FOUT.
+
+<Warning title="Panel looks unstyled?">
+  The panel self-injects its stylesheet when it first mounts — no `import '@takazudo/zdtp/styles'` is needed. If the chrome is missing (transparent background, default page font), the panel module itself failed to load. Check your bundler configuration and confirm the `preact` peer dependency is installed.
+</Warning>
+
+## Next step
+
+This page got you to "the panel renders, my CSS variables update." For the full `PanelConfig` shape and tab manifest deep-dive, continue to the [Configure Panel reference](/docs/reference/configure-panel). For framework-specific snippets, see [Frameworks Comparison](./frameworks-comparison).
