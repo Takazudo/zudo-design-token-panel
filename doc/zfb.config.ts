@@ -13,6 +13,10 @@ export default defineConfig(
         dir: "src/content/docs-ja",
       },
     },
+    // zudo-doc 4.x defaults cjkFriendly to false, but the retained Japanese
+    // content relies on it: emphasis/bold adjacent to CJK text and full-width
+    // parens (e.g. `**…（lone semantic tier）**`) renders literal `*` without it.
+    cjkFriendly: true,
     designTokenPanel: true,
     imageEnlarge: true,
     dynamicPageTransition: true,
