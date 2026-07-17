@@ -2,9 +2,10 @@
 /**
  * F33 + F24: Hostile-host CSS isolation — Level-5 automated browser gate.
  *
- * Converts the manual DevTools harness (hostile-host.mdx) into a
- * deterministic regression gate that runs in CI via Playwright Chromium on
- * every PR.  Two test groups:
+ * Converts the manual DevTools harness (formerly documented at the now-dropped
+ * doc/src/content/docs/internal/hostile-host.mdx) into a deterministic
+ * regression gate that runs in CI via Playwright Chromium on every PR.  Two
+ * test groups:
  *
  *   F33 — full hostile CSS environment:
  *     Injects the acceptance-criteria hostile block (h1-h6/p/ul/li/table
@@ -18,8 +19,8 @@
  *     ancestor, NOT a descendant — reports viewport-relative coordinates for
  *     its position:fixed bounding box.
  *
- * See: doc/src/content/docs/internal/hostile-host.mdx §Level-5 automated gate
- * and packages/zdtp/CLAUDE.md §SVG defensive reset.
+ * See: packages/zdtp/CLAUDE.md §Hostile-host test page and §SVG defensive
+ * reset.
  */
 
 import { render } from 'preact';
@@ -532,7 +533,7 @@ describe('F33 — panel chrome survives full hostile CSS environment', () => {
 //
 // Known limitation (not tested): if `body` or `html` itself carries a transform
 // (e.g. `html { filter: invert(1) }` dark-mode hacks), all fixed elements inside
-// body are trapped. See hostile-host.mdx §Transform-ancestor note (F24).
+// body are trapped.
 // ---------------------------------------------------------------------------
 
 describe('F24 — panel position:fixed resolves against viewport, not transform ancestor', () => {
