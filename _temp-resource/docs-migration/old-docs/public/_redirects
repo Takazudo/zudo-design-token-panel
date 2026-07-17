@@ -1,0 +1,7 @@
+# The doc site is served at the domain root, so no root→base redirect is
+# needed. Only the renamed-page 301s remain.
+# three-frameworks was renamed to four-frameworks, then to frameworks-comparison
+/docs/getting-started/three-frameworks  /docs/getting-started/frameworks-comparison  301
+/docs/getting-started/three-frameworks/  /docs/getting-started/frameworks-comparison/  301
+/docs/getting-started/four-frameworks  /docs/getting-started/frameworks-comparison  301
+/docs/getting-started/four-frameworks/  /docs/getting-started/frameworks-comparison/  301

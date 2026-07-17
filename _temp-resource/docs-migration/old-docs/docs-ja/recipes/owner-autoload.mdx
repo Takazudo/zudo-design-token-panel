@@ -1,0 +1,158 @@
+---
+title: 自分（サイトオーナー）だけにパネルを読み込む
+description: owner-autoload を使い、デザイントークンパネルを自分のブラウザだけに読み込んで、一般訪問者にはパネルの JS を一切読み込ませない方法。
+sidebar_position: 8
+---
+
+公開サイトを運用していて、デザイントークンパネルを開発者である**自分自身**には
+使えるようにしたい。ただし一般訪問者にはパネルの JavaScript を一切読み込ませたく
+ない——owner-autoload はそのための機能です。
+
+- **一般訪問者:** バンドルコストはゼロ。パネルの JS は一切フェッチされません。
+  JavaScript も CSS も DOM 要素も生成されません。
+- **オーナー（自分）:** ページを開くたびにパネルバンドルが即座に読み込まれ、
+  **閉じた状態**でマウントされます。さらに **Alt+クリックの要素パスインスペクター**
+  が有効化され、パネル UI を開かなくても任意の要素をクリックしてそのセレクターを
+  コピーできます。
+
+オプトインは明示的で、ブラウザごとに行います。自分のマシンの DevTools で
+`window.<ns>.enableAutoload()` を一度だけ実行してください。このフラグは
+`localStorage` に保存されるため、ページの再読み込み・ソフトナビゲーション・
+ブラウザの再起動をまたいで保持されます。しかも保存先は自分のブラウザだけで、
+サーバーやビルド成果物には残りません。
+
+ストレージキーの導出方法とゲートの完全な契約については、
+[PORTABLE-CONTRACT.md §6.2](https://github.com/Takazudo/zudo-design-token-panel/blob/main/packages/zdtp/PORTABLE-CONTRACT.md) を参照してください。
+
+## 仕組み
+
+ホストアダプターはページを読み込むたびに `localStorage` 内の 4 つのシグナルを
+チェックします。**どれも**セットされていない場合——公開サイトに初めて訪れた人に
+とっては通常このケースです——バンドルはフェッチされません。owner-autoload の
+シグナルはこの 4 つのうちの 1 つです。
+
+| シグナル | 意味 |
+|--------|------|
+| `${storagePrefix}:visible` | 前回の訪問時にパネルが開いていた |
+| `${storagePrefix}-state-v3` | ユーザーがトークンのオーバーライドを保存している |
+| `${storagePrefix}:autoload` | owner-autoload フラグ——**自分**がオーナーモードである |
+| `${storagePrefix}-elpath-enabled` | 要素パスインスペクターが有効になっている |
+
+`enableAutoload()` は `:autoload` フラグを書き込み、要素パスインスペクターを
+有効化します。`disableAutoload()` は 4 つのオーナーモードキーすべてをクリアし、
+パネルをアンマウントします。
+
+## オプトイン（DevTools で一度だけ実行）
+
+サイトの任意のページで DevTools を開き、次を実行します。
+
+```js
+window.myapp.enableAutoload();
+// Replace 'myapp' with your PanelConfig.consoleNamespace value.
+```
+
+これ以降、そのブラウザでページを読み込むたびに次の処理が行われます。
+
+1. パネルバンドルを即座にフェッチする（オーバーライドを保存しているときと同じ経路）。
+2. Preact のシェルを**閉じた状態**でマウントする——パネル UI は表示されないまま。
+3. Alt+クリックの要素パスインスペクターを有効化する——任意の要素にホバーして
+   クリックすると、詳細なセレクターブロックがクリップボードにコピーされる。
+4. これまでどおり `window.myapp.{show,hide,toggle}DesignPanel()` のコンソール
+   ヘルパー——そして固定名の `zdtp.{show,hide,toggle}()` グローバル——を
+   使えるようにする。
+
+## オプトアウト
+
+自分のブラウザでパネルの読み込みを止めるには次を実行します。
+
+```js
+window.myapp.disableAutoload();
+```
+
+これにより `:autoload` フラグ、`:visible` フラグ、要素パス有効化キー、開閉状態
+キーがクリアされ、Preact のシェルがアンマウントされます。次回のページ読み込みからは、
+再びパネルなしの状態に戻ります。
+
+## 自動記憶: 最初にパネルを開くと autoload が有効になる
+
+どのような手段であれパネルを開くと——`showDesignPanel()`、`toggleDesignPanel()`、
+固定名グローバルの `zdtp.show()` / `zdtp.toggle()`、あるいはパネルヘッダーの
+閉じる／開き直しボタンのいずれであっても——**`:autoload` フラグが自動的に
+セットされます**。すでにこれらのいずれかの方法でパネルを開いたことがあれば、
+`enableAutoload()` を明示的に呼ぶ必要はありません。フラグは最初に開いた時点で
+セットされ、ページ読み込みをまたいで保持されます。
+
+## 落とし穴: 表に見える「開く」トリガーは一般訪問者のオプトインになる
+
+パネルを開く操作はどれも `:autoload` を有効化するため、一般訪問者の目に触れる
+UI トリガーは、クリックした人にとって事実上のオプトインになってしまいます。
+
+<Warning>
+公開サイトでは、認証で保護しない限り、**表に見える「パネルを開く」ボタンや
+キーボードショートカットを追加しないでください**。たまたまそれをクリックした
+一般訪問者は、自分のブラウザに `:autoload` がセットされ、それ以降ページを
+訪れるたびにパネルバンドルが読み込まれてしまいます。
+</Warning>
+
+完全に公開されたサイトでは、次のようにします。
+
+- 本番ビルドからは、パネルを開く操作の入り口を一切省くか隠す。
+- 意図的なオプトインの手段としては、DevTools から `enableAutoload()` を使う。
+- 要素パス機能は、パネルの Alt+クリックインスペクターに任せ、パネル UI を
+  無理に開かせない。
+
+## 実例: 安全なオーナー専用ローダー
+
+以下は、このドキュメントサイト自身が使っているパターンです（#422）。常に存在する
+小さな `<script>` ブロックが localStorage をチェックし、**オーナーフラグがすでに
+セットされているときだけ**パネルを動的に import します。初回訪問時にパネルが
+import されることはなく、フラグは前述の DevTools コンソール呼び出しによってのみ
+セットされます。
+
+```html
+<!-- Your page layout — runs on every page, before </body> -->
+<script>
+  // Tiny stub — the full panel bundle is imported only when :autoload is set.
+  // Replace storagePrefix with your PanelConfig.storagePrefix value.
+  const storagePrefix = 'myapp-design-token-panel';
+  const autoloadKey   = `${storagePrefix}:autoload`;
+
+  if (window.localStorage?.getItem(autoloadKey) === '1') {
+    // Owner mode: load the panel module. The module's own bootstrap logic
+    // reads the four gate signals, finds :autoload='1', and re-applies the
+    // full owner-mode state (CLOSED mount + element-path armed).
+    void import('@takazudo/zdtp');
+  }
+</script>
+```
+
+`<DesignTokenPanelHost>` コンポーネントを使う **Astro サイト**では、このスタブは
+不要です。ホストアダプターが `:autoload` シグナルを含めた遅延読み込みのゲートを
+すでに処理しているためです。このパターンが当てはまるのは、Astro 以外のホストや、
+import のトリガーを明示的に制御したいカスタム構成の場合です。
+
+<Tip>
+`<DesignTokenPanelHost>` を使った Astro サイトなら、DevTools で
+`window.myapp.enableAutoload()` を一度実行するだけで十分です。あとはアダプターが、
+それ以降のページ読み込みのたびに自動で処理します。
+</Tip>
+
+## まとめ
+
+| 操作 | 内容 |
+|------|------|
+| オプトイン | DevTools で `window.myapp.enableAutoload()`（一度だけ） |
+| オプトアウト | DevTools で `window.myapp.disableAutoload()` |
+| 一般訪問者 | コストゼロ——バンドルも CSS も DOM もなし |
+| オーナー（オプトイン後） | バンドルが即座に読み込まれ、パネルは閉じた状態でマウント、Alt+クリックが有効 |
+| 最初に開いたとき | autoload が自動的に有効化され、以降のページで再読み込みされる |
+
+## 関連ページ
+
+- [PORTABLE-CONTRACT.md §6.2](https://github.com/Takazudo/zudo-design-token-panel/blob/main/packages/zdtp/PORTABLE-CONTRACT.md) — 遅延読み込み
+  ゲートの仕様（4 シグナル契約）と、`enableAutoload` / `disableAutoload` API の
+  完全な契約。
+- [ストレージキーのリファレンス](../reference/configure-panel.mdx) — `storagePrefix`
+  と、コロン区切りの `${storagePrefix}:autoload` キーの導出方法。
+- [遅延カラープリセット](/docs/recipes/lazy-color-presets) — 一般訪問者のページ
+  読み込みを軽く保つ、もう 1 つのパターン。
