@@ -26,6 +26,7 @@ import {
   type PanelConfig,
 } from './config/panel-config';
 import type { TabConfig } from './tokens/tier-model';
+import { isDocumentUsable } from './utils/document-liveness';
 import { usePersist } from './state/persist';
 import {
   type TweakState,
@@ -210,6 +211,13 @@ export default function DesignTokenTweakPanel({
 
   // Restore open state, position, and size from localStorage after mount (avoids SSR hydration mismatch)
   useEffect(() => {
+    // Liveness probe (zudolab/zudo-doc#3344): Preact flushes this effect on
+    // rAF/setTimeout, which can land after a test environment tore down the
+    // document. The setStates below would schedule a re-render that Preact
+    // materialises via the dead global document (createElementNS on a
+    // non-Document) — skip the restore entirely; there is no page left to
+    // restore into.
+    if (!isDocumentUsable()) return;
     try {
       if (localStorage.getItem(getOpenKey(instanceConfig)) === '1') setOpen(true);
     } catch {
@@ -246,6 +254,15 @@ export default function DesignTokenTweakPanel({
   // next page load via reapplyFromStorage → wasVisible(). Writing :visible
   // here ensures every close path (public API or internal UI) stays in lockstep.
   useEffect(() => {
+    // Liveness probe (zudolab/zudo-doc#3344): when the mount-restore effect
+    // above bailed on a torn-down document, `open` is still its initial
+    // `false` — writing that here would REMOVE the open key and write
+    // :visible='0', clobbering the seeds `showInstance` had already made
+    // synchronously and restoring the panel closed on the next page. Skip:
+    // the dead environment's `open` says nothing about the user's intent.
+    // Inert on a live mount — the `open` dep re-runs this effect as soon as
+    // the restore sets it, rewriting the correct values.
+    if (!isDocumentUsable()) return;
     try {
       const openKey = getOpenKey(instanceConfig);
       if (open) localStorage.setItem(openKey, '1');

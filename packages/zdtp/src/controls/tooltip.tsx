@@ -20,6 +20,7 @@ import { createContext } from 'preact';
 import { useContext, useState, useEffect, useRef, useCallback } from 'preact/hooks';
 import { createPortal } from 'preact/compat';
 import type { ComponentChildren, JSX } from 'preact';
+import { isDocumentUsable } from '../utils/document-liveness';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -223,7 +224,12 @@ export function TooltipProvider({ children }: TooltipProviderProps) {
   return (
     <TooltipContext.Provider value={{ show, hide }}>
       {children}
-      {typeof document !== 'undefined' &&
+      {/* Liveness + body probe, not just an SSR guard: a re-render scheduled
+          from a late effect can land after a test environment tore down the
+          document (zudolab/zudo-doc#3344) — portaling into a missing body
+          would throw mid-render. */}
+      {isDocumentUsable() &&
+        !!document.body &&
         createPortal(<TooltipElement state={tooltipState} />, document.body)}
     </TooltipContext.Provider>
   );

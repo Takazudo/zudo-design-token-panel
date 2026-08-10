@@ -80,6 +80,7 @@ import {
   setAutoload,
   clearAutoload,
 } from './state/autoload-state';
+import { isDocumentUsable } from './utils/document-liveness';
 
 // ---------------------------------------------------------------------------
 // Public DOM contract (kept in sync with astro/host-adapter.ts)
@@ -223,7 +224,10 @@ function seedOpenStateBeforeMount(cfg: PanelConfig, desiredOpen: boolean): void 
 // ---------------------------------------------------------------------------
 
 function findRoot(cfg: PanelConfig): HTMLElement | null {
-  if (typeof document === 'undefined') return null;
+  // Liveness probe, not just an SSR guard: hosts call the public API from
+  // async continuations that can resume after their document was torn down
+  // or swapped (zudolab/zudo-doc#3344) — treat a dead document as "no root".
+  if (!isDocumentUsable()) return null;
   return document.getElementById(getPanelId(cfg));
 }
 
@@ -242,12 +246,15 @@ const PANEL_STYLE_ELEMENT_ID = 'zudo-design-token-panel-styles';
  * themselves (that export remains valid but is now optional).
  */
 function ensurePanelStyles(): void {
-  if (typeof document === 'undefined') return;
-  if (document.getElementById(PANEL_STYLE_ELEMENT_ID)) return;
-  const style = document.createElement('style');
+  if (!isDocumentUsable()) return;
+  // Capture once so every step below operates on the same document even if
+  // the global is swapped between statements (teardown race, #3344 upstream).
+  const doc = document;
+  if (doc.getElementById(PANEL_STYLE_ELEMENT_ID)) return;
+  const style = doc.createElement('style');
   style.id = PANEL_STYLE_ELEMENT_ID;
   style.textContent = panelCss;
-  document.head.appendChild(style);
+  doc.head.appendChild(style);
 }
 
 /**
@@ -259,7 +266,10 @@ function ensurePanelStyles(): void {
  * by then.
  */
 function ensureMounted(cfg: PanelConfig): boolean {
-  if (typeof document === 'undefined') return false;
+  if (!isDocumentUsable()) return false;
+  // Capture once so every step below operates on the same document even if
+  // the global is swapped between statements (teardown race, #3344 upstream).
+  const doc = document;
   // Bind this instance's toggle-event listener at its materialization point so
   // that, after the first programmatic interaction (handle.open/toggle, show/
   // hide), a host-dispatched `toggle-${storagePrefix}` window event keeps
@@ -267,11 +277,12 @@ function ensureMounted(cfg: PanelConfig): boolean {
   // additionally bound eagerly at module init.
   bindInstance(cfg);
   const panelId = getPanelId(cfg);
-  if (document.getElementById(panelId)) return false;
+  if (doc.getElementById(panelId)) return false;
+  if (!doc.body) return false;
   ensurePanelStyles();
-  const root = document.createElement('div');
+  const root = doc.createElement('div');
   root.id = panelId;
-  document.body.appendChild(root);
+  doc.body.appendChild(root);
   // Pass the instance's OWN config so the panel reads ITS own open/visible
   // keys, subscribes to ITS own per-instance sync event, and renders ITS own
   // tabs — two panels on one page stay fully independent (issue #354). `cfg`
@@ -406,6 +417,11 @@ export {
  */
 function showInstance(cfg: PanelConfig): void {
   if (typeof window === 'undefined') return;
+  // Straggler guard (zudolab/zudo-doc#3344): hosts call this from async
+  // continuations (`await import('@takazudo/zdtp')` → show) that can resume
+  // after the document was torn down. Bail BEFORE any storage write so a dead
+  // environment's straggler doesn't corrupt the next environment's state.
+  if (!isDocumentUsable()) return;
   const isFreshMount = !findRoot(cfg);
   // Write OPEN_KEY synchronously so both the fresh-mount path (panel reads on
   // mount) and the steady-state path (panel reads on sync event) see the
@@ -432,6 +448,8 @@ function showInstance(cfg: PanelConfig): void {
 /** Hide ONE instance's panel. See `showInstance` for the per-instance keying. */
 function hideInstance(cfg: PanelConfig): void {
   if (typeof window === 'undefined') return;
+  // Straggler guard — see showInstance.
+  if (!isDocumentUsable()) return;
   const isFreshMount = !findRoot(cfg);
   seedOpenStateBeforeMount(cfg, false);
   ensureMounted(cfg);
@@ -447,6 +465,8 @@ function hideInstance(cfg: PanelConfig): void {
 /** Toggle ONE instance's panel. See `showInstance` for the per-instance keying. */
 function toggleInstance(cfg: PanelConfig): void {
   if (typeof window === 'undefined') return;
+  // Straggler guard — see showInstance.
+  if (!isDocumentUsable()) return;
   const isFreshMount = !findRoot(cfg);
   // When the panel root is absent (fresh mount, or SPA-nav zombie state where
   // `unmountForSwap` removed the root but left `OPEN_KEY='1'` behind), the
@@ -548,6 +568,9 @@ export function __reapplyFromStorageForTests(): void {
  */
 export function reapplyPersistedOverrides(): void {
   if (typeof window === 'undefined') return;
+  // Straggler guard — see showInstance. applyFullState writes to
+  // document.documentElement; a torn-down document has nothing to paint.
+  if (!isDocumentUsable()) return;
   // Loop ALL registered instances: a hidden instance's persisted overrides are
   // only ever applied here — the panel's own apply effect is gated on `open`,
   // so a default-only reapply silently drops every other instance's CSS vars
@@ -597,6 +620,9 @@ export function reapplyPersistedOverrides(): void {
  * reflects the user's last state, not an artefact of the unmount path.
  */
 function unmountForSwap(): void {
+  // Straggler guard — see showInstance. findRoot already returns null on a
+  // dead document; bailing here also skips the wasVisible/localStorage churn.
+  if (!isDocumentUsable()) return;
   // Loop ALL registered instances so non-default panels are also properly
   // unmounted via render(null) — this drives their useEffect cleanups, which
   // removes their per-instance window/document listeners (open-state sync,
@@ -634,6 +660,10 @@ function unmountForSwap(): void {
  * same way the adapter's module-init path kills it on hard-nav.
  */
 function reapplyFromStorage(): void {
+  // Straggler guard — see showInstance. This runs from the post-configure
+  // hook and lifecycle-adapter page-load callbacks, both reachable from host
+  // async continuations after teardown.
+  if (!isDocumentUsable()) return;
   // Apply persisted token overrides to :root for every registered instance
   // first (kills the FOUT on soft-nav before any Preact render).
   reapplyPersistedOverrides();
@@ -703,6 +733,9 @@ function reapplyFromStorage(): void {
  *   from the mount-effect path (line 170 in `panel.tsx`).
  */
 function handleExternalToggleEvent(cfg: PanelConfig): void {
+  // Straggler guard — see showInstance. A toggle event replayed into a
+  // torn-down environment must not seed OPEN_KEY or attempt a mount.
+  if (!isDocumentUsable()) return;
   const isFreshMount = !findRoot(cfg);
   // When the panel root is absent (fresh mount, or SPA-nav zombie state where
   // `unmountForSwap` removed the root but left `OPEN_KEY='1'` behind), the
@@ -1022,7 +1055,10 @@ function runCleanups(state: AdapterLifecycleState): void {
  * the listeners are a no-op and the cleanup list stays empty.
  */
 function bindAstroFallback(state: AdapterLifecycleState): void {
-  if (typeof document === 'undefined') return;
+  // Liveness probe, not just an SSR guard: a nulled or stubbed-out global
+  // (`typeof null === 'object'`) would make the addEventListener calls below
+  // throw — and binding page-swap listeners on a dead document is pointless.
+  if (!isDocumentUsable()) return;
   document.addEventListener('astro:before-swap', unmountForSwap);
   document.addEventListener('astro:page-load', reapplyFromStorage);
   state.cleanups.push(
@@ -1049,7 +1085,8 @@ function bindAstroFallback(state: AdapterLifecycleState): void {
  * caused a real leak in zfb-style hosts that only have a before-swap event.
  */
 function bindAdapter(state: AdapterLifecycleState, adapter: LifecycleAdapter): void {
-  if (typeof document === 'undefined') return;
+  // Liveness probe — see bindAstroFallback.
+  if (!isDocumentUsable()) return;
   if (adapter.onBeforeSwap) {
     state.cleanups.push(adapter.onBeforeSwap(unmountForSwap));
   } else {

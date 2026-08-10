@@ -37,6 +37,7 @@ import type { FindElementsResult } from './find-elements';
 import { HighlightOverlay, type HighlightOverlayItem } from './highlight-overlay';
 import { getPanelConfig } from '../config/panel-config';
 import { usePortalMount } from '../utils/use-portal-mount';
+import { isDocumentUsable } from '../utils/document-liveness';
 import type { TierValueKind } from '../tokens/tier-model';
 
 // ---------------------------------------------------------------------------
@@ -194,6 +195,10 @@ export function HighlightOrchestrator({ children }: { children: ComponentChildre
     let observer: MutationObserver | null = null;
 
     function attachObserver() {
+      // Preact flushes effects on rAF/setTimeout, so this can run after a
+      // test environment tore down the document (zudolab/zudo-doc#3344) —
+      // bail instead of observing a corpse's missing head.
+      if (!isDocumentUsable() || !document.head) return;
       if (observer) observer.disconnect();
       observer = new MutationObserver((mutations) => {
         for (const mutation of mutations) {
@@ -252,6 +257,10 @@ export function HighlightOrchestrator({ children }: { children: ComponentChildre
 
   useEffect(() => {
     if (typeof window === 'undefined') return; // SSR safety
+    // Liveness probe (zudolab/zudo-doc#3344): this effect can flush after a
+    // test environment tore down the document, whose stand-in carries a
+    // non-Node documentElement — observe() would throw.
+    if (!isDocumentUsable()) return;
     const observer = new MutationObserver(() => {
       setThemeVersion((v) => v + 1);
       matchCacheRef.current.clear();

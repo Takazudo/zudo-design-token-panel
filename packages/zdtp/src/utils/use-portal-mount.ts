@@ -18,6 +18,7 @@
  */
 
 import { useState, useEffect, useRef } from 'preact/hooks';
+import { isDocumentUsable } from './document-liveness';
 
 export function usePortalMount(mountId: string): HTMLDivElement | null {
   const mountNodeRef = useRef<HTMLDivElement | null>(null);
@@ -25,7 +26,10 @@ export function usePortalMount(mountId: string): HTMLDivElement | null {
 
   useEffect(() => {
     function getOrCreateMountNode(): HTMLDivElement | null {
-      if (typeof document === 'undefined') return null;
+      // Liveness probe, not just an SSR guard: Preact flushes effects on
+      // rAF/setTimeout, so this can run after a test environment tore down
+      // the document (zudolab/zudo-doc#3344) — bail instead of throwing.
+      if (!isDocumentUsable() || !document.body) return null;
       const existing = document.getElementById(mountId) as HTMLDivElement | null;
       if (existing) return existing;
       const node = document.createElement('div');
@@ -34,14 +38,21 @@ export function usePortalMount(mountId: string): HTMLDivElement | null {
       return node;
     }
 
+    function adoptMountNode() {
+      const node = getOrCreateMountNode();
+      mountNodeRef.current = node;
+      // Only force the re-render when a node was actually obtained — with a
+      // dead document there is nothing for createPortal to attach to, and
+      // bumping the version would just loop render → effect → null again.
+      if (node) setMountVersion((v) => v + 1);
+    }
+
     if (!mountNodeRef.current || !mountNodeRef.current.isConnected) {
-      mountNodeRef.current = getOrCreateMountNode();
-      setMountVersion((v) => v + 1);
+      adoptMountNode();
     }
     function handleAfterSwap() {
       if (!mountNodeRef.current || !mountNodeRef.current.isConnected) {
-        mountNodeRef.current = getOrCreateMountNode();
-        setMountVersion((v) => v + 1);
+        adoptMountNode();
       }
     }
     if (typeof window !== 'undefined') {
