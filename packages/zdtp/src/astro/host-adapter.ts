@@ -274,11 +274,14 @@ function installConsoleApi(
   // are fire-and-forget for most callers.
   existing.showDesignPanel = async () => {
     const owningDoc = captureDocument();
-    // Auto-remember: showing the panel arms autoload so future page loads
-    // reload it automatically (owner-mode semantics).
-    setAutoload(cfg, true);
     await loadPanelModule(state);
     if (!isSameUsableDocument(owningDoc)) return;
+    // Auto-remember: showing the panel arms autoload so future page loads
+    // reload it automatically (owner-mode semantics). Armed only AFTER the
+    // ownership check (zudolab/zudo-doc#3344) — a show that the check cancels
+    // never displayed anything, so persisting autoload would make the next
+    // page eagerly load a panel the user never saw.
+    setAutoload(cfg, true);
     handle.open();
   };
   existing.hideDesignPanel = async () => {

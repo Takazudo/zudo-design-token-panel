@@ -23,9 +23,18 @@
  * `getElementById` doubles as the canary: it is the first DOM call the
  * panel's mount/lookup paths make, and the exact method the downstream
  * teardown crash reported missing.
+ *
+ * The explicit `document !== null` operand is load-bearing: `typeof null` is
+ * `'object'`, so a teardown that nulls the global (`globalThis.document =
+ * null`) sails past the `typeof` check and the `getElementById` probe then
+ * dereferences null — throwing the exact TypeError this helper prevents.
  */
 export function isDocumentUsable(): boolean {
-  return typeof document !== 'undefined' && typeof document.getElementById === 'function';
+  return (
+    typeof document !== 'undefined' &&
+    document !== null &&
+    typeof document.getElementById === 'function'
+  );
 }
 
 /**
@@ -34,9 +43,14 @@ export function isDocumentUsable(): boolean {
  * has already been deleted (teardown completed before the async surface was
  * even entered) — and inside an async function that ReferenceError becomes
  * the very unhandled rejection these helpers exist to prevent.
+ *
+ * A nulled global (`globalThis.document = null`) is captured as `null` too,
+ * not as a "captured document" — `isSameUsableDocument(null)` is false, so a
+ * continuation entered during that teardown shape cancels rather than
+ * matching a null global against a null capture.
  */
 export function captureDocument(): Document | null {
-  return typeof document === 'undefined' ? null : document;
+  return typeof document === 'undefined' || document === null ? null : document;
 }
 
 /**

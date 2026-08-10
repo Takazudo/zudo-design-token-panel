@@ -33,6 +33,7 @@ import {
 import {
   __resetPanelConfigForTests,
   panelRootId,
+  storageKey_autoload,
   storageKey_visible,
   type PanelConfig,
 } from '../config/panel-config';
@@ -140,6 +141,38 @@ describe('public API against a torn-down document', () => {
     await flushEffects();
   });
 
+  it('teardown before the effect flush leaves the seeded open state intact', async () => {
+    // `showInstance` seeds OPEN_KEY/:visible synchronously, but the panel's
+    // mount effects land later on Preact's rAF flush. Against a dead document
+    // the mount-restore effect bails, so `open` is still its initial `false` —
+    // the persistence effect must bail too, or it mirrors that stale `false`
+    // over the seeds and the next page restores the panel closed.
+    showDesignTokenPanel();
+    expect(localStorage.getItem(OPEN_KEY)).toBe('1');
+
+    vi.stubGlobal('document', makeCrippledDocument());
+    await flushEffects();
+
+    expect(localStorage.getItem(OPEN_KEY)).toBe('1');
+    expect(localStorage.getItem(storageKey_visible(FIXTURE_PANEL_CONFIG))).toBe('1');
+  });
+
+  it('a nulled document global is treated as dead, not as a live document', () => {
+    // `typeof null === 'object'`, so a teardown shape that nulls the global
+    // slips past a bare `typeof document !== 'undefined'` probe and the
+    // following `document.getElementById` dereferences null — the exact
+    // TypeError class this guard exists to prevent.
+    vi.stubGlobal('document', null);
+
+    expect(() => showDesignTokenPanel()).not.toThrow();
+    expect(() => toggleDesignPanel()).not.toThrow();
+    expect(() => hideDesignTokenPanel()).not.toThrow();
+    expect(() => __reapplyFromStorageForTests()).not.toThrow();
+
+    expect(localStorage.getItem(OPEN_KEY)).toBeNull();
+    expect(localStorage.getItem(storageKey_visible(FIXTURE_PANEL_CONFIG))).toBeNull();
+  });
+
   it('control: show mounts normally when the document is live (guards are inert)', () => {
     showDesignTokenPanel();
 
@@ -167,6 +200,7 @@ const CFG: PanelConfig = {
 };
 
 const ADAPTER_OPEN_KEY = getOpenKey(CFG);
+const ADAPTER_AUTOLOAD_KEY = storageKey_autoload(CFG);
 const ADAPTER_ROOT_ID = panelRootId(CFG);
 
 interface ZdtpGlobalApi {
@@ -274,6 +308,19 @@ describe('host-adapter async closures across document teardown', () => {
     expect(document.getElementById(ADAPTER_ROOT_ID)).toBeNull();
   });
 
+  it('a cancelled console showDesignPanel does not arm owner-mode autoload', async () => {
+    await bootstrapAdapter();
+
+    const promise = consoleApi().showDesignPanel();
+    vi.stubGlobal('document', makeCrippledDocument());
+
+    await expect(promise).resolves.toBeUndefined();
+    // Auto-remember must only be armed by a show that actually displayed
+    // something. Persisting it from a cancelled call makes the NEXT page
+    // eagerly fetch the panel bundle for a panel the user never saw.
+    expect(localStorage.getItem(ADAPTER_AUTOLOAD_KEY)).toBeNull();
+  });
+
   it('a call entered after the document global is already gone resolves quietly', async () => {
     await bootstrapAdapter();
 
@@ -289,6 +336,15 @@ describe('host-adapter async closures across document teardown', () => {
     await zdtpGlobal().show();
 
     expect(localStorage.getItem(ADAPTER_OPEN_KEY)).toBe('1');
+    expect(document.getElementById(ADAPTER_ROOT_ID)).not.toBeNull();
+  });
+
+  it('control: a live console showDesignPanel still arms autoload', async () => {
+    await bootstrapAdapter();
+
+    await consoleApi().showDesignPanel();
+
+    expect(localStorage.getItem(ADAPTER_AUTOLOAD_KEY)).toBe('1');
     expect(document.getElementById(ADAPTER_ROOT_ID)).not.toBeNull();
   });
 });
