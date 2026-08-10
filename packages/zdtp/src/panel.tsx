@@ -26,6 +26,7 @@ import {
   type PanelConfig,
 } from './config/panel-config';
 import type { TabConfig } from './tokens/tier-model';
+import { isDocumentUsable } from './utils/document-liveness';
 import { usePersist } from './state/persist';
 import {
   type TweakState,
@@ -210,6 +211,13 @@ export default function DesignTokenTweakPanel({
 
   // Restore open state, position, and size from localStorage after mount (avoids SSR hydration mismatch)
   useEffect(() => {
+    // Liveness probe (zudolab/zudo-doc#3344): Preact flushes this effect on
+    // rAF/setTimeout, which can land after a test environment tore down the
+    // document. The setStates below would schedule a re-render that Preact
+    // materialises via the dead global document (createElementNS on a
+    // non-Document) — skip the restore entirely; there is no page left to
+    // restore into.
+    if (!isDocumentUsable()) return;
     try {
       if (localStorage.getItem(getOpenKey(instanceConfig)) === '1') setOpen(true);
     } catch {

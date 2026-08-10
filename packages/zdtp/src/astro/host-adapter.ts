@@ -64,6 +64,7 @@ import { ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP, getOpenKey } from '../state/tweak-st
 import { shouldAutoload, setAutoload, clearAutoload } from '../state/autoload-state';
 import { loadElementPathEnabled, saveElementPathEnabled } from '../element-path/element-path-state';
 import { loadDomTweakerEnabled } from '../dom-tweaker/dom-tweaker-state';
+import { captureDocument, isSameUsableDocument } from '../utils/document-liveness';
 
 interface DesignTokenPanelAdapterState {
   /** Per-`storagePrefix` bind flag — re-runs of the script are no-ops. */
@@ -264,19 +265,32 @@ function installConsoleApi(
   cfg: PanelConfig,
 ): void {
   const existing = (win[namespace] as ConsoleApiSurface | undefined) ?? {};
+  // Every async handler below captures the document that owned the call
+  // BEFORE its first `await`, and cancels itself quietly when the global
+  // document is gone, swapped, or unusable on resume. Without this, a
+  // continuation resuming after environment teardown (vitest jsdom swap,
+  // zudolab/zudo-doc#3344) reaches `document.getElementById` on a corpse and
+  // the resulting TypeError becomes an unhandled rejection — these handlers
+  // are fire-and-forget for most callers.
   existing.showDesignPanel = async () => {
+    const owningDoc = captureDocument();
     // Auto-remember: showing the panel arms autoload so future page loads
     // reload it automatically (owner-mode semantics).
     setAutoload(cfg, true);
     await loadPanelModule(state);
+    if (!isSameUsableDocument(owningDoc)) return;
     handle.open();
   };
   existing.hideDesignPanel = async () => {
+    const owningDoc = captureDocument();
     await loadPanelModule(state);
+    if (!isSameUsableDocument(owningDoc)) return;
     handle.close();
   };
   existing.toggleDesignPanel = async () => {
+    const owningDoc = captureDocument();
     await loadPanelModule(state);
+    if (!isSameUsableDocument(owningDoc)) return;
     handle.toggle();
     // Read the post-toggle OPEN_KEY to determine whether the panel is now
     // open. Pre-toggle prediction was broken for the fresh-mount case: with
@@ -297,14 +311,17 @@ function installConsoleApi(
     }
   };
   existing.enableAutoload = async () => {
+    const owningDoc = captureDocument();
     // Delegate to the module's cfg-aware implementation — the single source of
     // the owner-mode contract. It sets `:autoload`, arms element-path for THIS
     // instance, and mounts the shell CLOSED. We must `await` the load first so
     // the lifecycle hooks are installed before it drives the mount.
     const mod = await loadPanelModule(state);
+    if (!isSameUsableDocument(owningDoc)) return;
     mod.enableAutoload(cfg);
   };
   existing.disableAutoload = async () => {
+    const owningDoc = captureDocument();
     // If the panel module was already loaded, delegate to its cfg-aware
     // disableAutoload: it clears every owner-mode key for THIS instance AND
     // fully UNMOUNTS the shell, tearing down the live Alt+click inspector
@@ -313,6 +330,7 @@ function installConsoleApi(
     // ElementPathOrchestrator's React state.)
     if (state.modulePromise !== null) {
       const mod = await loadPanelModule(state);
+      if (!isSameUsableDocument(owningDoc)) return;
       mod.disableAutoload(cfg);
       return;
     }
@@ -351,17 +369,25 @@ function installConsoleApi(
  * shared with the package-root install site in `index.tsx`.
  */
 function installZdtpAlias(state: DesignTokenPanelAdapterState, handle: PanelInstanceHandle): void {
+  // Same owning-document capture + post-await cancellation as the console API
+  // handlers in `installConsoleApi` — see the comment there (#3344 upstream).
   installZdtpGlobalAlias({
     show: async () => {
+      const owningDoc = captureDocument();
       await loadPanelModule(state);
+      if (!isSameUsableDocument(owningDoc)) return;
       handle.open();
     },
     hide: async () => {
+      const owningDoc = captureDocument();
       await loadPanelModule(state);
+      if (!isSameUsableDocument(owningDoc)) return;
       handle.close();
     },
     toggle: async () => {
+      const owningDoc = captureDocument();
       await loadPanelModule(state);
+      if (!isSameUsableDocument(owningDoc)) return;
       handle.toggle();
     },
   });
@@ -429,6 +455,13 @@ function installZdtpAlias(state: DesignTokenPanelAdapterState, handle: PanelInst
     loadElementPathEnabled(cfg) ||
     (cfg.domTweaker !== undefined && loadDomTweakerEnabled(cfg))
   ) {
-    void loadPanelModule(state);
+    // Fire-and-forget by design, but with the rejection handled: a failed
+    // chunk load here has no caller to observe it, and an unhandled rejection
+    // in a consumer's test runner fails the whole run (same failure class as
+    // zudolab/zudo-doc#3344). Explicit callers still see the memoised
+    // promise's own rejection.
+    loadPanelModule(state).catch((err: unknown) => {
+      console.error('[design-token-panel] Eager panel-module load failed.', err);
+    });
   }
 })();
