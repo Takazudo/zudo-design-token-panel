@@ -1055,7 +1055,10 @@ function runCleanups(state: AdapterLifecycleState): void {
  * the listeners are a no-op and the cleanup list stays empty.
  */
 function bindAstroFallback(state: AdapterLifecycleState): void {
-  if (typeof document === 'undefined') return;
+  // Liveness probe, not just an SSR guard: a nulled or stubbed-out global
+  // (`typeof null === 'object'`) would make the addEventListener calls below
+  // throw — and binding page-swap listeners on a dead document is pointless.
+  if (!isDocumentUsable()) return;
   document.addEventListener('astro:before-swap', unmountForSwap);
   document.addEventListener('astro:page-load', reapplyFromStorage);
   state.cleanups.push(
@@ -1082,7 +1085,8 @@ function bindAstroFallback(state: AdapterLifecycleState): void {
  * caused a real leak in zfb-style hosts that only have a before-swap event.
  */
 function bindAdapter(state: AdapterLifecycleState, adapter: LifecycleAdapter): void {
-  if (typeof document === 'undefined') return;
+  // Liveness probe — see bindAstroFallback.
+  if (!isDocumentUsable()) return;
   if (adapter.onBeforeSwap) {
     state.cleanups.push(adapter.onBeforeSwap(unmountForSwap));
   } else {
