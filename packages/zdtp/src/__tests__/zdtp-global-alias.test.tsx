@@ -115,7 +115,7 @@ describe('window.zdtp fixed-name global alias — package-root install (#523)', 
     zdtpGlobal()!.show();
     await flushEffects();
 
-    expect(localStorage.getItem(AUTOLOAD_KEY)).toBe('1');
+    expect(localStorage.getItem(AUTOLOAD_KEY)).toBe('auto');
   });
 
   it('does not clobber a pre-existing host-defined window.zdtp', async () => {

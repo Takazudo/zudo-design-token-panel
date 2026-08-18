@@ -5,7 +5,8 @@
  *
  *   1. `reapplyFromStorage` mounts the Preact shell CLOSED when the autoload
  *      flag is set (Gate #2 per autoload-state.ts contract).
- *   2. Opening the panel via any path sets `:autoload = '1'` (auto-remember).
+ *   2. Opening the panel via any path sets `:autoload = 'auto'` (auto-remember),
+ *      without downgrading an explicit `'1'` (#576).
  *   3. Package-root `enableAutoload()` and `disableAutoload()` set/clear the
  *      correct localStorage keys and manage the Preact shell mount.
  *   4. `shouldAutoload()` reflects the persisted flag for the active config.
@@ -110,28 +111,58 @@ describe('reapplyFromStorage — autoload flag causes closed mount', () => {
 // Auto-remember — opening the panel arms the autoload flag
 // ---------------------------------------------------------------------------
 
-describe('auto-remember — opening panel writes :autoload=1', () => {
-  it('showDesignTokenPanel() sets :autoload=1', async () => {
+describe("auto-remember — opening panel writes :autoload='auto'", () => {
+  it("showDesignTokenPanel() sets :autoload='auto'", async () => {
     const { showDesignTokenPanel } = await freshImport();
 
     expect(localStorage.getItem(AUTOLOAD_KEY)).toBeNull();
     showDesignTokenPanel();
-    expect(localStorage.getItem(AUTOLOAD_KEY)).toBe('1');
+    expect(localStorage.getItem(AUTOLOAD_KEY)).toBe('auto');
   });
 
-  it('toggleDesignPanel() sets :autoload=1 when the panel opens', async () => {
+  it("toggleDesignPanel() sets :autoload='auto' when the panel opens", async () => {
     const { toggleDesignPanel } = await freshImport();
 
     expect(localStorage.getItem(AUTOLOAD_KEY)).toBeNull();
     // First toggle → opens the panel.
     toggleDesignPanel();
-    expect(localStorage.getItem(AUTOLOAD_KEY)).toBe('1');
+    expect(localStorage.getItem(AUTOLOAD_KEY)).toBe('auto');
   });
 
-  it('window toggle-event handler sets :autoload=1 on open', async () => {
+  it("window toggle-event handler sets :autoload='auto' on open", async () => {
     await freshImport();
 
     expect(localStorage.getItem(AUTOLOAD_KEY)).toBeNull();
+    window.dispatchEvent(new CustomEvent('toggle-design-token-panel'));
+    expect(localStorage.getItem(AUTOLOAD_KEY)).toBe('auto');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Auto-remember must never downgrade an explicit '1' (#576)
+// ---------------------------------------------------------------------------
+
+describe("auto-remember — an explicit ':autoload=1' survives", () => {
+  it('showDesignTokenPanel() leaves an existing "1" alone', async () => {
+    const { showDesignTokenPanel } = await freshImport();
+
+    localStorage.setItem(AUTOLOAD_KEY, '1');
+    showDesignTokenPanel();
+    expect(localStorage.getItem(AUTOLOAD_KEY)).toBe('1');
+  });
+
+  it('toggleDesignPanel() leaves an existing "1" alone', async () => {
+    const { toggleDesignPanel } = await freshImport();
+
+    localStorage.setItem(AUTOLOAD_KEY, '1');
+    toggleDesignPanel();
+    expect(localStorage.getItem(AUTOLOAD_KEY)).toBe('1');
+  });
+
+  it('the window toggle-event handler leaves an existing "1" alone', async () => {
+    await freshImport();
+
+    localStorage.setItem(AUTOLOAD_KEY, '1');
     window.dispatchEvent(new CustomEvent('toggle-design-token-panel'));
     expect(localStorage.getItem(AUTOLOAD_KEY)).toBe('1');
   });
@@ -183,6 +214,16 @@ describe('disableAutoload()', () => {
     // Preact shell is unmounted and root element removed.
     expect(document.getElementById(PANEL_ROOT_ID)).toBeNull();
   });
+
+  it("removes an auto-remembered ':autoload=auto' too", async () => {
+    const { showDesignTokenPanel, disableAutoload } = await freshImport();
+
+    showDesignTokenPanel();
+    expect(localStorage.getItem(AUTOLOAD_KEY)).toBe('auto');
+
+    disableAutoload();
+    expect(localStorage.getItem(AUTOLOAD_KEY)).toBeNull();
+  });
 });
 
 describe('shouldAutoload()', () => {
@@ -194,6 +235,12 @@ describe('shouldAutoload()', () => {
   it('returns true when :autoload=1', async () => {
     const { shouldAutoload } = await freshImport();
     localStorage.setItem(AUTOLOAD_KEY, '1');
+    expect(shouldAutoload()).toBe(true);
+  });
+
+  it("returns true when :autoload='auto'", async () => {
+    const { shouldAutoload } = await freshImport();
+    localStorage.setItem(AUTOLOAD_KEY, 'auto');
     expect(shouldAutoload()).toBe(true);
   });
 
