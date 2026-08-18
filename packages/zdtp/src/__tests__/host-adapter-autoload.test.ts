@@ -4,8 +4,9 @@
  * Tests for the host-adapter owner-autoload wiring added in #419 (S2).
  *
  * Coverage:
- *   1. Eager-load gate fires on each of the 5 signals (wasVisible,
- *      hasPersistedOverrides, shouldAutoload, loadElementPathEnabled,
+ *   1. Eager-load gate fires on each signal (wasVisible, the `-open` mirror,
+ *      hasPersistedOverrides — now content-checked and matched across the
+ *      whole `-state` family, #577 — shouldAutoload, loadElementPathEnabled,
  *      loadDomTweakerEnabled).
  *   2. enableAutoload() / disableAutoload() set/clear the right storage keys,
  *      including the open key on disable.
@@ -65,10 +66,12 @@ const VISIBLE_KEY = storageKey_visible(CFG); // 'test-hdal:visible'
 const OPEN_KEY = getOpenKey(CFG); // 'test-hdal-open'
 const ELPATH_KEY = `${CFG.storagePrefix}-elpath-enabled`; // 'test-hdal-elpath-enabled'
 const DOMTWEAKER_KEY = `${CFG.storagePrefix}-domtweaker-enabled`; // 'test-hdal-domtweaker-enabled'
+const STATEV1_KEY = `${CFG.storagePrefix}-state`; // 'test-hdal-state'
 const STATEV3_KEY = `${CFG.storagePrefix}-state-v3`; // 'test-hdal-state-v3'
+const STATEV4_KEY = `${CFG.storagePrefix}-state-v4`; // 'test-hdal-state-v4'
 
 /** Set up the inline-config script element the adapter reads on bootstrap. */
-function setupConfigScript(): void {
+function setupConfigScript(cfg: PanelConfig = CFG): void {
   let el = document.getElementById('tokenpanel-config');
   if (!el) {
     const script = document.createElement('script');
@@ -77,7 +80,7 @@ function setupConfigScript(): void {
     document.head.appendChild(script);
     el = script;
   }
-  el.textContent = JSON.stringify(CFG);
+  el.textContent = JSON.stringify(cfg);
 }
 
 /**
@@ -88,8 +91,13 @@ function setupConfigScript(): void {
  *      config registry so configurePanel() treats this as a first-time call.
  *   3. import('../astro/host-adapter') — run the adapter IIFE with the
  *      current localStorage / DOM state.
+ *
+ * Accepts an optional `cfg` for tests that need a non-default
+ * `storagePrefix` (e.g. the sibling-prefix collision cases) — it re-writes
+ * the inline config script before importing so the adapter reads it.
  */
-async function bootstrapAdapter(): Promise<void> {
+async function bootstrapAdapter(cfg: PanelConfig = CFG): Promise<void> {
+  setupConfigScript(cfg);
   vi.resetModules();
   const { __resetPanelConfigForTests: reset } = await import('../config/panel-config');
   reset();
@@ -97,11 +105,15 @@ async function bootstrapAdapter(): Promise<void> {
 }
 
 /** Read the adapter's per-prefix runtime state from the window slot. */
-function adapterState(): { bound: boolean; modulePromise: unknown } | null {
+function adapterStateFor(prefix: string): { bound: boolean; modulePromise: unknown } | null {
   const map = (window as unknown as Record<string, unknown>).__zudoDesignTokenPanelAdapter as
     | Record<string, unknown>
     | undefined;
-  return (map?.[CFG.storagePrefix] ?? null) as { bound: boolean; modulePromise: unknown } | null;
+  return (map?.[prefix] ?? null) as { bound: boolean; modulePromise: unknown } | null;
+}
+
+function adapterState(): { bound: boolean; modulePromise: unknown } | null {
+  return adapterStateFor(CFG.storagePrefix);
 }
 
 /** Typed access to the console namespace the adapter installs. */
@@ -152,8 +164,20 @@ describe('host-adapter owner-autoload wiring (S2 #419)', () => {
       expect(adapterState()?.modulePromise).not.toBeNull();
     });
 
-    it('fires on hasPersistedOverrides signal (v3 state key present)', async () => {
+    it('fires on hasPersistedOverrides signal (v3 state key holds a non-empty envelope)', async () => {
+      localStorage.setItem(STATEV3_KEY, '{"--x":"1"}');
+      await bootstrapAdapter();
+      expect(adapterState()?.modulePromise).not.toBeNull();
+    });
+
+    it('does NOT fire when the v3 state key holds an empty envelope ({}) — #577', async () => {
       localStorage.setItem(STATEV3_KEY, '{}');
+      await bootstrapAdapter();
+      expect(adapterState()?.modulePromise).toBeNull();
+    });
+
+    it('fires on the -open mirror signal (${prefix}-open = "1")', async () => {
+      localStorage.setItem(OPEN_KEY, '1');
       await bootstrapAdapter();
       expect(adapterState()?.modulePromise).not.toBeNull();
     });
@@ -186,6 +210,108 @@ describe('host-adapter owner-autoload wiring (S2 #419)', () => {
       localStorage.setItem(DOMTWEAKER_KEY, '1');
       await bootstrapAdapter();
       expect(adapterState()?.modulePromise).not.toBeNull();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 1b. Content-checked persisted-override probe (#577) — presence alone
+  //     does not count; the envelope must be provably non-empty. Exact
+  //     `-state` family matching (v1 through vN), not a prefix scan.
+  // ---------------------------------------------------------------------------
+
+  describe('content-checked persisted-override probe (#577)', () => {
+    it('does NOT fire on an empty v4 envelope ({})', async () => {
+      localStorage.setItem(STATEV4_KEY, '{}');
+      await bootstrapAdapter();
+      expect(adapterState()?.modulePromise).toBeNull();
+    });
+
+    it('does NOT fire on an empty-array v4 envelope ([])', async () => {
+      localStorage.setItem(STATEV4_KEY, '[]');
+      await bootstrapAdapter();
+      expect(adapterState()?.modulePromise).toBeNull();
+    });
+
+    it('does NOT fire on a JSON null v4 envelope ("null")', async () => {
+      localStorage.setItem(STATEV4_KEY, 'null');
+      await bootstrapAdapter();
+      expect(adapterState()?.modulePromise).toBeNull();
+    });
+
+    it('does NOT fire on an empty-string v4 value', async () => {
+      localStorage.setItem(STATEV4_KEY, '');
+      await bootstrapAdapter();
+      expect(adapterState()?.modulePromise).toBeNull();
+    });
+
+    it('fires on a non-empty v4 envelope ({"--x":"1"})', async () => {
+      localStorage.setItem(STATEV4_KEY, '{"--x":"1"}');
+      await bootstrapAdapter();
+      expect(adapterState()?.modulePromise).not.toBeNull();
+    });
+
+    it('fires on a malformed v4 value ("{oops") — fail open so the panel can migrate/reject it', async () => {
+      localStorage.setItem(STATEV4_KEY, '{oops');
+      await bootstrapAdapter();
+      expect(adapterState()?.modulePromise).not.toBeNull();
+    });
+
+    it('fires on a non-empty v1 envelope (legacy ${prefix}-state key, no -vN suffix)', async () => {
+      localStorage.setItem(STATEV1_KEY, '{"color":"#fff"}');
+      await bootstrapAdapter();
+      expect(adapterState()?.modulePromise).not.toBeNull();
+    });
+
+    it("sibling-prefix collision: 'myapp-state' instance's own v1 key does not trigger the 'myapp' instance", async () => {
+      // Two instances configured on the same page: 'myapp' and
+      // 'myapp-state'. The 'myapp-state' instance's OWN v1 key is
+      // `${storagePrefix}-state` = 'myapp-state-state' (storageKey_stateV1).
+      // A naive `startsWith(prefix + '-state')` scan for the 'myapp'
+      // instance would match this ('myapp-state-state'.startsWith(
+      // 'myapp-state') === true) even though it belongs to the OTHER
+      // instance (epic #575 decision 6). The exact family regex
+      // `^myapp-state(-v\d+)?$` anchors the end, so it must NOT match
+      // 'myapp-state-state'.
+      localStorage.setItem('myapp-state-state', '{"--x":"1"}');
+      const myappCfg: PanelConfig = { ...CFG, storagePrefix: 'myapp', consoleNamespace: 'myappNs' };
+      await bootstrapAdapter(myappCfg);
+      expect(adapterStateFor('myapp')?.modulePromise ?? null).toBeNull();
+    });
+
+    it("sibling-prefix collision: the owning 'myapp-state' instance still fires on its own v1 key", async () => {
+      localStorage.setItem('myapp-state-state', '{"--x":"1"}');
+      const myappStateCfg: PanelConfig = {
+        ...CFG,
+        storagePrefix: 'myapp-state',
+        consoleNamespace: 'myappStateNs',
+      };
+      await bootstrapAdapter(myappStateCfg);
+      expect(adapterStateFor('myapp-state')?.modulePromise).not.toBeNull();
+    });
+
+    it("sibling-prefix collision: 'myapp' instance's own v4 key does not trigger the 'myapp-state' instance", async () => {
+      // The inverse direction: 'myapp-state-v4' is 'myapp's own v4 key
+      // (storageKey_stateV4 with storagePrefix='myapp'). The 'myapp-state'
+      // instance's real v4 key is 'myapp-state-state-v4' (its storagePrefix
+      // plus the same '-state-v4' suffix) — a different string — so it must
+      // not see 'myapp-state-v4' as its own.
+      localStorage.setItem('myapp-state-v4', '{"--x":"1"}');
+      const myappStateCfg: PanelConfig = {
+        ...CFG,
+        storagePrefix: 'myapp-state',
+        consoleNamespace: 'myappStateNs',
+      };
+      await bootstrapAdapter(myappStateCfg);
+      expect(adapterStateFor('myapp-state')?.modulePromise ?? null).toBeNull();
+    });
+
+    it('returns false (does not fire, does not throw) when localStorage enumeration throws', async () => {
+      localStorage.setItem(STATEV4_KEY, '{"--x":"1"}');
+      vi.spyOn(Storage.prototype, 'key').mockImplementation(() => {
+        throw new Error('SecurityError');
+      });
+      await bootstrapAdapter();
+      expect(adapterState()?.modulePromise).toBeNull();
     });
   });
 
@@ -238,7 +364,8 @@ describe('host-adapter owner-autoload wiring (S2 #419)', () => {
     });
 
     it('removes the open key', async () => {
-      // OPEN_KEY is not a gate signal, so loadPanelModule does not fire.
+      // OPEN_KEY='1' is itself a gate signal (#577) so loadPanelModule
+      // fires here, but disableAutoload() clears the key regardless.
       localStorage.setItem(OPEN_KEY, '1');
       await bootstrapAdapter();
       await api().disableAutoload();

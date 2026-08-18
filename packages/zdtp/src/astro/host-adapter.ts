@@ -14,10 +14,10 @@
  *     namespace is a configured field — different consumers can pick
  *     distinct values to prove the contract is host-agnostic.
  *  4. Gate the panel module's dynamic import on the same probes the legacy
- *     host script used: an existing `wasVisible()` flag or any persisted v2
- *     overrides. When neither is set, the panel module stays out of the
- *     initial bundle and only loads when the user calls a `window.<ns>.*`
- *     helper from the console.
+ *     host script used: an existing `wasVisible()` flag or any non-empty
+ *     persisted state envelope. When none is set, the panel module stays out
+ *     of the initial bundle and only loads when the user calls a
+ *     `window.<ns>.*` helper from the console.
  *
  * Idempotency
  * -----------
@@ -53,9 +53,6 @@ import {
   configurePanel,
   getPanelConfig,
   installZdtpGlobalAlias,
-  storageKey_stateV2,
-  storageKey_stateV3,
-  storageKey_stateV4,
   storageKey_visible,
   type PanelConfig,
   type PanelInstanceHandle,
@@ -160,22 +157,53 @@ function wasVisible(visibleKey: string): boolean {
   }
 }
 
-function hasPersistedOverrides(
-  stateV2Key: string,
-  stateV3Key: string,
-  stateV4Key: string,
-): boolean {
+/** Escape regex metacharacters so a host-supplied `storagePrefix` is matched literally. */
+function escapeRegExpLiteral(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * A parsed envelope counts as "has overrides" only when it is provably
+ * non-empty. Malformed JSON returns `true` (epic #575 decision 3) — a parse
+ * failure means the panel must still load so it can migrate or reject the
+ * payload, rather than stranding the user with corrupt state it can never see.
+ */
+function hasNonEmptyOverridesEnvelope(raw: string | null): boolean {
+  // An empty string is a blank slot, not malformed data — treat it like
+  // `null` rather than routing it into the fail-open malformed-JSON branch
+  // below (`JSON.parse('')` throws, but there is nothing here to migrate).
+  if (raw === null || raw === '') return false;
+  let parsed: unknown;
   try {
-    // Check v4 (per-scheme, #500/#509) first, then v3, then v2 for sessions
-    // pre-migration. The single-key v4 design means NO scheme knowledge is
-    // needed here — a bare key-existence check still answers "does the user
-    // have persisted overrides?" before the cluster config has loaded.
+    parsed = JSON.parse(raw);
+  } catch {
+    return true;
+  }
+  if (parsed === null) return false;
+  if (Array.isArray(parsed)) return parsed.length > 0;
+  if (typeof parsed === 'object') return Object.keys(parsed).length > 0;
+  return true;
+}
+
+function hasPersistedOverrides(cfg: PanelConfig): boolean {
+  try {
+    // Exact `-state` family match (v1 `${prefix}-state` through every future
+    // `${prefix}-state-vN`), NOT a `startsWith(prefix + '-state')` scan. A
+    // page running sibling prefixes like `myapp` and `myapp-state` would
+    // otherwise have instance 2's `myapp-state-v4` key satisfy instance 1's
+    // scan too (epic #575 decision 6). Scanning keys directly (rather than
+    // deriving one key per known version) also picks up v1 — which the old
+    // per-version key list omitted — and any future version, with no schema
+    // knowledge required.
+    const familyRe = new RegExp(`^${escapeRegExpLiteral(cfg.storagePrefix)}-state(-v\\d+)?$`);
     const ls = window.localStorage;
-    return (
-      ls.getItem(stateV4Key) !== null ||
-      ls.getItem(stateV3Key) !== null ||
-      ls.getItem(stateV2Key) !== null
-    );
+    for (let i = 0; i < ls.length; i++) {
+      const key = ls.key(i);
+      if (key !== null && familyRe.test(key) && hasNonEmptyOverridesEnvelope(ls.getItem(key))) {
+        return true;
+      }
+    }
+    return false;
   } catch {
     return false;
   }
@@ -442,18 +470,17 @@ function installZdtpAlias(state: DesignTokenPanelAdapterState, handle: PanelInst
   state.bound = true;
 
   // 3. Lazy-load gate — eagerly load the panel module when the user had it
-  //    open last session OR has persisted token overrides OR the owner-
-  //    autoload flag is set OR the element-path inspector is enabled OR the
-  //    DOM Tweaker is enabled. Any signal means the panel must boot before
-  //    first paint to avoid an FOUT or a broken closed-shell feature
-  //    (element-path / DOM Tweaker both need the Preact shell).
+  //    open last session (via either the `:visible` flag or its `-open`
+  //    mirror) OR has persisted token overrides OR the owner-autoload flag
+  //    is set OR the element-path inspector is enabled OR the DOM Tweaker is
+  //    enabled. Any signal means the panel must boot before first paint to
+  //    avoid an FOUT or a broken closed-shell feature (element-path / DOM
+  //    Tweaker both need the Preact shell).
   const visibleKey = storageKey_visible(cfg);
-  const stateV2Key = storageKey_stateV2(cfg);
-  const stateV3Key = storageKey_stateV3(cfg);
-  const stateV4Key = storageKey_stateV4(cfg);
   if (
     wasVisible(visibleKey) ||
-    hasPersistedOverrides(stateV2Key, stateV3Key, stateV4Key) ||
+    wasVisible(getOpenKey(cfg)) ||
+    hasPersistedOverrides(cfg) ||
     shouldAutoload(cfg) ||
     loadElementPathEnabled(cfg) ||
     (cfg.domTweaker !== undefined && loadDomTweakerEnabled(cfg))
