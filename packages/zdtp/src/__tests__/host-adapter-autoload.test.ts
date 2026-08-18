@@ -313,6 +313,32 @@ describe('host-adapter owner-autoload wiring (S2 #419)', () => {
       await bootstrapAdapter();
       expect(adapterState()?.modulePromise).toBeNull();
     });
+
+    // epic #575 confirm-gate (#581) — the CORRECTED sibling-collision form.
+    // `myapp-state-state-v4` is the 'myapp-state' instance's OWN v4 key
+    // (storageKey_stateV4({storagePrefix:'myapp-state'})), not 'myapp's. The
+    // v1-form pair above already proves the family regex anchors the end
+    // (`^myapp-state(-v\d+)?$` does not match 'myapp-state-state'), and the
+    // same regex governs every `-vN` suffix — this pair confirms the -v4
+    // suffix specifically, since #581 corrects an earlier draft that named
+    // the wrong key ('myapp-state-v4', which is actually 'myapp's own key).
+    it("sibling-prefix collision (v4 form): 'myapp-state' instance's own v4 key does not trigger the 'myapp' instance", async () => {
+      localStorage.setItem('myapp-state-state-v4', '{"--x":"1"}');
+      const myappCfg: PanelConfig = { ...CFG, storagePrefix: 'myapp', consoleNamespace: 'myappNs' };
+      await bootstrapAdapter(myappCfg);
+      expect(adapterStateFor('myapp')?.modulePromise ?? null).toBeNull();
+    });
+
+    it("sibling-prefix collision (v4 form): the owning 'myapp-state' instance still fires on its own v4 key", async () => {
+      localStorage.setItem('myapp-state-state-v4', '{"--x":"1"}');
+      const myappStateCfg: PanelConfig = {
+        ...CFG,
+        storagePrefix: 'myapp-state',
+        consoleNamespace: 'myappStateNs',
+      };
+      await bootstrapAdapter(myappStateCfg);
+      expect(adapterStateFor('myapp-state')?.modulePromise).not.toBeNull();
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -415,6 +441,43 @@ describe('host-adapter owner-autoload wiring (S2 #419)', () => {
       await bootstrapAdapter();
       await api().toggleDesignPanel();
       expect(localStorage.getItem(AUTOLOAD_KEY)).toBe('auto');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 3b. autoRememberOnOpen: false (#578) — an open-then-close cycle must never
+  //     arm the gate. This is the epic #575 confirm-gate (#581) matrix's last
+  //     scenario row, exercised end-to-end through the host-adapter rather
+  //     than at the autoload-state unit level (already covered by
+  //     state/__tests__/autoload-state.test.ts).
+  // ---------------------------------------------------------------------------
+
+  describe('autoRememberOnOpen: false — open-then-close cycle never arms the gate', () => {
+    it('writes no :autoload key across an open+close cycle, and a subsequent load does not fetch', async () => {
+      const cfg: PanelConfig = { ...CFG, autoRememberOnOpen: false };
+      await bootstrapAdapter(cfg);
+
+      await api().showDesignPanel();
+      await flushEffects();
+      expect(localStorage.getItem(AUTOLOAD_KEY)).toBeNull();
+
+      await api().hideDesignPanel();
+      expect(localStorage.getItem(AUTOLOAD_KEY)).toBeNull();
+
+      // Simulate the next page load: a real page load starts with an empty
+      // window, so clear the adapter's window-scoped runtime state (the
+      // `bound` flag + memoised modulePromise from the open/close cycle
+      // above) in addition to the module-graph + registry reset that
+      // bootstrapAdapter already performs — otherwise `state.bound` from the
+      // PREVIOUS bootstrap short-circuits the gate re-check entirely and this
+      // assertion would trivially see the stale open-cycle modulePromise
+      // rather than a fresh gate decision.
+      const w = window as unknown as Record<string, unknown>;
+      delete w.__zudoDesignTokenPanelAdapter;
+      delete w.__zudoDesignTokenPanelLifecycle;
+      delete w[CFG.consoleNamespace];
+      await bootstrapAdapter(cfg);
+      expect(adapterState()?.modulePromise).toBeNull();
     });
   });
 
