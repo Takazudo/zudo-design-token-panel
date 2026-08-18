@@ -22,6 +22,8 @@ import {
   defaultGeometry,
   defaultPosition,
   defaultSize,
+  getPositionKey,
+  loadPosition,
 } from '../state/tweak-state';
 
 const ORIGINAL_INNER_WIDTH = window.innerWidth;
@@ -108,4 +110,36 @@ describe('defaultPosition / defaultSize agree with defaultGeometry', () => {
       expect(defaultSize()).toEqual({ width: geom.width, height: geom.height });
     });
   }
+});
+
+describe('persisted size with no persisted position stays contained', () => {
+  it('centers and contains the OVERRIDE rectangle, not the default one', () => {
+    setViewport(1280, 800);
+    // A size the user resized to and persisted — wider than the 0.8*vw default
+    // (1024) that `defaultGeometry()` would otherwise assume.
+    const stored = { width: 1240, height: 760 };
+    const geom = defaultGeometry(0, stored);
+    expect(geom.width).toBe(stored.width);
+    expect(geom.height).toBe(stored.height);
+    expect(geom.left).toBeGreaterThanOrEqual(0);
+    expect(geom.top).toBeGreaterThanOrEqual(0);
+    expect(geom.left + geom.width).toBeLessThanOrEqual(1280);
+    expect(geom.top + geom.height).toBeLessThanOrEqual(800);
+  });
+
+  it('loadPosition threads the size through to the fallback', () => {
+    setViewport(1280, 800);
+    localStorage.removeItem(getPositionKey());
+    const stored = { width: 1240, height: 760 };
+    const pos = loadPosition(undefined, 0, stored);
+    expect(pos).toEqual(defaultPosition(0, stored));
+    expect(pos.left + stored.width).toBeLessThanOrEqual(1280);
+  });
+
+  it('a persisted POSITION still wins over the size-aware fallback', () => {
+    setViewport(1280, 800);
+    localStorage.setItem(getPositionKey(), JSON.stringify({ top: 5, left: 7 }));
+    expect(loadPosition(undefined, 1, { width: 1240, height: 760 })).toEqual({ top: 5, left: 7 });
+    localStorage.removeItem(getPositionKey());
+  });
 });

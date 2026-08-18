@@ -191,14 +191,16 @@ export const DEFAULT_POSITION: PanelPosition = { top: 60, left: 20 };
  *
  * `spawnOrdinal` cascades concurrently-mounted instances apart; ordinal 0 (the
  * default, and the only ordinal a single-panel host ever sees) is exactly the
- * centered position.
+ * centered position. `size`, when given, is the rectangle to center — pass the
+ * size the panel will actually render at rather than letting the default size
+ * be assumed.
  *
  * Falls back to the static `DEFAULT_POSITION` when `window` is undefined
  * (e.g. SSR / node test setup without jsdom). Real browsers + jsdom-backed
  * tests get the centered position.
  */
-export function defaultPosition(spawnOrdinal = 0): PanelPosition {
-  const { top, left } = defaultGeometry(spawnOrdinal);
+export function defaultPosition(spawnOrdinal = 0, size?: PanelSize): PanelPosition {
+  const { top, left } = defaultGeometry(spawnOrdinal, size);
   return { top, left };
 }
 
@@ -209,8 +211,18 @@ export function defaultPosition(spawnOrdinal = 0): PanelPosition {
  * `spawnOrdinal` is applied ONLY to the fallback. A stored position is an
  * explicit user preference — a panel the user dragged somewhere reopens
  * exactly there, never nudged by however many siblings happen to be mounted.
+ *
+ * `size` is the size the caller will actually render at (i.e. `loadSize()`'s
+ * result). Pass it so the fallback is centered and contained against THAT
+ * rectangle: an instance with a persisted size but no persisted position
+ * would otherwise be centered as if it were the default width and spawn
+ * partly off-screen.
  */
-export function loadPosition(cfg?: PanelConfig, spawnOrdinal = 0): PanelPosition {
+export function loadPosition(
+  cfg?: PanelConfig,
+  spawnOrdinal = 0,
+  size?: PanelSize,
+): PanelPosition {
   try {
     const saved = localStorage.getItem(getPositionKey(cfg));
     if (saved) {
@@ -229,7 +241,7 @@ export function loadPosition(cfg?: PanelConfig, spawnOrdinal = 0): PanelPosition
   } catch {
     /* ignore */
   }
-  return defaultPosition(spawnOrdinal);
+  return defaultPosition(spawnOrdinal, size);
 }
 
 export function savePosition(pos: PanelPosition, cfg?: PanelConfig) {
@@ -342,15 +354,23 @@ export interface PanelGeometry extends PanelPosition, PanelSize {}
  *
  * Falls back to the static SSR constants when `window` is undefined.
  */
-export function defaultGeometry(spawnOrdinal = 0): PanelGeometry {
+export function defaultGeometry(spawnOrdinal = 0, sizeOverride?: PanelSize): PanelGeometry {
   // No viewport to cascade within, and no containment clamp available — the
   // SSR constant stays ordinal-independent. The mount effect recomputes the
   // real geometry client-side anyway.
-  if (typeof window === 'undefined') return { ...DEFAULT_POSITION, ...DEFAULT_SIZE };
-  const { width, height } = clampSize(
-    Math.min(1200, 0.8 * window.innerWidth),
-    Math.min(800, 0.8 * window.innerHeight),
-  );
+  if (typeof window === 'undefined')
+    return { ...DEFAULT_POSITION, ...(sizeOverride ?? DEFAULT_SIZE) };
+  // `sizeOverride` is the size the caller will ACTUALLY render at — normally
+  // `loadSize()`'s result, which may be a persisted size larger than the
+  // default. Centering/containing against the default rectangle while the
+  // shell renders a wider one is exactly the size/position incoherence this
+  // function exists to eliminate, so an override wins when supplied.
+  const { width, height } = sizeOverride
+    ? clampSize(sizeOverride.width, sizeOverride.height)
+    : clampSize(
+        Math.min(1200, 0.8 * window.innerWidth),
+        Math.min(800, 0.8 * window.innerHeight),
+      );
   const centeredTop = Math.max(0, Math.round((window.innerHeight - height) / 2));
   const centeredLeft = Math.max(0, Math.round((window.innerWidth - width) / 2));
   const cascade = SPAWN_CASCADE_STEP * spawnSteps(spawnOrdinal);
@@ -365,7 +385,6 @@ export function defaultGeometry(spawnOrdinal = 0): PanelGeometry {
   );
   return { top, left, width, height };
 }
-
 
 /**
  * Clamp a FRESH-SPAWN position so the whole panel sits inside the viewport:

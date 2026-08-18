@@ -234,7 +234,11 @@ export default function DesignTokenTweakPanel({
     const loadedSize = loadSize(instanceConfig);
     setSize(loadedSize);
     sizeRef.current = loadedSize;
-    const loaded = loadPosition(instanceConfig, spawnOrdinal);
+    // Pass `loadedSize` so the first-open fallback is centered and contained
+    // against the size this shell will ACTUALLY render at — an instance with a
+    // persisted (resized) size but no persisted position would otherwise be
+    // centered as if it were the default width and hang off the viewport.
+    const loaded = loadPosition(instanceConfig, spawnOrdinal, loadedSize);
     // Clamp against current viewport so a position saved on a 4K monitor
     // (e.g. left:3000) doesn't restore fully off-screen on a 1080p laptop.
     // loadSize was already clamped; use its result for the position clamp so

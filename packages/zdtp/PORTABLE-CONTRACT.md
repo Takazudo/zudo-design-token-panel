@@ -312,6 +312,9 @@ computed at open time as one coherent rectangle:
   position that assumes a different width than the fallback size.
 - **Full containment is guaranteed at every viewport width**, including
   phone widths — a first-open panel never spawns with any part off-screen.
+  This holds when the size key IS persisted but the `position` key is not
+  (a resize without a drag): the fallback position is centered and contained
+  against the persisted size, not against the default one.
 - **The fallback is instance-aware.** Each additional panel instance
   concurrently mounted on the page offsets its own fallback position by 24px
   on both axes, keyed to mount order with lowest-free-slot reuse (a released
