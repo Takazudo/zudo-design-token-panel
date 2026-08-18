@@ -18,7 +18,13 @@ Documentation site for **zdtp** (`@takazudo/zdtp`, the zudo design token panel),
 - `pnpm check` / `pnpm typecheck` — TypeScript type checking
 - `pnpm preview` — serve the built `dist/`
 - `pnpm check:html` — validate the built HTML (`html-validate`)
-- `pnpm check:links` — check for broken links in the built `dist/` (`linkinator`)
+- `pnpm check:links` — check for broken links in the built `dist/` (`linkinator`). linkinator serves
+  local paths over an internal `http://localhost:<port>` server even when crawling disk files, so a
+  naive `--skip '^https?://'` (meant to skip only real external URLs) also matches that internal
+  server URL and silently skips everything, including the entry point — the check then reports
+  `Successfully scanned 0 links` and exits 0 without validating anything. The `(?!localhost)`
+  negative lookahead in the script excludes the local crawl server from the skip so external URLs
+  are still skipped but the site itself actually gets scanned.
 
 ## Key Directories
 
