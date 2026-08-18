@@ -963,7 +963,7 @@ Behaviour notes:
 | `state-v2`  | `${storagePrefix}-state-v2` | Legacy pre-v3 format. Migrated into `state-v3` (and from there into `state-v4`) on first load, then deleted.            |
 | `state-v1`  | `${storagePrefix}-state`    | Legacy pre-v2 flat-state format (Color-only). Migrated into `state-v3` (and from there into `state-v4`) on first load, then deleted. |
 | `open`      | `${storagePrefix}-open`     | Mirror of the panel's `open` boolean (synchronous mount-time read — preserves user intent across reloads, fixes #1549). |
-| `position`  | `${storagePrefix}-position` | Drag position `{ top, right }` so the panel reappears where the user left it.                                           |
+| `position`  | `${storagePrefix}-position` | Drag position `{ top, left }` so the panel reappears where the user left it.                                           |
 | `visible`   | `${storagePrefix}:visible`  | Adapter-level visibility-intent flag, owned by the lazy-load gate.                                                      |
 | `autoload`  | `${storagePrefix}:autoload` | Owner-mode autoload flag. Holds `'1'` (explicit — set by `enableAutoload()`) or `'auto'` (auto-remembered — set by opening the panel). Either value arms the panel bundle to fetch eagerly on every page load and mount CLOSED so the Alt+click element-path inspector is armed without opening the panel UI. Cleared by `disableAutoload()`. See §10.1. |
 
