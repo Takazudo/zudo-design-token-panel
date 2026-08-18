@@ -76,6 +76,13 @@
  * has been opened the flag is set so subsequent page loads reload it
  * automatically. (Wired by S2 / S3.)
  *
+ * A host can opt out of this entirely by setting `PanelConfig.autoRememberOnOpen
+ * = false` — `rememberAutoload` then becomes a no-op, so opening the panel
+ * never persists owner-mode. This exists for a public docs site that wants a
+ * visible panel button for every visitor without arming owner-mode for
+ * whoever clicks it. `enableAutoload()` (which writes `'1'` via `setAutoload`,
+ * not this function) is unaffected either way.
+ *
  * ## Element-path coupling
  *
  * `enableAutoload()` arms the element-path inspector by writing
@@ -157,10 +164,17 @@ export function setAutoload(cfg: PanelConfig, on: boolean): void {
  * An existing explicit `'1'` is left untouched: an owner who armed owner mode
  * deliberately must not demote themselves by opening the panel.
  *
+ * No-op when `cfg.autoRememberOnOpen === false` — see that field's doc for the
+ * public-site use case. The gate lives HERE (not at each call site) so a
+ * future auto-remember site inherits it automatically instead of needing its
+ * own opt-out check. `enableAutoload()` calls `setAutoload`, not this
+ * function, so it is never subject to this gate.
+ *
  * SSR-safe and quota-tolerant.
  */
 export function rememberAutoload(cfg: PanelConfig): void {
   if (typeof window === 'undefined') return;
+  if (cfg.autoRememberOnOpen === false) return;
   try {
     const key = storageKey_autoload(cfg);
     if (window.localStorage.getItem(key) === AUTOLOAD_EXPLICIT) return;

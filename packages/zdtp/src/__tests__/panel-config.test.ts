@@ -399,6 +399,50 @@ describe('panel-config — assertValidPanelConfig accepts and rejects legacyIdRe
   });
 });
 
+describe('panel-config — assertValidPanelConfig accepts and rejects autoRememberOnOpen shapes', () => {
+  /**
+   * The new optional `autoRememberOnOpen` field (#578) gates whether opening
+   * the panel persists owner-mode autoload. It must accept an absent field
+   * and either boolean, and reject any non-boolean value.
+   */
+  function makeBaseConfig(extra: Partial<PanelConfig> = {}): PanelConfig {
+    return {
+      storagePrefix: 'p',
+      consoleNamespace: 'p',
+      modalClassPrefix: 'p-modal',
+      schemaId: 'p/v1',
+      exportFilenameBase: 'p',
+      tabs: [],
+      ...extra,
+    };
+  }
+
+  it('accepts a config with no autoRememberOnOpen field (default)', () => {
+    expect(() => assertValidPanelConfig(makeBaseConfig())).not.toThrow();
+  });
+
+  it('accepts autoRememberOnOpen: true', () => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ autoRememberOnOpen: true })),
+    ).not.toThrow();
+  });
+
+  it('accepts autoRememberOnOpen: false', () => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ autoRememberOnOpen: false })),
+    ).not.toThrow();
+  });
+
+  it('rejects a non-boolean autoRememberOnOpen', () => {
+    expect(() =>
+      assertValidPanelConfig(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        makeBaseConfig({ autoRememberOnOpen: 'yes' as any }),
+      ),
+    ).toThrow(/autoRememberOnOpen must be a boolean when set/);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // assertValidPanelConfig — tabs validation
 // ---------------------------------------------------------------------------
