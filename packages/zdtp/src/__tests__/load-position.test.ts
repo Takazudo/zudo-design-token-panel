@@ -8,11 +8,11 @@
  * upper-left corner — far from where the user expects it.
  *
  * Post-fix: `defaultPosition()` computes a runtime viewport-centered position
- * (panelW = min(1200, 0.8 * innerWidth), centered both axes), and
- * `loadPosition()` falls back to that instead of `DEFAULT_POSITION` when no
- * saved value exists or the saved value is malformed. The static
- * `DEFAULT_POSITION` is retained as the SSR fallback inside
- * `defaultPosition()` (typeof window === 'undefined' branch).
+ * — via `defaultGeometry()`, which centers the panel against its own clamped
+ * default size — and `loadPosition()` falls back to that instead of
+ * `DEFAULT_POSITION` when no saved value exists or the saved value is
+ * malformed. The static `DEFAULT_POSITION` is retained as the SSR fallback
+ * inside `defaultGeometry()` (typeof window === 'undefined' branch).
  *
  * Saved-value behaviour is UNCHANGED — a valid `{top, left}` entry in
  * localStorage still loads verbatim, so existing users keep their dragged
@@ -81,9 +81,10 @@ describe('defaultPosition', () => {
   it('returns {top:0, left:0} on a degenerate 0×0 viewport (no negative offsets)', () => {
     setViewport(0, 0);
     const pos = defaultPosition();
-    // panelW = min(1200, 0) = 0; panelH = min(800, 0) = 0
-    // top  = max(0, round(0)) = 0
-    // left = max(0, round(0)) = 0
+    // width  = clamp(min(1200, 0) = 0) → 320 (MIN_PANEL_WIDTH floor)
+    // height = clamp(min(800, 0) = 0)  → 240 (MIN_PANEL_HEIGHT floor)
+    // top  = max(0, round((0 - 240) / 2)) = max(0, -120) = 0
+    // left = max(0, round((0 - 320) / 2)) = max(0, -160) = 0
     expect(pos.top).toBe(0);
     expect(pos.left).toBe(0);
   });
@@ -91,14 +92,17 @@ describe('defaultPosition', () => {
   it('returns deterministic non-negative offsets for a narrow viewport (375×667)', () => {
     setViewport(375, 667);
     const pos = defaultPosition();
-    // panelW = min(1200, 0.8*375) = min(1200, 300) = 300
-    // panelH = min(800, 0.8*667) = min(800, 533.6) = 533.6
+    // The position is centered against the CLAMPED default size, not the raw
+    // min(1200, 0.8*vw) expression — on phone widths clampSize raises the
+    // width to the MIN_PANEL_WIDTH floor of 320.
+    // width  = clamp(min(1200, 0.8*375) = 300) → 320 (MIN_PANEL_WIDTH floor)
+    // height = clamp(min(800, 0.8*667) = 533.6) → 533.6 (within bounds)
     // top  = round((667 - 533.6) / 2) = round(66.7) ≈ 67
-    // left = round((375 - 300) / 2) = round(37.5) ≈ 38
+    // left = round((375 - 320) / 2) = round(27.5) ≈ 28
     expect(pos.top).toBeGreaterThanOrEqual(65);
     expect(pos.top).toBeLessThanOrEqual(69);
-    expect(pos.left).toBeGreaterThanOrEqual(36);
-    expect(pos.left).toBeLessThanOrEqual(40);
+    expect(pos.left).toBeGreaterThanOrEqual(27);
+    expect(pos.left).toBeLessThanOrEqual(29);
   });
 });
 
