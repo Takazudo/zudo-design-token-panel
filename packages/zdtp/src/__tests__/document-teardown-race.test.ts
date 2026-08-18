@@ -344,7 +344,7 @@ describe('host-adapter async closures across document teardown', () => {
 
     await consoleApi().showDesignPanel();
 
-    expect(localStorage.getItem(ADAPTER_AUTOLOAD_KEY)).toBe('1');
+    expect(localStorage.getItem(ADAPTER_AUTOLOAD_KEY)).toBe('auto');
     expect(document.getElementById(ADAPTER_ROOT_ID)).not.toBeNull();
   });
 });

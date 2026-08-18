@@ -78,6 +78,7 @@ import { loadDomTweakerEnabled } from './dom-tweaker/dom-tweaker-state';
 import {
   shouldAutoload as _shouldAutoload,
   setAutoload,
+  rememberAutoload,
   clearAutoload,
 } from './state/autoload-state';
 import { isDocumentUsable } from './utils/document-liveness';
@@ -431,7 +432,7 @@ function showInstance(cfg: PanelConfig): void {
   setStoredVisibility(cfg, true);
   // Auto-remember: any action that shows the panel arms the owner-autoload flag
   // so subsequent page loads reload it automatically (contract from autoload-state.ts).
-  setAutoload(cfg, true);
+  rememberAutoload(cfg);
   // Fresh mount: panel.tsx's mount-effect picks up OPEN_KEY="1" and renders
   // open — no listener race because the listener doesn't run yet anyway.
   if (isFreshMount) return;
@@ -480,7 +481,7 @@ function toggleInstance(cfg: PanelConfig): void {
   setStoredVisibility(cfg, willBeOpen);
   // Auto-remember: opening via toggle arms autoload so the panel reloads on
   // the next page visit (contract from autoload-state.ts).
-  if (willBeOpen) setAutoload(cfg, true);
+  if (willBeOpen) rememberAutoload(cfg);
   // Fresh mount: seed already drove the mount-effect to the desired state.
   if (isFreshMount) return;
   notifyPanelOpenChanged(cfg);
@@ -748,7 +749,7 @@ function handleExternalToggleEvent(cfg: PanelConfig): void {
   // Auto-remember: the header button / window event opens the panel → arm
   // autoload so the panel reloads automatically on the next page visit
   // (contract from autoload-state.ts).
-  if (willBeOpen) setAutoload(cfg, true);
+  if (willBeOpen) rememberAutoload(cfg);
   // Fresh mount: the seed has already driven the mount-effect to the desired
   // state; no in-component listener exists to notify yet. The sync event
   // would harmlessly land in the void.
