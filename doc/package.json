@@ -13,7 +13,7 @@
     "check": "zfb check",
     "typecheck": "zfb check",
     "check:html": "html-validate \"dist/**/*.html\"",
-    "check:links": "linkinator ./dist --recurse --skip '^https?://'"
+    "check:links": "linkinator ./dist --recurse --skip '^https?://(?!localhost)'"
   },
   "dependencies": {
     "@takazudo/zfb": "0.1.0-next.89",
