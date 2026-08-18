@@ -142,13 +142,21 @@ function freshTweakState(cfg?: PanelConfig): TweakState {
  * distinct sync events, and render distinct manifests, never cross-talking.
  * Omitted (e.g. a direct test render) → the active/default instance, preserving
  * the historical single-panel behaviour.
+ *
+ * `spawnOrdinal` is this shell's slot in the mounted-shell registry (#584),
+ * handed down by the adapter at `render(...)` time. It cascades the FIRST-OPEN
+ * position of concurrently mounted instances apart (#585) so a second panel
+ * stops landing exactly on top of the first; a persisted position ignores it.
+ * Omitted → 0, i.e. no offset.
  */
 interface DesignTokenTweakPanelProps {
   instanceConfig?: PanelConfig;
+  spawnOrdinal?: number;
 }
 
 export default function DesignTokenTweakPanel({
   instanceConfig: instanceConfigProp,
+  spawnOrdinal = 0,
 }: DesignTokenTweakPanelProps = {}) {
   // Resolve the instance config: the passed-in registered config, or the active
   // default instance for a direct (prop-less) test render. Memoised so the
@@ -226,7 +234,11 @@ export default function DesignTokenTweakPanel({
     const loadedSize = loadSize(instanceConfig);
     setSize(loadedSize);
     sizeRef.current = loadedSize;
-    const loaded = loadPosition(instanceConfig);
+    // Pass `loadedSize` so the first-open fallback is centered and contained
+    // against the size this shell will ACTUALLY render at — an instance with a
+    // persisted (resized) size but no persisted position would otherwise be
+    // centered as if it were the default width and hang off the viewport.
+    const loaded = loadPosition(instanceConfig, spawnOrdinal, loadedSize);
     // Clamp against current viewport so a position saved on a 4K monitor
     // (e.g. left:3000) doesn't restore fully off-screen on a 1080p laptop.
     // loadSize was already clamped; use its result for the position clamp so
