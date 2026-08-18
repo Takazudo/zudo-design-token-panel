@@ -566,6 +566,17 @@ The Astro entry point (`<DesignTokenPanelHost>`) handles mounting for you. Inter
 
 For a Vite-only / non-Astro host, mount it yourself by importing the adapter module after `configurePanel(...)`. See §11.5.
 
+### 5.6 First-open geometry
+
+The first time an instance opens with no persisted position, the panel picks its position and size together as one coherent rectangle, not as two independently-computed values:
+
+- **Size first, position from that size.** The default size follows the historical `min(1200, 0.8·vw) × min(800, 0.8·vh)` rule, clamped to a minimum floor and the viewport. The default position then centers _that same clamped rectangle_. Position and size can no longer disagree about the panel's width — they used to be computed separately, which could center a wider phantom panel than the one actually rendered and spawn it partly off-screen on a narrow viewport.
+- **Always contained in the viewport.** The centered position is run through a containment clamp before use, so the whole panel — not just a grabbable strip of it — sits inside `[0, innerWidth]` × `[0, innerHeight]`. This holds at every viewport width, including phone widths.
+- **Instance-aware: concurrent panels cascade apart.** Each additional concurrently-mounted instance offsets its own fresh-open position by 24px on both axes. The offset comes from mount order with lowest-free-slot reuse — the first free ordinal is claimed on mount and given back on unmount, so opening a third panel after closing the first reuses ordinal 0 rather than always growing. Two instances opened at once therefore don't spawn stacked exactly on top of each other.
+- **A persisted position always wins.** The cascade offset applies only to the fallback used when an instance has no saved position yet. A panel the user has dragged (and which got saved) reopens exactly where it was left, regardless of how many sibling instances happen to be mounted.
+- **Containment beats distinctness.** These two guarantees are not both promised unconditionally — on a viewport with no spare room, the 24px cascade shrinks toward whatever slack is left, down to a 0px offset, rather than pushing a panel outside the viewport. Two instances' first-open positions may then coincide. Each axis degrades independently: at a 320px viewport width the horizontal offset collapses to 0 once the minimum-width floor eats all the spare width, while the vertical offset may still cascade its full 24px if vertical slack remains.
+- **A different, stricter rule than the drag-recovery clamp.** Once a panel has been dragged, its position is governed by a separate, deliberately permissive clamp: it only guarantees a small grip of the panel's header stays on-screen so the user can drag it back, and otherwise allows the panel to hang off any edge. That drag clamp is unchanged and keeps applying after a drag; the full-containment guarantee above is specific to the first-open fallback position and does not carry over once the user has moved the panel.
+
 ---
 
 ## 6. Tab / tier model schema
