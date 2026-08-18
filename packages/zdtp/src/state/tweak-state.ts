@@ -189,16 +189,28 @@ export const DEFAULT_POSITION: PanelPosition = { top: 60, left: 20 };
  * panel's *actual* clamped default size rather than an independently derived
  * one — see that function for why the two must not be computed separately.
  *
+ * `spawnOrdinal` cascades concurrently-mounted instances apart; ordinal 0 (the
+ * default, and the only ordinal a single-panel host ever sees) is exactly the
+ * centered position.
+ *
  * Falls back to the static `DEFAULT_POSITION` when `window` is undefined
  * (e.g. SSR / node test setup without jsdom). Real browsers + jsdom-backed
  * tests get the centered position.
  */
-export function defaultPosition(): PanelPosition {
-  const { top, left } = defaultGeometry();
+export function defaultPosition(spawnOrdinal = 0): PanelPosition {
+  const { top, left } = defaultGeometry(spawnOrdinal);
   return { top, left };
 }
 
-export function loadPosition(cfg?: PanelConfig): PanelPosition {
+/**
+ * Read this instance's persisted position, falling back to the cascaded
+ * first-open default.
+ *
+ * `spawnOrdinal` is applied ONLY to the fallback. A stored position is an
+ * explicit user preference — a panel the user dragged somewhere reopens
+ * exactly there, never nudged by however many siblings happen to be mounted.
+ */
+export function loadPosition(cfg?: PanelConfig, spawnOrdinal = 0): PanelPosition {
   try {
     const saved = localStorage.getItem(getPositionKey(cfg));
     if (saved) {
@@ -217,7 +229,7 @@ export function loadPosition(cfg?: PanelConfig): PanelPosition {
   } catch {
     /* ignore */
   }
-  return defaultPosition();
+  return defaultPosition(spawnOrdinal);
 }
 
 export function savePosition(pos: PanelPosition, cfg?: PanelConfig) {
@@ -294,6 +306,15 @@ export function clampSize(width: number, height: number): PanelSize {
 // Combined first-open geometry
 // ---------------------------------------------------------------------------
 
+/** Per-ordinal cascade step, in px, applied to both axes on a fresh spawn. */
+export const SPAWN_CASCADE_STEP = 24;
+
+/** Whole, non-negative step count. Guards against a junk ordinal from a host. */
+function spawnSteps(spawnOrdinal: number): number {
+  if (!Number.isFinite(spawnOrdinal)) return 0;
+  return Math.max(0, Math.floor(spawnOrdinal));
+}
+
 /** Position + size of a panel, as one coherent rectangle. */
 export interface PanelGeometry extends PanelPosition, PanelSize {}
 
@@ -311,19 +332,67 @@ export interface PanelGeometry extends PanelPosition, PanelSize {}
  * and is the reason `defaultPosition()` / `defaultSize()` are thin wrappers
  * rather than independent implementations.
  *
+ * `spawnOrdinal` (from the mount layer's slot registry) cascades a second and
+ * third concurrently-mounted instance away from the first — see
+ * `SPAWN_CASCADE_STEP` and `clampSpawnPosition`. Ordinal 0 takes no offset, so
+ * a single-panel host is byte-identical to the pre-cascade behaviour.
+ *
+ * The ordinal travels mount layer -> geometry, never the reverse: this module
+ * must not import `index.tsx` (epic #582, decision 4).
+ *
  * Falls back to the static SSR constants when `window` is undefined.
  */
-export function defaultGeometry(): PanelGeometry {
+export function defaultGeometry(spawnOrdinal = 0): PanelGeometry {
+  // No viewport to cascade within, and no containment clamp available — the
+  // SSR constant stays ordinal-independent. The mount effect recomputes the
+  // real geometry client-side anyway.
   if (typeof window === 'undefined') return { ...DEFAULT_POSITION, ...DEFAULT_SIZE };
   const { width, height } = clampSize(
     Math.min(1200, 0.8 * window.innerWidth),
     Math.min(800, 0.8 * window.innerHeight),
   );
-  return {
-    top: Math.max(0, Math.round((window.innerHeight - height) / 2)),
-    left: Math.max(0, Math.round((window.innerWidth - width) / 2)),
+  const centeredTop = Math.max(0, Math.round((window.innerHeight - height) / 2));
+  const centeredLeft = Math.max(0, Math.round((window.innerWidth - width) / 2));
+  const cascade = SPAWN_CASCADE_STEP * spawnSteps(spawnOrdinal);
+  // The clamp is a no-op at ordinal 0 (a centered rectangle is contained by
+  // construction), which is what keeps the first instance exactly where the
+  // single-instance rule puts it.
+  const { top, left } = clampSpawnPosition(
+    centeredTop + cascade,
+    centeredLeft + cascade,
     width,
     height,
+  );
+  return { top, left, width, height };
+}
+
+
+/**
+ * Clamp a FRESH-SPAWN position so the whole panel sits inside the viewport:
+ * `left ∈ [0, max(0, innerWidth - panelWidth)]`, `top` likewise.
+ *
+ * Deliberately NOT `clampPosition()`. That one is the drag-recovery clamp and
+ * is permissive on purpose — it lets a panel the user dragged hang off the
+ * edge so long as `VISIBLE_MIN` px stay grabbable. Spawn containment is a
+ * stricter, separate rule (epic #582, decision 2), so it gets its own clamp
+ * rather than tightening a clamp other behaviour depends on.
+ *
+ * Containment beats distinctness: on a viewport with no spare room the upper
+ * bound collapses to 0 and the cascade degrades — reduced first, dropped
+ * entirely when there is nothing left. Two instances may then coincide. That
+ * is the documented trade-off; a panel spawned off-screen is worse.
+ */
+export function clampSpawnPosition(
+  top: number,
+  left: number,
+  panelWidth: number,
+  panelHeight: number,
+): PanelPosition {
+  const vw = typeof window !== 'undefined' ? window.innerWidth : MAX_PANEL_WIDTH;
+  const vh = typeof window !== 'undefined' ? window.innerHeight : MAX_PANEL_HEIGHT;
+  return {
+    top: Math.min(Math.max(0, top), Math.max(0, vh - panelHeight)),
+    left: Math.min(Math.max(0, left), Math.max(0, vw - panelWidth)),
   };
 }
 
