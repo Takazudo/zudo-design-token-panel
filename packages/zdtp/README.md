@@ -510,6 +510,7 @@ default instance only.
 | `tabs`               | `readonly TabConfig[]`         | **Required.** Tab strip data — each entry is a tab with one or more `TierConfig` objects. The color tab (id `'color'`) additionally requires `colorExtras`. See §6.    |
 | `colorPresets`       | `Record<string, ColorScheme>` (optional) | Optional named scheme presets surfaced in the Color tab "Scheme..." dropdown. Defaults to `{}`. See §7.5.                                              |
 | `applySink`          | `ApplySink` (optional)         | Optional sink that routes this instance's CSS-var writes off `:root`. See §5.4. Not JSON-serializable — do not include in Astro inline config.                        |
+| `autoRememberOnOpen` | `boolean` (optional)           | Whether opening the panel (any of the auto-remember call sites — see §10.1) writes the `:autoload` flag with `'auto'` provenance. Defaults to `true`. Set `false` for a public site that wants a panel-open button visible to every visitor without arming owner-mode for whoever clicks it. `enableAutoload()`'s explicit `'1'` write is unaffected either way. See §10.1's Auto-remember footgun. |
 
 ### 5.4 `applySink` — optional write target
 
@@ -560,8 +561,8 @@ const handle = configurePanel({
 The Astro entry point (`<DesignTokenPanelHost>`) handles mounting for you. Internally:
 
 - The console API (`showDesignPanel` etc.) is **always installed eagerly**, even when the panel module has not loaded — calling them is what triggers the lazy import for cold-start users.
-- The panel module is **dynamically imported on first need**: when the user calls a console helper, OR when first-paint detects any of four gate signals in `localStorage` — `${storagePrefix}:visible` set to `1`, persisted overrides (checked as `${storagePrefix}-state-v4`, falling back to `-state-v3` / `-state-v2` for pre-migration sessions — see §9), the owner-autoload flag (`${storagePrefix}:autoload` set to `1`), or the element-path inspector enabled.
-- This gating keeps the panel out of the initial JS bundle for first-time visitors while still re-applying overrides on hard reload for users who have tweaked things. **General visitors** (none of the four signals set) pay zero bundle cost.
+- The panel module is **dynamically imported on first need**: when the user calls a console helper, OR when first-paint detects any of these gate signals in `localStorage` — `${storagePrefix}:visible` set to `1` or its `${storagePrefix}-open` mirror set to `1`, persisted overrides (a content check across the `${storagePrefix}-state` family — `-state` (v1) through every `-state-vN` — rather than a presence check on a specific version key; see §9), the owner-autoload flag (`${storagePrefix}:autoload` set to `'1'` or `'auto'`), or the element-path inspector enabled.
+- This gating keeps the panel out of the initial JS bundle for first-time visitors while still re-applying overrides on hard reload for users who have tweaked things. **General visitors** (none of these signals set) pay zero bundle cost.
 
 For a Vite-only / non-Astro host, mount it yourself by importing the adapter module after `configurePanel(...)`. See §11.5.
 
@@ -953,7 +954,7 @@ Behaviour notes:
 | `open`      | `${storagePrefix}-open`     | Mirror of the panel's `open` boolean (synchronous mount-time read — preserves user intent across reloads, fixes #1549). |
 | `position`  | `${storagePrefix}-position` | Drag position `{ top, right }` so the panel reappears where the user left it.                                           |
 | `visible`   | `${storagePrefix}:visible`  | Adapter-level visibility-intent flag, owned by the lazy-load gate.                                                      |
-| `autoload`  | `${storagePrefix}:autoload` | Owner-mode autoload flag. When `'1'`, the panel bundle fetches eagerly on every page load and mounts CLOSED so the Alt+click element-path inspector is armed without opening the panel UI. Set by `enableAutoload()` and cleared by `disableAutoload()`. See §10.1. |
+| `autoload`  | `${storagePrefix}:autoload` | Owner-mode autoload flag. Holds `'1'` (explicit — set by `enableAutoload()`) or `'auto'` (auto-remembered — set by opening the panel). Either value arms the panel bundle to fetch eagerly on every page load and mount CLOSED so the Alt+click element-path inspector is armed without opening the panel UI. Cleared by `disableAutoload()`. See §10.1. |
 
 For example, with `storagePrefix: 'myapp-design-token-panel'`:
 
@@ -1042,7 +1043,7 @@ zdtp.toggle(); // toggle open/closed
   - Non-Astro hosts get it as soon as `@takazudo/zdtp`'s package-root module has loaded (it installs the alias at module init).
   - Astro hosts get it as soon as the host-adapter `<script>` has run — **before** the panel bundle itself has loaded. The first `zdtp.*` call lazy-imports the bundle, exactly like `window[consoleNamespace].*`.
 - **Never clobbers a host-defined `window.zdtp`.** If your page already has its own `window.zdtp` for something unrelated, the package leaves it alone and logs a `console.warn` instead of overwriting it — including the edge case of choosing `consoleNamespace: 'zdtp'` yourself.
-- **Auto-remember applies too** — `zdtp.show()` arms the `:autoload` flag exactly like `showDesignPanel()` (§10.1's Auto-remember footgun note applies here as well).
+- **Auto-remember applies too** — `zdtp.show()` arms the `:autoload` flag with `'auto'` provenance exactly like `showDesignPanel()` (§10.1's Auto-remember footgun note applies here as well).
 
 See `PORTABLE-CONTRACT.md` §6.5 for the full install-site and no-clobber/no-double-install contract.
 
@@ -1078,11 +1079,15 @@ Both the Astro host-adapter (`window[consoleNamespace].*`) and the package-root 
 
 #### The `${storagePrefix}:autoload` flag
 
-Stored in `localStorage` as `'1'` when armed, removed or `'0'` otherwise. The host-adapter's lazy-load gate reads this flag on every page load — when it is `'1'`, the panel bundle loads eagerly (the same as when the panel was previously visible or overrides are persisted). **General visitors** who have never called `enableAutoload()` have no flag and pay zero bundle cost.
+Stored in `localStorage` as `'1'` (explicit — set by `enableAutoload()`) or `'auto'` (auto-remembered — set by opening the panel; see "Auto-remember on open" below), removed or `'0'` otherwise. The host-adapter's lazy-load gate honours **either** value — when the flag is `'1'` or `'auto'`, the panel bundle loads eagerly (the same as when the panel was previously visible, via either the `:visible` flag or its `-open` mirror, or overrides are persisted, checked as a content check across the `${storagePrefix}-state` family rather than a presence check on a specific version key — see §9). **General visitors** who have never opened the panel or called `enableAutoload()` have no flag and pay zero bundle cost.
+
+**Downstream-host recipe.** A host that writes its own lazy-load probe (e.g. to decide whether to eagerly fetch something else alongside the panel) can read the flag directly and test `=== '1'` to match only the explicit-owner population, excluding visitors who merely opened the panel once.
+
+**Legacy caveat.** Browsers that auto-remembered *before* this provenance split shipped already hold `'1'` — the split value was never stored for them, so there is nothing to reclassify. An `=== '1'` probe therefore sheds the auto-remembered population only for opens made from this version onward; it does not retroactively shed the pre-existing legacy population still holding `'1'`.
 
 #### Auto-remember on open
 
-Opening the panel by any means — `showDesignPanel()`, `toggleDesignPanel()`, or clicking the panel's own header close button to re-open it — **automatically sets the `:autoload` flag**. This means once you open the panel you will be in owner-mode on subsequent page loads without calling `enableAutoload()` explicitly.
+Opening the panel by any means — `showDesignPanel()`, `toggleDesignPanel()`, or clicking the panel's own header close button to re-open it — **automatically sets the `:autoload` flag to `'auto'`** (auto-remembered provenance, distinct from the `'1'` that `enableAutoload()` writes). This means once you open the panel you will be in owner-mode on subsequent page loads without calling `enableAutoload()` explicitly. An existing explicit `'1'` is never downgraded — an owner who armed autoload deliberately keeps that provenance even after opening the panel again.
 
 #### Element-path coupling
 
@@ -1090,11 +1095,13 @@ Opening the panel by any means — `showDesignPanel()`, `toggleDesignPanel()`, o
 
 #### Auto-remember footgun
 
-Because **any open trigger sets `:autoload`**, a visible "open panel" button, keyboard shortcut, or similar affordance on your site becomes a de-facto owner-mode opt-in for anyone who clicks it. On an owner-only public site:
+Because **any open trigger sets `:autoload`** (to `'auto'`), a visible "open panel" button, keyboard shortcut, or similar affordance on your site becomes a de-facto owner-mode opt-in for anyone who clicks it. On an owner-only public site:
 
 - Gate or omit such triggers (hide them behind a login check, remove them from the production build, etc.).
 - Rely on the console `enableAutoload()` call as the owner's explicit opt-in.
 - See the [Load the panel only for you](/docs/recipes/owner-autoload) recipe for a safe worked example.
+
+**If your site wants a visible panel button for every visitor** (not just the owner) — hiding the trigger isn't an option — set `autoRememberOnOpen: false` on `PanelConfig` (§5.3). Opening the panel then never persists owner-mode for anyone; `enableAutoload()` remains available as the explicit, owner-only opt-in regardless of this setting.
 
 ---
 
