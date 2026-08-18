@@ -34,7 +34,7 @@ fetched at all. The owner-autoload flag is one of those signals.
 |--------|---------|
 | `${storagePrefix}:visible` | Panel was open on the last visit |
 | `${storagePrefix}-open` | The same open state, under the panel's own open-state key |
-| `${storagePrefix}-state`, `${storagePrefix}-state-v1` … `-vN` | User has saved token overrides |
+| `${storagePrefix}-state` (v1) and `${storagePrefix}-state-v2` … `-vN` | User has saved token overrides |
 | `${storagePrefix}:autoload` | Owner-autoload flag — **you** are in owner mode |
 | `${storagePrefix}-elpath-enabled` | Element-path inspector is enabled |
 | `${storagePrefix}-domtweaker-enabled` | DOM Tweaker is enabled (probed only when the host configures `domTweaker`) |
@@ -42,8 +42,10 @@ fetched at all. The owner-autoload flag is one of those signals.
 The `-state` family is matched **exactly** — `${storagePrefix}-state` plus
 `${storagePrefix}-state-v<N>` for any version — so a sibling instance whose
 prefix happens to start with yours cannot trip your gate. Each matching key
-is also content-checked: an envelope that holds no overrides (what a reset
-leaves behind) is not a signal.
+is also content-checked: a key holding an empty envelope (`{}`, `[]`, `null`,
+or an empty string) is not a signal. Note that a panel reset does not leave
+one behind — it removes the `-state` keys outright — so in practice this
+guard only matters for envelopes written by hand or by another tool.
 
 `enableAutoload()` writes the `:autoload` flag and arms the element-path
 inspector. `disableAutoload()` clears all four owner-mode keys and unmounts

@@ -35,7 +35,7 @@ sidebar_position: 8
 |--------|------|
 | `${storagePrefix}:visible` | 前回の訪問時にパネルが開いていた |
 | `${storagePrefix}-open` | 同じ開閉状態を、パネル自身の開閉状態キーで表したもの |
-| `${storagePrefix}-state`、`${storagePrefix}-state-v1` … `-vN` | ユーザーがトークンのオーバーライドを保存している |
+| `${storagePrefix}-state`（v1）と `${storagePrefix}-state-v2` … `-vN` | ユーザーがトークンのオーバーライドを保存している |
 | `${storagePrefix}:autoload` | owner-autoload フラグ——**自分**がオーナーモードである |
 | `${storagePrefix}-elpath-enabled` | 要素パスインスペクターが有効になっている |
 | `${storagePrefix}-domtweaker-enabled` | DOM Tweaker が有効になっている（ホストが `domTweaker` を設定しているときだけ調べられる） |
@@ -43,8 +43,10 @@ sidebar_position: 8
 `-state` ファミリーは**完全一致**で照合されます（`${storagePrefix}-state` と、
 任意のバージョンの `${storagePrefix}-state-v<N>`）。そのため、自分のプレフィックスで
 始まる名前を持つ別インスタンスのキーが、自分のゲートを誤って発火させることは
-ありません。さらに一致したキーは中身まで検査され、オーバーライドを 1 つも
-持たないエンベロープ——リセット後に残るのがこれです——はシグナルとみなされません。
+ありません。さらに一致したキーは中身まで検査され、空のエンベロープ（`{}`、`[]`、
+`null`、空文字列）はシグナルとみなされません。なおパネルのリセットは `-state` キー
+自体を削除するため空のエンベロープを残しません。この検査が効くのは、手作業や別の
+ツールが書き込んだエンベロープに限られます。
 
 `enableAutoload()` は `:autoload` フラグを書き込み、要素パスインスペクターを
 有効化します。`disableAutoload()` は 4 つのオーナーモードキーすべてをクリアし、

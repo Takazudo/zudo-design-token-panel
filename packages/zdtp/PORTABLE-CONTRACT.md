@@ -800,14 +800,15 @@ This is the reason the JSON-serializable constraint in §4.2 is non-negotiable.
 
 ### 6.2 Lazy-load gate
 
-The host adapter fires one eager `loadPanelModule()` call when any of five
-signals is present in `localStorage` at page load:
+The host adapter fires one eager `loadPanelModule()` call when any of the
+following signals is present in `localStorage` at page load:
 
 ```ts
 if (
-  wasVisible()            ||   // panel was open last visit
+  wasVisible(visibleKey)  ||   // panel was open last visit (`:visible`)
+  wasVisible(openKey)     ||   // same, via the `-open` mirror
   hasPersistedOverrides() ||   // user has saved token tweaks
-  shouldAutoload()        ||   // owner-autoload flag set (NEW)
+  shouldAutoload()        ||   // owner-autoload flag set ('1' or 'auto')
   loadElementPathEnabled() ||   // element-path inspector enabled
   loadDomTweakerEnabled()      // DOM Tweaker enabled and configured
 ) {
@@ -815,8 +816,10 @@ if (
 }
 ```
 
-- `wasVisible()` — reads `${storagePrefix}:visible` (colon-form key, §2).
-  Returns `true` when the panel was open before the last navigation.
+- `wasVisible()` — reads `${storagePrefix}:visible` (colon-form key, §2), and
+  is applied a second time to the `${storagePrefix}-open` mirror (dash-form,
+  §2) that `panel.tsx` writes alongside it. Either key holding `'1'` means the
+  panel was open before the last navigation.
 - `hasPersistedOverrides()` — scans every `localStorage` key matching the
   `${storagePrefix}-state` family (dash-form, §2: `-state` (v1) through every
   `-state-vN`) and returns `true` when at least one holds a non-empty envelope
@@ -824,8 +827,10 @@ if (
   can migrate or reject the payload rather than stranding the user with data
   it can never see). This is a **content check**, not a presence check on a
   specific version key — an empty `{}` / `[]` / `null` / `''` does NOT trigger
-  it. Overrides MUST be re-applied to `:root` even when the panel stays
-  hidden, otherwise hard-nav produces a FOUT.
+  it. (zdtp itself never writes such a value: `clearPersistedState()` removes
+  the `-state` keys outright, so this guard only covers envelopes written by
+  hand or by another tool.) Overrides MUST be re-applied to `:root` even when
+  the panel stays hidden, otherwise hard-nav produces a FOUT.
 - `shouldAutoload()` — reads `${storagePrefix}:autoload` (colon-form, §2).
   Returns `true` when the flag is `'1'` (explicit, written by `enableAutoload()`)
   OR `'auto'` (auto-remembered, written by opening the panel — see "Auto-remember

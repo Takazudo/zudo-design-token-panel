@@ -154,6 +154,14 @@ export interface PanelConfig {
    * Defaults to an empty map (no renaming, no drops).
    */
   legacyIdRenameMap?: Record<string, string | null>;
+  /**
+   * Whether opening the panel writes the owner-autoload flag
+   * (`${storagePrefix}:autoload`) with `'auto'` provenance.
+   * Defaults to true. Set false on a public site that shows a panel-open
+   * button to every visitor. enableAutoload()'s explicit '1' write is
+   * unaffected.
+   */
+  autoRememberOnOpen?: boolean;
 }
 ```
 
@@ -174,6 +182,7 @@ export interface PanelConfig {
 | `domTweaker` | `DomTweakerConfig` | no | Opts into the dev-time Tailwind class editor. Omit it to hide the feature — see [DOM Tweaker](/docs/reference/dom-tweaker). |
 | `applySink` | `ApplySink` | no | Optional CSS-var write target. Not JSON-serializable. See below. |
 | `legacyIdRenameMap` | `Record<string, string \| null>` | no | Migration map for persisted id renames and drops. |
+| `autoRememberOnOpen` | `boolean` | no | Whether opening the panel arms owner-mode autoload (`:autoload = 'auto'`). Default `true`. Set `false` for a public site with a visitor-visible panel button — see [Load the panel only for you](/docs/recipes/owner-autoload). |
 
 <Info title="JSON-serializable invariant">
 Every field on `PanelConfig` (including nested `tabs` content) other than `applySink` must round-trip through `JSON.stringify` without loss. The Astro host-adapter parses the inline `<script type="application/json">` payload on every page; function fields, class instances, and `Symbol` keys silently disappear and surface later as cryptic runtime errors.
