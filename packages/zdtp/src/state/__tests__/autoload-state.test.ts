@@ -188,6 +188,63 @@ describe('quota-throw tolerance', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// autoRememberOnOpen gate (#578)
+// ---------------------------------------------------------------------------
+
+describe('rememberAutoload — autoRememberOnOpen: false gate', () => {
+  it('does not write the flag when no value is stored', () => {
+    const cfg: PanelConfig = { ...DEFAULT_CFG, autoRememberOnOpen: false };
+    rememberAutoload(cfg);
+    expect(localStorage.getItem('zudo-design-token-panel:autoload')).toBeNull();
+    expect(shouldAutoload(cfg)).toBe(false);
+  });
+
+  it('leaves no :autoload key after an open+close cycle (open never persists)', () => {
+    const cfg: PanelConfig = { ...DEFAULT_CFG, autoRememberOnOpen: false };
+    rememberAutoload(cfg); // simulated open
+    clearAutoload(cfg); // simulated close teardown (no-op here since nothing was written)
+    expect(localStorage.getItem('zudo-design-token-panel:autoload')).toBeNull();
+  });
+
+  it('does not clobber an existing explicit "1" (still a no-op, value untouched)', () => {
+    const cfg: PanelConfig = { ...DEFAULT_CFG, autoRememberOnOpen: false };
+    setAutoload(cfg, true);
+    rememberAutoload(cfg);
+    expect(localStorage.getItem('zudo-design-token-panel:autoload')).toBe('1');
+  });
+
+  it('does not throw in SSR environment (window undefined)', () => {
+    const cfg: PanelConfig = { ...DEFAULT_CFG, autoRememberOnOpen: false };
+    vi.stubGlobal('window', undefined);
+    expect(() => rememberAutoload(cfg)).not.toThrow();
+  });
+});
+
+describe('rememberAutoload — autoRememberOnOpen default / explicit true', () => {
+  it('omitted (default) still writes "auto"', () => {
+    const cfg: PanelConfig = { ...DEFAULT_CFG };
+    delete (cfg as { autoRememberOnOpen?: boolean }).autoRememberOnOpen;
+    rememberAutoload(cfg);
+    expect(localStorage.getItem('zudo-design-token-panel:autoload')).toBe('auto');
+  });
+
+  it('explicit true still writes "auto"', () => {
+    const cfg: PanelConfig = { ...DEFAULT_CFG, autoRememberOnOpen: true };
+    rememberAutoload(cfg);
+    expect(localStorage.getItem('zudo-design-token-panel:autoload')).toBe('auto');
+  });
+});
+
+describe('enableAutoload path (setAutoload) — unaffected by autoRememberOnOpen: false', () => {
+  it('setAutoload(cfg, true) still writes "1" regardless of autoRememberOnOpen', () => {
+    const cfg: PanelConfig = { ...DEFAULT_CFG, autoRememberOnOpen: false };
+    setAutoload(cfg, true);
+    expect(localStorage.getItem('zudo-design-token-panel:autoload')).toBe('1');
+    expect(shouldAutoload(cfg)).toBe(true);
+  });
+});
+
 describe('custom storagePrefix', () => {
   it('uses the custom prefix in the storage key (key is foo:autoload)', () => {
     const customCfg: PanelConfig = { ...DEFAULT_CFG, storagePrefix: 'foo' };

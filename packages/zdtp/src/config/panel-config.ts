@@ -211,6 +211,21 @@ export interface PanelConfig {
    * callers that depend on it.
    */
   legacyIdRenameMap?: Record<string, string | null>;
+  /**
+   * Whether opening the panel (via any of the five auto-remember call sites
+   * documented in `state/autoload-state.ts`) writes `${storagePrefix}:autoload`
+   * with `'auto'` provenance.
+   *
+   * Defaults to `true` (unchanged historical behaviour). README §10.1 names
+   * the auto-remember footgun this field addresses: because any visible
+   * "open panel" trigger arms owner-mode autoload for whoever clicks it, a
+   * PUBLIC DOCS SITE that wants a panel button visible to every visitor
+   * (not just its owner) cannot use the documented mitigation of hiding the
+   * trigger. Set `false` on such a host so opening the panel never persists
+   * owner-mode; `enableAutoload()` remains available as the explicit
+   * owner-only opt-in regardless of this setting.
+   */
+  autoRememberOnOpen?: boolean;
 }
 
 /**
@@ -1133,6 +1148,11 @@ export function assertValidPanelConfig(value: unknown): asserts value is PanelCo
         );
       }
     }
+  }
+  if (cfg.autoRememberOnOpen !== undefined && typeof cfg.autoRememberOnOpen !== 'boolean') {
+    throw new Error(
+      `[design-token-panel] PanelConfig.autoRememberOnOpen must be a boolean when set (got ${typeof cfg.autoRememberOnOpen})`,
+    );
   }
   if (cfg.legacyIdRenameMap !== undefined) {
     if (
