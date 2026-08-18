@@ -190,8 +190,11 @@ function hasPersistedOverrides(cfg: PanelConfig): boolean {
     // Exact `-state` family match (v1 `${prefix}-state` through every future
     // `${prefix}-state-vN`), NOT a `startsWith(prefix + '-state')` scan. A
     // page running sibling prefixes like `myapp` and `myapp-state` would
-    // otherwise have instance 2's `myapp-state-v4` key satisfy instance 1's
-    // scan too (epic #575 decision 6). Scanning keys directly (rather than
+    // otherwise have the SIBLING's own keys (`myapp-state-state`,
+    // `myapp-state-state-v4`) satisfy instance `myapp`'s scan, so one
+    // instance would eager-load because of another's state (epic #575
+    // decision 6). Note `myapp-state-v4` is `myapp`'s OWN v4 key, not the
+    // sibling's. Scanning keys directly (rather than
     // deriving one key per known version) also picks up v1 — which the old
     // per-version key list omitted — and any future version, with no schema
     // knowledge required.
