@@ -26,17 +26,25 @@ sidebar_position: 8
 
 ## 仕組み
 
-ホストアダプターはページを読み込むたびに `localStorage` 内の 4 つのシグナルを
-チェックします。**どれも**セットされていない場合——公開サイトに初めて訪れた人に
-とっては通常このケースです——バンドルはフェッチされません。owner-autoload の
-シグナルはこの 4 つのうちの 1 つです。
+ホストアダプターはページを読み込むたびに `localStorage` を調べ、オーナーシグナルが
+1 つでもセットされているときだけパネルバンドルをフェッチします。**どれも**
+セットされていない場合——公開サイトに初めて訪れた人にとっては通常このケースです
+——バンドルは一切フェッチされません。owner-autoload フラグはこのシグナルの 1 つです。
 
 | シグナル | 意味 |
 |--------|------|
 | `${storagePrefix}:visible` | 前回の訪問時にパネルが開いていた |
-| `${storagePrefix}-state-v3` | ユーザーがトークンのオーバーライドを保存している |
+| `${storagePrefix}-open` | 同じ開閉状態を、パネル自身の開閉状態キーで表したもの |
+| `${storagePrefix}-state`、`${storagePrefix}-state-v1` … `-vN` | ユーザーがトークンのオーバーライドを保存している |
 | `${storagePrefix}:autoload` | owner-autoload フラグ——**自分**がオーナーモードである |
 | `${storagePrefix}-elpath-enabled` | 要素パスインスペクターが有効になっている |
+| `${storagePrefix}-domtweaker-enabled` | DOM Tweaker が有効になっている（ホストが `domTweaker` を設定しているときだけ調べられる） |
+
+`-state` ファミリーは**完全一致**で照合されます（`${storagePrefix}-state` と、
+任意のバージョンの `${storagePrefix}-state-v<N>`）。そのため、自分のプレフィックスで
+始まる名前を持つ別インスタンスのキーが、自分のゲートを誤って発火させることは
+ありません。さらに一致したキーは中身まで検査され、オーバーライドを 1 つも
+持たないエンベロープ——リセット後に残るのがこれです——はシグナルとみなされません。
 
 `enableAutoload()` は `:autoload` フラグを書き込み、要素パスインスペクターを
 有効化します。`disableAutoload()` は 4 つのオーナーモードキーすべてをクリアし、
@@ -73,7 +81,7 @@ window.myapp.disableAutoload();
 キーがクリアされ、Preact のシェルがアンマウントされます。次回のページ読み込みからは、
 再びパネルなしの状態に戻ります。
 
-## 自動記憶: 最初にパネルを開くと autoload が有効になる
+## 自動記憶: パネルを開くと autoload が有効になる
 
 どのような手段であれパネルを開くと——`showDesignPanel()`、`toggleDesignPanel()`、
 固定名グローバルの `zdtp.show()` / `zdtp.toggle()`、あるいはパネルヘッダーの
@@ -82,24 +90,112 @@ window.myapp.disableAutoload();
 `enableAutoload()` を明示的に呼ぶ必要はありません。フラグは最初に開いた時点で
 セットされ、ページ読み込みをまたいで保持されます。
 
+このとき書き込まれる値は `'1'` ではなく `'auto'` です。この違いが何のためにあるかは
+次のセクションで説明します。この挙動自体が不要なホストは、
+`autoRememberOnOpen: false` で丸ごと止められます。
+
+## 保存される値が「どう有効化されたか」を表す
+
+`:autoload` は単なるオン／オフのビットではありません。その**値**が、
+そのブラウザがどうやってオーナーモードに入ったかを記録しています。
+
+| 保存される値 | 書き込み元 | 意味 |
+|--------------|--------------|------|
+| `'1'` | `enableAutoload()` | **明示的**——オーナーが意図してオーナーモードを有効化した |
+| `'auto'` | パネルを開く操作すべて（自動記憶） | **推定**——単にパネルが一度開かれただけ |
+| キーなし、`'0'`、それ以外 | `disableAutoload()` がキーを削除する | オーナーモード**ではない** |
+
+**どちらの値でも zdtp 自身の即時読み込みは有効になります。** パッケージの
+`shouldAutoload()` は `'1'` と `'auto'` を区別せずに真を返すため、どちらの経路で
+オーナーモードに入っても、ここまでで説明した挙動はまったく同じです。値を 2 種類に
+分けたことでパネルの振る舞いが変わることはありません。
+
+分けている理由は、**ホスト側が独自の遅延読み込み判定を書く**場合にあります。
+`=== '1'` で判定すれば、即時読み込みの対象を「DevTools で `enableAutoload()` を
+実行したオーナー」だけに絞り込めます。何か月も前にパネルのボタンをたまたま
+1 回クリックしただけの訪問者に、以後ずっとバンドルをフェッチし続ける必要は
+なくなります。
+
+自動記憶が既存の `'1'` を `'auto'` に**格下げすることはありません**。明示的に
+オーナーモードを有効化したあとでパネルを開いても、値は `'1'` のまま保たれます。
+
+<Note>
+`disableAutoload()` は、値が何であってもキーごと削除します。「`'auto'` に格下げする」
+という経路は存在せず、オプトアウトは常に完全なオプトアウトです。
+</Note>
+
 ## 落とし穴: 表に見える「開く」トリガーは一般訪問者のオプトインになる
 
 パネルを開く操作はどれも `:autoload` を有効化するため、一般訪問者の目に触れる
 UI トリガーは、クリックした人にとって事実上のオプトインになってしまいます。
+たまたまそれをクリックした訪問者のブラウザには `:autoload = 'auto'` がセットされ、
+それ以降ページを訪れるたびにパネルバンドルが読み込まれます。
 
-<Warning>
-公開サイトでは、認証で保護しない限り、**表に見える「パネルを開く」ボタンや
-キーボードショートカットを追加しないでください**。たまたまそれをクリックした
-一般訪問者は、自分のブラウザに `:autoload` がセットされ、それ以降ページを
-訪れるたびにパネルバンドルが読み込まれてしまいます。
-</Warning>
+対処は 2 通りあり、どちらを選ぶかは「トリガーを隠せるかどうか」で決まります。
 
-完全に公開されたサイトでは、次のようにします。
+- **トリガーを自分で制御できる場合** — 本番ビルドからパネルを開く入り口を省くか
+  隠すか、認証で保護します。意図的なオプトインの手段としては DevTools からの
+  `enableAutoload()` を使います。
+- **トリガーを表に出したままにしたい場合** — すべての読者にパネルボタンを見せる
+  公開ドキュメントサイトでは、そもそも隠すという選択肢がありません。この場合は
+  トリガーではなく自動記憶のほうを止めます（次のセクションの
+  `autoRememberOnOpen: false`）。
 
-- 本番ビルドからは、パネルを開く操作の入り口を一切省くか隠す。
-- 意図的なオプトインの手段としては、DevTools から `enableAutoload()` を使う。
-- 要素パス機能は、パネルの Alt+クリックインスペクターに任せ、パネル UI を
-  無理に開かせない。
+## 公開サイトでパネルボタンを見せたままにする: `autoRememberOnOpen: false`
+
+`PanelConfig.autoRememberOnOpen` は、パネルを開いたときに `:autoload = 'auto'` を
+書き込むかどうかを制御します。デフォルトは `true`——ここまで説明してきた従来の
+挙動です。`false` にすると、パネルを開いてもオーナーモードが永続化されなくなります。
+
+```ts
+import { configurePanel } from '@takazudo/zdtp';
+
+configurePanel({
+  storagePrefix: 'myapp-design-token-panel',
+  consoleNamespace: 'myapp',
+  // Public site: the panel button is visible to every reader, so a click
+  // must NOT arm owner-mode autoload for them. enableAutoload() stays
+  // available as the explicit, owner-only opt-in.
+  autoRememberOnOpen: false,
+  tabs: [
+    // ...your token manifest
+  ],
+});
+```
+
+Astro ホストでは `configurePanel` を自分で呼ぶことはありません。すでに
+`<DesignTokenPanelHost>` に渡している `PanelConfig` オブジェクトに、同じフィールドを
+持たせてください。
+
+```astro
+---
+// src/layouts/Layout.astro
+// myPanelConfig carries autoRememberOnOpen: false, exactly as above.
+import DesignTokenPanelHost from '@takazudo/zdtp/astro/DesignTokenPanelHost.astro';
+import { myPanelConfig } from '../lib/my-panel-config';
+---
+
+<DesignTokenPanelHost config={myPanelConfig} />
+```
+
+この設定を入れると、次のようになります。
+
+- 読者がボタンをクリックしてパネルを使い、タブを閉じる。`:autoload` には何も
+  書き込まれないため、次にページを開いてもバンドルはフェッチされません。
+- 自分は DevTools で `window.myapp.enableAutoload()` を一度実行する。これは `'1'` を
+  書き込む経路であり、この設定の影響を**受けません**。オーナーモードはここまでの
+  説明どおりに動きます。
+
+<Tip>
+`autoRememberOnOpen: false` が抑止するのは `:autoload` への書き込みだけで、それ以外の
+永続化には手を触れません。そしてそのうち 2 つは、それ自体が即時読み込みのシグナルです。
+トークンのオーバーライドを保存すれば `-state` エンベロープが書き込まれますし、パネルを
+**開いたまま**ページを離れれば `:visible` が立ったままになります。どちらの場合も、その
+読者の次回の訪問ではバンドルが読み込まれます。これは意図した挙動です——どちらも
+「その読者が実際にパネルを使っている」ことを意味するからです。とはいえ
+`autoRememberOnOpen: false` は「オーナー以外には絶対に読み込ませない」設定ではない、
+ということでもあります。なお、パネルを閉じれば `:visible` は再びクリアされます。
+</Tip>
 
 ## 実例: 安全なオーナー専用ローダー
 
@@ -116,15 +212,23 @@ import されることはなく、フラグは前述の DevTools コンソール
   // Replace storagePrefix with your PanelConfig.storagePrefix value.
   const storagePrefix = 'myapp-design-token-panel';
   const autoloadKey   = `${storagePrefix}:autoload`;
+  const autoload      = window.localStorage?.getItem(autoloadKey);
 
-  if (window.localStorage?.getItem(autoloadKey) === '1') {
+  // '1' = the owner ran enableAutoload() deliberately.
+  // 'auto' = the panel was merely opened once (auto-remember).
+  // Drop the second test to serve eager loads to explicit owners only.
+  if (autoload === '1' || autoload === 'auto') {
     // Owner mode: load the panel module. The module's own bootstrap logic
-    // reads the four gate signals, finds :autoload='1', and re-applies the
+    // reads the gate signals, finds the :autoload value, and re-applies the
     // full owner-mode state (CLOSED mount + element-path armed).
     void import('@takazudo/zdtp');
   }
 </script>
 ```
+
+両方の値を見るのは、zdtp 自身のゲートと同じ判定です。`=== '1'` だけを見るのは
+より厳しいポリシーで、クリックではなくコマンドの入力によってオーナーモードに
+入った人以外には、バンドルをページに載せません。
 
 `<DesignTokenPanelHost>` コンポーネントを使う **Astro サイト**では、このスタブは
 不要です。ホストアダプターが `:autoload` シグナルを含めた遅延読み込みのゲートを
@@ -137,21 +241,40 @@ import のトリガーを明示的に制御したいカスタム構成の場合�
 それ以降のページ読み込みのたびに自動で処理します。
 </Tip>
 
+## 既存ブラウザに関する注意: すでに `'1'` を保持している
+
+値による区別は今回から入ったものです。このリリース**より前**に自動記憶が働いた
+ブラウザには、素の `'1'` が保存されています。記録されなかった来歴をあとから
+復元する手段はないため、これらのブラウザは今後ずっと「明示的なオーナー」として
+読み取られます。
+
+<Warning>
+`=== '1'` の判定を入れた初日に、既存の自動記憶ユーザーが一気に外れることは
+期待しないでください。値による区別が効くのはこのバージョン以降の書き込みだけです。
+古い `'1'` は、対象のブラウザがストレージをクリアするか `disableAutoload()` を
+実行するにつれて、少しずつ減っていきます。
+</Warning>
+
+`autoRememberOnOpen: false` についても同じです。これが止めるのは*これから*の
+書き込みだけで、すでに `'1'` や `'auto'` を保持している訪問者は、キーがクリア
+されるまでその値を持ち続けます。
+
 ## まとめ
 
 | 操作 | 内容 |
 |------|------|
-| オプトイン | DevTools で `window.myapp.enableAutoload()`（一度だけ） |
-| オプトアウト | DevTools で `window.myapp.disableAutoload()` |
+| オプトイン | DevTools で `window.myapp.enableAutoload()`（一度だけ）——`'1'` を書き込む |
+| オプトアウト | DevTools で `window.myapp.disableAutoload()`——キーを削除する |
 | 一般訪問者 | コストゼロ——バンドルも CSS も DOM もなし |
 | オーナー（オプトイン後） | バンドルが即座に読み込まれ、パネルは閉じた状態でマウント、Alt+クリックが有効 |
-| 最初に開いたとき | autoload が自動的に有効化され、以降のページで再読み込みされる |
+| 最初に開いたとき | `'auto'` が書き込まれ、以降のページでパネルが再読み込みされる |
+| パネルボタンを見せる公開サイト | `autoRememberOnOpen: false`——パネルを開いても `:autoload` を書き込まない |
 
 ## 関連ページ
 
 - [PORTABLE-CONTRACT.md §6.2](https://github.com/Takazudo/zudo-design-token-panel/blob/main/packages/zdtp/PORTABLE-CONTRACT.md) — 遅延読み込み
-  ゲートの仕様（4 シグナル契約）と、`enableAutoload` / `disableAutoload` API の
-  完全な契約。
+  ゲートの仕様と、`enableAutoload` / `disableAutoload` API の完全な契約。
+  `:autoload` の値による来歴の区別もここに含まれます。
 - [ストレージキーのリファレンス](../reference/configure-panel.mdx) — `storagePrefix`
   と、コロン区切りの `${storagePrefix}:autoload` キーの導出方法。
 - [遅延カラープリセット](/docs/recipes/lazy-color-presets) — 一般訪問者のページ
