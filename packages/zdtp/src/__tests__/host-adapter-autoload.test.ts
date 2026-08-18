@@ -10,7 +10,8 @@
  *   2. enableAutoload() / disableAutoload() set/clear the right storage keys,
  *      including the open key on disable.
  *   3. Auto-remember: showDesignPanel() and toggleDesignPanel() write
- *      :autoload = '1' when the action results in the panel being open.
+ *      :autoload = 'auto' when the action results in the panel being open,
+ *      leaving an explicit '1' untouched (#576).
  *   4. Console global installs idempotently across view-transition reruns.
  *
  * Bootstrap strategy
@@ -163,6 +164,18 @@ describe('host-adapter owner-autoload wiring (S2 #419)', () => {
       expect(adapterState()?.modulePromise).not.toBeNull();
     });
 
+    it('fires on the auto-remembered shouldAutoload signal (:autoload = "auto")', async () => {
+      localStorage.setItem(AUTOLOAD_KEY, 'auto');
+      await bootstrapAdapter();
+      expect(adapterState()?.modulePromise).not.toBeNull();
+    });
+
+    it('does NOT fire on an unrecognised :autoload value', async () => {
+      localStorage.setItem(AUTOLOAD_KEY, '0');
+      await bootstrapAdapter();
+      expect(adapterState()?.modulePromise).toBeNull();
+    });
+
     it('fires on loadElementPathEnabled signal (elpath-enabled = "1")', async () => {
       localStorage.setItem(ELPATH_KEY, '1');
       await bootstrapAdapter();
@@ -234,18 +247,32 @@ describe('host-adapter owner-autoload wiring (S2 #419)', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // 3. Auto-remember — open actions arm :autoload = '1'
+  // 3. Auto-remember — open actions arm :autoload = 'auto'
   // ---------------------------------------------------------------------------
 
   describe('auto-remember', () => {
-    it('showDesignPanel() sets :autoload to "1"', async () => {
+    it('showDesignPanel() sets :autoload to "auto"', async () => {
+      await bootstrapAdapter();
+      await api().showDesignPanel();
+      expect(localStorage.getItem(AUTOLOAD_KEY)).toBe('auto');
+    });
+
+    it('showDesignPanel() does NOT downgrade an existing explicit "1"', async () => {
+      localStorage.setItem(AUTOLOAD_KEY, '1');
       await bootstrapAdapter();
       await api().showDesignPanel();
       expect(localStorage.getItem(AUTOLOAD_KEY)).toBe('1');
     });
 
-    it('toggleDesignPanel() sets :autoload = "1" when panel opens (OPEN_KEY absent → will open)', async () => {
+    it('toggleDesignPanel() sets :autoload = "auto" when panel opens (OPEN_KEY absent → will open)', async () => {
       // Panel is currently closed — OPEN_KEY is absent.
+      await bootstrapAdapter();
+      await api().toggleDesignPanel();
+      expect(localStorage.getItem(AUTOLOAD_KEY)).toBe('auto');
+    });
+
+    it('toggleDesignPanel() does NOT downgrade an existing explicit "1"', async () => {
+      localStorage.setItem(AUTOLOAD_KEY, '1');
       await bootstrapAdapter();
       await api().toggleDesignPanel();
       expect(localStorage.getItem(AUTOLOAD_KEY)).toBe('1');
@@ -260,7 +287,7 @@ describe('host-adapter owner-autoload wiring (S2 #419)', () => {
       localStorage.setItem(OPEN_KEY, '1');
       await bootstrapAdapter();
       await api().toggleDesignPanel();
-      expect(localStorage.getItem(AUTOLOAD_KEY)).toBe('1');
+      expect(localStorage.getItem(AUTOLOAD_KEY)).toBe('auto');
     });
   });
 

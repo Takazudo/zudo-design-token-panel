@@ -61,7 +61,7 @@ import {
   type PanelInstanceHandle,
 } from '../config/panel-config';
 import { ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP, getOpenKey } from '../state/tweak-state';
-import { shouldAutoload, setAutoload, clearAutoload } from '../state/autoload-state';
+import { shouldAutoload, rememberAutoload, clearAutoload } from '../state/autoload-state';
 import { loadElementPathEnabled, saveElementPathEnabled } from '../element-path/element-path-state';
 import { loadDomTweakerEnabled } from '../dom-tweaker/dom-tweaker-state';
 import { captureDocument, isSameUsableDocument } from '../utils/document-liveness';
@@ -281,7 +281,7 @@ function installConsoleApi(
     // ownership check (zudolab/zudo-doc#3344) — a show that the check cancels
     // never displayed anything, so persisting autoload would make the next
     // page eagerly load a panel the user never saw.
-    setAutoload(cfg, true);
+    rememberAutoload(cfg);
     handle.open();
   };
   existing.hideDesignPanel = async () => {
@@ -310,7 +310,7 @@ function installConsoleApi(
       /* storage unavailable — skip auto-remember for this toggle */
     }
     if (isNowOpen) {
-      setAutoload(cfg, true);
+      rememberAutoload(cfg);
     }
   };
   existing.enableAutoload = async () => {
