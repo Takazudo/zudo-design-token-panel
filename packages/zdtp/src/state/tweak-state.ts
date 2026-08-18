@@ -185,20 +185,16 @@ export const DEFAULT_POSITION: PanelPosition = { top: 60, left: 20 };
 /**
  * Compute a viewport-centered default panel position for first-open behaviour.
  *
- * The panel CSS-sizes itself up to 1200×800 but caps at 80% of the viewport,
- * so we mirror the same min/0.8x rule here. The resulting `top` / `left`
- * place the panel at the geometric center of the viewport.
+ * Delegates to `defaultGeometry()` so the position is centered against the
+ * panel's *actual* clamped default size rather than an independently derived
+ * one — see that function for why the two must not be computed separately.
  *
  * Falls back to the static `DEFAULT_POSITION` when `window` is undefined
  * (e.g. SSR / node test setup without jsdom). Real browsers + jsdom-backed
  * tests get the centered position.
  */
 export function defaultPosition(): PanelPosition {
-  if (typeof window === 'undefined') return DEFAULT_POSITION;
-  const panelW = Math.min(1200, 0.8 * window.innerWidth);
-  const panelH = Math.min(800, 0.8 * window.innerHeight);
-  const top = Math.max(0, Math.round((window.innerHeight - panelH) / 2));
-  const left = Math.max(0, Math.round((window.innerWidth - panelW) / 2));
+  const { top, left } = defaultGeometry();
   return { top, left };
 }
 
@@ -267,13 +263,12 @@ export const DEFAULT_SIZE: PanelSize = { width: 1024 * 0.8, height: 768 * 0.8 };
  * result respects the MIN_PANEL_* floor and the viewport cap. The floor only
  * bites on phone-width viewports (e.g. 375px → 0.8*375 = 300, raised to the
  * 320 min); on normal viewports the clamp is a no-op.
+ *
+ * Delegates to `defaultGeometry()` — the single place the rule lives.
  */
 export function defaultSize(): PanelSize {
-  if (typeof window === 'undefined') return DEFAULT_SIZE;
-  return clampSize(
-    Math.min(1200, 0.8 * window.innerWidth),
-    Math.min(800, 0.8 * window.innerHeight),
-  );
+  const { width, height } = defaultGeometry();
+  return { width, height };
 }
 
 /** Margin kept around the panel when clamping size against the viewport. */
@@ -292,6 +287,43 @@ export function clampSize(width: number, height: number): PanelSize {
   return {
     width: Math.max(MIN_PANEL_WIDTH, Math.min(width, maxW)),
     height: Math.max(MIN_PANEL_HEIGHT, Math.min(height, maxH)),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Combined first-open geometry
+// ---------------------------------------------------------------------------
+
+/** Position + size of a panel, as one coherent rectangle. */
+export interface PanelGeometry extends PanelPosition, PanelSize {}
+
+/**
+ * Compute the coherent first-open geometry: the clamped default size, plus a
+ * position that centers *that* rectangle in the viewport.
+ *
+ * Position and size used to be derived independently — `defaultPosition()`
+ * centered a phantom `min(1200, 0.8 * vw)` panel while `defaultSize()` raised
+ * that same value to the `MIN_PANEL_WIDTH` floor. On a 320px viewport the two
+ * disagreed by 32px (left 32 + width 320 = 352) and the panel spawned partly
+ * off-screen; `clampPosition()` did not catch it because it is a permissive
+ * drag-recovery clamp that only guarantees `VISIBLE_MIN` px stays grabbable.
+ * Computing the size first and centering against it keeps them in lockstep,
+ * and is the reason `defaultPosition()` / `defaultSize()` are thin wrappers
+ * rather than independent implementations.
+ *
+ * Falls back to the static SSR constants when `window` is undefined.
+ */
+export function defaultGeometry(): PanelGeometry {
+  if (typeof window === 'undefined') return { ...DEFAULT_POSITION, ...DEFAULT_SIZE };
+  const { width, height } = clampSize(
+    Math.min(1200, 0.8 * window.innerWidth),
+    Math.min(800, 0.8 * window.innerHeight),
+  );
+  return {
+    top: Math.max(0, Math.round((window.innerHeight - height) / 2)),
+    left: Math.max(0, Math.round((window.innerWidth - width) / 2)),
+    width,
+    height,
   };
 }
 
