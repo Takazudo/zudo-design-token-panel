@@ -25,16 +25,27 @@ For the storage-key derivation and the full gate contract, see
 
 ## How it works
 
-The host adapter checks four signals in `localStorage` on every page load.
-When **none** is set — the common case for first-time visitors on a public
-site — no bundle is fetched. The owner-autoload signal is one of the four:
+The host adapter probes `localStorage` on every page load and fetches the
+panel bundle only when at least one owner signal is set. When **none** is —
+the common case for a first-time visitor on a public site — no bundle is
+fetched at all. The owner-autoload flag is one of those signals.
 
 | Signal | Meaning |
 |--------|---------|
 | `${storagePrefix}:visible` | Panel was open on the last visit |
-| `${storagePrefix}-state-v4` (or the legacy `-state-v3` / `-state-v2`) | User has saved token overrides |
+| `${storagePrefix}-open` | The same open state, under the panel's own open-state key |
+| `${storagePrefix}-state` (v1) and `${storagePrefix}-state-v2` … `-vN` | User has saved token overrides |
 | `${storagePrefix}:autoload` | Owner-autoload flag — **you** are in owner mode |
 | `${storagePrefix}-elpath-enabled` | Element-path inspector is enabled |
+| `${storagePrefix}-domtweaker-enabled` | DOM Tweaker is enabled (probed only when the host configures `domTweaker`) |
+
+The `-state` family is matched **exactly** — `${storagePrefix}-state` plus
+`${storagePrefix}-state-v<N>` for any version — so a sibling instance whose
+prefix happens to start with yours cannot trip your gate. Each matching key
+is also content-checked: a key holding an empty envelope (`{}`, `[]`, `null`,
+or an empty string) is not a signal. Note that a panel reset does not leave
+one behind — it removes the `-state` keys outright — so in practice this
+guard only matters for envelopes written by hand or by another tool.
 
 `enableAutoload()` writes the `:autoload` flag and arms the element-path
 inspector. `disableAutoload()` clears all four owner-mode keys and unmounts
@@ -71,7 +82,7 @@ This clears the `:autoload` flag, the `:visible` flag, the element-path
 enabled key, and the open-state key, then unmounts the Preact shell. The
 next page load will be panel-free again.
 
-## Auto-remember: the first open arms autoload
+## Auto-remember: opening the panel arms autoload
 
 Opening the panel by any means — `showDesignPanel()`, `toggleDesignPanel()`,
 the fixed-name `zdtp.show()` / `zdtp.toggle()` global, or the panel header's
@@ -80,24 +91,112 @@ not need to call `enableAutoload()` explicitly if you have already opened
 the panel through any of these paths. The flag is set on first open and
 persists across page loads.
 
+The value written by this path is `'auto'`, not `'1'` — the next section
+explains why that distinction matters. A host that does not want this
+behaviour at all can switch it off with `autoRememberOnOpen: false`.
+
+## The stored value carries its provenance
+
+`:autoload` is not a bare on/off bit. Its **value** records how the browser
+came to be in owner mode:
+
+| Stored value | Written by | Meaning |
+|--------------|------------|---------|
+| `'1'` | `enableAutoload()` | **Explicit** — the owner deliberately armed owner mode |
+| `'auto'` | any action that opens the panel (auto-remember) | **Inferred** — something merely opened the panel once |
+| absent, `'0'`, anything else | `disableAutoload()` removes the key | **Not** in owner mode |
+
+**Both values arm zdtp's own eager load.** The package's `shouldAutoload()`
+check matches `'1'` and `'auto'` alike, so owner behaviour is exactly what
+the sections above describe no matter which path you took — nothing about
+the panel changes because of the split.
+
+The split exists for a **downstream host** writing its own lazy-load probe.
+Testing `=== '1'` narrows the eager-load population to owners who typed
+`enableAutoload()` in DevTools, and stops eagerly fetching the bundle for a
+visitor who clicked a panel button once, months ago.
+
+Auto-remember never **downgrades** an explicit `'1'` to `'auto'`: if you
+armed owner mode deliberately and later open the panel, the value stays
+`'1'`.
+
+<Note>
+`disableAutoload()` removes the key outright, whichever value it held. There
+is no "downgrade to `'auto'`" path — opting out is always a full opt-out.
+</Note>
+
 ## The footgun: visible open-triggers become public opt-ins
 
 Because any open action arms `:autoload`, a UI trigger that is visible to
-general visitors becomes a de-facto opt-in for anyone who clicks it.
+general visitors becomes a de-facto opt-in for anyone who clicks it. Every
+visitor who happens to click it gets `:autoload = 'auto'` in their browser,
+and the panel bundle loads for them on every subsequent page visit.
 
-<Warning>
-**Do not add a visible "open panel" button or keyboard shortcut** on a
-public site unless you gate it behind authentication. Every general visitor
-who happens to click it will set `:autoload` in their browser, and the
-panel bundle will load for them on every subsequent page visit.
-</Warning>
+There are two ways out, and which one applies depends on whether you can
+hide the trigger:
 
-On a fully public site:
+- **You control the trigger** — omit or hide the open-panel affordance from
+  the production build, or gate it behind authentication, and use
+  `enableAutoload()` from DevTools as your deliberate opt-in.
+- **The trigger must stay visible** — a public docs site that deliberately
+  shows a panel button to every reader cannot hide it. Turn auto-remember
+  off instead, with `autoRememberOnOpen: false` (next section).
 
-- Omit or hide any open-panel affordance from the production build.
-- Use `enableAutoload()` from DevTools as your deliberate opt-in.
-- Let the panel's own Alt+click inspector surface the element-path feature
-  without forcing the panel UI open.
+## Keep a public panel button: `autoRememberOnOpen: false`
+
+`PanelConfig.autoRememberOnOpen` controls whether opening the panel writes
+`:autoload = 'auto'`. It defaults to `true` — the historical behaviour
+described above. Set it to `false` and opening the panel never persists
+owner mode:
+
+```ts
+import { configurePanel } from '@takazudo/zdtp';
+
+configurePanel({
+  storagePrefix: 'myapp-design-token-panel',
+  consoleNamespace: 'myapp',
+  // Public site: the panel button is visible to every reader, so a click
+  // must NOT arm owner-mode autoload for them. enableAutoload() stays
+  // available as the explicit, owner-only opt-in.
+  autoRememberOnOpen: false,
+  tabs: [
+    // ...your token manifest
+  ],
+});
+```
+
+On an Astro host you never call `configurePanel` yourself — put the field on
+the same `PanelConfig` object you already hand to `<DesignTokenPanelHost>`:
+
+```astro
+---
+// src/layouts/Layout.astro
+// myPanelConfig carries autoRememberOnOpen: false, exactly as above.
+import DesignTokenPanelHost from '@takazudo/zdtp/astro/DesignTokenPanelHost.astro';
+import { myPanelConfig } from '../lib/my-panel-config';
+---
+
+<DesignTokenPanelHost config={myPanelConfig} />
+```
+
+With that in place:
+
+- A reader clicks the button, uses the panel, and closes the tab. Nothing is
+  written to `:autoload`, so their next page load fetches no bundle.
+- You run `window.myapp.enableAutoload()` once in DevTools. That writes
+  `'1'` and is **not** subject to this setting — owner mode still works
+  exactly as documented above.
+
+<Tip>
+`autoRememberOnOpen: false` suppresses the `:autoload` write and nothing
+else. The panel's other persisted state is untouched, and two of those keys
+are eager-load signals in their own right: saving a token override writes
+the `-state` envelope, and leaving the panel **open** when you navigate away
+leaves `:visible` set. Either one loads the bundle on that reader's next
+visit. That is intended — both mean the reader is actually using the panel —
+but it is why `autoRememberOnOpen: false` is not the same as "never load for
+anyone but the owner". Closing the panel clears `:visible` again.
+</Tip>
 
 ## Worked example — a safe owner-only loader
 
@@ -114,15 +213,23 @@ console call above.
   // Replace storagePrefix with your PanelConfig.storagePrefix value.
   const storagePrefix = 'myapp-design-token-panel';
   const autoloadKey   = `${storagePrefix}:autoload`;
+  const autoload      = window.localStorage?.getItem(autoloadKey);
 
-  if (window.localStorage?.getItem(autoloadKey) === '1') {
+  // '1' = the owner ran enableAutoload() deliberately.
+  // 'auto' = the panel was merely opened once (auto-remember).
+  // Drop the second test to serve eager loads to explicit owners only.
+  if (autoload === '1' || autoload === 'auto') {
     // Owner mode: load the panel module. The module's own bootstrap logic
-    // reads the four gate signals, finds :autoload='1', and re-applies the
+    // reads the gate signals, finds the :autoload value, and re-applies the
     // full owner-mode state (CLOSED mount + element-path armed).
     void import('@takazudo/zdtp');
   }
 </script>
 ```
+
+Testing both values mirrors zdtp's own gate. Testing `=== '1'` alone is the
+narrower policy: it keeps the bundle off the page for everyone who reached
+owner mode by clicking rather than by typing.
 
 For an **Astro site** using the `<DesignTokenPanelHost>` component, this
 stub is unnecessary — the host adapter already handles the lazy-load gate
@@ -135,21 +242,39 @@ If you are on an Astro site with `<DesignTokenPanelHost>`, just run
 the rest on every subsequent page load automatically.
 </Tip>
 
+## Legacy caveat: existing browsers already hold `'1'`
+
+The provenance value is new. Browsers that auto-remembered **before** this
+release stored a bare `'1'`, and no migration can recover a provenance that
+was never written down. They read as explicit owners forever.
+
+<Warning>
+Do not expect an `=== '1'` probe to shed your existing auto-remembered
+population on day one. The discrimination applies only to writes made from
+this version onward; the legacy `'1'` values age out as those browsers clear
+storage or run `disableAutoload()`.
+</Warning>
+
+The same holds for `autoRememberOnOpen: false` — it stops *future* writes.
+A visitor who already holds `'1'` or `'auto'` keeps it until the key is
+cleared.
+
 ## Summary
 
 | Step | Action |
 |------|--------|
-| Opt in | `window.myapp.enableAutoload()` in DevTools (once) |
-| Opt out | `window.myapp.disableAutoload()` in DevTools |
+| Opt in | `window.myapp.enableAutoload()` in DevTools (once) — writes `'1'` |
+| Opt out | `window.myapp.disableAutoload()` in DevTools — removes the key |
 | General visitors | Zero cost — no bundle, no CSS, no DOM |
 | You (after opt-in) | Bundle loads eagerly, panel mounts CLOSED, Alt+click armed |
-| First open | Automatically arms autoload so future pages re-load it |
+| First open | Writes `'auto'` so future pages re-load the panel |
+| Public site with a visible panel button | `autoRememberOnOpen: false` — opening never writes `:autoload` |
 
 ## Related
 
 - [PORTABLE-CONTRACT.md §6.2](https://github.com/Takazudo/zudo-design-token-panel/blob/main/packages/zdtp/PORTABLE-CONTRACT.md) — lazy-load
-  gate specification (4-signal contract) and the full `enableAutoload` /
-  `disableAutoload` API contract.
+  gate specification and the full `enableAutoload` / `disableAutoload` API
+  contract, including the `:autoload` provenance values.
 - [Storage-key reference](/docs/reference/configure-panel) — `storagePrefix`
   and the colon-separated `${storagePrefix}:autoload` key derivation.
 - [Lazy color presets](/docs/recipes/lazy-color-presets) — another

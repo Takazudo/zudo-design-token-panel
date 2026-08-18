@@ -149,7 +149,7 @@ describe('host-adapter window.zdtp global alias (#523)', () => {
 
     await zdtpGlobal()!.show();
 
-    expect(localStorage.getItem(AUTOLOAD_KEY)).toBe('1');
+    expect(localStorage.getItem(AUTOLOAD_KEY)).toBe('auto');
   });
 
   it('adapter-wins: loading the panel module after adapter bootstrap does not replace window.zdtp', async () => {

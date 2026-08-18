@@ -113,6 +113,15 @@ export interface PanelConfig {
    * Defaults to an empty map (no renaming).
    */
   legacyIdRenameMap?: Record<string, string | null>;
+  /**
+   * Whether opening the panel (any of the auto-remember call sites — see
+   * §6.2) writes `${storagePrefix}:autoload` with `'auto'` provenance.
+   * Defaults to `true`. Set `false` for a public site that wants a
+   * panel-open trigger visible to every visitor without arming owner-mode
+   * for whoever clicks it; `enableAutoload()`'s explicit `'1'` write is
+   * unaffected either way. See §6.2's Auto-remember footgun.
+   */
+  autoRememberOnOpen?: boolean;
 }
 
 /**
@@ -259,9 +268,9 @@ derives the keys at runtime from this single base.
 | `state-v2`  | `${storagePrefix}-state-v2` | tweak-state (legacy) | Pre-v3 unified envelope (color + spacing + typography + size + panelPosition). Migrated into `state-v3` on first load, then deleted.                        |
 | `state-v1`  | `${storagePrefix}-state`    | tweak-state (legacy) | Pre-v2 flat-state format (Color-only). Migrated into `state-v3` on first load, then deleted.                                                                |
 | `open`      | `${storagePrefix}-open`     | panel                | Mirror of the panel's `open` boolean state (so the next mount opens directly into the user's last state without a post-render toggle dispatch).              |
-| `position`  | `${storagePrefix}-position` | panel                | Drag position (`{ top, right }`) so the panel reappears where the user left it.                                                                              |
+| `position`  | `${storagePrefix}-position` | panel                | Drag position (`{ top, left }`) so the panel reappears where the user left it.                                                                              |
 | `visible`   | `${storagePrefix}:visible`  | adapter              | Adapter-level visibility-intent flag, owned by the lazy-load gate (§6).                                                                                      |
-| `autoload`  | `${storagePrefix}:autoload` | autoload-state       | Owner-mode autoload flag. `'1'` means "load the panel bundle eagerly and mount CLOSED on every page load." Managed by `enableAutoload()` / `disableAutoload()`. See §6.2. |
+| `autoload`  | `${storagePrefix}:autoload` | autoload-state       | Owner-mode autoload flag. `'1'` (explicit, set by `enableAutoload()`) or `'auto'` (auto-remembered, set by opening the panel — see §6.2) both mean "load the panel bundle eagerly and mount CLOSED on every page load." `enableAutoload()` / `disableAutoload()` manage the explicit value; `disableAutoload()` clears either. See §6.2. |
 | `domtweaker-enabled` | `${storagePrefix}-domtweaker-enabled` | dom-tweaker-state | DOM Tweaker enabled bit. `'1'` means "mount the closed shell and load the DOM Tweaker lazy boundary." Only meaningful when `PanelConfig.domTweaker` is present. |
 
 **Constraint — colon, not dash, for `visible` and `autoload`.** Both adapter-
@@ -287,6 +296,48 @@ myapp-design-token-panel-domtweaker-enabled
 Unit tests in the package verify these derivations with literal-equality
 checks, and the v1 → v3 / v2 → v3 migration paths at first-load are part of
 the test matrix.
+
+### 2.1 Default first-open geometry
+
+When the `position` key (and, likewise, the size key) has no persisted value
+yet, the panel does not fall back to a fixed pixel position. The fallback is
+computed at open time as one coherent rectangle:
+
+- **Size is computed first**, from the historical `min(1200, 0.8·vw) ×
+  min(800, 0.8·vh)` rule clamped to a minimum-size floor and the current
+  viewport. **Position is derived from that same clamped size** — centered
+  in the viewport, then run through a containment clamp so the whole
+  rectangle stays inside `[0, innerWidth]` × `[0, innerHeight]`. Position and
+  size are never computed independently; a host cannot observe a fallback
+  position that assumes a different width than the fallback size.
+- **Full containment is guaranteed at every viewport width**, including
+  phone widths — a first-open panel never spawns with any part off-screen.
+  This holds when the size key IS persisted but the `position` key is not
+  (a resize without a drag): the fallback position is centered and contained
+  against the persisted size, not against the default one.
+- **The fallback is instance-aware.** Each additional panel instance
+  concurrently mounted on the page offsets its own fallback position by 24px
+  on both axes, keyed to mount order with lowest-free-slot reuse (a released
+  slot — e.g. from `destroy()` — is reused by the next instance that mounts,
+  rather than the ordinal growing forever). This exists only to keep
+  simultaneously-opened instances from landing exactly on top of one
+  another; it has no effect once a `position` value is persisted.
+- **A persisted `position` value always wins over the cascade.** The 24px
+  offset applies only to the computed fallback, never to a stored value —
+  once `position` is written, that instance reopens at the exact stored
+  coordinates regardless of how many other instances are mounted.
+- **Containment takes priority over cascade distinctness.** On a viewport
+  with too little spare room, the 24px offset is clamped down toward
+  whatever room is left (potentially to 0) so the panel stays fully
+  contained; it is not the case that both "cascade offset is always applied"
+  and "the panel is always fully contained" hold simultaneously. Each axis
+  degrades on its own: one axis can run out of slack (offset clamped to 0)
+  while the other still applies the full 24px.
+- **Out of scope for this section — the drag-recovery clamp.** Once a panel
+  has been dragged, repositioning is governed by a separate, more permissive
+  clamp that only guarantees a 60px grip of the panel stays on-screen and
+  otherwise allows it to hang off any edge. That clamp is unrelated to this
+  fallback-geometry contract and is unchanged by it.
 
 ---
 
@@ -791,14 +842,15 @@ This is the reason the JSON-serializable constraint in §4.2 is non-negotiable.
 
 ### 6.2 Lazy-load gate
 
-The host adapter fires one eager `loadPanelModule()` call when any of five
-signals is present in `localStorage` at page load:
+The host adapter fires one eager `loadPanelModule()` call when any of the
+following signals is present in `localStorage` at page load:
 
 ```ts
 if (
-  wasVisible()            ||   // panel was open last visit
+  wasVisible(visibleKey)  ||   // panel was open last visit (`:visible`)
+  wasVisible(openKey)     ||   // same, via the `-open` mirror
   hasPersistedOverrides() ||   // user has saved token tweaks
-  shouldAutoload()        ||   // owner-autoload flag set (NEW)
+  shouldAutoload()        ||   // owner-autoload flag set ('1' or 'auto')
   loadElementPathEnabled() ||   // element-path inspector enabled
   loadDomTweakerEnabled()      // DOM Tweaker enabled and configured
 ) {
@@ -806,17 +858,29 @@ if (
 }
 ```
 
-- `wasVisible()` — reads `${storagePrefix}:visible` (colon-form key, §2).
-  Returns `true` when the panel was open before the last navigation.
-- `hasPersistedOverrides()` — probes `${storagePrefix}-state-v3` (dash-form,
-  §2). Returns `true` when the user has any saved tweaks. Overrides MUST be
-  re-applied to `:root` even when the panel stays hidden, otherwise hard-nav
-  produces a FOUT.
+- `wasVisible()` — reads `${storagePrefix}:visible` (colon-form key, §2), and
+  is applied a second time to the `${storagePrefix}-open` mirror (dash-form,
+  §2) that `panel.tsx` writes alongside it. Either key holding `'1'` means the
+  panel was open before the last navigation.
+- `hasPersistedOverrides()` — scans every `localStorage` key matching the
+  `${storagePrefix}-state` family (dash-form, §2: `-state` (v1) through every
+  `-state-vN`) and returns `true` when at least one holds a non-empty envelope
+  (malformed JSON also counts as `true` — fail open, so the panel loads and
+  can migrate or reject the payload rather than stranding the user with data
+  it can never see). This is a **content check**, not a presence check on a
+  specific version key — an empty `{}` / `[]` / `null` / `''` does NOT trigger
+  it. (zdtp itself never writes such a value: `clearPersistedState()` removes
+  the `-state` keys outright, so this guard only covers envelopes written by
+  hand or by another tool.) Overrides MUST be re-applied to `:root` even when
+  the panel stays hidden, otherwise hard-nav produces a FOUT.
 - `shouldAutoload()` — reads `${storagePrefix}:autoload` (colon-form, §2).
-  Returns `true` when the owner-autoload flag is set. This is the owner-mode
-  signal: the panel bundle fetches eagerly and mounts CLOSED so the element-
-  path inspector is armed even though the panel UI is hidden. General visitors
-  (no flag) pay zero bundle cost.
+  Returns `true` when the flag is `'1'` (explicit, written by `enableAutoload()`)
+  OR `'auto'` (auto-remembered, written by opening the panel — see "Auto-remember
+  on open" below). This is the owner-mode signal: the panel bundle fetches
+  eagerly and mounts CLOSED so the element-path inspector is armed even though
+  the panel UI is hidden. General visitors (no flag, or `'0'`) pay zero bundle
+  cost. A downstream host that wants to distinguish the two populations can
+  test `=== '1'` directly — see "Auto-remember on open" for the caveat.
 - `loadElementPathEnabled()` — reads the element-path inspector's persistence
   key. Returns `true` when the inspector was left enabled. Ensures the Preact
   shell is mounted (the inspector runs inside it) even when the panel UI is
@@ -834,9 +898,9 @@ panel bundle is NOT fetched and the page is completely free of panel JS.
 
 | Signal | Key derivation | Owner |
 |--------|---------------|-------|
-| `wasVisible` | `${storagePrefix}:visible` | adapter |
-| `hasPersistedOverrides` | `${storagePrefix}-state-v3` (falls back to `-state-v2`) | tweak-state |
-| `shouldAutoload` | `${storagePrefix}:autoload` | autoload-state |
+| `wasVisible` | `${storagePrefix}:visible`, OR its `${storagePrefix}-open` mirror | adapter |
+| `hasPersistedOverrides` | Content check across the `${storagePrefix}-state` family (`-state`, `-state-v2`, `-state-v3`, ... — every version, not a fixed list) | tweak-state |
+| `shouldAutoload` | `${storagePrefix}:autoload`, matching `'1'` or `'auto'` | autoload-state |
 | `loadElementPathEnabled` | `${storagePrefix}-elpath-enabled` | element-path-state |
 | `loadDomTweakerEnabled` | `${storagePrefix}-domtweaker-enabled` | dom-tweaker-state |
 
@@ -881,14 +945,32 @@ panel bundle is NOT fetched and the page is completely free of panel JS.
 
 Any action that shows the panel (`showDesignPanel()`, `toggleDesignPanel()`,
 or the panel's header button) MUST also write
-`${storagePrefix}:autoload = '1'`. This ensures that once the owner has
-opened the panel on any page, subsequent visits to the same site reload it
-automatically without a second explicit `enableAutoload()` call.
+`${storagePrefix}:autoload = 'auto'` (auto-remembered provenance, distinct
+from the `'1'` that `enableAutoload()` writes) — implemented by
+`rememberAutoload()`. This ensures that once the owner has opened the panel
+on any page, subsequent visits to the same site reload it automatically
+without a second explicit `enableAutoload()` call. An existing explicit `'1'`
+is never downgraded to `'auto'` by this path.
+
+`rememberAutoload()` no-ops when `PanelConfig.autoRememberOnOpen === false`
+(default `true`) — see the `PanelConfig` interface in §1. This lets a host
+serve a visible "open panel" trigger to every visitor without arming
+owner-mode for whoever clicks it; `enableAutoload()`'s explicit `'1'` write
+is unaffected by this setting either way.
 
 **Consequence for public-site owners:** any open trigger (a visible button, a
 keyboard shortcut, etc.) becomes a de-facto owner-mode opt-in for anyone who
-uses it. Gate or omit such triggers on public sites; rely on the console
-`enableAutoload()` call as the owner's deliberate opt-in.
+uses it, unless `autoRememberOnOpen` is set to `false`. Gate or omit such
+triggers on public sites, rely on the console `enableAutoload()` call as the
+owner's deliberate opt-in, or set `autoRememberOnOpen: false` if the site
+wants the trigger visible to everyone.
+
+**Legacy caveat.** A downstream host that reads `:autoload` directly and
+tests `=== '1'` to identify only explicit owners will NOT retroactively shed
+browsers that auto-remembered before this provenance split shipped — those
+already hold `'1'`, and that provenance was never recorded, so it cannot be
+reclassified. The `=== '1'` discrimination applies only to opens made from
+this version onward.
 
 ### 6.3 Astro view-transition lifecycle
 
@@ -967,8 +1049,9 @@ window.zdtp.toggle = () => void | Promise<void>;  // toggle the panel
   the second install site treats it as host-owned and skips.)
 - **Auto-remember carries over for free.** `zdtp.show()` routes through the
   same `showDesignTokenPanel()` / `handle.open()` core as every other open
-  path, so it arms `${storagePrefix}:autoload = '1'` exactly like
-  `showDesignPanel()` (§6.2) — no separate wiring needed.
+  path, so it arms `${storagePrefix}:autoload = 'auto'` exactly like
+  `showDesignPanel()` (§6.2) — no separate wiring needed, and it is subject
+  to the same `autoRememberOnOpen: false` gate.
 
 ---
 
@@ -1205,6 +1288,7 @@ Cross-reference table — what each section pins down.
 | ------------------------------------------------------------------------------------------- | ------------- |
 | `configurePanel({...})` signature, multi-instance, `PanelInstanceHandle`, per-instance toggle events | §1     |
 | Storage-key derivation                                                                      | §2, §8        |
+| Default first-open geometry (coherent size+position, viewport containment, cascade, persisted-position precedence) | §2.1 |
 | `TabConfig` / `TierConfig` / `TierItem` / `TierValueKind` interfaces and apply behaviour   | §3            |
 | `applySink` — optional CSS-var write target (upsert / clear / Reset full set)              | §3.5          |
 | `ColorClusterExtras` shape and multi-cluster support                                        | §4.1, §4.3    |

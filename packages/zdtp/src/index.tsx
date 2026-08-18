@@ -78,6 +78,7 @@ import { loadDomTweakerEnabled } from './dom-tweaker/dom-tweaker-state';
 import {
   shouldAutoload as _shouldAutoload,
   setAutoload,
+  rememberAutoload,
   clearAutoload,
 } from './state/autoload-state';
 import { isDocumentUsable } from './utils/document-liveness';
@@ -257,6 +258,102 @@ function ensurePanelStyles(): void {
   doc.head.appendChild(style);
 }
 
+// ---------------------------------------------------------------------------
+// Mounted-shell slot registry (#584)
+//
+// Tracks the panel shells that are CURRENTLY MOUNTED, keyed by
+// `storagePrefix`, and gives each a "spawn slot" ordinal (0, 1, 2, ...). #585
+// feeds that ordinal into the initial-geometry helper so a second live panel
+// spawns offset from the first instead of exactly covering it.
+//
+// ALLOCATION RULE — mount order with lowest-free-slot reuse:
+//
+//   - a fresh registration takes the lowest ordinal not currently held, so a
+//     close-then-reopen reclaims 0 instead of drifting upward forever;
+//   - re-registering an already-registered prefix is idempotent and keeps its
+//     existing ordinal (`ensureMounted` runs on every show, and again on every
+//     `astro:page-load` re-materialisation).
+//
+// That concrete rule IS the contract. The stronger "an instance always gets
+// the same ordinal regardless of mount timing" guarantee is NOT achievable
+// here: this module never learns the full set of instances up front — hosts
+// call `configurePanel()` at arbitrary times and the shell mounts lazily on
+// first open — so there is no complete set to derive a timing-independent
+// order from. Recorded here because a future reader cannot recover "why this
+// rule and not a stronger one" from the code alone.
+//
+// NOT the same registry as `getInstanceBindings()` further down: that one
+// tracks window-event listener bindings, whose default entry is installed
+// eagerly at module init before any panel exists and can outlive a rendered
+// shell. Its `size` / iteration index would therefore hand out wrong ordinals
+// (epic #582, decision 3) — hence this dedicated registry.
+// ---------------------------------------------------------------------------
+
+type MountedSlotsWindow = Window & {
+  __zudoDesignTokenPanelMountedSlots?: Map<string, number>;
+};
+
+/**
+ * Hang the registry off `window`, mirroring `getInstanceBindings()`: a host
+ * that ends up loading two copies of this module (dist + source, or two
+ * bundles) must still observe ONE set of live slots — two module-scope maps
+ * would each hand out ordinal 0 and reproduce the exact overlap #585 fixes.
+ */
+function getMountedSlots(): Map<string, number> {
+  const w = window as MountedSlotsWindow;
+  if (w.__zudoDesignTokenPanelMountedSlots) return w.__zudoDesignTokenPanelMountedSlots;
+  const map = new Map<string, number>();
+  w.__zudoDesignTokenPanelMountedSlots = map;
+  return map;
+}
+
+/**
+ * Register a mounting shell and return its spawn ordinal. Idempotent: an
+ * already-registered prefix keeps the ordinal it holds and no new slot is
+ * consumed.
+ */
+function claimSpawnSlot(cfg: PanelConfig): number {
+  // No `window` means no shell can be mounted at all; hand back a number
+  // without seeding a registry nothing will ever read.
+  if (typeof window === 'undefined') return 0;
+  const slots = getMountedSlots();
+  const existing = slots.get(cfg.storagePrefix);
+  if (existing !== undefined) return existing;
+  const taken = new Set(slots.values());
+  let slot = 0;
+  while (taken.has(slot)) slot += 1;
+  slots.set(cfg.storagePrefix, slot);
+  return slot;
+}
+
+/** Give ONE instance's spawn slot back. No-op when the prefix holds none. */
+function releaseSpawnSlot(cfg: PanelConfig): void {
+  if (typeof window === 'undefined') return;
+  getMountedSlots().delete(cfg.storagePrefix);
+}
+
+/**
+ * Test-only: snapshot of the mounted-shell slot registry (prefix -> ordinal).
+ * A copy, so a test cannot mutate the live registry through it.
+ *
+ * Prefixed `__` to make it clear this is internal/test surface, not a
+ * documented public API.
+ */
+export function __mountedSpawnSlotsForTests(): ReadonlyMap<string, number> {
+  if (typeof window === 'undefined') return new Map<string, number>();
+  return new Map(getMountedSlots());
+}
+
+/**
+ * Test-only: drop every registered slot. Unlike the bindings reset this has
+ * no listeners to drain — the registry holds plain numbers — so clearing the
+ * map is the whole teardown.
+ */
+export function __resetSpawnSlotsForTests(): void {
+  if (typeof window === 'undefined') return;
+  getMountedSlots().clear();
+}
+
 /**
  * Idempotently mount the Preact shell. Returns `true` only on a fresh mount.
  *
@@ -280,6 +377,11 @@ function ensureMounted(cfg: PanelConfig): boolean {
   if (doc.getElementById(panelId)) return false;
   if (!doc.body) return false;
   ensurePanelStyles();
+  // Claim the spawn slot before the render so the ordinal can feed the
+  // geometry the shell's first paint uses (#585). Placed AFTER both early
+  // returns: a prefix that is already mounted, or that cannot mount because
+  // there is no <body>, must not consume a slot.
+  const spawnOrdinal = claimSpawnSlot(cfg);
   const root = doc.createElement('div');
   root.id = panelId;
   doc.body.appendChild(root);
@@ -287,7 +389,10 @@ function ensureMounted(cfg: PanelConfig): boolean {
   // keys, subscribes to ITS own per-instance sync event, and renders ITS own
   // tabs — two panels on one page stay fully independent (issue #354). `cfg`
   // is the registered per-instance config (via `configForInstance`).
-  render(<DesignTokenTweakPanel instanceConfig={cfg} />, root);
+  // `spawnOrdinal` cascades this shell's fresh-open position away from any
+  // sibling already mounted. Flows mount layer -> panel -> geometry helper;
+  // `tweak-state.ts` never reaches back into this module (epic #582).
+  render(<DesignTokenTweakPanel instanceConfig={cfg} spawnOrdinal={spawnOrdinal} />, root);
   return true;
 }
 
@@ -298,6 +403,11 @@ function ensureMounted(cfg: PanelConfig): boolean {
  * instance is not mounted.
  */
 function unmountInstance(cfg: PanelConfig): void {
+  // Release BEFORE the root probe. `findRoot` also returns null on a
+  // torn-down document, and a `destroy()` that lands in that state must still
+  // give the slot back — otherwise a destroy -> recreate cycle would leave the
+  // old slot held forever and drift every later instance upward.
+  releaseSpawnSlot(cfg);
   const root = findRoot(cfg);
   if (!root) return;
   render(null, root);
@@ -431,7 +541,7 @@ function showInstance(cfg: PanelConfig): void {
   setStoredVisibility(cfg, true);
   // Auto-remember: any action that shows the panel arms the owner-autoload flag
   // so subsequent page loads reload it automatically (contract from autoload-state.ts).
-  setAutoload(cfg, true);
+  rememberAutoload(cfg);
   // Fresh mount: panel.tsx's mount-effect picks up OPEN_KEY="1" and renders
   // open — no listener race because the listener doesn't run yet anyway.
   if (isFreshMount) return;
@@ -480,7 +590,7 @@ function toggleInstance(cfg: PanelConfig): void {
   setStoredVisibility(cfg, willBeOpen);
   // Auto-remember: opening via toggle arms autoload so the panel reloads on
   // the next page visit (contract from autoload-state.ts).
-  if (willBeOpen) setAutoload(cfg, true);
+  if (willBeOpen) rememberAutoload(cfg);
   // Fresh mount: seed already drove the mount-effect to the desired state.
   if (isFreshMount) return;
   notifyPanelOpenChanged(cfg);
@@ -639,8 +749,11 @@ function unmountForSwap(): void {
     const root = findRoot(cfg);
     if (!root) continue;
     const shouldRestore = wasVisible(cfg);
-    render(null, root);
-    root.remove();
+    // Route the teardown through `unmountInstance` so the shell's spawn slot
+    // (#584) is released here too: a body swap destroys the shell exactly as
+    // `destroy()` does, and an instance that does NOT re-materialise on the
+    // next page load would otherwise hold its slot for the rest of the session.
+    unmountInstance(cfg);
     if (shouldRestore) setStoredVisibility(cfg, true);
   }
 }
@@ -748,7 +861,7 @@ function handleExternalToggleEvent(cfg: PanelConfig): void {
   // Auto-remember: the header button / window event opens the panel → arm
   // autoload so the panel reloads automatically on the next page visit
   // (contract from autoload-state.ts).
-  if (willBeOpen) setAutoload(cfg, true);
+  if (willBeOpen) rememberAutoload(cfg);
   // Fresh mount: the seed has already driven the mount-effect to the desired
   // state; no in-component listener exists to notify yet. The sync event
   // would harmlessly land in the void.
