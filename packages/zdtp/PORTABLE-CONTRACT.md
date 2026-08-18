@@ -297,6 +297,45 @@ Unit tests in the package verify these derivations with literal-equality
 checks, and the v1 → v3 / v2 → v3 migration paths at first-load are part of
 the test matrix.
 
+### 2.1 Default first-open geometry
+
+When the `position` key (and, likewise, the size key) has no persisted value
+yet, the panel does not fall back to a fixed pixel position. The fallback is
+computed at open time as one coherent rectangle:
+
+- **Size is computed first**, from the historical `min(1200, 0.8·vw) ×
+  min(800, 0.8·vh)` rule clamped to a minimum-size floor and the current
+  viewport. **Position is derived from that same clamped size** — centered
+  in the viewport, then run through a containment clamp so the whole
+  rectangle stays inside `[0, innerWidth]` × `[0, innerHeight]`. Position and
+  size are never computed independently; a host cannot observe a fallback
+  position that assumes a different width than the fallback size.
+- **Full containment is guaranteed at every viewport width**, including
+  phone widths — a first-open panel never spawns with any part off-screen.
+- **The fallback is instance-aware.** Each additional panel instance
+  concurrently mounted on the page offsets its own fallback position by 24px
+  on both axes, keyed to mount order with lowest-free-slot reuse (a released
+  slot — e.g. from `destroy()` — is reused by the next instance that mounts,
+  rather than the ordinal growing forever). This exists only to keep
+  simultaneously-opened instances from landing exactly on top of one
+  another; it has no effect once a `position` value is persisted.
+- **A persisted `position` value always wins over the cascade.** The 24px
+  offset applies only to the computed fallback, never to a stored value —
+  once `position` is written, that instance reopens at the exact stored
+  coordinates regardless of how many other instances are mounted.
+- **Containment takes priority over cascade distinctness.** On a viewport
+  with too little spare room, the 24px offset is clamped down toward
+  whatever room is left (potentially to 0) so the panel stays fully
+  contained; it is not the case that both "cascade offset is always applied"
+  and "the panel is always fully contained" hold simultaneously. Each axis
+  degrades on its own: one axis can run out of slack (offset clamped to 0)
+  while the other still applies the full 24px.
+- **Out of scope for this section — the drag-recovery clamp.** Once a panel
+  has been dragged, repositioning is governed by a separate, more permissive
+  clamp that only guarantees a 60px grip of the panel stays on-screen and
+  otherwise allows it to hang off any edge. That clamp is unrelated to this
+  fallback-geometry contract and is unchanged by it.
+
 ---
 
 ## 3. Tab / tier model contract
@@ -1246,6 +1285,7 @@ Cross-reference table — what each section pins down.
 | ------------------------------------------------------------------------------------------- | ------------- |
 | `configurePanel({...})` signature, multi-instance, `PanelInstanceHandle`, per-instance toggle events | §1     |
 | Storage-key derivation                                                                      | §2, §8        |
+| Default first-open geometry (coherent size+position, viewport containment, cascade, persisted-position precedence) | §2.1 |
 | `TabConfig` / `TierConfig` / `TierItem` / `TierValueKind` interfaces and apply behaviour   | §3            |
 | `applySink` — optional CSS-var write target (upsert / clear / Reset full set)              | §3.5          |
 | `ColorClusterExtras` shape and multi-cluster support                                        | §4.1, §4.3    |
