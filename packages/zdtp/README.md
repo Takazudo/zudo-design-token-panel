@@ -555,7 +555,7 @@ const handle = configurePanel({
 });
 ```
 
-### 5.3 Mount strategy & auto-mount
+### 5.5 Mount strategy & auto-mount
 
 The Astro entry point (`<DesignTokenPanelHost>`) handles mounting for you. Internally:
 

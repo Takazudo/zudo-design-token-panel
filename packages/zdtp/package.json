@@ -73,6 +73,7 @@
   "files": [
     "dist",
     "README.md",
+    "PORTABLE-CONTRACT.md",
     "CHANGELOG.md",
     "LICENSE"
   ],
