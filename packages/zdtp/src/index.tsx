@@ -377,11 +377,11 @@ function ensureMounted(cfg: PanelConfig): boolean {
   if (doc.getElementById(panelId)) return false;
   if (!doc.body) return false;
   ensurePanelStyles();
-  // Claim the spawn slot before the render so #585 can feed the ordinal into
-  // the geometry the shell's first paint uses. Placed AFTER both early returns:
-  // a prefix that is already mounted, or that cannot mount because there is no
-  // <body>, must not consume a slot.
-  claimSpawnSlot(cfg);
+  // Claim the spawn slot before the render so the ordinal can feed the
+  // geometry the shell's first paint uses (#585). Placed AFTER both early
+  // returns: a prefix that is already mounted, or that cannot mount because
+  // there is no <body>, must not consume a slot.
+  const spawnOrdinal = claimSpawnSlot(cfg);
   const root = doc.createElement('div');
   root.id = panelId;
   doc.body.appendChild(root);
@@ -389,7 +389,10 @@ function ensureMounted(cfg: PanelConfig): boolean {
   // keys, subscribes to ITS own per-instance sync event, and renders ITS own
   // tabs — two panels on one page stay fully independent (issue #354). `cfg`
   // is the registered per-instance config (via `configForInstance`).
-  render(<DesignTokenTweakPanel instanceConfig={cfg} />, root);
+  // `spawnOrdinal` cascades this shell's fresh-open position away from any
+  // sibling already mounted. Flows mount layer -> panel -> geometry helper;
+  // `tweak-state.ts` never reaches back into this module (epic #582).
+  render(<DesignTokenTweakPanel instanceConfig={cfg} spawnOrdinal={spawnOrdinal} />, root);
   return true;
 }
 
