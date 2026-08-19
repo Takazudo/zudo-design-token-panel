@@ -264,9 +264,10 @@ derives the keys at runtime from this single base.
 
 | Logical key | Derivation                  | Owner                | Purpose                                                                                                                                                      |
 | ----------- | --------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `state-v3`  | `${storagePrefix}-state-v3` | tweak-state          | Current unified envelope: tabs map + color + spacing + typography + size + panelPosition. Added `tabs` map for generic host-coined tabs.                     |
-| `state-v2`  | `${storagePrefix}-state-v2` | tweak-state (legacy) | Pre-v3 unified envelope (color + spacing + typography + size + panelPosition). Migrated into `state-v3` on first load, then deleted.                        |
-| `state-v1`  | `${storagePrefix}-state`    | tweak-state (legacy) | Pre-v2 flat-state format (Color-only). Migrated into `state-v3` on first load, then deleted.                                                                |
+| `state-v4`  | `${storagePrefix}-state-v4` | tweak-state          | Current unified envelope. `color` (and optional `secondary`) is keyed by active scheme/mode identity; global `tabs`, `spacing`, `typography`, and `size` slices remain unkeyed. |
+| `state-v3`  | `${storagePrefix}-state-v3` | tweak-state (legacy) | Retained downgrade-compatible envelope with a flat, single-slot `color` (plus global `tabs`, `spacing`, `typography`, and `size`). The selected v3 state is copied into v4; this key is not deleted by the v4 migration. |
+| `state-v2`  | `${storagePrefix}-state-v2` | tweak-state (legacy) | Pre-v3 unified envelope (color + spacing + typography + size). When selected, it is written to `state-v3` and the v2 key is deleted, then the result is copied into v4. |
+| `state-v1`  | `${storagePrefix}-state`    | tweak-state (legacy) | Pre-v2 flat-state format (Color-only). When selected, it is written to `state-v3` and the v1 key is deleted, then the result is copied into v4. |
 | `open`      | `${storagePrefix}-open`     | panel                | Mirror of the panel's `open` boolean state (so the next mount opens directly into the user's last state without a post-render toggle dispatch).              |
 | `position`  | `${storagePrefix}-position` | panel                | Drag position (`{ top, left }`) so the panel reappears where the user left it.                                                                              |
 | `visible`   | `${storagePrefix}:visible`  | adapter              | Adapter-level visibility-intent flag, owned by the lazy-load gate (§6).                                                                                      |
@@ -283,6 +284,7 @@ The derivation MUST emit the colon literally; do not "fix" it during refactors.
 the derivation produces:
 
 ```
+myapp-design-token-panel-state-v4
 myapp-design-token-panel-state-v3
 myapp-design-token-panel-state-v2
 myapp-design-token-panel-state
@@ -294,8 +296,39 @@ myapp-design-token-panel-domtweaker-enabled
 ```
 
 Unit tests in the package verify these derivations with literal-equality
-checks, and the v1 → v3 / v2 → v3 migration paths at first-load are part of
-the test matrix.
+checks. The v4 precedence and legacy v1/v2/v3 migration paths at first load
+are part of the test matrix; the version-agnostic `${storagePrefix}-state`
+family probe in §6.2 continues to cover this key and future versions.
+
+### Current `state-v4` envelope
+
+The current persisted envelope is stored under one `${storagePrefix}-state-v4`
+key. Its color slices are keyed by the active scheme/mode identity, while the
+non-color slices are global and unkeyed:
+
+```jsonc
+{
+  "color": {
+    "Default Light": { "palette": [], "semanticMappings": {} /* ... */ },
+    "Default Dark": { "palette": [], "semanticMappings": {} /* ... */ }
+  },
+  "secondary": {
+    "Default Light": { "palette": [], "semanticMappings": {} /* ... */ }
+  },
+  "tabs": { "my-custom-tab": { "tier-id": { "item-id": "value" } } },
+  "spacing": { "item-id": "value" },
+  "typography": { "item-id": "value" },
+  "size": { "item-id": "value" }
+}
+```
+
+`secondary` is optional and, when present, uses the same identity keys as the
+primary `color` map. On load, the active identity's color and secondary slots
+are selected. If that identity has no color slot yet, color is seeded from the
+active scheme's defaults; the global `tabs`, `spacing`, `typography`, and `size`
+slices still load. A save replaces only the active identity's color/secondary
+slots and preserves every other identity slot by merge, so editing one scheme
+cannot overwrite another scheme's tweaks.
 
 ### 2.1 Default first-open geometry
 
@@ -899,7 +932,7 @@ panel bundle is NOT fetched and the page is completely free of panel JS.
 | Signal | Key derivation | Owner |
 |--------|---------------|-------|
 | `wasVisible` | `${storagePrefix}:visible`, OR its `${storagePrefix}-open` mirror | adapter |
-| `hasPersistedOverrides` | Content check across the `${storagePrefix}-state` family (`-state`, `-state-v2`, `-state-v3`, ... — every version, not a fixed list) | tweak-state |
+| `hasPersistedOverrides` | Content check across the `${storagePrefix}-state` family (`-state`, `-state-v2`, `-state-v3`, `-state-v4`, ... — every version, not a fixed list) | tweak-state |
 | `shouldAutoload` | `${storagePrefix}:autoload`, matching `'1'` or `'auto'` | autoload-state |
 | `loadElementPathEnabled` | `${storagePrefix}-elpath-enabled` | element-path-state |
 | `loadDomTweakerEnabled` | `${storagePrefix}-domtweaker-enabled` | dom-tweaker-state |
@@ -1174,35 +1207,44 @@ For any host's chosen `storagePrefix`, the derivation produces deterministic,
 literal-equal storage keys (see §2). Unit tests pin the derived keys to
 literal strings.
 
-### 8.3 v1 / v2 → v3 in-place migration
+### 8.3 v4 precedence and v1 / v2 / v3 migration
 
-On first load, `loadPersistedState` migrates forward through the chain:
+`loadPersistedState` first looks for a valid `state-v4` envelope. If that key
+is absent or invalid, it falls through to the retained legacy chain. The
+precedence and deletion rules are explicit:
 
-| Source key              | Target key               | Action after migration |
-| ----------------------- | ------------------------ | ---------------------- |
-| `${storagePrefix}-state` (v1)    | `${storagePrefix}-state-v3` | v1 key deleted |
-| `${storagePrefix}-state-v2` (v2) | `${storagePrefix}-state-v3` | v2 key deleted |
+| Storage condition | Selection / migration action | Key-retention result |
+| ----------------- | ---------------------------- | --------------------- |
+| Valid `${storagePrefix}-state-v4` (v4) | Select the active identity's `color` and optional `secondary` slots; load global `tabs`, `spacing`, `typography`, and `size`. | v4 wins; no legacy key is touched. |
+| v4 key absent or invalid | Fall through and inspect the legacy keys in order. | No deletion is caused by the v4 probe. |
+| Valid `${storagePrefix}-state-v3` (v3) | Use v3; do not inspect, rewrite, or delete lower legacy keys. | Copy the resulting state into v4 under the active identity; retain v3 for downgrade compatibility. |
+| Valid `${storagePrefix}-state-v2` (v2), with no valid v3 | Parse v2 and write the resulting flat state to v3. | Delete v2, then copy the resulting v3 state into v4; retain v3 for downgrade compatibility. |
+| Valid `${storagePrefix}-state` (v1), with no valid v3 or v2 | Lift the flat Color-only state into the unified state and write it to v3. | Delete v1, then copy the resulting v3 state into v4; retain v3 for downgrade compatibility. |
 
-A user who last opened the panel before v3 landed gets their old color/spacing
-tweaks lifted into the new envelope on first load.
+Thus a v3 key wins over v2 and v1, and a v4 migration never removes v3. The
+selected or newly written v3 state is always filed into the v4 envelope under
+the identity active at that moment. Subsequent loads read v4 first; a
+downgrade can still read the retained v3 envelope. Malformed legacy values are
+skipped in the same order so the next lower legacy key can be considered.
 
-The v3 envelope adds a `tabs` map alongside the existing per-category slices:
+The retained v3 envelope has a flat, single-slot `color` and global slices:
 
 ```ts
 // Simplified v3 localStorage envelope shape
 {
-  // legacy category slices — preserved for round-trip compatibility
   color:      { ... },
   spacing:    { ... },
   typography: { ... },
   size:       { ... },
-  // v3 extension — generic tab overrides keyed by tab id
   tabs: {
     "my-custom-tab": { "item-id-1": "some-value", ... },
     ...
   }
 }
 ```
+
+The current v4 envelope and its active-identity seeding and merge-write rules
+are specified in §2 above.
 
 ### 8.4 Typography-id rename map
 
@@ -1304,6 +1346,6 @@ Cross-reference table — what each section pins down.
 | Modal class prefix and `data-design-token-panel-modal` selector contract                    | §7.3          |
 | Self-contained panel chrome palette (no host theme reads)                                  | §7.4          |
 | Host-adapter side-effect import (paired-unit obligation)                                    | §7.5          |
-| v1/v2 → v3 storage migration and typography-id rename map                                   | §8.3, §8.4    |
+| v4 envelope precedence, v1/v2/v3 storage migration, and typography-id rename map             | §2, §8.3, §8.4 |
 | JSON export/import schema v2 (serde v2)                                                     | §9            |
 | Out-of-scope / deferred concerns                                                            | §10           |
