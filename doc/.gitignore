@@ -2,7 +2,7 @@
 node_modules
 dist
 .zfb
-.zfb-build
+.zfb-build/
 
 # macOS
 .DS_Store
@@ -23,3 +23,11 @@ pnpm-debug.log*
 
 # zudo-doc build artifact (routes-src/ staged here at build time)
 .zudo-doc/
+
+# Generated doc-lookup skill
+.claude/skills/zudo-design-token-panel-wisdom/SKILL.md
+.claude/skills/zudo-design-token-panel-wisdom/docs
+.codex/skills/zudo-design-token-panel-wisdom/SKILL.md
+.codex/skills/zudo-design-token-panel-wisdom/docs
+.claude/skills/zudo-design-token-panel-wisdom/docs-ja
+.codex/skills/zudo-design-token-panel-wisdom/docs-ja
