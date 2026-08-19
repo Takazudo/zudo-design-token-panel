@@ -1,0 +1,96 @@
+---
+title: インストール
+description: pnpm、npm、yarn、bun の各プロジェクトへ @takazudo/zdtp をインストールします。
+sidebar_position: 2
+---
+
+`@takazudo/zdtp` は通常の npm パッケージです。公開インターフェースは `configurePanel({...})` の呼び出しと Preact でレンダリングするシェルだけなので、Astro、Vite + React、Next.js、プレーンな Vite SPA など、Preact island をレンダリングできるプロジェクトで動作します。
+
+このページではパッケージ自体のインストールを説明します。レイアウトへの組み込みについては[クイックスタート](./quickstart.mdx)を参照してください。
+
+## パッケージをインストールする
+
+プロジェクトのパッケージマネージャーに合うコマンドを選んでください。各コマンドはパネル本体と、唯一の peer dependency である [Preact](https://preactjs.com/) をインストールします。
+
+### pnpm
+
+```sh
+pnpm add @takazudo/zdtp preact
+```
+
+### npm
+
+```sh
+npm install @takazudo/zdtp preact
+```
+
+### yarn
+
+```sh
+yarn add @takazudo/zdtp preact
+```
+
+### bun
+
+```sh
+bun add @takazudo/zdtp preact
+```
+
+<Note title="Preact は peer dependency です">
+  パネル UI は Preact でレンダリングされ、`^10.29.1` の `peerDependency` として宣言されています。パネルとアプリ内のほかの Preact island が同じランタイムを共有できるよう、利用側で Preact を用意します。二重にインストールするとランタイムが分かれ、root 間のイベントデリゲーションが壊れます。
+</Note>
+
+## インストールを確認する
+
+インストール後、パッケージはプロジェクトルートから確認できる次の 3 種類を公開します。
+
+- ライブラリエントリ — `@takazudo/zdtp`（`configurePanel` を呼び出し、パネルをレンダリングします）。
+- Astro エントリ — `@takazudo/zdtp/astro/DesignTokenPanelHost.astro`（Astro がコンパイルできるよう直接 import する `<DesignTokenPanelHost>` コンポーネント）と `@takazudo/zdtp/astro`（設定型とヘルパー）。ホストアダプターは副作用 import の `@takazudo/zdtp/astro/host-adapter` です。
+- CLI bin — apply パイプラインで使う `zdtp-server`。
+
+プロジェクト内の PATH から bin を実行できるか、次のコマンドで確認できます。
+
+```sh
+pnpm exec zdtp-server --help
+# or
+npx zdtp-server --help
+```
+
+ヘルプが表示されれば、パッケージは正しくインストールされています。
+
+## apply パイプライン用 bin
+
+パッケージには `zdtp-server` という実行ファイルが含まれます。開発サーバーと並行して動作し、ループバックポートで待ち受け、パネルで **Apply** をクリックしたときにトークン CSS ファイルを書き換えます。
+
+<Tip title="今は省略できます">
+  bin は任意です。bin がなくても、エクスポート／インポートモードでパネルの全機能を利用できます。パネル上の変更をディスクへ反映したくなった時点で組み込んでください。
+</Tip>
+
+完全な CLI リファレンスは[専用ページ](../reference/cli-zdtp-server.mdx)にあります。概要は次のとおりです。
+
+```sh
+npx zdtp-server \
+  --routing ./panel-routing.json \
+  --write-root ./tokens \
+  --allow-origin http://localhost:5173
+```
+
+## peer dependency の互換性
+
+パッケージの `package.json` では次の peer dependency を宣言しています。
+
+| Peer | Range | 理由 |
+| --- | --- | --- |
+| `preact` | `^10.29.1` | パネル UI は Preact でレンダリングされます。アプリのほかの部分と同じ Preact ランタイムを共有する必要があります。上の注記を参照してください。 |
+
+<Info>
+  パネルの CSS は自己完結しています。パネル専用の `--tokentweak-*` 名前空間にまとめたスタイルシートが同梱されています。パネルを利用するプロジェクトに **Tailwind は不要です**。
+</Info>
+
+<Info title="スタイルの import は不要です">
+  パネルは実行時に自身のスタイルシートを注入します。初めてパネルを開くと、バンドル済み CSS を持つ `<style>` 要素を追加します。CSS を利用側で import する必要はありません。`@takazudo/zdtp/styles`（および `/styles.css`）の export も引き続きバンドル済みスタイルシートへ解決されるため、独自のスタイルシートパイプラインへ取り込みたい場合は利用できますが、現在は任意です。
+</Info>
+
+## 次のステップ
+
+インストールは完了です。最小限の一連の組み込みは[クイックスタート](./quickstart.mdx)、Astro / Vite + React / Next.js の比較は[フレームワーク比較](./frameworks-comparison.mdx)へ進んでください。

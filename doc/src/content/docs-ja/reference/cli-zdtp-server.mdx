@@ -1,0 +1,341 @@
+---
+title: zdtp-server CLI
+description: "zdtp-server bin のリファレンス：すべてのフラグ、HTTP エンドポイントの契約、完全な実行例。"
+sidebar_position: 10
+---
+
+## 概要
+
+`zdtp-server` は、ブラウザー内の **デザイントークンパネル**を支える小さな Node `http` サーバーです。`@takazudo/zdtp/server` が提供するフレームワーク非依存の apply ハンドラーを小さな CLI bin でラップしているため、ローカル開発中に Vite / Astro / 各種フレームワークの開発サーバーと並べて実行できます。
+
+ブラウザータブで動作するパネルから、変更をディスク上の実際の CSS ファイルへ書き戻したい場合に使用します。たとえば、デザインシステムのトークンを調整するときや、既存のフロントエンドアプリへパネルを組み込むときに役立ちます。
+
+この bin が公開する HTTP エンドポイントは、次の 3 つだけです。
+
+- `POST /apply` — トークンの変更をディスクへ適用する
+- `OPTIONS /apply` — 上記リクエストの CORS プリフライト
+- `GET /healthz` — readiness probe
+
+書き込み先は `--write-root` で渡したディレクトリ内に限られ、ブラウザーからの POST は `Origin` ヘッダーが `--allow-origin` で渡した値のいずれかと一致する場合だけ受け入れます。それ以外はすべて拒否されます。
+
+<Warning>
+この bin は**開発時専用**のツールです。`--allow-origin` の許可リスト以外に呼び出し元を認証せず、レート制限もなく、ファイルを同期的に書き込みます。公開ネットワークへ露出したり、本番環境で使用したりしないでください。
+</Warning>
+
+## 書式
+
+```text
+zdtp-server [options]
+```
+
+実用上最小の呼び出しには、必須フラグ 2 つに加えて、許可するオリジンを少なくとも 1 つ指定します（指定しなければブラウザーからの POST は成功しません）。
+
+```bash
+zdtp-server \
+  --write-root tokens \
+  --routing ./my.routing.json \
+  --allow-origin http://localhost:5173
+```
+
+`--help`（または `-h`）を指定すると、bin に組み込まれた同じ使用方法をいつでも表示できます。
+
+```bash
+zdtp-server --help
+```
+
+## フラグ
+
+以下では、すべてのフラグについて型、デフォルト値、例を示します。必須フラグは明示しています。必須フラグがない場合や値の検証に失敗した場合、bin は短いメッセージを stderr に出力し、ステータス `1` で終了します。
+
+### パスとルーティングのフラグ
+
+#### `--root <dir>`
+
+- **型:** パス（文字列）
+- **デフォルト:** `process.cwd()`（bin を呼び出したディレクトリ）
+- **必須:** いいえ
+
+`--write-root` と `--routing` に相対パスを渡したとき、CWD の基準として使うリポジトリルートです。リポジトリルート以外の場所から bin を呼び出す場合は、`--root` を渡して解決の基準を明示してください。
+
+```bash
+zdtp-server \
+  --root /Users/me/work/my-app \
+  --write-root tokens \
+  --routing config/panel.routing.json \
+  --allow-origin http://localhost:5173
+```
+
+#### `--write-root <path>`
+
+- **型:** パス（文字列）、絶対パスまたは `--root` からの相対パス
+- **デフォルト:** _（なし — 必須）_
+- **必須:** **はい**
+
+bin が書き込みを許可される唯一のディレクトリです。apply ハンドラーがこのディレクトリ外へ解決したファイルは、書き込み前に拒否されます。bin に与えるファイルシステム権限のサンドボックスとして扱ってください。
+
+<Danger title="セキュリティ境界">
+`--write-root` は、予期しないルーティングエントリー（またはブラウザーを誘導した攻撃者からの悪意あるペイロード）によってマシン上の任意のファイルが書き換えられることを防ぐ**唯一**の境界です。パネルが編集するすべてのファイルを含む、できるだけ狭いディレクトリを必ず指定してください。通常は `tokens/` や `src/styles/tokens/` です。リポジトリルートを指定してはいけません。
+</Danger>
+
+```bash
+# Sandbox writes into ./tokens (relative to --root)
+zdtp-server \
+  --write-root tokens \
+  --routing ./panel.routing.json \
+  --allow-origin http://localhost:5173
+
+# Or pass an absolute path
+zdtp-server \
+  --write-root /Users/me/work/my-app/src/styles/tokens \
+  --routing /Users/me/work/my-app/panel.routing.json \
+  --allow-origin http://localhost:5173
+```
+
+#### `--routing <path>`
+
+- **型:** パス（文字列）、絶対パスまたは `--root` からの相対パス
+- **デフォルト:** _（なし — 必須）_
+- **必須:** **はい**
+
+トークンのプレフィックスからリポジトリ相対の CSS ファイルパスへの対応を定義する、ルーティング JSON ファイルのパスです。このファイルは `loadRoutingFromFile` によって**起動時に一度だけ**読み込まれます。変更を反映するには bin を再起動してください。
+
+```bash
+zdtp-server \
+  --write-root tokens \
+  --routing ./panel.routing.json \
+  --allow-origin http://localhost:5173
+```
+
+<Tip>
+ルーティング JSON ファイルのスキーマと `POST /apply` のリクエスト／レスポンス形式については、[Apply pipeline reference](./apply-pipeline.mdx)を参照してください。
+</Tip>
+
+### ネットワークのフラグ
+
+#### `--port <number>`
+
+- **型:** `0..65535` の整数
+- **デフォルト:** `24681`
+- **必須:** いいえ
+
+バインドする TCP ポートです。`0` を渡すと OS が空きポートを選択します。bin は起動ログの行に実際にバインドしたポートを表示するため、統合テストや一時的なスクリプト実行に便利です。
+
+```bash
+# Bind a fixed port
+zdtp-server --port 34434 \
+  --write-root tokens --routing ./panel.routing.json \
+  --allow-origin http://localhost:5173
+
+# Let the OS pick — read the bound port from the startup log
+zdtp-server --port 0 \
+  --write-root tokens --routing ./panel.routing.json \
+  --allow-origin http://localhost:5173
+```
+
+指定したポートがすでに使用中の場合、bin は `port <N> already in use` というメッセージとともにステータス `1` で終了します。
+
+#### `--host <addr>`
+
+- **型:** ホスト／インターフェース文字列
+- **デフォルト:** `127.0.0.1`
+- **必須:** いいえ
+
+バインドするホスト／インターフェースです。デフォルトではサーバーをループバックに限定するため、同じマシン上のプロセスからしかアクセスできません。`0.0.0.0` を渡すと LAN へ公開できます。たとえば、同じネットワーク上のスマートフォンや同僚のマシンからパネルをテストする場合に使用します。
+
+```bash
+# LAN-accessible (only do this on a trusted network)
+zdtp-server --host 0.0.0.0 \
+  --write-root tokens --routing ./panel.routing.json \
+  --allow-origin http://192.168.1.20:5173
+```
+
+<Warning title="LAN への公開">
+`0.0.0.0` にバインドすると、ローカルネットワーク上の誰からでも bin へアクセスできます。厳密に限定した `--allow-origin` のリストと組み合わせ、信頼できないネットワーク（カフェ、ホテル、カンファレンスなど）では bin を `0.0.0.0` で実行しないでください。
+</Warning>
+
+### CORS とアクセスのフラグ
+
+#### `--allow-origin <origin>`
+
+- **型:** 完全一致するオリジン文字列（例: `http://localhost:5173`）
+- **デフォルト:** _（なし）_
+- **必須:** ブラウザーから使用する場合は実質的に必須 — 警告を参照
+- **複数指定:** はい — 複数のオリジンを許可するには複数回渡します
+
+`POST /apply` の呼び出しと `OPTIONS /apply` からの 204 レスポンス受信を許可するオリジンです。照合は**スキーム、ホスト、ポートを合わせた文字列全体について大文字と小文字を区別**します。ワイルドカードやパターンマッチングは意図的にサポートしていません。運用者が許可する各オリジンをそのまま宣言します。
+
+```bash
+# Single origin (typical local dev)
+zdtp-server \
+  --write-root tokens --routing ./panel.routing.json \
+  --allow-origin http://localhost:5173
+
+# Multiple origins (e.g. Vite + Storybook side by side)
+zdtp-server \
+  --write-root tokens --routing ./panel.routing.json \
+  --allow-origin http://localhost:5173 \
+  --allow-origin http://localhost:6006
+```
+
+<Warning title="allow-origin なし = ブラウザーから書き込み不可">
+`--allow-origin` を指定せずに bin を起動すると、起動ログに `WARNING: no --allow-origin set; browser POST /apply will be rejected.` というバナーが表示され、それ以降のブラウザーからの POST はすべて `403 Origin not allowed` で失敗します。CLI はパース時にはこのフラグを必須としませんが、これなしではパネルの本番相当の使用方法は機能しません。
+</Warning>
+
+### ログとヘルプのフラグ
+
+#### `--quiet`
+
+- **型:** 真偽値フラグ
+- **デフォルト:** `false`
+- **必須:** いいえ
+
+リクエストごとのログを抑制します。起動行とエラーログは引き続き表示され、apply ごとの要約ログ行（`[design-token-panel] applied N tokens to M files ...`）と起動時の `listening on ...` バナーだけが抑制されます。
+
+```bash
+zdtp-server --quiet \
+  --write-root tokens --routing ./panel.routing.json \
+  --allow-origin http://localhost:5173
+```
+
+#### `--help` / `-h`
+
+- **型:** 真偽値フラグ
+- **デフォルト:** `false`
+- **必須:** いいえ
+
+組み込みの使用方法を stdout に表示し、`0` で終了します。すべての検証を短絡するため、ほかのフラグを何も設定していなくても `--help` は機能します。
+
+```bash
+zdtp-server --help
+zdtp-server -h
+```
+
+## エンドポイントの契約
+
+bin が提供するルートは、正確に 3 つです。それ以外のパスは `404 { ok: false, error: "Not found" }` を返します。`/apply` に対するそれ以外のメソッドは、`Allow: POST, OPTIONS` ヘッダーとともに `405 { ok: false, error: "Method not allowed" }` を返します。
+
+### `POST /apply`
+
+ラップされた apply ハンドラーを通して、トークンの変更をディスクへ適用します。
+
+**リクエスト:**
+
+- ヘッダー `Content-Type` には `application/json` を含める必要があります（大文字と小文字は区別しません）。そうでない場合、bin は `415 { ok: false, error: "Content-Type must be application/json" }` を返します。
+- ヘッダー `Origin` は、設定済みの `--allow-origin` 値のいずれかと完全に一致する必要があります。そうでない場合、bin は `403 { ok: false, error: "Origin not allowed" }` を返します。
+- ボディ: apply ハンドラーが受け付ける JSON ペイロード。完全なペイロードスキーマについては、[Apply pipeline reference](./apply-pipeline.mdx)を参照してください。
+
+**レスポンス:**
+
+- 成功時: apply ハンドラーが生成した JSON ボディとともに `200`。ボディの形式は次のとおりです。
+
+  ```json
+  {
+    "ok": true,
+    "updated": [
+      { "file": "tokens/colors.css", "changed": ["--color-bg", "--color-fg"] },
+      { "file": "tokens/spacing.css", "changed": [] }
+    ]
+  }
+  ```
+
+- 4 つの `Access-Control-Allow-*` ヘッダー（下記のプリフライトを参照）も成功レスポンスに設定されるため、許可済みのブラウザーオリジンからの fetch は完全に CORS 準拠したレスポンスを受け取ります。
+
+- エラー時: apply ハンドラーのステータスコード（通常は `4xx`）と JSON ボディが変更されずに渡されます。
+
+`--quiet` が設定されていない場合、apply が成功すると bin の stdout に次のような要約行も出力されます。
+
+```text
+[design-token-panel] applied 2 tokens to 2 files (changed: tokens/colors.css)
+```
+
+### `OPTIONS /apply`（CORS プリフライト）
+
+標準の CORS プリフライトです。bin はリクエストの `Origin` ヘッダーを `--allow-origin` の許可リストと照合します。
+
+- **許可済みのオリジン:** 下記の 4 つの CORS ヘッダーとともに `204 No Content`。
+- **未許可（または Origin ヘッダーなし）:** `403 { ok: false, error: "Origin not allowed" }`。
+
+プリフライト成功時（および成功した POST への応答）に返される CORS ヘッダーは次のとおりです。
+
+| ヘッダー                        | 値                  |
+| ------------------------------- | ------------------- |
+| `Access-Control-Allow-Origin`   | _（受信した origin）_ |
+| `Access-Control-Allow-Methods`  | `POST, OPTIONS`     |
+| `Access-Control-Allow-Headers`  | `content-type`      |
+| `Access-Control-Max-Age`        | `600`               |
+
+`Access-Control-Allow-Origin` はクライアントが送信した**正確な**オリジン文字列であり、`*` になることはありません。bin が反映するのは、すでに `isOriginAllowed` を通過したオリジンだけなので、運用者の `--allow-origin` リストが反映対象を決める唯一の情報源です。
+
+### `GET /healthz`
+
+Readiness probe です。常にランタイム設定を含む `200` を返します。
+
+```json
+{
+  "ok": true,
+  "writeRoot": "/Users/me/work/my-app/tokens",
+  "routing": "/Users/me/work/my-app/panel.routing.json",
+  "port": 24681
+}
+```
+
+`writeRoot` と `routing` は完全に解決された絶対パスです。bin を正しいファイルに対して起動したことを確認するのに便利です。`port` は `--port` で**要求した**ポートです。`--port 0` を使用した場合の実際にバインドされたポートは、起動ログの行で確認してください。
+
+## 例
+
+### bin を Vite の開発スクリプトへ組み込む
+
+`npm-run-all` や `concurrently` のようなプロセスランナーを使い、Vite 開発サーバーと並行して bin を実行します。
+
+```json
+{
+  "scripts": {
+    "dev": "npm-run-all --parallel dev:vite dev:panel",
+    "dev:vite": "vite",
+    "dev:panel": "zdtp-server --write-root src/styles/tokens --routing ./panel.routing.json --allow-origin http://localhost:5173"
+  }
+}
+```
+
+Vite は `http://localhost:5173` で配信し、Vite が読み込んだパネル UI は `http://127.0.0.1:24681` の bin へ POST します。`--allow-origin` が Vite 開発サーバーのオリジンと一致するため、ブラウザーの POST が受け入れられます。
+
+ルーティング JSON ファイルの形式とパネルのマウントを含む手順については、[Apply pipeline setup recipe](../recipes/apply-pipeline-setup.mdx)を参照してください。
+
+### リモートホスト向けの CORS 設定
+
+パネルが `localhost` 以外の場所（たとえばプレビューデプロイや、LAN 上にある別の開発者のマシン）でホストされている場合は、ルーティング可能なインターフェースに bin をバインドし、そのオリジンを明示的に許可します。
+
+```bash
+zdtp-server \
+  --host 0.0.0.0 \
+  --port 24681 \
+  --write-root tokens \
+  --routing ./panel.routing.json \
+  --allow-origin https://preview.example.test \
+  --allow-origin http://192.168.1.20:5173
+```
+
+<Warning>
+bin を `0.0.0.0` で公開すると、ネットワーク上のすべてのホストからアクセスできるようになります。管理下にあるネットワークでのみ使用し、`--allow-origin` のリストは可能な限り小さく保ってください。
+</Warning>
+
+### 安全に反復作業するための `--write-root` サンドボックス
+
+まだ完全には信頼できないルーティングファイルを試す場合は、`--write-root` を使い捨てディレクトリへ向け、設定を誤ったプレフィックスが実際のソースファイルを上書きしないようにします。
+
+```bash
+mkdir -p /tmp/zdtp-sandbox/tokens
+zdtp-server \
+  --root /tmp/zdtp-sandbox \
+  --write-root tokens \
+  --routing /tmp/zdtp-sandbox/panel.routing.json \
+  --allow-origin http://localhost:5173 \
+  --quiet
+```
+
+パネルからいくつかの変更を適用して `/tmp/zdtp-sandbox/tokens` の差分を確認し、ルーティングファイルが意図どおりになった時点で初めて `--root` と `--write-root` を実際のプロジェクトへ切り替えてください。
+
+## 関連項目
+
+- [Apply pipeline reference](./apply-pipeline.mdx) — `POST /apply` が使用するリクエスト／レスポンススキーマとルーティングファイル形式。
+- [Apply pipeline setup recipe](../recipes/apply-pipeline-setup.mdx) — bin を既存のフロントエンドアプリへ組み込むエンドツーエンドの手順。
