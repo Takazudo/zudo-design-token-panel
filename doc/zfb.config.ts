@@ -7,6 +7,7 @@ export default defineConfig(
     siteDescription:
       "A Preact-based live design-token tweak panel and companion Node bin server for CSS custom properties.",
     siteUrl: "https://zudo-design-token-panel.takazudomodular.com",
+    logo: "/img/logo.svg",
     githubUrl: "https://github.com/Takazudo/zudo-design-token-panel",
     favicon: {
       ico: "/favicon.ico",
@@ -22,7 +23,7 @@ export default defineConfig(
     metaTags: {
       description: true,
       keywords: "design token, developer tool, dev tool",
-      ogImage: false,
+      ogImage: "/img/social-card.png",
       ogSiteName: true,
       twitterCard: "summary",
       twitterCreator: "@Takazudo",
