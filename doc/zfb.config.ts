@@ -8,6 +8,11 @@ export default defineConfig(
       "A Preact-based live design-token tweak panel and companion Node bin server for CSS custom properties.",
     siteUrl: "https://zudo-design-token-panel.takazudomodular.com",
     githubUrl: "https://github.com/Takazudo/zudo-design-token-panel",
+    favicon: {
+      ico: "/favicon.ico",
+      png32: "/favicon-32x32.png",
+      png16: "/favicon-16x16.png",
+    },
     locales: {
       ja: {
         label: "JA",
