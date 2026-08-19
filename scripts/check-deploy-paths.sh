@@ -101,7 +101,7 @@ build_one() {
   local filter="$2"
   echo ""
   echo "▶ Building $label"
-  if ! pnpm --filter "$filter" build; then
+  if ! pnpm --filter "$filter" --fail-if-no-match build; then
     echo "❌ Build failed: $label ($filter)"
     exit 2
   fi
@@ -148,11 +148,10 @@ audit_workspace() {
 # ── Build phase ──────────────────────────────────
 section "Step 1/2: Build (panel package + doc workspace)"
 
-# The doc workspace imports @takazudo/zudo-design-token-panel via tsconfig
-# paths pointing to src/, so a pre-build of the panel is not strictly
-# required for the doc build. However, building the panel first ensures
-# any type-only imports resolve correctly during the doc build.
-build_one "@takazudo/zudo-design-token-panel" "@takazudo/zudo-design-token-panel"
+# The doc workspace intentionally consumes the published @takazudo/zdtp package,
+# not the local workspace. Build the local panel anyway so this repository-level
+# deploy audit still catches a broken package build before validating the docs.
+build_one "@takazudo/zdtp" "@takazudo/zdtp"
 
 build_one "doc" "doc"
 

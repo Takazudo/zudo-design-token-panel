@@ -136,7 +136,7 @@ zdtp-server \
 
 <Tip>
 For the schema of the routing JSON file and the request/response shape of
-`POST /apply`, see [Apply pipeline reference](/docs/reference/apply-pipeline).
+`POST /apply`, see [Apply pipeline reference](./apply-pipeline.mdx).
 </Tip>
 
 ### Network flags
@@ -278,7 +278,7 @@ Apply a token mutation to disk via the wrapped apply handler.
   `--allow-origin` values. Otherwise the bin returns
   `403 { ok: false, error: "Origin not allowed" }`.
 - Body: JSON payload accepted by the apply handler. See
-  [Apply pipeline reference](/docs/reference/apply-pipeline) for the full
+  [Apply pipeline reference](./apply-pipeline.mdx) for the full
   payload schema.
 
 **Response:**
@@ -374,7 +374,7 @@ posts to the bin on `http://127.0.0.1:24681`. The `--allow-origin`
 matches Vite's dev server origin so the browser POST is accepted.
 
 For a step-by-step walkthrough including the routing JSON file format and
-panel mount, see the [Apply pipeline setup recipe](/docs/recipes/apply-pipeline-setup).
+panel mount, see the [Apply pipeline setup recipe](../recipes/apply-pipeline-setup.mdx).
 
 ### CORS configuration for a remote host
 
@@ -421,7 +421,7 @@ project.
 
 ## See also
 
-- [Apply pipeline reference](/docs/reference/apply-pipeline) — the
+- [Apply pipeline reference](./apply-pipeline.mdx) — the
   request/response schema and routing file format consumed by `POST /apply`.
-- [Apply pipeline setup recipe](/docs/recipes/apply-pipeline-setup) —
+- [Apply pipeline setup recipe](../recipes/apply-pipeline-setup.mdx) —
   end-to-end walkthrough of wiring the bin into an existing frontend app.

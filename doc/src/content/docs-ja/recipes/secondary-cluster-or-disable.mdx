@@ -1,0 +1,178 @@
+---
+title: "セカンダリクラスター：設定または無効化"
+description: "2 状態のセマンティクス：セカンダリ Color タブを省略して非表示にするか、id が 'color-secondary' のホスト提供 TabConfig を追加します。"
+sidebar_position: 3
+---
+
+パネルは、予約済み ID `'color-secondary'` に対応する、任意の 2 つ目の Color タブをサポートします。表示するか、非表示にするか、最初からまったく組み込まないかは、そのタブが `PanelConfig.tabs` に含まれるかどうかで決まります。このレシピでは、2 つのケースを具体的なコード例とともに説明します。
+
+基礎となる契約については、[カラークラスターのリファレンス](../reference/color-cluster.mdx)（複数クラスターのセクション）を参照してください。
+
+## 2 つの状態
+
+| `tabs` に `id: 'color-secondary'` が含まれるか | レンダリング | Apply / clear / load |
+|---|---|---|
+| いいえ（タブを省略） | セカンダリセクションは非表示。 | 書き込みなし。永続化エンベロープの secondary slice は何も処理しない。 |
+| はい（`colorExtras` を持つタブが存在） | セカンダリのパレットとセマンティックテーブルをプライマリの下に表示。 | セカンダリのパレットと CSS 変数名へスコープされる点を除き、プライマリと同じ書き込みセマンティクス。 |
+
+<Tip>
+**以前は `null` によるオプトアウトがありました。** 古いドキュメントには、`null` を指定するとセカンダリの読み込みパスを完全にスキップする、3 状態の `secondaryColorCluster` フィールドが記載されていました。現在の `tabs` ベースの設定では、`'color-secondary'` タブを省略するだけで同じ結果になります。セカンダリの状態は hydrate されません。
+</Tip>
+
+## ケース 1 — セカンダリを非表示にする（デフォルト）
+
+`tabs` 配列から `'color-secondary'` タブを省略するだけです。すべての新しいホストで、これを開始時の推奨設定とします。
+
+```ts
+// src/lib/my-panel-config.ts
+import type { PanelConfig } from '@takazudo/zdtp';
+import { colorTab } from './my-tabs';
+
+export const myPanelConfig: PanelConfig = {
+  storagePrefix: 'myapp-design-token-panel',
+  consoleNamespace: 'myapp',
+  modalClassPrefix: 'myapp-design-token-panel-modal',
+  schemaId: 'myapp-design-tokens/v1',
+  exportFilenameBase: 'myapp-design-tokens',
+  tabs: [colorTab],
+  // No 'color-secondary' tab — secondary section is hidden.
+};
+```
+
+## ケース 2 — ホスト提供のセカンダリクラスター
+
+`id: 'color-secondary'` を持つ 2 つ目の `TabConfig` を `tabs` へ追加します。書き込みがプライマリの Color タブと衝突しないよう、パレット項目とセマンティック項目には異なる `cssVar` プレフィックスを使用してください。
+
+```ts
+// src/lib/my-tabs.ts
+import type { PanelConfig, ColorScheme } from '@takazudo/zdtp';
+
+type TabConfig = PanelConfig['tabs'][number];
+
+const accentDark: ColorScheme = {
+  background: 0,
+  foreground: 7,
+  cursor: 7,
+  selectionBg: 8,
+  selectionFg: 0,
+  palette: [
+    '#202124', '#ff7597', '#7cd992', '#f5d97a',
+    '#7ab0f5', '#c79df0', '#7fdacf', '#dde2ec',
+    '#3a3d44', '#ff7597', '#7cd992', '#f5d97a',
+    '#7ab0f5', '#c79df0', '#7fdacf', '#bfc6d4',
+  ],
+  shikiTheme: 'github-dark',
+};
+
+export const colorSecondaryTab: TabConfig = {
+  id: 'color-secondary',
+  label: 'Accent',
+  colorExtras: {
+    id: 'myapp-accent',
+    label: 'Accent surface',
+    baseRoles: {
+      background: '--myapp-accent-bg',
+      foreground: '--myapp-accent-fg',
+    },
+    baseDefaults: {
+      background: 0,
+      foreground: 7,
+    },
+    defaultShikiTheme: 'github-dark',
+    colorSchemes: {
+      'Accent Dark': accentDark,
+    },
+    panelSettings: {
+      colorScheme: 'Accent Dark',
+      colorMode: false,
+    },
+  },
+  tiers: [
+    {
+      id: 'palette',
+      label: 'Palette',
+      items: [
+        { id: 'myapp-accent-p0',  cssVar: '--myapp-accent-p0',  label: 'P0',  default: '#202124', type: { kind: 'color' } },
+        { id: 'myapp-accent-p1',  cssVar: '--myapp-accent-p1',  label: 'P1',  default: '#ff7597', type: { kind: 'color' } },
+        { id: 'myapp-accent-p2',  cssVar: '--myapp-accent-p2',  label: 'P2',  default: '#7cd992', type: { kind: 'color' } },
+        { id: 'myapp-accent-p3',  cssVar: '--myapp-accent-p3',  label: 'P3',  default: '#f5d97a', type: { kind: 'color' } },
+        { id: 'myapp-accent-p4',  cssVar: '--myapp-accent-p4',  label: 'P4',  default: '#7ab0f5', type: { kind: 'color' } },
+        { id: 'myapp-accent-p5',  cssVar: '--myapp-accent-p5',  label: 'P5',  default: '#c79df0', type: { kind: 'color' } },
+        { id: 'myapp-accent-p6',  cssVar: '--myapp-accent-p6',  label: 'P6',  default: '#7fdacf', type: { kind: 'color' } },
+        { id: 'myapp-accent-p7',  cssVar: '--myapp-accent-p7',  label: 'P7',  default: '#dde2ec', type: { kind: 'color' } },
+        { id: 'myapp-accent-p8',  cssVar: '--myapp-accent-p8',  label: 'P8',  default: '#3a3d44', type: { kind: 'color' } },
+        { id: 'myapp-accent-p9',  cssVar: '--myapp-accent-p9',  label: 'P9',  default: '#ff7597', type: { kind: 'color' } },
+        { id: 'myapp-accent-p10', cssVar: '--myapp-accent-p10', label: 'P10', default: '#7cd992', type: { kind: 'color' } },
+        { id: 'myapp-accent-p11', cssVar: '--myapp-accent-p11', label: 'P11', default: '#f5d97a', type: { kind: 'color' } },
+        { id: 'myapp-accent-p12', cssVar: '--myapp-accent-p12', label: 'P12', default: '#7ab0f5', type: { kind: 'color' } },
+        { id: 'myapp-accent-p13', cssVar: '--myapp-accent-p13', label: 'P13', default: '#c79df0', type: { kind: 'color' } },
+        { id: 'myapp-accent-p14', cssVar: '--myapp-accent-p14', label: 'P14', default: '#7fdacf', type: { kind: 'color' } },
+        { id: 'myapp-accent-p15', cssVar: '--myapp-accent-p15', label: 'P15', default: '#bfc6d4', type: { kind: 'color' } },
+      ],
+    },
+    {
+      id: 'semantic',
+      label: 'Semantic',
+      referencesTier: 'palette',
+      items: [
+        { id: 'surface',   cssVar: '--myapp-accent-surface',    label: 'Surface',    default: 'myapp-accent-p0', type: { kind: 'color' } },
+        { id: 'onSurface', cssVar: '--myapp-accent-on-surface', label: 'On surface', default: 'myapp-accent-p7', type: { kind: 'color' } },
+      ],
+    },
+  ],
+};
+```
+
+続いて、両方のタブを `PanelConfig.tabs` に含めます。
+
+```ts
+// src/lib/my-panel-config.ts
+import type { PanelConfig } from '@takazudo/zdtp';
+import { colorTab, colorSecondaryTab } from './my-tabs';
+
+export const myPanelConfig: PanelConfig = {
+  storagePrefix: 'myapp-design-token-panel',
+  consoleNamespace: 'myapp',
+  modalClassPrefix: 'myapp-design-token-panel-modal',
+  schemaId: 'myapp-design-tokens/v1',
+  exportFilenameBase: 'myapp-design-tokens',
+  tabs: [colorTab, colorSecondaryTab],
+};
+```
+
+## ケース 3 — セカンダリでライト／ダークを組み合わせる
+
+形式はケース 2 と同じですが、`panelSettings.colorMode` によるライト／ダークの組み合わせを有効にします。パネルは `document.documentElement[data-theme]` を監視し、初期化時に対応するスキームへ切り替えます。
+
+```ts
+export const colorSecondaryTab: TabConfig = {
+  id: 'color-secondary',
+  label: 'Accent',
+  colorExtras: {
+    // ...same id, baseRoles, baseDefaults, defaultShikiTheme...
+    colorSchemes: {
+      'Accent Light': accentLight,
+      'Accent Dark': accentDark,
+    },
+    panelSettings: {
+      colorScheme: 'Accent Dark',
+      colorMode: {
+        defaultMode: 'dark',
+        lightScheme: 'Accent Light',
+        darkScheme: 'Accent Dark',
+      },
+    },
+  },
+  tiers: [ /* ...same tiers as Case 2... */ ],
+};
+```
+
+<Info>
+`colorMode` はプライマリとセカンダリで独立しています。一方に設定し、もう一方を `false` のままにできます。パネルはそれぞれを別々に解決します。
+</Info>
+
+## 関連項目
+
+- [カラークラスターのリファレンス](../reference/color-cluster.mdx) — プライマリクラスターの形式と apply 時の書き込み順。セカンダリも同じルールに従います。
+- [カスタムカラークラスター](./custom-color-cluster.mdx) — プライマリクラスターを一から組み込む方法。
+- [`configurePanel` リファレンス](../reference/configure-panel.mdx) — `PanelConfig.tabs` と予約済み ID `'color-secondary'`。

@@ -1,30 +1,25 @@
-# Doc
+# Zudo Design Token Panel
 
-Documentation site for **zdtp** (`@takazudo/zdtp`, the zudo design token panel), built with [zudo-doc](https://github.com/zudolab/zudo-doc) — a zfb-based documentation framework with MDX, Tailwind CSS v4, and Preact islands. This project is intentionally minimal: one config file (`zfb.config.ts`) plus markdown content — layout, chrome, and islands all ship from `@takazudo/zudo-doc` in `node_modules`.
+Documentation site built with [zudo-doc](https://github.com/zudolab/zudo-doc) — a zfb-based documentation framework with MDX, Tailwind CSS v4, and Preact islands. This project is intentionally minimal: one config file (`zfb.config.ts`) plus markdown content — layout, chrome, and islands all ship from `@takazudo/zudo-doc` in `node_modules`.
 
 ## Tech Stack
 
 - **zfb** — documentation build framework
 - **MDX** — content format, authored under `src/content/`
-- **Tailwind CSS v4** — via `@tailwindcss/vite`
+- **Tailwind CSS v4** — compiled by zfb's embedded Tailwind engine (no `@tailwindcss/vite` plugin, no `tailwindcss` dependency); `src/styles/global.css` imports `tailwindcss/preflight` + `tailwindcss/utilities` and zfb's internal resolver serves both
 - **Preact** — for interactive islands only (with compat mode for React API)
-- **Shiki** — package-owned code highlighting with the configured light/dark theme pair
+- **zfb semantic highlighting** — native build-time fenced-code rendering plus lazy `@takazudo/zfb-md-wasm` for HtmlPreview; both emit `hi-*` classes resolved through `--zd-syntax-*` design tokens
 - **@takazudo/zudo-doc** — the package that owns everything: layout, chrome, islands, default `@theme` design tokens, and (via `packageOwnedRoutes`, on by default) the doc routes themselves
 
 ## Commands
 
-- `pnpm dev` — zfb dev server (port 4321)
+- `pnpm dev` — runs the zfb dev server (port 4321) and the doc-history API server (port 4322) concurrently via `run-p` (`pnpm dev:zfb` / `pnpm dev:history` individually)
+- `pnpm dev:network` — same, but zfb binds `--host 0.0.0.0` for LAN access (`pnpm dev:zfb:network` individually); the doc-history server stays loopback-only and LAN clients reach it through zfb's `/doc-history/*` dev proxy
+- **Trusted networks only:** this also serves your git doc-history — including UNPUBLISHED local commits — to anyone on the LAN via the `/doc-history/*` proxy
+- `run-p` swallows trailing args, so other zfb flags don't forward through `pnpm dev` — pass them directly instead: `pnpm run dev:zfb -- <flags>`
 - `pnpm build` — static HTML export to `dist/`
-- `pnpm check` / `pnpm typecheck` — TypeScript type checking
+- `pnpm check` — TypeScript type checking
 - `pnpm preview` — serve the built `dist/`
-- `pnpm check:html` — validate the built HTML (`html-validate`)
-- `pnpm check:links` — check for broken links in the built `dist/` (`linkinator`). linkinator serves
-  local paths over an internal `http://localhost:<port>` server even when crawling disk files, so a
-  naive `--skip '^https?://'` (meant to skip only real external URLs) also matches that internal
-  server URL and silently skips everything, including the entry point — the check then reports
-  `Successfully scanned 0 links` and exits 0 without validating anything. The `(?!localhost)`
-  negative lookahead in the script excludes the local crawl server from the skip so external URLs
-  are still skipped but the site itself actually gets scanned.
 
 ## Key Directories
 
@@ -33,17 +28,17 @@ zfb.config.ts             # THE one config file — zudoDoc({ ...only fields you
 pages/
 ├── index.tsx             # 1-line re-export of the package home route
 └── docs/[[...slug]].tsx  # self-contained doc-route stub (required for `pnpm dev`)
-  [locale]/docs/[[...slug]].tsx  # same, for the ja locale
+  [locale]/docs/[[...slug]].tsx  # same, for non-default locales
 src/
-├── chrome-bindings.tsx   # optional typed primary chrome / named header / MDX bindings (not present by default)
+├── chrome-bindings.tsx   # optional typed primary chrome / named header / MDX bindings
 ├── content/
-│   ├── docs/             # MDX content (English, default locale)
-│   └── docs-ja/          # Japanese MDX content (mirrors docs/)
+│   └── docs/             # MDX content (this project's showcase docs)
+│   └── docs-ja/         # Japanese MDX content (mirrors docs/)
 └── styles/
     └── global.css        # @import chain + a token-override slot — that's it
 ```
 
-Everything else — layout, header, sidebar, footer, doc chrome, islands, and the default design tokens — lives in `node_modules/@takazudo/zudo-doc`. There is **no host `pages/lib` route pipeline** to maintain here: all routing, layout, and chrome is preset-owned. The two `pages/**/[[...slug]].tsx` stubs exist only so `pnpm dev` doesn't 404 (a zfb dev-mode limitation on package-injected dynamic routes) — don't delete them, and don't add routing logic to them. For supported markup replacement, create `src/chrome-bindings.tsx` with `defineChromeBindings` and use the primary `Header` / `Footer` / `Sidebar` / `Toc` / `Breadcrumb` / `DocPager` slots or the named `headerRightComponents` registry — don't fork a route stub for presentational customization. Configuration is a single `zudoDoc({...})` call in `zfb.config.ts` — there is no `src/config/settings.ts`. Settings not set explicitly there use the package's documented defaults — hover `zudoDoc`'s `ZudoDocConfig` argument in your editor to see every field and its `@default`.
+Everything else — layout, header, sidebar, footer, doc chrome, islands, and the default design tokens — lives in `node_modules/@takazudo/zudo-doc`. For supported markup replacement, create `src/chrome-bindings.tsx` with `defineChromeBindings`, set `chromeBindingsModule`, and use the primary `Header` / `Footer` / `Sidebar` / `Toc` / `Breadcrumb` / `DocPager` slots or the named `headerRightComponents` registry. The generated default, locale, and doc-history route shapes already consume the same binding object; do not fork a route stub for presentational customization. `npx zudo-doc eject <component>` only copies source: heed its primary, nested-chrome, or content-layer remediation before expecting the copy to render. Settings you didn't set explicitly in `zfb.config.ts` use the package's documented defaults — hover `zudoDoc`'s `ZudoDocConfig` argument in your editor to see every field and its `@default`.
 
 ## Content Conventions
 
@@ -55,12 +50,9 @@ Everything else — layout, header, sidebar, footer, doc chrome, islands, and th
 
 ### Admonitions
 
-Available in all MDX files with **no import**, in two equivalent forms:
+Available in all MDX files without imports, via directive syntax: `:::note`, `:::tip`, `:::info`, `:::warning`, `:::danger`, `:::caution`, `:::details`. Each accepts an optional **bracketed** title: `:::note[Custom Title]`.
 
-- Directive syntax: `:::note`, `:::tip`, `:::info`, `:::warning`, `:::danger`, `:::caution`, `:::details` — each accepts an optional `{title="..."}` attribute.
-- JSX component syntax: `<Note>`, `<Tip>`, `<Info>`, `<Warning>`, `<Danger>`, `<Caution>`, `<Details>` — each accepts an optional `title` prop.
-
-Both forms are globally available; use whichever reads better in the surrounding MDX.
+Docusaurus-style `{title="..."}` is **NOT supported**. MDX parses the braces as a JS expression, so it either fails the build with `ReferenceError: title is not defined` or is silently ignored. Always use the bracketed form.
 
 ### Headings
 
@@ -74,27 +66,23 @@ Do NOT use h1 (`#`) in doc content — the page title from frontmatter is render
 - `<CategoryTreeNav category="..." />` — the same listing as a compact nested tree, better for deeper hierarchies.
 - `<SiteTreeNavDemo />` — a full-site documentation tree (the MDX-available wrapper of the `SiteTreeNav` island).
 
-Admonitions (above), tabbed content (`<Tabs>` / `<TabItem>`, `<CodeGroup>`), and block math (`<MathBlock>`) work the same way — no import. Full component reference: https://zudo-doc.takazudomodular.com/docs/components/
+Admonitions (above), tabbed content (`<Tabs>` / `<TabItem>`, `<CodeGroup>`), and block math (`<MathBlock>`) work the same way — no import. Full reference: https://zudo-doc.takazudomodular.com/docs/components/
 
 ## i18n
 
 - English (default): `/docs/...` — content in `src/content/docs/`
 - Japanese: `/ja/docs/...` — content in `src/content/docs-ja/`
 - Japanese docs should mirror the English directory structure
-- Both `pages/docs/[[...slug]].tsx` and `pages/[locale]/docs/[[...slug]].tsx` are self-contained doc-route stubs shipped by the generator — required so `pnpm dev` doesn't 404 on doc pages. Don't delete them.
+- Both `pages/docs/[[...slug]].tsx` and `pages/[locale]/docs/[[...slug]].tsx` are self-contained doc-route stubs shipped by the generator — required so `pnpm dev` doesn't 404 on doc pages (a zfb dev-mode limitation on package-injected dynamic routes). Don't delete them.
 
 ## Enabled Features
 
 - **search** — Full-text search via Pagefind
-- **designTokenPanel** — Interactive tabbed panel (built into zudo-doc; see the relationship section below for how its `@takazudo/zdtp` version is managed)
+- **claudeResources** — Auto-generated docs for Claude Code resources
+- **designTokenPanel** — Interactive tabbed panel for tweaking spacing, font, size, and color tokens
+- **sidebarResizer** — Draggable sidebar width
+- **sidebarToggle** — Show/hide desktop sidebar
+- **versioning** — Multi-version documentation support
+- **docHistory** — Document edit history
+- **llmsTxt** — Generates llms.txt for LLM consumption
 - **changelog** — Changelog page at `/docs/changelog`
-
-## zdtp ↔ zudo-doc relationship
-
-> Source of truth for how this docs site's design-token-panel relates to the `@takazudo/zdtp` package developed in this same monorepo (`packages/zdtp`). Read this before touching `doc/package.json`'s `@takazudo/zdtp` entry or `pnpm-workspace.yaml`.
-
-- The `designTokenPanel` feature (`zfb.config.ts` → `designTokenPanel: true`) is **built into `@takazudo/zudo-doc`**. It is powered by zudo-doc's OWN pinned/released copy of `@takazudo/zdtp` (currently `0.4.9`) — the panel you see on this site is exactly the published package, the same one any zudo-doc consumer outside this repo gets.
-- `doc/package.json` also pins `@takazudo/zdtp` directly at a released semver (currently `0.4.9`), matching zudo-doc's own pin, so the docs' `styles.css` import and version references stay in sync with what zudo-doc actually renders.
-- **Never point either of those at `workspace:*`, a `link:`/`file:` spec, or otherwise force-link this repo's local/in-progress `packages/zdtp`.** `pnpm-workspace.yaml` sets `linkWorkspacePackages: false` for exactly this reason — pnpm would otherwise silently symlink the local workspace package over the registry-published one, and the docs would stop reflecting what real host apps install. `doc/` must always build against a real published `@takazudo/zdtp`.
-- Keep the panel current via this cycle: **release a new zdtp version → bump zudo-doc's pinned zdtp dependency (upstream, in the zudo-doc repo) → confirm the new zudo-doc release resolves it → bump `doc/package.json`'s `@takazudo/zdtp` (and `@takazudo/zudo-doc`) pins here to match → the docs consume it as the live token-preview example.** Don't skip straight from "zdtp released" to "bump `doc/`'s pin" — zudo-doc's own upstream pin has to move first, since that's what actually determines which panel build renders.
-- See the root `CLAUDE.md` for the pointer to this section, and the `l-make-release` skill for the zdtp release step itself.

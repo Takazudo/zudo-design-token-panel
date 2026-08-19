@@ -7,19 +7,46 @@ export default defineConfig(
     siteDescription:
       "A Preact-based live design-token tweak panel and companion Node bin server for CSS custom properties.",
     siteUrl: "https://zudo-design-token-panel.takazudomodular.com",
+    logo: "/img/logo.svg",
+    githubUrl: "https://github.com/Takazudo/zudo-design-token-panel",
+    favicon: {
+      ico: "/favicon.ico",
+      png32: "/favicon-32x32.png",
+      png16: "/favicon-16x16.png",
+    },
     locales: {
       ja: {
         label: "JA",
         dir: "src/content/docs-ja",
       },
     },
-    // zudo-doc 4.x defaults cjkFriendly to false, but the retained Japanese
-    // content relies on it: emphasis/bold adjacent to CJK text and full-width
-    // parens (e.g. `**…（lone semantic tier）**`) renders literal `*` without it.
+    metaTags: {
+      description: true,
+      keywords: "design token, developer tool, dev tool",
+      ogImage: "/img/social-card.png",
+      ogSiteName: true,
+      twitterCard: "summary",
+      twitterCreator: "@Takazudo",
+    },
+    llmsTxt: true,
     cjkFriendly: true,
     designTokenPanel: true,
+    sidebarResizer: true,
+    sidebarToggle: true,
+    tocToggle: true,
     imageEnlarge: true,
     dynamicPageTransition: true,
+    docHistory: true,
+    versions: [],
+    claudeResources: {
+      claudeDir: ".claude",
+    },
+    defaultLocaleOnlyPrefixes: [
+      "/docs/claude-md/",
+      "/docs/claude-skills/",
+      "/docs/claude-agents/",
+      "/docs/claude-commands/",
+    ],
     footer: {
       links: [],
       copyright: "Copyright © 2026 Takeshi Takatsudo. Built with zudo-doc.",
@@ -46,11 +73,10 @@ export default defineConfig(
         categoryMatch: "changelog",
       },
     ],
-    adapter: "@takazudo/zfb-adapter-cloudflare",
     headerRightItems: [
       {
-        type: "trigger",
-        trigger: "design-token-panel",
+        type: "component",
+        component: "github-link",
       },
       {
         type: "component",
@@ -64,6 +90,15 @@ export default defineConfig(
         type: "component",
         component: "language-switcher",
       },
+      {
+        type: "component",
+        component: "version-switcher",
+      },
+      {
+        type: "trigger",
+        trigger: "design-token-panel",
+      },
     ],
+    adapter: "@takazudo/zfb-adapter-cloudflare",
   }),
 );

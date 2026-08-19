@@ -1,0 +1,214 @@
+---
+title: カスタムカラークラスター
+description: "colorExtras を持つ TabConfig を使い、デフォルト以外のパレットとセマンティックトークンテーブルをパネルの Color タブへ組み込みます。"
+sidebar_position: 1
+---
+
+パッケージには、組み込みのカラーデータが**一切含まれていません**。パレット、セマンティックロール、スキームレジストリはホストが所有します。このレシピでは、`TabConfig` の形式を使って新しいプロジェクト用の Color タブを一から組み込む手順を説明します。
+
+Color タブは、予約済みの `id: 'color'` を持つ `TabConfig` です。その `tiers` は、パレットとセマンティックデータを `TierItem` の配列として保持します。`colorExtras` フィールドは、ティアに属さないメタデータ（ベースロール、カラースキーム、パネル設定）を保持します。正式な形式については、[カラークラスターのリファレンス](../reference/color-cluster.mdx)を参照してください。
+
+## 1. Color タブを定義する
+
+スタイルシートと一致する CSS 変数名を選びます。最初のパレット項目の `cssVar` によって、内部ブリッジが使用する変数名テンプレートが決まります（`--myapp-palette-0` → `--myapp-palette-{n}`）。
+
+```ts
+// src/lib/my-tabs.ts
+import type { PanelConfig, ColorScheme } from '@takazudo/zdtp';
+
+type TabConfig = PanelConfig['tabs'][number];
+
+const defaultDark: ColorScheme = {
+  background: 0,
+  foreground: 7,
+  cursor: 7,
+  selectionBg: 8,
+  selectionFg: 0,
+  palette: [
+    '#1e1e2e', // p0 — base background
+    '#f38ba8', // p1 — red
+    '#a6e3a1', // p2 — green
+    '#f9e2af', // p3 — yellow
+    '#89b4fa', // p4 — blue
+    '#cba6f7', // p5 — magenta
+    '#94e2d5', // p6 — cyan
+    '#cdd6f4', // p7 — base foreground
+    '#45475a', // p8 — bright black
+    '#f38ba8',
+    '#a6e3a1',
+    '#f9e2af',
+    '#89b4fa',
+    '#cba6f7',
+    '#94e2d5',
+    '#bac2de',
+  ],
+  shikiTheme: 'github-dark',
+  // Per-scheme semantic overrides. Keys must be ids from the semantic tier.
+  semantic: {
+    primary: 4,
+    accent: 5,
+    danger: 1,
+    success: 2,
+    warning: 3,
+    muted: 8,
+  },
+};
+
+export const colorTab: TabConfig = {
+  id: 'color',
+  label: 'Color',
+  // colorExtras carries non-tier metadata: base roles, schemes, panel settings.
+  colorExtras: {
+    id: 'myapp',
+    label: 'MyApp Brand',
+    baseRoles: {
+      background: '--myapp-color-bg',
+      foreground: '--myapp-color-fg',
+    },
+    baseDefaults: {
+      background: 0,
+      foreground: 7,
+    },
+    defaultShikiTheme: 'github-dark',
+    colorSchemes: {
+      'Default Dark': defaultDark,
+    },
+    panelSettings: {
+      colorScheme: 'Default Dark',
+      // Single-mode site. See secondary-cluster-or-disable for the
+      // light/dark pairing pattern.
+      colorMode: false,
+    },
+  },
+  tiers: [
+    {
+      id: 'palette',
+      label: 'Palette',
+      items: [
+        { id: 'myapp-palette-0',  cssVar: '--myapp-palette-0',  label: 'P0',  default: '#1e1e2e', type: { kind: 'color' } },
+        { id: 'myapp-palette-1',  cssVar: '--myapp-palette-1',  label: 'P1',  default: '#f38ba8', type: { kind: 'color' } },
+        { id: 'myapp-palette-2',  cssVar: '--myapp-palette-2',  label: 'P2',  default: '#a6e3a1', type: { kind: 'color' } },
+        { id: 'myapp-palette-3',  cssVar: '--myapp-palette-3',  label: 'P3',  default: '#f9e2af', type: { kind: 'color' } },
+        { id: 'myapp-palette-4',  cssVar: '--myapp-palette-4',  label: 'P4',  default: '#89b4fa', type: { kind: 'color' } },
+        { id: 'myapp-palette-5',  cssVar: '--myapp-palette-5',  label: 'P5',  default: '#cba6f7', type: { kind: 'color' } },
+        { id: 'myapp-palette-6',  cssVar: '--myapp-palette-6',  label: 'P6',  default: '#94e2d5', type: { kind: 'color' } },
+        { id: 'myapp-palette-7',  cssVar: '--myapp-palette-7',  label: 'P7',  default: '#cdd6f4', type: { kind: 'color' } },
+        { id: 'myapp-palette-8',  cssVar: '--myapp-palette-8',  label: 'P8',  default: '#45475a', type: { kind: 'color' } },
+        { id: 'myapp-palette-9',  cssVar: '--myapp-palette-9',  label: 'P9',  default: '#f38ba8', type: { kind: 'color' } },
+        { id: 'myapp-palette-10', cssVar: '--myapp-palette-10', label: 'P10', default: '#a6e3a1', type: { kind: 'color' } },
+        { id: 'myapp-palette-11', cssVar: '--myapp-palette-11', label: 'P11', default: '#f9e2af', type: { kind: 'color' } },
+        { id: 'myapp-palette-12', cssVar: '--myapp-palette-12', label: 'P12', default: '#89b4fa', type: { kind: 'color' } },
+        { id: 'myapp-palette-13', cssVar: '--myapp-palette-13', label: 'P13', default: '#cba6f7', type: { kind: 'color' } },
+        { id: 'myapp-palette-14', cssVar: '--myapp-palette-14', label: 'P14', default: '#94e2d5', type: { kind: 'color' } },
+        { id: 'myapp-palette-15', cssVar: '--myapp-palette-15', label: 'P15', default: '#bac2de', type: { kind: 'color' } },
+      ],
+    },
+    {
+      id: 'semantic',
+      label: 'Semantic',
+      // Each item's default is the id of a palette item.
+      // The apply pipeline emits var(--that-palette-cssVar).
+      referencesTier: 'palette',
+      items: [
+        { id: 'primary', cssVar: '--myapp-color-primary', label: 'Primary', default: 'myapp-palette-4', type: { kind: 'color' } },
+        { id: 'accent',  cssVar: '--myapp-color-accent',  label: 'Accent',  default: 'myapp-palette-5', type: { kind: 'color' } },
+        { id: 'danger',  cssVar: '--myapp-color-danger',  label: 'Danger',  default: 'myapp-palette-1', type: { kind: 'color' } },
+        { id: 'success', cssVar: '--myapp-color-success', label: 'Success', default: 'myapp-palette-2', type: { kind: 'color' } },
+        { id: 'warning', cssVar: '--myapp-color-warning', label: 'Warning', default: 'myapp-palette-3', type: { kind: 'color' } },
+        { id: 'muted',   cssVar: '--myapp-color-muted',   label: 'Muted',   default: 'myapp-palette-8', type: { kind: 'color' } },
+      ],
+    },
+  ],
+};
+
+export const myTabs: readonly TabConfig[] = [colorTab];
+```
+
+<Info>
+**パレット長の不変条件。** `ColorScheme.palette.length` は、パレットティアの項目数と等しくなければ**なりません**。パレット項目とスキーム配列を一緒に追加または削除してください。そうしなければ、初期化時にパネルが設定を拒否します。
+</Info>
+
+## 2. `configurePanel` へ組み込む
+
+tabs 配列を `configurePanel` へ渡します。ほかのタブ（spacing、font など）も同じ配列へ加えます。
+
+```ts
+// src/lib/my-panel-config.ts
+import type { PanelConfig } from '@takazudo/zdtp';
+import { myTabs } from './my-tabs';
+
+export const myPanelConfig: PanelConfig = {
+  storagePrefix: 'myapp-design-token-panel',
+  consoleNamespace: 'myapp',
+  modalClassPrefix: 'myapp-design-token-panel-modal',
+  schemaId: 'myapp-design-tokens/v1',
+  exportFilenameBase: 'myapp-design-tokens',
+  tabs: myTabs,
+};
+```
+
+`PanelConfig` の全フィールドについては、[`configurePanel` リファレンス](../reference/configure-panel.mdx)を参照してください。
+
+## 3. スタイルシートを対応させる
+
+パネルは、宣言した名前を使って `:root` へ書き込みます。スタイルシート側では、それらを使用する必要があります。通常は、ユーザーによるオーバーライドがまだなくてもページを描画できるよう、フォールバックのデフォルト値を用意します。
+
+```css
+/* src/styles/tokens.css */
+:root {
+  --myapp-palette-0: #1e1e2e;
+  --myapp-palette-1: #f38ba8;
+  /* …rest of the 16-tuple… */
+
+  /* Base roles — written by colorExtras.baseRoles */
+  --myapp-color-bg: var(--myapp-palette-0);
+  --myapp-color-fg: var(--myapp-palette-7);
+
+  /* Semantic roles — written by the semantic tier */
+  --myapp-color-primary: var(--myapp-palette-4);
+  --myapp-color-accent:  var(--myapp-palette-5);
+  --myapp-color-danger:  var(--myapp-palette-1);
+  --myapp-color-success: var(--myapp-palette-2);
+  --myapp-color-warning: var(--myapp-palette-3);
+  --myapp-color-muted:   var(--myapp-palette-8);
+}
+```
+
+<Tip>
+パネルがこれらの宣言を**読み取る**ことはありません。`document.documentElement.style.setProperty(...)` を通じて書き込むだけです。スタイルシートをデフォルト値の情報源、パネルをその上に重なるインラインオーバーライドのレイヤーとして扱ってください。
+</Tip>
+
+## 4. 2 つ目のスキームを追加する（任意）
+
+スキームは、Color タブの「Scheme...」ドロップダウンに表示されます。好きな数だけ追加でき、`colorSchemes` へ挿入した順に並びます。
+
+```ts
+const defaultLight: ColorScheme = {
+  background: 0,
+  foreground: 7,
+  cursor: 7,
+  selectionBg: 8,
+  selectionFg: 0,
+  palette: [
+    '#fafafa', '#d20f39', '#40a02b', '#df8e1d',
+    '#1e66f5', '#8839ef', '#179299', '#4c4f69',
+    '#9ca0b0', '#d20f39', '#40a02b', '#df8e1d',
+    '#1e66f5', '#8839ef', '#179299', '#5c5f77',
+  ],
+  shikiTheme: 'github-light',
+};
+
+// then, inside colorExtras:
+colorSchemes: {
+  'Default Dark': defaultDark,
+  'Default Light': defaultLight,
+},
+```
+
+ページの `data-theme` 属性で駆動する本当のライト／ダーク切り替えも必要な場合は、[セカンダリクラスターのレシピ](./secondary-cluster-or-disable.mdx)と、[カラークラスターのリファレンス](../reference/color-cluster.mdx)にある `panelSettings.colorMode` のセクションを参照してください。
+
+## 関連項目
+
+- [カラークラスターのリファレンス](../reference/color-cluster.mdx) — 完全な型契約、`ColorClusterExtras`、内部ブリッジのセマンティクス。
+- [パネル CSS トークン](../reference/panel-css-tokens.mdx) — パネルの chrome 色のオーバーライド（アプリのカラークラスターとは別です）。
+- [カラープリセットの遅延読み込み](./lazy-color-presets.mdx) — 大規模なプリセットライブラリを SSR 設定 blob の外に置きます。

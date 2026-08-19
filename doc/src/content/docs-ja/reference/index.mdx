@@ -4,21 +4,6 @@ sidebar_position: 0
 description: "@takazudo/zdtp のポータブル契約を機能別に確認するためのリファレンス。"
 ---
 
-このセクションでは、`@takazudo/zdtp` の公開インターフェースを機能ごとに説明します。初期化、トークンマニフェスト、カラークラスター、アプライパイプライン、パネル用 CSS トークン、開発用の DOM Tweaker を必要なページから参照できます。
+`@takazudo/zdtp` が公開する設定、トークン、カラー、アプライパイプライン、スタイル、CLI、開発ツールの契約を機能別に説明します。
 
-契約の一次情報は `packages/zdtp/PORTABLE-CONTRACT.md` です。ここでは、その内容をブラウザーから読みやすく、リンクしやすい単位に整理しています。
-
-## ページ一覧
-
-- [`configurePanel`](/ja/docs/reference/configure-panel) — `configurePanel({...})` と `PanelConfig`。この日本語ページでは新しい `domTweaker` 設定を説明し、初期化契約全体については英語版へ案内しています。
-- [トークンマニフェスト](/ja/docs/reference/token-manifest) — `TabConfig`、`TierConfig`、`TierItem`、`TierValueKind`、`PillSpec`、`ColorClusterExtras` など、編集可能なタブを定義する型。
-- [カラークラスター](/ja/docs/reference/color-cluster) — `ColorClusterConfig`、`ColorScheme`、`ColorRef`、複数クラスター、ホストが追加するスキームプリセット。
-- [アプライパイプライン](/ja/docs/reference/apply-pipeline) — `applyEndpoint`、`applyRouting`、リクエスト／レスポンス、アトミック書き込み、バリデーション。
-- [Panel CSS tokens（英語）](/docs/reference/panel-css-tokens) — `--tokentweak-*` のプライベート変数、`var(--host, fallback)` の参照階層、スタイルシートとホストアダプターの読み込み契約。
-- [DOM Tweaker](/ja/docs/reference/dom-tweaker) — Tailwind v4 のクラスエディター、`themeCss` の橋渡し、AI への引き継ぎ用 diff、開発時の操作方法と制約。
-
-## 意図的に掲載していないエクスポート
-
-パッケージルートからは次のシンボルもエクスポートされますが、公開契約ではないためリファレンスの対象外です。
-
-- `__panelConfigForTest()` — Astro のホストアダプターが、両側で同じ panel-config シングルトンを参照していることを検証するための内部／テスト専用アクセサーです。先頭の `__` が示すとおり、予告なく削除される可能性があります。
+<CategoryNav category="reference" />

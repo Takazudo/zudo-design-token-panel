@@ -13,7 +13,7 @@ the single-source routing JSON.
 
 For the full apply contract — request / response envelopes, native-
 implementation guidance, error shapes — see
-[Apply pipeline reference](/docs/reference/apply-pipeline).
+[Apply pipeline reference](../reference/apply-pipeline.mdx).
 
 ## 1. Install the package as a dev dep
 
@@ -56,7 +56,7 @@ nothing about where inside that file the value gets rewritten. The rewriter
 itself scans the first top-level `:root { ... }` block AND the first
 top-level `@theme { ... }` block of the routed file (Tailwind v4's token
 scope), so a token declared inside either one is reachable; see
-[Which CSS blocks get rewritten](/docs/reference/apply-pipeline#which-css-blocks-get-rewritten)
+[Which CSS blocks get rewritten](../reference/apply-pipeline.mdx#apply-to-disk-which-css-blocks-get-rewritten)
 for the full scanning rules and a Tailwind v4 worked example.
 
 ## 3. Wire it into your dev script
@@ -201,7 +201,7 @@ curl http://127.0.0.1:24681/healthz
 
 Then click **Apply** in the panel. A successful apply returns
 `{ "ok": true, "updated": [...] }`. See the
-[apply pipeline reference](/docs/reference/apply-pipeline) for the full
+[apply pipeline reference](../reference/apply-pipeline.mdx) for the full
 response shape and every error code.
 
 <Danger>
@@ -212,9 +212,9 @@ public internet, and never widen `--allow-origin` to `*`.
 
 ## Related
 
-- [Apply pipeline reference](/docs/reference/apply-pipeline) — request /
+- [Apply pipeline reference](../reference/apply-pipeline.mdx) — request /
   response envelopes, error codes, native-implementation guidance.
-- [`configurePanel` reference](/docs/reference/configure-panel) —
+- [`configurePanel` reference](../reference/configure-panel.mdx) —
   `applyEndpoint` and `applyRouting` fields.
-- [Token manifest reference](/docs/reference/token-manifest) — which
+- [Token manifest reference](../reference/token-manifest.mdx) — which
   tokens get included in an Apply diff.
