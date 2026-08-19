@@ -1,0 +1,166 @@
+---
+title: アプライパイプラインのセットアップ
+description: "Astro 以外のホストの開発スクリプトへ zdtp-server bin を組み込みます。CORS、--write-root によるサンドボックス化、ルーティング JSON を扱います。"
+sidebar_position: 4
+---
+
+Apply ボタンは、CSS 変数のフラットな差分をホストの apply エンドポイントへ POST します。エンドポイントは差分を **bin サーバー**（`zdtp-server`）へ渡し、bin サーバーがソース CSS ファイルをアトミックに書き換えます。このレシピでは、Astro 以外のホスト（Vite SPA、Next.js、任意の Node ベースの開発サーバーなど）へ bin を組み込み、CORS、`--write-root` によるサンドボックス化、単一ソースのルーティング JSON という 3 つの保護機構を設定します。
+
+リクエスト／レスポンスのエンベロープ、ネイティブ実装のガイダンス、エラー形式を含む apply の完全な契約については、[アプライパイプラインのリファレンス](../reference/apply-pipeline.mdx)を参照してください。
+
+## 1. パッケージを開発依存関係としてインストールする
+
+```sh
+pnpm add -D @takazudo/zdtp
+```
+
+パッケージには `zdtp-server` という名前の実行可能ファイルが含まれます。次のコマンドでインストールを確認します。
+
+```sh
+pnpm exec zdtp-server --help
+```
+
+## 2. ルーティング JSON を作成する
+
+ルーティング JSON は、**CSS 変数のプレフィックスファミリー**（先頭の `--` と末尾の `-` を除く）から**リポジトリ相対のソース CSS ファイルパス**への対応を定義するトップレベルオブジェクトです。パネル UI（`PanelConfig.applyRouting`）と bin（`--routing` フラグ）は同じファイルを読み取ります。両者を常に同期させることが、この仕組みの要点です。
+
+```json
+// panel-routing.json
+{
+  "myapp": "src/styles/tokens.css",
+  "myapp-extra": "src/styles/extra-tokens.css"
+}
+```
+
+<Note>
+**完全な変数名ではなく、プレフィックスファミリーです。** `myapp` は `--myapp-` で始まるすべての変数（例: `--myapp-spacing-md`、`--myapp-color-primary`）に一致します。ルーティングマップにないプレフィックスの差分トークンは 400 で拒否されます。
+</Note>
+
+ルーティング JSON が指定するのは、トークンファミリーが**どのファイル**に配置されるかだけです。そのファイル内のどこで値を書き換えるかは指定しません。リライター自体は、ルーティング先ファイルにある最初のトップレベル `:root { ... }` ブロックと、最初のトップレベル `@theme { ... }` ブロック（Tailwind v4 のトークンスコープ）の両方を走査します。そのため、どちらかに宣言されたトークンへ到達できます。完全な走査ルールと Tailwind v4 の動作例については、[アプライパイプラインのリファレンスにある「書き換え対象となる CSS ブロック」](../reference/apply-pipeline.mdx)を参照してください。
+
+## 3. 開発スクリプトへ組み込む
+
+`concurrently`（または `npm-run-all`）を使い、開発サーバーと並行して bin を実行します。`vite` は、プロジェクトで使用している長時間実行プロセスに置き換えてください。
+
+```json
+// package.json
+{
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail --names dev,panel \"vite\" \"zdtp-server --routing ./panel-routing.json --write-root ./src/styles --allow-origin http://localhost:5173\""
+  },
+  "devDependencies": {
+    "@takazudo/zdtp": "^0.1.0",
+    "concurrently": "^9.0.0"
+  }
+}
+```
+
+上記のフラグが推奨される最小構成です。
+
+- **`--routing ./panel-routing.json`** — 必須。プレフィックスからファイルへのルーティングを定義する単一の情報源です。
+- **`--write-root ./src/styles`** — 任意ですが、強く推奨します。bin はこのツリーの外への書き込みを拒否するため、入力ミスやパス脱出の試みでリポジトリ内の別ファイルが破壊されることを防げます。デフォルトは `--root`（さらにそのデフォルトは `process.cwd()`）です。
+- **`--allow-origin http://localhost:5173`** — ブラウザーから apply する場合は必須です。実際に配信する各開発用オリジンを渡します。複数回指定できます。
+
+<Warning>
+**`--allow-origin` は、スキーム、ホスト、ポートを合わせた文字列全体と完全一致で照合されます。** bin にとって、`http://localhost:5173` と `http://127.0.0.1:5173` は異なるオリジンです。配信に使用するオリジンをそれぞれ渡してください。そうしないと、ブラウザーには `Access-Control-Allow-Origin` ヘッダーのない 403 が返されます。
+</Warning>
+
+## 4. パネルから bin を参照する
+
+同じルーティング JSON をパネル設定へインポートします。これにより、同期が必要な宣言を 2 つ用意することなく、UI と bin が一致します。
+
+```ts
+// src/lib/my-panel-config.ts
+import type { PanelConfig } from '@takazudo/zdtp';
+import routing from '../../panel-routing.json' assert { type: 'json' };
+import { myTabs } from './my-tabs';
+
+export const myPanelConfig: PanelConfig = {
+  storagePrefix: 'myapp-design-token-panel',
+  consoleNamespace: 'myapp',
+  modalClassPrefix: 'myapp-design-token-panel-modal',
+  schemaId: 'myapp-design-tokens/v1',
+  exportFilenameBase: 'myapp-design-tokens',
+  tabs: myTabs,
+  applyEndpoint: 'http://127.0.0.1:24681/apply',
+  applyRouting: routing,
+};
+```
+
+`applyEndpoint` は、**ブラウザー**が POST する URL です。bin のデフォルトは `127.0.0.1:24681` なので、デフォルトの `http://127.0.0.1:24681/apply` はそのまま動作します。`--port` または `--host` を変更した場合は、それに合わせて `applyEndpoint` も更新する必要があります。
+
+## 5. Vite 専用のホスト配線（Astro なし）
+
+Vite ホスト（または Astro 以外のホスト）には、SSR コンポーネント `<DesignTokenPanelHost>` がありません。アプリの起動時に `configurePanel` を直接呼び出し、パネルモジュールをインポートして副作用を登録します。
+
+```ts
+// src/main.ts
+import { configurePanel } from '@takazudo/zdtp';
+import '@takazudo/zdtp/styles';
+import { myPanelConfig } from './lib/my-panel-config';
+
+configurePanel(myPanelConfig);
+
+// Lazy-load the panel module on demand (e.g. when a dev keybinding fires).
+window.addEventListener('keydown', (event) => {
+  if (event.altKey && event.shiftKey && event.code === 'KeyP') {
+    void import('@takazudo/zdtp').then((mod) => {
+      mod.toggleDesignPanel();
+    });
+  }
+});
+```
+
+<Tip>
+**configure の前に検証してください。** 設定が、内容を壊す可能性のある境界（`<input>` に保持した JSON blob、サーバーレスポンスなど）をまたぐ場合は、先に `assertValidPanelConfig(value)` を呼び出してください。不具合が後から不可解なランタイムエラーとして現れる代わりに、問題のあるフィールドを示すメッセージとともに例外をスローします。
+</Tip>
+
+## 6. 正常に終了する
+
+`concurrently --kill-others-on-fail`（または `concurrently -k`）を使うと、ターミナルからの `SIGINT` が bin へ伝播します。bin は `SIGINT` / `SIGTERM` を受けると、新しい接続の受け付けを停止し、処理中のリクエストを完了させて、コード `0` で終了します。keep-alive ソケットが原因で `close` が停止した場合は、5 秒のタイムアウト後に強制終了します。
+
+カスタム Node ラッパーから bin を起動する場合は、シグナルを自身で転送してください。
+
+```ts
+// scripts/dev-with-panel.ts
+import { spawn } from 'node:child_process';
+
+const bin = spawn(
+  'zdtp-server',
+  [
+    '--routing', './panel-routing.json',
+    '--write-root', './src/styles',
+    '--allow-origin', 'http://localhost:5173',
+  ],
+  { stdio: 'inherit', shell: false },
+);
+
+const forward = (signal: NodeJS.Signals): void => {
+  bin.kill(signal);
+};
+process.on('SIGINT', forward);
+process.on('SIGTERM', forward);
+
+bin.on('exit', (code) => process.exit(code ?? 0));
+```
+
+## 7. 配線をスモークテストする
+
+両方のプロセスが起動したら、bin の healthz エンドポイントを呼び出して確認します。
+
+```sh
+curl http://127.0.0.1:24681/healthz
+# {"ok":true,"writeRoot":"/abs/path/to/src/styles","routing":"/abs/path/to/panel-routing.json","port":24681}
+```
+
+続いて、パネルの **Apply** をクリックします。apply に成功すると、`{ "ok": true, "updated": [...] }` が返されます。完全なレスポンス形式とすべてのエラーコードについては、[アプライパイプラインのリファレンス](../reference/apply-pipeline.mdx)を参照してください。
+
+<Danger>
+**bin は開発専用です。** デフォルトではループバックへバインドし、ソースツリーへ書き込みます。本番環境では決して実行せず、公開インターネットへ露出せず、`--allow-origin` を `*` へ広げないでください。
+</Danger>
+
+## 関連項目
+
+- [アプライパイプラインのリファレンス](../reference/apply-pipeline.mdx) — リクエスト／レスポンスのエンベロープ、エラーコード、ネイティブ実装のガイダンス。
+- [`configurePanel` リファレンス](../reference/configure-panel.mdx) — `applyEndpoint` と `applyRouting` フィールド。
+- [トークンマニフェストのリファレンス](../reference/token-manifest.mdx) — Apply の差分に含まれるトークン。

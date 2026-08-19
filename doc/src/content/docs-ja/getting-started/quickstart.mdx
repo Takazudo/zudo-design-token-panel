@@ -1,0 +1,169 @@
+---
+title: クイックスタート
+description: パネルを設定し、最小限のタブマニフェストを宣言して、開発者ツールのコンソールから切り替えます。
+sidebar_position: 3
+---
+
+このページでは `@takazudo/zdtp` を動かすための最小構成を示します。`configurePanel({...})` を呼び出し、1 タブのマニフェストを宣言し、ブラウザーコンソールからパネルを開くところまでを扱います。`PanelConfig` の全フィールドは [`configurePanel` リファレンス](../reference/configure-panel.mdx)で詳しく説明しています。
+
+## 組み込む内容
+
+パッケージの公開インターフェースは、一度だけ設定する初期化処理です。
+
+```ts
+import { configurePanel, type PanelConfig } from '@takazudo/zdtp';
+
+configurePanel({
+  storagePrefix: 'myapp-design-token-panel',
+  consoleNamespace: 'myapp',
+  modalClassPrefix: 'myapp-design-token-panel-modal',
+  schemaId: 'myapp-design-tokens/v1',
+  exportFilenameBase: 'myapp-design-tokens',
+  tabs: myTabs,
+});
+```
+
+設定すると、`window.<consoleNamespace>` に 3 つの非同期ヘルパー `showDesignPanel()`、`hideDesignPanel()`、`toggleDesignPanel()` が追加されます。どれかを呼ぶとパネルモジュールが遅延 import され、UI がマウントされます。固定名の `window.zdtp` グローバル（`zdtp.show()` / `zdtp.hide()` / `zdtp.toggle()`）も追加されるため、パネルを開くだけなら独自の `consoleNamespace` を覚える必要はありません。全体像は[設定リファレンス](../reference/configure-panel.mdx)を参照してください。
+
+<Info title="Astro ホストでは自動的に呼び出されます">
+  Astro レイアウトへ `<DesignTokenPanelHost config={myPanelConfig} />` を配置すると、ホストアダプターがインライン JSON 設定を読み、代わりに `configurePanel(...)` を呼び出します。手動で呼ぶ必要はありません。Vite + React または Next.js では、パネルモジュールを import する前に自分で呼び出します。
+</Info>
+
+## ステップ 1 — 最小限の `PanelConfig` を定義する
+
+ソースの近くに設定用ファイルを作ります。パッケージに必要なのは、5 つの識別子（ストレージプレフィックス、コンソール名前空間、モーダルクラスプレフィックス、スキーマ ID、エクスポートファイル名）とタブ配列だけです。
+
+```ts
+// src/lib/my-panel-config.ts
+import type { PanelConfig } from '@takazudo/zdtp';
+import { myTabs } from './my-tabs';
+
+export const myPanelConfig: PanelConfig = {
+  storagePrefix: 'myapp-design-token-panel',
+  consoleNamespace: 'myapp',
+  modalClassPrefix: 'myapp-design-token-panel-modal',
+  schemaId: 'myapp-design-tokens/v1',
+  exportFilenameBase: 'myapp-design-tokens',
+  tabs: myTabs,
+};
+```
+
+識別子には、通常はアプリの slug など、アプリ固有で曖昧でない値を選びます。`storagePrefix` は永続化するすべての `localStorage` キーを制御する唯一の設定です。後から変更すると、ユーザーが保存した調整内容を読み出せなくなります。
+
+## ステップ 2 — 最小限の `tabs` マニフェスト
+
+`PanelConfig.tabs` は `readonly TabConfig[]` です。パネルのタブストリップに表示する各タブが、この配列の 1 エントリになります。`TabConfig` は安定した `id`、表示ラベル、編集可能な CSS 変数行を持つ 1 つ以上の*ティア*で構成されます。
+
+最も単純で実用的なマニフェストは、1 ティアと 2 アイテムを持つスペーシングタブです。
+
+```ts
+// src/lib/my-tabs.ts
+import type { TabConfig } from '@takazudo/zdtp';
+
+export const myTabs: readonly TabConfig[] = [
+  {
+    id: 'spacing',
+    label: 'Spacing',
+    tiers: [
+      {
+        id: 'base',
+        label: 'Base spacing',
+        items: [
+          {
+            id: 'myapp-spacing-md',
+            cssVar: '--myapp-spacing-md',
+            label: 'Spacing M',
+            group: 'hsp',
+            default: '1rem',
+            type: { kind: 'length', min: 0, max: 4, step: 0.0625, unit: 'rem' },
+          },
+          {
+            id: 'myapp-spacing-lg',
+            cssVar: '--myapp-spacing-lg',
+            label: 'Spacing L',
+            group: 'vsp',
+            default: '2rem',
+            type: { kind: 'length', min: 0, max: 6, step: 0.0625, unit: 'rem' },
+          },
+        ],
+      },
+    ],
+  },
+];
+```
+
+`cssVar` は、パネルが `setProperty()` を使って `:root` へ書き込む CSS カスタムプロパティです。スタイルシートが同じ変数名を参照していることを確認してください。`type` フィールドは判別可能なユニオン型（`'length'`、`'number'`、`'select'`、`'text'`、`'color'`）で、行に表示するエディターを制御します。
+
+<Note title="抽象ティアモデル">
+  スペーシング、タイポグラフィ、サイズ、カラー、イージングなど、カスタムドメインを含むすべてのタブファミリーで同じ `TabConfig` 形式を使います。タブは複数のティアを持つことができ、あるティアから別のティアのアイテム ID を参照できるため、ロー値への変更をセマンティックロールへ自動的に波及できます。全体の考え方と 2 ティア間参照の例は[アーキテクチャ](../reference/architecture.mdx)を参照してください。
+</Note>
+
+## ステップ 3 — `configurePanel(...)` を呼び、パネルを切り替える
+
+Astro 以外のホスト（Vite + React、Next.js、独自の Vite SPA）では、通常はエントリモジュールから、アプリ起動時に `configurePanel(...)` を一度呼びます。その後、開発者ツールのコンソールを開きます。
+
+```ts
+// src/main.ts (Vite + React) or app/layout.tsx (Next.js, with 'use client')
+import { configurePanel } from '@takazudo/zdtp';
+import '@takazudo/zdtp/styles';
+import { myPanelConfig } from './lib/my-panel-config';
+
+configurePanel(myPanelConfig);
+```
+
+ブラウザーの開発者ツールコンソールで次を実行します。
+
+```js
+window.myapp.toggleDesignPanel();
+// or, without remembering your own consoleNamespace:
+zdtp.toggle();
+```
+
+最初の呼び出しでパネルモジュールを遅延 import してマウントします。それ以降の呼び出しでは、メモ化された同じモジュール Promise を共有します。
+
+<Tip title="3 つの非同期ヘルパー">
+  3 つのコンソールヘルパーはすべて `async` です。シグネチャは `showDesignPanel(): Promise<void>`、`hideDesignPanel(): Promise<void>`、`toggleDesignPanel(): Promise<void>` です。既存の `window.<consoleNamespace>` オブジェクトへマージされるため、ホストは複数の開発ツールで名前空間を共有できます。
+</Tip>
+
+Astro では `configurePanel(...)` を直接呼びません。レイアウトへホストコンポーネントを配置し、ホストアダプターに接続を任せます。
+
+```astro
+---
+// src/layouts/Layout.astro
+import DesignTokenPanelHost from '@takazudo/zdtp/astro/DesignTokenPanelHost.astro';
+import '@takazudo/zdtp/styles';
+import { myPanelConfig } from '../lib/my-panel-config';
+---
+
+<!doctype html>
+<html lang="en">
+  <body>
+    <slot />
+    <DesignTokenPanelHost config={myPanelConfig} />
+  </body>
+</html>
+
+<script>
+  void import('@takazudo/zdtp/astro/host-adapter');
+</script>
+```
+
+`<DesignTokenPanelHost>` コンポーネントとホストアダプターの `<script>` ブロックは対になっており、常に両方が必要です。script を省くと JSON 設定ペイロードがページに残り、それを読む JavaScript がありません。
+
+## パネルのマウントを確認する
+
+ブラウザーでページを開き、開発者ツールで次を実行します。
+
+```js
+window.myapp.toggleDesignPanel();
+```
+
+Preact でレンダリングされたサイドパネルが表示されます。スライダーを動かすと、対応する `--myapp-*` CSS 変数が `:root` 上ですぐに更新されます。ページを再読み込みすると、最初の描画前にオーバーライドが再適用され、FOUT は発生しません。
+
+<Warning title="パネルにスタイルが適用されていない場合">
+  パネルは初回マウント時にスタイルシートを自己注入するため、`import '@takazudo/zdtp/styles'` は不要です。背景が透明、ページ既定のフォントが使われるなど UI が欠けている場合は、パネルモジュール自体の読み込みに失敗しています。バンドラー設定を確認し、peer dependency の `preact` がインストールされていることを確認してください。
+</Warning>
+
+## 次のステップ
+
+ここまでで「パネルが描画され、CSS 変数が更新される」状態になりました。`PanelConfig` の全体とタブマニフェストの詳細は [`configurePanel` リファレンス](../reference/configure-panel.mdx)へ、フレームワーク別のスニペットは[フレームワーク比較](./frameworks-comparison.mdx)へ進んでください。

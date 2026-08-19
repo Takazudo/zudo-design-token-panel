@@ -6,7 +6,7 @@ sidebar_position: 4
 
 The panel's public surface is a single `configurePanel({...})` call plus a Preact-rendered shell, so the wiring shape is the same across hosts. The only differences are *who* calls `configurePanel`, *how* the host interacts with view-transitions, and *how* the apply proxy is registered. The styles import is not a differentiator — the panel self-injects its stylesheet on first mount (no consumer CSS import required in any framework).
 
-This page is the side-by-side overview. For full code, see the [Examples](/docs/getting-started/examples) page — each framework's live demo and source repo are linked there.
+This page is the side-by-side overview. For full code, see the [Examples](./examples.mdx) page — each framework's live demo and source repo are linked there.
 
 ## Comparison
 
@@ -194,6 +194,6 @@ Worked example: [GitHub source](https://github.com/Takazudo/zudo-design-token-pa
 
 ## Where to go next
 
-- For per-field detail on `PanelConfig`, see the [Configure Panel reference](/docs/reference/configure-panel).
-- For the apply-pipeline bin (`zdtp-server`) and routing JSON, see the CLI reference once it lands.
-- For the smallest possible end-to-end wiring, see [Quickstart](./quickstart).
+- For per-field detail on `PanelConfig`, see the [Configure Panel reference](../reference/configure-panel.mdx).
+- For the apply-pipeline bin (`zdtp-server`) and routing JSON, see the [CLI reference](../reference/cli-zdtp-server.mdx).
+- For the smallest possible end-to-end wiring, see [Quickstart](./quickstart.mdx).

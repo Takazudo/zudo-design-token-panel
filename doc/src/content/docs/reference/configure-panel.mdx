@@ -172,17 +172,17 @@ export interface PanelConfig {
 | `storagePrefix` | `string` | yes | Drives every persisted localStorage key. Also the instance id. |
 | `consoleNamespace` | `string` | yes | Globals installed under `window[consoleNamespace]`. |
 | `modalClassPrefix` | `string` | yes | BEM root for every modal the panel owns. |
-| `schemaId` | `string` | yes | **Display-only** label surfaced in the Import modal's copy. `serialize()`/`deserialize()` always use the canonical `SCHEMA_V1`/`SCHEMA_V2`/`SCHEMA_V3` constants and never read this field — set it to one of those constants for a truthful label. See [Apply pipeline](/docs/reference/apply-pipeline#export-schema-v2). |
+| `schemaId` | `string` | yes | **Display-only** label surfaced in the Import modal's copy. `serialize()`/`deserialize()` always use the canonical `SCHEMA_V1`/`SCHEMA_V2`/`SCHEMA_V3` constants and never read this field — set it to one of those constants for a truthful label. See [Apply pipeline](./apply-pipeline.mdx#export-schema-v2). |
 | `exportFilenameBase` | `string` | yes | Saves as `${exportFilenameBase}.json`. |
 | `toggleEvent` | `string` | no | Toggle-event name for this instance. Default: `toggle-${storagePrefix}` (non-default instances); the default instance uses `toggle-design-token-panel`. |
-| `tabs` | [`TabConfig[]`](/docs/reference/token-manifest) | yes | Tab strip definition. The Color tab reads its data from the tier model via `colorExtras` + `TierItem[]`. |
-| `colorPresets` | `Record<string, ColorScheme>` | no | Host-supplied scheme presets — see [Color cluster](/docs/reference/color-cluster#host-supplied-scheme-presets). |
-| `applyEndpoint` | `string` | no | Apply POST target — see [Apply pipeline](/docs/reference/apply-pipeline). |
-| `applyRouting` | `Record<string, string>` | no | Apply routing map — see [Apply pipeline](/docs/reference/apply-pipeline). |
-| `domTweaker` | `DomTweakerConfig` | no | Opts into the dev-time Tailwind class editor. Omit it to hide the feature — see [DOM Tweaker](/docs/reference/dom-tweaker). |
+| `tabs` | [`TabConfig[]`](./token-manifest.mdx) | yes | Tab strip definition. The Color tab reads its data from the tier model via `colorExtras` + `TierItem[]`. |
+| `colorPresets` | `Record<string, ColorScheme>` | no | Host-supplied scheme presets — see [Color cluster](./color-cluster.mdx#host-supplied-scheme-presets). |
+| `applyEndpoint` | `string` | no | Apply POST target — see [Apply pipeline](./apply-pipeline.mdx). |
+| `applyRouting` | `Record<string, string>` | no | Apply routing map — see [Apply pipeline](./apply-pipeline.mdx). |
+| `domTweaker` | `DomTweakerConfig` | no | Opts into the dev-time Tailwind class editor. Omit it to hide the feature — see [DOM Tweaker](./dom-tweaker.mdx). |
 | `applySink` | `ApplySink` | no | Optional CSS-var write target. Not JSON-serializable. See below. |
 | `legacyIdRenameMap` | `Record<string, string \| null>` | no | Migration map for persisted id renames and drops. |
-| `autoRememberOnOpen` | `boolean` | no | Whether opening the panel arms owner-mode autoload (`:autoload = 'auto'`). Default `true`. Set `false` for a public site with a visitor-visible panel button — see [Load the panel only for you](/docs/recipes/owner-autoload). |
+| `autoRememberOnOpen` | `boolean` | no | Whether opening the panel arms owner-mode autoload (`:autoload = 'auto'`). Default `true`. Set `false` for a public site with a visitor-visible panel button — see [Load the panel only for you](../recipes/owner-autoload.mdx). |
 
 <Info title="JSON-serializable invariant">
 Every field on `PanelConfig` (including nested `tabs` content) other than `applySink` must round-trip through `JSON.stringify` without loss. The Astro host-adapter parses the inline `<script type="application/json">` payload on every page; function fields, class instances, and `Symbol` keys silently disappear and surface later as cryptic runtime errors.
@@ -212,7 +212,7 @@ The config object is deliberately narrow and JSON-serializable:
 - Every `@import` occurrence is rejected. DOM Tweaker controls its own no-preflight Tailwind input and does not accept imported stylesheets through this bridge.
 - Unknown fields, functions, arrays, `null`, and non-string `themeCss` values are rejected by `configurePanel` validation.
 
-See [DOM Tweaker](/docs/reference/dom-tweaker) for the editing workflow, development-only positioning, `themeCss` bridge, and runtime limitations.
+See [DOM Tweaker](./dom-tweaker.mdx) for the editing workflow, development-only positioning, `themeCss` bridge, and runtime limitations.
 
 ## `applySink` — optional CSS-var write target
 
@@ -474,7 +474,7 @@ window.zdtp.toggle = () => void | Promise<void>;
 - **Install sites:** the package-root module installs a synchronous alias at module init (non-Astro hosts); the Astro host adapter installs an async-wrapped alias eagerly from its own bootstrap, alongside the console API above — so `zdtp.show()` works even before the panel bundle has loaded.
 - **Never clobbers a host-defined `window.zdtp`.** If a page already defines its own `window.zdtp`, the install is skipped with a `console.warn` (including when a host happens to pick `consoleNamespace: 'zdtp'` itself).
 - **Targets the default instance,** exactly like `showDesignTokenPanel()` / `hideDesignTokenPanel()` / `toggleDesignPanel()` above. For a specific instance on a multi-instance page, call `configurePanel(cfg)`'s returned [`PanelInstanceHandle`](#panelinstancehandle) directly.
-- Opening via `zdtp.show()` arms the owner-autoload flag exactly like `showDesignTokenPanel()` — see [Owner-autoload recipe](/docs/recipes/owner-autoload).
+- Opening via `zdtp.show()` arms the owner-autoload flag exactly like `showDesignTokenPanel()` — see [Owner-autoload recipe](../recipes/owner-autoload.mdx).
 
 <Tip title="No enableAutoload here">
 `window.zdtp` deliberately mirrors only the three open/close verbs, not the full owner-autoload surface. Reach for `window[consoleNamespace].enableAutoload()` / `disableAutoload()` (or the package-root exports) for that.
@@ -506,6 +506,6 @@ setPanelColorPresets({
 });
 ```
 
-Lazy preset attachment. Hosts that don't want to ship the preset library inline in the SSR config blob can call this AFTER `configurePanel` from a deferred dynamic import. Same merge rules as `PanelConfig.colorPresets` — see [Color cluster](/docs/reference/color-cluster#host-supplied-scheme-presets) for the full merge contract.
+Lazy preset attachment. Hosts that don't want to ship the preset library inline in the SSR config blob can call this AFTER `configurePanel` from a deferred dynamic import. Same merge rules as `PanelConfig.colorPresets` — see [Color cluster](./color-cluster.mdx#host-supplied-scheme-presets) for the full merge contract.
 
 The trailing call wins on conflict (no throw, unlike `configurePanel`); a host that pre-calls `setPanelColorPresets` before `configurePanel` is serviced via a holding slot inside the panel-config module.

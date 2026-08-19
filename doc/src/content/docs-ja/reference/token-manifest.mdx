@@ -5,7 +5,7 @@ description: TabConfig・TierConfig・TierItem・TierValueKind・PillSpec・Colo
 ---
 
 <Info title="コンセプト概要">
-このページは、ティアモデルを型ごとに正確に定義するリファレンスです。まず設計上の意図と、リテラルティアと参照ティアの関係を理解したい場合は、[抽象トークンティアモデル](/ja/docs/reference/architecture#the-abstract-token-tier-model)を先にお読みください。
+このページは、ティアモデルを型ごとに正確に定義するリファレンスです。まず設計上の意図と、リテラルティアと参照ティアの関係を理解したい場合は、[アーキテクチャ](./architecture.mdx)を先にお読みください。
 </Info>
 
 パネルは、`PanelConfig.tabs` として渡される `TabConfig` オブジェクトのフラットな配列からタブストリップをレンダリングします。各タブは、編集可能な行からなる 1 つ以上の*ティア*を保持します。ティアはリテラル値を保持することも、別のティアのアイテムへの参照を保持することもできます。このページでは、ティアモデルのすべての公開型を正確に定義します。
@@ -82,7 +82,7 @@ export interface TierItem {
 ```
 
 <Note title="`group` フィールドなし">
-`TierItem.group`（ティア内のサブ見出しキー）は #148 で削除されました。パネルの[1 ティア 1 見出しポリシー](/ja/docs/reference/architecture)により、各ティアはちょうど 1 つのセクション見出しをレンダリングする必要があります。概念的にサブグループ分けが必要なティアは、代わりに複数の `TierConfig` エントリに分割します。サンプルマニフェストで `group` を参照してはいけません。
+`TierItem.group`（ティア内のサブ見出しキー）は #148 で削除されました。パネルの[1 ティア 1 見出しポリシー](./architecture.mdx)により、各ティアはちょうど 1 つのセクション見出しをレンダリングする必要があります。概念的にサブグループ分けが必要なティアは、代わりに複数の `TierConfig` エントリに分割します。サンプルマニフェストで `group` を参照してはいけません。
 </Note>
 
 ### フィールドリファレンス
@@ -141,7 +141,7 @@ export interface TierConfig {
 `referencesTier` を持つティアは**参照ティア**と呼ばれます。そのアイテムは直接の CSS 値を保持せず、別の（リテラル）ティア内の*ソース*アイテムの id を保持します。`referencesTier` の値は、同じ `TabConfig` 内に存在するティアの `id` でなければなりません。ティアの `kind` は一致している必要があります（例: 両方とも `'color'`、または両方とも `'length'`）。
 
 <Info title="semantic と referencesRamps はカラータブの概念">
-`semantic` と `referencesRamps` が意味を持つのは、`'color'` / `'color-secondary'` の `TabConfig` 内のティア（カラータブの `resolveColorClusterFromTab` ブリッジが読み取るティア）に対してのみです。完全な動作契約 — `SemanticValue` ユニオン、単独セマンティックティアのレンダリング方法、タブ間の実例 — については、[カラークラスター § セマンティック専用ティア](/ja/docs/reference/color-cluster#semantic-only-tier-semantic-true)を参照してください。
+`semantic` と `referencesRamps` が意味を持つのは、`'color'` / `'color-secondary'` の `TabConfig` 内のティア（カラータブの `resolveColorClusterFromTab` ブリッジが読み取るティア）に対してのみです。完全な動作契約 — `SemanticValue` ユニオン、単独セマンティックティアのレンダリング方法、タブ間の実例 — については、[カラークラスター](./color-cluster.mdx)を参照してください。
 </Info>
 
 ## `TabConfig`
@@ -165,7 +165,7 @@ export interface TabConfig {
 ```
 
 <Note title="`advancedTiers` フィールドなし">
-`TabConfig.advancedTiers`（タブごとの「Advanced」`<details>` 開閉）は #148 で削除されました。パネルの[プログレッシブディスクロージャー禁止ポリシー](/ja/docs/reference/architecture)により、すべてのティアは折りたたみセクションなしでフラットにレンダリングされる必要があります。タブに多数のトークンがある場合は、代わりにティアセクション順にフラットにレンダリングします。サンプルマニフェストで `advancedTiers` を参照してはいけません。
+`TabConfig.advancedTiers`（タブごとの「Advanced」`<details>` 開閉）は #148 で削除されました。パネルの[プログレッシブディスクロージャー禁止ポリシー](./architecture.mdx)により、すべてのティアは折りたたみセクションなしでフラットにレンダリングされる必要があります。タブに多数のトークンがある場合は、代わりにティアセクション順にフラットにレンダリングします。サンプルマニフェストで `advancedTiers` を参照してはいけません。
 </Note>
 
 ### 予約済みタブ id
@@ -268,7 +268,7 @@ export const easingTab: TabConfig = {
 
 ## 関連ページ
 
-- [`PanelConfig.tabs`](/ja/docs/reference/configure-panel#panelconfig-interface) — `TabConfig[]` が組み込まれる場所。
-- [カラークラスター](/ja/docs/reference/color-cluster) — カラータブが `colorExtras` を持つ `TabConfig` から `ColorClusterDataConfig` を派生させる仕組み。
-- [アプライパイプライン](/ja/docs/reference/apply-pipeline) — ティアリゾルバーがオーバーライドとティア間参照を CSS 変数の書き込みに変換する仕組み。
+- [`PanelConfig.tabs`](./configure-panel.mdx) — `TabConfig[]` が組み込まれる場所。
+- [カラークラスター](./color-cluster.mdx) — カラータブが `colorExtras` を持つ `TabConfig` から `ColorClusterDataConfig` を派生させる仕組み。
+- [アプライパイプライン](./apply-pipeline.mdx) — ティアリゾルバーがオーバーライドとティア間参照を CSS 変数の書き込みに変換する仕組み。
 - [グループ化パレットタブ](../recipes/grouped-palette-tab.mdx) — `colorExtras` なしで複数の `kind: 'color'` ティアを使うスタンドアロン Palette タブの実例。

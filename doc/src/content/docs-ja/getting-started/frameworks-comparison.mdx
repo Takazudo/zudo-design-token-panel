@@ -1,0 +1,199 @@
+---
+title: フレームワーク比較
+description: Astro、Vite + React、Next.js、zfb、zfb + Tailwind v4 の組み込み方について、変わる点と共通する点を比較します。
+sidebar_position: 4
+---
+
+パネルの公開インターフェースは、1 回の `configurePanel({...})` 呼び出しと Preact でレンダリングされるシェルです。そのため、ホストごとに異なるのは、誰が `configurePanel` を呼ぶか、ホストが view transition とどう連携するか、apply プロキシをどう登録するかだけです。スタイルの import は差異になりません。パネルは初回マウント時にスタイルシートを自己注入するため、どのフレームワークでも利用側の CSS import は不要です。
+
+このページでは横並びで概要を比較します。完全なコードは[サンプル](./examples.mdx)ページを参照してください。各フレームワークのライブデモとソースリポジトリへのリンクがあります。
+
+## 比較
+
+| 手順 | Astro | Vite + React | Next.js (App Router) | zfb | zfb + Tailwind v4 |
+| --- | --- | --- | --- | --- | --- |
+| パッケージのインストール | `pnpm add @takazudo/zdtp preact` | 同じ | 同じ | 同じ | 同じ + `tailwindcss` |
+| `PanelConfig` の定義 | ホスト側の TS ファイル 1 つ | 同じ | 同じ | 同じ | 同じ |
+| ホストのマウント | レイアウト内の `<DesignTokenPanelHost>` | エントリから `configurePanel(...)` を呼ぶ | `'use client'` モジュールから `configurePanel(...)` を呼ぶ | `"use client"` island から `configurePanel(...)` を呼ぶ | zfb と同じ |
+| 副作用 script | ホストの隣で `void import('.../astro/host-adapter')` | 不要 | 不要 | `"use client"` island 内で `void import('.../astro/host-adapter')` | zfb と同じ |
+| スタイル import | 不要（自己注入） | 不要（自己注入） | 不要（自己注入） | 不要（自己注入） | 不要（自己注入）。トークンは `@theme` ブロックにも登録 |
+| Tailwind 連携 | 該当なし | 該当なし | 該当なし | 該当なし | `@theme` で Tailwind 名前空間へトークンを登録。`text-body` や `p-hsp-md` がパネルのカスタムプロパティへ解決される |
+| view transition ライフサイクル | `<ClientRouter />` がある場合、ホストアダプターが自動接続 | 該当なし | 該当なし | 該当なし | 該当なし |
+| apply プロキシ（開発時） | Vite 開発サーバーのプロキシ設定 | Vite 開発サーバーのプロキシ設定 | Next.js の `rewrites` | zfb プラグインの `devMiddleware` フック | zfb と同じ |
+| apply エンドポイント URL | プレフィックスなしの相対パス（`api/dev/apply`） | 同じ | 同じ | 同じ | 同じ |
+| apply パイプライン bin | dev script から `concurrently` で起動 | 同じ | 同じ | 同じ | 同じ |
+
+共通する点:
+
+- `PanelConfig` の形式とすべてのフィールド。
+- console API。`window.<consoleNamespace>.{show,hide,toggle}DesignPanel()` はすべてのホストで同じように追加されます。
+- 固定名の `window.zdtp.{show,hide,toggle}()` グローバル。`consoleNamespace` に依存しない別名として、すべてのホストで namespaced console API の上に同じように追加されます。
+- `storagePrefix` に基づくストレージキーの導出。
+- apply パイプラインの動作。`applyEndpoint` への POST はホストに関係なく同一です。
+
+異なる点:
+
+- **利用側**が `configurePanel(...)` を呼ぶか（Vite、Next.js、zfb、zfb-tailwind）、**ホストアダプター**が代わりに呼ぶか（Astro）。
+- ページが Astro の `<ClientRouter />` view transition ライフサイクルを通るか（Astro のみ）。
+- apply プロキシの登録方法。Vite / Next は組み込みの proxy / rewrite 設定、zfb と zfb-tailwind はプラグインの `devMiddleware` フックを使います。
+- Tailwind v4 のデザインシステム名前空間にも `@theme` ブロックでトークンを登録するか（zfb-tailwind のみ）。
+
+## Astro
+
+Astro エントリがマウントを担当します。共有レイアウトへ `<DesignTokenPanelHost>` を置き、ホストアダプターの script タグと組み合わせます。これで組み込みは完了です。
+
+```astro
+---
+// src/layouts/Layout.astro
+import { ClientRouter } from 'astro:transitions';
+import DesignTokenPanelHost from '@takazudo/zdtp/astro/DesignTokenPanelHost.astro';
+import '@takazudo/zdtp/styles';
+import { myPanelConfig } from '../lib/my-panel-config';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <ClientRouter />
+  </head>
+  <body>
+    <slot />
+    <DesignTokenPanelHost config={myPanelConfig} />
+  </body>
+</html>
+
+<script>
+  void import('@takazudo/zdtp/astro/host-adapter');
+</script>
+```
+
+実装例: [GitHub ソース](https://github.com/Takazudo/zudo-design-token-panel-example-astro)。
+
+## Vite + React
+
+Vite ホストではアプリ起動時に `configurePanel(...)` を直接呼びます。パネルは Preact island としてマウントされ、React ツリーには影響しません。
+
+```tsx
+// src/main.tsx
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { configurePanel } from '@takazudo/zdtp';
+import '@takazudo/zdtp/styles';
+import { App } from './App';
+import { myPanelConfig } from './lib/my-panel-config';
+
+configurePanel(myPanelConfig);
+
+createRoot(document.getElementById('root')!).render(<App />);
+```
+
+開発者ツールを開き、`window.myapp.toggleDesignPanel()`（または名前空間に依存しない `zdtp.toggle()`）を実行するとパネルがマウントされます。
+
+実装例: [GitHub ソース](https://github.com/Takazudo/zudo-design-token-panel-example-vite-react)。
+
+## Next.js (App Router)
+
+Next.js では `configurePanel(...)` をブラウザーで実行するために `'use client'` 境界が必要です。最小の client component を root layout へマウントする構成が分かりやすい方法です。
+
+```tsx
+// app/_panel/install-panel.tsx
+'use client';
+
+import { useEffect } from 'react';
+import { configurePanel } from '@takazudo/zdtp';
+import '@takazudo/zdtp/styles';
+import { myPanelConfig } from '@/lib/my-panel-config';
+
+export function InstallPanel(): null {
+  useEffect(() => {
+    configurePanel(myPanelConfig);
+  }, []);
+  return null;
+}
+```
+
+```tsx
+// app/layout.tsx
+import { InstallPanel } from './_panel/install-panel';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        {children}
+        <InstallPanel />
+      </body>
+    </html>
+  );
+}
+```
+
+<Note title="useEffect を使う理由">
+  `configurePanel(...)` は同期的で、同じ値に対して冪等です。`useEffect` から呼ぶとサーバーレンダリング中の実行を避けられ、インストール用モジュールをそれ以外では不活性に保てます。モジュール初期化時に直接呼ぶこともできますが、そのファイルが client bundle からだけ到達可能であることを確認してください。
+</Note>
+
+実装例: [GitHub ソース](https://github.com/Takazudo/zudo-design-token-panel-example-nextjs)。
+
+## zfb
+
+[zfb](https://github.com/Takazudo/zudo-front-builder) は作者が別リポジトリ（`Takazudo/zudo-front-builder`）で開発している WIP のビルドオーケストレーターです。zfb サンプルでは zfb プロジェクトへパネルを組み込む方法を示します。
+
+組み込み方は Astro に近いものです。zfb は `"use client"` マーカー付きの Preact island を使うため、同様に `@takazudo/zdtp/astro/host-adapter` の副作用 import を使います。
+
+ほかの 3 サンプルとの主な違いは、開発時の apply プロキシの接続方法です。Vite と Next.js には組み込みの proxy / rewrite 設定がありますが、zfb は `devMiddleware` プラグインフックを提供します。プラグインでプロキシを登録します。
+
+```ts
+// zfb.config.ts
+import { defineConfig } from '@takazudo/zfb/config';
+
+export default defineConfig({
+  framework: 'preact',
+  base: '/',
+  plugins: [
+    { name: './plugins/dev-apply-proxy.mjs' },
+  ],
+});
+```
+
+```js
+// plugins/dev-apply-proxy.mjs
+export default {
+  name: 'dev-apply-proxy',
+  devMiddleware(app) {
+    // Forward POST requests at the FULL base-prefixed path to the bin server.
+    app.post(
+      '/api/dev/apply',
+      proxyHandler,
+    );
+  },
+};
+```
+
+**apply エンドポイント URL。** zfb デモは（ほかのサンプルと同じ）`base: '/'` を設定し、プレフィックスなしの `/api/dev/apply` を使います。zfb [#229](https://github.com/Takazudo/zudo-front-builder/issues/229) では `devMiddleware` で登録したパスが `base` の下にスコープされるため、`base` が `/` ならこのパスで正しく解決されます。同じ構成をルート以外の `base` へ配置する場合、開発サーバーがプロキシに一致できるよう、apply パスにも同じ `base` プレフィックスが必要です。経緯の詳細は [`PROBE-REPORT.md`](https://github.com/Takazudo/zudo-design-token-panel-example-zfb/blob/main/PROBE-REPORT.md) を参照してください。
+
+実装例: [GitHub ソース](https://github.com/Takazudo/zudo-design-token-panel-example-zfb)。
+
+## zfb + Tailwind v4
+
+zfb + Tailwind v4 サンプルは、zfb の組み込みを Tailwind CSS v4 対応に拡張します。パネルの接続と `devMiddleware` ベースの apply プロキシは通常の zfb サンプルと同じです。異なるのは、`@theme` ブロックで Tailwind のデザインシステム名前空間にもデザイントークンを登録し、`text-body`、`p-hsp-md`、`rounded-radius-sm` のようなユーティリティクラスがビルド時にパネルの CSS カスタムプロパティへ解決される点です。
+
+```css
+/* styles/tokens.css */
+@theme {
+  --font-size-body: var(--zfbtw-text-body);
+  --spacing-hsp-md: var(--zfbtw-hsp-md);
+  --color-primary: var(--zfbtw-color-primary);
+}
+```
+
+この `@theme` ブロックにより、Tailwind ユーティリティクラスとパネルのトークンは自動的に同期します。パネルで `--zfbtw-text-body` を変更すると、`text-body` を使うすべての要素が更新されます。
+
+apply エンドポイント URL も通常の zfb サンプルと同じで、`base: '/'` に対してプレフィックスなしの `/api/dev/apply` を使います。
+
+実装例: [GitHub ソース](https://github.com/Takazudo/zudo-design-token-panel-example-zfb-tailwind)。
+
+## 次に読むページ
+
+- `PanelConfig` の各フィールドは [`configurePanel` リファレンス](../reference/configure-panel.mdx)を参照してください。
+- apply パイプライン bin（`zdtp-server`）とルーティング JSON は [CLI リファレンス](../reference/cli-zdtp-server.mdx)を参照してください。
+- 最小構成の一連の組み込みは[クイックスタート](./quickstart.mdx)を参照してください。

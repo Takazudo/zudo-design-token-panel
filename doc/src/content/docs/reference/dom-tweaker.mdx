@@ -36,7 +36,7 @@ configurePanel({
 });
 ```
 
-An empty object uses the bundled suggestion set and Tailwind's default theme. See the [`PanelConfig.domTweaker` reference](/docs/reference/configure-panel) for the exact type and validation rules.
+An empty object uses the bundled suggestion set and Tailwind's default theme. See the [`PanelConfig.domTweaker` reference](./configure-panel.mdx) for the exact type and validation rules.
 
 ## Bridging a host theme with `themeCss`
 
@@ -70,7 +70,7 @@ The original design also considered a CSS mode for editing raw declarations. Tha
 
 - **Tailwind v4 hosts only.** The runtime integration uses `@tailwindcss/browser` v4 and does not provide a Tailwind v3 compatibility path.
 - **Strict CSP can block it.** A `style-src` policy that does not allow `unsafe-inline` blocks DOM Tweaker's injected feature and generated utility styles.
-- **No source-file writes in v1.** Diff export copies text to the clipboard for an AI handoff. Unlike the token [Apply pipeline](/docs/reference/apply-pipeline), it does not locate or rewrite template/component files.
+- **No source-file writes in v1.** Diff export copies text to the clipboard for an AI handoff. Unlike the token [Apply pipeline](./apply-pipeline.mdx), it does not locate or rewrite template/component files.
 - **Light DOM only.** Shadow-DOM hosts are outside v1 scope; the picker and Tailwind runtime observe the document's light DOM.
 - **The runtime lasts for the page lifetime.** After it starts, turning DOM Tweaker off closes the editor and stops picking, but does not remove the Tailwind runtime, its observers, or injected styles. Reload the page for a full teardown.
 - **The edit session lasts for one page load.** Its baselines and diff records are in memory, not persisted. Reloading or navigating to a fresh document starts a new session.

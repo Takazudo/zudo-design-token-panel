@@ -1,24 +1,16 @@
 ---
-title: Custom color cluster
-description: "Wire a non-default palette plus a semantic token table into the panel's Color tab using TabConfig with colorExtras."
+title: カスタムカラークラスター
+description: "colorExtras を持つ TabConfig を使い、デフォルト以外のパレットとセマンティックトークンテーブルをパネルの Color タブへ組み込みます。"
 sidebar_position: 1
 ---
 
-The package ships **zero baked-in color data**. The host owns the palette,
-the semantic roles, and the scheme registry. This recipe walks through
-wiring a fresh Color tab for a new project using the `TabConfig` shape.
+パッケージには、組み込みのカラーデータが**一切含まれていません**。パレット、セマンティックロール、スキームレジストリはホストが所有します。このレシピでは、`TabConfig` の形式を使って新しいプロジェクト用の Color タブを一から組み込む手順を説明します。
 
-The Color tab is a `TabConfig` with the reserved `id: 'color'`. Its `tiers`
-hold the palette and semantic data as `TierItem` arrays; the `colorExtras`
-field carries the non-tier metadata (base roles, color schemes, panel
-settings). For the authoritative shape, see
-[Color cluster reference](../reference/color-cluster.mdx).
+Color タブは、予約済みの `id: 'color'` を持つ `TabConfig` です。その `tiers` は、パレットとセマンティックデータを `TierItem` の配列として保持します。`colorExtras` フィールドは、ティアに属さないメタデータ（ベースロール、カラースキーム、パネル設定）を保持します。正式な形式については、[カラークラスターのリファレンス](../reference/color-cluster.mdx)を参照してください。
 
-## 1. Define the Color tab
+## 1. Color タブを定義する
 
-Pick CSS variable names that match your stylesheet. The first palette item's
-`cssVar` determines the var-name template the internal bridge uses
-(`--myapp-palette-0` → `--myapp-palette-{n}`).
+スタイルシートと一致する CSS 変数名を選びます。最初のパレット項目の `cssVar` によって、内部ブリッジが使用する変数名テンプレートが決まります（`--myapp-palette-0` → `--myapp-palette-{n}`）。
 
 ```ts
 // src/lib/my-tabs.ts
@@ -133,15 +125,12 @@ export const myTabs: readonly TabConfig[] = [colorTab];
 ```
 
 <Info>
-**Palette length invariant.** `ColorScheme.palette.length` MUST equal the
-number of items in the palette tier. Add or remove palette items and scheme
-arrays together or the panel will reject the config at init time.
+**パレット長の不変条件。** `ColorScheme.palette.length` は、パレットティアの項目数と等しくなければ**なりません**。パレット項目とスキーム配列を一緒に追加または削除してください。そうしなければ、初期化時にパネルが設定を拒否します。
 </Info>
 
-## 2. Plug it into `configurePanel`
+## 2. `configurePanel` へ組み込む
 
-Pass the tabs array to `configurePanel`. Any other tabs (spacing, font, etc.)
-join the same array.
+tabs 配列を `configurePanel` へ渡します。ほかのタブ（spacing、font など）も同じ配列へ加えます。
 
 ```ts
 // src/lib/my-panel-config.ts
@@ -158,14 +147,11 @@ export const myPanelConfig: PanelConfig = {
 };
 ```
 
-See [`configurePanel` reference](../reference/configure-panel.mdx) for the full
-list of `PanelConfig` fields.
+`PanelConfig` の全フィールドについては、[`configurePanel` リファレンス](../reference/configure-panel.mdx)を参照してください。
 
-## 3. Match your stylesheet
+## 3. スタイルシートを対応させる
 
-The panel writes to `:root` using the names you declared. Your stylesheet
-needs to consume them — usually via fallback defaults so the page paints
-even before any user override:
+パネルは、宣言した名前を使って `:root` へ書き込みます。スタイルシート側では、それらを使用する必要があります。通常は、ユーザーによるオーバーライドがまだなくてもページを描画できるよう、フォールバックのデフォルト値を用意します。
 
 ```css
 /* src/styles/tokens.css */
@@ -189,16 +175,12 @@ even before any user override:
 ```
 
 <Tip>
-The panel never **reads** these declarations — it only writes through
-`document.documentElement.style.setProperty(...)`. Treat your stylesheet as
-the source of the defaults; treat the panel as a layer of inline overrides
-on top.
+パネルがこれらの宣言を**読み取る**ことはありません。`document.documentElement.style.setProperty(...)` を通じて書き込むだけです。スタイルシートをデフォルト値の情報源、パネルをその上に重なるインラインオーバーライドのレイヤーとして扱ってください。
 </Tip>
 
-## 4. Add a second scheme (optional)
+## 4. 2 つ目のスキームを追加する（任意）
 
-Schemes appear in the Color tab "Scheme..." dropdown. Add as many as you
-like; their order is the insertion order of `colorSchemes`.
+スキームは、Color タブの「Scheme...」ドロップダウンに表示されます。好きな数だけ追加でき、`colorSchemes` へ挿入した順に並びます。
 
 ```ts
 const defaultLight: ColorScheme = {
@@ -223,17 +205,10 @@ colorSchemes: {
 },
 ```
 
-If you also want true light/dark switching driven by the page's
-`data-theme` attribute, see the
-[secondary cluster recipe](./secondary-cluster-or-disable.mdx) and
-the [Color cluster reference](../reference/color-cluster.mdx) section on
-`panelSettings.colorMode`.
+ページの `data-theme` 属性で駆動する本当のライト／ダーク切り替えも必要な場合は、[セカンダリクラスターのレシピ](./secondary-cluster-or-disable.mdx)と、[カラークラスターのリファレンス](../reference/color-cluster.mdx)にある `panelSettings.colorMode` のセクションを参照してください。
 
-## Related
+## 関連項目
 
-- [Color cluster reference](../reference/color-cluster.mdx) — full type
-  contract, `ColorClusterExtras`, and the internal bridge semantics.
-- [Panel CSS tokens](../reference/panel-css-tokens.mdx) — overriding the
-  panel's chrome colors (separate from your app's color cluster).
-- [Lazy color presets](./lazy-color-presets.mdx) — keep a large
-  preset library out of the SSR config blob.
+- [カラークラスターのリファレンス](../reference/color-cluster.mdx) — 完全な型契約、`ColorClusterExtras`、内部ブリッジのセマンティクス。
+- [パネル CSS トークン](../reference/panel-css-tokens.mdx) — パネルの chrome 色のオーバーライド（アプリのカラークラスターとは別です）。
+- [カラープリセットの遅延読み込み](./lazy-color-presets.mdx) — 大規模なプリセットライブラリを SSR 設定 blob の外に置きます。

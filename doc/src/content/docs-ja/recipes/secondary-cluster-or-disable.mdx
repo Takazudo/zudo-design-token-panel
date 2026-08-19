@@ -1,37 +1,27 @@
 ---
-title: "Secondary cluster: configure or disable"
-description: "Two-state semantics: omit the secondary color tab (hidden) or add a TabConfig with id 'color-secondary' (host-supplied)."
+title: "セカンダリクラスター：設定または無効化"
+description: "2 状態のセマンティクス：セカンダリ Color タブを省略して非表示にするか、id が 'color-secondary' のホスト提供 TabConfig を追加します。"
 sidebar_position: 3
 ---
 
-The panel supports an optional second Color tab keyed to the reserved id
-`'color-secondary'`. Whether to show it, hide it, or never wire it at all is
-a matter of whether that tab appears in `PanelConfig.tabs`. This recipe covers
-the two cases with concrete snippets.
+パネルは、予約済み ID `'color-secondary'` に対応する、任意の 2 つ目の Color タブをサポートします。表示するか、非表示にするか、最初からまったく組み込まないかは、そのタブが `PanelConfig.tabs` に含まれるかどうかで決まります。このレシピでは、2 つのケースを具体的なコード例とともに説明します。
 
-For the underlying contract, see
-[Color cluster reference](../reference/color-cluster.mdx) (multi-cluster
-section).
+基礎となる契約については、[カラークラスターのリファレンス](../reference/color-cluster.mdx)（複数クラスターのセクション）を参照してください。
 
-## The two states
+## 2 つの状態
 
-| `tabs` contains `id: 'color-secondary'`? | Render | Apply / clear / load |
+| `tabs` に `id: 'color-secondary'` が含まれるか | レンダリング | Apply / clear / load |
 |---|---|---|
-| No (tab omitted) | Secondary section hidden. | No write. The persist envelope's secondary slice stays inert. |
-| Yes (tab present with `colorExtras`) | Secondary palette + semantic table render below the primary. | Same write semantics as the primary, scoped to the secondary palette and CSS-var names. |
+| いいえ（タブを省略） | セカンダリセクションは非表示。 | 書き込みなし。永続化エンベロープの secondary slice は何も処理しない。 |
+| はい（`colorExtras` を持つタブが存在） | セカンダリのパレットとセマンティックテーブルをプライマリの下に表示。 | セカンダリのパレットと CSS 変数名へスコープされる点を除き、プライマリと同じ書き込みセマンティクス。 |
 
 <Tip>
-**Previously there was a `null` opt-out.** Older docs described a three-state
-`secondaryColorCluster` field where `null` would hard-skip the secondary load
-path. In the current `tabs`-based config, simply omitting the
-`'color-secondary'` tab achieves the same result — no secondary state is
-hydrated.
+**以前は `null` によるオプトアウトがありました。** 古いドキュメントには、`null` を指定するとセカンダリの読み込みパスを完全にスキップする、3 状態の `secondaryColorCluster` フィールドが記載されていました。現在の `tabs` ベースの設定では、`'color-secondary'` タブを省略するだけで同じ結果になります。セカンダリの状態は hydrate されません。
 </Tip>
 
-## Case 1 — secondary hidden (default)
+## ケース 1 — セカンダリを非表示にする（デフォルト）
 
-Just omit the `'color-secondary'` tab from your `tabs` array. This is the
-recommended starting point for every new host.
+`tabs` 配列から `'color-secondary'` タブを省略するだけです。すべての新しいホストで、これを開始時の推奨設定とします。
 
 ```ts
 // src/lib/my-panel-config.ts
@@ -49,11 +39,9 @@ export const myPanelConfig: PanelConfig = {
 };
 ```
 
-## Case 2 — host-supplied secondary cluster
+## ケース 2 — ホスト提供のセカンダリクラスター
 
-Add a second `TabConfig` with `id: 'color-secondary'` to `tabs`. Use a
-different `cssVar` prefix for palette and semantic items so the writes do not
-collide with the primary Color tab.
+`id: 'color-secondary'` を持つ 2 つ目の `TabConfig` を `tabs` へ追加します。書き込みがプライマリの Color タブと衝突しないよう、パレット項目とセマンティック項目には異なる `cssVar` プレフィックスを使用してください。
 
 ```ts
 // src/lib/my-tabs.ts
@@ -135,7 +123,7 @@ export const colorSecondaryTab: TabConfig = {
 };
 ```
 
-Then include both tabs in `PanelConfig.tabs`:
+続いて、両方のタブを `PanelConfig.tabs` に含めます。
 
 ```ts
 // src/lib/my-panel-config.ts
@@ -152,11 +140,9 @@ export const myPanelConfig: PanelConfig = {
 };
 ```
 
-## Case 3 — light/dark pairing on the secondary
+## ケース 3 — セカンダリでライト／ダークを組み合わせる
 
-Same shape as Case 2, but with `panelSettings.colorMode` light/dark pairing
-enabled. The panel watches `document.documentElement[data-theme]` and
-swaps schemes accordingly on init.
+形式はケース 2 と同じですが、`panelSettings.colorMode` によるライト／ダークの組み合わせを有効にします。パネルは `document.documentElement[data-theme]` を監視し、初期化時に対応するスキームへ切り替えます。
 
 ```ts
 export const colorSecondaryTab: TabConfig = {
@@ -182,16 +168,11 @@ export const colorSecondaryTab: TabConfig = {
 ```
 
 <Info>
-`colorMode` is independent on the primary and the secondary. You can set it
-on one and leave the other as `false`; the panel resolves them separately.
+`colorMode` はプライマリとセカンダリで独立しています。一方に設定し、もう一方を `false` のままにできます。パネルはそれぞれを別々に解決します。
 </Info>
 
-## Related
+## 関連項目
 
-- [Color cluster reference](../reference/color-cluster.mdx) — primary
-  cluster shape and apply-time write order; the secondary follows the
-  same rules.
-- [Custom color cluster](./custom-color-cluster.mdx) — wiring
-  the primary cluster from scratch.
-- [`configurePanel` reference](../reference/configure-panel.mdx) —
-  `PanelConfig.tabs` and the reserved `'color-secondary'` id.
+- [カラークラスターのリファレンス](../reference/color-cluster.mdx) — プライマリクラスターの形式と apply 時の書き込み順。セカンダリも同じルールに従います。
+- [カスタムカラークラスター](./custom-color-cluster.mdx) — プライマリクラスターを一から組み込む方法。
+- [`configurePanel` リファレンス](../reference/configure-panel.mdx) — `PanelConfig.tabs` と予約済み ID `'color-secondary'`。
