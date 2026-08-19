@@ -101,7 +101,7 @@ build_one() {
   local filter="$2"
   echo ""
   echo "▶ Building $label"
-  if ! pnpm --filter "$filter" build; then
+  if ! pnpm --filter "$filter" --fail-if-no-match build; then
     echo "❌ Build failed: $label ($filter)"
     exit 2
   fi
