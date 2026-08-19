@@ -55,8 +55,12 @@ esac
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
-# Read project name from package.json
-PROJECT_NAME=$(node -e "console.log(require('$ROOT_DIR/package.json').name || 'my-project')")
+# Resolve the main repo root up front (handles git worktrees correctly). The
+# docs workspace is deliberately named "doc", but the generated lookup skill
+# belongs to the repository, so derive its identity from the repository-root
+# package rather than producing the misleading, unignored "doc-wisdom".
+REPO_ROOT="$(git -C "$ROOT_DIR" worktree list | head -1 | awk '{print $1}')"
+PROJECT_NAME=$(node -e "console.log(require('$REPO_ROOT/package.json').name || 'my-project')")
 
 # Pre-#3154 default: always `<projectName>-wisdom`, which doubles the suffix
 # when PROJECT_NAME already ends in "-wisdom" (e.g. "zudo-test-wisdom" ->
@@ -176,10 +180,6 @@ if [ "$SKILL_NAME" = "$DEFAULT_SKILL_NAME" ] && [ "$DEFAULT_SKILL_NAME" != "$LEG
     echo ""
   fi
 fi
-
-# Resolve the main repo root (handles git worktrees correctly)
-# Use the main worktree path so symlinks survive worktree removal
-REPO_ROOT="$(git -C "$ROOT_DIR" worktree list | head -1 | awk '{print $1}')"
 
 # Path from the repository root to the project directory: "" at the repo
 # root, "doc/" (trailing slash) when the project lives in a subdirectory
@@ -348,7 +348,10 @@ resolve_targets() {
 
 generate_skill() {
   local target="$1"
-  local project_skills_dir="$ROOT_DIR/.$target/skills"
+  # Generate into the main worktree as well as linking docs from it. Otherwise
+  # a global skill installed while running in a temporary worktree becomes a
+  # dangling link as soon as that worktree is removed.
+  local project_skills_dir="$MAIN_PROJECT_DIR/.$target/skills"
   local skill_dir="$project_skills_dir/$SKILL_NAME"
   local global_skills_dir="$HOME/.$target/skills"
   local assistant_label
