@@ -1,0 +1,143 @@
+---
+title: カラープリセットの遅延読み込み
+description: setPanelColorPresets を使い、大規模なプリセットライブラリを SSR 設定 blob の外へ遅延させます。
+sidebar_position: 5
+---
+
+大規模なプリセットライブラリ（Dracula、Solarized、Tokyo Night、Catppuccin など）を提供するホストは、通常、すべてのプリセットを SSR 設定 blob へ組み込みたいとは**考えません**。このペイロードは、すべてのページでインラインの `<script type="application/json">` としてレンダリングされるためです。`setPanelColorPresets(presets)` はこの問題を解決します。`configurePanel` の後で、遅延させた動的インポートから呼び出すと、バンドラーはプリセットマップを別の JS チャンクとして出力します。
+
+マージの契約（キーが衝突した場合はクラスターにバンドルされたスキームが優先され、呼び出し間の競合では後の呼び出しが優先される）については、[カラークラスターのリファレンス](../reference/color-cluster.mdx)にある `colorPresets` のセクションを参照してください。
+
+## 遅延させる理由
+
+単純な配線では、`colorPresets` を `PanelConfig` に直接設定します。
+
+```ts
+// Always-loaded path — preset map ships in the SSR config blob.
+import { dracula, solarized, tokyoNight } from './my-presets';
+
+export const myPanelConfig: PanelConfig = {
+  // ...
+  colorPresets: {
+    Dracula: dracula,
+    Solarized: solarized,
+    'Tokyo Night': tokyoNight,
+  },
+};
+```
+
+これは機能しますが、Color タブを一度も開かないユーザーも含め、ページを読み込むたびに JSON のコストが発生します。以下の遅延パターンでは、プリセットのペイロードをページ読み込みのクリティカルパスから外します。
+
+## 遅延パターン
+
+手順は 3 つです。プリセットマップを独自のモジュールへ分割し、遅延インポートして、その結果を `setPanelColorPresets` へ渡します。
+
+### ステップ 1 — プリセットモジュールを用意する
+
+```ts
+// src/lib/color-presets.ts
+import type { ColorScheme } from '@takazudo/zdtp';
+
+const dracula: ColorScheme = {
+  background: 0,
+  foreground: 7,
+  cursor: 7,
+  selectionBg: 8,
+  selectionFg: 0,
+  palette: [
+    '#282a36', '#ff5555', '#50fa7b', '#f1fa8c',
+    '#bd93f9', '#ff79c6', '#8be9fd', '#f8f8f2',
+    '#44475a', '#ff5555', '#50fa7b', '#f1fa8c',
+    '#bd93f9', '#ff79c6', '#8be9fd', '#bfbfbf',
+  ],
+  shikiTheme: 'dracula',
+};
+
+const solarizedDark: ColorScheme = {
+  background: 0,
+  foreground: 7,
+  cursor: 7,
+  selectionBg: 8,
+  selectionFg: 0,
+  palette: [
+    '#002b36', '#dc322f', '#859900', '#b58900',
+    '#268bd2', '#d33682', '#2aa198', '#eee8d5',
+    '#073642', '#cb4b16', '#586e75', '#657b83',
+    '#839496', '#6c71c4', '#93a1a1', '#fdf6e3',
+  ],
+  shikiTheme: 'solarized-dark',
+};
+
+// ...add as many as you like...
+
+export const colorPresets: Record<string, ColorScheme> = {
+  Dracula: dracula,
+  'Solarized Dark': solarizedDark,
+};
+```
+
+### ステップ 2 — `PanelConfig.colorPresets` を空にする
+
+フィールドを省略します（または `{}` を設定します）。これで SSR 設定 blob が小さいままになり、初回描画ではクラスターにバンドルされたスキームだけが送られます。
+
+```ts
+// src/lib/my-panel-config.ts
+import type { PanelConfig } from '@takazudo/zdtp';
+import { myTabs } from './my-tabs';
+
+export const myPanelConfig: PanelConfig = {
+  storagePrefix: 'myapp-design-token-panel',
+  consoleNamespace: 'myapp',
+  modalClassPrefix: 'myapp-design-token-panel-modal',
+  schemaId: 'myapp-design-tokens/v1',
+  exportFilenameBase: 'myapp-design-tokens',
+  tabs: myTabs,
+  // colorPresets intentionally omitted — wired lazily below.
+};
+```
+
+### ステップ 3 — configure 後にプリセットを接続する
+
+`setPanelColorPresets` はパッケージルートからエクスポートされます。遅延させた動的インポートから呼び出すと、バンドラーは `color-presets.ts` を独自の JS チャンクとして出力するため、初回描画を妨げません。
+
+```ts
+// src/main.ts (Vite host)
+import { configurePanel, setPanelColorPresets } from '@takazudo/zdtp';
+import '@takazudo/zdtp/styles';
+import { myPanelConfig } from './lib/my-panel-config';
+
+configurePanel(myPanelConfig);
+
+// Defer the preset payload to its own chunk.
+void import('./lib/color-presets').then(({ colorPresets }) => {
+  setPanelColorPresets(colorPresets);
+});
+```
+
+Astro ホストでは、同じパターンをホストアダプターのインポートと並ぶ、hoist された `<script>` ブロックに配置します。
+
+```astro
+<script>
+  void import('./lib/color-presets').then(({ colorPresets }) => {
+    void import('@takazudo/zdtp').then((mod) => {
+      mod.setPanelColorPresets(colorPresets);
+    });
+  });
+</script>
+```
+
+<Tip>
+**順序は問いません。** `configurePanel` より**前に** `setPanelColorPresets` を呼び出したホストは、`config/panel-config.ts` 内の保持用スロットによって処理されます。プリセットマップはバッファーされ、configure の実行時にマージされます。`setPanelColorPresets` を複数回呼び出した場合は、後の呼び出しが優先されます（`configurePanel` の重複とは異なり、例外はスローしません）。
+</Tip>
+
+## 遅延させない場合
+
+- **小さなプリセットリスト（3 エントリー以下）。** 数 KB のために遅延チャンクの仕組みを使う価値はありません。`PanelConfig.colorPresets` に直接インライン化してください。
+- **サーバーレンダリングされるプリセットギャラリー。** SSR 時にプリセットを列挙する UI を構築する場合、遅延させるとギャラリーが初回描画時に空でレンダリングされ、hydrate 時に再レンダリングされます。代わりにマップをインライン化してください。
+- **クラスター所有者のデフォルト。** クラスターの正式なデフォルトとするスキーム（例: `"Default Light"` / `"Default Dark"`）は、`colorPresets` ではなく Color `TabConfig` の `colorExtras.colorSchemes` に属します。これらは任意の追加要素ではなく、クラスターのアイデンティティの一部です。
+
+## 関連項目
+
+- [カラークラスターのリファレンス](../reference/color-cluster.mdx) — クラスターの完全な形式、`colorSchemes` レジストリ、プリセットのマージ順。
+- [カスタムカラークラスター](./custom-color-cluster.mdx) — プライマリクラスター（プリセットマップで上書きできないバンドル済みスキームを保持します）の配線。
+- [`configurePanel` リファレンス](../reference/configure-panel.mdx) — `colorPresets` フィールド、遅延接続、キー衝突のルール。

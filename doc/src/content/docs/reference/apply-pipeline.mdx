@@ -74,7 +74,7 @@ The panel exports and imports overrides as a JSON envelope with a `$schema` fiel
 }
 ```
 
-The top-level keys (after `$schema`) are the CSS custom property names of every active override. The values are CSS strings. On import, the panel validates the `$schema` field against the canonical `SCHEMA_V1` / `SCHEMA_V2` / `SCHEMA_V3` constants — NOT against `PanelConfig.schemaId`, which is a display-only label the serde never reads (see [`configurePanel` reference](/docs/reference/configure-panel#panelconfig-interface)). A `$schema` value that matches none of the three canonical constants is rejected with a `schema-mismatch` error.
+The top-level keys (after `$schema`) are the CSS custom property names of every active override. The values are CSS strings. On import, the panel validates the `$schema` field against the canonical `SCHEMA_V1` / `SCHEMA_V2` / `SCHEMA_V3` constants — NOT against `PanelConfig.schemaId`, which is a display-only label the serde never reads (see [`configurePanel` reference](./configure-panel.mdx#panelconfig-interface)). A `$schema` value that matches none of the three canonical constants is rejected with a `schema-mismatch` error.
 
 <Note title="Flat cssVar-keyed shape">
 The v2 export format is a flat map of cssVar → CSS string. Reference-tier items are expanded to their emitted `var(...)` value at export time — the exported file contains only the CSS values the user would see in `:root`, not the intermediate item ids.
@@ -121,7 +121,7 @@ Per override var, `:root` is tried first and `@theme` is the fallback — a var 
 All three vars above — `--palette-cool-700` (in `:root`), `--spacing-md`, and `--color-ink` (both in `@theme`) — apply cleanly in one request. A file that is 100% `@theme` (no `:root` block at all) also applies without error; only a file with **neither** block returns a 409 (see below).
 
 <Note>
-See [Apply pipeline setup](/docs/recipes/apply-pipeline-setup) for the routing-JSON recipe that wires a Tailwind v4 host's `@theme` file into `applyRouting`.
+See [Apply pipeline setup](../recipes/apply-pipeline-setup.mdx) for the routing-JSON recipe that wires a Tailwind v4 host's `@theme` file into `applyRouting`.
 </Note>
 
 ### Per-tier independence
@@ -240,6 +240,6 @@ A non-empty `restoreFailures[]` array means at least one file was rewritten and 
 
 ## Cross-references
 
-- [`PanelConfig.applyEndpoint` and `applyRouting`](/docs/reference/configure-panel#panelconfig-interface) — endpoint and routing slots.
-- [Token tiers](/docs/reference/token-manifest) — defines the `TabConfig` / `TierConfig` / `TierItem` shapes whose `cssVar` names appear in the diff.
-- [Color cluster](/docs/reference/color-cluster) — defines the Color-tab CSS-var names that can appear in the diff.
+- [`PanelConfig.applyEndpoint` and `applyRouting`](./configure-panel.mdx#panelconfig-interface) — endpoint and routing slots.
+- [Token tiers](./token-manifest.mdx) — defines the `TabConfig` / `TierConfig` / `TierItem` shapes whose `cssVar` names appear in the diff.
+- [Color cluster](./color-cluster.mdx) — defines the Color-tab CSS-var names that can appear in the diff.

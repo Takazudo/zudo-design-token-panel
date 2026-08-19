@@ -12,7 +12,7 @@ The Color tab is a `TabConfig` with the reserved `id: 'color'`. Its `tiers`
 hold the palette and semantic data as `TierItem` arrays; the `colorExtras`
 field carries the non-tier metadata (base roles, color schemes, panel
 settings). For the authoritative shape, see
-[Color cluster reference](/docs/reference/color-cluster).
+[Color cluster reference](../reference/color-cluster.mdx).
 
 ## 1. Define the Color tab
 
@@ -158,7 +158,7 @@ export const myPanelConfig: PanelConfig = {
 };
 ```
 
-See [`configurePanel` reference](/docs/reference/configure-panel) for the full
+See [`configurePanel` reference](../reference/configure-panel.mdx) for the full
 list of `PanelConfig` fields.
 
 ## 3. Match your stylesheet
@@ -225,15 +225,15 @@ colorSchemes: {
 
 If you also want true light/dark switching driven by the page's
 `data-theme` attribute, see the
-[secondary cluster recipe](/docs/recipes/secondary-cluster-or-disable) and
-the [Color cluster reference](/docs/reference/color-cluster) section on
+[secondary cluster recipe](./secondary-cluster-or-disable.mdx) and
+the [Color cluster reference](../reference/color-cluster.mdx) section on
 `panelSettings.colorMode`.
 
 ## Related
 
-- [Color cluster reference](/docs/reference/color-cluster) — full type
+- [Color cluster reference](../reference/color-cluster.mdx) — full type
   contract, `ColorClusterExtras`, and the internal bridge semantics.
-- [Panel CSS tokens](/docs/reference/panel-css-tokens) — overriding the
+- [Panel CSS tokens](../reference/panel-css-tokens.mdx) — overriding the
   panel's chrome colors (separate from your app's color cluster).
-- [Lazy color presets](/docs/recipes/lazy-color-presets) — keep a large
+- [Lazy color presets](./lazy-color-presets.mdx) — keep a large
   preset library out of the SSR config blob.

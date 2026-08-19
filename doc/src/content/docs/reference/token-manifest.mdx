@@ -5,7 +5,7 @@ description: TabConfig, TierConfig, TierItem, TierValueKind, PillSpec, and Color
 ---
 
 <Info title="Concept overview">
-This page is the type-by-type pin-down of the tier model. If you want to understand the design rationale and the literal / reference tier relationship first, read [The abstract token-tier model](/docs/reference/architecture#the-abstract-token-tier-model).
+This page is the type-by-type pin-down of the tier model. If you want to understand the design rationale and the literal / reference tier relationship first, read [The abstract token-tier model](./architecture.mdx#the-abstract-token-tier-model).
 </Info>
 
 The panel renders its tab strip from a flat array of `TabConfig` objects passed as `PanelConfig.tabs`. Each tab owns one or more *tiers* of editable rows; a tier can hold literal values or references to another tier's items. This page pins every public type in the tier model.
@@ -82,7 +82,7 @@ export interface TierItem {
 ```
 
 <Note title="No `group` field">
-`TierItem.group` (a sub-heading key inside a tier) was removed in #148 — the panel's [one-tier-one-heading policy](/docs/reference/architecture) requires each tier to render exactly one section heading. A tier that conceptually needs sub-grouping is split into multiple `TierConfig` entries instead. Example manifests must not reference `group`.
+`TierItem.group` (a sub-heading key inside a tier) was removed in #148 — the panel's [one-tier-one-heading policy](./architecture.mdx) requires each tier to render exactly one section heading. A tier that conceptually needs sub-grouping is split into multiple `TierConfig` entries instead. Example manifests must not reference `group`.
 </Note>
 
 ### Field reference
@@ -141,7 +141,7 @@ export interface TierConfig {
 A tier with `referencesTier` is called a **reference tier**. Its items don't hold direct CSS values — they hold the id of a *source* item in another (literal) tier. The `referencesTier` value must be the `id` of a tier that exists in the same `TabConfig`. The tier kinds must match (e.g. both `'color'` or both `'length'`).
 
 <Info title="semantic + referencesRamps are Color-tab concepts">
-`semantic` and `referencesRamps` are only meaningful on a tier inside a `'color'` / `'color-secondary'` `TabConfig` (a tier the Color tab's `resolveColorClusterFromTab` bridge reads). For the full behavioral contract — the `SemanticValue` union, how a lone semantic tier renders, and a worked cross-tab example — see [Color cluster § Semantic-only tier](/docs/reference/color-cluster#semantic-only-tier-semantic-true).
+`semantic` and `referencesRamps` are only meaningful on a tier inside a `'color'` / `'color-secondary'` `TabConfig` (a tier the Color tab's `resolveColorClusterFromTab` bridge reads). For the full behavioral contract — the `SemanticValue` union, how a lone semantic tier renders, and a worked cross-tab example — see [Color cluster § Semantic-only tier](./color-cluster.mdx#semantic-only-tier-semantic-true).
 </Info>
 
 ## `TabConfig`
@@ -165,7 +165,7 @@ export interface TabConfig {
 ```
 
 <Note title="No `advancedTiers` field">
-`TabConfig.advancedTiers` (a per-tab "Advanced" `<details>` disclosure) was removed in #148 — the panel's [no-progressive-disclosure policy](/docs/reference/architecture) requires every tier to render flat, with no collapsed sections. If a tab has many tokens, render them flat in tier-section order instead. Example manifests must not reference `advancedTiers`.
+`TabConfig.advancedTiers` (a per-tab "Advanced" `<details>` disclosure) was removed in #148 — the panel's [no-progressive-disclosure policy](./architecture.mdx) requires every tier to render flat, with no collapsed sections. If a tab has many tokens, render them flat in tier-section order instead. Example manifests must not reference `advancedTiers`.
 </Note>
 
 ### Reserved tab ids
@@ -268,7 +268,7 @@ In this setup, overriding `tab-open` to `'ease-out'` causes the apply pipeline t
 
 ## Cross-references
 
-- [`PanelConfig.tabs`](/docs/reference/configure-panel#panelconfig-interface) — where `TabConfig[]` is plugged in.
-- [Color cluster](/docs/reference/color-cluster) — how the Color tab derives a `ColorClusterDataConfig` from a `TabConfig` with `colorExtras`.
-- [Apply pipeline](/docs/reference/apply-pipeline) — how the tier resolver turns overrides and cross-tier refs into CSS-var writes.
+- [`PanelConfig.tabs`](./configure-panel.mdx#panelconfig-interface) — where `TabConfig[]` is plugged in.
+- [Color cluster](./color-cluster.mdx) — how the Color tab derives a `ColorClusterDataConfig` from a `TabConfig` with `colorExtras`.
+- [Apply pipeline](./apply-pipeline.mdx) — how the tier resolver turns overrides and cross-tier refs into CSS-var writes.
 - [Grouped palette tab](../recipes/grouped-palette-tab.mdx) — worked example of a standalone Palette tab using multiple `kind: 'color'` tiers without `colorExtras`.

@@ -12,7 +12,7 @@ This recipe walks through the day-to-day moves: a minimal single-tier tab, every
 value-kind variant, optional group labels, and `advancedTiers` disclosure.
 
 For the full type contract see
-[Token manifest reference](/docs/reference/token-manifest).
+[Token manifest reference](../reference/token-manifest.mdx).
 
 ## Minimal single-tier tab
 
@@ -220,7 +220,7 @@ The `referencesTier` field tells the panel that items in the `semantic` tier
 hold ids from the `raw` tier as their values, not raw CSS values. The apply
 pipeline emits `var(--myapp-scale-base)` instead of a literal value when it
 writes the semantic role to disk. See the
-[Multi-tier tokens](/docs/recipes/multi-tier-tokens) recipe for a full
+[Multi-tier tokens](./multi-tier-tokens.mdx) recipe for a full
 worked example.
 
 ## Read-only display rows
@@ -263,11 +263,11 @@ toggle. Common use case: infinite border-radius (`9999px`).
 
 ## Related
 
-- [Multi-tier tokens](/docs/recipes/multi-tier-tokens) — 2-tier raw + semantic
+- [Multi-tier tokens](./multi-tier-tokens.mdx) — 2-tier raw + semantic
   setup with `referencesTier` and `var()` resolution.
-- [Token manifest reference](/docs/reference/token-manifest) — full `TierItem`,
+- [Token manifest reference](../reference/token-manifest.mdx) — full `TierItem`,
   `TierConfig`, `TabConfig`, and `TierValueKind` interfaces.
-- [`configurePanel` reference](/docs/reference/configure-panel) — where `tabs`
+- [`configurePanel` reference](../reference/configure-panel.mdx) — where `tabs`
   plugs in.
-- [Apply pipeline setup](/docs/recipes/apply-pipeline-setup) — wiring
+- [Apply pipeline setup](./apply-pipeline-setup.mdx) — wiring
   apply-to-disk for custom prefixes.
