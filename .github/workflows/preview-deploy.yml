@@ -47,7 +47,7 @@ jobs:
         run: pnpm build
 
       - name: Validate wrangler config (dry-run, no credentials needed)
-        run: pnpm exec wrangler deploy --dry-run
+        run: pnpm --dir doc exec wrangler deploy --dry-run
 
       - name: Determine branch slug
         id: branch
@@ -83,7 +83,7 @@ jobs:
           set -o pipefail
           SLUG="${{ steps.branch.outputs.slug }}"
           DEPLOY_LOG=$(mktemp)
-          pnpm exec wrangler versions upload \
+          pnpm --dir doc exec wrangler versions upload \
             --preview-alias="$SLUG" \
             --message="Named preview ${REF_NAME} @ ${GITHUB_SHA:0:7}" \
             2>&1 | tee "$DEPLOY_LOG"
