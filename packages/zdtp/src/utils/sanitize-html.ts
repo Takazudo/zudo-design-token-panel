@@ -98,7 +98,10 @@ const ALLOWED_URL_SCHEMES: ReadonlySet<string> = new Set(['http', 'https', 'mail
  * checking for a scheme.
  */
 function isSafeUrl(raw: string): boolean {
-  const value = raw.replace(/[\x00-\x1f]/g, '').trim();
+  const value = Array.from(raw)
+    .filter((char) => char.charCodeAt(0) > 0x1f)
+    .join('')
+    .trim();
   if (value.length === 0) return false;
   if (value.startsWith('#') || value.startsWith('/') || value.startsWith('.')) return true;
   const schemeMatch = value.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/);

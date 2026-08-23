@@ -167,7 +167,7 @@ function finalValuesByIndex(
   onChange: ReturnType<typeof vi.fn>,
   count: number,
 ): number[] {
-  const out = new Array<number>(count).fill(NaN);
+  const out = Array.from({ length: count }, () => NaN);
   for (const call of onChange.mock.calls) {
     const [index, , value] = call as [number, Channel, number];
     out[index] = value;

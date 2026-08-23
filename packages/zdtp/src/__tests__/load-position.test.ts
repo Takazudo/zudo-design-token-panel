@@ -175,7 +175,10 @@ describe('loadPosition', () => {
   it('F7: rejects a payload with Infinity values (e.g. JSON.parse("1e999")) and falls back to default', () => {
     // JSON.parse('1e999') yields Infinity which passes `typeof === 'number'`
     // but is not a finite coordinate — must be rejected.
-    localStorage.setItem(getPositionKey(), JSON.stringify({ top: 1e999, left: 200 }));
+    localStorage.setItem(
+      getPositionKey(),
+      JSON.stringify({ top: Number.POSITIVE_INFINITY, left: 200 }),
+    );
     const pos = loadPosition();
     const expected = defaultPosition();
     expect(pos.top).toBe(expected.top);
