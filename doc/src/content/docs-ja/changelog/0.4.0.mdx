@@ -1,0 +1,23 @@
+---
+title: "0.4.0"
+description: "0.4.0 のリリースノート。"
+sidebar_position: 15
+---
+
+Released: 2026-06-29
+
+### 機能
+
+- **Palette tab — an OKLCH palette generator & checker built into the panel.** A new reserved `palette` tab (joining `color` / `font` / `spacing` / `size`) lets a host define grouped color scales as `{ kind: "color", format: "oklch" }` tier items (`--palette-{group}-{n}`) and edit/verify them in-panel with no lossy hex round-trip. Two modes:
+  - **Edit mode** — a grouped step grid plus a `PrismChart` OKLCH L/C/H curve editor; dragging a curve re-derives every step in the group and commits the whole group in one batched write on pointer-up. ([#390](https://github.com/Takazudo/zudo-design-token-panel/issues/390), [#393](https://github.com/Takazudo/zudo-design-token-panel/issues/393), [#395](https://github.com/Takazudo/zudo-design-token-panel/issues/395))
+  - **Check mode** — a WCAG contrast-checker view over the live palette. ([#394](https://github.com/Takazudo/zudo-design-token-panel/issues/394))
+  - Backed by new OKLCH curve math + WCAG contrast helpers, and wired through the generic-tab apply path (`buildApplyOverrides` emits `state.tabs[*]`) so palette overrides apply, persist, and round-trip through Export/Load. ([#391](https://github.com/Takazudo/zudo-design-token-panel/issues/391), [#392](https://github.com/Takazudo/zudo-design-token-panel/issues/392))
+
+### バグ修正
+
+- Palette flat-mode tier ids, persist-safe hue handling, and serialize arity (post-codex-review hardening). (f9c38f9)
+
+### その他の変更
+
+- Integration + serde + browser-confirm test coverage for the palette tab. ([#396](https://github.com/Takazudo/zudo-design-token-panel/issues/396))
+- Add a grouped palette tab recipe + reference docs (EN + JA). ([#397](https://github.com/Takazudo/zudo-design-token-panel/issues/397))

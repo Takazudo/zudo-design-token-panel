@@ -1,0 +1,20 @@
+---
+title: "0.2.3"
+description: Release notes for 0.2.3.
+sidebar_position: 10
+---
+
+Released: 2026-06-15
+
+### Bug Fixes
+
+- A host `color-scheme-changed` event (light/dark toggle) no longer wipes the user's `spacing` / `typography` / `size` tweaks from the live panel. The scheme-change handler now clears only the color cluster's inline `:root` vars and re-seeds only the `color` (and optional `secondary`) slices, leaving the scheme-independent non-color slices — and their applied inline vars — intact. Previously it called the full `clearAppliedStyles()` + `freshTweakState()`, which stripped every spacing/font/size var and emptied those live slices, so the next in-panel edit permanently persisted the loss. A new internal `clearAppliedColorStyles()` performs the color-only clear; full resets (Reset / Apply) keep using `clearAppliedStyles()`. ([#347](https://github.com/Takazudo/zudo-design-token-panel/issues/347))
+
+### Features
+
+- Make `ColorScheme.shikiTheme` optional so hosts can pass their color-scheme maps without a dummy `shikiTheme` or an `as unknown as` cast — the runtime already falls back to the cluster's `defaultShikiTheme`. The hydrated `ColorTweakState.shikiTheme` stays required (it is always defaulted, and `TweakState` is re-exported, so keeping it required avoids widening the public `state.color.shikiTheme` type). (e057388, fd87423, [#342](https://github.com/Takazudo/zudo-design-token-panel/issues/342))
+
+### Other Changes
+
+- docs: document the global (not scheme-scoped) tweak model in README §9 — on a host `color-scheme-changed` event the panel drops its inline overrides and re-seeds the live state from the new scheme, leaving `localStorage` untouched until the next edit. (238b4db, [#343](https://github.com/Takazudo/zudo-design-token-panel/issues/343))
+- ci: drop the stale npm `next` dist-tag on stable releases when it lags `latest`, so `@takazudo/zdtp@next` can no longer silently resolve to an older prerelease. (215ec59, [#345](https://github.com/Takazudo/zudo-design-token-panel/issues/345))

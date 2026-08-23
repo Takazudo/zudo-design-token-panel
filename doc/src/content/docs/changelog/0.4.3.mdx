@@ -1,0 +1,37 @@
+---
+title: "0.4.3"
+description: Release notes for 0.4.3.
+sidebar_position: 18
+---
+
+Released: 2026-07-04
+
+### Features
+
+- **Dismiss-layer arbitration for layered surfaces.** A shared dismiss-layer stack routes Escape to only the topmost open layer (nested popover → popover → panel), and all three modals gained gesture-aware backdrop dismissal (press+release must both land outside), fixing one-Escape-closes-everything, trigger-click reopen races, and text-selection drags closing modals ([#446](https://github.com/Takazudo/zudo-design-token-panel/issues/446)) (9119c7e, 8257b19)
+- **CSS isolation architecture.** Panel z-indexes are now a semantic token scale shared by CSS and TSX (shell renders above common host chrome), a `box-sizing` reset is scoped to the panel subtree, panel geometry moved from rem to px so host root font-size cannot warp the panel, and `color-scheme` is declared on panel surfaces ([#448](https://github.com/Takazudo/zudo-design-token-panel/issues/448)) (62f8e4c)
+- **Visual-regression test tier.** 8 Playwright baselines (palette chart, color-picker swatch + popover, panel chrome — light + dark) with a documented `test:vrt:update` flow, wired into CI ([#454](https://github.com/Takazudo/zudo-design-token-panel/issues/454)) (5241e02)
+- **Real lint + doc-link gates.** oxlint wired for the panel and linkinator + html-validate for the doc site — the CI Lint step is no longer a no-op ([#443](https://github.com/Takazudo/zudo-design-token-panel/issues/443)) (4812160)
+
+### Fixed
+
+- `configurePanel` re-runs no longer throw when combined with `setPanelColorPresets` (Astro view-transitions + lazy color presets recipe); sink instances seed from `panelSettings.colorScheme` instead of the host `data-theme`; palette cssVar templates and `colorExtras` are validated at configure time ([#440](https://github.com/Takazudo/zudo-design-token-panel/issues/440)) (afe8a36, 87df039, 4d5e611)
+- `applyTokenOverrides` no longer rewrites the wrong declaration when one custom-property name is a suffix of another — `zdtp-server` could corrupt CSS files on disk ([#441](https://github.com/Takazudo/zudo-design-token-panel/issues/441)) (3be6865)
+- Highlight subsystem: match cache is evicted on stylesheet changes (stale detached elements no longer stay highlighted), percentage values are classified as lengths, and a highlight probe runs one full-DOM walk instead of three ([#442](https://github.com/Takazudo/zudo-design-token-panel/issues/442)) (fc07e41)
+- PaletteSelector listbox is fully keyboard-operable; ApplyModal's `onApplied` cleanup contract now holds on every dismissal route ([#446](https://github.com/Takazudo/zudo-design-token-panel/issues/446)) (8257b19)
+- State persistence: changing a palette's size no longer discards spacing/typography/size/tab overrides; restored positions are viewport-clamped and finite; fresh-mount toggle intent; window-resize handling debounced; imported palette values pass the seed-time sanitizer; dead `panelPosition` path removed ([#447](https://github.com/Takazudo/zudo-design-token-panel/issues/447)) (8f67382)
+- Astro soft navigation unmounts/remounts **all** registered panel instances (was: default only — other instances leaked listeners per navigation and vanished until re-toggled), and persisted overrides are reapplied for every instance, including hidden ones ([#449](https://github.com/Takazudo/zudo-design-token-panel/issues/449), [#457](https://github.com/Takazudo/zudo-design-token-panel/issues/457)) (908d6df, 8ce3d8b)
+- CSS accessibility: `:focus-visible` styles for every native form control (host `outline: none` resets can no longer hide focus), raw color literals replaced by `--tokentweak-*` tokens, 24×24 minimum hit areas, `prefers-reduced-motion` support ([#450](https://github.com/Takazudo/zudo-design-token-panel/issues/450)) (fa36675)
+- The panel's SVG defensive reset now survives a hostile `svg { fill: red !important }` host rule ([#452](https://github.com/Takazudo/zudo-design-token-panel/issues/452)) (6ac7129)
+- Packaging: exports map gained `default` conditions and a `./package.json` export, broken declaration maps are no longer shipped, and a post-build check fails the build if any exports entry does not resolve against `dist/` ([#444](https://github.com/Takazudo/zudo-design-token-panel/issues/444)) (13862a4)
+- `release.yml` `dry_run` builds the package again, as its description advertises (8ce3d8b)
+
+### Other Changes
+
+- Docs now describe the real stylesheet mechanism — the panel self-injects its CSS via an inline import; no consumer CSS import is required — and stale pre-rename `packages/zudo-design-token-panel/` paths are purged ([#445](https://github.com/Takazudo/zudo-design-token-panel/issues/445)) (54756a2)
+- CI overhaul: PR branch filters cover live `base/**` branches, tests gate main pushes and `v*` release tags, Playwright browsers are cached, duplicate builds removed, concurrency cancellation + job timeouts everywhere ([#443](https://github.com/Takazudo/zudo-design-token-panel/issues/443)) (dbf5704)
+- New automated hostile-host isolation gate (Level 5): the panel's computed styles and viewport-fixed positioning are asserted inside a hostile host page, including a transform-ancestor scenario ([#452](https://github.com/Takazudo/zudo-design-token-panel/issues/452)) (6ac7129)
+- 17 browser-mode gesture tests for panel drag-to-move / resize incl. viewport clamping and persistence ([#453](https://github.com/Takazudo/zudo-design-token-panel/issues/453)) (a4b25af)
+- Test-suite hygiene: the DOM-policy static gate covers every panel TSX file and the full blocked-tag list, the palette drag browser test asserts for real, shared effect-flush helper, and a `test:unit` script runs the non-browser projects without Chromium ([#451](https://github.com/Takazudo/zudo-design-token-panel/issues/451)) (ebe0018, 8a7ee63, 4682139, 9b6c989)
+- Browser test files now run serially — parallel files share one origin and raced each other's localStorage (fd37774)
+- Deps: bump @takazudo/* toolchain (zfb next.76, zudo-doc 2.5.0) (62b62f6)

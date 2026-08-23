@@ -1,0 +1,27 @@
+---
+title: "0.4.5"
+description: Release notes for 0.4.5.
+sidebar_position: 20
+---
+
+Released: 2026-07-07
+
+### Features
+
+- Per-scheme/per-mode keyed color persistence — envelope v4 ([#509](https://github.com/Takazudo/zudo-design-token-panel/issues/509)) (653c4ab)
+- Distinguish declared-outside-scanned-block from genuinely-absent unknowns ([#508](https://github.com/Takazudo/zudo-design-token-panel/issues/508)) (441fa93)
+- Scan top-level `@theme` blocks in `applyTokenOverrides` ([#507](https://github.com/Takazudo/zudo-design-token-panel/issues/507)) (d6c6692)
+- Add `colorExtras.semanticDefaults` config-time override map ([#499](https://github.com/Takazudo/zudo-design-token-panel/issues/499)) (543136e)
+
+### Fixed
+
+- Harden v4 persistence load edge cases ([#509](https://github.com/Takazudo/zudo-design-token-panel/issues/509) audit, epic [#502](https://github.com/Takazudo/zudo-design-token-panel/issues/502) review) (2b07460)
+- Scope color-scheme clearing to panel-written values (closes [#506](https://github.com/Takazudo/zudo-design-token-panel/issues/506)) (f434c8c)
+- Validate persisted semantic index mappings against live cluster paletteSize ([#503](https://github.com/Takazudo/zudo-design-token-panel/issues/503)) (915ffbf)
+
+### Other Changes
+
+- docs: sync README + doc-site with `@theme` apply, v4 persistence, schemaId ([#511](https://github.com/Takazudo/zudo-design-token-panel/issues/511)) (3c3fd57)
+- test: cross-cutting interaction coverage for [#510](https://github.com/Takazudo/zudo-design-token-panel/issues/510) confirm pass (9a5d7fe)
+- docs: truth-up schemaId docs, tighten Import modal copy, export `SCHEMA_V1`/`SCHEMA_V2`/`SCHEMA_V3` ([#505](https://github.com/Takazudo/zudo-design-token-panel/issues/505)) (8088281)
+- docs: replace zmodular references with Takazudo Modular markdown links (afcfea2)

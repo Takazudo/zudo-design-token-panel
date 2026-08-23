@@ -85,4 +85,6 @@ Admonitions (above), tabbed content (`<Tabs>` / `<TabItem>`, `<CodeGroup>`), and
 - **versioning** — Multi-version documentation support
 - **docHistory** — Document edit history
 - **llmsTxt** — Generates llms.txt for LLM consumption
-- **changelog** — Changelog page at `/docs/changelog`
+- **changelog** — Per-version EN/JA pages under `src/content/docs*/changelog/` are
+  the source of truth; the docs build generates `../packages/zdtp/CHANGELOG.md`
+  from the English pages, so do not edit that package file directly

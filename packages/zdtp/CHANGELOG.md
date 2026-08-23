@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.4.12
+All notable changes to `@takazudo/zdtp` are documented in this file.
+
+The format is based on Keep a Changelog, and release notes are generated from the changelog MDX pages.
+
+## [0.4.12] - 2026-08-20
 
 ### Fixed
 
@@ -29,7 +33,7 @@
 - = start portable storage contract epic = [skip ci] (1605c3e)
 - = start sweep-260820 super-epic = [skip ci] (c29cc50)
 
-## 0.4.11
+## [0.4.11] - 2026-08-19
 
 ### Features
 
@@ -56,7 +60,7 @@
 - test: complete the lazy-load gate decision-matrix coverage ([#591](https://github.com/Takazudo/zudo-design-token-panel/pull/591)) (76cb4a3)
 - test: confirm multi-instance spawn geometry in a real browser ([#595](https://github.com/Takazudo/zudo-design-token-panel/pull/595)) (11988d6)
 
-## 0.4.10
+## [0.4.10] - 2026-08-10
 
 ### Fixed
 
@@ -69,7 +73,7 @@
 - docs: migrate the doc site to zudo-doc 4.x — S1–S6 series ([#556](https://github.com/Takazudo/zudo-design-token-panel/pull/556)–[#562](https://github.com/Takazudo/zudo-design-token-panel/pull/562)) (e2f36b5, 51c674c, ff38109, e36e718, e7838fb, c20cc83, f89a6bf)
 - docs(l-make-release): auto-proceed Step 3 gate for routine bumps (45a5aca)
 
-## 0.4.9
+## [0.4.9] - 2026-07-13
 
 ### Features
 
@@ -88,7 +92,7 @@
 - test: record color picker close control VRT (aa66eba)
 - chore: start panel UI tweaks 540 (57fb4c7)
 
-## 0.4.8
+## [0.4.8] - 2026-07-13
 
 ### Features
 
@@ -100,7 +104,7 @@
 - chore(dom-tweaker): remove consumed prototype resource ([#539](https://github.com/Takazudo/zudo-design-token-panel/pull/539)) (9a0ac51)
 - docs(l-make-release): add autonomy-after-the-gate principle (7f64206)
 
-## 0.4.7
+## [0.4.7] - 2026-07-12
 
 ### Fixed
 
@@ -110,7 +114,7 @@
 
 - chore(deps): resolve 19 pnpm audit security advisories ([#525](https://github.com/Takazudo/zudo-design-token-panel/pull/525)) (80c9a0e)
 
-## 0.4.6
+## [0.4.6] - 2026-07-12
 
 ### Features
 
@@ -134,7 +138,7 @@
 - test: VRT baselines re-recorded for zdtp title + square corners; broad coverage added for notes tab, help icons, unit cycling
 - chore: removed consumed `_temp-resource/` prototype scaffold (ccbd18a)
 
-## 0.4.5
+## [0.4.5] - 2026-07-07
 
 ### Features
 
@@ -156,7 +160,7 @@
 - docs: truth-up schemaId docs, tighten Import modal copy, export `SCHEMA_V1`/`SCHEMA_V2`/`SCHEMA_V3` ([#505](https://github.com/Takazudo/zudo-design-token-panel/issues/505)) (8088281)
 - docs: replace zmodular references with Takazudo Modular markdown links (afcfea2)
 
-## 0.4.4
+## [0.4.4] - 2026-07-06
 
 ### Features
 
@@ -202,7 +206,7 @@
 - chore(deps): bump `@takazudo/zudo-doc` and `zudo-doc-history-server` to `^2.5.1` (d6c05dd)
 - chore(doc): sync generated `claude/index.mdx` with build output (d763238)
 
-## 0.4.3
+## [0.4.3] - 2026-07-04
 
 ### Features
 
@@ -234,7 +238,7 @@
 - Browser test files now run serially — parallel files share one origin and raced each other's localStorage (fd37774)
 - Deps: bump @takazudo/* toolchain (zfb next.76, zudo-doc 2.5.0) (62b62f6)
 
-## 0.4.2
+## [0.4.2] - 2026-06-30
 
 ### Features
 
@@ -265,13 +269,13 @@
 - Bump the `@takazudo/*` toolchain (zfb next.72, zudo-doc 2.1.2). (d711839)
 - Doc-site migration to zudo-doc v2 — doc-site only, no package impact. ([#432](https://github.com/Takazudo/zudo-design-token-panel/pull/432))
 
-## 0.4.1
+## [0.4.1] - 2026-06-30
 
 ### Fixed
 
 - **Palette tab no longer renders unstyled for self-injection consumers.** The 0.4.0 palette-tab CSS (`palette-chart` / `palette-edit` / `palette-readout`) reached `dist/zdtp.css` but was missing from the stylesheet the panel self-injects at runtime, so consumers using `import('@takazudo/zdtp')` + `configurePanel(...)` without importing `@takazudo/zdtp/styles` saw collapsed swatch bars and a missing curve-editor canvas. The two palette stylesheets are now `@import`ed into the single `panel.css` aggregate (matching `color-picker.css`) so both CSS delivery paths stay in sync, guarded by a new static `Invariant G` test. ([#413](https://github.com/Takazudo/zudo-design-token-panel/issues/413))
 
-## 0.4.0
+## [0.4.0] - 2026-06-29
 
 ### Features
 
@@ -289,7 +293,7 @@
 - Integration + serde + browser-confirm test coverage for the palette tab. ([#396](https://github.com/Takazudo/zudo-design-token-panel/issues/396))
 - Add a grouped palette tab recipe + reference docs (EN + JA). ([#397](https://github.com/Takazudo/zudo-design-token-panel/issues/397))
 
-## 0.3.3
+## [0.3.3] - 2026-06-23
 
 ### Features
 
@@ -308,7 +312,7 @@
 
 - Add an end-to-end test asserting the oklch round-trip (panel `onChange` + apply path both emit `oklch(...)`) and wide-gamut P3 preservation. ([#379](https://github.com/Takazudo/zudo-design-token-panel/issues/379)) (0595f28)
 
-## 0.3.2
+## [0.3.2] - 2026-06-23
 
 ### Fixed
 
@@ -316,7 +320,7 @@
 
 - **Dedupe the reserved toggle event across listeners.** When a custom-prefix host opts into the reserved `toggle-design-token-panel` name via `config.toggleEvent`, both the eager default listener and the instance's own listener fired on one dispatch and resolved to the same instance — toggling it twice (open, then immediately close). The handler now dedupes per dispatch by resolved instance id carried on the shared Event object, so the panel opens exactly once. ([#371](https://github.com/Takazudo/zudo-design-token-panel/pull/371))
 
-## 0.3.1
+## [0.3.1] - 2026-06-23
 
 ### Fixed
 
@@ -324,7 +328,7 @@
 
 - **Skip the bin integration test suite when `dist/bin/server.js` is absent.** `server.integration.test.ts` spawns the built bin and previously threw in `beforeAll` when it was missing, failing the `node` vitest project on a fresh checkout (before a build). It now gates the suite with `describe.skipIf` on build presence (with a console warning) instead of hard-failing; CI builds before testing, so the suite still runs there. ([#360](https://github.com/Takazudo/zudo-design-token-panel/issues/360))
 
-## 0.3.0
+## [0.3.0] - 2026-06-22
 
 ### Features
 
@@ -336,7 +340,7 @@
 
 - **`PanelConfig.applySink`.** An optional `{ apply(pairs), clear(names) }` sink routes this instance's CSS-var writes and clears through a caller-supplied object instead of `document.documentElement`. Useful for shadow DOM, iframe, or test-spy contexts. `apply` = upsert; `clear` = remove. Reset sends the full token-name set for the instance to `sink.clear` so the sink target is completely cleaned. Sink errors are non-fatal (`console.warn`). The host owns the sink target's lifecycle. `applySink` carries function references and must not be passed through the Astro inline JSON config. ([#355](https://github.com/Takazudo/zudo-design-token-panel/issues/355))
 
-## 0.2.3
+## [0.2.3] - 2026-06-15
 
 ### Bug Fixes
 
@@ -351,13 +355,13 @@
 - docs: document the global (not scheme-scoped) tweak model in README §9 — on a host `color-scheme-changed` event the panel drops its inline overrides and re-seeds the live state from the new scheme, leaving `localStorage` untouched until the next edit. (238b4db, [#343](https://github.com/Takazudo/zudo-design-token-panel/issues/343))
 - ci: drop the stale npm `next` dist-tag on stable releases when it lags `latest`, so `@takazudo/zdtp@next` can no longer silently resolve to an older prerelease. (215ec59, [#345](https://github.com/Takazudo/zudo-design-token-panel/issues/345))
 
-## 0.2.2
+## [0.2.2] - 2026-06-15
 
 ### Other Changes
 
 - Post-review internal cleanups for the Element Path Copy feature (no behavior change): single source of truth for the highlight / element-path portal-mount ids (`HIGHLIGHT_PORTAL_MOUNT_ID` / `ELPATH_PORTAL_MOUNT_ID`, folded into `PANEL_EXCLUSION_SELECTOR`); `ElementPathToast` now owns its own fixed top-center positioning and z-index; `buildSummary` escapes the id consistently with the selector line; the always-on `mousemove` listener is passive + non-capture; and the hover-label summary is memoized. (0fdcbd6)
 
-## 0.2.1
+## [0.2.1] - 2026-06-14
 
 ### Features
 
@@ -369,7 +373,7 @@
 - Bump GitHub Actions off the deprecated Node 20 runtime: `checkout` / `setup-node` / pnpm-setup and the artifact actions to their Node-24-matched versions. (08d5b48, b46fd66, [#339](https://github.com/Takazudo/zudo-design-token-panel/pull/339), [#341](https://github.com/Takazudo/zudo-design-token-panel/pull/341))
 - Add a web-env bootstrap for Claude Code on the web. (23f00c3)
 
-## 0.2.0
+## [0.2.0] - 2026-06-09
 
 First clean stable release on the `latest` dist-tag, promoting the
 `0.2.0-next.1` / `0.2.0-next.2` prerelease line. A tagless
@@ -389,13 +393,13 @@ First clean stable release on the `latest` dist-tag, promoting the
 - Drop slider-describing prose and min/max examples from `README.md`, `PORTABLE-CONTRACT.md`, and the doc-site reference pages (`token-manifest.mdx`, `architecture.mdx`, `configure-panel.mdx`). (e210a2d, 9262585)
 - Resolve all `pnpm audit` advisories (1 critical, 3 high, 7 moderate, 1 low) in dev/doc-only tooling — none ship in the published package. (f3574e0)
 
-## 0.2.0-next.2
+## [0.2.0-next.2] - 2026-05-27
 
 ### Features
 
 - **Token-name tooltip parity across all tabs (Size / Font / Spacing / Easing / GenericTab).** The Color tab already showed a rich custom tooltip with the full token name on hover; every other tab fell back to the native HTML `title` attribute. A new shared `TokenLabel` component renders the same `.tokenpanel-tooltip` primitive at every token-name display site. `TooltipProvider` was lifted from `color-tab.tsx` to `panel.tsx` so all tabs share a single provider. (559c59f, 426e9c6, 84f5981, [#330](https://github.com/Takazudo/zudo-design-token-panel/issues/330), [#337](https://github.com/Takazudo/zudo-design-token-panel/pull/337))
 
-## 0.2.0-next.1
+## [0.2.0-next.1] - 2026-05-27
 
 ### Breaking Changes
 
@@ -408,7 +412,7 @@ First clean stable release on the `latest` dist-tag, promoting the
 - Update `packages/zdtp/README.md` and `packages/zdtp/PORTABLE-CONTRACT.md` to drop slider-describing prose and the min/max examples. (e210a2d)
 - Update doc-site reference pages (`token-manifest.mdx`, `architecture.mdx`, `configure-panel.mdx`) to drop the min/max examples and slider-UI prose. (9262585)
 
-## 0.1.0-next.3
+## [0.1.0-next.3] - 2026-05-27
 
 ### Features
 
@@ -418,7 +422,7 @@ First clean stable release on the `latest` dist-tag, promoting the
 
 - **Number inputs no longer overwrite the user's draft mid-keystroke.** `SliderRow` and the generic-tab item editor used to parse-and-clamp on every keystroke, immediately commit the clamped value, and round-trip it back into the input — so typing `2` then `2` (expecting `22`) snapped the input to `6` when the token's `max` was `6`. Out-of-range or empty drafts are now flagged with a `--invalid` red border and held without committing; on blur, an invalid draft reverts to the last known-good value. The slider thumb continues to scrub live. (21d3afa) ([#313](https://github.com/Takazudo/zudo-design-token-panel/issues/313))
 
-## 0.1.0-next.2
+## [0.1.0-next.2] - 2026-05-25
 
 ### Fixed
 
@@ -439,7 +443,7 @@ First clean stable release on the `latest` dist-tag, promoting the
   base tokens get the same visibility toggle as palette and semantic tokens. The
   eye is omitted only when the cluster declares no `cssVar` for that role.
 
-## 0.1.0-next.1
+## [0.1.0-next.1] - 2026-05-25
 
 ### Fixed — Astro consumers: `@takazudo/zdtp/astro` value import broke real npm installs ([#308](https://github.com/Takazudo/zudo-design-token-panel/issues/308))
 
@@ -465,7 +469,7 @@ First clean stable release on the `latest` dist-tag, promoting the
   side-effect import is unchanged. Docs (README, PORTABLE-CONTRACT, doc-site
   recipes) updated to the direct-subexport form.
 
-## 0.1.0-next.0
+## [0.1.0-next.0] - 2026-05-24
 
 ### Renamed — npm package is now `@takazudo/zdtp`
 

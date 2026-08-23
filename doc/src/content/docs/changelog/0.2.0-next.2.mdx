@@ -1,0 +1,11 @@
+---
+title: "0.2.0-next.2"
+description: Release notes for 0.2.0-next.2.
+sidebar_position: 6
+---
+
+Released: 2026-05-27
+
+### Features
+
+- **Token-name tooltip parity across all tabs (Size / Font / Spacing / Easing / GenericTab).** The Color tab already showed a rich custom tooltip with the full token name on hover; every other tab fell back to the native HTML `title` attribute. A new shared `TokenLabel` component renders the same `.tokenpanel-tooltip` primitive at every token-name display site. `TooltipProvider` was lifted from `color-tab.tsx` to `panel.tsx` so all tabs share a single provider. (559c59f, 426e9c6, 84f5981, [#330](https://github.com/Takazudo/zudo-design-token-panel/issues/330), [#337](https://github.com/Takazudo/zudo-design-token-panel/pull/337))

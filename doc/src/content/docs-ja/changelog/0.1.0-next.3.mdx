@@ -1,0 +1,15 @@
+---
+title: "0.1.0-next.3"
+description: "0.1.0-next.3 のリリースノート。"
+sidebar_position: 4
+---
+
+Released: 2026-05-27
+
+### 機能
+
+- **Tier-ref selector is now a native `<select>` and reflects live override values.** The custom `role="listbox"` dropdown (with its open/focusedIndex state machine, ARIA plumbing, click-outside handler, and keyboard-nav callbacks) was replaced by a native `<select>`, dropping ~250 lines of UI code. Each `<option>` label now shows `--var-name (resolved-value)` using `resolveTierItemValue()` from the apply pipeline — so when a referenced tier-1 token's value is overridden via its slider/text row, the tier-2 selector's option labels reflect the new value immediately instead of staying stuck on the manifest default. (570a1b1) ([#312](https://github.com/Takazudo/zudo-design-token-panel/issues/312))
+
+### バグ修正
+
+- **Number inputs no longer overwrite the user's draft mid-keystroke.** `SliderRow` and the generic-tab item editor used to parse-and-clamp on every keystroke, immediately commit the clamped value, and round-trip it back into the input — so typing `2` then `2` (expecting `22`) snapped the input to `6` when the token's `max` was `6`. Out-of-range or empty drafts are now flagged with a `--invalid` red border and held without committing; on blur, an invalid draft reverts to the last known-good value. The slider thumb continues to scrub live. (21d3afa) ([#313](https://github.com/Takazudo/zudo-design-token-panel/issues/313))

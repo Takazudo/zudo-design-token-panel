@@ -1,0 +1,13 @@
+---
+title: "0.3.1"
+description: Release notes for 0.3.1.
+sidebar_position: 12
+---
+
+Released: 2026-06-23
+
+### Fixed
+
+- **Round-trip generic (custom-id) tab overrides through Export/Load.** The design-token serde only handled the four dedicated slices (color/spacing/font/size); overrides for host-coined generic (custom-id) tabs lived in `state.tabs` and were applied live but silently dropped from Export, so Load-from-JSON could not restore them. `serialize()` now emits each non-reserved configured tab's overrides under `tabs[id].raw` (cssVar-keyed) and `deserializeV2()` reads them back into `state.tabs[id]` via a tier-aware reverse lookup — symmetric with the existing apply path. ([#363](https://github.com/Takazudo/zudo-design-token-panel/issues/363))
+
+- **Skip the bin integration test suite when `dist/bin/server.js` is absent.** `server.integration.test.ts` spawns the built bin and previously threw in `beforeAll` when it was missing, failing the `node` vitest project on a fresh checkout (before a build). It now gates the suite with `describe.skipIf` on build presence (with a console warning) instead of hard-failing; CI builds before testing, so the suite still runs there. ([#360](https://github.com/Takazudo/zudo-design-token-panel/issues/360))

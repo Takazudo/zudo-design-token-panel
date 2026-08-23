@@ -1,0 +1,51 @@
+---
+title: "0.4.4"
+description: Release notes for 0.4.4.
+sidebar_position: 19
+---
+
+Released: 2026-07-06
+
+### Features
+
+- **Ramp-native Tier-2 color editor.** The Color tab gained a semantic-value tier model — a `semantic: true` tier holds `SemanticValue` mappings (palette index, literal OKLCH, per-mode `light-dark()` literal, or a cross-tab ramp `{ ref }`) instead of raw palette entries, and can ship as a lone semantic tier with no palette tier at all ([#459](https://github.com/Takazudo/zudo-design-token-panel/issues/459), closes [#458](https://github.com/Takazudo/zudo-design-token-panel/issues/458)) ([8ed93e1](https://github.com/Takazudo/zudo-design-token-panel/pull/476))
+- Add semantic-tier marker + `SemanticValue` union (S1) ([#460](https://github.com/Takazudo/zudo-design-token-panel/pull/460)) (d7aa526)
+- serde `SCHEMA_V3` object leaves for `SemanticValue` variants (S5) ([#462](https://github.com/Takazudo/zudo-design-token-panel/pull/462)) (0185477)
+- Render literal semantic rows as editable OKLCH swatches (S3) ([#464](https://github.com/Takazudo/zudo-design-token-panel/pull/464)) (d8bceb3)
+- Emit literal semantic values verbatim in both emitters (S4) ([#465](https://github.com/Takazudo/zudo-design-token-panel/pull/465)) (5961ed7)
+- Cross-tab ref resolution + tabs-array cluster-bridge signature (S7a) ([#467](https://github.com/Takazudo/zudo-design-token-panel/pull/467)) (35ef368)
+- Emit cross-tab semantic refs as `var(--target)` in both emitters (S7b) ([#468](https://github.com/Takazudo/zudo-design-token-panel/pull/468)) (ea2aa8a)
+- Validate cross-tab ramp-source declarations (S8) ([#469](https://github.com/Takazudo/zudo-design-token-panel/pull/469)) (8558269)
+- Grouped ref-or-literal picker + wire color-tab semantic rows (S9) ([#470](https://github.com/Takazudo/zudo-design-token-panel/pull/470)) (3d5e5f7)
+- Per-mode literal `light-dark()` emission + `defaultMode` runtime (S11) ([#472](https://github.com/Takazudo/zudo-design-token-panel/pull/472)) (3a05623)
+- Per-mode light/dark literal editor UI (S12) ([#473](https://github.com/Takazudo/zudo-design-token-panel/pull/473)) (1828458)
+
+### Fixed
+
+- Seed Scheme preset load against the instance cluster, not the global default ([#491](https://github.com/Takazudo/zudo-design-token-panel/issues/491) audit) (a1b0dd8)
+- Thread `instanceConfig` into `ColorTab` for multi-instance ref resolution ([#491](https://github.com/Takazudo/zudo-design-token-panel/issues/491)) (66447ec)
+- Validate semantic marker shape + mixed-order palette-pick regression tests ([#487](https://github.com/Takazudo/zudo-design-token-panel/pull/487)) (0ebcc6e)
+- Scheme/preset load is a no-op for a palette-less color cluster ([#488](https://github.com/Takazudo/zudo-design-token-panel/pull/488)) (23d61ba)
+- Color-scheme lifecycle asymmetries in the applied-state ([#482](https://github.com/Takazudo/zudo-design-token-panel/pull/482)) (ef686fc)
+- serde robustness — order-independent ref diff, stale-ref warning, integer index leaves (c0b4356)
+- Restore legacy index-0 fallback + detect named-color literals ([#483](https://github.com/Takazudo/zudo-design-token-panel/pull/483)) (4f66b7d)
+- Show a disabled unresolved placeholder for a dangling `TierRefSelector` ref ([#484](https://github.com/Takazudo/zudo-design-token-panel/issues/484)) (a4c222b)
+- Thread owning color tab into `buildApplyOverrides` for secondary-cluster refs (D1) ([#481](https://github.com/Takazudo/zudo-design-token-panel/pull/481)) (60cbb7a)
+- Skip an unresolvable semantic `{ ref }` in the DOM emitter too (87131ee)
+- Drop phantom grayscale swatch for palette-less semantic tier ([#466](https://github.com/Takazudo/zudo-design-token-panel/pull/466) follow-up) (c955616)
+- Derive semantic maps for a palette-less semantic tier (S2b) ([#463](https://github.com/Takazudo/zudo-design-token-panel/pull/463)) (7d617d1)
+- Honor semantic-tier marker in palette detection + F4 (S2a) ([#461](https://github.com/Takazudo/zudo-design-token-panel/pull/461)) (ecb4482)
+
+### Other Changes
+
+- Eliminate intermittent vitest unhandled-error flake ([#494](https://github.com/Takazudo/zudo-design-token-panel/issues/494)) (ab60f91)
+- e2e confirm per-mode literal `light-dark()` + clear color-scheme on reset (S13) ([#474](https://github.com/Takazudo/zudo-design-token-panel/pull/474)) (a215c88)
+- e2e confirm cross-tab semantic ref cascade (S10) ([#471](https://github.com/Takazudo/zudo-design-token-panel/pull/471)) (235bb30)
+- e2e confirm lone literal semantic tier unblocks [#458](https://github.com/Takazudo/zudo-design-token-panel/issues/458) (S6) ([#466](https://github.com/Takazudo/zudo-design-token-panel/pull/466)) (8fb5136)
+- docs: translate token-manifest reference page to Japanese ([#490](https://github.com/Takazudo/zudo-design-token-panel/issues/490), [#478](https://github.com/Takazudo/zudo-design-token-panel/issues/478)) (7bcd835)
+- docs: translate color-cluster reference to Japanese ([#489](https://github.com/Takazudo/zudo-design-token-panel/issues/489), [#478](https://github.com/Takazudo/zudo-design-token-panel/issues/478)) (e033410)
+- docs: fix EN documentation drift from [#459](https://github.com/Takazudo/zudo-design-token-panel/issues/459) (referencesRamps, bridge signature, color-scheme caveat) (a7d8709)
+- docs: document ramp-native Tier-2 editor + example manifest + cascade test (S14) ([#475](https://github.com/Takazudo/zudo-design-token-panel/pull/475)) (136bcf6)
+- docs: fix broken `SemanticValue` heading anchor (drop em-dash from slug) (ef3cd91)
+- chore(deps): bump `@takazudo/zudo-doc` and `zudo-doc-history-server` to `^2.5.1` (d6c05dd)
+- chore(doc): sync generated `claude/index.mdx` with build output (d763238)
