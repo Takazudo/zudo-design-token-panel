@@ -1,0 +1,18 @@
+---
+title: "0.2.0-next.1"
+description: "0.2.0-next.1 のリリースノート。"
+sidebar_position: 5
+---
+
+Released: 2026-05-27
+
+### 破壊的変更
+
+- **Removed the `min` and `max` properties from `TokenDef` and `TierValueKind` (`'length'` | `'number'` variants).** The panel no longer renders an `<input type="range">` slider on numeric token rows — they are now plain unconstrained number inputs. The mid-keystroke clamp and on-blur clamp logic added in [#313](https://github.com/Takazudo/zudo-design-token-panel/pull/313) are gone; values commit as typed, and the `aria-invalid` / red-border styling for out-of-range values is removed. Real-world use proved sliders too restrictive for a developer tool — devs want to type arbitrary values freely (including deliberately out-of-spec or experimental ones). **Migration**: remove every `min: ...` and `max: ...` field from your token manifests. The internal color-picker `SliderConfig.min` / `.max` (OKLCH/HSL axis bounds) is unrelated and unchanged. (a9b768e, [#325](https://github.com/Takazudo/zudo-design-token-panel/issues/325), [#328](https://github.com/Takazudo/zudo-design-token-panel/pull/328))
+
+### その他の変更
+
+- Strip `min` / `max` from 35+ test fixture files. (b8ef56e)
+- Rewrite the [#313](https://github.com/Takazudo/zudo-design-token-panel/pull/313) clamp-regression tests to assert the new free-input contract — value commits as typed, no `aria-invalid` on out-of-range numeric input. (9798e07)
+- Update `packages/zdtp/README.md` and `packages/zdtp/PORTABLE-CONTRACT.md` to drop slider-describing prose and the min/max examples. (e210a2d)
+- Update doc-site reference pages (`token-manifest.mdx`, `architecture.mdx`, `configure-panel.mdx`) to drop the min/max examples and slider-UI prose. (9262585)

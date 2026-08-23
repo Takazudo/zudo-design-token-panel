@@ -1,0 +1,11 @@
+---
+title: "0.4.1"
+description: Release notes for 0.4.1.
+sidebar_position: 16
+---
+
+Released: 2026-06-30
+
+### Fixed
+
+- **Palette tab no longer renders unstyled for self-injection consumers.** The 0.4.0 palette-tab CSS (`palette-chart` / `palette-edit` / `palette-readout`) reached `dist/zdtp.css` but was missing from the stylesheet the panel self-injects at runtime, so consumers using `import('@takazudo/zdtp')` + `configurePanel(...)` without importing `@takazudo/zdtp/styles` saw collapsed swatch bars and a missing curve-editor canvas. The two palette stylesheets are now `@import`ed into the single `panel.css` aggregate (matching `color-picker.css`) so both CSS delivery paths stay in sync, guarded by a new static `Invariant G` test. ([#413](https://github.com/Takazudo/zudo-design-token-panel/issues/413))

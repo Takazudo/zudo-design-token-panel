@@ -1,0 +1,26 @@
+---
+title: "0.1.0-next.2"
+description: "0.1.0-next.2 のリリースノート。"
+sidebar_position: 3
+---
+
+Released: 2026-05-25
+
+### バグ修正
+
+- **Palette grids ignore the density slider again.** Palette swatch grids
+  reflowed on `--tokenpanel-grid-min`, so the density slider (dense/cozy/wide →
+  12rem/18rem/100%) stretched the fixed-size swatch chips into oversized /
+  single-column cells. They now reflow on their natural `3.5rem` min, leaving the
+  base/semantic rows that density is meant to control untouched.
+- **Token-name tooltip is no longer transparent.** The shared tooltip portals to
+  `document.body`, outside `.tokenpanel-shell`, so its chrome tokens resolved to
+  nothing and it rendered transparent. `.tokenpanel-tooltip` is now part of the
+  token-scope `:where(...)` selector — the same mechanism the color-picker and
+  highlight-settings popovers use to resolve chrome tokens outside the shell.
+- **Eye (highlight) toggle now appears on Base color rows.** The Base section's
+  background/foreground rows never passed a `cssVar`, so the highlight toggle was
+  omitted even though `cluster.baseRoles` maps those roles to real CSS vars. Each
+  Base row's eye is now wired to `cluster.baseRoles.background`/`.foreground`, so
+  base tokens get the same visibility toggle as palette and semantic tokens. The
+  eye is omitted only when the cluster declares no `cssVar` for that role.

@@ -1,0 +1,24 @@
+---
+title: "0.3.3"
+description: Release notes for 0.3.3.
+sidebar_position: 14
+---
+
+Released: 2026-06-23
+
+### Features
+
+- **OKLCH display & edit for opt-in GenericTab color items.** A `GenericTab` `{ kind: "color" }` tier item can now set `format: "oklch"` to route through the OKLCH/HSL `ColorPicker` instead of the native `<input type="color">`, so host/secondary panels can faithfully **display and edit** wide-gamut oklch/P3 palette values (e.g. a family-named `--palette-cool-700: oklch(...)`) with **no lossy hex round-trip on commit**. Additive and backward compatible — omitting `format` (or `"hex"`) keeps the native color input, so existing consumers, `ColorTab`, and the highlight popover are unchanged. ([#373](https://github.com/Takazudo/zudo-design-token-panel/issues/373), supersedes [#372](https://github.com/Takazudo/zudo-design-token-panel/issues/372))
+  - Add a `cssToOklcha` CSS Color 4 `oklch()` parser (number/percentage L, chroma `%` = 0.4, deg/rad/grad/turn hue, `none`, alpha; strict — rejects malformed channels). ([#374](https://github.com/Takazudo/zudo-design-token-panel/issues/374))
+  - Extend the public `{ kind: "color" }` tier-item type with optional `format?: "hex" | "oklch"`. ([#375](https://github.com/Takazudo/zudo-design-token-panel/issues/375))
+  - Give `ColorPicker` a `valueFormat` contract: in oklch mode a canonical `Oklcha` is the source of truth and wide-gamut chroma survives prop→edit→emit without sRGB clamping. ([#376](https://github.com/Takazudo/zudo-design-token-panel/issues/376))
+  - HSL/alpha/preset hardening: the OKLCH↔HSL mode toggle is emit-free; only an HSL slider edit is a (documented) sRGB-oriented path. ([#377](https://github.com/Takazudo/zudo-design-token-panel/issues/377))
+  - Add a shared `ColorField` (swatch-button → picker popover) and route both generic item editors through it. ([#378](https://github.com/Takazudo/zudo-design-token-panel/issues/378))
+
+### Fixed
+
+- **Style the `ColorField` swatch and reject malformed oklch tokens.** The new opt-in swatch had no CSS (an empty `div` with only a background color → zero-size/invisible affordance); added sized swatch styles. The `cssToOklcha` tokenizer also accepted malformed channels (e.g. `oklch(50px 0.1 120)`) by silently extracting numeric substrings; it now requires exactly three fully-anchored channel tokens and rejects unknown suffixes. ([#380](https://github.com/Takazudo/zudo-design-token-panel/pull/380)) (2d045d0)
+
+### Other Changes
+
+- Add an end-to-end test asserting the oklch round-trip (panel `onChange` + apply path both emit `oklch(...)`) and wide-gamut P3 preservation. ([#379](https://github.com/Takazudo/zudo-design-token-panel/issues/379)) (0595f28)

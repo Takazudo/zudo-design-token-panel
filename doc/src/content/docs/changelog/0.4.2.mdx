@@ -1,0 +1,36 @@
+---
+title: "0.4.2"
+description: Release notes for 0.4.2.
+sidebar_position: 17
+---
+
+Released: 2026-06-30
+
+### Features
+
+- **OKLCH color tab — the reserved `color` tab now honors `format: 'oklch'`.** A cluster-based color tab whose palette tier items declare `type: { kind: 'color', format: 'oklch' }` now edits its palette swatches through the lossless OKLCH `ColorField` (the `valueFormat: 'oklch'` picker added in 0.3.3) while keeping the full color-cluster feature set — base roles, semantic→palette mappings, the "Scheme…" preset dropdown, and the secondary cluster. The palette `format` is read from `tab.tiers` (the flattened cluster drops per-item format), and both the primary and secondary cluster palettes honor it. Absent / `'hex'` format keeps the existing native hex behavior, so existing consumers and the highlight popover are unchanged. ([#436](https://github.com/Takazudo/zudo-design-token-panel/issues/436), epic [#434](https://github.com/Takazudo/zudo-design-token-panel/issues/434), supersedes [#433](https://github.com/Takazudo/zudo-design-token-panel/issues/433)) (ab761b6)
+
+- **Owner-only autoload.** A new `${storagePrefix}:autoload` `localStorage` flag lets the site owner load the panel in their own browser without touching general visitors. When the flag is set, the panel bundle loads eagerly on every page visit and mounts CLOSED — the **Alt+click element-path inspector** is armed immediately even while the panel UI stays hidden. General visitors (no flag) receive zero panel JS.
+
+  New package-root exports: `enableAutoload()`, `disableAutoload()`, `shouldAutoload()`. The Astro host-adapter also installs `window[consoleNamespace].enableAutoload()` and `window[consoleNamespace].disableAutoload()` on the console API surface.
+
+  The existing on-demand flow (`showDesignPanel()` / `hideDesignPanel()` / `toggleDesignPanel()`) is unchanged. Owner-autoload is an opt-in layer on top of it, not a replacement.
+
+  **Auto-remember:** any action that opens the panel also writes `${storagePrefix}:autoload = '1'`. Once an owner opens the panel, subsequent page loads reload it automatically without another explicit `enableAutoload()` call.
+
+  **Lazy-load gate updated from 2 to 4 signals:** the host-adapter gate now fires on `wasVisible() || hasPersistedOverrides() || shouldAutoload() || loadElementPathEnabled()`. The last two signals are new; the previous two-signal behavior is a strict subset of the new gate, so existing consumers see no change.
+
+  ([#419](https://github.com/Takazudo/zudo-design-token-panel/issues/419), [#420](https://github.com/Takazudo/zudo-design-token-panel/issues/420), [#421](https://github.com/Takazudo/zudo-design-token-panel/issues/421), [#422](https://github.com/Takazudo/zudo-design-token-panel/issues/422), [#423](https://github.com/Takazudo/zudo-design-token-panel/issues/423))
+
+### Fixed
+
+- **Runtime preserves OKLCH through seed / apply / persist.** `initColorFromSchemeData` no longer eagerly normalizes the whole palette to sRGB hex via a canvas `fillStyle` round-trip — raw `oklch(...)` palette values now survive seeding (wide-gamut chroma intact; no collapse to `#000000` under jsdom / engines whose 2D canvas can't parse `oklch`), and `colorRefToIndex` is format-tolerant + alpha-aware. Non-`oklch` entries are still sanitized through `cssColorToHex`, so an invalid bundled-scheme string (e.g. `Default Dark`'s slot-9 `"18"`, referenced by `background: 9`) cannot leak into a CSS custom property. ([#435](https://github.com/Takazudo/zudo-design-token-panel/issues/435)) (162bf8e, 8d54e07)
+
+- **Owner-autoload review fixes** — `disableAutoload()` now unmounts the panel, and element-path storage keys are per-instance. ([#424](https://github.com/Takazudo/zudo-design-token-panel/issues/424)) (ecfd745)
+
+### Other Changes
+
+- **Panel is draggable, movable & resizable on narrow windows**; `defaultSize()` is clamped to the `MIN_PANEL` floor on phone-width viewports; and Element-Path-Copy keeps working while the panel is closed. ([#415](https://github.com/Takazudo/zudo-design-token-panel/pull/415)) (2dc40a1, 8fb99b5, f163625)
+- Wave-2 OKLCH cluster end-to-end test plus runtime / color-tab coverage. ([#437](https://github.com/Takazudo/zudo-design-token-panel/issues/437)) (8da36c6, 47e4d83, fad4ded)
+- Bump the `@takazudo/*` toolchain (zfb next.72, zudo-doc 2.1.2). (d711839)
+- Doc-site migration to zudo-doc v2 — doc-site only, no package impact. ([#432](https://github.com/Takazudo/zudo-design-token-panel/pull/432))

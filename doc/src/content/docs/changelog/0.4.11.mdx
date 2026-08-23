@@ -1,0 +1,32 @@
+---
+title: "0.4.11"
+description: Release notes for 0.4.11.
+sidebar_position: 26
+---
+
+Released: 2026-08-19
+
+### Features
+
+- feat(autoload): give `${storagePrefix}:autoload` a provenance value — `enableAutoload()` keeps writing `'1'` (explicit owner) while auto-remember writes `'auto'`, never downgrading an existing `'1'`. zdtp's own gate honours both, so owner behaviour is unchanged; the split lets a host's own lazy-load probe test `=== '1'` and stop eagerly fetching the bundle for visitors who merely opened the panel once. Pre-existing `'1'` values cannot be reclassified, so the discrimination applies going forward only ([#591](https://github.com/Takazudo/zudo-design-token-panel/pull/591)) (ca3bb3e)
+- feat(config): add `PanelConfig.autoRememberOnOpen` (default `true`) — set `false` so opening the panel never persists owner-mode, letting a public site keep a panel button visible to every visitor. `enableAutoload()` stays available as the explicit owner opt-in ([#591](https://github.com/Takazudo/zudo-design-token-panel/pull/591)) (2b442fa)
+- feat: add a mounted-shell slot registry with spawn ordinals — tracks currently-mounted shells per `storagePrefix` (mount order, lowest-free-slot reuse) so concurrent instances can be told apart for spawn placement ([#595](https://github.com/Takazudo/zudo-design-token-panel/pull/595)) (07eefc3)
+
+### Fixed
+
+- fix: derive the default panel position from the clamped default size — `defaultPosition()` and `defaultSize()` independently computed different panel widths, so at a 320px viewport the panel spawned at `left 32` with `width 320` and hung 32px off-screen. Geometry is now derived once, size first, so the two cannot drift apart ([#595](https://github.com/Takazudo/zudo-design-token-panel/pull/595)) (bb080b8)
+- fix: cascade concurrent instances apart with a spawn containment clamp — two live panels no longer spawn at identical geometry with the second exactly covering the first. Each additional mounted shell offsets 24px through a new spawn clamp; the permissive drag-recovery clamp is unchanged, a persisted position always wins, and containment beats distinctness per axis when the viewport has no room ([#595](https://github.com/Takazudo/zudo-design-token-panel/pull/595)) (fea74c2)
+- fix: center the first-open position against the size actually rendered — an instance with a persisted (resized) size but no persisted position was centered as if it were the default width, spawning up to 88px off-screen ([#595](https://github.com/Takazudo/zudo-design-token-panel/pull/595)) (c2b6bc3)
+- fix(astro): content-check the persisted-override probe and match the `-state` family exactly — an empty `{}` envelope no longer triggers an eager bundle fetch that applies nothing, the v1 key (`${storagePrefix}-state`) is now covered instead of being skipped, malformed JSON still fails open so the panel can migrate or reject it, the `${storagePrefix}-open` mirror joined the gate's signals, and an exact family regex keeps a sibling instance's keys from satisfying another instance's probe ([#591](https://github.com/Takazudo/zudo-design-token-panel/pull/591)) (7506a96)
+- fix(zdtp): publish `PORTABLE-CONTRACT.md` and fix the duplicate README `§5.3` heading — the contract file existed in the repo but was absent from `files[]`, so every README cross-reference to it was a dead link for npm consumers ([#589](https://github.com/Takazudo/zudo-design-token-panel/pull/589)) (6602596)
+- fix(doc): make `check:links` actually crawl the built site — it reported `Successfully scanned 0 links` and exited 0, a silent no-op gate. linkinator serves local paths through its own `http://localhost:<port>` crawl server, so the `--skip '^https?://'` meant for external URLs was swallowing the entry point. Now scans the whole site; enabling it surfaced and fixed three site-wide favicon 404s ([#589](https://github.com/Takazudo/zudo-design-token-panel/pull/589)) (2bdfab4)
+
+### Other Changes
+
+- docs: document the revised lazy-load gate contract in the package docs — README §5/§9/§10/§10.1 and `PORTABLE-CONTRACT.md` §1/§2/§6.2/§6.5 ([#591](https://github.com/Takazudo/zudo-design-token-panel/pull/591)) (bbdf5bb, 6f036b7)
+- docs(site): document `:autoload` provenance and `autoRememberOnOpen` in the owner-autoload recipe (EN + JA) ([#591](https://github.com/Takazudo/zudo-design-token-panel/pull/591)) (7baa165)
+- docs: document the first-open spawn-geometry contract — README §5.6 and `PORTABLE-CONTRACT.md` §2.1 ([#595](https://github.com/Takazudo/zudo-design-token-panel/pull/595)) (6f10ffc)
+- docs: correct the persisted position shape to `{ top, left }` — README §9 and `PORTABLE-CONTRACT.md` §2 documented it as `{ top, right }`, which matters now that the contract file ships to npm ([#595](https://github.com/Takazudo/zudo-design-token-panel/pull/595)) (9f6494f)
+- docs(host-adapter): correct the sibling-prefix collision example ([#591](https://github.com/Takazudo/zudo-design-token-panel/pull/591)) (bc137cd)
+- test: complete the lazy-load gate decision-matrix coverage ([#591](https://github.com/Takazudo/zudo-design-token-panel/pull/591)) (76cb4a3)
+- test: confirm multi-instance spawn geometry in a real browser ([#595](https://github.com/Takazudo/zudo-design-token-panel/pull/595)) (11988d6)

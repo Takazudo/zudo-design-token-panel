@@ -1,0 +1,18 @@
+---
+title: "0.4.10"
+description: "0.4.10 のリリースノート。"
+sidebar_position: 25
+---
+
+Released: 2026-08-10
+
+### バグ修正
+
+- fix: guard deferred DOM access against torn-down documents — async adapter closures, public entry points, and Preact effect-flush paths now cancel quietly instead of throwing `document.getElementById is not a function` as an unhandled rejection when the host environment tears down or swaps the document mid-flight (reported downstream as zudolab/zudo-doc#3344) ([#568](https://github.com/Takazudo/zudo-design-token-panel/pull/568)) (4b5551a)
+- fix: close straggler-state leaks in the document-teardown guards — a cancelled show no longer arms autoload, the open-state persistence effect cannot clobber seeded visibility, and a nulled `document` global is treated as dead ([#568](https://github.com/Takazudo/zudo-design-token-panel/pull/568)) (28b02b1)
+- fix: null-tolerant liveness guards on the lifecycle bind paths ([#568](https://github.com/Takazudo/zudo-design-token-panel/pull/568)) (0774ea8)
+
+### その他の変更
+
+- docs: migrate the doc site to zudo-doc 4.x — S1–S6 series ([#556](https://github.com/Takazudo/zudo-design-token-panel/pull/556)–[#562](https://github.com/Takazudo/zudo-design-token-panel/pull/562)) (e2f36b5, 51c674c, ff38109, e36e718, e7838fb, c20cc83, f89a6bf)
+- docs(l-make-release): auto-proceed Step 3 gate for routine bumps (45a5aca)

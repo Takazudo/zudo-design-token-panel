@@ -29,6 +29,13 @@ export default defineConfig(
       twitterCreator: "@Takazudo",
     },
     llmsTxt: true,
+    changelogs: [
+      {
+        sourceDir: "src/content/docs/changelog",
+        outputFile: "../packages/zdtp/CHANGELOG.md",
+        packageName: "@takazudo/zdtp",
+      },
+    ],
     cjkFriendly: true,
     designTokenPanel: true,
     sidebarResizer: true,

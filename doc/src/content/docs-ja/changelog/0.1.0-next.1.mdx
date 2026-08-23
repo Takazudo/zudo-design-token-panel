@@ -1,0 +1,31 @@
+---
+title: "0.1.0-next.1"
+description: "0.1.0-next.1 のリリースノート。"
+sidebar_position: 2
+---
+
+Released: 2026-05-25
+
+### バグ修正 — Astro consumers: `@takazudo/zdtp/astro` value import broke real npm installs ([#308](https://github.com/Takazudo/zudo-design-token-panel/issues/308))
+
+- The documented Astro host import
+  `import { DesignTokenPanelHost } from '@takazudo/zdtp/astro'` forced
+  `dist/astro/index.js` to statically `import` the raw `.astro` component.
+  Under a `file:` workspace link Vite compiled it, but as a real
+  `node_modules` dependency it was externalized, so Node hit the raw `.astro`
+  at prerender and threw `ERR_UNKNOWN_FILE_EXTENSION`. **Every real npm Astro
+  consumer following the README crashed at build time.**
+- **Fix**: the `@takazudo/zdtp/astro` entry is now JS-helpers-and-types only —
+  it no longer re-exports the component value, so the crashing `.astro`
+  literal can't appear in the bundled JS. Import the host component directly
+  from its dedicated subexport, which the consumer's own Astro toolchain
+  compiles natively:
+
+  ```astro
+  import DesignTokenPanelHost from '@takazudo/zdtp/astro/DesignTokenPanelHost.astro';
+  ```
+
+  Type-only imports (`import type { PanelConfig } from '@takazudo/zdtp/astro'`)
+  are unchanged — they are erased at build. The `./astro/host-adapter`
+  side-effect import is unchanged. Docs (README, PORTABLE-CONTRACT, doc-site
+  recipes) updated to the direct-subexport form.

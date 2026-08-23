@@ -1,5 +1,5 @@
 ---
-description: "Release @takazudo/zdtp end-to-end — bump the version, prepend a changelog section, commit, push, wait for CI, validate the package, push the v* tag (which triggers the npm publish), then create the GitHub Release. Triggers on rough requests like \"bump version\", \"cut a release\", \"release zdtp\", \"make a release\", \"make npm release\"."
+description: "Release @takazudo/zdtp end-to-end — bump the version, add bilingual changelog pages, generate the package changelog, commit, push, wait for CI, validate the package, push the v* tag (which triggers the npm publish), then create the GitHub Release. Triggers on rough requests like \"bump version\", \"cut a release\", \"release zdtp\", \"make a release\", \"make npm release\"."
 user-invocable: true
 argument-description: "Optional: major, minor, patch, next, stable — controls the version bump strategy"
 ---
@@ -7,8 +7,9 @@ argument-description: "Optional: major, minor, patch, next, stable — controls 
 # /l-make-release
 
 End-to-end release orchestrator for the `@takazudo/zdtp` npm package. It bumps the
-version, prepends a changelog section, commits + pushes, waits for CI, validates the
-package, pushes the `v*` tag (which triggers `.github/workflows/release.yml` →
+version, adds matching English and Japanese per-version changelog pages, regenerates
+the package changelog from those pages, commits + pushes, waits for CI, validates
+the package, pushes the `v*` tag (which triggers `.github/workflows/release.yml` →
 `pnpm -r publish`), then creates the GitHub Release. The Step 3 proposal is the one
 place a human can intervene — but for a routine, unambiguous bump it **auto-proceeds**
 (prints the plan, then runs straight through publish); it only **blocks for
@@ -93,9 +94,11 @@ the user can catch a wrong version strategy before anything is written.
 - A **publint** validation failure (Step 7) aborts the flow **before** any tag is
   pushed — npm cannot re-publish a version, so a broken package must never reach the
   registry. **attw** output is advisory and does not block.
-- The skill touches only `packages/zdtp/CHANGELOG.md` for the changelog. It does
-  **not** touch the repo-root `CHANGELOG.md` (stale pre-rename history) nor the
-  doc-site changelog under `doc/`.
+- The per-version MDX files under `doc/src/content/docs/changelog/` and
+  `doc/src/content/docs-ja/changelog/` are the changelog source of truth.
+  `packages/zdtp/CHANGELOG.md` is generated from the English pages by the docs
+  build; never edit that generated file directly. The repo-root `CHANGELOG.md`
+  remains stale pre-rename history and is not touched.
 - The skill never runs `npm publish` directly — publishing is `release.yml`'s job,
   triggered by the tag push.
 
@@ -298,17 +301,29 @@ validation failure (Step 7).
 Update the `version` field in `packages/zdtp/package.json` to the confirmed new
 version (without the `v` prefix). Do NOT touch the workspace root `package.json`.
 
-### 4b. Prepend a changelog section
+### 4b. Create the bilingual per-version changelog pages
 
-`packages/zdtp/CHANGELOG.md` is version-sectioned markdown: a `# Changelog` header,
-then `## <version>` sections newest-first, each with `### Fixed` / `### Features` /
-etc. subsections. Insert the new `## <version>` section **immediately after the
-`# Changelog` header**, above the previous newest version.
+The changelog pages are the source of truth. Create both of these files, using the
+new version without a leading `v`:
 
-Format:
+- `doc/src/content/docs/changelog/<version>.mdx`
+- `doc/src/content/docs-ja/changelog/<version>.mdx`
 
-```md
-## <version>
+Refuse to overwrite either target if it already exists. Read the greatest numeric
+`sidebar_position` from the existing English and Japanese sibling release files;
+the two maxima must match. Use that maximum plus one for both new pages so the two
+locale trees stay in lockstep. Use today's date for `YYYY-MM-DD`.
+
+English file:
+
+```mdx
+---
+title: "<version>"
+description: Release notes for <version>.
+sidebar_position: <max-plus-one>
+---
+
+Released: YYYY-MM-DD
 
 ### Breaking Changes
 
@@ -327,12 +342,41 @@ Format:
 - description (hash)
 ```
 
-Rules:
+Japanese file:
 
-- Only include subsections that have entries.
-- Each entry: commit subject followed by the short hash in parentheses.
-- Link issues/PRs where the reference is obvious from the commit subject (e.g.
-  `([#310](https://github.com/Takazudo/zudo-design-token-panel/pull/310))`).
+```mdx
+---
+title: "<version>"
+description: "<version> のリリースノート。"
+sidebar_position: <max-plus-one>
+---
+
+Released: YYYY-MM-DD
+
+### 破壊的変更
+
+- 説明 (hash)
+
+### 機能
+
+- 説明 (hash)
+
+### バグ修正
+
+- 説明 (hash)
+
+### その他の変更
+
+- 説明 (hash)
+```
+
+Only include subsections that have entries. Each English entry is the commit
+subject followed by the short hash in parentheses. Translate the Japanese entry
+text naturally while preserving hashes, code spans, and issue/PR links. Link
+issues/PRs where the reference is obvious from the commit subject (e.g.
+`([#310](https://github.com/Takazudo/zudo-design-token-panel/pull/310))`). Keep the
+literal `Released:` field name in both locales because the changelog generator
+parses that marker.
 
 ### 4c. Refresh the lockfile
 
@@ -355,12 +399,28 @@ git diff pnpm-lock.yaml | grep -P '^[+-](?!  )' | head -20
 If you see non-version-related structural changes, stop and surface the diff to the
 user before proceeding.
 
+### 4d. Regenerate the package changelog
+
+Build the docs so zudo-doc regenerates `packages/zdtp/CHANGELOG.md` from the English
+per-version pages:
+
+```bash
+pnpm --filter doc build
+grep -F "## [<version>] - <YYYY-MM-DD>" packages/zdtp/CHANGELOG.md
+```
+
+The grep must find the newly generated release heading. Inspect the generated diff
+and confirm the new release is first, older releases remain present, and the build
+did not write a second changelog path. Never hand-edit the generated output.
+
 ## Step 5: Atomic Commit + Push
 
 Stage and commit the bumped files in a **single commit**:
 
 ```bash
-git add packages/zdtp/package.json packages/zdtp/CHANGELOG.md pnpm-lock.yaml
+git add packages/zdtp/package.json packages/zdtp/CHANGELOG.md pnpm-lock.yaml \
+  "doc/src/content/docs/changelog/<version>.mdx" \
+  "doc/src/content/docs-ja/changelog/<version>.mdx"
 git commit -m "chore(release): bump to v<version>"
 git push origin main
 ```
@@ -447,13 +507,17 @@ the publish succeeds.
 
 ## Step 9: Create the GitHub Release
 
-Extract the just-released changelog section as notes (this awk pattern works whether
-the section is first or in the middle of the file), then create the Release. The tag
-already exists on the remote, so use `--verify-tag`. Add `--prerelease` for a
-`-next.` / `-beta.` / `-rc.` version:
+Extract the just-released English source page as notes, removing its frontmatter and
+machine-readable `Released:` marker, then create the Release. The tag already
+exists on the remote, so use `--verify-tag`. Add `--prerelease` for a `-next.` /
+`-beta.` / `-rc.` version:
 
 ```bash
-awk '/^## <version>/{f=1;next} f&&/^## /{exit} f' packages/zdtp/CHANGELOG.md > /tmp/zdtp-release-notes.md
+awk '
+  NR == 1 && $0 == "---" { frontmatter = 1; next }
+  frontmatter && $0 == "---" { frontmatter = 0; next }
+  !frontmatter && !/^Released:/ { print }
+' "doc/src/content/docs/changelog/<version>.mdx" > /tmp/zdtp-release-notes.md
 PRERELEASE_FLAG=$([[ "<version>" =~ -next\.|-beta\.|-rc\. ]] && echo "--prerelease" || echo "")
 gh release create "v<version>" --verify-tag --title "v<version>" $PRERELEASE_FLAG \
   --notes-file /tmp/zdtp-release-notes.md
@@ -521,7 +585,8 @@ git revert <BUMP_SHA>
 git push origin main
 ```
 
-Then remove the prepended `## <version>` section from `packages/zdtp/CHANGELOG.md`
-(the revert restores `package.json` and `pnpm-lock.yaml`, but verify the changelog
-section is gone), delete the local tag if minted (`git tag -d v<version>`), and
-re-run `/l-make-release` from the start.
+The revert should restore `package.json`, `pnpm-lock.yaml`, both locale pages, and
+the generated package changelog. Verify the two `<version>.mdx` files are gone and
+`packages/zdtp/CHANGELOG.md` no longer contains the generated release heading,
+delete the local tag if minted (`git tag -d v<version>`), and re-run
+`/l-make-release` from the start.

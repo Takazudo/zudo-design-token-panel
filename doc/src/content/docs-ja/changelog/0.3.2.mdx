@@ -1,0 +1,13 @@
+---
+title: "0.3.2"
+description: "0.3.2 のリリースノート。"
+sidebar_position: 13
+---
+
+Released: 2026-06-23
+
+### バグ修正
+
+- **Mount the real config on the toggle window event for single-instance non-Astro hosts.** The 0.3.0 multi-instance refactor binds the default instance's `toggle-design-token-panel` listener eagerly at module init, closed over the empty `DEFAULT_PANEL_CONFIG`; the post-`configurePanel()` rebind no-oped for the already-bound prefix, so window-event hosts mounted an empty-body panel (toolbar shell, no tabs). The toggle handler now re-resolves the instance config by prefix at dispatch time (falling back to the active instance for the reserved default event), and `panel.tsx`'s `tabConfigById` tracks `[instanceConfig]` so the tab-body dispatch map never goes stale. The console API was unaffected, so only non-Astro window-event hosts regressed. ([#370](https://github.com/Takazudo/zudo-design-token-panel/issues/370))
+
+- **Dedupe the reserved toggle event across listeners.** When a custom-prefix host opts into the reserved `toggle-design-token-panel` name via `config.toggleEvent`, both the eager default listener and the instance's own listener fired on one dispatch and resolved to the same instance — toggling it twice (open, then immediately close). The handler now dedupes per dispatch by resolved instance id carried on the shared Event object, so the panel opens exactly once. ([#371](https://github.com/Takazudo/zudo-design-token-panel/pull/371))
