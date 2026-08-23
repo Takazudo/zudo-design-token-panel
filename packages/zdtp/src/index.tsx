@@ -1029,7 +1029,8 @@ function unbindInstance(instanceId: string): void {
 export function __resetInstanceBindingsForTests(): void {
   if (typeof window === 'undefined') return;
   const bindings = getInstanceBindings();
-  for (const instanceId of [...bindings.keys()]) {
+  const instanceIds = Array.from(bindings.keys());
+  for (const instanceId of instanceIds) {
     unbindInstance(instanceId);
   }
 }
