@@ -51,7 +51,7 @@ jobs:
         run: pnpm --filter doc check:links
 
       - name: Validate wrangler config (dry-run, no credentials needed)
-        run: pnpm exec wrangler deploy --dry-run
+        run: pnpm --dir doc exec wrangler deploy --dry-run
 
       - name: Deploy PR preview (preview alias)
         id: deploy
@@ -67,7 +67,7 @@ jobs:
           # versions upload assigns a stable preview alias on *.workers.dev.
           # Parse the alias URL (subdomain starts with the slug), not the
           # per-version hash URL, so the comment targets the predictable host.
-          pnpm exec wrangler versions upload \
+          pnpm --dir doc exec wrangler versions upload \
             --preview-alias="$SLUG" \
             --message="PR #${PR_NUMBER} preview @ ${GITHUB_SHA:0:7}" \
             2>&1 | tee "$DEPLOY_LOG"

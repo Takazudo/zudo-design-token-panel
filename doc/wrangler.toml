@@ -3,15 +3,15 @@
 #
 # The site is a pure-static zfb/zudo-doc build (no AI-chat / KV / service
 # bindings). The worker entry exists only because the Cloudflare adapter wraps
-# the SSR bundle into doc/dist/_worker.js; `zfb build` emits it via
-# `adapter: "@takazudo/zfb-adapter-cloudflare"` in doc/zfb.config.ts. Paths are
-# relative to this file (repo root) — the build emits into doc/dist/.
+# the SSR bundle into dist/_worker.js; `zfb build` emits it via
+# `adapter: "@takazudo/zfb-adapter-cloudflare"` in zfb.config.ts. Paths are
+# relative to this file (the zfb project root) — the build emits into dist/.
 
 name = "zudo-design-token-panel"
-main = "./doc/dist/_worker.js"
+main = "./dist/_worker.js"
 
 compatibility_date = "2024-12-01"
-# nodejs_compat is required by the CF adapter bundle at doc/dist/_worker.js,
+# nodejs_compat is required by the CF adapter bundle at dist/_worker.js,
 # which imports node:async_hooks (AsyncLocalStorage). Without this flag wrangler
 # 4.x refuses to load the worker even when _worker.js exists.
 compatibility_flags = ["nodejs_compat"]
@@ -23,16 +23,16 @@ preview_urls = true   # *.workers.dev version-preview URLs for branch / PR previ
 workers_dev = false   # do not serve production on *.workers.dev
 
 # ---------------------------------------------------------------------------
-# Static asset serving. not_found_handling = "404-page" serves doc/dist/404.html
+# Static asset serving. not_found_handling = "404-page" serves dist/404.html
 # for unmatched GETs. run_worker_first = false consults the asset layer before
 # the worker; the worker only runs when no matching asset is found.
 #
 # _worker.js and _zfb_inner.mjs are excluded from the public asset directory via
-# a doc/dist/.assetsignore written at deploy time (not committed) so they are not
+# a dist/.assetsignore written at build time (not committed) so they are not
 # served as downloadable files.
 # ---------------------------------------------------------------------------
 [assets]
-directory = "./doc/dist"
+directory = "./dist"
 binding = "ASSETS"
 not_found_handling = "404-page"
 run_worker_first = false
@@ -42,7 +42,7 @@ run_worker_first = false
 # Workers custom domain + DNS (CNAME) record + TLS cert automatically on
 # `wrangler deploy`. Preconditions: takazudomodular.com is a zone on the SAME
 # Cloudflare account as CLOUDFLARE_ACCOUNT_ID, and the hostname has no
-# pre-existing CNAME. Keep in sync with siteUrl in doc/zfb.config.ts.
+# pre-existing CNAME. Keep in sync with siteUrl in zfb.config.ts.
 # ---------------------------------------------------------------------------
 [[routes]]
 pattern = "zudo-design-token-panel.takazudomodular.com"

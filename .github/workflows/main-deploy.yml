@@ -2,7 +2,7 @@ name: Deploy doc site (production)
 
 # Builds the zfb/zudo-doc site and deploys it to Cloudflare Workers (static
 # assets) on every push to main. The site is served at the custom domain
-# configured by `[[routes]] custom_domain = true` in wrangler.toml.
+# configured by `[[routes]] custom_domain = true` in doc/wrangler.toml.
 #
 # Go-live gate: the actual `wrangler deploy` runs only when the repository
 # variable CF_WORKERS_DEPLOY == 'true'. Until then the job builds + validates
@@ -54,7 +54,7 @@ jobs:
         run: pnpm --filter doc check:links
 
       - name: Validate wrangler config (dry-run, no credentials needed)
-        run: pnpm exec wrangler deploy --dry-run
+        run: pnpm --dir doc exec wrangler deploy --dry-run
 
       - name: Deploy to Cloudflare Workers (production)
         if: vars.CF_WORKERS_DEPLOY == 'true'
@@ -65,7 +65,7 @@ jobs:
           set -o pipefail
           n=0
           until [ "$n" -ge 3 ]; do
-            pnpm exec wrangler deploy 2>&1 | tee deploy.log && break
+            pnpm --dir doc exec wrangler deploy 2>&1 | tee deploy.log && break
             n=$((n + 1))
             echo "wrangler deploy failed (attempt $n/3); retrying in 30s..."
             sleep 30
