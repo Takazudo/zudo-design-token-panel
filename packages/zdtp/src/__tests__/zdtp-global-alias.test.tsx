@@ -133,8 +133,12 @@ describe('window.zdtp fixed-name global alias — package-root install (#523)', 
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  it('does not clobber an incompatible host-defined window.zdtp', async () => {
-    const hostDefined = { custom: 'host-value' };
+  it('warns when one method on a host-defined window.zdtp is not callable', async () => {
+    const hostDefined = {
+      show: vi.fn(),
+      hide: vi.fn(),
+      toggle: 'host-value',
+    };
     (window as unknown as Record<string, unknown>).zdtp = hostDefined;
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
