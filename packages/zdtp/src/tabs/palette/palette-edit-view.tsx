@@ -345,7 +345,9 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
         onCommitBatch(activeTier.id, patch);
       } else {
         // Fallback when no batch path is wired: emit per-item changes.
-        for (const id of changedIds) onChange(activeTier.id, id, patch[id]);
+        for (const [id, value] of Object.entries(patch)) {
+          onChange(activeTier.id, id, value);
+        }
       }
     }
     // Clear the accumulator; the committed values now live in `overrides`.
@@ -362,7 +364,7 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
       if (!resolveItemSlot(item, activeTier.id, overrides).color) return;
       onChange(activeTier.id, item.id, next);
     },
-    [activeTier, selectedIndex, onChange],
+    [activeTier, selectedIndex, onChange, overrides],
   );
 
   // Selected step's raw value for the readout + the ColorField.

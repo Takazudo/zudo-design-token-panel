@@ -669,6 +669,27 @@ describe('PaletteEditView — batched commit', () => {
     expect(onChange.mock.calls[0][0]).toBe('gray');
     expect(onChange.mock.calls[0][1]).toBe('gray-1');
   });
+
+  it('fallback emits only the filtered patch when a step becomes invalid mid-gesture', () => {
+    const onChange = vi.fn();
+    renderView({ onChange });
+    openGroup('gray');
+    const svg = primeChannelSvg('l');
+    const hitLine = container.querySelector<SVGPolylineElement>(
+      '[data-testid="palette-chart-hit-line-l"]',
+    )!;
+    stubPointerCapture(hitLine);
+
+    firePointer(hitLine, 'pointerdown', { pointerId: 9, clientY: clientYForL(50) });
+    firePointer(svg, 'pointermove', { pointerId: 9, clientY: clientYForL(55) });
+    // The gesture accumulator contains all three steps, but gray-1 is no
+    // longer persistable by the time the commit boundary closes.
+    renderView({ onChange, overrides: { gray: { 'gray-1': 'var(--gray-1)' } } });
+    firePointer(svg, 'pointerup', { pointerId: 9, clientY: clientYForL(55) });
+
+    expect(onChange.mock.calls.map((call) => call[1])).toEqual(['gray-0', 'gray-2']);
+    expect(onChange.mock.calls.every((call) => typeof call[2] === 'string')).toBe(true);
+  });
 });
 
 describe('PaletteEditView — static CSS colors and invalid slots (#625)', () => {
@@ -716,6 +737,32 @@ describe('PaletteEditView — static CSS colors and invalid slots (#625)', () =>
     act(() => { invalid.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
     expect(container.querySelector('[data-testid="color-field-swatch"]')).toBeNull();
     expect(container.querySelector('[data-testid="palette-readout-invalid-value"]')?.textContent).toContain('var(--paper)');
+  });
+
+  it('uses current validity when an invalid selected step becomes directly editable', () => {
+    const onChange = vi.fn();
+    renderView({
+      tab,
+      onChange,
+      overrides: { paper: { white: 'var(--paper-white)' } },
+    });
+    openGroup('paper');
+    expect(container.querySelector('[data-testid="color-field-swatch"]')).toBeNull();
+
+    renderView({
+      tab,
+      onChange,
+      overrides: { paper: { white: 'oklch(50% 0 0)' } },
+    });
+    const field = container.querySelector<HTMLElement>('[data-testid="color-field-swatch"]')!;
+    act(() => { field.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    const lightness = container.querySelector<HTMLElement>('[role="slider"][aria-label="Lightness"]')!;
+    expect(lightness).not.toBeNull();
+    act(() => {
+      lightness.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+    });
+    expect(onChange).toHaveBeenCalled();
+    expect(onChange.mock.calls[0].slice(0, 2)).toEqual(['paper', 'white']);
   });
 
   it('excludes invalid slots from whole-curve batch patches', () => {

@@ -364,6 +364,7 @@ function PaletteChartImpl({
         if (!drag || drag.channel !== channel) return;
 
         if (drag.kind === 'node') {
+          if (!colorsRef.current[drag.index]) return;
           onChangeRef.current(
             drag.index,
             channel,

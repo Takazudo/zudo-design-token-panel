@@ -320,6 +320,27 @@ describe('PaletteChart — per-node drag', () => {
     expect(onSelectIndex).toHaveBeenCalledWith(2);
   });
 
+  it('stops an in-flight node drag when that dense slot becomes null', () => {
+    const onChange = vi.fn();
+    renderChart({
+      colors: makeColors([50, 60]),
+      visibleChannels: { l: true, c: false, h: false },
+      onChange,
+    });
+    const svg = primeChannelSvg('l');
+    const node = getNodeHit('l', 0);
+    stubPointerCapture(node);
+    firePointer(node, 'pointerdown', { pointerId: 10, clientY: clientYForL(50) });
+
+    renderChart({
+      colors: [null, makeColors([60])[0]],
+      visibleChannels: { l: true, c: false, h: false },
+      onChange,
+    });
+    firePointer(svg, 'pointermove', { pointerId: 10, clientY: clientYForL(70) });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it('quantizes the C channel to a 0.001 grid (not integer rounding)', () => {
     const onChange = vi.fn();
     // C nodes; values irrelevant — we just drive a clientY and read the value.
