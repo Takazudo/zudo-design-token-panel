@@ -128,11 +128,11 @@ export interface TierConfig {
    */
   semantic?: true;
   /**
-   * Cross-tab ramp-source declaration for a `semantic: true` tier: the ramp
-   * tier(s) this tier's `{ ref }` mappings are allowed to point into. Each
-   * entry names a tier `id` and an optional `tab` id (omitted `tab` means
-   * "this tab"). Validated up front by `assertValidPanelConfig` — an
-   * unknown tab or tier throws at configure time, before any row renders.
+   * Cross-tab ramp-source declaration for a `semantic: true` tier owned by a
+   * tab whose id is exactly `color` or `color-secondary`; other owning tab
+   * ids are rejected. Each entry names an allowed source tier `id` and an
+   * optional source `tab` id (omitted `tab` means "this tab"). Validated up
+   * front by `assertValidPanelConfig` before any row renders.
    */
   referencesRamps?: readonly { tab?: string; tier: string }[];
 }
@@ -141,7 +141,7 @@ export interface TierConfig {
 A tier with `referencesTier` is called a **reference tier**. Its items don't hold direct CSS values — they hold the id of a *source* item in another (literal) tier. The `referencesTier` value must be the `id` of a tier that exists in the same `TabConfig`. The tier kinds must match (e.g. both `'color'` or both `'length'`).
 
 <Info title="semantic + referencesRamps are Color-tab concepts">
-`semantic` and `referencesRamps` are only meaningful on a tier inside a `'color'` / `'color-secondary'` `TabConfig` (a tier the Color tab's `resolveColorClusterFromTab` bridge reads). For the full behavioral contract — the `SemanticValue` union, how a lone semantic tier renders, and a worked cross-tab example — see [Color cluster § Semantic-only tier](./color-cluster.mdx#semantic-only-tier-semantic-true).
+`semantic` is a Color-tab concept, and `referencesRamps` is valid only on a tier inside a `TabConfig` whose id is exactly `'color'` or `'color-secondary'`; `assertValidPanelConfig` rejects every other owning tab id. For the full behavioral contract — the `SemanticValue` union, how a lone semantic tier renders, and a worked cross-tab example — see [Color cluster § Semantic-only tier](./color-cluster.mdx#semantic-only-tier-semantic-true).
 </Info>
 
 ## `TabConfig`

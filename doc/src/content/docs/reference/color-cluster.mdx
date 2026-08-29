@@ -128,13 +128,13 @@ A lone semantic tier can also mix in `referencesRamps` to source some (or all) o
 
 ## Cross-tab ramp references (`referencesRamps`)
 
-A `semantic: true` tier is not limited to standalone literals. `TierConfig.referencesRamps` declares one or more *ramp sources* — tiers (optionally on another tab) whose items the semantic tier's rows may reference:
+A `semantic: true` tier on a `TabConfig` whose id is exactly `color` or `color-secondary` is not limited to standalone literals. `TierConfig.referencesRamps` declares one or more *ramp sources* — tiers (optionally on another tab) whose items the semantic tier's rows may reference:
 
 ```ts
 referencesRamps?: readonly { tab?: string; tier: string }[];
 ```
 
-Each entry names a tier `id` and an optional `tab` id (omitted `tab` means "this tab"). `assertValidPanelConfig` validates every declared source up front — an unknown tab or tier throws a clear configure-time error, before any row renders.
+Any other owning tab id is rejected at configure time. Each entry names a tier `id` and an optional source `tab` id (omitted `tab` means "this tab"). `assertValidPanelConfig` validates every declared source up front — an unknown tab or tier throws a clear configure-time error, before any row renders.
 
 ### Worked example: a Palette tab feeding a Color tab's semantic tier
 

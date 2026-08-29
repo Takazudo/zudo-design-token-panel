@@ -128,11 +128,11 @@ export interface TierConfig {
    */
   semantic?: true;
   /**
-   * Cross-tab ramp-source declaration for a `semantic: true` tier: the ramp
-   * tier(s) this tier's `{ ref }` mappings are allowed to point into. Each
-   * entry names a tier `id` and an optional `tab` id (omitted `tab` means
-   * "this tab"). Validated up front by `assertValidPanelConfig` — an
-   * unknown tab or tier throws at configure time, before any row renders.
+   * Cross-tab ramp-source declaration for a `semantic: true` tier owned by a
+   * tab whose id is exactly `color` or `color-secondary`; other owning tab
+   * ids are rejected. Each entry names an allowed source tier `id` and an
+   * optional source `tab` id (omitted `tab` means "this tab"). Validated up
+   * front by `assertValidPanelConfig` before any row renders.
    */
   referencesRamps?: readonly { tab?: string; tier: string }[];
 }
@@ -141,7 +141,7 @@ export interface TierConfig {
 `referencesTier` を持つティアは**参照ティア**と呼ばれます。そのアイテムは直接の CSS 値を保持せず、別の（リテラル）ティア内の*ソース*アイテムの id を保持します。`referencesTier` の値は、同じ `TabConfig` 内に存在するティアの `id` でなければなりません。ティアの `kind` は一致している必要があります（例: 両方とも `'color'`、または両方とも `'length'`）。
 
 <Info title="semantic と referencesRamps はカラータブの概念">
-`semantic` と `referencesRamps` が意味を持つのは、`'color'` / `'color-secondary'` の `TabConfig` 内のティア（カラータブの `resolveColorClusterFromTab` ブリッジが読み取るティア）に対してのみです。完全な動作契約 — `SemanticValue` ユニオン、単独セマンティックティアのレンダリング方法、タブ間の実例 — については、[カラークラスター](./color-cluster.mdx)を参照してください。
+`semantic` はカラータブの概念です。`referencesRamps` を使用できるのは、id が正確に `'color'` または `'color-secondary'` である `TabConfig` 内のティアだけであり、それ以外の親タブ id は `assertValidPanelConfig` によって拒否されます。完全な動作契約 — `SemanticValue` ユニオン、単独セマンティックティアのレンダリング方法、タブ間の実例 — については、[カラークラスター](./color-cluster.mdx)を参照してください。
 </Info>
 
 ## `TabConfig`

@@ -451,10 +451,12 @@ export interface TierConfig {
    */
   semantic?: true;
   /**
-   * Declares one or more permitted same- or cross-tab ramp sources for per-row
-   * semantic `{ ref }` mappings. Each entry names a tier and optional tab
-   * (`tab` omitted means this tab); unlike `referencesTier`, this is a
-   * multi-source allow-list for individual semantic mappings.
+   * Valid only when this semantic tier belongs to a tab whose id is exactly
+   * `color` or `color-secondary`; other owning tab ids are rejected at
+   * configure time. Declares one or more permitted same- or cross-tab ramp
+   * sources for per-row semantic `{ ref }` mappings. Each entry names a tier
+   * and optional tab (`tab` omitted means this tab); unlike `referencesTier`,
+   * this is a multi-source allow-list for individual semantic mappings.
    */
   referencesRamps?: readonly { tab?: string; tier: string }[];
 }
