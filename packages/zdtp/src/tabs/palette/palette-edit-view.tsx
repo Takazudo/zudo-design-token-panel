@@ -86,6 +86,21 @@ interface ColorSlot {
   color: Oklcha | null;
 }
 
+function isWritableSlot(item: TierItem | undefined, slot: ColorSlot | undefined): boolean {
+  return Boolean(item && !item.readonly && slot?.color);
+}
+
+function initialSelectionIndex(tier: TierConfig, overrides: TabOverrides): number {
+  const writable = tier.items.findIndex(
+    (item) => !item.readonly && Boolean(resolveItemSlot(item, tier.id, overrides).color),
+  );
+  if (writable >= 0) return writable;
+  const inspectable = tier.items.findIndex(
+    (item) => Boolean(resolveItemSlot(item, tier.id, overrides).color),
+  );
+  return inspectable >= 0 ? inspectable : 0;
+}
+
 /** Resolve a dense item slot without inventing a color for unsupported CSS. */
 function resolveItemSlot(item: TierItem, tierId: string, overrides: TabOverrides): ColorSlot {
   const value = resolveItemValue(item, tierId, overrides);
@@ -128,15 +143,14 @@ function Swatch({ item, index, slot, isSelected, onSelect }: SwatchProps) {
       role="button"
       tabIndex={0}
       className={
-        isSelected
-          ? 'tokenpanel-palette-edit-swatch is-selected'
-          : 'tokenpanel-palette-edit-swatch'
+        `tokenpanel-palette-edit-swatch${isSelected ? ' is-selected' : ''}${item.readonly ? ' is-readonly' : ''}`
       }
       style={fill ? { background: fill } : undefined}
       data-out-of-gamut={outOfGamut || undefined}
       data-invalid={slot.color ? undefined : true}
       aria-pressed={isSelected}
-      aria-label={`${item.label}: ${slot.value}${slot.color ? '' : ' (invalid color, N/A)'}`}
+      aria-disabled={item.readonly || undefined}
+      aria-label={`${item.label}: ${slot.value}${slot.color ? '' : ' (invalid color, N/A)'}${item.readonly ? ' (locked, read-only)' : ''}`}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       data-testid={`palette-edit-swatch-${item.id}`}
@@ -144,6 +158,14 @@ function Swatch({ item, index, slot, isSelected, onSelect }: SwatchProps) {
       <span className="tokenpanel-palette-edit-swatch-idx" aria-hidden="true">
         {index}
       </span>
+      {item.readonly && (
+        <span className="tokenpanel-palette-edit-swatch-lock" aria-hidden="true">
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="none">
+            <rect x="3" y="7" width="10" height="7" rx="1.5" />
+            <path d="M5 7V5a3 3 0 0 1 6 0v2" />
+          </svg>
+        </span>
+      )}
     </div>
   );
 }
@@ -252,6 +274,7 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
   // otherwise fire two persists).
   const [transient, setTransient] = useState<Record<string, Oklcha>>({});
   const transientRef = useRef<Record<string, Oklcha>>({});
+  const gestureRef = useRef<{ tierId: string; itemIds: string[] } | null>(null);
 
   const writeTransient = useCallback((next: Record<string, Oklcha>) => {
     transientRef.current = next;
@@ -263,13 +286,22 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
   }, []);
 
   const activeTier = tiers.find((t) => t.id === activeTierId) ?? null;
+  // Direct editor events can outlive the mounted ColorField DOM during a
+  // config update. Read current selection/config through refs so even a stale
+  // event closure cannot write an item that has since become readonly.
+  const activeTierRef = useRef<TierConfig | null>(activeTier);
+  activeTierRef.current = activeTier;
+  const selectedIndexRef = useRef(selectedIndex);
+  selectedIndexRef.current = selectedIndex;
+  const overridesRef = useRef(overrides);
+  overridesRef.current = overrides;
 
   // Resolve the active group's colors, overlaying any in-flight transient edits.
   const activeSlots: ColorSlot[] = useMemo(() => {
     if (!activeTier) return [];
     return activeTier.items.map((item) => {
       const live = transient[item.id];
-      if (live) return { value: oklchaToCss(live), color: live };
+      if (live && !item.readonly) return { value: oklchaToCss(live), color: live };
       return resolveItemSlot(item, activeTier.id, overrides);
     });
     // overrides + transient + activeTier are the full inputs.
@@ -282,8 +314,11 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
     // the selection to step 0 so an index carried over from a longer group can
     // never be out of range in a shorter one.
     setActiveTierId((prev) => (prev === tierId ? null : tierId));
-    setSelectedIndex(0);
-  }, []);
+    const tier = tiers.find((candidate) => candidate.id === tierId);
+    setSelectedIndex(tier ? initialSelectionIndex(tier, overrides) : 0);
+    gestureRef.current = null;
+    writeTransient({});
+  }, [overrides, tiers, writeTransient]);
 
   // ── Selection ──────────────────────────────────────────────────────────────
 
@@ -300,16 +335,22 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
 
   const handleChangeStart = useCallback(() => {
     // Open a fresh transient session for this gesture.
+    gestureRef.current = activeTier
+      ? { tierId: activeTier.id, itemIds: activeTier.items.map((item) => item.id) }
+      : null;
     writeTransient({});
-  }, [writeTransient]);
+  }, [activeTier, writeTransient]);
 
   const handleChartChange = useCallback(
     (index: number, channel: Channel, value: number) => {
       if (!activeTier) return;
+      const gesture = gestureRef.current;
+      if (gesture?.tierId !== activeTier.id) return;
       const item = activeTier.items[index];
       if (!item) return;
+      if (gesture.itemIds[index] !== item.id) return;
       const resolved = resolveItemSlot(item, activeTier.id, overrides);
-      if (!resolved.color) return;
+      if (!isWritableSlot(item, resolved)) return;
       // Build on the live value (prior transient OR the resolved base) so a
       // multi-channel gesture composes correctly per step. Read the ref so the
       // accumulator is always current within the gesture.
@@ -328,16 +369,25 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
     // commit — entirely outside any setState updater.
     const acc = transientRef.current;
     const changedIds = Object.keys(acc);
-    if (activeTier && changedIds.length > 0) {
+    const gesture = gestureRef.current;
+    const sameIdentityOrder = Boolean(
+      activeTier &&
+      gesture &&
+      activeTier.id === gesture.tierId &&
+      activeTier.items.length === gesture.itemIds.length &&
+      activeTier.items.every((item, index) => item.id === gesture.itemIds[index]),
+    );
+    if (activeTier && sameIdentityOrder && changedIds.length > 0) {
       const patch: Record<string, string> = {};
       for (const id of changedIds) {
         const item = activeTier.items.find((candidate) => candidate.id === id);
-        if (!item || !resolveItemSlot(item, activeTier.id, overrides).color) continue;
+        if (!isWritableSlot(item, item && resolveItemSlot(item, activeTier.id, overrides))) continue;
         // Persist the RAW OKLCH — never gamut-clamped. Clamping is a render
         // concern (oklchaToHex), not a storage concern.
         patch[id] = oklchaToCss(acc[id]);
       }
       if (Object.keys(patch).length === 0) {
+        gestureRef.current = null;
         writeTransient({});
         return;
       }
@@ -350,6 +400,7 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
         }
       }
     }
+    gestureRef.current = null;
     // Clear the accumulator; the committed values now live in `overrides`.
     writeTransient({});
   }, [activeTier, onChange, onCommitBatch, overrides, writeTransient]);
@@ -357,14 +408,15 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
   // ── Direct (ColorField) edit of the selected step ─────────────────────────
 
   const handleDirectEdit = useCallback(
-    (next: string) => {
-      if (!activeTier) return;
-      const item = activeTier.items[selectedIndex];
-      if (!item) return;
-      if (!resolveItemSlot(item, activeTier.id, overrides).color) return;
-      onChange(activeTier.id, item.id, next);
+    (expectedTierId: string, expectedItemId: string, next: string) => {
+      const currentTier = activeTierRef.current;
+      if (!currentTier || currentTier.id !== expectedTierId) return;
+      const item = currentTier.items[selectedIndexRef.current];
+      if (!item || item.id !== expectedItemId) return;
+      if (!isWritableSlot(item, resolveItemSlot(item, currentTier.id, overridesRef.current))) return;
+      onChange(currentTier.id, item.id, next);
     },
-    [activeTier, selectedIndex, onChange, overrides],
+    [onChange],
   );
 
   // Selected step's raw value for the readout + the ColorField.
@@ -453,6 +505,10 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
                 <ActiveGroupEditor
                   tier={tier}
                   colors={activeSlots.map((slot) => slot.color)}
+                  editable={tier.items.map((item, index) =>
+                    isWritableSlot(item, activeSlots[index]),
+                  )}
+                  identities={tier.items.map((item) => item.id)}
                   selectedIndex={selectedIndex}
                   visibleChannels={visibleChannels}
                   selectedItem={selectedItem}
@@ -481,6 +537,8 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
 interface ActiveGroupEditorProps {
   tier: TierConfig;
   colors: Array<Oklcha | null>;
+  editable: boolean[];
+  identities: string[];
   selectedIndex: number;
   visibleChannels: VisibleChannels;
   selectedItem: TierItem | undefined;
@@ -491,12 +549,14 @@ interface ActiveGroupEditorProps {
   onToggleChannel: (channel: Channel) => void;
   onChangeStart: () => void;
   onChangeEnd: () => void;
-  onDirectEdit: (next: string) => void;
+  onDirectEdit: (tierId: string, itemId: string, next: string) => void;
 }
 
 function ActiveGroupEditor({
   tier,
   colors,
+  editable,
+  identities,
   selectedIndex,
   visibleChannels,
   selectedItem,
@@ -509,17 +569,31 @@ function ActiveGroupEditor({
   onChangeEnd,
   onDirectEdit,
 }: ActiveGroupEditorProps) {
+  const hasWritableColor = editable.some(Boolean);
+  const hasValidColor = colors.some(Boolean);
+  const allItemsReadonly = tier.items.length > 0 && tier.items.every((item) => item.readonly);
+  const selectedReadonly = Boolean(selectedItem?.readonly);
   return (
     <div className="tokenpanel-palette-edit-editor" data-testid={`palette-edit-editor-${tier.id}`}>
       <div className="tokenpanel-palette-edit-editor-bar">
         <div className="tokenpanel-palette-edit-editor-title">
-          Curve editor · drag node = step, drag line = whole ramp
+          {hasWritableColor
+            ? 'Curve editor · drag node = step, drag line = writable ramp steps'
+            : allItemsReadonly
+              ? 'Static curve · all steps are locked'
+              : hasValidColor
+                ? 'Static curve · no writable colors'
+                : 'Curve unavailable · no supported colors'}
         </div>
-        <ChannelToggle visible={visibleChannels} onToggle={onToggleChannel} />
+        {hasWritableColor && (
+          <ChannelToggle visible={visibleChannels} onToggle={onToggleChannel} />
+        )}
       </div>
 
       <PaletteChart
         colors={colors}
+        editable={editable}
+        identities={identities}
         selectedIndex={selectedIndex}
         visibleChannels={visibleChannels}
         onChange={onChartChange}
@@ -530,17 +604,22 @@ function ActiveGroupEditor({
       />
 
       <div className="tokenpanel-palette-edit-direct" data-testid="palette-edit-direct">
-        {selectedItem && selectedOklcha && (
+        {selectedItem && selectedOklcha && !selectedReadonly && (
           <ColorField
+            key={`${tier.id}:${selectedItem.id}`}
             value={selectedValue}
-            onChange={onDirectEdit}
+            onChange={(next) => onDirectEdit(tier.id, selectedItem.id, next)}
             valueFormat="oklch"
             label={selectedItem.label}
             cssVar={selectedItem.cssVar}
           />
         )}
         <div className="tokenpanel-palette-edit-direct-hint">
-          {selectedOklcha ? 'edit selected step exactly' : 'N/A · unsupported color is read-only'}
+          {selectedReadonly
+            ? 'Locked · read-only inspection'
+            : selectedOklcha
+              ? 'edit selected step exactly'
+              : 'N/A · unsupported color is read-only'}
         </div>
       </div>
 
