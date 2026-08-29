@@ -40,7 +40,7 @@ import type { TabConfig, TierConfig, TierItem } from '../../tokens/tier-model';
 import type { TabOverrides } from '../../apply/tier-resolver';
 import { groupPaletteTiers } from './palette-tab';
 import {
-  cssToOklcha,
+  staticCssColorToOklcha,
   oklchaToCss,
   oklchaToHex,
   isInSrgbGamut,
@@ -81,9 +81,15 @@ function resolveItemValue(item: TierItem, tierId: string, overrides: TabOverride
   return overrides[tierId]?.[item.id] ?? item.default;
 }
 
-/** Parse an item's effective value to Oklcha, falling back to black on junk. */
-function resolveItemOklcha(item: TierItem, tierId: string, overrides: TabOverrides): Oklcha {
-  return cssToOklcha(resolveItemValue(item, tierId, overrides)) ?? { l: 0, c: 0, h: 0, a: 100 };
+interface ColorSlot {
+  value: string;
+  color: Oklcha | null;
+}
+
+/** Resolve a dense item slot without inventing a color for unsupported CSS. */
+function resolveItemSlot(item: TierItem, tierId: string, overrides: TabOverrides): ColorSlot {
+  const value = resolveItemValue(item, tierId, overrides);
+  return { value, color: staticCssColorToOklcha(value) };
 }
 
 type VisibleChannels = { l: boolean; c: boolean; h: boolean };
@@ -96,15 +102,15 @@ const CHANNEL_ORDER: readonly Channel[] = ['l', 'c', 'h'] as const;
 interface SwatchProps {
   item: TierItem;
   index: number;
-  oklcha: Oklcha;
+  slot: ColorSlot;
   isSelected: boolean;
   onSelect: (index: number) => void;
 }
 
-function Swatch({ item, index, oklcha, isSelected, onSelect }: SwatchProps) {
+function Swatch({ item, index, slot, isSelected, onSelect }: SwatchProps) {
   // Clamp only for the fill; the underlying value stays raw.
-  const fill = oklchaToHex(oklcha);
-  const outOfGamut = !isInSrgbGamut(oklcha);
+  const fill = slot.color ? oklchaToHex(slot.color) : undefined;
+  const outOfGamut = slot.color ? !isInSrgbGamut(slot.color) : false;
 
   const handleClick = useCallback(() => onSelect(index), [index, onSelect]);
   const handleKeyDown = useCallback(
@@ -126,10 +132,11 @@ function Swatch({ item, index, oklcha, isSelected, onSelect }: SwatchProps) {
           ? 'tokenpanel-palette-edit-swatch is-selected'
           : 'tokenpanel-palette-edit-swatch'
       }
-      style={{ background: fill }}
+      style={fill ? { background: fill } : undefined}
       data-out-of-gamut={outOfGamut || undefined}
+      data-invalid={slot.color ? undefined : true}
       aria-pressed={isSelected}
-      aria-label={`${item.label}: ${item.cssVar}`}
+      aria-label={`${item.label}: ${slot.value}${slot.color ? '' : ' (invalid color, N/A)'}`}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       data-testid={`palette-edit-swatch-${item.id}`}
@@ -146,8 +153,8 @@ function Swatch({ item, index, oklcha, isSelected, onSelect }: SwatchProps) {
 // ---------------------------------------------------------------------------
 
 interface GroupPreviewChipsProps {
-  /** Effective (override + transient) colors for the group's steps. */
-  colors: Oklcha[];
+  /** Effective (override + transient) dense slots for the group's steps. */
+  slots: ColorSlot[];
 }
 
 /**
@@ -156,14 +163,16 @@ interface GroupPreviewChipsProps {
  * exception). aria-hidden + pointer-events:none — the real, labelled swatches
  * live inside the open group; these chips carry no accessible info.
  */
-function GroupPreviewChips({ colors }: GroupPreviewChipsProps) {
+function GroupPreviewChips({ slots }: GroupPreviewChipsProps) {
   return (
     <div className="tokenpanel-palette-edit-group-preview" aria-hidden="true">
-      {colors.map((oklcha, i) => (
+      {slots.map((slot, i) => (
         <div
           key={i}
-          className="tokenpanel-palette-edit-preview-chip"
-          style={{ background: oklchaToHex(oklcha) }}
+          className={slot.color
+            ? 'tokenpanel-palette-edit-preview-chip'
+            : 'tokenpanel-palette-edit-preview-chip is-invalid'}
+          style={slot.color ? { background: oklchaToHex(slot.color) } : undefined}
         />
       ))}
     </div>
@@ -256,12 +265,12 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
   const activeTier = tiers.find((t) => t.id === activeTierId) ?? null;
 
   // Resolve the active group's colors, overlaying any in-flight transient edits.
-  const activeColors: Oklcha[] = useMemo(() => {
+  const activeSlots: ColorSlot[] = useMemo(() => {
     if (!activeTier) return [];
     return activeTier.items.map((item) => {
       const live = transient[item.id];
-      if (live) return live;
-      return resolveItemOklcha(item, activeTier.id, overrides);
+      if (live) return { value: oklchaToCss(live), color: live };
+      return resolveItemSlot(item, activeTier.id, overrides);
     });
     // overrides + transient + activeTier are the full inputs.
   }, [activeTier, overrides, transient]);
@@ -299,11 +308,13 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
       if (!activeTier) return;
       const item = activeTier.items[index];
       if (!item) return;
+      const resolved = resolveItemSlot(item, activeTier.id, overrides);
+      if (!resolved.color) return;
       // Build on the live value (prior transient OR the resolved base) so a
       // multi-channel gesture composes correctly per step. Read the ref so the
       // accumulator is always current within the gesture.
       const prev = transientRef.current;
-      const base = prev[item.id] ?? resolveItemOklcha(item, activeTier.id, overrides);
+      const base = prev[item.id] ?? resolved.color;
       // Cap hue at the commit boundary so a node dragged to the top of the axis
       // (h=360) survives the oklch() round-trip instead of wrapping back to 0.
       const safeValue = channel === 'h' ? clampHueForPersist(value) : value;
@@ -320,20 +331,28 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
     if (activeTier && changedIds.length > 0) {
       const patch: Record<string, string> = {};
       for (const id of changedIds) {
+        const item = activeTier.items.find((candidate) => candidate.id === id);
+        if (!item || !resolveItemSlot(item, activeTier.id, overrides).color) continue;
         // Persist the RAW OKLCH — never gamut-clamped. Clamping is a render
         // concern (oklchaToHex), not a storage concern.
         patch[id] = oklchaToCss(acc[id]);
+      }
+      if (Object.keys(patch).length === 0) {
+        writeTransient({});
+        return;
       }
       if (onCommitBatch) {
         onCommitBatch(activeTier.id, patch);
       } else {
         // Fallback when no batch path is wired: emit per-item changes.
-        for (const id of changedIds) onChange(activeTier.id, id, patch[id]);
+        for (const [id, value] of Object.entries(patch)) {
+          onChange(activeTier.id, id, value);
+        }
       }
     }
     // Clear the accumulator; the committed values now live in `overrides`.
     writeTransient({});
-  }, [activeTier, onChange, onCommitBatch, writeTransient]);
+  }, [activeTier, onChange, onCommitBatch, overrides, writeTransient]);
 
   // ── Direct (ColorField) edit of the selected step ─────────────────────────
 
@@ -342,14 +361,15 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
       if (!activeTier) return;
       const item = activeTier.items[selectedIndex];
       if (!item) return;
+      if (!resolveItemSlot(item, activeTier.id, overrides).color) return;
       onChange(activeTier.id, item.id, next);
     },
-    [activeTier, selectedIndex, onChange],
+    [activeTier, selectedIndex, onChange, overrides],
   );
 
   // Selected step's raw value for the readout + the ColorField.
   const selectedItem = activeTier?.items[selectedIndex];
-  const selectedOklcha = activeColors[selectedIndex];
+  const selectedOklcha = activeSlots[selectedIndex]?.color ?? null;
   const selectedValue = selectedItem
     ? resolveItemValue(selectedItem, activeTier!.id, overrides)
     : '';
@@ -360,9 +380,9 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
         const isActive = tier.id === activeTierId;
         // Chips track live color: the open group overlays in-flight transient
         // edits; collapsed groups resolve straight from overrides.
-        const chipColors = isActive
-          ? activeColors
-          : tier.items.map((item) => resolveItemOklcha(item, tier.id, overrides));
+        const chipSlots = isActive
+          ? activeSlots
+          : tier.items.map((item) => resolveItemSlot(item, tier.id, overrides));
         return (
           <div
             key={tier.id}
@@ -409,7 +429,7 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
               <div role="heading" aria-level={3} className="tokenpanel-palette-edit-group-heading">
                 {tier.label}
               </div>
-              <GroupPreviewChips colors={chipColors} />
+              <GroupPreviewChips slots={chipSlots} />
             </div>
 
             {isActive && (
@@ -423,7 +443,7 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
                       key={item.id}
                       item={item}
                       index={index}
-                      oklcha={activeColors[index]}
+                      slot={activeSlots[index]}
                       isSelected={index === selectedIndex}
                       onSelect={(i) => handleSelectGroup(tier.id, i)}
                     />
@@ -432,7 +452,7 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
 
                 <ActiveGroupEditor
                   tier={tier}
-                  colors={activeColors}
+                  colors={activeSlots.map((slot) => slot.color)}
                   selectedIndex={selectedIndex}
                   visibleChannels={visibleChannels}
                   selectedItem={selectedItem}
@@ -460,11 +480,11 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
 
 interface ActiveGroupEditorProps {
   tier: TierConfig;
-  colors: Oklcha[];
+  colors: Array<Oklcha | null>;
   selectedIndex: number;
   visibleChannels: VisibleChannels;
   selectedItem: TierItem | undefined;
-  selectedOklcha: Oklcha | undefined;
+  selectedOklcha: Oklcha | null;
   selectedValue: string;
   onChartChange: (index: number, channel: Channel, value: number) => void;
   onChartSelectIndex: (index: number) => void;
@@ -489,9 +509,6 @@ function ActiveGroupEditor({
   onChangeEnd,
   onDirectEdit,
 }: ActiveGroupEditorProps) {
-  const fallback: Oklcha = { l: 0, c: 0, h: 0, a: 100 };
-  const readoutOklcha = selectedOklcha ?? fallback;
-
   return (
     <div className="tokenpanel-palette-edit-editor" data-testid={`palette-edit-editor-${tier.id}`}>
       <div className="tokenpanel-palette-edit-editor-bar">
@@ -513,7 +530,7 @@ function ActiveGroupEditor({
       />
 
       <div className="tokenpanel-palette-edit-direct" data-testid="palette-edit-direct">
-        {selectedItem && (
+        {selectedItem && selectedOklcha && (
           <ColorField
             value={selectedValue}
             onChange={onDirectEdit}
@@ -522,18 +539,33 @@ function ActiveGroupEditor({
             cssVar={selectedItem.cssVar}
           />
         )}
-        <div className="tokenpanel-palette-edit-direct-hint" aria-hidden="true">
-          edit selected step exactly
+        <div className="tokenpanel-palette-edit-direct-hint">
+          {selectedOklcha ? 'edit selected step exactly' : 'N/A · unsupported color is read-only'}
         </div>
       </div>
 
-      {selectedItem && (
+      {selectedItem && selectedOklcha ? (
         <PaletteReadout
-          oklcha={readoutOklcha}
+          oklcha={selectedOklcha}
           cssVar={selectedItem.cssVar}
-          outOfGamut={!isInSrgbGamut(readoutOklcha)}
+          outOfGamut={!isInSrgbGamut(selectedOklcha)}
         />
-      )}
+      ) : selectedItem ? (
+        <div className="tokenpanel-palette-readout is-invalid" data-testid="palette-readout-invalid">
+          <div className="tokenpanel-palette-readout-swatch is-invalid" aria-hidden="true" />
+          <div className="tokenpanel-palette-readout-rows">
+            <div className="tokenpanel-palette-readout-row" data-testid="palette-readout-token">
+              <span className="tokenpanel-palette-readout-key">token</span>
+              <span className="tokenpanel-palette-readout-val">{selectedItem.cssVar}</span>
+            </div>
+            <div className="tokenpanel-palette-readout-row" data-testid="palette-readout-invalid-value">
+              <span className="tokenpanel-palette-readout-key">value</span>
+              <span className="tokenpanel-palette-readout-val">{selectedValue}</span>
+            </div>
+            <div className="tokenpanel-palette-readout-gamut">N/A · unsupported contextual color</div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

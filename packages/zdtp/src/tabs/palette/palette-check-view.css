@@ -139,12 +139,31 @@
   color: var(--tokentweak-color-accent);
 }
 
+.tokenpanel-palette-check-base-row.is-disabled {
+  cursor: not-allowed;
+  border-style: dashed;
+}
+
+.tokenpanel-palette-check-base-row.is-disabled:hover {
+  background-color: transparent;
+}
+
 .tokenpanel-palette-check-swatch {
   flex-shrink: 0;
   width: 18px;
   height: 18px;
   border: 1px solid rgb(from var(--tokentweak-color-fg) r g b / 0.16);
   border-radius: var(--radius-tokentweak);
+}
+
+.tokenpanel-palette-check-swatch.is-invalid,
+.tokenpanel-palette-check-aa-sample.is-invalid {
+  background-color: var(--tokentweak-color-surface);
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 4px,
+    rgb(from var(--tokentweak-color-muted) r g b / 0.25) 4px 6px
+  );
 }
 
 .tokenpanel-palette-check-row-name {
@@ -156,6 +175,19 @@
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tokenpanel-palette-check-row-value {
+  color: var(--tokentweak-color-muted);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tokenpanel-palette-check-na {
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 10px;
 }
 
 /* ── Candidate rows (Aa sample + ratio + verdict chip) ── */
@@ -202,6 +234,11 @@
   font-weight: 700;
   letter-spacing: 0;
   text-align: center;
+}
+
+.tokenpanel-palette-check-chip.is-na {
+  border: 1px dashed var(--tokentweak-color-muted);
+  color: var(--tokentweak-color-muted);
 }
 
 /* ── Footer tally ── */

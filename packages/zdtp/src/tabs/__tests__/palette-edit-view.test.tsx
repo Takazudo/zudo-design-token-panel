@@ -669,4 +669,115 @@ describe('PaletteEditView — batched commit', () => {
     expect(onChange.mock.calls[0][0]).toBe('gray');
     expect(onChange.mock.calls[0][1]).toBe('gray-1');
   });
+
+  it('fallback emits only the filtered patch when a step becomes invalid mid-gesture', () => {
+    const onChange = vi.fn();
+    renderView({ onChange });
+    openGroup('gray');
+    const svg = primeChannelSvg('l');
+    const hitLine = container.querySelector<SVGPolylineElement>(
+      '[data-testid="palette-chart-hit-line-l"]',
+    )!;
+    stubPointerCapture(hitLine);
+
+    firePointer(hitLine, 'pointerdown', { pointerId: 9, clientY: clientYForL(50) });
+    firePointer(svg, 'pointermove', { pointerId: 9, clientY: clientYForL(55) });
+    // The gesture accumulator contains all three steps, but gray-1 is no
+    // longer persistable by the time the commit boundary closes.
+    renderView({ onChange, overrides: { gray: { 'gray-1': 'var(--gray-1)' } } });
+    firePointer(svg, 'pointerup', { pointerId: 9, clientY: clientYForL(55) });
+
+    expect(onChange.mock.calls.map((call) => call[1])).toEqual(['gray-0', 'gray-2']);
+    expect(onChange.mock.calls.every((call) => typeof call[2] === 'string')).toBe(true);
+  });
+});
+
+describe('PaletteEditView — static CSS colors and invalid slots (#625)', () => {
+  const tab: TabConfig = {
+    id: 'palette', label: 'Palette', tiers: [{
+      id: 'paper', label: 'Paper', items: [
+        { id: 'white', cssVar: '--paper-white', label: 'White', default: '#ffffff', type: { kind: 'color', format: 'oklch' } },
+        { id: 'invalid', cssVar: '--paper-context', label: 'Context', default: 'var(--paper)', type: { kind: 'color', format: 'oklch' } },
+        { id: 'offwhite', cssVar: '--paper-offwhite', label: 'Off white', default: '#f6f4ee', type: { kind: 'color', format: 'oklch' } },
+        { id: 'rgb', cssVar: '--paper-rgb', label: 'RGB', default: 'rgb(10 20 30 / 50%)', type: { kind: 'color', format: 'oklch' } },
+        { id: 'hsl', cssVar: '--paper-hsl', label: 'HSL', default: 'hsl(120 50% 50%)', type: { kind: 'color', format: 'oklch' } },
+        { id: 'mix', cssVar: '--paper-mix', label: 'Mix', default: 'color-mix(in srgb, red, blue)', type: { kind: 'color', format: 'oklch' } },
+      ],
+    }],
+  };
+
+  it('renders exact white/off-white repro colors and parses rgb/hsl with alpha', () => {
+    renderView({ tab });
+    const chips = container.querySelectorAll<HTMLElement>('.tokenpanel-palette-edit-preview-chip');
+    expect(chips[0].style.background).toBe('rgb(255, 255, 255)');
+    expect(chips[2].style.background).toBe('rgb(246, 244, 238)');
+    expect(chips[3].style.background).toContain('rgba(10, 20, 30, 0.5)');
+    expect(chips[4].style.background).not.toBe('');
+    expect(chips[1].classList.contains('is-invalid')).toBe(true);
+    expect(chips[5].classList.contains('is-invalid')).toBe(true);
+
+    openGroup('paper');
+    expect(container.querySelector<HTMLElement>('[data-testid="palette-edit-swatch-white"]')?.style.background).toBe('rgb(255, 255, 255)');
+    expect(container.querySelector('[data-band-index="0"]')?.getAttribute('fill')).toBe('#ffffff');
+    expect(container.querySelector('[data-band-index="2"]')?.getAttribute('fill')).toBe('#f6f4ee');
+    expect(container.querySelector('[data-testid="palette-readout-hex"]')?.textContent).toContain('#ffffff');
+    const rgb = container.querySelector<HTMLElement>('[data-testid="palette-edit-swatch-rgb"]')!;
+    act(() => { rgb.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    expect(container.querySelector('[data-testid="palette-readout-hex"]')?.textContent).toContain('#0a141e80');
+    expect(container.querySelector('[data-testid="palette-readout-oklch"]')?.textContent).toContain('/ 0.50');
+  });
+
+  it('keeps invalid positions visible, names their value, and exposes no editor/node', () => {
+    renderView({ tab });
+    openGroup('paper');
+    const invalid = container.querySelector<HTMLElement>('[data-testid="palette-edit-swatch-invalid"]')!;
+    expect(invalid.getAttribute('data-invalid')).toBe('true');
+    expect(invalid.getAttribute('aria-label')).toContain('var(--paper)');
+    expect(container.querySelector('[data-node-hit="1"]')).toBeNull();
+    act(() => { invalid.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    expect(container.querySelector('[data-testid="color-field-swatch"]')).toBeNull();
+    expect(container.querySelector('[data-testid="palette-readout-invalid-value"]')?.textContent).toContain('var(--paper)');
+  });
+
+  it('uses current validity when an invalid selected step becomes directly editable', () => {
+    const onChange = vi.fn();
+    renderView({
+      tab,
+      onChange,
+      overrides: { paper: { white: 'var(--paper-white)' } },
+    });
+    openGroup('paper');
+    expect(container.querySelector('[data-testid="color-field-swatch"]')).toBeNull();
+
+    renderView({
+      tab,
+      onChange,
+      overrides: { paper: { white: 'oklch(50% 0 0)' } },
+    });
+    const field = container.querySelector<HTMLElement>('[data-testid="color-field-swatch"]')!;
+    act(() => { field.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    const lightness = container.querySelector<HTMLElement>('[role="slider"][aria-label="Lightness"]')!;
+    expect(lightness).not.toBeNull();
+    act(() => {
+      lightness.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+    });
+    expect(onChange).toHaveBeenCalled();
+    expect(onChange.mock.calls[0].slice(0, 2)).toEqual(['paper', 'white']);
+  });
+
+  it('excludes invalid slots from whole-curve batch patches', () => {
+    const onCommitBatch = vi.fn();
+    renderView({ tab, onCommitBatch });
+    openGroup('paper');
+    const svg = primeChannelSvg('l');
+    const hitLine = container.querySelector<SVGPolylineElement>('[data-testid="palette-chart-hit-line-l"]')!;
+    stubPointerCapture(hitLine);
+    firePointer(hitLine, 'pointerdown', { clientY: clientYForL(50) });
+    firePointer(svg, 'pointermove', { clientY: clientYForL(45) });
+    firePointer(svg, 'pointerup', { clientY: clientYForL(45) });
+    const patch = onCommitBatch.mock.calls[0][1] as Record<string, string>;
+    expect(patch.invalid).toBeUndefined();
+    expect(patch.mix).toBeUndefined();
+    expect(Object.keys(patch)).toEqual(expect.arrayContaining(['white', 'offwhite', 'rgb', 'hsl']));
+  });
 });
