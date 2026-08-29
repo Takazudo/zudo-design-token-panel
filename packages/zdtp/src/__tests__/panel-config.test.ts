@@ -1554,9 +1554,10 @@ describe('panel-config — referencesRamps cross-tab source validation (S8, #469
   function makeSemanticColorTab(
     referencesRamps: unknown,
     overrides: Record<string, unknown> = {},
+    tabId = 'color',
   ): TabConfig {
     return {
-      id: 'color',
+      id: tabId,
       label: 'Color',
       tiers: [
         {
@@ -1585,6 +1586,33 @@ describe('panel-config — referencesRamps cross-tab source validation (S8, #469
       assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab, PALETTE_TAB] })),
     ).not.toThrow();
   });
+
+  it('rejects referencesRamps on a generic tab with the supported Color tab ids', () => {
+    const genericTab = makeSemanticColorTab(
+      [{ tab: 'palette', tier: 'base' }],
+      {},
+      'custom',
+    );
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({ tabs: [genericTab, PALETTE_TAB] })),
+    ).toThrow(
+      /PanelConfig\.tabs\["custom"\]\.tiers\["semantic"\]\.referencesRamps is only supported on tabs with id "color" or "color-secondary" \(got "custom"\)/,
+    );
+  });
+
+  it.each(['color', 'color-secondary'] as const)(
+    'accepts referencesRamps on the supported %s tab id',
+    (tabId) => {
+      const colorTab = makeSemanticColorTab(
+        [{ tab: 'palette', tier: 'base' }],
+        {},
+        tabId,
+      );
+      expect(() =>
+        assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab, PALETTE_TAB] })),
+      ).not.toThrow();
+    },
+  );
 
   it('accepts a referencesRamps entry with `tab` omitted (same-tab source)', () => {
     // Same-tab source: a semantic tier referencing a ramp tier in ITS OWN tab.
