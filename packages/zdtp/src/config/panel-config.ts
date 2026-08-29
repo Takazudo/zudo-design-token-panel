@@ -1011,8 +1011,9 @@ const ZDTP_GLOBAL_ALIAS_MARKER = Symbol.for('@takazudo/zdtp:global-alias-marker'
  *
  * Guard rules:
  *  - A pre-existing `window.zdtp` WITHOUT this package's marker is assumed to
- *    be host-defined — never overwritten. Logs a `console.warn` so the host
- *    can see why `zdtp.show()` did not appear.
+ *    be host-defined — never overwritten. If it already exposes callable
+ *    `show` / `hide` / `toggle` methods, it is treated as an intentional host
+ *    alias and skipped silently; incompatible values produce a `console.warn`.
  *  - A pre-existing `window.zdtp` WITH the marker means this package already
  *    installed the alias (from the other call site, or an earlier run of this
  *    same one). First install wins — the call is a silent no-op. In the Astro
@@ -1030,20 +1031,44 @@ const ZDTP_GLOBAL_ALIAS_MARKER = Symbol.for('@takazudo/zdtp:global-alias-marker'
  * for a multi-instance page use `configurePanel(cfg).open()` etc. on the
  * specific instance's own handle instead of relying on this alias.
  */
+function isObjectLike(value: unknown): value is object {
+  return (typeof value === 'object' && value !== null) || typeof value === 'function';
+}
+
+function isPackageInstalledZdtpGlobalAlias(value: unknown): boolean {
+  if (!isObjectLike(value)) return false;
+  try {
+    return (value as Record<symbol, unknown>)[ZDTP_GLOBAL_ALIAS_MARKER] === true;
+  } catch {
+    return false;
+  }
+}
+
+function isShapeCompatibleZdtpGlobalAlias(value: unknown): value is ZdtpGlobalApi {
+  if (!isObjectLike(value)) return false;
+  try {
+    const candidate = value as Record<keyof ZdtpGlobalApi, unknown>;
+    return (
+      typeof candidate.show === 'function' &&
+      typeof candidate.hide === 'function' &&
+      typeof candidate.toggle === 'function'
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function installZdtpGlobalAlias(api: ZdtpGlobalApi): void {
   if (typeof window === 'undefined') return;
   const win = window as unknown as Record<string, unknown>;
   const existing = win.zdtp;
   if (existing !== undefined) {
-    // `existing` may be any host-supplied value, including `null` or another
-    // primitive — guard the property read so a host that (unusually) set
-    // `window.zdtp = null` hits the host-defined warn path below instead of
-    // throwing when reading a symbol property off `null`/a primitive.
-    const alreadyOurs =
-      (typeof existing === 'object' || typeof existing === 'function') &&
-      existing !== null &&
-      (existing as Record<symbol, unknown>)[ZDTP_GLOBAL_ALIAS_MARKER] === true;
-    if (alreadyOurs) return;
+    if (
+      isPackageInstalledZdtpGlobalAlias(existing) ||
+      isShapeCompatibleZdtpGlobalAlias(existing)
+    ) {
+      return;
+    }
     console.warn(
       '[design-token-panel] window.zdtp already exists and was not installed by this package. ' +
         'Skipping the zdtp.show() / zdtp.hide() / zdtp.toggle() global alias to avoid clobbering ' +

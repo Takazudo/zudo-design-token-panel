@@ -15,7 +15,8 @@
  *   4. Adapter-wins double-install guard: once the adapter has installed
  *      `window.zdtp`, loading the panel module (whose own package-root
  *      bootstrap also calls `installZdtpGlobalAlias`) does not replace it.
- *   5. A pre-existing host-defined `window.zdtp` is not clobbered.
+ *   5. A pre-existing shape-compatible host alias is preserved silently,
+ *      while incompatible host globals are not clobbered and produce a warning.
  *
  * Bootstrap strategy mirrors `host-adapter-autoload.test.ts`: each test calls
  * `bootstrapAdapter()`, which resets the module graph + panel-config registry
@@ -165,7 +166,23 @@ describe('host-adapter window.zdtp global alias (#523)', () => {
     expect(zdtpGlobal()).toBe(adapterInstalled);
   });
 
-  it('does not clobber a pre-existing host-defined window.zdtp', async () => {
+  it('preserves a shape-compatible lazy host alias without warning', async () => {
+    const hostDefined = {
+      show: vi.fn(async () => {}),
+      hide: vi.fn(async () => {}),
+      toggle: vi.fn(async () => {}),
+    };
+    (window as unknown as Record<string, unknown>).zdtp = hostDefined;
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await bootstrapAdapter();
+
+    expect((window as unknown as Record<string, unknown>).zdtp).toBe(hostDefined);
+    expect(adapterState()?.modulePromise).toBeNull();
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not clobber an incompatible host-defined window.zdtp', async () => {
     const hostDefined = { custom: 'host-value' };
     (window as unknown as Record<string, unknown>).zdtp = hostDefined;
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});

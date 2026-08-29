@@ -1104,11 +1104,12 @@ window.zdtp.toggle = () => void | Promise<void>;  // toggle the panel
     always installs first ("first install wins" — see the next point). The
     package-root install site is therefore reached only by non-Astro hosts.
 - **Never clobbers a host-defined `window.zdtp`.** If `window.zdtp` already
-  exists and was not installed by this package, the install is skipped with
-  a `console.warn` — the host's own global is left untouched. (This also
-  covers the edge case of a host that picks `consoleNamespace: 'zdtp'`: the
-  namespace object installed at §6.4 is not this package's alias marker, so
-  the second install site treats it as host-owned and skips.)
+  exposes callable `show` / `hide` / `toggle` methods, the install is skipped
+  silently — this supports hosts that pre-claim the alias before lazily loading
+  the panel bundle. Other pre-existing values are also left untouched, but
+  produce a `console.warn`. (This includes the edge case of a host that picks
+  `consoleNamespace: 'zdtp'`: the namespace object installed at §6.4 does not
+  expose the fixed-name alias shape, so the second install site warns and skips.)
 - **Auto-remember carries over for free.** `zdtp.show()` routes through the
   same `showDesignTokenPanel()` / `handle.open()` core as every other open
   path, so it arms `${storagePrefix}:autoload = 'auto'` exactly like

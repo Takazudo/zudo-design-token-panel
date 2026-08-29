@@ -472,7 +472,7 @@ window.zdtp.toggle = () => void | Promise<void>;
 
 - **Scope:** `show` / `hide` / `toggle` only — there is no `window.zdtp.enableAutoload`; owner-autoload stays on `window[consoleNamespace].*` and the package-root `enableAutoload()` / `disableAutoload()` exports.
 - **Install sites:** the package-root module installs a synchronous alias at module init (non-Astro hosts); the Astro host adapter installs an async-wrapped alias eagerly from its own bootstrap, alongside the console API above — so `zdtp.show()` works even before the panel bundle has loaded.
-- **Never clobbers a host-defined `window.zdtp`.** If a page already defines its own `window.zdtp`, the install is skipped with a `console.warn` (including when a host happens to pick `consoleNamespace: 'zdtp'` itself).
+- **Never clobbers a host-defined `window.zdtp`.** If the existing value exposes callable `show`, `hide`, and `toggle` methods, the install is skipped silently so a host can pre-claim the alias before lazily loading the panel bundle. Other existing values are also left untouched and produce a `console.warn` (including when a host happens to pick `consoleNamespace: 'zdtp'` itself).
 - **Targets the default instance,** exactly like `showDesignTokenPanel()` / `hideDesignTokenPanel()` / `toggleDesignPanel()` above. For a specific instance on a multi-instance page, call `configurePanel(cfg)`'s returned [`PanelInstanceHandle`](#panelinstancehandle) directly.
 - Opening via `zdtp.show()` arms the owner-autoload flag exactly like `showDesignTokenPanel()` — see [Owner-autoload recipe](../recipes/owner-autoload.mdx).
 
