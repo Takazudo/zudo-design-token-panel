@@ -4,6 +4,17 @@ All notable changes to `@takazudo/zdtp` are documented in this file.
 
 The format is based on Keep a Changelog, and release notes are generated from the changelog MDX pages.
 
+## [0.4.14] - 2026-08-29
+
+### Fixed
+
+- fix(zdtp): silence compatible global alias warning (2630d84)
+
+### Other Changes
+
+- test(zdtp): cover partial global alias shape (6314a7f)
+- Merge pull request [#647](https://github.com/Takazudo/zudo-design-token-panel/pull/647) from Takazudo/fix/646-compatible-zdtp-alias: fix(zdtp): silence warnings for compatible global aliases (44f6ca4)
+
 ## [0.4.13] - 2026-08-29
 
 ### Features
