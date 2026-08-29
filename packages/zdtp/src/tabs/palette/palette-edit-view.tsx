@@ -149,7 +149,6 @@ function Swatch({ item, index, slot, isSelected, onSelect }: SwatchProps) {
       data-out-of-gamut={outOfGamut || undefined}
       data-invalid={slot.color ? undefined : true}
       aria-pressed={isSelected}
-      aria-disabled={item.readonly || undefined}
       aria-label={`${item.label}: ${slot.value}${slot.color ? '' : ' (invalid color, N/A)'}${item.readonly ? ' (locked, read-only)' : ''}`}
       onClick={handleClick}
       onKeyDown={handleKeyDown}

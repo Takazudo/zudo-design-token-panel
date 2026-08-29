@@ -357,7 +357,7 @@ describe('PaletteTab browser — readonly palette values (#626)', () => {
     const writable = container.querySelector<HTMLElement>('[data-testid="palette-edit-swatch-brand-blue"]')!;
     const locked = container.querySelector<HTMLElement>('[data-testid="palette-edit-swatch-brand-blue-strong"]')!;
     expect(getComputedStyle(writable).backgroundColor).not.toBe(getComputedStyle(locked).backgroundColor);
-    expect(locked.getAttribute('aria-disabled')).toBe('true');
+    expect(locked.getAttribute('aria-disabled')).toBeNull();
     expect(locked.querySelector('.tokenpanel-palette-edit-swatch-lock')).not.toBeNull();
     expect(container.querySelector('[data-node-index="1"]')).not.toBeNull();
     expect(container.querySelector('[data-node-hit="1"]')).toBeNull();

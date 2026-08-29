@@ -859,7 +859,7 @@ describe('PaletteEditView — readonly palette entries (#626)', () => {
     const writable = container.querySelector<HTMLElement>('[data-testid="palette-edit-swatch-brand-blue"]')!;
     const locked = container.querySelector<HTMLElement>('[data-testid="palette-edit-swatch-brand-blue-strong"]')!;
     expect(writable.getAttribute('aria-pressed')).toBe('true');
-    expect(locked.getAttribute('aria-disabled')).toBe('true');
+    expect(locked.getAttribute('aria-disabled')).toBeNull();
     expect(locked.getAttribute('aria-label')).toContain('locked, read-only');
     expect(locked.querySelector('.tokenpanel-palette-edit-swatch-lock')).not.toBeNull();
     expect(container.querySelector('[data-node-index="1"]')).not.toBeNull();
@@ -1098,7 +1098,7 @@ describe('PaletteEditView — readonly palette entries (#626)', () => {
     };
     renderView({ tab: readonlyBrandTab, onChange, onCommitBatch });
     expect(container.querySelector('[data-node-hit="0"]')).toBeNull();
-    expect(container.querySelector('[data-testid="palette-edit-swatch-brand-blue"]')?.getAttribute('aria-disabled')).toBe('true');
+    expect(container.querySelector('[data-testid="palette-edit-swatch-brand-blue"]')?.getAttribute('aria-disabled')).toBeNull();
     expect(container.querySelector('[data-testid="color-field-swatch"]')).toBeNull();
     firePointer(svg, 'pointermove', { pointerId: 24, clientY: clientYForL(80) });
     firePointer(svg, 'pointerup', { pointerId: 24, clientY: clientYForL(80) });
