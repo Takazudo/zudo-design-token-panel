@@ -112,8 +112,8 @@ pnpm exec zdtp-server --help
 | Flag | Required | Purpose | Default |
 |---|---|---|---|
 | `--routing <path>` | yes | Path to the routing JSON file (cluster id → repo-relative CSS file path). Absolute, or relative to `--root`. See §3.2. | — |
-| `--write-root <dir>` | no | Sandbox directory: the bin refuses to write outside this tree. Absolute, or relative to `--root`. | `--root` |
-| `--root <dir>` | no | Repo-root reference used to resolve `--routing` and `--write-root`. | `process.cwd()` |
+| `--write-root <dir>` | yes | Required write boundary: the only directory tree the bin is allowed to write into. Absolute, or relative to `--root`. | — |
+| `--root <dir>` | no | CWD/resolution base used to resolve `--routing` and `--write-root`. | `process.cwd()` |
 | `--port <number>` | no | TCP port to bind. `0` asks the OS for an ephemeral port (the bin logs the assigned port on startup). | `24681` |
 | `--host <addr>` | no | Bind address. Use `0.0.0.0` to expose on the LAN (off by default). | `127.0.0.1` |
 | `--allow-origin <origin>` | repeatable | Origin allowed to POST to `/apply` (scheme + host + port, no trailing slash). At least one is required for any browser to apply. | none (all origins denied) |
@@ -170,7 +170,7 @@ For the full token-overrides payload schema and the `PanelConfig` shape, see §5
 The bin is **dev-only** and is built with three independent guards:
 
 - **Loopback default.** Binds to `127.0.0.1` so only requests from the same machine are accepted. Override with `--host` if you actually want LAN access.
-- **Write sandbox (`--write-root`).** Every routing entry is resolved against `--root` and verified to sit strictly inside `--write-root` before any file I/O happens. An entry whose resolved path escapes the sandbox — via `..` segments or an absolute path that points elsewhere — fails the apply with a 400 and a descriptive error message. `--write-root` defaults to `--root`, so routing entries are sandboxed to your repo root unless you narrow it further.
+- **Write sandbox (`--write-root`).** `--write-root` is required and defines the narrow directory tree the bin is allowed to write into. Every routing entry is resolved against `--root` and verified to sit strictly inside `--write-root` before any file I/O happens. An entry whose resolved path escapes the sandbox — via `..` segments or an absolute path that points elsewhere — fails the apply with a 400 and a descriptive error message. `--root` is the CWD/resolution base for relative `--routing` and `--write-root` paths and defaults to `process.cwd()`.
 - **CORS allow-list.** By default, **all origins are denied**. To let a browser POST to `/apply` you must list its origin explicitly with `--allow-origin <url>` (repeatable). Without a matching `--allow-origin`, the OPTIONS preflight returns 403 and POST returns 403 — no `Access-Control-Allow-Origin` header is emitted. Origin matching is **verbatim** on the full scheme + host + port string: `http://localhost:5173` and `http://127.0.0.1:5173` are different origins.
 
 **Atomic writes.** The bin serialises per-file writes through a small mutex and uses a write-temp-file-then-rename strategy, so a failure mid-write never leaves a half-rewritten CSS file on disk. If any file in a multi-file apply fails to write, every file that was already persisted is restored from the in-memory snapshot taken before the apply started.

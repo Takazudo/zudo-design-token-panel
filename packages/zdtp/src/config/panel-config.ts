@@ -1480,6 +1480,11 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>, allTabs: un
         `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].referencesRamps must be an array`,
       );
     }
+    if (tabId !== 'color' && tabId !== 'color-secondary') {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].referencesRamps is only supported on tabs with id "color" or "color-secondary" (got "${tabId}")`,
+      );
+    }
     // Representative kind of THIS semantic tier, for the best-effort
     // cross-kind compatibility check below (reuses the same tierKinds map
     // built during the item loop earlier in this function).
@@ -1507,7 +1512,7 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>, allTabs: un
       // "this tab" — mirrors resolveRefToCssVar's `ref.tab === undefined ||
       // ref.tab === currentTab.id` rule in apply/tier-resolver.ts, so the
       // declared allow-list stays in lockstep with actual row resolution.
-      const targetTabId = s.tab === undefined ? tabId : s.tab;
+      const targetTabId: string = s.tab === undefined ? tabId : s.tab;
       let targetTabRaw: Record<string, unknown>;
       if (targetTabId === tabId) {
         targetTabRaw = tab;

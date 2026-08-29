@@ -421,8 +421,9 @@ export interface ClusterPanelSettings {
   /** Scheme name to seed state from when `colorMode` is `false`. */
   colorScheme: string;
   /**
-   * `false` to disable light/dark UI; an object to honour `data-theme` on
-   * `<html>` and switch schemes on init.
+   * `false` disables scheme-to-`data-theme` binding only; it does not disable
+   * per-mode editing or change what gets emitted. An object honours `data-theme`
+   * on `<html>` and switches schemes on init.
    */
   colorMode: false | { defaultMode: 'light' | 'dark'; lightScheme: string; darkScheme: string };
 }

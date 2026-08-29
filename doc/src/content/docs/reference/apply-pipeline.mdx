@@ -126,7 +126,7 @@ See [Apply pipeline setup](../recipes/apply-pipeline-setup.mdx) for the routing-
 
 ### Per-tier independence
 
-The bin server processes each tier's tokens independently against the `applyRouting` map. A reference-tier item's override (which resolves to `var(--raw-cssVar)`) is NOT in the diff payload — only the raw-tier values that map to concrete CSS strings are sent. Semantic tokens pointing at raw tokens do not appear in the POST body.
+The bin server processes each tier's tokens independently against the `applyRouting` map. Reference-tier and semantic reference overrides are included in the diff payload after resolution: they emit `var(--target-cssvar)` (for example, `semantic.tab-open = 'ease-in'` emits `--myapp-transition-tab-open: var(--myapp-easing-ease-in)`). The payload carries the resolved CSS value, not the raw item id.
 
 ## Request & response envelopes
 
