@@ -4,6 +4,50 @@ All notable changes to `@takazudo/zdtp` are documented in this file.
 
 The format is based on Keep a Changelog, and release notes are generated from the changelog MDX pages.
 
+## [0.4.13] - 2026-08-29
+
+### Features
+
+- feat(zdtp): normalize static CSS colors (20567e7)
+
+### Fixed
+
+- fix(zdtp): expose readonly swatches as selectable (c3c8c28)
+- fix(zdtp): restrict referencesRamps to Color tabs (8894399)
+- fix(zdtp): enforce readonly Palette editing (5c2445c)
+- fix(zdtp): guard palette validity transitions (73a59fb)
+- fix(zdtp): preserve invalid palette slots as n-a (0e456e5)
+- fix(doc): align preview with latest zfb (9cd81bb)
+
+### Other Changes
+
+- Merge pull request [#636](https://github.com/Takazudo/zudo-design-token-panel/pull/636) from Takazudo/base/sweep-260829: fix(zdtp): correct Palette behavior and public contracts (db3ee47)
+- docs(zdtp): document referencesRamps tab restriction (555b562)
+- Merge pull request [#645](https://github.com/Takazudo/zudo-design-token-panel/pull/645) from Takazudo/base/sweep-260829-portable-contract-docs: fix(zdtp): align portable contracts and ramp validation (452fc32)
+- Merge topic/630-reference-color-mode-docs (7abfa37)
+- docs: clarify reference emission and color modes (f447a99)
+- Merge topic/632-references-ramps-color-tabs (7df5b55)
+- Merge topic/631-required-write-root-docs (ae76e2b)
+- Merge topic/629-shipped-semantic-contract (0ba0294)
+- docs(zdtp): sync shipped semantic tier contract (4bbc5d5)
+- docs: require write-root in apply guidance (10c76b1)
+- Merge pull request [#640](https://github.com/Takazudo/zudo-design-token-panel/pull/640) from Takazudo/base/sweep-260829-palette-correctness: fix(zdtp): correct Palette color and readonly behavior (36c0972)
+- Merge branch 'topic/626-palette-readonly' into base/sweep-260829-palette-correctness (53575d9)
+- Merge branch 'topic/625-palette-invalid-na' into base/sweep-260829-palette-correctness (73c2c6c)
+- Merge branch 'topic/624-static-css-color-normalization' into base/sweep-260829-palette-correctness (858c131)
+- Merge pull request [#635](https://github.com/Takazudo/zudo-design-token-panel/pull/635) from Takazudo/base/sweep-260829-zudo-dependency-refresh: chore(doc): refresh stable zudo dependencies (db555eb)
+- Merge branch 'topic/621-zudo-dependency-family' into base/sweep-260829-zudo-dependency-refresh (16ed6cd)
+- chore(doc): bump stable zudo dependency family (579671a)
+- Merge pull request [#615](https://github.com/Takazudo/zudo-design-token-panel/pull/615) from Takazudo/fix/populate-doc-changelog-20260823: docs: populate changelog release history (9ce99a1)
+- docs: clarify changelog source and locale history (7a0c194)
+- docs: populate changelog release history (559a9c5)
+- Merge pull request [#614](https://github.com/Takazudo/zudo-design-token-panel/pull/614) from Takazudo/agent-fix/zdtp-lint-warnings-20260823: chore: resolve zdtp lint warnings (9f16688)
+- chore: resolve zdtp lint warnings (ed175ca)
+- Merge pull request [#612](https://github.com/Takazudo/zudo-design-token-panel/pull/612) from Takazudo/agent-fix/actions-cache-node24-20260823: ci: update actions/cache to Node 24 (ab0ad0d)
+- ci: update actions/cache to Node 24 (234459b)
+- Merge pull request [#610](https://github.com/Takazudo/zudo-design-token-panel/pull/610) from Takazudo/chore/bump-zudo-deps-20260823: chore(doc): update zudo stack and preview wiring (d6d0d54)
+- chore(doc): bump zudo dependencies (6d50555)
+
 ## [0.4.12] - 2026-08-20
 
 ### Fixed
