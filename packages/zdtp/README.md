@@ -1053,7 +1053,7 @@ zdtp.toggle(); // toggle open/closed
 - **Available on both integration paths:**
   - Non-Astro hosts get it as soon as `@takazudo/zdtp`'s package-root module has loaded (it installs the alias at module init).
   - Astro hosts get it as soon as the host-adapter `<script>` has run — **before** the panel bundle itself has loaded. The first `zdtp.*` call lazy-imports the bundle, exactly like `window[consoleNamespace].*`.
-- **Never clobbers a host-defined `window.zdtp`.** If your page already has its own `window.zdtp` for something unrelated, the package leaves it alone and logs a `console.warn` instead of overwriting it — including the edge case of choosing `consoleNamespace: 'zdtp'` yourself.
+- **Never clobbers a host-defined `window.zdtp`.** If the existing value exposes callable `show`, `hide`, and `toggle` methods, the package treats it as an intentional host alias and stays silent — enabling hosts to pre-claim the alias before lazily loading the panel bundle. Other existing values are still left untouched and produce a `console.warn`, including the edge case of choosing `consoleNamespace: 'zdtp'` yourself.
 - **Auto-remember applies too** — `zdtp.show()` arms the `:autoload` flag with `'auto'` provenance exactly like `showDesignPanel()` (§10.1's Auto-remember footgun note applies here as well).
 
 See `PORTABLE-CONTRACT.md` §6.5 for the full install-site and no-clobber/no-double-install contract.

@@ -118,8 +118,27 @@ describe('window.zdtp fixed-name global alias — package-root install (#523)', 
     expect(localStorage.getItem(AUTOLOAD_KEY)).toBe('auto');
   });
 
-  it('does not clobber a pre-existing host-defined window.zdtp', async () => {
-    const hostDefined = { custom: 'host-value' };
+  it('preserves a shape-compatible host alias without warning', async () => {
+    const hostDefined = {
+      show: vi.fn(),
+      hide: vi.fn(),
+      toggle: vi.fn(),
+    };
+    (window as unknown as Record<string, unknown>).zdtp = hostDefined;
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await freshImport();
+
+    expect((window as unknown as Record<string, unknown>).zdtp).toBe(hostDefined);
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('warns when one method on a host-defined window.zdtp is not callable', async () => {
+    const hostDefined = {
+      show: vi.fn(),
+      hide: vi.fn(),
+      toggle: 'host-value',
+    };
     (window as unknown as Record<string, unknown>).zdtp = hostDefined;
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
@@ -138,6 +157,23 @@ describe('window.zdtp fixed-name global alias — package-root install (#523)', 
     await expect(freshImport()).resolves.toBeDefined();
 
     expect((window as unknown as Record<string, unknown>).zdtp).toBeNull();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('window.zdtp already exists and was not installed by this package'),
+    );
+  });
+
+  it('does not crash when inspecting a host alias with a throwing method getter', async () => {
+    const hostDefined = Object.defineProperty({}, 'show', {
+      get() {
+        throw new Error('host getter failed');
+      },
+    });
+    (window as unknown as Record<string, unknown>).zdtp = hostDefined;
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await expect(freshImport()).resolves.toBeDefined();
+
+    expect((window as unknown as Record<string, unknown>).zdtp).toBe(hostDefined);
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining('window.zdtp already exists and was not installed by this package'),
     );
