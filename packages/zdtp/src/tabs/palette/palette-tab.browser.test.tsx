@@ -340,6 +340,47 @@ describe('PaletteTab browser — static and invalid palette values (#625)', () =
   });
 });
 
+describe('PaletteTab browser — readonly palette values (#626)', () => {
+  const readonlyTab: TabConfig = {
+    id: 'palette-readonly', label: 'Palette readonly', tiers: [{ id: 'brand', label: 'Brand', items: [
+      { id: 'brand-blue', cssVar: '--brand-blue', label: 'Brand blue', default: 'oklch(0.52 0.16 250)', type: { kind: 'color', format: 'oklch' } },
+      { id: 'brand-blue-strong', cssVar: '--brand-blue-strong', label: 'Brand blue strong', default: 'oklch(0.43 0.13 250)', type: { kind: 'color', format: 'oklch' }, readonly: true },
+    ] }],
+  };
+
+  it('keeps the exact #618 readonly color painted and inspectable without edit targets', async () => {
+    const changes: Array<[string, string, string]> = [];
+    await renderPaletteTab(readonlyTab, {}, (tierId, itemId, next) => {
+      changes.push([tierId, itemId, next]);
+    });
+    await openGroup('brand');
+    const writable = container.querySelector<HTMLElement>('[data-testid="palette-edit-swatch-brand-blue"]')!;
+    const locked = container.querySelector<HTMLElement>('[data-testid="palette-edit-swatch-brand-blue-strong"]')!;
+    expect(getComputedStyle(writable).backgroundColor).not.toBe(getComputedStyle(locked).backgroundColor);
+    expect(locked.getAttribute('aria-disabled')).toBe('true');
+    expect(locked.querySelector('.tokenpanel-palette-edit-swatch-lock')).not.toBeNull();
+    expect(container.querySelector('[data-node-index="1"]')).not.toBeNull();
+    expect(container.querySelector('[data-node-hit="1"]')).toBeNull();
+    const blocker = container.querySelector<SVGElement>('[data-readonly-blocker="1"][data-channel="l"]')!;
+    const curve = container.querySelector<SVGSVGElement>('[data-testid="palette-chart-curve-l"]')!;
+    const blockerRect = blocker.getBoundingClientRect();
+    const lockedMarkerHit = document.elementFromPoint(
+      blockerRect.left + blockerRect.width / 2,
+      blockerRect.top + blockerRect.height / 2,
+    );
+    expect(lockedMarkerHit).toBe(blocker);
+    await act(() => {
+      lockedMarkerHit!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 31, clientY: 100 }));
+      curve.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerId: 31, clientY: 50 }));
+      curve.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 31, clientY: 50 }));
+    });
+    expect(changes).toEqual([]);
+    await act(() => { locked.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    expect(container.querySelector('[data-testid="palette-readout-token"]')?.textContent).toContain('--brand-blue-strong');
+    expect(container.querySelector('[data-testid="color-field-swatch"]')).toBeNull();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 3. DOM-hygiene invariants
 // ---------------------------------------------------------------------------
