@@ -83,6 +83,8 @@ const CURVE_STROKE_W = 2;
  * visible stroke; nodes still win because they render after it.
  */
 const CURVE_HIT_STROKE_W = 16;
+/** Inert readonly blocker radius in screen pixels; covers the curve hit stroke. */
+const READONLY_BLOCK_R_PX = CURVE_HIT_STROKE_W / 2 + 2;
 
 /** Render order of channel curves (drawn bottom-up; later = on top). */
 const CHANNELS: readonly Channel[] = ['l', 'c', 'h'] as const;
@@ -105,8 +107,19 @@ function quantize(value: number, channel: Channel): number {
 // ── Types ───────────────────────────────────────────────────────────────────
 
 export interface PaletteChartProps {
-  /** Palette colors in OKLCH space. Band `i` = oklchaToHex(colors[i]). */
-  colors: Oklcha[];
+  /**
+   * Dense palette slots in OKLCH space. A null slot preserves its index/band,
+   * but has no numeric curve node and is not editable.
+   */
+  colors: Array<Oklcha | null>;
+  /**
+   * Dense per-index write permission, separate from color validity. A valid
+   * readonly color remains painted in the bands/curves, but receives no node
+   * hit target and is excluded from whole-curve editing.
+   */
+  editable: boolean[];
+  /** Dense stable item identities used to invalidate stale index-based gestures. */
+  identities: string[];
   /** Index of the currently selected color/step (highlighted band + node column). */
   selectedIndex: number;
   /** Which curves are drawn. Owned by the parent; chart only consumes. */
@@ -155,20 +168,70 @@ function channelValue(color: Oklcha, channel: Channel): number {
 }
 
 /** Build the polyline points string for one channel's curve. */
-function curvePoints(colors: Oklcha[], channel: Channel): string {
-  return colors
-    .map((c, i) => {
+interface CurveSegment {
+  points: string;
+}
+
+function curveSegments(colors: Array<Oklcha | null>, channel: Channel): CurveSegment[] {
+  const segments: string[][] = [];
+  let current: string[] = [];
+  colors.forEach((c, i) => {
+    if (c) {
       const x = stepX(i, colors.length);
       const y = valueToY(channelValue(c, channel), channel);
-      return `${x.toFixed(2)},${y.toFixed(2)}`;
-    })
-    .join(' ');
+      current.push(`${x.toFixed(2)},${y.toFixed(2)}`);
+      return;
+    }
+    if (current.length > 0) segments.push(current);
+    current = [];
+  });
+  if (current.length > 0) segments.push(current);
+  return segments.map((points) => ({ points: points.join(' ') }));
+}
+
+/**
+ * Pointer paths follow each valid visual edge but stop short of readonly
+ * endpoints. This preserves whole-curve grabbing from the writable portion of
+ * a mixed edge without making the locked marker coordinate pointer-active.
+ */
+function curveHitSegments(
+  colors: Array<Oklcha | null>,
+  editable: boolean[],
+  channel: Channel,
+): string[] {
+  const hitSegments: string[] = [];
+  const readonlyTrim = 0.2;
+  for (let i = 0; i < colors.length - 1; i += 1) {
+    const from = colors[i];
+    const to = colors[i + 1];
+    if (!from || !to || (!editable[i] && !editable[i + 1])) continue;
+    const fromPoint = {
+      x: stepX(i, colors.length),
+      y: valueToY(channelValue(from, channel), channel),
+    };
+    const toPoint = {
+      x: stepX(i + 1, colors.length),
+      y: valueToY(channelValue(to, channel), channel),
+    };
+    const pointAt = (ratio: number) => ({
+      x: fromPoint.x + (toPoint.x - fromPoint.x) * ratio,
+      y: fromPoint.y + (toPoint.y - fromPoint.y) * ratio,
+    });
+    const hitFrom = pointAt(editable[i] ? 0 : readonlyTrim);
+    const hitTo = pointAt(editable[i + 1] ? 1 : 1 - readonlyTrim);
+    hitSegments.push(
+      `${hitFrom.x.toFixed(2)},${hitFrom.y.toFixed(2)} ${hitTo.x.toFixed(2)},${hitTo.y.toFixed(2)}`,
+    );
+  }
+  return hitSegments;
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
 
 function PaletteChartImpl({
   colors,
+  editable,
+  identities,
   selectedIndex,
   visibleChannels,
   onChange,
@@ -221,6 +284,8 @@ function PaletteChartImpl({
   const scaleY = chartSize.h > 0 ? chartSize.h / VIEW_H : 1;
   const nodeRx = NODE_R_VISUAL_PX / scaleX;
   const nodeRy = NODE_R_VISUAL_PX / scaleY;
+  const readonlyBlockRx = READONLY_BLOCK_R_PX / scaleX;
+  const readonlyBlockRy = READONLY_BLOCK_R_PX / scaleY;
 
   // Keep callbacks in refs so the imperative pointer listeners (registered once
   // per channel SVG) always call the latest props without re-subscribing.
@@ -235,19 +300,24 @@ function PaletteChartImpl({
 
   // Snapshot of the live `colors` so curve-drag pointer-down reads the latest
   // node values without churning the listener registration.
-  const colorsRef = useRef<Oklcha[]>(colors);
+  const colorsRef = useRef<Array<Oklcha | null>>(colors);
   colorsRef.current = colors;
+  const editableRef = useRef<boolean[]>(editable);
+  editableRef.current = editable;
+  const identitiesRef = useRef<string[]>(identities);
+  identitiesRef.current = identities;
 
   // Tracks the in-flight drag. Discriminated so the node and curve move paths
   // can never cross-fire: a node drag and a whole-curve drag are mutually
   // exclusive and each path bails unless `kind` matches.
   const dragRef = useRef<
-    | { kind: 'node'; index: number; channel: Channel }
+    | { kind: 'node'; index: number; identity: string; channel: Channel }
     | {
         kind: 'curve';
         channel: Channel;
         startPointerValue: number;
-        startValues: number[];
+        startValues: Array<number | null>;
+        startIdentities: Array<string | null>;
       }
     | null
   >(null);
@@ -260,9 +330,11 @@ function PaletteChartImpl({
         index: i,
         x: (i / colors.length) * VIEW_W,
         width: VIEW_W / Math.max(1, colors.length),
-        fill: oklchaToHex(c),
+        fill: c ? oklchaToHex(c) : undefined,
+        valid: c !== null,
+        editable: Boolean(c && editable[i]),
       })),
-    [colors],
+    [colors, editable],
   );
 
   /** Map a clientY to a clamped+quantized channel value via the channel's SVG rect. */
@@ -312,6 +384,9 @@ function PaletteChartImpl({
         if (nodeHit) {
           // Per-node drag wins over curve drag.
           const index = Number(nodeHit.getAttribute('data-node-hit'));
+          if (!colorsRef.current[index] || !editableRef.current[index]) return;
+          const identity = identitiesRef.current[index];
+          if (!identity) return;
           e.preventDefault();
           // Stop the event from also being read as a curve grab.
           e.stopPropagation();
@@ -320,7 +395,7 @@ function PaletteChartImpl({
           } catch {
             // jsdom does not implement setPointerCapture; ignore.
           }
-          dragRef.current = { kind: 'node', index, channel };
+          dragRef.current = { kind: 'node', index, identity, channel };
           onSelectIndexRef.current(index);
           onChangeStartRef.current?.();
           return;
@@ -333,14 +408,19 @@ function PaletteChartImpl({
           } catch {
             // jsdom does not implement setPointerCapture; ignore.
           }
-          const startValues = colorsRef.current.map((c) =>
-            channelValue(c, channel),
+          const startValues = colorsRef.current.map((c, index) =>
+            c && editableRef.current[index] ? channelValue(c, channel) : null,
           );
+          const startIdentities = startValues.map((value, index) =>
+            value === null ? null : identitiesRef.current[index] ?? null,
+          );
+          if (!startValues.some((value) => value !== null)) return;
           dragRef.current = {
             kind: 'curve',
             channel,
             startPointerValue: eventToValue(e.clientY, channel),
             startValues,
+            startIdentities,
           };
           onChangeStartRef.current?.();
         }
@@ -351,6 +431,11 @@ function PaletteChartImpl({
         if (!drag || drag.channel !== channel) return;
 
         if (drag.kind === 'node') {
+          if (
+            !colorsRef.current[drag.index] ||
+            !editableRef.current[drag.index] ||
+            identitiesRef.current[drag.index] !== drag.identity
+          ) return;
           onChangeRef.current(
             drag.index,
             channel,
@@ -362,14 +447,28 @@ function PaletteChartImpl({
         // Whole-curve drag — translate every node by ONE clamped delta so the
         // shape is preserved and translation stops when any node hits the
         // channel's [0, CHANNEL_MAX] boundary (Prism parity).
-        const { startValues, startPointerValue } = drag;
+        const { startValues, startIdentities, startPointerValue } = drag;
         if (startValues.length === 0) return;
         const max = CHANNEL_MAX[channel];
         const rawDelta = eventToValue(e.clientY, channel) - startPointerValue;
-        const minV = Math.min(...startValues);
-        const maxV = Math.max(...startValues);
+        const editableValues = startValues.filter(
+          (value, index): value is number =>
+            value !== null &&
+            Boolean(colorsRef.current[index]) &&
+            Boolean(editableRef.current[index]) &&
+            identitiesRef.current[index] === startIdentities[index],
+        );
+        if (editableValues.length === 0) return;
+        const minV = Math.min(...editableValues);
+        const maxV = Math.max(...editableValues);
         const delta = clamp(rawDelta, -minV, max - maxV);
         startValues.forEach((v, i) => {
+          if (
+            v === null ||
+            !colorsRef.current[i] ||
+            !editableRef.current[i] ||
+            identitiesRef.current[i] !== startIdentities[i]
+          ) return;
           onChangeRef.current(i, channel, quantize(v + delta, channel));
         });
       }
@@ -403,7 +502,12 @@ function PaletteChartImpl({
 
   /** Keyboard handler for a focused node. Mirrors CustomSlider's key map. */
   const handleNodeKeyDown = useCallback(
-    (e: KeyboardEvent, index: number, channel: Channel, value: number) => {
+    (e: KeyboardEvent, index: number, identity: string, channel: Channel, value: number) => {
+      if (
+        !colorsRef.current[index] ||
+        !editableRef.current[index] ||
+        identitiesRef.current[index] !== identity
+      ) return;
       const max = CHANNEL_MAX[channel];
       const step = CHANNEL_STEP[channel];
       const coarse = step * 10;
@@ -462,6 +566,9 @@ function PaletteChartImpl({
             height={VIEW_H}
             fill={b.fill}
             data-band-index={b.index}
+            data-invalid={b.valid ? undefined : true}
+            data-readonly={b.valid && !b.editable ? true : undefined}
+            className={b.valid ? undefined : 'tokenpanel-palette-chart-band is-invalid'}
             opacity={b.index === selectedIndex ? 1 : 0.82}
           />
         ))}
@@ -486,10 +593,11 @@ function PaletteChartImpl({
                 after) win an overlapping pointer-down. `pointer-events: stroke`
                 (CSS) makes only the stroke grabbable, so the stacked channel
                 SVGs don't steal events from lower channels. */}
-            {colors.length > 1 && (
+            {curveHitSegments(colors, editable, channel).map((points, segmentIndex) => (
               <polyline
+                key={`hit-segment-${channel}-${segmentIndex}`}
                 className="tokenpanel-palette-chart-hit-line"
-                points={curvePoints(colors, channel)}
+                points={points}
                 fill="none"
                 stroke="transparent"
                 strokeWidth={CURVE_HIT_STROKE_W}
@@ -500,29 +608,42 @@ function PaletteChartImpl({
                 data-testid={`palette-chart-hit-line-${channel}`}
                 data-channel={channel}
               />
-            )}
-            {/* Connecting line between nodes (non-interactive). */}
-            <polyline
-              className="tokenpanel-palette-chart-line"
-              points={curvePoints(colors, channel)}
-              fill="none"
-              strokeWidth={CURVE_STROKE_W}
-              vectorEffect="non-scaling-stroke"
-              pointerEvents="none"
-            />
+            ))}
+            {curveSegments(colors, channel).map((segment, segmentIndex) => (
+              <g key={`segment-${channel}-${segmentIndex}`}>
+                <polyline
+                  className="tokenpanel-palette-chart-line"
+                  points={segment.points}
+                  fill="none"
+                  strokeWidth={CURVE_STROKE_W}
+                  vectorEffect="non-scaling-stroke"
+                  pointerEvents="none"
+                />
+              </g>
+            ))}
             {colors.map((c, i) => {
+              if (!c) return null;
               const value = channelValue(c, channel);
               const x = stepX(i, colors.length);
               const y = valueToY(value, channel);
               const isSelected = i === selectedIndex;
+              const isEditable = Boolean(editable[i]);
               return (
-                <g key={`node-${channel}-${i}`} data-node-index={i}>
+                <g
+                  key={`node-${channel}-${i}`}
+                  data-node-index={i}
+                  data-readonly={isEditable ? undefined : true}
+                >
                   {/* Visual node (non-interactive — the hit circle handles
                       pointers). Drawn as an ellipse with rx/ry counter-scaled
                       so it lands as a true NODE_R_VISUAL_PX-radius circle
                       despite preserveAspectRatio="none" stretching the viewBox. */}
                   <ellipse
-                    className="tokenpanel-palette-chart-node-visual"
+                    className={
+                      isEditable
+                        ? 'tokenpanel-palette-chart-node-visual'
+                        : 'tokenpanel-palette-chart-node-visual is-readonly'
+                    }
                     cx={x}
                     cy={y}
                     rx={nodeRx}
@@ -535,31 +656,64 @@ function PaletteChartImpl({
                   {/* Hit area — carries pointer capture (via delegation) +
                       keyboard. role="slider" so it is operable without a
                       pointer. */}
-                  <circle
-                    className="tokenpanel-palette-chart-node-hit"
-                    cx={x}
-                    cy={y}
-                    r={NODE_R_HIT}
-                    fill="transparent"
-                    tabIndex={0}
-                    role="slider"
-                    aria-label={`${channel.toUpperCase()} of color ${i + 1}`}
-                    aria-valuemin={0}
-                    aria-valuemax={CHANNEL_MAX[channel]}
-                    aria-valuenow={value}
-                    data-channel={channel}
-                    data-node-hit={i}
-                    onKeyDown={(e: JSX.TargetedKeyboardEvent<SVGCircleElement>) =>
-                      handleNodeKeyDown(e, i, channel, value)
-                    }
-                    onFocus={() => onSelectIndexRef.current(i)}
-                  />
+                  {isEditable && (
+                    <circle
+                      className="tokenpanel-palette-chart-node-hit"
+                      cx={x}
+                      cy={y}
+                      r={NODE_R_HIT}
+                      fill="transparent"
+                      tabIndex={0}
+                      role="slider"
+                      aria-label={`${channel.toUpperCase()} of color ${i + 1}`}
+                      aria-valuemin={0}
+                      aria-valuemax={CHANNEL_MAX[channel]}
+                      aria-valuenow={value}
+                      data-channel={channel}
+                      data-node-hit={i}
+                      onKeyDown={(e: JSX.TargetedKeyboardEvent<SVGCircleElement>) =>
+                        handleNodeKeyDown(e, i, identities[i] ?? '', channel, value)
+                      }
+                      onFocus={() => onSelectIndexRef.current(i)}
+                    />
+                  )}
                 </g>
               );
             })}
           </svg>
         );
       })}
+      {/* A final SVG sits above every channel layer. Its inert ellipses prevent
+          any underlying node/curve target (including another stacked channel)
+          from winning hit-testing at a readonly marker coordinate. */}
+      <svg
+        className="tokenpanel-palette-chart-blockers"
+        viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+        preserveAspectRatio="none"
+        role="presentation"
+        aria-hidden="true"
+      >
+        {CHANNELS.flatMap((channel) => {
+          if (!visibleChannels[channel]) return [];
+          return colors.map((c, i) => {
+            if (!c || editable[i]) return null;
+            return (
+              <ellipse
+                key={`readonly-blocker-${channel}-${i}`}
+                className="tokenpanel-palette-chart-readonly-blocker"
+                cx={stepX(i, colors.length)}
+                cy={valueToY(channelValue(c, channel), channel)}
+                rx={readonlyBlockRx}
+                ry={readonlyBlockRy}
+                fill="transparent"
+                pointerEvents="all"
+                data-readonly-blocker={i}
+                data-channel={channel}
+              />
+            );
+          });
+        })}
+      </svg>
     </div>
   );
 }

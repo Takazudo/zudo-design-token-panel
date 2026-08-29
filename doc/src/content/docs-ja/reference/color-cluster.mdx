@@ -128,13 +128,13 @@ export const colorTab: TabConfig = {
 
 ## タブをまたぐランプ参照（`referencesRamps`）
 
-`semantic: true` ティアは、スタンドアロンのリテラルに限定されません。`TierConfig.referencesRamps` は 1 つ以上の*ランプソース*、すなわちセマンティックティアの行が参照できるアイテムを持つティア（任意で別タブ上のもの）を宣言します。
+`TierConfig.referencesRamps` を使用できるのは、id が正確に `color` または `color-secondary` である `TabConfig` 内の `semantic: true` ティアだけです。このフィールドは 1 つ以上の*ランプソース*、すなわちセマンティックティアの行が参照できるアイテムを持つティア（任意で別タブ上のもの）を宣言します。
 
 ```ts
 referencesRamps?: readonly { tab?: string; tier: string }[];
 ```
 
-各エントリはティアの `id` と、任意で `tab` の id を指定します（`tab` を省略すると「このタブ」を意味します）。`assertValidPanelConfig` は宣言されたすべてのソースを事前に検証します。未知のタブやティアは、いずれかの行がレンダリングされる前に、明確な configure 時エラーを投げます。
+それ以外の親タブ id は configure 時に拒否されます。各エントリはティアの `id` と、任意でソース側の `tab` id を指定します（`tab` を省略すると「このタブ」を意味します）。`assertValidPanelConfig` は宣言されたすべてのソースを事前に検証します。未知のタブやティアは、いずれかの行がレンダリングされる前に、明確な configure 時エラーを投げます。
 
 ### 実例: Palette タブがカラータブのセマンティックティアに値を供給する
 
@@ -421,8 +421,9 @@ export interface ClusterPanelSettings {
   /** Scheme name to seed state from when `colorMode` is `false`. */
   colorScheme: string;
   /**
-   * `false` to disable light/dark UI; an object to honour `data-theme` on
-   * `<html>` and switch schemes on init.
+   * `false` disables scheme-to-`data-theme` binding only; it does not disable
+   * per-mode editing or change what gets emitted. An object honours `data-theme`
+   * on `<html>` and switches schemes on init.
    */
   colorMode: false | { defaultMode: 'light' | 'dark'; lightScheme: string; darkScheme: string };
 }

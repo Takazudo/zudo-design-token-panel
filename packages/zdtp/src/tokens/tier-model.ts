@@ -139,11 +139,13 @@ export interface TierConfig {
    */
   semantic?: true;
   /**
-   * Cross-tab ramp-source declaration for a semantic tier: the ramp tier(s)
-   * this tier's `{ ref }` mappings are allowed to point into. Each entry names
-   * a tier id and an optional tab id (omitted `tab` means "this tab").
-   * `assertValidPanelConfig` validates every declared source up front (the
-   * tab/tier must exist and share this tier's kind); `resolveColorClusterFromTab`
+   * Cross-tab ramp-source declaration for a semantic tier owned by a tab whose
+   * id is exactly `color` or `color-secondary`; `assertValidPanelConfig`
+   * rejects every other owning tab id. The ramp tier(s) are the sources this
+   * tier's `{ ref }` mappings may point into. Each entry names a tier id and an
+   * optional tab id (omitted `tab` means "this tab"). The validator also checks
+   * every declared source up front (the tab/tier must exist and share this
+   * tier's kind); `resolveColorClusterFromTab`
    * (`config/cluster-config.ts`) uses the allow-list to derive each row's
    * `SemanticValue`; the grouped `TierRefSelector` picker
    * (`controls/tier-ref-selector.tsx`) renders one `<optgroup>` per declared

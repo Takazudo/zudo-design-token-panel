@@ -401,6 +401,15 @@ export interface PillSpec {
   customDefault: string;
 }
 
+/** Mapping value for a semantic color token (legacy and ramp-native forms). */
+export type SemanticValue =
+  | number
+  | 'bg'
+  | 'fg'
+  | { literal: string }
+  | { literal: { light: string; dark: string } }
+  | { ref: { tab?: string; tier: string; item: string } };
+
 /** A single editable or reference token within a tier. */
 export interface TierItem {
   /** Stable id used as the key in persisted state (e.g. `hsp-2xs`). */
@@ -435,7 +444,25 @@ export interface TierConfig {
    * pipeline emits `var(--target-cssvar)` for ref-tier items at apply time.
    */
   referencesTier?: string;
+  /**
+   * Marks a Color-tab tier as semantic data whose items hold `SemanticValue`
+   * mappings rather than raw palette entries. It is never treated as the
+   * palette tier, so a Color tab may contain a lone semantic tier.
+   */
+  semantic?: true;
+  /**
+   * Valid only when this semantic tier belongs to a tab whose id is exactly
+   * `color` or `color-secondary`; other owning tab ids are rejected at
+   * configure time. Declares one or more permitted same- or cross-tab ramp
+   * sources for per-row semantic `{ ref }` mappings. Each entry names a tier
+   * and optional tab (`tab` omitted means this tab); unlike `referencesTier`,
+   * this is a multi-source allow-list for individual semantic mappings.
+   */
+  referencesRamps?: readonly { tab?: string; tier: string }[];
 }
+
+For the full `SemanticValue` mapping and emission behavior, see the maintained
+[Color-cluster reference](https://zudo-design-token-panel.takazudomodular.com/docs/reference/color-cluster/).
 
 /**
  * Color-cluster extras — the non-tier fields required for the color tab.
@@ -629,7 +656,9 @@ export interface ColorClusterExtras {
     /**
      * Optional light/dark pairing. When set to an object, the panel honours
      * `document.documentElement[data-theme]` and switches schemes accordingly
-     * on init. Set to `false` to disable the light/dark UI.
+     * on init. Set to `false` to disable scheme-to-`data-theme` binding; this
+     * does not disable per-mode literal editing or emitted `light-dark(...)`
+     * values.
      */
     colorMode: false | { defaultMode: 'light' | 'dark'; lightScheme: string; darkScheme: string };
   };
