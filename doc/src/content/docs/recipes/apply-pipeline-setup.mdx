@@ -82,10 +82,12 @@ The flags above are the recommended minimum:
 
 - **`--routing ./panel-routing.json`** — required. The single source of
   truth for prefix → file routing.
-- **`--write-root ./src/styles`** — optional but strongly recommended.
-  The bin will refuse to write outside this tree, so a typo or path-escape
-  attempt cannot clobber files elsewhere in your repo. Defaults to
-  `--root` (which itself defaults to `process.cwd()`).
+- **`--write-root ./src/styles`** — required. This is the narrow directory
+  tree the bin is allowed to write into; keep it limited to the files the
+  panel edits so a typo or path-escape attempt cannot clobber other files in
+  your repo.
+- **`--root <dir>`** — optional. This is the CWD/resolution base for relative
+  `--routing` and `--write-root` paths, and defaults to `process.cwd()`.
 - **`--allow-origin http://localhost:5173`** — required for any browser to
   apply. Pass each dev origin you actually serve from. Repeatable.
 
