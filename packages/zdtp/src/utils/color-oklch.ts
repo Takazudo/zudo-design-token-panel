@@ -205,6 +205,57 @@ export function isInSrgbGamut(o: Oklcha): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// staticCssColorToOklcha
+// ---------------------------------------------------------------------------
+
+/**
+ * Normalize a bounded, context-free CSS color to the panel's `Oklcha` shape.
+ *
+ * Culori handles static colors supported by the registered RGB, HSL, and
+ * OKLCH modes (including hex and named colors). Raw `oklch()` input is routed
+ * through `cssToOklcha` first so wide-gamut channel values are preserved
+ * without an intermediate conversion or gamut clamp.
+ *
+ * Context-dependent and unsupported syntax such as `var()`, `currentColor`,
+ * and `color-mix()` returns null. This function never substitutes a fallback
+ * color for invalid input.
+ */
+export function staticCssColorToOklcha(css: string): Oklcha | null {
+  const trimmed = css.trim();
+  if (!trimmed) return null;
+
+  // Keep cssToOklcha's strict parsing semantics for every oklch() spelling,
+  // including malformed input. Falling through to Culori here could alter raw
+  // channels or accept syntax that strict callers intentionally reject.
+  if (/^oklch\s*\(/i.test(trimmed)) {
+    return cssToOklcha(trimmed);
+  }
+
+  try {
+    // CSS color function names and keywords are ASCII case-insensitive. Culori
+    // expects lower-case function names, so normalize case at this boundary.
+    const parsed = parse(trimmed.toLowerCase());
+    if (!parsed) return null;
+
+    const ok = toOklch(parsed);
+    if (!ok || !Number.isFinite(ok.l) || !Number.isFinite(ok.c)) return null;
+    if (ok.h !== undefined && !Number.isFinite(ok.h)) return null;
+    if (ok.alpha !== undefined && !Number.isFinite(ok.alpha)) return null;
+
+    return {
+      l: ok.l * 100,
+      c: ok.c,
+      // Culori omits hue for achromatic colors; panel consumers require a
+      // finite channel, and zero is the neutral canonical representation.
+      h: ok.h ?? 0,
+      a: (ok.alpha ?? 1) * 100,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // cssToOklcha
 // ---------------------------------------------------------------------------
 

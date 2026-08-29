@@ -103,6 +103,66 @@ const TAB_FIXTURE: TabConfig = {
   ],
 };
 
+const READONLY_TAB: TabConfig = {
+  id: 'palette-readonly',
+  label: 'Palette readonly',
+  tiers: [
+    {
+      id: 'brand',
+      label: 'Brand',
+      items: [
+        {
+          id: 'brand-blue',
+          cssVar: '--brand-blue',
+          label: 'Brand blue',
+          default: 'oklch(0.52 0.16 250)',
+          type: { kind: 'color', format: 'oklch' },
+        },
+        {
+          id: 'brand-blue-strong',
+          cssVar: '--brand-blue-strong',
+          label: 'Brand blue strong',
+          default: 'oklch(0.43 0.13 250)',
+          type: { kind: 'color', format: 'oklch' },
+          readonly: true,
+        },
+      ],
+    },
+    {
+      id: 'effective',
+      label: 'Effective selection',
+      items: [
+        {
+          id: 'locked-first', cssVar: '--locked-first', label: 'Locked first',
+          default: 'oklch(40% 0.1 250)', type: { kind: 'color', format: 'oklch' }, readonly: true,
+        },
+        {
+          id: 'override-invalid', cssVar: '--override-invalid', label: 'Override invalid',
+          default: 'oklch(50% 0.1 250)', type: { kind: 'color', format: 'oklch' },
+        },
+        {
+          id: 'override-valid', cssVar: '--override-valid', label: 'Override valid',
+          default: 'var(--context)', type: { kind: 'color', format: 'oklch' },
+        },
+      ],
+    },
+    {
+      id: 'locked',
+      label: 'Locked ramp',
+      items: [
+        {
+          id: 'locked-0', cssVar: '--locked-0', label: 'Locked 0',
+          default: 'oklch(30% 0.1 250)', type: { kind: 'color', format: 'oklch' }, readonly: true,
+        },
+        {
+          id: 'locked-1', cssVar: '--locked-1', label: 'Locked 1',
+          default: 'oklch(60% 0.1 250)', type: { kind: 'color', format: 'oklch' }, readonly: true,
+        },
+      ],
+    },
+  ],
+};
+
 // ---------------------------------------------------------------------------
 // Harness
 // ---------------------------------------------------------------------------
@@ -668,5 +728,400 @@ describe('PaletteEditView — batched commit', () => {
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(onChange.mock.calls[0][0]).toBe('gray');
     expect(onChange.mock.calls[0][1]).toBe('gray-1');
+  });
+
+  it('fallback emits only the filtered patch when a step becomes invalid mid-gesture', () => {
+    const onChange = vi.fn();
+    renderView({ onChange });
+    openGroup('gray');
+    const svg = primeChannelSvg('l');
+    const hitLine = container.querySelector<SVGPolylineElement>(
+      '[data-testid="palette-chart-hit-line-l"]',
+    )!;
+    stubPointerCapture(hitLine);
+
+    firePointer(hitLine, 'pointerdown', { pointerId: 9, clientY: clientYForL(50) });
+    firePointer(svg, 'pointermove', { pointerId: 9, clientY: clientYForL(55) });
+    // The gesture accumulator contains all three steps, but gray-1 is no
+    // longer persistable by the time the commit boundary closes.
+    renderView({ onChange, overrides: { gray: { 'gray-1': 'var(--gray-1)' } } });
+    firePointer(svg, 'pointerup', { pointerId: 9, clientY: clientYForL(55) });
+
+    expect(onChange.mock.calls.map((call) => call[1])).toEqual(['gray-0', 'gray-2']);
+    expect(onChange.mock.calls.every((call) => typeof call[2] === 'string')).toBe(true);
+  });
+});
+
+describe('PaletteEditView — static CSS colors and invalid slots (#625)', () => {
+  const tab: TabConfig = {
+    id: 'palette', label: 'Palette', tiers: [{
+      id: 'paper', label: 'Paper', items: [
+        { id: 'white', cssVar: '--paper-white', label: 'White', default: '#ffffff', type: { kind: 'color', format: 'oklch' } },
+        { id: 'invalid', cssVar: '--paper-context', label: 'Context', default: 'var(--paper)', type: { kind: 'color', format: 'oklch' } },
+        { id: 'offwhite', cssVar: '--paper-offwhite', label: 'Off white', default: '#f6f4ee', type: { kind: 'color', format: 'oklch' } },
+        { id: 'rgb', cssVar: '--paper-rgb', label: 'RGB', default: 'rgb(10 20 30 / 50%)', type: { kind: 'color', format: 'oklch' } },
+        { id: 'hsl', cssVar: '--paper-hsl', label: 'HSL', default: 'hsl(120 50% 50%)', type: { kind: 'color', format: 'oklch' } },
+        { id: 'mix', cssVar: '--paper-mix', label: 'Mix', default: 'color-mix(in srgb, red, blue)', type: { kind: 'color', format: 'oklch' } },
+      ],
+    }],
+  };
+
+  it('renders exact white/off-white repro colors and parses rgb/hsl with alpha', () => {
+    renderView({ tab });
+    const chips = container.querySelectorAll<HTMLElement>('.tokenpanel-palette-edit-preview-chip');
+    expect(chips[0].style.background).toBe('rgb(255, 255, 255)');
+    expect(chips[2].style.background).toBe('rgb(246, 244, 238)');
+    expect(chips[3].style.background).toContain('rgba(10, 20, 30, 0.5)');
+    expect(chips[4].style.background).not.toBe('');
+    expect(chips[1].classList.contains('is-invalid')).toBe(true);
+    expect(chips[5].classList.contains('is-invalid')).toBe(true);
+
+    openGroup('paper');
+    expect(container.querySelector<HTMLElement>('[data-testid="palette-edit-swatch-white"]')?.style.background).toBe('rgb(255, 255, 255)');
+    expect(container.querySelector('[data-band-index="0"]')?.getAttribute('fill')).toBe('#ffffff');
+    expect(container.querySelector('[data-band-index="2"]')?.getAttribute('fill')).toBe('#f6f4ee');
+    expect(container.querySelector('[data-testid="palette-readout-hex"]')?.textContent).toContain('#ffffff');
+    const rgb = container.querySelector<HTMLElement>('[data-testid="palette-edit-swatch-rgb"]')!;
+    act(() => { rgb.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    expect(container.querySelector('[data-testid="palette-readout-hex"]')?.textContent).toContain('#0a141e80');
+    expect(container.querySelector('[data-testid="palette-readout-oklch"]')?.textContent).toContain('/ 0.50');
+  });
+
+  it('keeps invalid positions visible, names their value, and exposes no editor/node', () => {
+    renderView({ tab });
+    openGroup('paper');
+    const invalid = container.querySelector<HTMLElement>('[data-testid="palette-edit-swatch-invalid"]')!;
+    expect(invalid.getAttribute('data-invalid')).toBe('true');
+    expect(invalid.getAttribute('aria-label')).toContain('var(--paper)');
+    expect(container.querySelector('[data-node-hit="1"]')).toBeNull();
+    act(() => { invalid.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    expect(container.querySelector('[data-testid="color-field-swatch"]')).toBeNull();
+    expect(container.querySelector('[data-testid="palette-readout-invalid-value"]')?.textContent).toContain('var(--paper)');
+  });
+
+  it('uses current validity when an invalid selected step becomes directly editable', () => {
+    const onChange = vi.fn();
+    renderView({
+      tab,
+      onChange,
+      overrides: { paper: { white: 'var(--paper-white)' } },
+    });
+    openGroup('paper');
+    const white = container.querySelector<HTMLElement>('[data-testid="palette-edit-swatch-white"]')!;
+    act(() => { white.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    expect(container.querySelector('[data-testid="color-field-swatch"]')).toBeNull();
+
+    renderView({
+      tab,
+      onChange,
+      overrides: { paper: { white: 'oklch(50% 0 0)' } },
+    });
+    const field = container.querySelector<HTMLElement>('[data-testid="color-field-swatch"]')!;
+    act(() => { field.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    const lightness = container.querySelector<HTMLElement>('[role="slider"][aria-label="Lightness"]')!;
+    expect(lightness).not.toBeNull();
+    act(() => {
+      lightness.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+    });
+    expect(onChange).toHaveBeenCalled();
+    expect(onChange.mock.calls[0].slice(0, 2)).toEqual(['paper', 'white']);
+  });
+
+  it('excludes invalid slots from whole-curve batch patches', () => {
+    const onCommitBatch = vi.fn();
+    renderView({ tab, onCommitBatch });
+    openGroup('paper');
+    const svg = primeChannelSvg('l');
+    const hitLine = container.querySelector<SVGPolylineElement>('[data-testid="palette-chart-hit-line-l"]')!;
+    stubPointerCapture(hitLine);
+    firePointer(hitLine, 'pointerdown', { clientY: clientYForL(50) });
+    firePointer(svg, 'pointermove', { clientY: clientYForL(45) });
+    firePointer(svg, 'pointerup', { clientY: clientYForL(45) });
+    const patch = onCommitBatch.mock.calls[0][1] as Record<string, string>;
+    expect(patch.invalid).toBeUndefined();
+    expect(patch.mix).toBeUndefined();
+    expect(Object.keys(patch)).toEqual(expect.arrayContaining(['white', 'offwhite', 'rgb', 'hsl']));
+  });
+});
+
+describe('PaletteEditView — readonly palette entries (#626)', () => {
+  function fireKey(el: Element, key: string): void {
+    act(() => {
+      el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+    });
+  }
+
+  it('matches the #618 mixed repro: locked inspection is visible but never live-editable', () => {
+    const onChange = vi.fn();
+    renderView({ tab: READONLY_TAB, onChange });
+    openGroup('brand');
+
+    const writable = container.querySelector<HTMLElement>('[data-testid="palette-edit-swatch-brand-blue"]')!;
+    const locked = container.querySelector<HTMLElement>('[data-testid="palette-edit-swatch-brand-blue-strong"]')!;
+    expect(writable.getAttribute('aria-pressed')).toBe('true');
+    expect(locked.getAttribute('aria-disabled')).toBe('true');
+    expect(locked.getAttribute('aria-label')).toContain('locked, read-only');
+    expect(locked.querySelector('.tokenpanel-palette-edit-swatch-lock')).not.toBeNull();
+    expect(container.querySelector('[data-node-index="1"]')).not.toBeNull();
+    expect(container.querySelector('[data-node-hit="1"]')).toBeNull();
+
+    act(() => { locked.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    expect(locked.getAttribute('aria-pressed')).toBe('true');
+    expect(container.querySelector('[data-testid="palette-readout-token"]')?.textContent).toContain('--brand-blue-strong');
+    expect(container.querySelector('[data-testid="color-field-swatch"]')).toBeNull();
+    expect(container.querySelector('[data-testid="palette-edit-direct"]')?.textContent).toContain('Locked');
+
+    fireKey(writable, 'Enter');
+    expect(writable.getAttribute('aria-pressed')).toBe('true');
+    expect(container.querySelector('[data-testid="color-field-swatch"]')).not.toBeNull();
+    fireKey(locked, ' ');
+    expect(locked.getAttribute('aria-pressed')).toBe('true');
+    expect(container.querySelector('[data-testid="color-field-swatch"]')).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('keeps the writable sibling editable by direct, node, curve, and keyboard paths', () => {
+    const onChange = vi.fn();
+    const onCommitBatch = vi.fn();
+    renderView({ tab: READONLY_TAB, onChange, onCommitBatch });
+    openGroup('brand');
+
+    const field = container.querySelector<HTMLElement>('[data-testid="color-field-swatch"]')!;
+    act(() => { field.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    const lightness = container.querySelector<HTMLElement>('[role="slider"][aria-label="Lightness"]')!;
+    fireKey(lightness, 'ArrowUp');
+    expect(onChange.mock.calls.some((call) => call[1] === 'brand-blue')).toBe(true);
+    expect(onChange.mock.calls.some((call) => call[1] === 'brand-blue-strong')).toBe(false);
+    onChange.mockClear();
+
+    let svg = primeChannelSvg('l');
+    let node = getNodeHit('l', 0);
+    stubPointerCapture(node);
+    firePointer(node, 'pointerdown', { pointerId: 21, clientY: clientYForL(52) });
+    firePointer(svg, 'pointermove', { pointerId: 21, clientY: clientYForL(57) });
+    firePointer(svg, 'pointerup', { pointerId: 21, clientY: clientYForL(57) });
+    expect(onCommitBatch).toHaveBeenLastCalledWith('brand', expect.objectContaining({ 'brand-blue': expect.any(String) }));
+    expect(onCommitBatch.mock.calls.at(-1)?.[1]['brand-blue-strong']).toBeUndefined();
+
+    onCommitBatch.mockClear();
+    node = getNodeHit('l', 0);
+    fireKey(node, 'ArrowUp');
+    expect(onCommitBatch).toHaveBeenCalledTimes(1);
+    expect(Object.keys(onCommitBatch.mock.calls[0][1])).toEqual(['brand-blue']);
+
+    onCommitBatch.mockClear();
+    svg = primeChannelSvg('l');
+    const hitLine = container.querySelector<SVGPolylineElement>('[data-testid="palette-chart-hit-line-l"]')!;
+    stubPointerCapture(hitLine);
+    firePointer(hitLine, 'pointerdown', { pointerId: 22, clientY: clientYForL(50) });
+    firePointer(svg, 'pointermove', { pointerId: 22, clientY: clientYForL(55) });
+    firePointer(svg, 'pointerup', { pointerId: 22, clientY: clientYForL(55) });
+    expect(Object.keys(onCommitBatch.mock.calls[0][1])).toEqual(['brand-blue']);
+  });
+
+  it('filters readonly ids from the per-item batch fallback', () => {
+    const onChange = vi.fn();
+    renderView({ tab: READONLY_TAB, onChange });
+    openGroup('brand');
+    const svg = primeChannelSvg('l');
+    const hitLine = container.querySelector<SVGPolylineElement>('[data-testid="palette-chart-hit-line-l"]')!;
+    stubPointerCapture(hitLine);
+    firePointer(hitLine, 'pointerdown', { pointerId: 23, clientY: clientYForL(50) });
+    firePointer(svg, 'pointermove', { pointerId: 23, clientY: clientYForL(55) });
+    firePointer(svg, 'pointerup', { pointerId: 23, clientY: clientYForL(55) });
+    expect(onChange.mock.calls.map((call) => call[1])).toEqual(['brand-blue']);
+  });
+
+  it('selects the first effective valid writable step when a group opens or switches', () => {
+    renderView({
+      tab: READONLY_TAB,
+      overrides: {
+        effective: {
+          'override-invalid': 'var(--now-invalid)',
+          'override-valid': 'oklch(55% 0.12 250)',
+        },
+      },
+    });
+    openGroup('brand');
+    openGroup('effective');
+    expect(container.querySelector('[data-testid="palette-edit-swatch-override-valid"]')?.getAttribute('aria-pressed')).toBe('true');
+    expect(container.querySelector('[data-testid="palette-readout-token"]')?.textContent).toContain('--override-valid');
+  });
+
+  it('keeps an all-readonly tier static, inspectable, and callback-free', () => {
+    const onChange = vi.fn();
+    const onCommitBatch = vi.fn();
+    renderView({ tab: READONLY_TAB, onChange, onCommitBatch });
+    openGroup('locked');
+    expect(container.querySelector('[data-testid="palette-edit-editor-locked"]')?.textContent).toContain('all steps are locked');
+    expect(container.querySelector('[data-testid="palette-edit-channels"]')).toBeNull();
+    expect(container.querySelector('[data-testid="color-field-swatch"]')).toBeNull();
+    expect(container.querySelector('[data-node-hit]')).toBeNull();
+    expect(container.querySelector('[data-hit-line]')).toBeNull();
+    expect(container.querySelectorAll('[data-node-index]').length).toBe(6);
+
+    const locked1 = container.querySelector<HTMLElement>('[data-testid="palette-edit-swatch-locked-1"]')!;
+    fireKey(locked1, 'Enter');
+    expect(container.querySelector('[data-testid="palette-readout-token"]')?.textContent).toContain('--locked-1');
+    fireKey(locked1, ' ');
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onCommitBatch).not.toHaveBeenCalled();
+  });
+
+  it('rejects a stale direct-editor callback after the selected item becomes readonly', () => {
+    const onChange = vi.fn();
+    renderView({ tab: READONLY_TAB, onChange });
+    openGroup('brand');
+    const field = container.querySelector<HTMLElement>('[data-testid="color-field-swatch"]')!;
+    act(() => { field.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    const staleLightness = container.querySelector<HTMLElement>('[role="slider"][aria-label="Lightness"]')!;
+
+    const readonlyBrandTab: TabConfig = {
+      ...READONLY_TAB,
+      tiers: READONLY_TAB.tiers.map((tier) => tier.id === 'brand'
+        ? { ...tier, items: tier.items.map((item) => ({ ...item, readonly: true })) }
+        : tier),
+    };
+    renderView({ tab: readonlyBrandTab, onChange });
+    expect(container.querySelector('[data-testid="color-field-swatch"]')).toBeNull();
+    fireKey(staleLightness, 'ArrowUp');
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('does not redirect a stale direct edit to a same-index replacement item', () => {
+    const onChange = vi.fn();
+    renderView({ tab: READONLY_TAB, onChange });
+    openGroup('brand');
+    const field = container.querySelector<HTMLElement>('[data-testid="color-field-swatch"]')!;
+    act(() => { field.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    const staleLightness = container.querySelector<HTMLElement>('[role="slider"][aria-label="Lightness"]')!;
+
+    const replacementTab: TabConfig = {
+      ...READONLY_TAB,
+      tiers: READONLY_TAB.tiers.map((tier) => tier.id === 'brand'
+        ? {
+            ...tier,
+            items: [{
+              id: 'replacement-blue', cssVar: '--replacement-blue', label: 'Replacement blue',
+              default: 'oklch(60% 0.1 250)', type: { kind: 'color', format: 'oklch' },
+            }, ...tier.items.slice(1)],
+          }
+        : tier),
+    };
+    renderView({ tab: replacementTab, onChange });
+    expect(container.querySelector('[data-testid="palette-edit-swatch-replacement-blue"]')?.getAttribute('aria-pressed')).toBe('true');
+    fireKey(staleLightness, 'ArrowUp');
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('does not redirect a stale direct edit after same-tier reorder', () => {
+    const onChange = vi.fn();
+    renderView({ tab: READONLY_TAB, onChange });
+    openGroup('brand');
+    const field = container.querySelector<HTMLElement>('[data-testid="color-field-swatch"]')!;
+    act(() => { field.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    const staleLightness = container.querySelector<HTMLElement>('[role="slider"][aria-label="Lightness"]')!;
+    const reorderedTab: TabConfig = {
+      ...READONLY_TAB,
+      tiers: READONLY_TAB.tiers.map((tier) => tier.id === 'brand'
+        ? { ...tier, items: [...tier.items].reverse() }
+        : tier),
+    };
+    renderView({ tab: reorderedTab, onChange });
+    fireKey(staleLightness, 'ArrowUp');
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('discards a gesture batch when item identities reorder within the same tier', () => {
+    const onCommitBatch = vi.fn();
+    renderView({ tab: READONLY_TAB, onCommitBatch });
+    openGroup('brand');
+    const svg = primeChannelSvg('l');
+    const node = getNodeHit('l', 0);
+    stubPointerCapture(node);
+    firePointer(node, 'pointerdown', { pointerId: 25, clientY: clientYForL(52) });
+    firePointer(svg, 'pointermove', { pointerId: 25, clientY: clientYForL(65) });
+
+    const reorderedTab: TabConfig = {
+      ...READONLY_TAB,
+      tiers: READONLY_TAB.tiers.map((tier) => tier.id === 'brand'
+        ? { ...tier, items: [...tier.items].reverse() }
+        : tier),
+    };
+    renderView({ tab: reorderedTab, onCommitBatch });
+    firePointer(svg, 'pointerup', { pointerId: 25, clientY: clientYForL(65) });
+    expect(onCommitBatch).not.toHaveBeenCalled();
+  });
+
+  it('discards a gesture batch when item identities are replaced within the same tier', () => {
+    const onCommitBatch = vi.fn();
+    renderView({ tab: READONLY_TAB, onCommitBatch });
+    openGroup('brand');
+    const svg = primeChannelSvg('l');
+    const node = getNodeHit('l', 0);
+    stubPointerCapture(node);
+    firePointer(node, 'pointerdown', { pointerId: 26, clientY: clientYForL(52) });
+    firePointer(svg, 'pointermove', { pointerId: 26, clientY: clientYForL(65) });
+    const replacementTab: TabConfig = {
+      ...READONLY_TAB,
+      tiers: READONLY_TAB.tiers.map((tier) => tier.id === 'brand'
+        ? {
+            ...tier,
+            items: tier.items.map((item, index) => index === 0
+              ? { ...item, id: 'replacement-blue', cssVar: '--replacement-blue' }
+              : item),
+          }
+        : tier),
+    };
+    renderView({ tab: replacementTab, onCommitBatch });
+    firePointer(svg, 'pointerup', { pointerId: 26, clientY: clientYForL(65) });
+    expect(onCommitBatch).not.toHaveBeenCalled();
+  });
+
+  it('drops transient edits and commits when a writable item becomes readonly mid-gesture', () => {
+    const onChange = vi.fn();
+    const onCommitBatch = vi.fn();
+    renderView({ tab: READONLY_TAB, onChange, onCommitBatch });
+    openGroup('brand');
+    const svg = primeChannelSvg('l');
+    const node = getNodeHit('l', 0);
+    stubPointerCapture(node);
+    firePointer(node, 'pointerdown', { pointerId: 24, clientY: clientYForL(52) });
+    firePointer(svg, 'pointermove', { pointerId: 24, clientY: clientYForL(70) });
+    expect(getNodeHit('l', 0).getAttribute('aria-valuenow')).toBe('70');
+
+    const readonlyBrandTab: TabConfig = {
+      ...READONLY_TAB,
+      tiers: READONLY_TAB.tiers.map((tier) => tier.id === 'brand'
+        ? { ...tier, items: tier.items.map((item) => ({ ...item, readonly: true })) }
+        : tier),
+    };
+    renderView({ tab: readonlyBrandTab, onChange, onCommitBatch });
+    expect(container.querySelector('[data-node-hit="0"]')).toBeNull();
+    expect(container.querySelector('[data-testid="palette-edit-swatch-brand-blue"]')?.getAttribute('aria-disabled')).toBe('true');
+    expect(container.querySelector('[data-testid="color-field-swatch"]')).toBeNull();
+    firePointer(svg, 'pointermove', { pointerId: 24, clientY: clientYForL(80) });
+    firePointer(svg, 'pointerup', { pointerId: 24, clientY: clientYForL(80) });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onCommitBatch).not.toHaveBeenCalled();
+  });
+
+  it('keeps an all-invalid non-readonly tier in unsupported/N/A semantics', () => {
+    const invalidTab: TabConfig = {
+      id: 'invalid-palette', label: 'Invalid palette', tiers: [{
+        id: 'invalid', label: 'Invalid', items: [
+          { id: 'context-a', cssVar: '--context-a', label: 'Context A', default: 'var(--a)', type: { kind: 'color', format: 'oklch' } },
+          { id: 'context-b', cssVar: '--context-b', label: 'Context B', default: 'color-mix(in srgb, red, blue)', type: { kind: 'color', format: 'oklch' } },
+        ],
+      }],
+    };
+    renderView({ tab: invalidTab });
+    openGroup('invalid');
+    const editor = container.querySelector('[data-testid="palette-edit-editor-invalid"]')!;
+    expect(editor.textContent).toContain('no supported colors');
+    expect(editor.textContent).not.toContain('all steps are locked');
+    expect(container.querySelector('[data-testid="palette-edit-direct"]')?.textContent).toContain('N/A · unsupported color');
+    expect(container.querySelector('[data-testid="palette-readout-invalid-value"]')).not.toBeNull();
+    expect(container.querySelector('[data-readonly-blocker]')).toBeNull();
   });
 });

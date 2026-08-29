@@ -14,6 +14,7 @@ import {
   hslaToOklcha,
   clampToSrgbGamut,
   isInSrgbGamut,
+  staticCssColorToOklcha,
   cssToOklcha,
   MAX_OKLCH_CHROMA,
   type Oklcha,
@@ -286,6 +287,88 @@ describe('isInSrgbGamut', () => {
 describe('MAX_OKLCH_CHROMA', () => {
   it('is 0.37', () => {
     expect(MAX_OKLCH_CHROMA).toBe(0.37);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// staticCssColorToOklcha
+// ---------------------------------------------------------------------------
+
+describe('staticCssColorToOklcha — supported static CSS colors', () => {
+  it.each([
+    ['short hex', '#f00', 100],
+    ['long hex', '#ff0000', 100],
+    ['short hex with alpha', '#f008', (0x88 / 0xff) * 100],
+    ['long hex with alpha', '#ff000080', (0x80 / 0xff) * 100],
+  ])('normalizes %s', (_label, css, alpha) => {
+    const result = staticCssColorToOklcha(css);
+    expect(result).not.toBeNull();
+    expect(result!.l).toBeCloseTo(62.7955, 3);
+    expect(result!.c).toBeCloseTo(0.25768, 4);
+    expect(result!.h).toBeCloseTo(29.2339, 3);
+    expect(result!.a).toBeCloseTo(alpha, 4);
+  });
+
+  it.each([
+    ['rgb()', 'rgb(255 0 0)', 100],
+    ['rgba()', 'rgba(255, 0, 0, 0.4)', 40],
+    ['rgb() percentage alpha', 'rgb(255 0 0 / 25%)', 25],
+    ['hsl()', 'hsl(0 100% 50%)', 100],
+    ['hsl() alpha', 'hsl(0 100% 50% / 60%)', 60],
+  ])('normalizes %s', (_label, css, alpha) => {
+    const result = staticCssColorToOklcha(css);
+    expect(result).not.toBeNull();
+    expect(result!.l).toBeCloseTo(62.7955, 3);
+    expect(result!.c).toBeCloseTo(0.25768, 4);
+    expect(result!.h).toBeCloseTo(29.2339, 3);
+    expect(result!.a).toBeCloseTo(alpha, 4);
+  });
+
+  it('handles CSS case-insensitivity and surrounding/internal whitespace', () => {
+    const result = staticCssColorToOklcha('  RGB( 255 0 0 / 50% )  ');
+    expect(result).not.toBeNull();
+    expect(result!.l).toBeCloseTo(62.7955, 3);
+    expect(result!.a).toBeCloseTo(50, 4);
+  });
+
+  it('normalizes an achromatic color with Culori\'s missing hue to zero', () => {
+    const result = staticCssColorToOklcha('hsl(0 0% 50%)');
+    expect(result).not.toBeNull();
+    expect(result!.c).toBeCloseTo(0, 8);
+    expect(result!.h).toBe(0);
+  });
+
+  it('preserves raw out-of-sRGB-gamut OKLCH channels and alpha', () => {
+    const result = staticCssColorToOklcha('  OKLCH(70% 0.5 150 / 20%)  ');
+    expect(result).toEqual({ l: 70, c: 0.5, h: 150, a: 20 });
+  });
+});
+
+describe('staticCssColorToOklcha — invalid or context-dependent syntax', () => {
+  it.each([
+    '',
+    'not a color',
+    '#12',
+    'rgb(nope)',
+    'oklch(50% 0.2)',
+    'var(--brand-color)',
+    'currentColor',
+    'CURRENTCOLOR',
+    'color-mix(in oklch, red, blue)',
+  ])('returns null for %j', (css) => {
+    expect(staticCssColorToOklcha(css)).toBeNull();
+  });
+
+  it('does not change cssToOklcha\'s strict oklch-only contract', () => {
+    expect(cssToOklcha('#ff0000')).toBeNull();
+    expect(cssToOklcha('rgb(255 0 0)')).toBeNull();
+    expect(cssToOklcha('hsl(0 100% 50%)')).toBeNull();
+    expect(cssToOklcha('oklch(0.7 0.5 150)')).toEqual({
+      l: 70,
+      c: 0.5,
+      h: 150,
+      a: 100,
+    });
   });
 });
 

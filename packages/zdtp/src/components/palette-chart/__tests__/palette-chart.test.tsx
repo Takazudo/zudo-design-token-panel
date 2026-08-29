@@ -69,7 +69,9 @@ function clientYForL(v: number): number {
 }
 
 type ChartProps = {
-  colors: Oklcha[];
+  colors: Array<Oklcha | null>;
+  editable?: boolean[];
+  identities?: string[];
   selectedIndex?: number;
   visibleChannels?: { l: boolean; c: boolean; h: boolean };
   onChange?: (i: number, c: Channel, v: number) => void;
@@ -84,6 +86,8 @@ function renderChart(props: ChartProps): void {
     render(
       <PaletteChart
         colors={props.colors}
+        editable={props.editable ?? props.colors.map((color) => color !== null)}
+        identities={props.identities ?? props.colors.map((_, index) => `item-${index}`)}
         selectedIndex={props.selectedIndex ?? 0}
         visibleChannels={
           props.visibleChannels ?? { l: true, c: true, h: true }
@@ -180,6 +184,69 @@ function finalValuesByIndex(
 // ---------------------------------------------------------------------------
 
 describe('PaletteChart — rendering', () => {
+  it('keeps readonly colors visual while omitting every node hit target', () => {
+    const onChange = vi.fn();
+    const onChangeStart = vi.fn();
+    renderChart({
+      colors: makeColors([43, 52]),
+      editable: [false, true],
+      visibleChannels: { l: true, c: false, h: false },
+      onChange,
+      onChangeStart,
+    });
+    expect(container.querySelectorAll('[data-node-index]').length).toBe(2);
+    expect(container.querySelector('[data-node-index="0"]')?.getAttribute('data-readonly')).toBe('true');
+    expect(container.querySelector('[data-band-index="0"]')?.getAttribute('data-readonly')).toBe('true');
+    expect(container.querySelector('[data-node-hit="0"]')).toBeNull();
+    expect(getNodeHit('l', 1)).not.toBeNull();
+    // The mixed-edge curve handle begins away from readonly index 0 (x=75),
+    // so the locked visual point itself is not a pointer target.
+    expect(getHitLine('l').getAttribute('points')?.startsWith('75.00,')).toBe(false);
+    const blocker = container.querySelector('[data-readonly-blocker="0"][data-channel="l"]')!;
+    const svg = primeChannelSvg('l');
+    firePointer(blocker, 'pointerdown', { clientY: clientYForL(43) });
+    firePointer(svg, 'pointermove', { clientY: clientYForL(60) });
+    expect(onChangeStart).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('renders an all-readonly curve with no pointer or keyboard edit targets', () => {
+    const onChangeStart = vi.fn();
+    renderChart({
+      colors: makeColors([43, 52]),
+      editable: [false, false],
+      visibleChannels: { l: true, c: false, h: false },
+      onChangeStart,
+    });
+    expect(container.querySelectorAll('[data-node-index]').length).toBe(2);
+    expect(container.querySelector('[data-node-hit]')).toBeNull();
+    expect(container.querySelector('[data-hit-line]')).toBeNull();
+    expect(container.querySelector('[role="slider"]')).toBeNull();
+    const visual = container.querySelector('[data-node-index="0"] ellipse')!;
+    firePointer(visual, 'pointerdown');
+    expect(onChangeStart).not.toHaveBeenCalled();
+  });
+
+  it('omits a hit path for a locked-only visual segment', () => {
+    renderChart({
+      colors: [makeColors([30])[0], makeColors([40])[0], null, ...makeColors([50, 60])],
+      editable: [false, false, false, true, true],
+      visibleChannels: { l: true, c: false, h: false },
+    });
+    expect(container.querySelectorAll('[data-testid="palette-chart-hit-line-l"]').length).toBe(1);
+    expect(container.querySelector('[data-testid="palette-chart-hit-line-l"]')?.getAttribute('points')).toContain('210.00');
+  });
+
+  it('preserves invalid slots without fabricating bands or edit nodes', () => {
+    renderChart({
+      colors: [makeColors([30])[0], null, makeColors([70])[0]],
+      visibleChannels: { l: true, c: false, h: false },
+    });
+    expect(container.querySelectorAll('[data-band-index]').length).toBe(3);
+    expect(container.querySelector('[data-band-index="1"]')?.getAttribute('data-invalid')).toBe('true');
+    expect(container.querySelector('[data-node-hit="1"]')).toBeNull();
+    expect(getNodeHit('l', 2)).not.toBeNull();
+  });
   it('renders one band per color', () => {
     renderChart({ colors: makeColors([30, 50, 70, 90]) });
     const bands = container.querySelectorAll(
@@ -251,6 +318,28 @@ describe('PaletteChart — rendering', () => {
 // ---------------------------------------------------------------------------
 
 describe('PaletteChart — per-node drag', () => {
+  it('does not redirect an in-flight node drag after same-tier identity reorder', () => {
+    const onChange = vi.fn();
+    renderChart({
+      colors: makeColors([40, 60]),
+      identities: ['a', 'b'],
+      visibleChannels: { l: true, c: false, h: false },
+      onChange,
+    });
+    const svg = primeChannelSvg('l');
+    const node = getNodeHit('l', 0);
+    stubPointerCapture(node);
+    firePointer(node, 'pointerdown', { clientY: clientYForL(40) });
+    renderChart({
+      colors: makeColors([60, 40]),
+      identities: ['b', 'a'],
+      visibleChannels: { l: true, c: false, h: false },
+      onChange,
+    });
+    firePointer(svg, 'pointermove', { clientY: clientYForL(70) });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it('dragging a node fires onChange(index, channel, value) for ONLY that node', () => {
     const onChange = vi.fn();
     renderChart({
@@ -310,6 +399,27 @@ describe('PaletteChart — per-node drag', () => {
     expect(onSelectIndex).toHaveBeenCalledWith(2);
   });
 
+  it('stops an in-flight node drag when that dense slot becomes null', () => {
+    const onChange = vi.fn();
+    renderChart({
+      colors: makeColors([50, 60]),
+      visibleChannels: { l: true, c: false, h: false },
+      onChange,
+    });
+    const svg = primeChannelSvg('l');
+    const node = getNodeHit('l', 0);
+    stubPointerCapture(node);
+    firePointer(node, 'pointerdown', { pointerId: 10, clientY: clientYForL(50) });
+
+    renderChart({
+      colors: [null, makeColors([60])[0]],
+      visibleChannels: { l: true, c: false, h: false },
+      onChange,
+    });
+    firePointer(svg, 'pointermove', { pointerId: 10, clientY: clientYForL(70) });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it('quantizes the C channel to a 0.001 grid (not integer rounding)', () => {
     const onChange = vi.fn();
     // C nodes; values irrelevant — we just drive a clientY and read the value.
@@ -340,6 +450,81 @@ describe('PaletteChart — per-node drag', () => {
 // ---------------------------------------------------------------------------
 
 describe('PaletteChart — whole-curve vertical drag', () => {
+  it('does not redirect an in-flight curve drag after same-tier identity replacement', () => {
+    const onChange = vi.fn();
+    renderChart({
+      colors: makeColors([40, 60]),
+      identities: ['a', 'b'],
+      visibleChannels: { l: true, c: false, h: false },
+      onChange,
+    });
+    const svg = primeChannelSvg('l');
+    const hitLine = getHitLine('l');
+    stubPointerCapture(hitLine);
+    firePointer(hitLine, 'pointerdown', { clientY: clientYForL(50) });
+    renderChart({
+      colors: makeColors([45, 65]),
+      identities: ['replacement-a', 'replacement-b'],
+      visibleChannels: { l: true, c: false, h: false },
+      onChange,
+    });
+    firePointer(svg, 'pointermove', { clientY: clientYForL(70) });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('updates and clamps from writable indices only', () => {
+    const onChange = vi.fn();
+    renderChart({
+      colors: makeColors([99, 40, 50]),
+      editable: [false, true, true],
+      visibleChannels: { l: true, c: false, h: false },
+      onChange,
+    });
+    const svg = primeChannelSvg('l');
+    const hitLine = getHitLine('l');
+    stubPointerCapture(hitLine);
+    firePointer(hitLine, 'pointerdown', { clientY: clientYForL(50) });
+    firePointer(svg, 'pointermove', { clientY: clientYForL(80) });
+    expect(new Set(onChange.mock.calls.map((call) => call[0]))).toEqual(new Set([1, 2]));
+    expect(finalValuesByIndex(onChange, 3).slice(1)).toEqual([70, 80]);
+  });
+
+  it('stops emitting when writable indices become readonly mid-gesture', () => {
+    const onChange = vi.fn();
+    renderChart({
+      colors: makeColors([40, 50]),
+      editable: [true, true],
+      visibleChannels: { l: true, c: false, h: false },
+      onChange,
+    });
+    const svg = primeChannelSvg('l');
+    const hitLine = getHitLine('l');
+    stubPointerCapture(hitLine);
+    firePointer(hitLine, 'pointerdown', { clientY: clientYForL(50) });
+    renderChart({
+      colors: makeColors([40, 50]),
+      editable: [false, false],
+      visibleChannels: { l: true, c: false, h: false },
+      onChange,
+    });
+    firePointer(svg, 'pointermove', { clientY: clientYForL(60) });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('skips null slots in whole-curve callbacks and clamps from valid nodes only', () => {
+    const onChange = vi.fn();
+    renderChart({
+      colors: [makeColors([30])[0], null, ...makeColors([50, 60])],
+      visibleChannels: { l: true, c: false, h: false },
+      onChange,
+    });
+    const svg = primeChannelSvg('l');
+    const hitLine = getHitLine('l');
+    stubPointerCapture(hitLine);
+    firePointer(hitLine, 'pointerdown', { clientY: clientYForL(40) });
+    firePointer(svg, 'pointermove', { clientY: clientYForL(50) });
+    expect(new Set(onChange.mock.calls.map((call) => call[0]))).toEqual(new Set([0, 2, 3]));
+  });
   function setupCurveDrag(lValues: number[]) {
     const onChange = vi.fn();
     renderChart({
