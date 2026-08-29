@@ -96,6 +96,17 @@
   pointer-events: none;
 }
 
+.tokenpanel-palette-edit-preview-chip.is-invalid,
+.tokenpanel-palette-edit-swatch[data-invalid],
+.tokenpanel-palette-readout-swatch.is-invalid {
+  background-color: var(--tokentweak-color-surface);
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 4px,
+    rgb(from var(--tokentweak-color-muted) r g b / 0.25) 4px 6px
+  );
+}
+
 /* ── Open group body (swatch strip + editor) ── */
 .tokenpanel-palette-edit-group-body {
   display: flex;
@@ -136,6 +147,11 @@
   border-style: dashed;
   border-color: var(--tokentweak-color-danger);
   border-width: 2px;
+}
+
+.tokenpanel-palette-edit-swatch[data-invalid] {
+  border-style: dashed;
+  border-color: var(--tokentweak-color-muted);
 }
 
 .tokenpanel-palette-edit-swatch-idx {

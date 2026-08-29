@@ -637,3 +637,71 @@ describe('PaletteCheckView — DOM hygiene', () => {
     }
   });
 });
+
+describe('PaletteCheckView — static CSS, alpha, and N/A handling (#625)', () => {
+  const mixedTab: TabConfig = {
+    id: 'palette', label: 'Palette', tiers: [{
+      id: 'paper', label: 'Paper', items: [
+        { id: 'var', cssVar: '--paper-var', label: 'Variable', default: 'var(--paper)', type: { kind: 'color', format: 'oklch' } },
+        { id: 'alpha', cssVar: '--paper-alpha', label: 'Alpha', default: 'rgb(0 0 0 / 50%)', type: { kind: 'color', format: 'oklch' } },
+        { id: 'white', cssVar: '--paper-white', label: 'White', default: '#ffffff', type: { kind: 'color', format: 'oklch' } },
+        { id: 'offwhite', cssVar: '--paper-offwhite', label: 'Off white', default: '#f6f4ee', type: { kind: 'color', format: 'oklch' } },
+        { id: 'hsl', cssVar: '--paper-hsl', label: 'HSL black', default: 'hsl(0 0% 0%)', type: { kind: 'color', format: 'oklch' } },
+        { id: 'mix', cssVar: '--paper-mix', label: 'Mix', default: 'color-mix(in srgb, red, blue)', type: { kind: 'color', format: 'oklch' } },
+      ],
+    }],
+  };
+
+  it('chooses the first valid opaque base and renders exact repro contrast', async () => {
+    await renderCheckView(mixedTab);
+    expect(container.querySelector('[data-testid="palette-check-base-row-white"]')?.getAttribute('aria-pressed')).toBe('true');
+    expect(container.querySelector('[data-testid="palette-check-base-row-var"]')?.getAttribute('aria-disabled')).toBe('true');
+    expect(container.querySelector('[data-testid="palette-check-base-row-alpha"]')?.getAttribute('aria-disabled')).toBe('true');
+    const offwhite = container.querySelector('[data-testid="palette-check-candidate-row-offwhite"]')!;
+    expect(offwhite.querySelector('.tokenpanel-palette-check-ratio')?.textContent).toBe('1.1');
+    expect(offwhite.querySelector('.tokenpanel-palette-check-chip')?.textContent).toBe('Fail');
+    expect((container.querySelector('[data-testid="palette-check-base-row-offwhite"] .tokenpanel-palette-check-swatch') as HTMLElement).style.background).toBe('rgb(246, 244, 238)');
+  });
+
+  it('marks invalid and alpha candidates N/A and excludes them from the tally', async () => {
+    await renderCheckView(mixedTab);
+    for (const id of ['var', 'alpha', 'mix']) {
+      const row = container.querySelector(`[data-testid="palette-check-candidate-row-${id}"]`)!;
+      expect(row.querySelector('.tokenpanel-palette-check-ratio')?.textContent).toBe('N/A');
+      expect(row.querySelector('.tokenpanel-palette-check-chip')?.textContent).toBe('N/A');
+    }
+    expect(container.querySelector('.tokenpanel-palette-check-tally-total')?.textContent).toBe('3');
+    expect(container.querySelector('[data-testid="palette-check-footer"]')?.textContent).toContain('computable');
+  });
+
+  it('does not allow pointer or keyboard selection of invalid/alpha bases', async () => {
+    await renderCheckView(mixedTab);
+    for (const id of ['var', 'alpha']) {
+      const row = container.querySelector<HTMLElement>(`[data-testid="palette-check-base-row-${id}"]`)!;
+      act(() => { row.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+      act(() => { row.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+    }
+    expect(container.querySelector('[data-testid="palette-check-base-row-white"]')?.getAttribute('aria-pressed')).toBe('true');
+    expect(container.querySelector('.tokenpanel-palette-check-tally-base')?.textContent).toBe('White');
+  });
+
+  it('selects another valid static base and recomputes real ratios', async () => {
+    await renderCheckView(mixedTab);
+    const black = container.querySelector<HTMLElement>('[data-testid="palette-check-base-row-hsl"]')!;
+    act(() => { black.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    expect(black.getAttribute('aria-pressed')).toBe('true');
+    expect(container.querySelector('[data-testid="palette-check-candidate-row-white"] .tokenpanel-palette-check-ratio')?.textContent).toBe('21.0');
+  });
+
+  it('shows a clear all-N/A state when no opaque pair is computable', async () => {
+    const allNa: TabConfig = {
+      id: 'palette', label: 'Palette', tiers: [{ id: 'x', label: 'X', items: [
+        { id: 'var', cssVar: '--x', label: 'Variable', default: 'currentColor', type: { kind: 'color', format: 'oklch' } },
+        { id: 'alpha', cssVar: '--a', label: 'Alpha', default: '#ffffff80', type: { kind: 'color', format: 'oklch' } },
+      ] }],
+    };
+    await renderCheckView(allNa);
+    expect(container.querySelector('[data-testid="palette-check-all-na"]')?.textContent).toContain('All palette contrasts are N/A');
+    expect(container.querySelectorAll('[aria-pressed="true"]').length).toBe(0);
+  });
+});

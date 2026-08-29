@@ -42,6 +42,14 @@
   height: 100%;
 }
 
+.tokenpanel-palette-chart-band.is-invalid {
+  fill: var(--tokentweak-color-surface);
+  stroke: var(--tokentweak-color-muted);
+  stroke-dasharray: 4 3;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
 /* ── Overlay layers: one SVG per channel curve ── */
 .tokenpanel-palette-chart-curve {
   position: absolute;

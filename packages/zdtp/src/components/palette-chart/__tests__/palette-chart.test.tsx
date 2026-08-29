@@ -69,7 +69,7 @@ function clientYForL(v: number): number {
 }
 
 type ChartProps = {
-  colors: Oklcha[];
+  colors: Array<Oklcha | null>;
   selectedIndex?: number;
   visibleChannels?: { l: boolean; c: boolean; h: boolean };
   onChange?: (i: number, c: Channel, v: number) => void;
@@ -180,6 +180,16 @@ function finalValuesByIndex(
 // ---------------------------------------------------------------------------
 
 describe('PaletteChart — rendering', () => {
+  it('preserves invalid slots without fabricating bands or edit nodes', () => {
+    renderChart({
+      colors: [makeColors([30])[0], null, makeColors([70])[0]],
+      visibleChannels: { l: true, c: false, h: false },
+    });
+    expect(container.querySelectorAll('[data-band-index]').length).toBe(3);
+    expect(container.querySelector('[data-band-index="1"]')?.getAttribute('data-invalid')).toBe('true');
+    expect(container.querySelector('[data-node-hit="1"]')).toBeNull();
+    expect(getNodeHit('l', 2)).not.toBeNull();
+  });
   it('renders one band per color', () => {
     renderChart({ colors: makeColors([30, 50, 70, 90]) });
     const bands = container.querySelectorAll(
@@ -340,6 +350,20 @@ describe('PaletteChart — per-node drag', () => {
 // ---------------------------------------------------------------------------
 
 describe('PaletteChart — whole-curve vertical drag', () => {
+  it('skips null slots in whole-curve callbacks and clamps from valid nodes only', () => {
+    const onChange = vi.fn();
+    renderChart({
+      colors: [makeColors([30])[0], null, ...makeColors([50, 60])],
+      visibleChannels: { l: true, c: false, h: false },
+      onChange,
+    });
+    const svg = primeChannelSvg('l');
+    const hitLine = getHitLine('l');
+    stubPointerCapture(hitLine);
+    firePointer(hitLine, 'pointerdown', { clientY: clientYForL(40) });
+    firePointer(svg, 'pointermove', { clientY: clientYForL(50) });
+    expect(new Set(onChange.mock.calls.map((call) => call[0]))).toEqual(new Set([0, 2, 3]));
+  });
   function setupCurveDrag(lValues: number[]) {
     const onChange = vi.fn();
     renderChart({

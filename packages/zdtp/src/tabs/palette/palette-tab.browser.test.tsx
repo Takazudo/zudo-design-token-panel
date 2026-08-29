@@ -309,6 +309,37 @@ describe('PaletteTab browser — switching to Check mode', () => {
   });
 });
 
+describe('PaletteTab browser — static and invalid palette values (#625)', () => {
+  const paperTab: TabConfig = {
+    id: 'palette', label: 'Palette', tiers: [{ id: 'paper', label: 'Paper', items: [
+      { id: 'white', cssVar: '--paper-white', label: 'White', default: '#ffffff', type: { kind: 'color', format: 'oklch' } },
+      { id: 'context', cssVar: '--paper-context', label: 'Context', default: 'var(--paper)', type: { kind: 'color', format: 'oklch' } },
+      { id: 'offwhite', cssVar: '--paper-offwhite', label: 'Off white', default: '#f6f4ee', type: { kind: 'color', format: 'oklch' } },
+      { id: 'alpha', cssVar: '--paper-alpha', label: 'Alpha', default: 'rgb(0 0 0 / 50%)', type: { kind: 'color', format: 'oklch' } },
+    ] }],
+  };
+
+  it('renders the exact paper repro colors and no invalid chart target', async () => {
+    await renderPaletteTab(paperTab);
+    const chips = container.querySelectorAll<HTMLElement>('.tokenpanel-palette-edit-preview-chip');
+    expect(getComputedStyle(chips[0]).backgroundColor).toBe('rgb(255, 255, 255)');
+    expect(getComputedStyle(chips[2]).backgroundColor).toBe('rgb(246, 244, 238)');
+    await openGroup('paper');
+    expect(container.querySelector('[data-testid="palette-edit-swatch-context"]')?.getAttribute('data-invalid')).toBe('true');
+    expect(container.querySelector('[data-node-hit="1"]')).toBeNull();
+  });
+
+  it('reports true off-white contrast and alpha/invalid N/A in Check mode', async () => {
+    await renderPaletteTab(paperTab);
+    const checkBtn = container.querySelector<HTMLElement>('[data-testid="palette-mode-check"]')!;
+    await act(() => { checkBtn.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    expect(container.querySelector('[data-testid="palette-check-candidate-row-offwhite"] .tokenpanel-palette-check-ratio')?.textContent).toBe('1.1');
+    expect(container.querySelector('[data-testid="palette-check-chip-context"]')?.textContent).toBe('N/A');
+    expect(container.querySelector('[data-testid="palette-check-chip-alpha"]')?.textContent).toBe('N/A');
+    expect(container.querySelector('.tokenpanel-palette-check-tally-total')?.textContent).toBe('2');
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 3. DOM-hygiene invariants
 // ---------------------------------------------------------------------------

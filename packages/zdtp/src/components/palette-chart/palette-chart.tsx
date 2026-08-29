@@ -105,8 +105,11 @@ function quantize(value: number, channel: Channel): number {
 // ── Types ───────────────────────────────────────────────────────────────────
 
 export interface PaletteChartProps {
-  /** Palette colors in OKLCH space. Band `i` = oklchaToHex(colors[i]). */
-  colors: Oklcha[];
+  /**
+   * Dense palette slots in OKLCH space. A null slot preserves its index/band,
+   * but has no numeric curve node and is not editable.
+   */
+  colors: Array<Oklcha | null>;
   /** Index of the currently selected color/step (highlighted band + node column). */
   selectedIndex: number;
   /** Which curves are drawn. Owned by the parent; chart only consumes. */
@@ -155,14 +158,21 @@ function channelValue(color: Oklcha, channel: Channel): number {
 }
 
 /** Build the polyline points string for one channel's curve. */
-function curvePoints(colors: Oklcha[], channel: Channel): string {
-  return colors
-    .map((c, i) => {
+function curveSegments(colors: Array<Oklcha | null>, channel: Channel): string[] {
+  const segments: string[][] = [];
+  let current: string[] = [];
+  colors.forEach((c, i) => {
+    if (c) {
       const x = stepX(i, colors.length);
       const y = valueToY(channelValue(c, channel), channel);
-      return `${x.toFixed(2)},${y.toFixed(2)}`;
-    })
-    .join(' ');
+      current.push(`${x.toFixed(2)},${y.toFixed(2)}`);
+      return;
+    }
+    if (current.length > 0) segments.push(current);
+    current = [];
+  });
+  if (current.length > 0) segments.push(current);
+  return segments.map((points) => points.join(' '));
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -235,7 +245,7 @@ function PaletteChartImpl({
 
   // Snapshot of the live `colors` so curve-drag pointer-down reads the latest
   // node values without churning the listener registration.
-  const colorsRef = useRef<Oklcha[]>(colors);
+  const colorsRef = useRef<Array<Oklcha | null>>(colors);
   colorsRef.current = colors;
 
   // Tracks the in-flight drag. Discriminated so the node and curve move paths
@@ -247,7 +257,7 @@ function PaletteChartImpl({
         kind: 'curve';
         channel: Channel;
         startPointerValue: number;
-        startValues: number[];
+        startValues: Array<number | null>;
       }
     | null
   >(null);
@@ -260,7 +270,8 @@ function PaletteChartImpl({
         index: i,
         x: (i / colors.length) * VIEW_W,
         width: VIEW_W / Math.max(1, colors.length),
-        fill: oklchaToHex(c),
+        fill: c ? oklchaToHex(c) : undefined,
+        valid: c !== null,
       })),
     [colors],
   );
@@ -312,6 +323,7 @@ function PaletteChartImpl({
         if (nodeHit) {
           // Per-node drag wins over curve drag.
           const index = Number(nodeHit.getAttribute('data-node-hit'));
+          if (!colorsRef.current[index]) return;
           e.preventDefault();
           // Stop the event from also being read as a curve grab.
           e.stopPropagation();
@@ -334,8 +346,9 @@ function PaletteChartImpl({
             // jsdom does not implement setPointerCapture; ignore.
           }
           const startValues = colorsRef.current.map((c) =>
-            channelValue(c, channel),
+            c ? channelValue(c, channel) : null,
           );
+          if (!startValues.some((value) => value !== null)) return;
           dragRef.current = {
             kind: 'curve',
             channel,
@@ -366,10 +379,12 @@ function PaletteChartImpl({
         if (startValues.length === 0) return;
         const max = CHANNEL_MAX[channel];
         const rawDelta = eventToValue(e.clientY, channel) - startPointerValue;
-        const minV = Math.min(...startValues);
-        const maxV = Math.max(...startValues);
+        const editableValues = startValues.filter((value): value is number => value !== null);
+        const minV = Math.min(...editableValues);
+        const maxV = Math.max(...editableValues);
         const delta = clamp(rawDelta, -minV, max - maxV);
         startValues.forEach((v, i) => {
+          if (v === null || !colorsRef.current[i]) return;
           onChangeRef.current(i, channel, quantize(v + delta, channel));
         });
       }
@@ -404,6 +419,7 @@ function PaletteChartImpl({
   /** Keyboard handler for a focused node. Mirrors CustomSlider's key map. */
   const handleNodeKeyDown = useCallback(
     (e: KeyboardEvent, index: number, channel: Channel, value: number) => {
+      if (!colorsRef.current[index]) return;
       const max = CHANNEL_MAX[channel];
       const step = CHANNEL_STEP[channel];
       const coarse = step * 10;
@@ -462,6 +478,8 @@ function PaletteChartImpl({
             height={VIEW_H}
             fill={b.fill}
             data-band-index={b.index}
+            data-invalid={b.valid ? undefined : true}
+            className={b.valid ? undefined : 'tokenpanel-palette-chart-band is-invalid'}
             opacity={b.index === selectedIndex ? 1 : 0.82}
           />
         ))}
@@ -486,31 +504,35 @@ function PaletteChartImpl({
                 after) win an overlapping pointer-down. `pointer-events: stroke`
                 (CSS) makes only the stroke grabbable, so the stacked channel
                 SVGs don't steal events from lower channels. */}
-            {colors.length > 1 && (
-              <polyline
-                className="tokenpanel-palette-chart-hit-line"
-                points={curvePoints(colors, channel)}
-                fill="none"
-                stroke="transparent"
-                strokeWidth={CURVE_HIT_STROKE_W}
-                strokeLinejoin="round"
-                strokeLinecap="round"
-                vectorEffect="non-scaling-stroke"
-                data-hit-line={channel}
-                data-testid={`palette-chart-hit-line-${channel}`}
-                data-channel={channel}
-              />
-            )}
-            {/* Connecting line between nodes (non-interactive). */}
-            <polyline
-              className="tokenpanel-palette-chart-line"
-              points={curvePoints(colors, channel)}
-              fill="none"
-              strokeWidth={CURVE_STROKE_W}
-              vectorEffect="non-scaling-stroke"
-              pointerEvents="none"
-            />
+            {curveSegments(colors, channel).map((points, segmentIndex) => (
+              <g key={`segment-${channel}-${segmentIndex}`}>
+                {points.includes(' ') && (
+                  <polyline
+                    className="tokenpanel-palette-chart-hit-line"
+                    points={points}
+                    fill="none"
+                    stroke="transparent"
+                    strokeWidth={CURVE_HIT_STROKE_W}
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                    vectorEffect="non-scaling-stroke"
+                    data-hit-line={channel}
+                    data-testid={`palette-chart-hit-line-${channel}`}
+                    data-channel={channel}
+                  />
+                )}
+                <polyline
+                  className="tokenpanel-palette-chart-line"
+                  points={points}
+                  fill="none"
+                  strokeWidth={CURVE_STROKE_W}
+                  vectorEffect="non-scaling-stroke"
+                  pointerEvents="none"
+                />
+              </g>
+            ))}
             {colors.map((c, i) => {
+              if (!c) return null;
               const value = channelValue(c, channel);
               const x = stepX(i, colors.length);
               const y = valueToY(value, channel);
