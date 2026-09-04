@@ -1047,28 +1047,41 @@
 }
 
 /* ===========================================================================
- * Control rows (slider / pill-slider / select / text)
+ * Token rows
  * ========================================================================= */
 
-/* Single-line row used by select-row and text-row */
+/* Single-line token row. */
 .tokenpanel-row {
   display: flex;
   align-items: center;
   gap: var(--tokentweak-pad-sm);
 }
 
-/* Stacked row (label + number on one line, slider beneath) used by slider-row */
+/* Stacked row with label + number on one line. */
 .tokenpanel-row--stacked {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-/* Row used by pill-slider as outer wrapper */
+/* Pill-enabled row outer wrapper. */
 .tokenpanel-row--column {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.tokenpanel-row--flash {
+  animation: tokenpanel-row-flash 900ms ease-out;
+}
+
+@keyframes tokenpanel-row-flash {
+  0%, 35% {
+    outline: 1px solid var(--tokentweak-color-accent);
+  }
+  100% {
+    outline-color: transparent;
+  }
 }
 
 /* Inner row inside .tokenpanel-row--stacked top: label + number */
