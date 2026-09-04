@@ -69,6 +69,7 @@ export const defaultTabs: readonly TabConfig[] = [
       {
         id: 'hsp-scale',
         label: 'Horizontal spacing',
+        preview: 'bar',
         items: [
           length('zfb-hsp-xs', '--zfb-hsp-xs', 'H-Spacing XS', '0.25rem'),
           length('zfb-hsp-sm', '--zfb-hsp-sm', 'H-Spacing S', '0.5rem'),
@@ -80,6 +81,7 @@ export const defaultTabs: readonly TabConfig[] = [
       {
         id: 'vsp-scale',
         label: 'Vertical spacing',
+        preview: 'bar',
         items: [
           length('zfb-vsp-2xs', '--zfb-vsp-2xs', 'V-Spacing 2XS', '0.25rem'),
           length('zfb-vsp-xs', '--zfb-vsp-xs', 'V-Spacing XS', '0.5rem'),
@@ -99,6 +101,7 @@ export const defaultTabs: readonly TabConfig[] = [
       {
         id: 'font-scale',
         label: 'Font scale',
+        preview: 'size',
         items: [
           length('zfb-scale-xs', '--zfb-scale-xs', 'Scale XS', '0.75rem'),
           length('zfb-scale-sm', '--zfb-scale-sm', 'Scale SM', '0.875rem'),
@@ -112,6 +115,7 @@ export const defaultTabs: readonly TabConfig[] = [
       {
         id: 'font-role',
         label: 'Font role',
+        preview: 'size',
         referencesTier: 'font-scale',
         items: [
           text('zfb-text-page-title', '--zfb-text-page-title', 'Page title', 'zfb-scale-xl'),
@@ -125,6 +129,8 @@ export const defaultTabs: readonly TabConfig[] = [
       {
         id: 'line-height',
         label: 'Line height',
+        preview: 'line-height',
+        previewBase: '--zfb-scale-base',
         items: [
           { id: 'zfb-leading-tight', cssVar: '--zfb-leading-tight', label: 'Tight', default: '1.2', type: { kind: 'number', step: 0.05 } },
           { id: 'zfb-leading-body', cssVar: '--zfb-leading-body', label: 'Body', default: '1.6', type: { kind: 'number', step: 0.05 } },
@@ -134,6 +140,7 @@ export const defaultTabs: readonly TabConfig[] = [
       {
         id: 'font-weight',
         label: 'Font weight',
+        preview: 'weight',
         items: [
           { id: 'zfb-weight-body', cssVar: '--zfb-weight-body', label: 'Body', default: '400', type: { kind: 'select', options: ['300', '400', '500', '600', '700'] } },
           { id: 'zfb-weight-heading', cssVar: '--zfb-weight-heading', label: 'Heading', default: '700', type: { kind: 'select', options: ['400', '500', '600', '700', '800'] } },
@@ -142,6 +149,7 @@ export const defaultTabs: readonly TabConfig[] = [
       {
         id: 'font-family',
         label: 'Font family',
+        preview: 'family',
         items: [
           text('zfb-font-sans', '--zfb-font-sans', 'Sans', 'system-ui, sans-serif'),
           text('zfb-font-mono', '--zfb-font-mono', 'Mono', 'ui-monospace, monospace'),
@@ -156,6 +164,7 @@ export const defaultTabs: readonly TabConfig[] = [
       {
         id: 'radius',
         label: 'Radius',
+        preview: 'radius',
         items: [
           length('zfb-radius-sm', '--zfb-radius-sm', 'Small', '0.25rem'),
           length('zfb-radius-md', '--zfb-radius-md', 'Medium', '0.5rem'),
@@ -165,6 +174,7 @@ export const defaultTabs: readonly TabConfig[] = [
       {
         id: 'transition',
         label: 'Transition',
+        preview: 'duration',
         items: [
           length('zfb-transition-fast', '--zfb-transition-fast', 'Fast', '120ms', 10, 'ms'),
           length('zfb-transition-normal', '--zfb-transition-normal', 'Normal', '220ms', 10, 'ms'),

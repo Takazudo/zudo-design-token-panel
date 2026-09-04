@@ -21,7 +21,7 @@ export type TierValueKind =
        */
       units?: readonly string[];
     }
-  | { kind: 'number'; step: number }
+  | { kind: 'number'; step: number; unit?: string }
   | { kind: 'select'; options: readonly string[] }
   | { kind: 'text' }
   | { kind: 'cursor' }
@@ -152,6 +152,11 @@ export interface TierConfig {
    * source.
    */
   referencesRamps?: readonly { tab?: string; tier: string }[];
+  /** Optional visual treatment for this tier's values. Omission preserves the
+   *  ordinary flat token-row rendering. */
+  preview?: 'size' | 'line-height' | 'family' | 'weight' | 'bar' | 'radius' | 'duration';
+  /** Font-size custom property used as the line-height specimen's base size. */
+  previewBase?: string;
 }
 
 // ---------------------------------------------------------------------------

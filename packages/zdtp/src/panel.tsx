@@ -1159,6 +1159,7 @@ export default function DesignTokenTweakPanel({
                     tab={tabConfigById['font']}
                     state={state.typography}
                     persistFont={persistFont}
+                    instanceConfig={instanceConfig}
                   />
                 )}
                 {tab.id === 'size' && state && tabConfigById['size'] && (
