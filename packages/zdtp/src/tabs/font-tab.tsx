@@ -11,7 +11,7 @@ import type { TabConfig, TierItem } from '../tokens/tier-model';
 import type { TokenOverrides } from '../state/tweak-state';
 import type { PersistFont } from '../state/persist';
 import FlatTab from './flat/flat-tab';
-import type { TokenAddress } from './flat/types';
+import type { RowContribution, TokenAddress } from './flat/types';
 import type { BulkPatchEntry } from '../bulk';
 
 interface FontTabProps {
@@ -25,6 +25,8 @@ interface FontTabProps {
   onRenderOnPageChange?: (enabled: boolean) => void;
   searchQuery?: string;
   onBulkApply?: (patch: readonly BulkPatchEntry[]) => void;
+  changedContribution?: RowContribution;
+  changedOnly?: boolean;
 }
 
 export default function FontTab({
@@ -36,6 +38,8 @@ export default function FontTab({
   onRenderOnPageChange,
   searchQuery = '',
   onBulkApply,
+  changedContribution,
+  changedOnly = false,
 }: FontTabProps) {
   const getValue = useCallback((_address: TokenAddress, item: TierItem) => state[item.id] ?? item.default, [state]);
   const setValue = useCallback((address: TokenAddress, next: string) => {
@@ -66,6 +70,9 @@ export default function FontTab({
   const renderTierBody = useCallback((tier: Parameters<typeof renderSpecimenTierBody>[0], renderRow: Parameters<typeof renderSpecimenTierBody>[1]) => (
     renderSpecimenTierBody(tier, renderRow, { tab, state: specimen, valueFor })
   ), [specimen, tab, valueFor]);
+  const flatContributions = changedContribution
+    ? [...contributions, changedContribution]
+    : contributions;
 
   return <>
     {hasSpecimen && (
@@ -78,7 +85,7 @@ export default function FontTab({
       />
     )}
     <FlatTab tab={tab} getValue={getValue} setValue={setValue} deleteValue={deleteValue}
-      overrides={overrides} contributions={contributions} searchQuery={searchQuery} renderTierBody={renderTierBody} onBulkApply={onBulkApply}
+      overrides={overrides} contributions={flatContributions} searchQuery={searchQuery} changedOnly={changedOnly} renderTierBody={renderTierBody} onBulkApply={onBulkApply}
       sectionTestId={(tier) => `font-tier-${tier.id}`} actions={(
         <Fragment>
           {hasSpecimen && (

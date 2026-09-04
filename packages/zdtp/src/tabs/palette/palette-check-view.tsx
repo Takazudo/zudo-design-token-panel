@@ -18,6 +18,8 @@ export interface PaletteCheckViewProps {
   overrides: TabOverrides;
   onChange: (tierId: string, itemId: string, next: string) => void;
   searchQuery?: string;
+  changedOnly?: boolean;
+  isChanged?: (address: TokenAddress) => boolean;
 }
 
 interface PaletteEntry {
@@ -129,9 +131,19 @@ function EntrySection(props: EntrySectionProps) {
   );
 }
 
-export default function PaletteCheckView({ tab, overrides, searchQuery = '' }: PaletteCheckViewProps) {
+export default function PaletteCheckView({
+  tab,
+  overrides,
+  searchQuery = '',
+  changedOnly = false,
+  isChanged,
+}: PaletteCheckViewProps) {
   const tiers = groupPaletteTiers(tab);
   const query = searchQuery.trim();
+  const changedFor = useCallback(
+    (address: TokenAddress) => isChanged?.(address) ?? false,
+    [isChanged],
+  );
   const visibleTiers = useMemo(
     () => query
       ? tiers.filter((tier) => matchesSearchFields({
@@ -140,11 +152,23 @@ export default function PaletteCheckView({ tab, overrides, searchQuery = '' }: P
           label: tier.label,
           value: '',
           tierLabel: tier.label,
-        }, query))
-      : tiers,
-    [query, tiers],
+        }, query) && (!changedOnly || tier.items.some((item) => changedFor({
+          tabId: tab.id,
+          tierId: tier.id,
+          itemId: item.id,
+        }))))
+      : changedOnly
+        ? tiers.filter((tier) => tier.items.some((item) => changedFor({
+            tabId: tab.id,
+            tierId: tier.id,
+            itemId: item.id,
+          })))
+        : tiers,
+    [changedFor, changedOnly, query, tab.id, tiers],
   );
-  const entriesByTier = useMemo(() => new Map(visibleTiers.map((tier) => [tier.id, tier.items.map((item) => resolveEntry(tab.id, item, tier.id, overrides))])), [overrides, tab.id, visibleTiers]);
+  const entriesByTier = useMemo(() => new Map(visibleTiers.map((tier) => [tier.id, tier.items
+    .filter((item) => !changedOnly || changedFor({ tabId: tab.id, tierId: tier.id, itemId: item.id }))
+    .map((item) => resolveEntry(tab.id, item, tier.id, overrides))])), [changedFor, changedOnly, overrides, tab.id, visibleTiers]);
   const allEntries = visibleTiers.flatMap((tier) => entriesByTier.get(tier.id) ?? []);
   const firstOpaque = allEntries.find((entry) => entry.opaque) ?? null;
   const [selectedKey, setSelectedKey] = useState(() => firstOpaque ? entryKey(firstOpaque) : '');
@@ -179,6 +203,11 @@ export default function PaletteCheckView({ tab, overrides, searchQuery = '' }: P
         <div className="tokenpanel-palette-check-col" data-testid="palette-check-left-col"><div className="tokenpanel-palette-check-col-cap">Background (base)</div>{renderSections('left')}</div>
         <div className="tokenpanel-palette-check-col" data-testid="palette-check-right-col"><div className="tokenpanel-palette-check-col-cap">Foreground vs base</div>{renderSections('right')}</div>
       </div>
+      {changedOnly && allEntries.length === 0 && (
+        <div className="tokenpanel-changed-empty" data-testid="tokenpanel-changed-empty">
+          No changed tokens in this tab — everything is at its manifest default.
+        </div>
+      )}
       <div className="tokenpanel-palette-check-footer" data-testid="palette-check-footer">
         {computableEntries.length === 0 ? <span data-testid="palette-check-all-na">All palette contrasts are N/A · no valid opaque base/candidates</span> : <>
           <span className="tokenpanel-palette-check-tally-count">{passCount}</span>{' of '}<span className="tokenpanel-palette-check-tally-total">{computableEntries.length}</span>{' computable palette colors pass AA as '}<span className="tokenpanel-palette-check-tally-mode">{isLarge ? 'large' : 'normal'}</span>{' text on '}<span className="tokenpanel-palette-check-tally-base">{selectedBase?.item.label}</span>

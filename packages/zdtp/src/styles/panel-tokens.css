@@ -77,6 +77,9 @@
   --tokentweak-color-muted: #888888;
   --tokentweak-color-surface: #1c1c1c;
   --tokentweak-color-accent: #d69a66;
+  /* Dedicated changed-state accent: a little brighter than the tab accent so
+   * the left rail and compact markers remain legible on token controls. */
+  --tokentweak-color-accent-bar: #efb477;
   --tokentweak-color-accent-hover: #a7c0e3;
   --tokentweak-color-code-bg: #383838;
   --tokentweak-color-code-fg: #e0e0e0;
