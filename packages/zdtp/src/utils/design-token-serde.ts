@@ -583,7 +583,7 @@ function resolveIndexMapping(v: number | 'bg' | 'fg', bg: number, fg: number): n
  * different key insertion order); a mapping that changed KIND (index → object
  * or vice versa) is always "changed".
  */
-function semanticMappingsEqual(
+export function semanticMappingsEqual(
   cur: SemanticValue,
   baselineVal: SemanticValue,
   curBg: number,
