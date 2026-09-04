@@ -10,6 +10,8 @@ import {
   panelRootId,
   storageKey_open,
   storageKey_position,
+  storageKey_dock,
+  storageKey_dockSize,
   storageKey_stateV1,
   storageKey_stateV2,
   storageKey_stateV3,
@@ -69,6 +71,8 @@ describe('panel-config — default config literal-equality', () => {
     expect(storageKey_stateV3(cfg)).toBe('zudo-design-token-panel-state-v3');
     expect(storageKey_open(cfg)).toBe('zudo-design-token-panel-open');
     expect(storageKey_position(cfg)).toBe('zudo-design-token-panel-position');
+    expect(storageKey_dock(cfg)).toBe('zudo-design-token-panel-dock');
+    expect(storageKey_dockSize(cfg)).toBe('zudo-design-token-panel-dock-size');
     // NOTE: colon, not dash — historical artifact preserved.
     expect(storageKey_visible(cfg)).toBe('zudo-design-token-panel:visible');
   });
@@ -90,6 +94,33 @@ describe('panel-config — default config literal-equality', () => {
 
   it('getPanelConfig returns DEFAULT_PANEL_CONFIG when configurePanel was never called', () => {
     expect(getPanelConfig()).toEqual(DEFAULT_PANEL_CONFIG);
+  });
+});
+
+describe('panel-config — dock validation', () => {
+  function makeDockConfig(extra: Record<string, unknown> = {}): unknown {
+    return {
+      storagePrefix: 'dock-validation',
+      consoleNamespace: 'dockValidation',
+      modalClassPrefix: 'dock-validation-modal',
+      schemaId: 'dock-validation/v1',
+      exportFilenameBase: 'dock-validation',
+      tabs: [],
+      ...extra,
+    };
+  }
+
+  it('accepts omitted, default, and no-reflow dock settings', () => {
+    expect(() => assertValidPanelConfig(makeDockConfig())).not.toThrow();
+    expect(() => assertValidPanelConfig(makeDockConfig({ dock: {} }))).not.toThrow();
+    expect(() => assertValidPanelConfig(makeDockConfig({ dock: { reflow: 'body-margin' } }))).not.toThrow();
+    expect(() => assertValidPanelConfig(makeDockConfig({ dock: { reflow: 'none' } }))).not.toThrow();
+  });
+
+  it('rejects invalid dock settings', () => {
+    expect(() => assertValidPanelConfig(makeDockConfig({ dock: null }))).toThrow(/PanelConfig\.dock must be a plain object/);
+    expect(() => assertValidPanelConfig(makeDockConfig({ dock: { reflow: 'page' } }))).toThrow(/PanelConfig\.dock\.reflow/);
+    expect(() => assertValidPanelConfig(makeDockConfig({ dock: { edge: 'right' } }))).toThrow(/PanelConfig\.dock\.edge is not a supported field/);
   });
 });
 

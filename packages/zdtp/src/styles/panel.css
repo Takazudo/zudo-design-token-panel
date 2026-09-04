@@ -86,6 +86,87 @@
   box-shadow: 0 4px 24px rgb(0 0 0 / 0.25);
 }
 
+.tokenpanel-shell.is-docked-right {
+  border-width: 0 0 0 1px;
+  box-shadow: none;
+}
+
+.tokenpanel-shell.is-docked-bottom {
+  border-width: 1px 0 0;
+  box-shadow: none;
+}
+
+.tokenpanel-shell.is-docked-right .tokenpanel-header,
+.tokenpanel-shell.is-docked-bottom .tokenpanel-header {
+  cursor: default !important;
+}
+
+.tokenpanel-dock-resize-handle {
+  position: absolute;
+  user-select: none;
+}
+
+.tokenpanel-dock-resize-handle.is-right {
+  inset-block: 0;
+  left: -3px;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.tokenpanel-dock-resize-handle.is-bottom {
+  inset-inline: 0;
+  top: -3px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.tokenpanel-dock-modes {
+  display: flex;
+  gap: 2px;
+  padding: 1px;
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.tokenpanel-dock-mode {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 3px;
+  color: var(--tokentweak-color-muted);
+  cursor: pointer;
+}
+
+.tokenpanel-dock-mode:hover,
+.tokenpanel-dock-mode:focus-visible {
+  color: var(--tokentweak-color-fg);
+  background: var(--tokentweak-color-bg);
+}
+
+.tokenpanel-dock-mode.is-active {
+  color: var(--tokentweak-color-accent);
+  background: var(--tokentweak-color-bg);
+}
+
+:where(.tokenpanel-shell) .tokenpanel-dock-mode svg {
+  fill: none !important;
+}
+
+.tokenpanel-dock-modes.is-compact {
+  flex-direction: column;
+  border: 0;
+  padding: 0;
+}
+
+.tokenpanel-dock-modes.is-compact .tokenpanel-dock-mode {
+  justify-content: flex-start;
+  gap: var(--tokentweak-pad-sm);
+  padding: var(--tokentweak-pad-sm) var(--tokentweak-pad-md);
+}
+
 /* ===========================================================================
  * Resize grip (bottom-right corner)
  *
