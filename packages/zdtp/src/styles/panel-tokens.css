@@ -34,8 +34,9 @@
  * A host that wants to retheme the panel chrome assigns directly to the
  * `--tokentweak-color-*` / `--tokentweak-font-mono` / `--tokentweak-z-*`
  * names on either `.tokenpanel-shell`, `[data-design-token-panel-modal]`,
- * `.tokenpanel-highlight-settings-popover`, `.tokenpanel-color-picker`, or
- * `.tokenpanel-tooltip` (or any ancestor — `:where()` keeps specificity at 0).
+ * `.tokenpanel-highlight-settings-popover`, `.tokenpanel-color-picker`,
+ * `.tokenpanel-tooltip`, or an element-inspect surface (or any ancestor —
+ * `:where()` keeps specificity at 0).
  * The popover/tooltip classes are listed directly because they render OUTSIDE
  * `.tokenpanel-shell` (anchored siblings, or — for the tooltip — portaled to
  * `document.body`); without their own entry here `var(--tokentweak-*)` would
@@ -51,7 +52,10 @@
   .tokenpanel-color-picker,
   .tokenpanel-tooltip,
   .tokenpanel-elpath-label,
-  .tokenpanel-elpath-toast
+  .tokenpanel-elpath-toast,
+  .tokenpanel-element-inspect-box,
+  .tokenpanel-element-inspect-label,
+  .tokenpanel-element-inspect-view
 ) {
   /* Steer UA chrome (scrollbars, select dropdowns, number spin buttons) to
    * dark mode so they match the panel's own dark palette on any host page.
