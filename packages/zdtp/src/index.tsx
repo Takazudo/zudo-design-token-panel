@@ -82,6 +82,7 @@ import {
   clearAutoload,
 } from './state/autoload-state';
 import { isDocumentUsable } from './utils/document-liveness';
+import { releaseHostMutations } from './host/host-mutations';
 
 // ---------------------------------------------------------------------------
 // Public DOM contract (kept in sync with astro/host-adapter.ts)
@@ -408,6 +409,10 @@ function unmountInstance(cfg: PanelConfig): void {
   // give the slot back — otherwise a destroy -> recreate cycle would leave the
   // old slot held forever and drift every later instance upward.
   releaseSpawnSlot(cfg);
+  // Release independently of Preact cleanup/root liveness. During an Astro
+  // swap the global document may already be changing, while the shared host
+  // registry still retains the exact elements and priorities it mutated.
+  releaseHostMutations(cfg.storagePrefix);
   const root = findRoot(cfg);
   if (!root) return;
   render(null, root);

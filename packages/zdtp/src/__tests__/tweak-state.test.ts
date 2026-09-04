@@ -7,6 +7,8 @@ import {
   getStorageKeyV2,
   getStorageKeyV3,
   getStorageKeyV4,
+  getDockKey,
+  getDockSizeKey,
   hasActiveColorSlot,
   initColorFromSchemeData,
   initSecondaryDefaults,
@@ -16,6 +18,10 @@ import {
   type TweakState,
   loadPersistedState,
   savePersistedState,
+  loadDockMode,
+  loadDockSize,
+  saveDockMode,
+  saveDockSize,
 } from '../state/tweak-state';
 import type { ColorScheme } from '../config/color-schemes';
 import type { ColorClusterDataConfig } from '../config/cluster-config';
@@ -102,6 +108,34 @@ beforeEach(() => {
 afterEach(() => {
   __resetPanelConfigForTests();
   warnSpy.mockRestore();
+});
+
+describe('dock preference persistence', () => {
+  it('loads and saves the dock mode under the instance prefix', () => {
+    const storage = makeStorage();
+    saveDockMode('bottom', undefined, storage);
+    expect(storage.getItem(getDockKey())).toBe('bottom');
+    expect(loadDockMode(undefined, storage)).toBe('bottom');
+  });
+
+  it('falls back to float for unknown dock modes', () => {
+    const storage = makeStorage({ [getDockKey()]: 'sideways' });
+    expect(loadDockMode(undefined, storage)).toBe('float');
+  });
+
+  it('loads and saves independent right and bottom dock sizes', () => {
+    const storage = makeStorage();
+    saveDockSize({ right: 512, bottom: 376 }, undefined, storage);
+    expect(JSON.parse(storage.getItem(getDockSizeKey())!)).toEqual({ right: 512, bottom: 376 });
+    expect(loadDockSize(undefined, storage)).toEqual({ right: 512, bottom: 376 });
+  });
+
+  it('repairs invalid dock-size axes independently', () => {
+    const storage = makeStorage({
+      [getDockSizeKey()]: JSON.stringify({ right: -1, bottom: 420 }),
+    });
+    expect(loadDockSize(undefined, storage)).toEqual({ right: 440, bottom: 420 });
+  });
 });
 
 describe('loadPersistedState — v1→v3 and v2→v3 migrations', () => {

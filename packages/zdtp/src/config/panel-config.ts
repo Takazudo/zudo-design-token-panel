@@ -77,6 +77,11 @@ export interface DomTweakerConfig {
   themeCss?: string;
 }
 
+export interface PanelDockConfig {
+  /** Whether docked panels reserve space in the host document. Defaults to body-margin. */
+  reflow?: 'body-margin' | 'none';
+}
+
 /**
  * Apply sink interface — allows routing CSS-var writes somewhere other than
  * the host `:root` (e.g. a shadow root, an iframe document, or a spy in
@@ -156,6 +161,8 @@ export interface PanelConfig {
    * panel config.
    */
   domTweaker?: DomTweakerConfig;
+  /** Docked-panel integration. Omitted values use body-margin host reflow. */
+  dock?: PanelDockConfig;
   /**
    * Host-supplied tab configuration for the data-driven tab strip.
    *
@@ -867,6 +874,16 @@ export function storageKey_size(cfg: PanelConfig): string {
   return `${cfg.storagePrefix}-size`;
 }
 
+/** Persisted shell dock mode. */
+export function storageKey_dock(cfg: PanelConfig): string {
+  return `${cfg.storagePrefix}-dock`;
+}
+
+/** Per-axis docked dimensions (`right` width and `bottom` height). */
+export function storageKey_dockSize(cfg: PanelConfig): string {
+  return `${cfg.storagePrefix}-dock-size`;
+}
+
 /** Tab-grid density preference (one of `0` / `1` / `2`). Lives alongside size/position. */
 export function storageKey_density(cfg: PanelConfig): string {
   return `${cfg.storagePrefix}-density`;
@@ -1172,6 +1189,22 @@ export function assertValidPanelConfig(value: unknown): asserts value is PanelCo
           '[design-token-panel] PanelConfig.domTweaker.themeCss must not contain @import',
         );
       }
+    }
+  }
+  if (cfg.dock !== undefined) {
+    if (cfg.dock === null || typeof cfg.dock !== 'object' || Array.isArray(cfg.dock)) {
+      throw new Error('[design-token-panel] PanelConfig.dock must be a plain object');
+    }
+    const dock = cfg.dock as Record<string, unknown>;
+    for (const key of Object.keys(dock)) {
+      if (key !== 'reflow') {
+        throw new Error(`[design-token-panel] PanelConfig.dock.${key} is not a supported field`);
+      }
+    }
+    if (dock.reflow !== undefined && dock.reflow !== 'body-margin' && dock.reflow !== 'none') {
+      throw new Error(
+        '[design-token-panel] PanelConfig.dock.reflow must be "body-margin" or "none" when set',
+      );
     }
   }
   if (cfg.autoRememberOnOpen !== undefined && typeof cfg.autoRememberOnOpen !== 'boolean') {

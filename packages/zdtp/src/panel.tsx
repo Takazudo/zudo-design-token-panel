@@ -13,6 +13,7 @@ import { DomTweakerDiffActionLink } from './dom-tweaker/dom-tweaker-diff-action-
 import { ShellHeader } from './shell/header';
 import { ShellTabBar } from './shell/tab-bar';
 import { ShellFooter } from './shell/footer';
+import { DockModeSwitch } from './shell/dock-mode-switch';
 import { ShellRegionsProvider, type ShellRegionItem } from './shell/regions';
 import {
   LayerActivityProvider,
@@ -36,14 +37,19 @@ import {
 } from './config/panel-config';
 import type { TabConfig } from './tokens/tier-model';
 import { isDocumentUsable } from './utils/document-liveness';
+import { claimHostDock, releaseHostMutations } from './host/host-mutations';
 import { usePersist } from './state/persist';
 import {
   type TweakState,
   type ColorTweakState,
   type PanelDensity,
+  type DockMode,
+  type DockSize,
   type PanelPosition,
   type PanelSize,
   DEFAULT_DENSITY,
+  DEFAULT_DOCK_MODE,
+  DEFAULT_DOCK_SIZE,
   DEFAULT_POSITION,
   applyColorSlices,
   applyFullState,
@@ -62,11 +68,15 @@ import {
   initColorFromScheme,
   initSecondaryFromConfig,
   loadDensity,
+  loadDockMode,
+  loadDockSize,
   loadPersistedState,
   loadPosition,
   loadSize,
   savePersistedState,
   saveDensity,
+  saveDockMode,
+  saveDockSize,
   savePosition,
   saveSize,
 } from './state/tweak-state';
@@ -215,6 +225,8 @@ export default function DesignTokenTweakPanel({
   const [position, setPosition] = useState<PanelPosition>(DEFAULT_POSITION);
   const [size, setSize] = useState<PanelSize>(defaultSize);
   const [density, setDensity] = useState<PanelDensity>(DEFAULT_DENSITY);
+  const [dockMode, setDockMode] = useState<DockMode>(DEFAULT_DOCK_MODE);
+  const [dockSize, setDockSize] = useState<DockSize>(DEFAULT_DOCK_SIZE);
   const panelRef = useRef<HTMLDivElement>(null);
   // tabRefs is now keyed by string to support host-supplied tab ids.
   const tabRefs = useRef<Record<string, HTMLDivElement | null>>({
@@ -228,6 +240,8 @@ export default function DesignTokenTweakPanel({
   positionRef.current = position;
   const sizeRef = useRef<PanelSize>(size);
   sizeRef.current = size;
+  const dockSizeRef = useRef<DockSize>(dockSize);
+  dockSizeRef.current = dockSize;
   // Track active drag listeners for cleanup on unmount
   const dragCleanupRef = useRef<(() => void) | null>(null);
   // Track active resize listeners for cleanup on unmount
@@ -266,6 +280,14 @@ export default function DesignTokenTweakPanel({
     setPosition(clampedPos);
     positionRef.current = clampedPos;
     setDensity(loadDensity(instanceConfig));
+    const storedDockSize = loadDockSize(instanceConfig);
+    const loadedDockSize = {
+      right: Math.max(320, Math.min(storedDockSize.right, window.innerWidth)),
+      bottom: Math.max(240, Math.min(storedDockSize.bottom, window.innerHeight)),
+    };
+    setDockSize(loadedDockSize);
+    dockSizeRef.current = loadedDockSize;
+    setDockMode(loadDockMode(instanceConfig));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -308,6 +330,31 @@ export default function DesignTokenTweakPanel({
       /* ignore */
     }
   }, [open, instanceConfig]);
+
+  // Dock claims are live only while the shell is visible. The shared registry
+  // makes the ownership decision cross-bundle safe and restores host inline
+  // declarations on every cleanup path (mode change, close, or unmount).
+  useEffect(() => {
+    if (!open || (dockMode !== 'right' && dockMode !== 'bottom')) {
+      releaseHostMutations(instanceConfig.storagePrefix);
+      return;
+    }
+    const claimed = claimHostDock(
+      instanceConfig.storagePrefix,
+      dockMode,
+      dockSize[dockMode],
+      instanceConfig.dock?.reflow ?? 'body-margin',
+    );
+    if (!claimed) {
+      console.warn(
+        `[design-token-panel] Cannot dock ${dockMode}: that edge is already owned; falling back to float`,
+      );
+      setDockMode('float');
+      saveDockMode('float', instanceConfig);
+      return;
+    }
+    return () => releaseHostMutations(instanceConfig.storagePrefix);
+  }, [dockMode, dockSize, instanceConfig, open]);
 
   // Sync `open` from the authoritative `localStorage[OPEN_KEY]` whenever the
   // adapter (`index.tsx`) signals a change. The adapter writes OPEN_KEY itself
@@ -421,6 +468,7 @@ export default function DesignTokenTweakPanel({
 
   // Drag handler for panel header (stable — reads position from ref)
   const handleDragStart = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (dockMode === 'right' || dockMode === 'bottom') return;
     // Skip if target is a button (or role=button/tab div), select, or inside one
     const target = e.target as HTMLElement;
     if (target.closest("button, select, option, [role='tab'], [role='button']")) return;
@@ -467,7 +515,7 @@ export default function DesignTokenTweakPanel({
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
     };
-  }, [instanceConfig]);
+  }, [dockMode, instanceConfig]);
 
   // Resize handler for the bottom-right grip — mirrors handleDragStart's
   // structure: writes directly to the DOM during the drag (to avoid 60 fps
@@ -524,6 +572,61 @@ export default function DesignTokenTweakPanel({
       document.removeEventListener('mouseup', onMouseUp);
     };
   }, [instanceConfig]);
+
+  const handleDockResizeStart = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (dockMode !== 'right' && dockMode !== 'bottom') return;
+      const edge = dockMode;
+      e.preventDefault();
+      e.stopPropagation();
+      const start = edge === 'right' ? e.clientX : e.clientY;
+      const startSize = dockSizeRef.current[edge];
+      const min = edge === 'right' ? 320 : 240;
+      const viewportMax = edge === 'right' ? window.innerWidth : window.innerHeight;
+      const max = Math.max(min, viewportMax);
+
+      function onMouseMove(ev: MouseEvent) {
+        const pointer = edge === 'right' ? ev.clientX : ev.clientY;
+        const nextValue = Math.max(min, Math.min(max, startSize + start - pointer));
+        const next = { ...dockSizeRef.current, [edge]: nextValue };
+        dockSizeRef.current = next;
+        if (panelRef.current) {
+          if (edge === 'right') panelRef.current.style.width = `${nextValue}px`;
+          else panelRef.current.style.height = `${nextValue}px`;
+        }
+        claimHostDock(
+          instanceConfig.storagePrefix,
+          edge,
+          nextValue,
+          instanceConfig.dock?.reflow ?? 'body-margin',
+        );
+      }
+
+      function onMouseUp() {
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        resizeCleanupRef.current = null;
+        setDockSize(dockSizeRef.current);
+        saveDockSize(dockSizeRef.current, instanceConfig);
+      }
+
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+      resizeCleanupRef.current = () => {
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+      };
+    },
+    [dockMode, instanceConfig],
+  );
+
+  const handleDockModeChange = useCallback(
+    (next: DockMode) => {
+      setDockMode(next);
+      saveDockMode(next, instanceConfig);
+    },
+    [instanceConfig],
+  );
 
   // Clean up drag + resize listeners on unmount
   useEffect(() => {
@@ -693,8 +796,35 @@ export default function DesignTokenTweakPanel({
             />
           ),
         },
+        {
+          id: 'dock-modes-compact',
+          order: panelActions.length + 1,
+          renderInCompactMenu: true,
+          render: ({ compact, closeCompactMenu }) =>
+            compact ? (
+              <DockModeSwitch
+                value={dockMode}
+                onChange={(mode) => {
+                  handleDockModeChange(mode);
+                  closeCompactMenu();
+                }}
+                compact
+              />
+            ) : null,
+        },
       ],
       'header-right': [
+        {
+          id: 'dock-modes',
+          order: -1,
+          render: () => (
+            <DockModeSwitch
+              value={dockMode}
+              onChange={handleDockModeChange}
+              enableShortcuts
+            />
+          ),
+        },
         {
           id: 'element-path',
           order: 0,
@@ -774,7 +904,7 @@ export default function DesignTokenTweakPanel({
         },
       ],
     }),
-    [instanceConfig, panelActions, showHighlightSettings],
+    [dockMode, handleDockModeChange, instanceConfig, panelActions, showHighlightSettings],
   );
 
   return (
@@ -795,25 +925,52 @@ export default function DesignTokenTweakPanel({
       {open && (() => {
         const { width: panelW, height: panelH } = computePanelSize(size);
 
-        const panelPos = { position: 'fixed' as const, top: position.top, left: position.left };
+        const effectiveDockMode = dockMode === 'mini' ? 'float' : dockMode;
+        const panelPos =
+          effectiveDockMode === 'right'
+            ? { position: 'fixed' as const, top: 0, right: 0, bottom: 0, left: 'auto' }
+            : effectiveDockMode === 'bottom'
+              ? { position: 'fixed' as const, top: 'auto', right: 0, bottom: 0, left: 0 }
+              : { position: 'fixed' as const, top: position.top, left: position.left };
+        const renderedWidth =
+          effectiveDockMode === 'right'
+            ? dockSize.right
+            : effectiveDockMode === 'bottom'
+              ? '100vw'
+              : panelW;
+        const renderedHeight =
+          effectiveDockMode === 'bottom'
+            ? dockSize.bottom
+            : effectiveDockMode === 'right'
+              ? '100vh'
+              : panelH;
 
         return (
           <>
             <div
         ref={panelRef}
-        className="tokenpanel-shell"
+        className={`tokenpanel-shell${effectiveDockMode === 'right' ? ' is-docked-right' : ''}${effectiveDockMode === 'bottom' ? ' is-docked-bottom' : ''}`}
         style={{
           ...panelPos,
-          width: panelW,
-          height: panelH,
-          maxHeight: 'calc(100vh - 32px)',
+          width: renderedWidth,
+          height: renderedHeight,
+          maxHeight: effectiveDockMode === 'float' ? 'calc(100vh - 32px)' : 'none',
           // `--tokenpanel-grid-min` is read by .tokenpanel-tab-grid /
           // .tokenpanel-tab-advanced-grid; switching the variable rewires the
           // min-card-width without re-rendering the grids.
           ['--tokenpanel-grid-min' as string]: densityToGridMin(density),
         }}
       >
-        <ShellHeader width={size.width} onMouseDown={handleDragStart} />
+        <ShellHeader
+          width={
+            effectiveDockMode === 'right'
+              ? dockSize.right
+              : effectiveDockMode === 'bottom'
+                ? window.innerWidth
+                : size.width
+          }
+          onMouseDown={handleDragStart}
+        />
         <ShellTabBar
           tabs={activeTabs}
           activeTab={activeTab}
@@ -940,12 +1097,21 @@ export default function DesignTokenTweakPanel({
             regions; this grip resizes the panel on both axes, which has no
             standard role. We keep just `aria-label` for SR users — keyboard
             resize is intentionally out of scope. */}
-        <div
-          className="tokenpanel-resize-handle"
-          onMouseDown={handleResizeStart}
-          aria-label="Resize panel"
-          title="Drag to resize"
-        />
+        {effectiveDockMode === 'float' ? (
+          <div
+            className="tokenpanel-resize-handle"
+            onMouseDown={handleResizeStart}
+            aria-label="Resize panel"
+            title="Drag to resize"
+          />
+        ) : (
+          <div
+            className={`tokenpanel-dock-resize-handle is-${effectiveDockMode}`}
+            onMouseDown={handleDockResizeStart}
+            aria-label={`Resize ${effectiveDockMode}-docked panel`}
+            title="Drag to resize"
+          />
+        )}
       </div>
 
       {showExport && state && (
