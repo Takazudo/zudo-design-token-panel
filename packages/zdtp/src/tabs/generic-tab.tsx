@@ -3,6 +3,9 @@ import type { TabOverrides } from '../apply/tier-resolver';
 import type { TabConfig, TierItem } from '../tokens/tier-model';
 import FlatTab from './flat/flat-tab';
 import type { TokenAddress } from './flat/types';
+import { previewGlyphContribution } from '../specimen/preview-glyphs';
+
+const PREVIEW_GLYPH = previewGlyphContribution();
 
 export interface GenericTabProps {
   tab: TabConfig;
@@ -16,5 +19,6 @@ export default function GenericTab({ tab, overrides, onChange }: GenericTabProps
   const deleteValue = useCallback((address: TokenAddress) => onChange(address.tierId, address.itemId, undefined), [onChange]);
 
   return <FlatTab tab={tab} getValue={getValue} setValue={setValue} deleteValue={deleteValue}
-    overrides={overrides} testId={`generic-tab-${tab.id}`} sectionTestId={(tier) => `tier-section-${tier.id}`} />;
+    overrides={overrides} contributions={[PREVIEW_GLYPH]}
+    testId={`generic-tab-${tab.id}`} sectionTestId={(tier) => `tier-section-${tier.id}`} />;
 }

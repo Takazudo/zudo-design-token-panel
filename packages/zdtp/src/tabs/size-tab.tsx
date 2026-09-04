@@ -4,6 +4,9 @@ import type { TokenOverrides } from '../state/tweak-state';
 import type { PersistSize } from '../state/persist';
 import FlatTab from './flat/flat-tab';
 import type { TokenAddress } from './flat/types';
+import { previewGlyphContribution } from '../specimen/preview-glyphs';
+
+const PREVIEW_GLYPH = previewGlyphContribution();
 
 interface SizeTabProps { tab: TabConfig; state: TokenOverrides; persistSize: PersistSize }
 
@@ -19,7 +22,7 @@ export default function SizeTab({ tab, state, persistSize }: SizeTabProps) {
   const overrides = Object.fromEntries(tab.tiers.map((tier) => [tier.id, state]));
 
   return <FlatTab tab={tab} getValue={getValue} setValue={setValue} deleteValue={deleteValue}
-    overrides={overrides} sectionTestId={(tier) => `size-tier-${tier.id}`} actions={(
+    overrides={overrides} contributions={[PREVIEW_GLYPH]} sectionTestId={(tier) => `size-tier-${tier.id}`} actions={(
       <div className="tokenpanel-tab-actions"><div role="button" tabIndex={0} className="tokenpanel-action-link"
         onClick={resetAll} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); resetAll(); } }}>
         Reset Size

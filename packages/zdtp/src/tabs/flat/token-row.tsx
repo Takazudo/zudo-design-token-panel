@@ -113,7 +113,7 @@ function TokenRow({
   switch (type.kind) {
     case 'length':
     case 'number': {
-      const unit = type.kind === 'length' ? type.unit : '';
+      const unit = type.kind === 'length' ? type.unit : (type.unit ?? '');
       const { cyclableUnits, isCyclableUnit, effectiveUnit, parsedMagnitude } = deriveCyclableUnit(
         unit,
         type.kind === 'length' ? type.units : undefined,

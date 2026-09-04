@@ -889,6 +889,11 @@ export function storageKey_density(cfg: PanelConfig): string {
   return `${cfg.storagePrefix}-density`;
 }
 
+/** Font specimen toolbar state (`{ text, preset, overridden, width }`). */
+export function storageKey_specimen(cfg: PanelConfig): string {
+  return `${cfg.storagePrefix}-specimen`;
+}
+
 /**
  * Adapter-level visibility-intent flag.
  *
@@ -1352,6 +1357,28 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>, allTabs: un
       );
     }
 
+    const previews = new Set([
+      'size', 'line-height', 'family', 'weight', 'bar', 'radius', 'duration',
+    ]);
+    if (ti.preview !== undefined && !previews.has(ti.preview as string)) {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${ti.id}"].preview has unsupported value ${JSON.stringify(ti.preview)}`,
+      );
+    }
+    if (
+      ti.previewBase !== undefined &&
+      (typeof ti.previewBase !== 'string' || !ti.previewBase.startsWith('--') || ti.previewBase.length <= 2)
+    ) {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${ti.id}"].previewBase must be a CSS custom property name`,
+      );
+    }
+    if (ti.previewBase !== undefined && ti.preview !== 'line-height') {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${ti.id}"].previewBase is only valid with preview "line-height"`,
+      );
+    }
+
     if (!Array.isArray(ti.items)) {
       throw new Error(
         `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${ti.id}"].items must be an array`,
@@ -1508,6 +1535,48 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>, allTabs: un
         throw new Error(
           `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].referencesTier: referencing tier has kind "${referencingKind}" but referenced tier "${refId}" has kind "${referencedKind}" (cross-kind reference is only allowed when the referencing tier has kind "text")`,
         );
+      }
+    }
+  }
+
+  // Preview compatibility is checked after all representative tier kinds are
+  // known so a `size` reference tier can validate its resolved target kind.
+  for (const tier of tab.tiers) {
+    const ti = tier as Record<string, unknown>;
+    const tierId = ti.id as string;
+    const preview = ti.preview;
+    if (preview === undefined) continue;
+    const kind = tierKinds.get(tierId);
+    const refKind = typeof ti.referencesTier === 'string'
+      ? tierKinds.get(ti.referencesTier)
+      : undefined;
+    const fail = (expected: string) => {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].preview "${preview}" requires ${expected}`,
+      );
+    };
+    if (preview === 'size' && (ti.referencesTier === undefined ? kind !== 'length' : refKind !== 'length')) {
+      fail('a length tier or a reference tier resolving to length');
+    }
+    if (preview === 'line-height' && kind !== 'number') fail('a number tier');
+    if (preview === 'family' && kind !== 'text') fail('a text tier');
+    if (preview === 'weight' && kind !== 'select' && kind !== 'number') {
+      fail('a select or number tier');
+    }
+    if ((preview === 'bar' || preview === 'radius') && kind !== 'length') {
+      fail('a length tier');
+    }
+    if (preview === 'duration') {
+      if (kind !== 'length' && kind !== 'number') fail('a length or number tier with unit "ms" or "s"');
+      for (const rawItem of ti.items as unknown[]) {
+        if (rawItem === null || typeof rawItem !== 'object' || Array.isArray(rawItem)) {
+          continue;
+        }
+        const type = (rawItem as Record<string, unknown>).type;
+        const unit = type !== null && typeof type === 'object' && !Array.isArray(type)
+          ? (type as Record<string, unknown>).unit
+          : undefined;
+        if (unit !== 'ms' && unit !== 's') fail('a length or number tier with unit "ms" or "s"');
       }
     }
   }
