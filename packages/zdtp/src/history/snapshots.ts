@@ -46,29 +46,36 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function isColorState(value: unknown): boolean {
+  if (!isRecord(value) || !Array.isArray(value.palette)) return false;
+  return (
+    value.palette.every((entry) => typeof entry === 'string') &&
+    typeof value.background === 'number' &&
+    Number.isFinite(value.background) &&
+    typeof value.foreground === 'number' &&
+    Number.isFinite(value.foreground) &&
+    typeof value.cursor === 'number' &&
+    Number.isFinite(value.cursor) &&
+    typeof value.selectionBg === 'number' &&
+    Number.isFinite(value.selectionBg) &&
+    typeof value.selectionFg === 'number' &&
+    Number.isFinite(value.selectionFg) &&
+    isRecord(value.semanticMappings) &&
+    typeof value.shikiTheme === 'string'
+  );
+}
+
 /**
  * Snapshot payloads are user-editable localStorage data. Keep malformed blobs
  * from reaching the apply pipeline while allowing additive state slices to
  * round-trip as the runtime model evolves.
  */
 export function isSnapshotState(value: unknown): value is TweakState {
-  if (!isRecord(value) || !isRecord(value.color)) return false;
-  if (!Array.isArray(value.color.palette)) return false;
-  if (
-    typeof value.color.background !== 'number' ||
-    typeof value.color.foreground !== 'number' ||
-    typeof value.color.cursor !== 'number' ||
-    typeof value.color.selectionBg !== 'number' ||
-    typeof value.color.selectionFg !== 'number' ||
-    !isRecord(value.color.semanticMappings) ||
-    typeof value.color.shikiTheme !== 'string'
-  ) {
-    return false;
-  }
+  if (!isRecord(value) || !isColorState(value.color)) return false;
   if (!isRecord(value.spacing) || !isRecord(value.typography) || !isRecord(value.size)) {
     return false;
   }
-  if (value.secondary !== undefined && !isRecord(value.secondary)) return false;
+  if (value.secondary !== undefined && !isColorState(value.secondary)) return false;
   if (value.tabs !== undefined && !isRecord(value.tabs)) return false;
   return true;
 }

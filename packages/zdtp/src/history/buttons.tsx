@@ -203,7 +203,12 @@ export function HistoryShortcuts({
   useShortcut(
     {
       key: '\\',
-      when: (event) => !isEditableTarget(event),
+      when: (event) =>
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.shiftKey &&
+        !isEditableTarget(event),
     },
     (event) => {
       event.preventDefault();
