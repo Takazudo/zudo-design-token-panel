@@ -57,6 +57,7 @@
   [data-design-token-panel-modal],
   .tokenpanel-color-picker,
   .tokenpanel-highlight-settings-popover,
+  .tokenpanel-chain-popover,
   .tokenpanel-tooltip,
   .tokenpanel-elpath-label,
   .tokenpanel-elpath-toast,
@@ -72,6 +73,7 @@
   [data-design-token-panel-modal],
   .tokenpanel-color-picker,
   .tokenpanel-highlight-settings-popover,
+  .tokenpanel-chain-popover,
   .tokenpanel-element-inspect-view
 ) :where(*, *::before, *::after) {
   box-sizing: border-box;
@@ -2369,6 +2371,185 @@ select.tokenpanel-tier-ref-select:focus-visible {
   opacity: 1;
 }
 
+/* ===========================================================================
+ * Per-token chain popover (#667)
+ *
+ * The trigger is a small trailing link icon. The popover is fixed-positioned
+ * from its trigger's viewport rect and renders into document.body, keeping it
+ * clear of the tab body's scrolling/clipping context. All chrome colours use
+ * the panel-private tokentweak tokens so this surface remains isolated from
+ * host CSS.
+ * ========================================================================= */
+
+.tokenpanel-chain-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  color: var(--tokentweak-color-muted);
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.tokenpanel-chain-button:hover,
+.tokenpanel-chain-button:focus-visible,
+.tokenpanel-chain-button.is-open {
+  color: var(--tokentweak-color-accent);
+  background-color: rgb(from var(--tokentweak-color-fg) r g b / 0.1);
+}
+
+.tokenpanel-chain-button:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+}
+
+.tokenpanel-chain-button::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+}
+
+:where(.tokenpanel-shell) .tokenpanel-chain-button svg {
+  fill: none !important;
+  stroke: currentColor !important;
+}
+
+.tokenpanel-chain-popover {
+  box-sizing: border-box;
+  width: min(460px, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  padding: var(--tokentweak-pad-md);
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: 6px;
+  background: var(--tokentweak-color-surface);
+  color: var(--tokentweak-color-fg);
+  box-shadow: 0 8px 32px rgb(0 0 0 / 0.5);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.tokenpanel-chain-hops {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-bottom: var(--tokentweak-pad-sm);
+  border-bottom: 1px solid var(--tokentweak-color-muted);
+}
+
+.tokenpanel-chain-hop-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.tokenpanel-chain-hop {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 3px 6px;
+  border-radius: 3px;
+  background: var(--tokentweak-color-code-bg);
+  color: var(--tokentweak-color-code-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tokenpanel-chain-hop.is-literal {
+  color: var(--tokentweak-color-accent-hover);
+}
+
+.tokenpanel-chain-hop-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: 2px;
+}
+
+.tokenpanel-chain-arrow {
+  color: var(--tokentweak-color-muted);
+}
+
+.tokenpanel-chain-row {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: var(--tokentweak-pad-sm);
+  min-height: 22px;
+  padding-top: var(--tokentweak-pad-sm);
+}
+
+.tokenpanel-chain-row-label {
+  flex: 0 0 104px;
+  color: var(--tokentweak-color-muted);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tokenpanel-chain-row-value {
+  color: var(--tokentweak-color-fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.tokenpanel-chain-row-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-xs);
+  margin-left: auto;
+  color: var(--tokentweak-color-muted);
+  white-space: nowrap;
+}
+
+.tokenpanel-chain-chip-list {
+  display: inline-flex;
+  flex: 1 1 180px;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.tokenpanel-chain-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 2px 6px;
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: 3px;
+  background: none;
+  color: var(--tokentweak-color-fg);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tokenpanel-chain-chip:hover,
+.tokenpanel-chain-chip:focus-visible {
+  border-color: var(--tokentweak-color-accent);
+  color: var(--tokentweak-color-accent);
+}
+
+.tokenpanel-chain-chip:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 1px;
+}
+
+.tokenpanel-chain-empty {
+  color: var(--tokentweak-color-muted);
+}
+
 :where(.tokenpanel-shell, .tokenpanel-mini-pill) svg {
   /* !important beats a hostile `svg { fill: red !important }` at the same
    * specificity (0-0-1) because the panel CSS is injected AFTER host CSS at
@@ -2379,6 +2560,20 @@ select.tokenpanel-tier-ref-select:focus-visible {
   pointer-events: none;
   display: inline-block;
   overflow: visible;
+}
+
+/* The popover is portaled to document.body, so it needs the same defensive
+ * SVG reset as the shell-local panel icons. */
+:where(.tokenpanel-chain-popover) svg {
+  fill: currentColor !important;
+  pointer-events: none;
+  display: inline-block;
+  overflow: visible;
+}
+
+:where(.tokenpanel-chain-popover) .tokenpanel-highlight-toggle svg {
+  fill: none !important;
+  stroke: currentColor !important;
 }
 
 :where(.tokenpanel-shell) .tokenpanel-highlight-toggle svg {

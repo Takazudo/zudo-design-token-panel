@@ -67,6 +67,9 @@ import TierRefSelector, {
   type TierRefSelectorValue,
   type TierRefTarget,
 } from '../controls/tier-ref-selector';
+import { TokenChainButton } from '../chain';
+import type { TokenAddress } from './flat/types';
+import { tokenAddressKey as flatTokenAddressKey } from './flat/types';
 
 // The bundled scheme registry now lives on
 // `panelConfig.colorCluster.colorSchemes`, not on a global import. Read it
@@ -107,6 +110,16 @@ function toIndexMappingForSelector(v: SemanticValue): number | 'bg' | 'fg' {
  */
 function findSemanticTier(tab: TabConfig, itemId: string): TierConfig | undefined {
   return tab.tiers.find((t) => t.semantic === true && t.items.some((i) => i.id === itemId));
+}
+
+/** Find the index-bearing semantic tier for a Color-tab row. */
+function findSemanticRowTier(tab: TabConfig, itemId: string): TierConfig | undefined {
+  const paletteTier = findPaletteTier(tab);
+  return tab.tiers.find(
+    (tier) =>
+      tier.items.some((item) => item.id === itemId) &&
+      (tier.semantic === true || (paletteTier !== undefined && tier.referencesTier === paletteTier.id)),
+  );
 }
 
 // --- Shared popover helpers (Color-tab scoped) ---
@@ -256,6 +269,7 @@ const ColorSwatch = memo(function ColorSwatch({
   index,
   label,
   cssVar,
+  address,
   valueFormat = 'hex',
 }: {
   color: string;
@@ -265,6 +279,8 @@ const ColorSwatch = memo(function ColorSwatch({
   /** CSS custom property name (e.g. `--zd-p3`) used to wire the eye toggle.
    *  When present, a HighlightToggleButton appears in the swatch label row. */
   cssVar?: string;
+  /** Address used by the chain popover and jump-to-row links. */
+  address?: TokenAddress;
   /** Output format for the swatch's ColorPicker. `'oklch'` routes the edit
    *  through the lossless OKLCH editor (emits `oklch(...)`); `'hex'` (default)
    *  keeps the native hex behavior. */
@@ -282,7 +298,10 @@ const ColorSwatch = memo(function ColorSwatch({
   const handleToggle = useCallback(() => setIsOpen((prev) => !prev), []);
   const tooltipProps = useTooltip(`${label}: ${color}`);
   return (
-    <div className="tokenpanel-color-swatch-wrap">
+    <div
+      className="tokenpanel-color-swatch-wrap"
+      {...(address ? { 'data-address': flatTokenAddressKey(address) } : {})}
+    >
       <div
         ref={buttonRef}
         role="button"
@@ -315,6 +334,7 @@ const ColorSwatch = memo(function ColorSwatch({
           {label}
         </span>
         {cssVar && <HighlightToggleButton cssVar={cssVar} />}
+        {address && <TokenChainButton address={address} />}
       </div>
     </div>
   );
@@ -339,6 +359,7 @@ const PaletteSelector = memo(function PaletteSelector({
   background,
   foreground,
   cssVar,
+  address,
 }: {
   label: string;
   /** Stable identifier for this row, passed back to `onChange` so the
@@ -362,6 +383,8 @@ const PaletteSelector = memo(function PaletteSelector({
    *  Omit for rows that have no real cssVar in the document (e.g. `background`,
    *  `foreground` Base knobs which are panel-internal palette indices). */
   cssVar?: string;
+  /** Address used by the chain popover and jump-to-row links. */
+  address?: TokenAddress;
 }) {
   const resolvePaletteCssVar = paletteCssVar ?? ((i: number) => `--zd-p${i}`);
   const [isOpen, setIsOpen] = useState(false);
@@ -450,7 +473,11 @@ const PaletteSelector = memo(function PaletteSelector({
   }
 
   return (
-    <div className="tokenpanel-palette-selector" ref={containerRef}>
+    <div
+      className="tokenpanel-palette-selector"
+      ref={containerRef}
+      {...(address ? { 'data-address': flatTokenAddressKey(address) } : {})}
+    >
       <div
         ref={buttonRef}
         role="button"
@@ -494,6 +521,7 @@ const PaletteSelector = memo(function PaletteSelector({
       </div>
 
       {cssVar && <HighlightToggleButton cssVar={cssVar} />}
+      {address && <TokenChainButton address={address} />}
 
       {isOpen && (
         <div
@@ -604,6 +632,7 @@ const SemanticLiteralRow = memo(function SemanticLiteralRow({
   value,
   onChange,
   cssVar,
+  address,
   defaultMode = 'light',
 }: {
   label: string;
@@ -614,6 +643,8 @@ const SemanticLiteralRow = memo(function SemanticLiteralRow({
     val: { literal: string } | { literal: { light: string; dark: string } },
   ) => void;
   cssVar?: string;
+  /** Address used by the chain popover and jump-to-row links. */
+  address?: TokenAddress;
   /** The cluster's `getClusterDefaultMode()` result (#472) — the side kept
    *  when the user unchecks "Per-mode". Defaults to `'light'`. */
   defaultMode?: 'light' | 'dark';
@@ -657,7 +688,11 @@ const SemanticLiteralRow = memo(function SemanticLiteralRow({
   );
 
   return (
-    <div className="tokenpanel-row" data-testid={`tokenpanel-semantic-literal-${idKey}`}>
+    <div
+      className="tokenpanel-row"
+      data-testid={`tokenpanel-semantic-literal-${idKey}`}
+      {...(address ? { 'data-address': flatTokenAddressKey(address) } : {})}
+    >
       <TokenLabel cssVar={cssVar ?? idKey} label={label} />
       <div
         className="tokenpanel-semantic-resolved-chip"
@@ -707,6 +742,7 @@ const SemanticLiteralRow = memo(function SemanticLiteralRow({
         />
       )}
       {cssVar && <HighlightToggleButton cssVar={cssVar} />}
+      {address && <TokenChainButton address={address} />}
     </div>
   );
 });
@@ -733,6 +769,7 @@ const SemanticRefOrLiteralRow = memo(function SemanticRefOrLiteralRow({
   onChange,
   previewValueFor,
   cssVar,
+  address,
   defaultMode,
 }: {
   label: string;
@@ -744,12 +781,18 @@ const SemanticRefOrLiteralRow = memo(function SemanticRefOrLiteralRow({
   onChange: (idKey: string, next: TierRefSelectorValue) => void;
   previewValueFor: (ref: TierRefTarget) => string;
   cssVar?: string;
+  /** Address used by the chain popover and jump-to-row links. */
+  address?: TokenAddress;
   /** The cluster's `getClusterDefaultMode()` result (#472) — forwarded to
    *  `TierRefSelector` for its per-mode collapse-to-single-mode fallback. */
   defaultMode?: 'light' | 'dark';
 }) {
   return (
-    <div className="tokenpanel-row" data-testid={`tokenpanel-semantic-ref-${idKey}`}>
+    <div
+      className="tokenpanel-row"
+      data-testid={`tokenpanel-semantic-ref-${idKey}`}
+      {...(address ? { 'data-address': flatTokenAddressKey(address) } : {})}
+    >
       <TokenLabel cssVar={cssVar ?? idKey} label={label} />
       <TierRefSelector
         tab={tab}
@@ -764,6 +807,7 @@ const SemanticRefOrLiteralRow = memo(function SemanticRefOrLiteralRow({
         defaultMode={defaultMode}
       />
       {cssVar && <HighlightToggleButton cssVar={cssVar} />}
+      {address && <TokenChainButton address={address} />}
     </div>
   );
 });
@@ -1151,21 +1195,28 @@ export default function ColorTab({
             {primaryLabel} — Palette
           </div>
           <div className="tokenpanel-color-palette-grid">
-            {state.palette.map((color, i) => (
+            {state.palette.map((color, i) => {
               // ColorSwatch passes `i` back via its (index, value) onChange so we
               // hand `handlePaletteChange` directly — no inline arrow, memo
               // stays effective. `valueFormat` routes oklch-format slots through
               // the lossless OKLCH editor; absent/`'hex'` slots stay hex.
-              <ColorSwatch
-                key={i}
-                color={color}
-                index={i}
-                label={resolvePaletteCssVar(safeCluster, i)}
-                cssVar={resolvePaletteCssVar(safeCluster, i)}
-                valueFormat={resolvePaletteFormat(paletteTier, i)}
-                onChange={handlePaletteChange}
-              />
-            ))}
+              const paletteItem = paletteTier?.items[i];
+              const address = paletteItem
+                ? { tabId: tab.id, tierId: paletteTier!.id, itemId: paletteItem.id }
+                : undefined;
+              return (
+                <ColorSwatch
+                  key={i}
+                  color={color}
+                  index={i}
+                  label={resolvePaletteCssVar(safeCluster, i)}
+                  cssVar={resolvePaletteCssVar(safeCluster, i)}
+                  address={address}
+                  valueFormat={resolvePaletteFormat(paletteTier, i)}
+                  onChange={handlePaletteChange}
+                />
+              );
+            })}
           </div>
         </div>
       )}
@@ -1230,6 +1281,10 @@ export default function ColorTab({
             {Object.entries(safeCluster.semanticDefaults).map(([key, defaultVal]) => {
               const semanticCssVar = safeCluster.semanticCssNames[key];
               const mapping = state.semanticMappings[key] ?? defaultVal;
+              const semanticRowTier = findSemanticRowTier(tab, key);
+              const semanticAddress = semanticRowTier
+                ? { tabId: tab.id, tierId: semanticRowTier.id, itemId: key }
+                : undefined;
               // A tier that declares `referencesRamps` routes both its ref
               // and literal values — single-mode AND per-mode
               // `{ literal: { light, dark } }` (#472) alike — through the
@@ -1263,6 +1318,7 @@ export default function ColorTab({
                     onChange={handleSemanticRefOrLiteralChange}
                     previewValueFor={previewRampValue}
                     cssVar={semanticCssVar}
+                    address={semanticAddress}
                     defaultMode={primaryDefaultMode}
                   />
                 );
@@ -1281,6 +1337,7 @@ export default function ColorTab({
                     value={mapping}
                     onChange={handleSemanticLiteralChange}
                     cssVar={semanticCssVar}
+                    address={semanticAddress}
                     defaultMode={primaryDefaultMode}
                   />
                 );
@@ -1297,6 +1354,7 @@ export default function ColorTab({
                   background={state.palette[state.background]}
                   foreground={state.palette[state.foreground]}
                   cssVar={semanticCssVar}
+                  address={semanticAddress}
                 />
               );
             })}
@@ -1320,17 +1378,24 @@ export default function ColorTab({
                 {secondaryLabel} — Palette
               </div>
               <div className="tokenpanel-color-palette-grid--secondary">
-                {secondaryState.palette.map((color, i) => (
-                  <ColorSwatch
-                    key={i}
-                    color={color}
-                    index={i}
-                    label={resolvePaletteCssVar(secondaryCluster, i)}
-                    cssVar={resolvePaletteCssVar(secondaryCluster, i)}
-                    valueFormat={resolvePaletteFormat(secondaryPaletteTier, i)}
-                    onChange={handleSecondaryPaletteChange}
-                  />
-                ))}
+                {secondaryState.palette.map((color, i) => {
+                  const paletteItem = secondaryPaletteTier?.items[i];
+                  const address = paletteItem
+                    ? { tabId: secondaryTab.id, tierId: secondaryPaletteTier!.id, itemId: paletteItem.id }
+                    : undefined;
+                  return (
+                    <ColorSwatch
+                      key={i}
+                      color={color}
+                      index={i}
+                      label={resolvePaletteCssVar(secondaryCluster, i)}
+                      cssVar={resolvePaletteCssVar(secondaryCluster, i)}
+                      address={address}
+                      valueFormat={resolvePaletteFormat(secondaryPaletteTier, i)}
+                      onChange={handleSecondaryPaletteChange}
+                    />
+                  );
+                })}
               </div>
             </div>
 
@@ -1354,6 +1419,10 @@ export default function ColorTab({
                 {Object.entries(secondaryCluster.semanticDefaults).map(([key, defaultVal]) => {
                   const secondarySemanticCssVar = secondaryCluster.semanticCssNames[key];
                   const secondaryMapping = secondaryState.semanticMappings[key] ?? defaultVal;
+                  const secondarySemanticRowTier = findSemanticRowTier(secondaryTab, key);
+                  const secondarySemanticAddress = secondarySemanticRowTier
+                    ? { tabId: secondaryTab.id, tierId: secondarySemanticRowTier.id, itemId: key }
+                    : undefined;
                   // Mirrors the primary section's ramp/literal/index split above.
                   const secondarySemanticTier = findSemanticTier(secondaryTab, key);
                   const secondaryRampSources = secondarySemanticTier?.referencesRamps;
@@ -1379,6 +1448,7 @@ export default function ColorTab({
                         onChange={handleSecondarySemanticRefOrLiteralChange}
                         previewValueFor={secondaryPreviewRampValue!}
                         cssVar={secondarySemanticCssVar}
+                        address={secondarySemanticAddress}
                         defaultMode={secondaryDefaultMode}
                       />
                     );
@@ -1392,6 +1462,7 @@ export default function ColorTab({
                         value={secondaryMapping}
                         onChange={handleSecondarySemanticLiteralChange}
                         cssVar={secondarySemanticCssVar}
+                        address={secondarySemanticAddress}
                         defaultMode={secondaryDefaultMode}
                       />
                     );
@@ -1406,6 +1477,7 @@ export default function ColorTab({
                       paletteCssVar={secondaryPaletteCssVar}
                       onChange={handleSecondarySemanticChange}
                       cssVar={secondarySemanticCssVar}
+                      address={secondarySemanticAddress}
                     />
                   );
                 })}

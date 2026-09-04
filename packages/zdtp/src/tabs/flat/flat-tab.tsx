@@ -6,6 +6,7 @@ import { TokenControllerProvider } from './token-controller';
 import TierSection, { type SharedRowRenderer } from './tier-section';
 import type { FlatTabEntry, RowContribution, TokenAddress } from './types';
 import { tokenAddressKey } from './types';
+import { TOKEN_CHAIN_CONTRIBUTION } from '../../chain';
 
 export interface FlatTabProps {
   tab: TabConfig;
@@ -50,6 +51,10 @@ export default function FlatTab({
     }
     return entries;
   }, [entriesByTier]);
+  const rowContributions = useMemo(
+    () => [...contributions, TOKEN_CHAIN_CONTRIBUTION],
+    [contributions],
+  );
   const classes = ['tokenpanel-tab-content', className].filter(Boolean).join(' ');
 
   return (
@@ -70,7 +75,7 @@ export default function FlatTab({
               tier={tier}
               entries={tierEntries}
               overrides={overrides}
-              contributions={contributions}
+              contributions={rowContributions}
               testId={sectionTestId?.(tier)}
               setValue={setValue}
               deleteValue={deleteValue}

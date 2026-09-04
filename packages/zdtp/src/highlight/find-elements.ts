@@ -315,13 +315,13 @@ export const ON_PAGE_SPECIMEN_SELECTOR = '[data-zdtp-specimen]';
 
 /**
  * Selector matching every panel-owned surface that must NEVER be treated as a
- * host element (the shell, modals, and the highlight/element-path/dom-tweaker
- * portal mounts, including element inspect and the on-page specimen). Exported
- * so picker features can skip the same surfaces when resolving the element
- * under the cursor.
+ * host element (the shell, modals, and the highlight/chain/element-path/
+ * dom-tweaker portal mounts, including element inspect and the on-page
+ * specimen). Exported so picker features can skip the same surfaces when
+ * resolving the element under the cursor.
  */
 export const PANEL_EXCLUSION_SELECTOR =
-  `.tokenpanel-shell, [data-design-token-panel-modal], #${HIGHLIGHT_PORTAL_MOUNT_ID}, #${ELPATH_PORTAL_MOUNT_ID}, #${DOM_TWEAKER_PORTAL_MOUNT_ID}, #${ELEMENT_INSPECT_PORTAL_MOUNT_ID}, ${ON_PAGE_SPECIMEN_SELECTOR}`;
+  `.tokenpanel-shell, [data-design-token-panel-modal], .tokenpanel-chain-popover, #${HIGHLIGHT_PORTAL_MOUNT_ID}, #${ELPATH_PORTAL_MOUNT_ID}, #${DOM_TWEAKER_PORTAL_MOUNT_ID}, #${ELEMENT_INSPECT_PORTAL_MOUNT_ID}, ${ON_PAGE_SPECIMEN_SELECTOR}`;
 
 // ---------------------------------------------------------------------------
 // Type detection

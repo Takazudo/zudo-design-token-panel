@@ -1,4 +1,4 @@
-import type { JSX } from 'preact';
+import type { JSX, Ref } from 'preact';
 
 // ---------------------------------------------------------------------------
 // RoleButton — chrome-button policy helper (#149)
@@ -24,6 +24,8 @@ export interface RoleButtonProps {
   /** Arbitrary extra aria-* props (e.g. aria-haspopup, aria-expanded). */
   ariaProps?: Record<string, string | boolean | undefined>;
   tabIndex?: number;
+  /** Explicit DOM ref for callers that need to anchor a popover. */
+  elementRef?: Ref<HTMLDivElement>;
   id?: string;
   title?: string;
   'aria-label'?: string;
@@ -36,6 +38,7 @@ export function RoleButton({
   'aria-disabled': ariaDisabled,
   ariaProps,
   tabIndex = 0,
+  elementRef,
   id,
   title,
   'aria-label': ariaLabel,
@@ -54,6 +57,7 @@ export function RoleButton({
   return (
     <div
       role="button"
+      ref={elementRef}
       tabIndex={tabIndex}
       className={className}
       onClick={handleClick}

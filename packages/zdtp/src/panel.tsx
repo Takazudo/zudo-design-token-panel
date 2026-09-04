@@ -8,6 +8,7 @@ import { reconcileApplied } from './apply/reconcile-applied';
 import { RoleButton } from './controls/role-button';
 import { HighlightSettingsPopover } from './highlight/highlight-settings-popover';
 import { HighlightOrchestrator } from './highlight/highlight-orchestrator';
+import { TokenChainProvider } from './chain';
 import { ElementPathOrchestrator } from './element-path/element-path-orchestrator';
 import { ElementPathToggleButton } from './element-path/element-path-toggle-button';
 import {
@@ -1278,7 +1279,7 @@ export default function DesignTokenTweakPanel({
       onFlipSnapshots={handleFlipSnapshots}
     />
     {open && <PanelEscapeShortcut onClose={() => setOpen(false)} />}
-    <HighlightOrchestrator>
+    <HighlightOrchestrator instanceConfig={instanceConfig}>
     <ElementPathOrchestrator>
     <ElementInspectOrchestrator
       instanceConfig={instanceConfig}
@@ -1290,6 +1291,7 @@ export default function DesignTokenTweakPanel({
       panelOpen={open}
     >
       <DomTweakerOrchestrator instanceConfig={instanceConfig}>
+      <TokenChainProvider instanceConfig={instanceConfig} state={state}>
       <TooltipProvider>
       {open && (() => {
         const { width: panelW, height: panelH } = computePanelSize(size);
@@ -1556,6 +1558,7 @@ export default function DesignTokenTweakPanel({
         );
       })()}
       </TooltipProvider>
+      </TokenChainProvider>
       </DomTweakerOrchestrator>
     </ElementInspectOrchestrator>
       </ElementPathOrchestrator>
