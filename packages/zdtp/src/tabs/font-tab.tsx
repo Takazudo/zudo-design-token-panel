@@ -17,9 +17,10 @@ interface FontTabProps {
   state: TokenOverrides;
   persistFont: PersistFont;
   instanceConfig?: PanelConfig;
+  searchQuery?: string;
 }
 
-export default function FontTab({ tab, state, persistFont, instanceConfig = getPanelConfig() }: FontTabProps) {
+export default function FontTab({ tab, state, persistFont, instanceConfig = getPanelConfig(), searchQuery = '' }: FontTabProps) {
   const getValue = useCallback((_address: TokenAddress, item: TierItem) => state[item.id] ?? item.default, [state]);
   const setValue = useCallback((address: TokenAddress, next: string) => {
     persistFont((prev) => ({ ...prev, [address.itemId]: next }));
@@ -45,7 +46,7 @@ export default function FontTab({ tab, state, persistFont, instanceConfig = getP
   ), [specimen, tab, valueFor]);
 
   return <FlatTab tab={tab} getValue={getValue} setValue={setValue} deleteValue={deleteValue}
-    overrides={overrides} contributions={contributions} renderTierBody={renderTierBody}
+    overrides={overrides} contributions={contributions} searchQuery={searchQuery} renderTierBody={renderTierBody}
     sectionTestId={(tier) => `font-tier-${tier.id}`} actions={(
       <Fragment>
         {hasSpecimen && <SpecimenToolbar state={specimen} showWidth={hasLineHeight} onChange={setSpecimen} />}

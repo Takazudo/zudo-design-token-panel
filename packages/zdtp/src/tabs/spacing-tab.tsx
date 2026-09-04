@@ -8,9 +8,9 @@ import { previewGlyphContribution } from '../specimen/preview-glyphs';
 
 const PREVIEW_GLYPH = previewGlyphContribution();
 
-interface SpacingTabProps { tab: TabConfig; state: TokenOverrides; persistSpacing: PersistSpacing }
+interface SpacingTabProps { tab: TabConfig; state: TokenOverrides; persistSpacing: PersistSpacing; searchQuery?: string }
 
-export default function SpacingTab({ tab, state, persistSpacing }: SpacingTabProps) {
+export default function SpacingTab({ tab, state, persistSpacing, searchQuery = '' }: SpacingTabProps) {
   const getValue = useCallback((_address: TokenAddress, item: TierItem) => state[item.id] ?? item.default, [state]);
   const setValue = useCallback((address: TokenAddress, next: string) => {
     persistSpacing((prev) => ({ ...prev, [address.itemId]: next }));
@@ -22,7 +22,7 @@ export default function SpacingTab({ tab, state, persistSpacing }: SpacingTabPro
   const overrides = Object.fromEntries(tab.tiers.map((tier) => [tier.id, state]));
 
   return <FlatTab tab={tab} getValue={getValue} setValue={setValue} deleteValue={deleteValue}
-    overrides={overrides} contributions={[PREVIEW_GLYPH]} sectionTestId={(tier) => `spacing-tier-${tier.id}`} actions={(
+    overrides={overrides} contributions={[PREVIEW_GLYPH]} searchQuery={searchQuery} sectionTestId={(tier) => `spacing-tier-${tier.id}`} actions={(
       <div className="tokenpanel-tab-actions"><div role="button" tabIndex={0} className="tokenpanel-action-link"
         onClick={resetAll} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); resetAll(); } }}>
         Reset Spacing

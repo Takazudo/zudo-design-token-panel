@@ -28,6 +28,8 @@ export const Z = {
   colorPicker: 2147482993,
   /** DOM tooltip portaled to document.body. */
   tooltip: 2147482994,
+  /** Command palette overlay rendered inside the shell. */
+  commandPalette: 2147482995,
   /** Element-path inspector box (body-mounted). */
   inspectorBox: 2147483000,
   /** Element-path toast (body-mounted). */

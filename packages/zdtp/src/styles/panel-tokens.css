@@ -118,6 +118,7 @@
   --tokentweak-z-settings-popover: 2147482992; /* highlight-settings popover (body-sibling) */
   --tokentweak-z-color-picker:     2147482993; /* color-picker card (shell-local stacking context) */
   --tokentweak-z-tooltip:          2147482994; /* DOM tooltip portaled to body */
+  --tokentweak-z-command-palette:   2147482995; /* command palette overlay (shell-local) */
   --tokentweak-z-inspector-box:    2147483000; /* element-path inspector box */
   --tokentweak-z-toast:            2147483001; /* element-path toast */
 }

@@ -30,6 +30,12 @@ import {
   useLayerRegistration,
 } from './shell/layer-activity';
 import { ShortcutProvider, useShortcut } from './shell/shortcut-dispatcher';
+import { SearchHeader } from './search/search-header';
+import { SearchMatchBar, type SearchTabCount } from './search/match-bar';
+import { CommandPalette, type CommandPaletteAction } from './search/command-palette';
+import { buildTokenIndex, type TokenAddress } from './utils/token-index';
+import { matchesTokenEntry } from './search/token-search';
+import { scrollToTokenRow } from './tabs/flat/scroll-to-token-row';
 import ColorTab from './tabs/color-tab';
 import FontTab from './tabs/font-tab';
 import SizeTab from './tabs/size-tab';
@@ -258,6 +264,9 @@ export default function DesignTokenTweakPanel({
   const [showImport, setShowImport] = useState(false);
   const [showApply, setShowApply] = useState(false);
   const [showHighlightSettings, setShowHighlightSettings] = useState(false);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [pendingJumpAddress, setPendingJumpAddress] = useState<TokenAddress | null>(null);
   const gearBtnRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<TweakState | null>(null);
   // activeTab holds a string to support host-supplied non-reserved tab ids.
@@ -341,6 +350,15 @@ export default function DesignTokenTweakPanel({
     setGhostIdle(loadGhostIdle(instanceConfig.storagePrefix));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // A public close can unmount the shell while the command palette is open;
+  // keep the transient overlay state aligned with the shell lifetime.
+  useEffect(() => {
+    if (!open) {
+      setShowCommandPalette(false);
+      setPendingJumpAddress(null);
+    }
+  }, [open]);
 
   // The mini pill is a transient presentation of the last full mode. Keep
   // that mode in memory so expanding after a mini switch returns to the exact
@@ -553,7 +571,7 @@ export default function DesignTokenTweakPanel({
     if (dockMode === 'right' || dockMode === 'bottom') return;
     // Skip if target is a button (or role=button/tab div), select, or inside one
     const target = e.target as HTMLElement;
-    if (target.closest("button, select, option, [role='tab'], [role='button']")) return;
+    if (target.closest("button, input, textarea, select, option, [contenteditable], [role='tab'], [role='button'], .tokenpanel-search-control")) return;
     e.preventDefault();
     const startX = e.clientX;
     const startY = e.clientY;
@@ -822,6 +840,32 @@ export default function DesignTokenTweakPanel({
     });
   }, [instanceConfig, commitTweakState]);
 
+  const handleResetTab = useCallback((tabId: string) => {
+    if (tabId === 'color') {
+      commitTweakState('reset-color', (previous) => ({
+        ...previous,
+        color: freshTweakState(instanceConfig).color,
+      }), {
+        beforeApply: () => clearAppliedColorStyles(undefined, undefined, instanceConfig),
+      });
+      return;
+    }
+    if (tabId === 'spacing') {
+      persistSpacing(() => ({}));
+      return;
+    }
+    if (tabId === 'font') {
+      persistFont(() => ({}));
+      return;
+    }
+    if (tabId === 'size') {
+      persistSize(() => ({}));
+      return;
+    }
+    if (tabId === 'notes' || tabId === 'color-secondary') return;
+    persistTab(tabId, () => ({}));
+  }, [commitTweakState, instanceConfig, persistFont, persistSize, persistSpacing, persistTab]);
+
   // Single source of truth for the four header actions (#518) — rendered
   // both as the always-visible .tokenpanel-action-link header links AND
   // inside the narrow-panel kebab popover, so a label/handler change only
@@ -883,11 +927,97 @@ export default function DesignTokenTweakPanel({
     return out;
   }, [instanceConfig]);
 
+  const searchIndex = useMemo(() => buildTokenIndex(instanceConfig), [instanceConfig]);
+  const searchCounts = useMemo<readonly SearchTabCount[]>(() => activeTabs.map((tab) => {
+    if (tab.id === 'palette') {
+      const config = tabConfigById[tab.id];
+      const total = config?.tiers.length ?? 0;
+      const matches = searchQuery.trim()
+        ? (config?.tiers ?? []).filter((tier) =>
+            [tier.id, tier.label].some((field) => field.toLocaleLowerCase().includes(searchQuery.trim().toLocaleLowerCase())),
+          ).length
+        : total;
+      return { tab: config ?? { id: tab.id, label: tab.label, tiers: [] }, total, matches };
+    }
+    const entries = searchIndex.entries.filter((entry) => entry.address.tabId === tab.id);
+    const total = entries.length;
+    const matches = entries.filter((entry) => matchesTokenEntry(entry, searchQuery, state ?? undefined, instanceConfig)).length;
+    return { tab: tabConfigById[tab.id] ?? { id: tab.id, label: tab.label, tiers: [] }, total, matches };
+  }), [activeTabs, instanceConfig, searchIndex, searchQuery, state, tabConfigById]);
+
+  const focusTokenAddress = useCallback((address: TokenAddress) => {
+    const row = panelRef.current ? scrollToTokenRow(panelRef.current, address) : null;
+    const focusSelector = 'input:not([type="hidden"]), select, textarea, [role="button"]';
+    const focusTarget = row?.matches(focusSelector)
+      ? row
+      : row?.querySelector<HTMLElement>(focusSelector);
+    focusTarget?.focus();
+  }, []);
+
+  const handleCommandToken = useCallback((address: TokenAddress) => {
+    // A secondary cluster is rendered inside the primary Color tab, not as a
+    // selectable tab of its own. The address stays intact for row navigation.
+    const targetTab = address.tabId === 'color-secondary' ? 'color' : address.tabId;
+    setSearchQuery('');
+    setActiveTab(targetTab);
+    if (address.tabId === 'palette') {
+      setPendingJumpAddress(address);
+      return;
+    }
+    window.requestAnimationFrame(() => focusTokenAddress(address));
+  }, [focusTokenAddress]);
+
+  const handlePaletteJumpHandled = useCallback((address: TokenAddress) => {
+    setPendingJumpAddress(null);
+    window.requestAnimationFrame(() => focusTokenAddress(address));
+  }, [focusTokenAddress]);
+
+  const commandActions = useMemo<readonly CommandPaletteAction[]>(() => {
+    const actions: CommandPaletteAction[] = [
+      { id: 'export', label: 'Export', onSelect: () => setShowExport(true) },
+      { id: 'import', label: 'Load from JSON…', onSelect: () => setShowImport(true) },
+      { id: 'apply', label: 'Apply', onSelect: () => setShowApply(true) },
+    ];
+    for (const tab of activeTabs) {
+      if (tab.id === 'notes' || tab.id === 'color-secondary') continue;
+      actions.push({
+        id: `reset-${tab.id}`,
+        label: `Reset ${tab.label}`,
+        onSelect: () => handleResetTab(tab.id),
+      });
+    }
+    for (const tab of activeTabs) {
+      if (tab.id === 'color-secondary') continue;
+      actions.push({
+        id: `goto-${tab.id}`,
+        label: `Go to ${tab.label}`,
+        onSelect: () => setActiveTab(tab.id),
+      });
+    }
+    actions.push({
+      id: 'highlight-settings',
+      label: 'Highlight settings',
+      onSelect: () => setShowHighlightSettings(true),
+    });
+    return actions;
+  }, [activeTabs, handleResetTab]);
+
   const shellRegionItems = useMemo(
     (): Partial<
       Record<'header-actions' | 'header-right' | 'tabbar-extras', readonly ShellRegionItem[]>
     > => ({
       'header-actions': [
+        {
+          id: 'search-filter',
+          order: -1,
+          render: () => (
+            <SearchHeader
+              query={searchQuery}
+              onQueryChange={setSearchQuery}
+              onOpenPalette={() => setShowCommandPalette(true)}
+            />
+          ),
+        },
         ...panelActions.map(
           (action, index): ShellRegionItem => ({
             id: `panel-action-${action.label}`,
@@ -1057,6 +1187,7 @@ export default function DesignTokenTweakPanel({
       handleGhostIdleChange,
       instanceConfig,
       panelActions,
+      searchQuery,
       showHighlightSettings,
       unsaved.length,
     ],
@@ -1144,6 +1275,12 @@ export default function DesignTokenTweakPanel({
           onDensityChange={handleDensityChange}
           open={open}
         />
+        <SearchMatchBar
+          query={searchQuery}
+          activeTabId={activeTab}
+          counts={searchCounts}
+          onSelectTab={setActiveTab}
+        />
 
         {/* Tab panels — reserved ids dispatch to their dedicated components;
             non-reserved ids dispatch to GenericTab. */}
@@ -1170,6 +1307,7 @@ export default function DesignTokenTweakPanel({
                     persistSecondary={persistSecondary}
                     instanceConfig={instanceConfig}
                     tabOverrides={state.tabs ?? {}}
+                    searchQuery={searchQuery}
                   />
                 )}
                 {tab.id === 'spacing' && state && tabConfigById['spacing'] && (
@@ -1177,6 +1315,7 @@ export default function DesignTokenTweakPanel({
                     tab={tabConfigById['spacing']}
                     state={state.spacing}
                     persistSpacing={persistSpacing}
+                    searchQuery={searchQuery}
                   />
                 )}
                 {tab.id === 'font' && state && tabConfigById['font'] && (
@@ -1185,6 +1324,7 @@ export default function DesignTokenTweakPanel({
                     state={state.typography}
                     persistFont={persistFont}
                     instanceConfig={instanceConfig}
+                    searchQuery={searchQuery}
                   />
                 )}
                 {tab.id === 'size' && state && tabConfigById['size'] && (
@@ -1192,6 +1332,7 @@ export default function DesignTokenTweakPanel({
                     tab={tabConfigById['size']}
                     state={state.size}
                     persistSize={persistSize}
+                    searchQuery={searchQuery}
                   />
                 )}
                 {tab.id === 'palette' && state && tabConfigById['palette'] && (
@@ -1214,6 +1355,9 @@ export default function DesignTokenTweakPanel({
                         [tierId]: { ...prev[tierId], ...patch },
                       }))
                     }
+                    searchQuery={searchQuery}
+                    jumpAddress={pendingJumpAddress}
+                    onJumpAddressHandled={handlePaletteJumpHandled}
                   />
                 )}
                 {tab.id === 'notes' && tabConfigById['notes'] && (
@@ -1226,6 +1370,7 @@ export default function DesignTokenTweakPanel({
                   <GenericTab
                     tab={tabConfigById[tab.id]}
                     overrides={state.tabs?.[tab.id] ?? {}}
+                    searchQuery={searchQuery}
                     onChange={(tierId, itemId, next) => {
                       // `next === undefined` (ref-tier "Literal…" pick, #470)
                       // means drop the stored override entirely so the item
@@ -1276,6 +1421,15 @@ export default function DesignTokenTweakPanel({
             title="Drag to resize"
           />
         )}
+        <CommandPalette
+          open={showCommandPalette}
+          onOpen={() => setShowCommandPalette(true)}
+          onClose={() => setShowCommandPalette(false)}
+          config={instanceConfig}
+          state={state}
+          actions={commandActions}
+          onSelectToken={handleCommandToken}
+        />
               </div>
             )}
 

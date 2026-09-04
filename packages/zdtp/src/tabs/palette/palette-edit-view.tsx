@@ -35,7 +35,7 @@
  * wide-gamut display (or a different clamp strategy) loses nothing.
  */
 
-import { useCallback, useMemo, useRef, useState } from 'preact/compat';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/compat';
 import type { TabConfig, TierConfig, TierItem } from '../../tokens/tier-model';
 import type { TabOverrides } from '../../apply/tier-resolver';
 import { groupPaletteTiers } from './palette-tab';
@@ -50,6 +50,9 @@ import { clampHueForPersist, type Channel } from '../../utils/palette-curve';
 import { PaletteChart } from '../../components/palette-chart';
 import { ColorField } from '../../components/color-picker/color-field';
 import PaletteReadout from './palette-readout';
+import type { TokenAddress } from '../flat/types';
+import { tokenAddressKey } from '../flat/types';
+import { matchesSearchFields } from '../../search/token-search';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -70,6 +73,9 @@ export interface PaletteEditViewProps {
    * per-item `onChange`).
    */
   onCommitBatch?: (tierId: string, patch: Record<string, string>) => void;
+  searchQuery?: string;
+  jumpAddress?: TokenAddress | null;
+  onJumpAddressHandled?: (address: TokenAddress) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -120,9 +126,10 @@ interface SwatchProps {
   slot: ColorSlot;
   isSelected: boolean;
   onSelect: (index: number) => void;
+  address?: TokenAddress;
 }
 
-function Swatch({ item, index, slot, isSelected, onSelect }: SwatchProps) {
+function Swatch({ item, index, slot, isSelected, onSelect, address }: SwatchProps) {
   // Clamp only for the fill; the underlying value stays raw.
   const fill = slot.color ? oklchaToHex(slot.color) : undefined;
   const outOfGamut = slot.color ? !isInSrgbGamut(slot.color) : false;
@@ -153,6 +160,7 @@ function Swatch({ item, index, slot, isSelected, onSelect }: SwatchProps) {
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       data-testid={`palette-edit-swatch-${item.id}`}
+      {...(address ? { 'data-address': tokenAddressKey(address) } : {})}
     >
       <span className="tokenpanel-palette-edit-swatch-idx" aria-hidden="true">
         {index}
@@ -247,8 +255,29 @@ function ChannelToggle({ visible, onToggle }: ChannelToggleProps) {
 // PaletteEditView
 // ---------------------------------------------------------------------------
 
-export default function PaletteEditView({ tab, overrides, onChange, onCommitBatch }: PaletteEditViewProps) {
-  const tiers = groupPaletteTiers(tab);
+export default function PaletteEditView({
+  tab,
+  overrides,
+  onChange,
+  onCommitBatch,
+  searchQuery = '',
+  jumpAddress = null,
+  onJumpAddressHandled,
+}: PaletteEditViewProps) {
+  const allTiers = groupPaletteTiers(tab);
+  const query = searchQuery.trim();
+  const tiers = useMemo(
+    () => query
+      ? allTiers.filter((tier) => matchesSearchFields({
+          cssVar: '',
+          id: tier.id,
+          label: tier.label,
+          value: '',
+          tierLabel: tier.label,
+        }, query))
+      : allTiers,
+    [allTiers, query],
+  );
 
   // Single-open accordion. `null` = every group collapsed (the initial state):
   // the Edit view opens with ALL groups closed so the boxed headers read as
@@ -285,6 +314,20 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
   }, []);
 
   const activeTier = tiers.find((t) => t.id === activeTierId) ?? null;
+
+  useEffect(() => {
+    if (!jumpAddress || jumpAddress.tabId !== tab.id) return;
+    const targetTier = allTiers.find((tier) => tier.id === jumpAddress.tierId);
+    const targetIndex = targetTier?.items.findIndex((item) => item.id === jumpAddress.itemId) ?? -1;
+    if (!targetTier || targetIndex < 0) return;
+    setActiveTierId(targetTier.id);
+    setSelectedIndex(targetIndex);
+    gestureRef.current = null;
+    writeTransient({});
+    if (!onJumpAddressHandled) return;
+    const frame = window.requestAnimationFrame(() => onJumpAddressHandled(jumpAddress));
+    return () => window.cancelAnimationFrame(frame);
+  }, [allTiers, jumpAddress, onJumpAddressHandled, tab.id, writeTransient]);
   // Direct editor events can outlive the mounted ColorField DOM during a
   // config update. Read current selection/config through refs so even a stale
   // event closure cannot write an item that has since become readonly.
@@ -494,10 +537,11 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
                       key={item.id}
                       item={item}
                       index={index}
-                      slot={activeSlots[index]}
-                      isSelected={index === selectedIndex}
-                      onSelect={(i) => handleSelectGroup(tier.id, i)}
-                    />
+                    slot={activeSlots[index]}
+                    isSelected={index === selectedIndex}
+                    onSelect={(i) => handleSelectGroup(tier.id, i)}
+                    address={{ tabId: tab.id, tierId: tier.id, itemId: item.id }}
+                  />
                   ))}
                 </div>
 
