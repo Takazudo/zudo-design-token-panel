@@ -50,9 +50,12 @@ import {
 import { SearchHeader } from './search/search-header';
 import { SearchMatchBar, type SearchTabCount } from './search/match-bar';
 import { CommandPalette, type CommandPaletteAction } from './search/command-palette';
-import { buildTokenIndex, type TokenAddress } from './utils/token-index';
+import { buildTokenIndex, tokenAddressKey, type TokenAddress } from './utils/token-index';
 import { matchesTokenEntry } from './search/token-search';
 import { scrollToTokenRow } from './tabs/flat/scroll-to-token-row';
+import { changedContribution } from './changed/contribution';
+import { ChangedFooterContent } from './changed/footer-content';
+import { ChangedOnlyToggle } from './changed/tab-filter';
 import ColorTab from './tabs/color-tab';
 import FontTab from './tabs/font-tab';
 import SizeTab from './tabs/size-tab';
@@ -115,6 +118,12 @@ import {
   savePosition,
   saveSize,
 } from './state/tweak-state';
+import {
+  changedCounts,
+  isChanged,
+  revertEntry,
+  type ColorBaseline,
+} from './utils/token-diff';
 
 // --- Tab configuration ---
 
@@ -289,6 +298,9 @@ export default function DesignTokenTweakPanel({
   const [historyNotice, setHistoryNotice] = useState<string | null>(null);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  // Changed-only is intentionally transient UI state. It follows the active
+  // tab but is never written to localStorage or the tweak envelope.
+  const [changedOnly, setChangedOnly] = useState(false);
   const [pendingJumpAddress, setPendingJumpAddress] = useState<TokenAddress | null>(null);
   const gearBtnRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<TweakState | null>(null);
@@ -928,7 +940,7 @@ export default function DesignTokenTweakPanel({
     // sink so a reset on panel A never touches panel B's storage/vars (#357).
     // Always seed the secondary slice — every fresh-state path emits a
     // uniform envelope shape so persistence stays consistent.
-    commitTweakState('reset', freshTweakState(instanceConfig), {
+    commitTweakState('reset-all', freshTweakState(instanceConfig), {
       apply: () => clearAppliedStyles(undefined, instanceConfig),
       save: () => clearPersistedState(undefined, instanceConfig),
     });
@@ -1032,7 +1044,10 @@ export default function DesignTokenTweakPanel({
 
   const colorDefaults = useMemo(
     () => initColorFromScheme(getActivePrimaryCluster(instanceConfig), instanceConfig),
-    [instanceConfig],
+    // The active scheme/mode is the Color evaluator's identity baseline. A
+    // scheme change updates this memo so reverting a Color row restores the
+    // newly-active identity rather than the previous scheme's seed.
+    [activeColorIdentity, instanceConfig],
   );
   const secondaryDefaults = useMemo(() => initSecondaryFromConfig(instanceConfig), [instanceConfig]);
   const flattenedOverrides = useMemo(
@@ -1115,6 +1130,54 @@ export default function DesignTokenTweakPanel({
   }, [instanceConfig]);
 
   const searchIndex = useMemo(() => buildTokenIndex(instanceConfig), [instanceConfig]);
+  // Color rows are backed by a complete ColorTweakState, so their baseline is
+  // the active identity's freshly-seeded state. Flat rows continue to compare
+  // against manifest defaults through the same S2 evaluator.
+  const changedBaseline = useMemo<ColorBaseline>(() => ({
+    color: colorDefaults,
+    ...(secondaryDefaults ? { secondary: secondaryDefaults } : {}),
+  }), [colorDefaults, secondaryDefaults]);
+  const changedTokenCounts = useMemo(
+    () => state
+      ? changedCounts(searchIndex.entries, state, changedBaseline, instanceConfig)
+      : {},
+    [changedBaseline, instanceConfig, searchIndex.entries, state],
+  );
+  const changedTotal = useMemo(
+    () => Object.values(changedTokenCounts).reduce((sum, count) => sum + count, 0),
+    [changedTokenCounts],
+  );
+  // The primary Color view owns both primary and optional secondary cluster
+  // sections, so its active-tab filter count includes both evaluator slices.
+  // Other tabs map one-to-one to their changedCounts entry.
+  const changedOnlyCount = activeTab === 'color'
+    ? (changedTokenCounts.color ?? 0) + (changedTokenCounts['color-secondary'] ?? 0)
+    : changedTokenCounts[activeTab] ?? 0;
+  const isTokenChanged = useCallback((address: TokenAddress) => {
+    const entry = searchIndex.entry(address);
+    return Boolean(entry && state && isChanged(entry, state, changedBaseline, instanceConfig));
+  }, [changedBaseline, instanceConfig, searchIndex, state]);
+  const handleRevertAddress = useCallback((address: TokenAddress) => {
+    if (!state) return;
+    const entry = searchIndex.entry(address);
+    if (!entry) return;
+    commitTweakState('revert', revertEntry(entry, changedBaseline, instanceConfig), {
+      address: tokenAddressKey(address),
+    });
+  }, [changedBaseline, commitTweakState, instanceConfig, searchIndex, state]);
+  const changedRowContribution = useMemo(
+    () => state
+      ? changedContribution({
+          index: searchIndex,
+          state,
+          baseline: changedBaseline,
+          cfg: instanceConfig,
+          changedOnly,
+          onRevert: handleRevertAddress,
+        })
+      : undefined,
+    [changedBaseline, changedOnly, handleRevertAddress, instanceConfig, searchIndex, state],
+  );
   const searchCounts = useMemo<readonly SearchTabCount[]>(() => activeTabs.map((tab) => {
     if (tab.id === 'palette') {
       const config = tabConfigById[tab.id];
@@ -1191,7 +1254,7 @@ export default function DesignTokenTweakPanel({
 
   const shellRegionItems = useMemo(
     (): Partial<
-      Record<'header-actions' | 'header-right' | 'tabbar-extras', readonly ShellRegionItem[]>
+      Record<'header-actions' | 'header-right' | 'tabbar-extras' | 'footer', readonly ShellRegionItem[]>
     > => ({
       'header-actions': [
         {
@@ -1370,17 +1433,50 @@ export default function DesignTokenTweakPanel({
             <GhostIdleToggle enabled={ghostIdle} onChange={handleGhostIdleChange} />
           ),
         },
+        {
+          id: 'changed-only',
+          order: 1,
+          render: () => (
+            <ChangedOnlyToggle
+              enabled={changedOnly}
+              count={changedOnlyCount}
+              onChange={setChangedOnly}
+            />
+          ),
+        },
       ],
+      footer: state ? [
+        {
+          id: 'changed-state-footer',
+          render: () => (
+            <ChangedFooterContent
+              index={searchIndex}
+              state={state}
+              baseline={changedBaseline}
+              cfg={instanceConfig}
+              onRevertAll={handleResetAll}
+            />
+          ),
+        },
+      ] : [],
     }),
     [
+      activeTab,
+      changedBaseline,
+      changedOnly,
+      changedOnlyCount,
+      changedTokenCounts,
       dockMode,
       ghostIdle,
       handleDockModeChange,
       handleGhostIdleChange,
+      handleResetAll,
       instanceConfig,
       panelActions,
       searchQuery,
+      searchIndex,
       showHighlightSettings,
+      state,
       unsaved.length,
     ],
   );
@@ -1451,7 +1547,7 @@ export default function DesignTokenTweakPanel({
               <MiniPill
                 onApply={() => setShowApply(true)}
                 onExpand={() => handleDockModeChange(lastFullDockModeRef.current)}
-                changedCount={unsaved.length > 0 ? unsaved.length : undefined}
+                changedCount={changedTotal > 0 ? changedTotal : undefined}
                 undo={
                   <HistoryUndoButton
                     canUndo={historySnapshot.canUndo}
@@ -1494,6 +1590,7 @@ export default function DesignTokenTweakPanel({
           density={density}
           onDensityChange={handleDensityChange}
           open={open}
+          changedCounts={changedTokenCounts}
         />
         <SearchMatchBar
           query={searchQuery}
@@ -1531,6 +1628,9 @@ export default function DesignTokenTweakPanel({
                     instanceConfig={instanceConfig}
                     tabOverrides={state.tabs ?? {}}
                     searchQuery={searchQuery}
+                    isChanged={isTokenChanged}
+                    changedOnly={changedOnly}
+                    onRevert={handleRevertAddress}
                   />
                 )}
                 {tab.id === 'spacing' && state && tabConfigById['spacing'] && (
@@ -1539,6 +1639,8 @@ export default function DesignTokenTweakPanel({
                     state={state.spacing}
                     persistSpacing={persistSpacing}
                     searchQuery={searchQuery}
+                    changedContribution={changedRowContribution}
+                    changedOnly={changedOnly}
                   />
                 )}
                 {tab.id === 'font' && state && tabConfigById['font'] && (
@@ -1550,6 +1652,8 @@ export default function DesignTokenTweakPanel({
                     renderOnPage={renderSpecimenOnPage}
                     onRenderOnPageChange={handleRenderSpecimenOnPageChange}
                     searchQuery={searchQuery}
+                    changedContribution={changedRowContribution}
+                    changedOnly={changedOnly}
                   />
                 )}
                 {tab.id === 'size' && state && tabConfigById['size'] && (
@@ -1558,6 +1662,8 @@ export default function DesignTokenTweakPanel({
                     state={state.size}
                     persistSize={persistSize}
                     searchQuery={searchQuery}
+                    changedContribution={changedRowContribution}
+                    changedOnly={changedOnly}
                   />
                 )}
                 {tab.id === 'palette' && state && tabConfigById['palette'] && (
@@ -1581,6 +1687,8 @@ export default function DesignTokenTweakPanel({
                       }))
                     }
                     searchQuery={searchQuery}
+                    changedOnly={changedOnly}
+                    isChanged={isTokenChanged}
                     jumpAddress={pendingJumpAddress}
                     onJumpAddressHandled={handlePaletteJumpHandled}
                   />
@@ -1596,6 +1704,8 @@ export default function DesignTokenTweakPanel({
                     tab={tabConfigById[tab.id]}
                     overrides={state.tabs?.[tab.id] ?? {}}
                     searchQuery={searchQuery}
+                    changedContribution={changedRowContribution}
+                    changedOnly={changedOnly}
                     onChange={(tierId, itemId, next) => {
                       // `next === undefined` (ref-tier "Literal…" pick, #470)
                       // means drop the stored override entirely so the item

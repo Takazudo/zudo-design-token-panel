@@ -1110,6 +1110,17 @@
   padding-block: var(--tokentweak-gap-sm);
 }
 
+.tokenpanel-footer {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 34px;
+  padding-inline: var(--tokentweak-pad-xl);
+  padding-block: var(--tokentweak-pad-xs);
+  border-top: 1px solid var(--tokentweak-color-muted);
+  flex-shrink: 0;
+}
+
 /* ==========================================================================
  * Command palette
  * ========================================================================== */
@@ -3080,5 +3091,265 @@ html.tokenpanel-elpath-inspecting * {
 
   .tokenpanel-tooltip[data-show='true'] {
     transform: none;
+  }
+}
+
+/* ===========================================================================
+ * Changed state (#661)
+ *
+ * These accents intentionally use panel-private tokens only. Changed rows
+ * retain the existing grid geometry while gaining a narrow rail, brighter
+ * controls, and a compact default → current tail. The same classes are used
+ * by Color and Palette views so the evaluator has one visual vocabulary.
+ * =========================================================================== */
+
+.tokenpanel-tab-button {
+  position: relative;
+}
+
+.tokenpanel-changed-tab-badge {
+  position: absolute;
+  top: 6px;
+  right: -2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding-inline: 4px;
+  border-radius: 999px;
+  background: var(--tokentweak-color-accent-bar);
+  color: var(--tokentweak-color-bg);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.tokenpanel-changed-only-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-xs);
+  flex-shrink: 0;
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+  user-select: none;
+  cursor: pointer;
+}
+
+.tokenpanel-changed-only-toggle:hover {
+  color: var(--tokentweak-color-fg);
+}
+
+.tokenpanel-changed-only-checkbox {
+  accent-color: var(--tokentweak-color-accent-bar);
+}
+
+.tokenpanel-changed-footer-content {
+  display: flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-sm);
+  width: 100%;
+  min-width: 0;
+}
+
+.tokenpanel-changed-summary {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tokenpanel-changed-summary-count {
+  color: var(--tokentweak-color-fg);
+  font-weight: 700;
+}
+
+.tokenpanel-changed-footer-spacer {
+  flex: 1 1 auto;
+  min-width: var(--tokentweak-pad-xs);
+}
+
+.tokenpanel-changed-footer-content .tokenpanel-action-link {
+  flex-shrink: 0;
+}
+
+.tokenpanel-changed-copy[aria-disabled='true'],
+.tokenpanel-changed-revert-all[aria-disabled='true'] {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.tokenpanel-changed-revert-all {
+  color: var(--tokentweak-color-danger);
+}
+
+.tokenpanel-changed-revert-all:hover,
+.tokenpanel-changed-revert-all:focus-visible {
+  color: var(--tokentweak-color-fg);
+}
+
+.tokenpanel-row.is-changed,
+.tokenpanel-row--column.is-changed {
+  position: relative;
+  border-left: 2px solid var(--tokentweak-color-accent-bar);
+  padding-left: 6px;
+  margin-left: -8px;
+}
+
+.tokenpanel-row.is-changed .tokenpanel-row-number-input,
+.tokenpanel-row--column.is-changed .tokenpanel-row-number-input,
+.tokenpanel-row.is-changed .tokenpanel-row-select,
+.tokenpanel-row--column.is-changed .tokenpanel-row-select,
+.tokenpanel-row.is-changed .tokenpanel-row-text-input,
+.tokenpanel-row--column.is-changed .tokenpanel-row-text-input,
+.tokenpanel-row.is-changed .tokenpanel-color-field-swatch,
+.tokenpanel-row--column.is-changed .tokenpanel-color-field-swatch,
+.tokenpanel-row.is-changed .tokenpanel-row-color-input,
+.tokenpanel-row--column.is-changed .tokenpanel-row-color-input {
+  border-color: var(--tokentweak-color-accent-bar);
+  color: var(--tokentweak-color-code-fg);
+}
+
+.tokenpanel-row.is-changed .tokenpanel-row-number-input:focus-visible,
+.tokenpanel-row.is-changed .tokenpanel-row-select:focus-visible,
+.tokenpanel-row.is-changed .tokenpanel-row-text-input:focus-visible,
+.tokenpanel-row.is-changed .tokenpanel-color-field-swatch:focus-visible {
+  outline-color: var(--tokentweak-color-accent-bar);
+}
+
+.tokenpanel-changed-tail {
+  display: inline-flex;
+  align-items: baseline;
+  min-width: 0;
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 10px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.tokenpanel-changed-tail-old {
+  text-decoration: line-through;
+  text-decoration-color: var(--tokentweak-color-muted);
+}
+
+.tokenpanel-changed-tail-new {
+  color: var(--tokentweak-color-accent-bar);
+}
+
+.tokenpanel-changed-revert {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: var(--radius-tokentweak);
+  color: var(--tokentweak-color-muted);
+  cursor: pointer;
+}
+
+.tokenpanel-changed-revert:hover,
+.tokenpanel-changed-revert:focus-visible {
+  color: var(--tokentweak-color-accent-bar);
+}
+
+.tokenpanel-changed-revert:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent-bar);
+  outline-offset: 1px;
+}
+
+.tokenpanel-changed-revert::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+}
+
+.tokenpanel-changed-revert svg {
+  fill: none !important;
+  stroke: currentColor !important;
+  pointer-events: none;
+}
+
+.tokenpanel-changed-marker {
+  flex: 0 0 auto;
+  color: var(--tokentweak-color-accent-bar);
+  font-size: 9px;
+  line-height: 1;
+}
+
+.tokenpanel-color-swatch-wrap.is-changed {
+  position: relative;
+  border-left: 2px solid var(--tokentweak-color-accent-bar);
+  padding-left: 4px;
+  margin-left: -6px;
+}
+
+.tokenpanel-color-swatch-wrap.is-changed .tokenpanel-color-swatch-button {
+  border-color: var(--tokentweak-color-accent-bar);
+}
+
+.tokenpanel-color-swatch-wrap.is-changed .tokenpanel-color-swatch-button:focus-visible {
+  outline-color: var(--tokentweak-color-accent-bar);
+}
+
+.tokenpanel-palette-selector.is-changed {
+  border-left: 2px solid var(--tokentweak-color-accent-bar);
+  padding-left: 4px;
+  margin-left: -6px;
+}
+
+.tokenpanel-palette-selector.is-changed .tokenpanel-palette-trigger {
+  border-color: var(--tokentweak-color-accent-bar);
+}
+
+.tokenpanel-palette-selector.is-changed .tokenpanel-palette-trigger:focus-visible {
+  outline-color: var(--tokentweak-color-accent-bar);
+}
+
+.tokenpanel-palette-edit-group-changed-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  margin-left: 4px;
+  padding-inline: 4px;
+  border-radius: 999px;
+  background: var(--tokentweak-color-accent-bar);
+  color: var(--tokentweak-color-bg);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.tokenpanel-changed-empty {
+  padding: var(--tokentweak-pad-lg);
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 12px;
+  text-align: center;
+}
+
+@container tokenpanel (max-width: 479px) {
+  .tokenpanel-changed-footer-content {
+    flex-wrap: wrap;
+  }
+
+  .tokenpanel-changed-summary {
+    flex: 1 1 100%;
+  }
+
+  .tokenpanel-changed-footer-spacer {
+    display: none;
   }
 }

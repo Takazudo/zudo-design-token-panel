@@ -3,6 +3,7 @@ import { Fragment, type RefObject } from 'preact';
 import type { PanelDensity } from '../state/tweak-state';
 import { useShellRegions } from './regions';
 import { useShortcut } from './shortcut-dispatcher';
+import { ChangedTabBadge } from '../changed/tab-badge';
 
 export interface ShellTab {
   id: string;
@@ -18,6 +19,7 @@ export function ShellTabBar({
   density,
   onDensityChange,
   open,
+  changedCounts = {},
 }: {
   tabs: readonly ShellTab[];
   activeTab: string;
@@ -27,6 +29,7 @@ export function ShellTabBar({
   density: PanelDensity;
   onDensityChange: (density: PanelDensity) => void;
   open: boolean;
+  changedCounts?: Readonly<Record<string, number>>;
 }) {
   const { items } = useShellRegions();
   const stripRef = useRef<HTMLDivElement>(null);
@@ -104,6 +107,7 @@ export function ShellTabBar({
               className={selected ? 'tokenpanel-tab-button is-active' : 'tokenpanel-tab-button'}
             >
               {tab.label}
+              <ChangedTabBadge tabId={tab.id} count={changedCounts[tab.id] ?? 0} />
             </div>
           );
         })}

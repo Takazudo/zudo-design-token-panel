@@ -66,6 +66,10 @@ export interface PaletteTabProps {
   onCommitBatch?: (tierId: string, patch: Record<string, string>) => void;
   /** Header-filter query shared with the active tab. */
   searchQuery?: string;
+  /** Transient active-tab Changed-only filter. */
+  changedOnly?: boolean;
+  /** S2 evaluator callback for palette-step addresses. */
+  isChanged?: (address: TokenAddress) => boolean;
   /** Address selected by the command palette. */
   jumpAddress?: TokenAddress | null;
   /** Called after the Edit view has opened and selected the requested step. */
@@ -82,6 +86,8 @@ export default function PaletteTab({
   onChange,
   onCommitBatch,
   searchQuery = '',
+  changedOnly = false,
+  isChanged,
   jumpAddress = null,
   onJumpAddressHandled,
 }: PaletteTabProps) {
@@ -155,12 +161,21 @@ export default function PaletteTab({
           onChange={onChange}
           onCommitBatch={onCommitBatch}
           searchQuery={searchQuery}
+          changedOnly={changedOnly}
+          isChanged={isChanged}
           jumpAddress={jumpAddress}
           onJumpAddressHandled={onJumpAddressHandled}
         />
       )}
       {mode === 'check' && (
-        <PaletteCheckView tab={tab} overrides={overrides} onChange={onChange} searchQuery={searchQuery} />
+        <PaletteCheckView
+          tab={tab}
+          overrides={overrides}
+          onChange={onChange}
+          searchQuery={searchQuery}
+          changedOnly={changedOnly}
+          isChanged={isChanged}
+        />
       )}
     </div>
   );

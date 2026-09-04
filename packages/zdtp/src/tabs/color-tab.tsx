@@ -60,6 +60,7 @@ import { resolveColorClusterFromTab } from '../config/cluster-config';
 import type { TabConfig, TierConfig } from '../tokens/tier-model';
 import type { PersistColor, PersistSecondary } from '../state/persist';
 import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
+import { RoleButton } from '../controls/role-button';
 import { TokenLabel } from '../controls/token-label';
 import { useTooltip } from '../controls/tooltip';
 import { HelpIcon, SEMANTIC_TOKENS_HELP_TEXT } from '../controls/help-icon';
@@ -287,6 +288,8 @@ const ColorSwatch = memo(function ColorSwatch({
   cssVar,
   valueFormat = 'hex',
   address,
+  isChanged = false,
+  onRevert,
 }: {
   color: string;
   onChange: (index: number, value: string) => void;
@@ -301,6 +304,9 @@ const ColorSwatch = memo(function ColorSwatch({
   valueFormat?: ColorPickerValueFormat;
   /** Stable address used by command-palette navigation. */
   address?: TokenAddress;
+  /** Evaluator-backed changed state for the active identity. */
+  isChanged?: boolean;
+  onRevert?: () => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const buttonRef = useRef<HTMLDivElement>(null);
@@ -315,7 +321,7 @@ const ColorSwatch = memo(function ColorSwatch({
   const tooltipProps = useTooltip(`${label}: ${color}`);
   return (
     <div
-      className="tokenpanel-color-swatch-wrap"
+      className={`tokenpanel-color-swatch-wrap${isChanged ? ' is-changed' : ''}`}
       {...(address ? { 'data-address': tokenAddressKey(address) } : {})}
     >
       <div
@@ -346,10 +352,34 @@ const ColorSwatch = memo(function ColorSwatch({
         />
       )}
       <div className="tokenpanel-color-swatch-label-row">
+        {isChanged && <span className="tokenpanel-changed-marker" aria-label="Changed">●</span>}
         <span className="tokenpanel-color-swatch-label">
           {label}
         </span>
         {cssVar && <HighlightToggleButton cssVar={cssVar} />}
+        {isChanged && onRevert && (
+          <RoleButton
+            className="tokenpanel-changed-revert"
+            aria-label={`Revert ${label}`}
+            title="Revert to default"
+            onClick={onRevert}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M3 12a9 9 0 1 0 3-6.7" />
+              <path d="M3 4v6h6" />
+            </svg>
+          </RoleButton>
+        )}
       </div>
     </div>
   );
@@ -375,6 +405,8 @@ const PaletteSelector = memo(function PaletteSelector({
   foreground,
   cssVar,
   address,
+  isChanged = false,
+  onRevert,
 }: {
   label: string;
   /** Stable identifier for this row, passed back to `onChange` so the
@@ -400,6 +432,8 @@ const PaletteSelector = memo(function PaletteSelector({
   cssVar?: string;
   /** Stable address used by command-palette navigation. */
   address?: TokenAddress;
+  isChanged?: boolean;
+  onRevert?: () => void;
 }) {
   const resolvePaletteCssVar = paletteCssVar ?? ((i: number) => `--zd-p${i}`);
   const [isOpen, setIsOpen] = useState(false);
@@ -489,7 +523,7 @@ const PaletteSelector = memo(function PaletteSelector({
 
   return (
     <div
-      className="tokenpanel-palette-selector"
+      className={`tokenpanel-palette-selector${isChanged ? ' is-changed' : ''}`}
       ref={containerRef}
       {...(address ? { 'data-address': tokenAddressKey(address) } : {})}
     >
@@ -514,6 +548,7 @@ const PaletteSelector = memo(function PaletteSelector({
         aria-expanded={isOpen}
         {...tooltipProps}
       >
+        {isChanged && <span className="tokenpanel-changed-marker" aria-label="Changed">●</span>}
         <span className="tokenpanel-palette-trigger-label">
           {label}
         </span>
@@ -536,6 +571,29 @@ const PaletteSelector = memo(function PaletteSelector({
       </div>
 
       {cssVar && <HighlightToggleButton cssVar={cssVar} />}
+      {isChanged && onRevert && (
+        <RoleButton
+          className="tokenpanel-changed-revert"
+          aria-label={`Revert ${label}`}
+          title="Revert to default"
+          onClick={onRevert}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 12a9 9 0 1 0 3-6.7" />
+            <path d="M3 4v6h6" />
+          </svg>
+        </RoleButton>
+      )}
 
       {isOpen && (
         <div
@@ -648,6 +706,8 @@ const SemanticLiteralRow = memo(function SemanticLiteralRow({
   cssVar,
   defaultMode = 'light',
   address,
+  isChanged = false,
+  onRevert,
 }: {
   label: string;
   idKey: string;
@@ -661,6 +721,8 @@ const SemanticLiteralRow = memo(function SemanticLiteralRow({
    *  when the user unchecks "Per-mode". Defaults to `'light'`. */
   defaultMode?: 'light' | 'dark';
   address?: TokenAddress;
+  isChanged?: boolean;
+  onRevert?: () => void;
 }) {
   const literalValue = value.literal;
   const isPerMode = typeof literalValue === 'object' && literalValue !== null;
@@ -702,10 +764,11 @@ const SemanticLiteralRow = memo(function SemanticLiteralRow({
 
   return (
     <div
-      className="tokenpanel-row"
+      className={`tokenpanel-row${isChanged ? ' is-changed' : ''}`}
       data-testid={`tokenpanel-semantic-literal-${idKey}`}
       {...(address ? { 'data-address': tokenAddressKey(address) } : {})}
     >
+      {isChanged && <span className="tokenpanel-changed-marker" aria-label="Changed">●</span>}
       <TokenLabel cssVar={cssVar ?? idKey} label={label} />
       <div
         className="tokenpanel-semantic-resolved-chip"
@@ -755,6 +818,29 @@ const SemanticLiteralRow = memo(function SemanticLiteralRow({
         />
       )}
       {cssVar && <HighlightToggleButton cssVar={cssVar} />}
+      {isChanged && onRevert && (
+        <RoleButton
+          className="tokenpanel-changed-revert"
+          aria-label={`Revert ${label}`}
+          title="Revert to default"
+          onClick={onRevert}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 12a9 9 0 1 0 3-6.7" />
+            <path d="M3 4v6h6" />
+          </svg>
+        </RoleButton>
+      )}
     </div>
   );
 });
@@ -783,6 +869,8 @@ const SemanticRefOrLiteralRow = memo(function SemanticRefOrLiteralRow({
   cssVar,
   defaultMode,
   address,
+  isChanged = false,
+  onRevert,
 }: {
   label: string;
   idKey: string;
@@ -797,13 +885,16 @@ const SemanticRefOrLiteralRow = memo(function SemanticRefOrLiteralRow({
    *  `TierRefSelector` for its per-mode collapse-to-single-mode fallback. */
   defaultMode?: 'light' | 'dark';
   address?: TokenAddress;
+  isChanged?: boolean;
+  onRevert?: () => void;
 }) {
   return (
     <div
-      className="tokenpanel-row"
+      className={`tokenpanel-row${isChanged ? ' is-changed' : ''}`}
       data-testid={`tokenpanel-semantic-ref-${idKey}`}
       {...(address ? { 'data-address': tokenAddressKey(address) } : {})}
     >
+      {isChanged && <span className="tokenpanel-changed-marker" aria-label="Changed">●</span>}
       <TokenLabel cssVar={cssVar ?? idKey} label={label} />
       <TierRefSelector
         tab={tab}
@@ -818,6 +909,29 @@ const SemanticRefOrLiteralRow = memo(function SemanticRefOrLiteralRow({
         defaultMode={defaultMode}
       />
       {cssVar && <HighlightToggleButton cssVar={cssVar} />}
+      {isChanged && onRevert && (
+        <RoleButton
+          className="tokenpanel-changed-revert"
+          aria-label={`Revert ${label}`}
+          title="Revert to default"
+          onClick={onRevert}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 12a9 9 0 1 0 3-6.7" />
+            <path d="M3 4v6h6" />
+          </svg>
+        </RoleButton>
+      )}
     </div>
   );
 });
@@ -873,6 +987,12 @@ interface ColorTabProps {
   tabOverrides?: Record<string, TabOverrides>;
   /** Header-filter query applied to palette and semantic rows. */
   searchQuery?: string;
+  /** S2 evaluator callback supplied by the mounted panel shell. */
+  isChanged?: (address: TokenAddress) => boolean;
+  /** Transient active-tab Changed-only filter. */
+  changedOnly?: boolean;
+  /** Shell transaction callback for one-row revert. */
+  onRevert?: (address: TokenAddress) => void;
 }
 
 export default function ColorTab({
@@ -885,6 +1005,9 @@ export default function ColorTab({
   instanceConfig,
   tabOverrides = {},
   searchQuery = '',
+  isChanged,
+  changedOnly = false,
+  onRevert,
 }: ColorTabProps) {
   // Derive the cluster from the tab's colorExtras + tiers. This provides the
   // same shape that the rest of the panel (apply, clear, state) expects.
@@ -1045,10 +1168,55 @@ export default function ColorTab({
     })),
     [query, secondarySemanticRows],
   );
-  const showPrimaryPalette = !query || primaryPaletteMatches.some(Boolean);
-  const showPrimarySemantic = !query || primarySemanticMatches.some(Boolean);
-  const showSecondaryPalette = !query || secondaryPaletteMatches.some(Boolean);
-  const showSecondarySemantic = !query || secondarySemanticMatches.some(Boolean);
+  const changedFor = useCallback(
+    (address: TokenAddress) => isChanged?.(address) ?? false,
+    [isChanged],
+  );
+  const primaryPaletteChanged = useMemo(
+    () => paletteTier?.items.map((item) => changedFor({
+      tabId: tab.id,
+      tierId: paletteTier.id,
+      itemId: item.id,
+    })) ?? [],
+    [changedFor, paletteTier, tab.id],
+  );
+  const primarySemanticChanged = useMemo(
+    () => primarySemanticRows.map(({ key, semanticTier }) => semanticTier
+      ? changedFor({ tabId: tab.id, tierId: semanticTier.id, itemId: key })
+      : false),
+    [changedFor, primarySemanticRows, tab.id],
+  );
+  const secondaryPaletteChanged = useMemo(
+    () => secondaryPaletteTier?.items.map((item) => changedFor({
+      tabId: secondaryTab?.id ?? 'color-secondary',
+      tierId: secondaryPaletteTier.id,
+      itemId: item.id,
+    })) ?? [],
+    [changedFor, secondaryPaletteTier, secondaryTab?.id],
+  );
+  const secondarySemanticChanged = useMemo(
+    () => secondarySemanticRows.map(({ key, semanticTier }) => secondaryTab && semanticTier
+      ? changedFor({ tabId: secondaryTab.id, tierId: semanticTier.id, itemId: key })
+      : false),
+    [changedFor, secondarySemanticRows, secondaryTab],
+  );
+  const showPrimaryPalette = (!query || primaryPaletteMatches.some(Boolean)) &&
+    (!changedOnly || primaryPaletteChanged.some(Boolean));
+  const showPrimarySemantic = (!query || primarySemanticMatches.some(Boolean)) &&
+    (!changedOnly || primarySemanticChanged.some(Boolean));
+  const showSecondaryPalette = (!query || secondaryPaletteMatches.some(Boolean)) &&
+    (!changedOnly || secondaryPaletteChanged.some(Boolean));
+  const showSecondarySemantic = (!query || secondarySemanticMatches.some(Boolean)) &&
+    (!changedOnly || secondarySemanticChanged.some(Boolean));
+  const hasChangedColorRows = primaryPaletteChanged.some((changed, index) =>
+    changed && (!query || primaryPaletteMatches[index] === true),
+  ) || primarySemanticChanged.some((changed, index) =>
+    changed && (!query || primarySemanticMatches[index] === true),
+  ) || secondaryPaletteChanged.some((changed, index) =>
+    changed && (!query || secondaryPaletteMatches[index] === true),
+  ) || secondarySemanticChanged.some((changed, index) =>
+    changed && (!query || secondarySemanticMatches[index] === true),
+  );
 
   const handlePaletteChange = useCallback(
     (index: number, value: string) => {
@@ -1291,6 +1459,10 @@ export default function ColorTab({
             {state.palette.map((color, i) => {
               const item = paletteTier?.items[i];
               if (query && !primaryPaletteMatches[i]) return null;
+              if (changedOnly && !primaryPaletteChanged[i]) return null;
+              const address = item
+                ? { tabId: tab.id, tierId: paletteTier?.id ?? 'palette', itemId: item.id }
+                : undefined;
               return (
                 // ColorSwatch passes `i` back via its (index, value) onChange so we
                 // hand `handlePaletteChange` directly — no inline arrow, memo
@@ -1304,7 +1476,9 @@ export default function ColorTab({
                   cssVar={resolvePaletteCssVar(safeCluster, i)}
                   valueFormat={resolvePaletteFormat(paletteTier, i)}
                   onChange={handlePaletteChange}
-                  address={item ? { tabId: tab.id, tierId: paletteTier?.id ?? 'palette', itemId: item.id } : undefined}
+                  address={address}
+                  isChanged={Boolean(primaryPaletteChanged[i])}
+                  onRevert={address && onRevert ? () => onRevert(address) : undefined}
                 />
               );
             })}
@@ -1314,7 +1488,7 @@ export default function ColorTab({
 
       {/* Base + Semantic wrapper */}
       <div className="tokenpanel-tab-content">
-        {state.palette.length > 0 && (
+        {state.palette.length > 0 && !changedOnly && (
           <div className="tokenpanel-tab-section">
             <div role="heading" aria-level={3} className="tokenpanel-tab-section-heading tokenpanel-tab-section-heading--color">
               {primaryLabel} — Base
@@ -1375,6 +1549,11 @@ export default function ColorTab({
               const semanticCssVar = safeCluster.semanticCssNames[key];
               const semanticIndex = primarySemanticRows.findIndex((row) => row.key === key);
               if (query && !primarySemanticMatches[semanticIndex]) return null;
+              const semanticAddress = addressTier
+                ? { tabId: tab.id, tierId: addressTier.id, itemId: key }
+                : undefined;
+              const rowChanged = semanticAddress ? changedFor(semanticAddress) : false;
+              if (changedOnly && !rowChanged) return null;
               // A tier that declares `referencesRamps` routes both its ref
               // and literal values — single-mode AND per-mode
               // `{ literal: { light, dark } }` (#472) alike — through the
@@ -1409,7 +1588,9 @@ export default function ColorTab({
                     previewValueFor={previewRampValue}
                     cssVar={semanticCssVar}
                     defaultMode={primaryDefaultMode}
-                    address={addressTier ? { tabId: tab.id, tierId: addressTier.id, itemId: key } : undefined}
+                    address={semanticAddress}
+                    isChanged={rowChanged}
+                    onRevert={semanticAddress && onRevert ? () => onRevert(semanticAddress) : undefined}
                   />
                 );
               }
@@ -1428,7 +1609,9 @@ export default function ColorTab({
                     onChange={handleSemanticLiteralChange}
                     cssVar={semanticCssVar}
                     defaultMode={primaryDefaultMode}
-                    address={addressTier ? { tabId: tab.id, tierId: addressTier.id, itemId: key } : undefined}
+                    address={semanticAddress}
+                    isChanged={rowChanged}
+                    onRevert={semanticAddress && onRevert ? () => onRevert(semanticAddress) : undefined}
                   />
                 );
               }
@@ -1444,7 +1627,9 @@ export default function ColorTab({
                   background={state.palette[state.background]}
                   foreground={state.palette[state.foreground]}
                   cssVar={semanticCssVar}
-                  address={addressTier ? { tabId: tab.id, tierId: addressTier.id, itemId: key } : undefined}
+                  address={semanticAddress}
+                  isChanged={rowChanged}
+                  onRevert={semanticAddress && onRevert ? () => onRevert(semanticAddress) : undefined}
                 />
               );
             })}
@@ -1471,6 +1656,10 @@ export default function ColorTab({
                 {secondaryState.palette.map((color, i) => {
                   const item = secondaryPaletteTier?.items[i];
                   if (query && !secondaryPaletteMatches[i]) return null;
+                  if (changedOnly && !secondaryPaletteChanged[i]) return null;
+                  const address = item
+                    ? { tabId: secondaryTab.id, tierId: secondaryPaletteTier?.id ?? 'palette', itemId: item.id }
+                    : undefined;
                   return (
                     <ColorSwatch
                       key={i}
@@ -1480,7 +1669,9 @@ export default function ColorTab({
                       cssVar={resolvePaletteCssVar(secondaryCluster, i)}
                       valueFormat={resolvePaletteFormat(secondaryPaletteTier, i)}
                       onChange={handleSecondaryPaletteChange}
-                      address={item ? { tabId: secondaryTab.id, tierId: secondaryPaletteTier?.id ?? 'palette', itemId: item.id } : undefined}
+                      address={address}
+                      isChanged={Boolean(secondaryPaletteChanged[i])}
+                      onRevert={address && onRevert ? () => onRevert(address) : undefined}
                     />
                   );
                 })}
@@ -1508,6 +1699,11 @@ export default function ColorTab({
                   const secondarySemanticCssVar = secondaryCluster.semanticCssNames[key];
                   const secondaryIndex = secondarySemanticRows.findIndex((row) => row.key === key);
                   if (query && !secondarySemanticMatches[secondaryIndex]) return null;
+                  const semanticAddress = addressTier
+                    ? { tabId: secondaryTab.id, tierId: addressTier.id, itemId: key }
+                    : undefined;
+                  const rowChanged = semanticAddress ? changedFor(semanticAddress) : false;
+                  if (changedOnly && !rowChanged) return null;
                   const secondaryMapping = mapping;
                   // Mirrors the primary section's ramp/literal/index split above.
                   const secondarySemanticTier = findSemanticTier(secondaryTab, key);
@@ -1535,7 +1731,9 @@ export default function ColorTab({
                         previewValueFor={secondaryPreviewRampValue!}
                         cssVar={secondarySemanticCssVar}
                         defaultMode={secondaryDefaultMode}
-                        address={addressTier ? { tabId: secondaryTab.id, tierId: addressTier.id, itemId: key } : undefined}
+                        address={semanticAddress}
+                        isChanged={rowChanged}
+                        onRevert={semanticAddress && onRevert ? () => onRevert(semanticAddress) : undefined}
                       />
                     );
                   }
@@ -1549,7 +1747,9 @@ export default function ColorTab({
                         onChange={handleSecondarySemanticLiteralChange}
                         cssVar={secondarySemanticCssVar}
                         defaultMode={secondaryDefaultMode}
-                        address={addressTier ? { tabId: secondaryTab.id, tierId: addressTier.id, itemId: key } : undefined}
+                        address={semanticAddress}
+                        isChanged={rowChanged}
+                        onRevert={semanticAddress && onRevert ? () => onRevert(semanticAddress) : undefined}
                       />
                     );
                   }
@@ -1563,13 +1763,21 @@ export default function ColorTab({
                       paletteCssVar={secondaryPaletteCssVar}
                       onChange={handleSecondarySemanticChange}
                       cssVar={secondarySemanticCssVar}
-                      address={addressTier ? { tabId: secondaryTab.id, tierId: addressTier.id, itemId: key } : undefined}
+                      address={semanticAddress}
+                      isChanged={rowChanged}
+                      onRevert={semanticAddress && onRevert ? () => onRevert(semanticAddress) : undefined}
                     />
                   );
                 })}
               </div>
             </div>}
           </>
+        )}
+
+        {changedOnly && !hasChangedColorRows && (
+          <div className="tokenpanel-changed-empty" data-testid="tokenpanel-changed-empty">
+            No changed tokens in this tab — everything is at its manifest default.
+          </div>
         )}
 
         {/*

@@ -17,6 +17,8 @@ export interface FlatTabProps {
   contributions?: readonly RowContribution[];
   /** Header-filter query; implemented as an S3 row contribution. */
   searchQuery?: string;
+  /** Transient S7 Changed-only filter; never persisted. */
+  changedOnly?: boolean;
   actions?: ComponentChildren;
   className?: string;
   testId?: string;
@@ -33,6 +35,7 @@ export default function FlatTab({
   overrides = {},
   contributions = [],
   searchQuery = '',
+  changedOnly = false,
   actions,
   className,
   testId,
@@ -60,6 +63,12 @@ export default function FlatTab({
     }
     return entries;
   }, [entriesByTier]);
+  const hasVisibleEntries = useMemo(
+    () => tab.tiers.some((tier) => (entriesByTier.get(tier.id) ?? []).some((entry) =>
+      allContributions.every((contribution) => contribution.filter?.(entry) !== false),
+    )),
+    [allContributions, entriesByTier, tab.tiers],
+  );
   const classes = ['tokenpanel-tab-content', className].filter(Boolean).join(' ');
 
   return (
@@ -89,6 +98,11 @@ export default function FlatTab({
             />
           );
         })}
+        {changedOnly && !hasVisibleEntries && (
+          <div className="tokenpanel-changed-empty" data-testid="tokenpanel-changed-empty">
+            No changed tokens in this tab — everything is at its manifest default.
+          </div>
+        )}
       </div>
     </TokenControllerProvider>
   );
