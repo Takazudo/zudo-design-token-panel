@@ -61,6 +61,18 @@ describe('ApplyModal dry-run preview', () => {
     expect(container.textContent).not.toContain('stale');
   });
 
+  it('invalidates an in-flight response when selection becomes empty', async () => {
+    let resolvePreview!: (value: Response) => void;
+    globalThis.fetch = vi.fn().mockReturnValue(new Promise<Response>((resolve) => { resolvePreview = resolve; }));
+    mount();
+    const include = container.querySelector<HTMLInputElement>('input[aria-label^="Include"]')!;
+    act(() => { include.checked = false; include.dispatchEvent(new Event('change', { bubbles: true })); });
+    resolvePreview(response(preview('  --zd-spacing-hgap-md: stale;')));
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    expect(container.textContent).not.toContain('stale');
+    expect(container.textContent).toContain('Write 0 files (0 tokens)');
+  });
+
   it('refreshes the dry-run with a notice after a stale-file 409', async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(response(preview()))
@@ -71,6 +83,7 @@ describe('ApplyModal dry-run preview', () => {
     const write = Array.from(container.querySelectorAll<HTMLElement>('[role="button"]')).find((node) => node.textContent?.startsWith('Write'))!;
     await act(async () => { write.click(); await Promise.resolve(); await Promise.resolve(); });
     await flush();
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ expectDigests: { 'src/tokens.css': 'a'.repeat(64) } });
     expect(container.textContent).toContain('Files changed on disk');
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });

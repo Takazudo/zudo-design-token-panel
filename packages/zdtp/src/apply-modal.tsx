@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'preact/compat';
 import type { ComponentChildren, Ref } from 'preact';
 import { buildApplyOverrides } from './apply/build-apply-overrides';
+import { writtenCssVarsFromResponse } from './apply/reconcile-applied';
 import { routeTokensToFiles } from './apply/route-tokens-to-files';
 import { getPanelConfig, modalClass, resolveApplyRouting, resolveSecondaryColorCluster, type PanelConfig } from './config/panel-config';
 import { getActivePrimaryCluster, type ColorTweakState, type TweakState } from './state/tweak-state';
@@ -99,6 +100,8 @@ export function ApplyModal(props: ApplyModalProps) {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [copyLabel, setCopyLabel] = useState('Copy pre-apply state to clipboard');
   const requestId = useRef(0);
+  const previewRef = useRef<ApiResponse | null>(null);
+  const previewPromiseRef = useRef<Promise<ApiResponse | null> | null>(null);
   const appliedFired = useRef(false);
 
   const overrides = useMemo(() => flattenApplyOverrides(state, colorDefaults, cfg), [state, colorDefaults, cfg]);
@@ -121,35 +124,44 @@ export function ApplyModal(props: ApplyModalProps) {
   useEffect(() => {
     if (!open) return;
     const routable = fallback.groups.flatMap((group) => Object.keys(group.tokens));
-    setPhase({ kind: 'preview' }); setPreview(null); setCatalog(null); setNotice(null); setSelected(new Set(routable));
+    setPhase({ kind: 'preview' }); setPreview(null); previewRef.current = null; setCatalog(null); setNotice(null); setSelected(new Set(routable));
     setSelectionVersion(0);
     setSelectedFile(null); setCopyLabel('Copy pre-apply state to clipboard');
-    requestId.current++; appliedFired.current = false;
-    if (configured && Object.keys(overrides).length > 0) void loadPreview(overrides);
+    requestId.current++; previewPromiseRef.current = null; appliedFired.current = false;
+    if (configured && Object.keys(overrides).length > 0) previewPromiseRef.current = loadPreview(overrides);
   }, [open, overrides, fallback]);
 
-  async function loadPreview(tokens: Record<string, string>, nextNotice?: string) {
-    if (!endpoint || Object.keys(tokens).length === 0) return;
+  async function loadPreview(tokens: Record<string, string>, nextNotice?: string): Promise<ApiResponse | null> {
+    if (!endpoint || Object.keys(tokens).length === 0) return null;
     const id = ++requestId.current; setLoading(true);
     try {
       const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tokens, dryRun: true }) });
       const data = await response.json() as ApiResponse;
-      if (id !== requestId.current) return;
+      if (id !== requestId.current) return null;
       if (!response.ok) throw new Error(data.error ?? `Preview failed (${response.status})`);
-      setPreview(data); if (nextNotice !== undefined) setNotice(nextNotice);
+      previewRef.current = data; setPreview(data); if (nextNotice !== undefined) setNotice(nextNotice);
       setCatalog((current) => current ?? data);
       setSelectedFile((current) => current && data.files?.some((file) => file.file === current) ? current : data.files?.[0]?.file ?? null);
+      return data;
     } catch {
-      if (id !== requestId.current) return;
+      if (id !== requestId.current) return null;
       setPreview(null); setNotice('Live diff preview is unavailable; showing the routing-only preview.');
+      return null;
     } finally { if (id === requestId.current) setLoading(false); }
   }
 
   useEffect(() => {
     if (!open || !configured || phase.kind !== 'preview' || selectionVersion === 0) return;
     const tokens = Object.fromEntries(Object.entries(overrides).filter(([cssVar]) => selected.has(cssVar)));
-    if (Object.keys(tokens).length === 0) { setPreview(null); setLoading(false); return; }
-    const timer = window.setTimeout(() => void loadPreview(tokens), DEBOUNCE_MS);
+    if (Object.keys(tokens).length === 0) {
+      requestId.current++;
+      previewPromiseRef.current = null;
+      previewRef.current = null;
+      setPreview(null);
+      setLoading(false);
+      return;
+    }
+    const timer = window.setTimeout(() => { previewPromiseRef.current = loadPreview(tokens); }, DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [open, configured, phase.kind, overrides, selected, selectionVersion]);
 
@@ -169,20 +181,22 @@ export function ApplyModal(props: ApplyModalProps) {
   async function apply() {
     if (!endpoint) return;
     const tokens = Object.fromEntries(Object.entries(overrides).filter(([cssVar]) => selected.has(cssVar)));
-    const expectDigests = Object.fromEntries((preview?.files ?? []).filter((file) => file.file && file.digest).map((file) => [file.file!, file.digest!]));
     setPhase({ kind: 'applying' });
     try {
+      const latestPreview = await (previewPromiseRef.current ?? Promise.resolve(previewRef.current));
+      const expectDigests = Object.fromEntries((latestPreview?.files ?? []).filter((file) => file.file && file.digest).map((file) => [file.file!, file.digest!]));
       const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tokens, expectDigests }) });
       const data = await response.json() as ApiResponse;
       if (response.status === 409 && data.reason === 'stale-file') {
         setCatalog(null);
         setNotice('Files changed on disk. Review the refreshed preview before writing.');
         setPhase({ kind: 'preview' });
-        await loadPreview(tokens);
+        previewPromiseRef.current = loadPreview(tokens);
+        await previewPromiseRef.current;
         return;
       }
       if (!response.ok) { setPhase({ kind: 'error', message: data.error ? `Apply failed (${response.status}): ${data.error}` : `Apply failed (${response.status} ${response.statusText || 'error'}).` }); return; }
-      const written = Array.from(new Set((data.updated ?? []).flatMap((file) => file.changed ?? [])));
+      const written = writtenCssVarsFromResponse(data);
       const revertJson = JSON.stringify(serialize(state, { colorDefaults }, cfg), null, 2);
       setPhase({ kind: 'success', response: data, revertJson, written });
     } catch (error) { setPhase({ kind: 'error', message: `Network error: ${error instanceof Error ? error.message : String(error)}` }); }
