@@ -331,6 +331,22 @@ describe('F33 — panel chrome survives full hostile CSS environment', () => {
     });
   });
 
+  describe('body-level mini pill — isolated from hostile host styles', () => {
+    it('keeps its box, surface, and outline icon stable outside the shell scope', async () => {
+      await setupHostile();
+      const pill = createElement('tokenpanel-mini-pill');
+      const expand = createElement('tokenpanel-mini-pill-expand', 'div', pill);
+      const svg = createSvgInside(expand);
+
+      expect(getComputedStyle(pill).boxSizing).toBe('border-box');
+      expect(getComputedStyle(expand).boxSizing).toBe('border-box');
+      expect(getComputedStyle(pill).position).toBe('fixed');
+      expect(getComputedStyle(pill).backgroundColor).toBe('rgb(28, 28, 28)');
+      expect(getComputedStyle(expand).paddingTop).toBe('4px');
+      expect(getComputedStyle(svg).fill).toBe('none');
+    });
+  });
+
   describe('DOM Tweaker lazy surfaces', () => {
     it('keeps the pinned overlay, edit icon, and class popover isolated and interactive', async () => {
       await setupHostile();

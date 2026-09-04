@@ -50,6 +50,7 @@
  * ========================================================================= */
 :where(
   .tokenpanel-shell,
+  .tokenpanel-mini-pill,
   [data-design-token-panel-modal],
   .tokenpanel-color-picker,
   .tokenpanel-highlight-settings-popover,
@@ -61,6 +62,7 @@
 }
 :where(
   .tokenpanel-shell,
+  .tokenpanel-mini-pill,
   [data-design-token-panel-modal],
   .tokenpanel-color-picker,
   .tokenpanel-highlight-settings-popover
@@ -84,6 +86,11 @@
   background-color: var(--tokentweak-color-surface);
   border-radius: 0;
   box-shadow: 0 4px 24px rgb(0 0 0 / 0.25);
+  transition: opacity 200ms ease;
+}
+
+.tokenpanel-shell.is-ghosted {
+  opacity: 0.35;
 }
 
 .tokenpanel-shell.is-docked-right {
@@ -165,6 +172,141 @@
   justify-content: flex-start;
   gap: var(--tokentweak-pad-sm);
   padding: var(--tokentweak-pad-sm) var(--tokentweak-pad-md);
+}
+
+/* ---------------------------------------------------------------------------
+ * Mini pill
+ *
+ * The pill replaces the shell in mini mode and therefore renders as a
+ * body-level sibling rather than inheriting the shell's private token scope.
+ * Fallbacks keep it self-contained in that position; hosts may still retheme
+ * it with the same --tokentweak-* override surface used by the shell.
+ * ------------------------------------------------------------------------- */
+
+.tokenpanel-mini-pill {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: var(--tokentweak-z-shell, 2147482991);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  padding: 6px 8px 6px 14px;
+  border: 1px solid var(--tokentweak-color-muted, #888888);
+  border-radius: 999px;
+  background: var(--tokentweak-color-surface, #1c1c1c);
+  color: var(--tokentweak-color-fg, #b8b8b8);
+  font-size: 12px;
+  line-height: 16px;
+  box-shadow: 0 4px 24px rgb(0 0 0 / 0.3);
+}
+
+.tokenpanel-mini-pill-brand {
+  color: var(--tokentweak-color-fg, #b8b8b8);
+  font-weight: 600;
+}
+
+.tokenpanel-mini-pill-changed-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding-inline: 5px;
+  border-radius: 999px;
+  background: var(--tokentweak-color-accent, #d69a66);
+  color: var(--tokentweak-color-bg, #181818);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.tokenpanel-mini-pill-changed-count:empty,
+.tokenpanel-mini-pill-undo:empty {
+  display: none;
+}
+
+.tokenpanel-mini-pill-changes {
+  color: var(--tokentweak-color-muted, #888888);
+}
+
+.tokenpanel-mini-pill-divider {
+  width: 1px;
+  height: 16px;
+  flex-shrink: 0;
+  background: var(--tokentweak-color-muted, #888888);
+  opacity: 0.55;
+}
+
+.tokenpanel-mini-pill-undo {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+
+.tokenpanel-mini-pill-apply,
+.tokenpanel-mini-pill-expand {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--tokentweak-color-accent, #d69a66);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 150ms ease, background-color 150ms ease;
+}
+
+.tokenpanel-mini-pill-apply {
+  padding-inline: 4px;
+  font: inherit;
+  font-weight: 600;
+}
+
+.tokenpanel-mini-pill-expand {
+  padding: 4px;
+  color: var(--tokentweak-color-muted, #888888);
+}
+
+.tokenpanel-mini-pill-apply:hover,
+.tokenpanel-mini-pill-apply:focus-visible,
+.tokenpanel-mini-pill-expand:hover,
+.tokenpanel-mini-pill-expand:focus-visible {
+  background: var(--tokentweak-color-bg, #181818);
+  color: var(--tokentweak-color-fg, #b8b8b8);
+}
+
+.tokenpanel-mini-pill-apply:focus-visible,
+.tokenpanel-mini-pill-expand:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent, #d69a66);
+  outline-offset: 2px;
+}
+
+/* Ghost toggle — rendered in the tabbar and in the narrow actions popover. */
+.tokenpanel-ghost-idle-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-xs);
+  flex-shrink: 0;
+  color: var(--tokentweak-color-fg);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tokenpanel-ghost-idle-toggle.is-compact {
+  padding: var(--tokentweak-pad-sm) var(--tokentweak-pad-md);
+}
+
+.tokenpanel-ghost-idle-checkbox {
+  accent-color: var(--tokentweak-color-accent);
+  cursor: pointer;
 }
 
 /* ===========================================================================
@@ -1791,7 +1933,7 @@ select.tokenpanel-tier-ref-select:focus-visible {
   opacity: 1;
 }
 
-:where(.tokenpanel-shell) svg {
+:where(.tokenpanel-shell, .tokenpanel-mini-pill) svg {
   /* !important beats a hostile `svg { fill: red !important }` at the same
    * specificity (0-0-1) because the panel CSS is injected AFTER host CSS at
    * runtime, so a later !important at equal specificity wins the cascade.
@@ -1807,6 +1949,13 @@ select.tokenpanel-tier-ref-select:focus-visible {
   /* Higher specificity (0-1-1 via .tokenpanel-highlight-toggle) than the base
    * reset above (0-0-1). !important required here too: when the base rule is
    * !important, a non-!important override cannot win regardless of specificity. */
+  fill: none !important;
+  stroke: currentColor;
+}
+
+:where(.tokenpanel-mini-pill) svg {
+  /* The expand icon is outline-drawn, so it needs the same explicit override
+   * as shell-local outline icons while also surviving hostile svg rules. */
   fill: none !important;
   stroke: currentColor;
 }
