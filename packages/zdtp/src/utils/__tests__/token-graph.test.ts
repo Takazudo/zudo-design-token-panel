@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { TweakState } from '../../state/tweak-state';
 import { EXAMPLE_PANEL_CONFIG } from '../../__tests__/_example-ramp-native-tier2';
+import type { PanelConfig } from '../../config/panel-config';
 import { buildTokenGraph } from '../token-graph';
 
 function state(): TweakState {
@@ -53,6 +54,31 @@ describe('buildTokenGraph', () => {
     expect(graph.resolutionChain({ tabId: 'color', tierId: 'semantic', itemId: 'surface' })).toEqual([
       { kind: 'token', address: { tabId: 'color', tierId: 'semantic', itemId: 'surface' }, cssVar: '--zd-surface' },
       { kind: 'literal', value: '#ffffff' },
+    ]);
+  });
+
+  it('matches reference-tier identity-first default resolution', () => {
+    const cfg: PanelConfig = {
+      ...EXAMPLE_PANEL_CONFIG,
+      tabs: [{
+        id: 'motion', label: 'Motion', tiers: [
+          { id: 'raw', label: 'Raw', items: [
+            { id: 'same', cssVar: '--raw-same', label: 'Same', default: 'linear', type: { kind: 'text' } },
+            { id: 'declared', cssVar: '--raw-declared', label: 'Declared', default: 'ease', type: { kind: 'text' } },
+          ] },
+          { id: 'semantic', label: 'Semantic', referencesTier: 'raw', items: [
+            { id: 'same', cssVar: '--semantic-same', label: 'Same', default: 'declared', type: { kind: 'text' } },
+          ] },
+        ],
+      }],
+    };
+    const current = state();
+    current.tabs = {};
+    const graph = buildTokenGraph(cfg, current);
+    expect(graph.resolutionChain({ tabId: 'motion', tierId: 'semantic', itemId: 'same' })).toEqual([
+      { kind: 'token', address: { tabId: 'motion', tierId: 'semantic', itemId: 'same' }, cssVar: '--semantic-same' },
+      { kind: 'token', address: { tabId: 'motion', tierId: 'raw', itemId: 'same' }, cssVar: '--raw-same' },
+      { kind: 'literal', value: 'linear' },
     ]);
   });
 });

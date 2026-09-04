@@ -138,8 +138,12 @@ export function buildTokenGraph(
             : state.tabs?.[tab.id]?.[tier.id]?.[entry.address.itemId];
       const targetTier = tab.tiers.find((candidate) => candidate.id === tier.referencesTier);
       if (!targetTier || targetTier.items.length === 0) continue;
+      // Match resolveTierItemValue exactly: absent override first attempts an
+      // identity mapping; only a missing selected id enters the default/id/
+      // first-item fallback chain.
+      const selectedId = override ?? entry.address.itemId;
       const target =
-        targetTier.items.find((item) => item.id === override) ??
+        targetTier.items.find((item) => item.id === selectedId) ??
         targetTier.items.find((item) => item.id === entry.default) ??
         targetTier.items.find((item) => item.id === entry.address.itemId) ??
         targetTier.items[0];
