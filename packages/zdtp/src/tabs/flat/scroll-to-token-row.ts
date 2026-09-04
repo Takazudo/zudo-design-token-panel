@@ -20,4 +20,3 @@ export function scrollToTokenRow(root: ParentNode, address: TokenAddress): HTMLE
   });
   return row;
 }
-

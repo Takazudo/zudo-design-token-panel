@@ -29,4 +29,3 @@ export interface RowContribution {
 export function tokenAddressKey(address: TokenAddress): string {
   return [address.tabId, address.tierId, address.itemId].map(encodeURIComponent).join('/');
 }
-

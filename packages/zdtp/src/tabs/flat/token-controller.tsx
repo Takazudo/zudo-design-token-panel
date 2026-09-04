@@ -58,4 +58,3 @@ export function useTokenController(address: TokenAddress): TokenController {
       : {}),
   };
 }
-
