@@ -1,0 +1,177 @@
+/* Shared chrome for the zdtp improvement prototypes.
+   Mirrors packages/zdtp/src/styles/panel-tokens.css + panel.css so each idea
+   reads as "the real panel, plus one thing". */
+:root {
+  --fg: #b8b8b8;
+  --bg: #181818;
+  --muted: #888888;
+  --muted-2: #555555;
+  --surface: #1c1c1c;
+  --surface-2: #242424;
+  --accent: #d69a66;
+  --accent-hover: #a7c0e3;
+  --code-bg: #383838;
+  --code-fg: #e0e0e0;
+  --success: #93bb77;
+  --danger: #da6871;
+  --warning: #dfbb77;
+  --mono: Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --radius: 4px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  font-family: var(--sans);
+  font-size: 14px;
+  background: #f4f2ee;
+  color: #222;
+  overflow: hidden;
+}
+
+/* ---- fake host page ---- */
+.host {
+  position: absolute; inset: 0;
+  overflow: auto;
+  padding: 0 0 80px;
+}
+.host-header {
+  display: flex; align-items: center; gap: 24px;
+  padding: 14px 24px; border-bottom: 1px solid #d8d4cc; background: #fbfaf7;
+  position: sticky; top: 0; z-index: 1;
+}
+.host-header .brand { font-weight: 700; font-size: 18px; }
+.host-header .nav { display: flex; gap: 18px; color: #555; }
+.host-body { max-width: 760px; margin: 0 auto; padding: 32px 24px; line-height: 1.6; color: #333; }
+.host-body h1 { font-size: 34px; margin: 0 0 8px; color: #111; }
+.host-body h2 { font-size: 22px; margin: 32px 0 8px; color: #111; }
+.host-body p { margin: 0 0 14px; }
+.host-body .card {
+  border: 1px solid #d8d4cc; border-radius: 8px; padding: 16px 18px; background: #fff; margin: 14px 0;
+}
+.host-body .btn {
+  display: inline-block; padding: 8px 14px; border-radius: 6px; background: #d69a66; color: #fff; font-weight: 600;
+}
+.host-body code { font-family: var(--mono); background: #eee9df; padding: 1px 5px; border-radius: 3px; font-size: 13px; }
+
+/* ---- idea banner (top-left), explains what the prototype shows ---- */
+.idea {
+  position: fixed; right: 16px; bottom: 16px; z-index: 50;
+  width: 320px; background: #fffdf7; border: 1px solid #d8d4cc; border-left: 4px solid var(--accent);
+  border-radius: 6px; padding: 10px 14px; font-size: 13px; color: #333; box-shadow: 0 4px 16px rgb(0 0 0 / 0.12);
+}
+.idea b { color: #111; }
+.idea kbd {
+  font-family: var(--mono); font-size: 11px; background: #eee9df; border: 1px solid #cfc8ba; border-bottom-width: 2px;
+  border-radius: 3px; padding: 0 4px;
+}
+.idea a { color: #a35c1f; }
+
+/* ---- panel shell ---- */
+.shell {
+  position: fixed; z-index: 10;
+  display: flex; flex-direction: column;
+  width: 900px; height: 560px; top: 72px; left: 24px;
+  border: 1px solid var(--muted); background: var(--surface); color: var(--fg);
+  box-shadow: 0 4px 24px rgb(0 0 0 / 0.25);
+  font-size: 13px;
+}
+.hdr {
+  display: flex; align-items: center; gap: 12px;
+  padding: 6px 24px; border-bottom: 1px solid var(--muted); flex-shrink: 0; cursor: move; position: relative;
+}
+.hdr .title { font-weight: 600; font-size: 14px; color: var(--fg); }
+.link { color: var(--accent); font-size: 12px; cursor: pointer; white-space: nowrap; background: none; border: 0; padding: 0; font: inherit; font-size: 12px; }
+.link:hover { color: var(--accent-hover); }
+.spacer { flex: 1; }
+.icon-btn {
+  width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--muted); cursor: pointer; border-radius: 3px; background: none; border: 0; padding: 0;
+}
+.icon-btn:hover { color: var(--fg); background: var(--surface-2); }
+.icon-btn.is-on { color: var(--accent); }
+.icon-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.tabbar { display: flex; align-items: center; border-bottom: 1px solid var(--muted); flex-shrink: 0; padding-right: 24px; }
+.tabs { display: flex; padding-left: 24px; overflow-x: auto; }
+.tab {
+  padding: 14px 12px; font-size: 14px; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; position: relative;
+}
+.tab:hover { color: var(--fg); }
+.tab.is-active { color: var(--fg); border-bottom-color: var(--accent); }
+.density { display: flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
+.density input { width: 78px; accent-color: var(--accent); }
+
+.body { flex: 1; overflow: auto; padding: 24px 24px 32px; display: flex; flex-direction: column; gap: 24px; }
+
+.section {
+  position: relative; border: 1px solid var(--muted); border-radius: 8px; padding: 18px 14px 14px; flex-shrink: 0;
+}
+.section-h {
+  position: absolute; top: -10px; left: 12px; background: var(--surface); padding: 0 8px;
+  font-weight: 600; font-size: 13px; line-height: 20px; color: var(--fg);
+}
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(288px, 1fr)); gap: 14px; }
+.row { display: flex; flex-direction: column; gap: 4px; }
+.row-head { display: flex; align-items: center; gap: 8px; }
+.lbl { display: flex; flex-direction: column; min-width: 0; flex: 1; font-family: var(--mono); font-size: 12px; line-height: 1.3; }
+.lbl .var { color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lbl .id { color: var(--muted); font-size: 11px; }
+.num {
+  background: var(--surface); color: var(--fg); border: 1px solid var(--muted); padding: 2px 6px;
+  font-family: var(--mono); text-align: right; font-size: 12px; width: 80px; border-radius: var(--radius);
+}
+.num:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+.unit { color: var(--muted); font-family: var(--mono); font-size: 12px; width: 26px; }
+.eye { color: var(--muted); cursor: pointer; display: inline-flex; }
+.eye svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; }
+.eye:hover { color: var(--fg); }
+.sel {
+  background: var(--surface); color: var(--fg); border: 1px solid var(--muted); border-radius: var(--radius);
+  font-family: var(--mono); font-size: 12px; padding: 2px 4px; max-width: 130px;
+}
+.swatch { width: 16px; height: 16px; border-radius: 3px; border: 1px solid rgb(255 255 255 / .2); flex-shrink: 0; }
+.reset-line { color: var(--accent); font-size: 12px; cursor: pointer; margin-bottom: -10px; }
+
+.btn {
+  background: var(--surface-2); color: var(--fg); border: 1px solid var(--muted); border-radius: var(--radius);
+  padding: 5px 12px; font: inherit; font-size: 12px; cursor: pointer;
+}
+.btn:hover { border-color: var(--fg); }
+.btn.primary { background: var(--accent); color: #1a1a1a; border-color: var(--accent); font-weight: 600; }
+.btn.primary:hover { background: #e0a976; }
+.btn.small { padding: 2px 8px; font-size: 11px; }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 11px;
+  background: var(--code-bg); color: var(--code-fg); padding: 1px 7px; border-radius: 999px;
+}
+.badge {
+  display: inline-block; min-width: 16px; height: 16px; padding: 0 5px; border-radius: 999px; line-height: 16px;
+  font-size: 10px; font-weight: 700; text-align: center; background: var(--accent); color: #1a1a1a; font-family: var(--mono);
+}
+.grip {
+  position: absolute; right: 2px; bottom: 2px; width: 16px; height: 16px; cursor: nwse-resize; opacity: .7;
+  background-image: repeating-linear-gradient(-45deg, transparent 0, transparent 2px, var(--muted) 2px, var(--muted) 3px);
+  -webkit-mask-image: linear-gradient(135deg, transparent 50%, #000 50%); mask-image: linear-gradient(135deg, transparent 50%, #000 50%);
+}
+.kbd {
+  font-family: var(--mono); font-size: 10px; color: var(--fg); background: var(--code-bg);
+  border: 1px solid var(--muted-2); border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; line-height: 14px;
+}
+.muted { color: var(--muted); }
+.mono { font-family: var(--mono); }
+.hint { font-size: 11px; color: var(--muted); }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #3a3a3a; border-radius: 6px; border: 2px solid var(--surface); }
+
+/* banner collapse */
+.idea .idea-body { padding-right:34px; }
+.idea .idea-toggle { position:absolute; top:6px; right:8px; background:none; border:0; color:#888; cursor:pointer; font-size:11px; font-family:inherit; padding:2px 4px; }
+.idea .idea-toggle:hover { color:#111; }
+.idea.is-min { width:auto; padding:6px 12px; cursor:pointer; }
+.idea.is-min .idea-body { display:none; }
+.idea.is-min .idea-toggle { position:static; color:#a35c1f; font-weight:600; }
+.idea.pos-bl { right:auto; left:16px; }
+.idea.pos-tr { bottom:auto; top:60px; }

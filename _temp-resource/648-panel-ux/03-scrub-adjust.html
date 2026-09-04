@@ -1,0 +1,82 @@
+<!doctype html><html><head><meta charset="utf-8"><title>03 · Scrub-to-adjust numbers + mini sliders</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+:root { --spacing-hsp-lg: 1rem; --spacing-hsp-md: .75rem; --spacing-vsp-sm: 1.25rem; --spacing-vsp-md: 1.5rem; --text-scale-md: 1.2rem; --text-scale-xl: 3rem; }
+.host-body h1 { font-size: var(--text-scale-xl); transition: font-size 80ms; }
+.host-body p { font-size: var(--text-scale-md); }
+.host-body .card { padding: var(--spacing-vsp-sm) var(--spacing-hsp-lg); margin-block: var(--spacing-vsp-md); }
+.host-body .btn { padding: calc(var(--spacing-hsp-md) * .6) var(--spacing-hsp-md); }
+.lbl.scrub { cursor: ew-resize; }
+.lbl.scrub .var { border-bottom: 1px dotted var(--muted-2); display:inline-block; }
+.lbl.scrub:hover .var { color:#fff; border-bottom-color:var(--accent); }
+body.scrubbing, body.scrubbing * { cursor: ew-resize !important; user-select:none; }
+.track { position:relative; height:10px; margin:0 40px 0 0; }
+.track input { position:absolute; inset:0; width:100%; margin:0; -webkit-appearance:none; appearance:none; background:transparent; height:10px; cursor:pointer; }
+.track input::-webkit-slider-runnable-track { height:2px; background:linear-gradient(to right, var(--accent) var(--pct,0%), var(--muted-2) var(--pct,0%)); border-radius:2px; margin-top:4px; }
+.track input::-webkit-slider-thumb { -webkit-appearance:none; width:8px; height:8px; border-radius:50%; background:var(--accent); margin-top:-3px; }
+.track input:focus-visible { outline:1px solid var(--accent); }
+.track .tick { position:absolute; top:0; width:1px; height:6px; background:var(--muted-2); pointer-events:none; }
+.track .tick.d { background:var(--accent-hover); }
+.hud { position:fixed; z-index:99; pointer-events:none; background:#000; color:#fff; font-family:var(--mono); font-size:12px; padding:4px 8px; border-radius:4px; display:none; white-space:nowrap; border:1px solid var(--accent); }
+.hud b { color:var(--accent); }
+.hud small { color:var(--muted); margin-left:8px; }
+.mods { display:flex; gap:8px; font-size:11px; color:var(--muted); align-items:center; }
+.mods .kbd.on { color:#000; background:var(--accent); border-color:var(--accent); }
+</style></head><body>
+<script src="shared.js"></script>
+<script>
+const { el, DATA, section, row } = Z;
+Z.host();
+const hud = el('div', { class: 'hud' }); document.body.append(hud);
+const mods = el('div', { class: 'mods', html: 'drag label ← → &nbsp; <span class="kbd" id="k-shift">Shift ×10</span> <span class="kbd" id="k-alt">Alt ×0.1</span> &nbsp; <span class="kbd">↑↓</span> in input' });
+const ui = Z.shell({ active: 'Spacing', tabbarExtra: [el('div', { style: 'margin-left:18px' }, [mods])] });
+document.addEventListener('keydown', (e) => { document.getElementById('k-shift').classList.toggle('on', e.shiftKey); document.getElementById('k-alt').classList.toggle('on', e.altKey); });
+document.addEventListener('keyup', (e) => { document.getElementById('k-shift').classList.toggle('on', e.shiftKey); document.getElementById('k-alt').classList.toggle('on', e.altKey); });
+
+const round = (n, step) => { const p = 1 / step; return Math.round(n * p) / p; };
+const fmt = (n) => String(parseFloat(n.toFixed(4)));
+
+function makeRow(t, tier) {
+  let val = t.d;
+  const range = el('input', { type: 'range', min: tier.min, max: tier.max, step: tier.step, value: val, 'aria-label': t.v + ' slider' });
+  const track = el('div', { class: 'track' }, [range, el('span', { class: 'tick d', style: `left:${((t.d - tier.min) / (tier.max - tier.min)) * 100}%`, title: 'default' })]);
+  const r = row(t, tier.unit, { tail: [track] });
+  const lbl = r.querySelector('.lbl'); lbl.classList.add('scrub'); lbl.title = 'Drag horizontally to scrub';
+  const inp = r.input;
+  function set(n, { from } = {}) {
+    n = Math.min(tier.max, Math.max(tier.min, round(n, tier.step * 0.1)));
+    val = n; inp.value = fmt(n); range.value = n;
+    range.style.setProperty('--pct', ((n - tier.min) / (tier.max - tier.min)) * 100 + '%');
+    document.documentElement.style.setProperty(t.v, n + tier.unit);
+  }
+  set(val);
+  inp.addEventListener('input', () => { const n = parseFloat(inp.value); if (!Number.isNaN(n)) set(n); });
+  inp.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    const m = e.shiftKey ? 10 : e.altKey ? 0.1 : 1;
+    set(val + (e.key === 'ArrowUp' ? 1 : -1) * tier.step * m);
+  });
+  range.addEventListener('input', () => set(parseFloat(range.value)));
+  /* scrub: pointer drag on the label, 6px per step; Shift ×10, Alt ×0.1 */
+  lbl.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); lbl.setPointerCapture(e.pointerId);
+    const startX = e.clientX, startV = val; document.body.classList.add('scrubbing');
+    const move = (ev) => {
+      const m = ev.shiftKey ? 10 : ev.altKey ? 0.1 : 1;
+      const steps = Math.round((ev.clientX - startX) / 6);
+      set(startV + steps * tier.step * m);
+      hud.style.display = 'block'; hud.style.left = ev.clientX + 14 + 'px'; hud.style.top = ev.clientY - 30 + 'px';
+      hud.innerHTML = `${t.v}: ${fmt(startV)} → <b>${fmt(val)}</b>${tier.unit}<small>${m === 10 ? 'coarse' : m === 0.1 ? 'fine' : 'step ' + tier.step}</small>`;
+    };
+    const up = () => { lbl.removeEventListener('pointermove', move); document.body.classList.remove('scrubbing'); hud.style.display = 'none'; };
+    lbl.addEventListener('pointermove', move); lbl.addEventListener('pointerup', up, { once: true });
+  });
+  return r;
+}
+const sp = DATA.tabs.find((t) => t.id === 'spacing');
+const font = DATA.tabs.find((t) => t.id === 'font');
+for (const tier of [sp.tiers[0], sp.tiers[1], font.tiers[0]]) ui.body.append(section(tier.label, el('div', { class: 'grid' }, tier.items.map((t) => makeRow(t, tier)))));
+
+Z.banner(`<b>Idea 03 — Scrub, don't type.</b> Numbers are the main thing this panel edits, yet every tweak is select-all → type → tab. Here you <b>drag a token label sideways</b> (Figma-style scrub, <kbd>Shift</kbd> ×10, <kbd>Alt</kbd> fine), press <kbd>↑</kbd>/<kbd>↓</kbd> in the input, or grab the hairline slider under each value (the blue tick is the manifest default). The host page's headline, card padding and button are bound to these vars, so you see the change while dragging.`);
+</script></body></html>

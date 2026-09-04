@@ -1,0 +1,118 @@
+<!doctype html><html><head><meta charset="utf-8"><title>05 · Undo / redo history + A/B snapshots</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+:root { --spacing-hsp-lg: 1rem; --spacing-vsp-sm: 1.25rem; --radius-lg: 8px; --zd-accent: #d69a66; --text-scale-xl: 3rem; }
+.host-body .card { padding: var(--spacing-vsp-sm) var(--spacing-hsp-lg); border-radius: var(--radius-lg); }
+.host-body .btn { background: var(--zd-accent); border-radius: var(--radius-lg); }
+.host-body h1 { font-size: var(--text-scale-xl); }
+.shell { display:grid; grid-template-rows:auto auto 1fr; grid-template-columns:1fr auto; }
+.shell .hdr, .shell .tabbar { grid-column:1 / -1; }
+.rail { grid-row:3; grid-column:2; width:0; overflow:hidden; border-left:1px solid var(--muted); display:flex; flex-direction:column; transition: width 150ms; background:var(--bg); }
+.shell.rail-open .rail { width:270px; }
+.rail .rh { padding:10px 12px; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); display:flex; align-items:center; gap:8px; border-bottom:1px solid var(--muted-2); }
+.rail .list { overflow:auto; flex:1; }
+.ent { padding:6px 12px; font-family:var(--mono); font-size:11px; cursor:pointer; display:flex; flex-direction:column; gap:2px; border-left:2px solid transparent; }
+.ent .v { color:var(--fg); }
+.ent .d { color:var(--muted); }
+.ent .d b { color:var(--accent); font-weight:400; }
+.ent.is-cur { border-left-color:var(--accent); background:var(--surface-2); }
+.ent.is-future { opacity:.4; }
+.ent:hover { background:var(--surface-2); }
+.snaps { padding:10px 12px; border-bottom:1px solid var(--muted-2); display:flex; flex-direction:column; gap:8px; }
+.snaprow { display:flex; align-items:center; gap:8px; font-size:12px; }
+.snaprow .tag { width:18px; height:18px; border-radius:3px; display:inline-flex; align-items:center; justify-content:center; font-weight:700; font-size:11px; background:var(--code-bg); }
+.snaprow .meta { color:var(--muted); font-family:var(--mono); font-size:10px; flex:1; }
+.seg { display:inline-flex; border:1px solid var(--muted); border-radius:var(--radius); overflow:hidden; }
+.seg span { padding:3px 12px; font-size:12px; cursor:pointer; color:var(--muted); }
+.seg span.on { background:var(--accent); color:#111; font-weight:700; }
+.icon-btn[disabled] { opacity:.3; pointer-events:none; }
+.cnt { font-size:10px; color:var(--muted); font-family:var(--mono); margin-left:-8px; }
+.ab-hud { position:fixed; top:14px; right:24px; z-index:60; background:#000; color:#fff; border:1px solid var(--accent); padding:6px 12px; border-radius:6px; font-family:var(--mono); font-size:12px; display:none; }
+</style></head><body>
+<script src="shared.js"></script>
+<script>
+const { el, I, DATA, section, row } = Z;
+Z.host();
+const TOKENS = [
+  { v: '--spacing-hsp-lg', id: 'hsp-lg', d: 1, unit: 'rem' }, { v: '--spacing-vsp-sm', id: 'vsp-sm', d: 1.25, unit: 'rem' },
+  { v: '--radius-lg', id: 'radius-lg', d: 8, unit: 'px' }, { v: '--text-scale-xl', id: 'text-scale-xl', d: 3, unit: 'rem' },
+];
+let state = Object.fromEntries(TOKENS.map((t) => [t.v, t.d])); state['--zd-accent'] = '#d69a66';
+let history = []; let cursor = -1; /* history[i] = {v, from, to, at} ; cursor = index of last applied */
+const snaps = { A: null, B: null }; let abSel = null;
+const undoBtn = el('button', { class: 'icon-btn', title: 'Undo (⌘Z)', html: I.undo, onclick: () => undo() });
+const redoBtn = el('button', { class: 'icon-btn', title: 'Redo (⌘⇧Z)', html: I.redo, onclick: () => redo() });
+const cnt = el('span', { class: 'cnt' });
+const histBtn = el('button', { class: 'icon-btn', title: 'History rail', html: I.history, onclick: () => ui.shell.classList.toggle('rail-open') });
+const ui = Z.shell({ active: 'Spacing', headerRight: [undoBtn, redoBtn, cnt, histBtn] });
+ui.shell.classList.add('rail-open');
+const rail = el('div', { class: 'rail' }); ui.shell.append(rail);
+const abHud = el('div', { class: 'ab-hud' }); document.body.append(abHud);
+
+function apply() { for (const [k, v] of Object.entries(state)) document.documentElement.style.setProperty(k, typeof v === 'number' ? v + (TOKENS.find((t) => t.v === k)?.unit || '') : v); syncInputs(); renderRail(); }
+function commit(v, to) {
+  const from = state[v]; if (from === to) return;
+  history = history.slice(0, cursor + 1); history.push({ v, from, to, at: Date.now() }); cursor = history.length - 1;
+  state[v] = to; apply();
+}
+function undo() { if (cursor < 0) return; const h = history[cursor]; state[h.v] = h.from; cursor--; apply(); }
+function redo() { if (cursor >= history.length - 1) return; cursor++; const h = history[cursor]; state[h.v] = h.to; apply(); }
+function jumpTo(i) { while (cursor > i) undo(); while (cursor < i) redo(); }
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+  if (e.key === '\\' && document.activeElement.tagName !== 'INPUT') { e.preventDefault(); flipAB(); }
+});
+
+/* body rows */
+const inputs = {};
+const rows = TOKENS.map((t) => { const r = row(t, t.unit, { onInput: () => {} }); inputs[t.v] = r.input; r.input.addEventListener('change', () => { const n = parseFloat(r.input.value); if (!Number.isNaN(n)) commit(t.v, n); }); return r; });
+const colorIn = el('input', { type: 'color', value: state['--zd-accent'], style: 'width:34px;height:22px;border:1px solid var(--muted);background:none;padding:0;border-radius:3px' });
+colorIn.addEventListener('change', () => commit('--zd-accent', colorIn.value));
+inputs['--zd-accent'] = colorIn;
+ui.body.append(
+  section('Spacing + Size (bound to the host page)', el('div', { class: 'grid' }, rows)),
+  section('Color', el('div', { class: 'row' }, [el('div', { class: 'row-head' }, [el('div', { class: 'lbl' }, [el('span', { class: 'var' }, '--zd-accent')]), colorIn, el('span', { class: 'eye', html: I.eye })])])),
+  el('div', { class: 'hint' }, 'Edit a value and press Enter/Tab to commit. ⌘Z / ⌘⇧Z step through history; "\\" flips between snapshot A and B.'),
+);
+function syncInputs() { for (const [k, inp] of Object.entries(inputs)) inp.value = state[k]; }
+
+/* rail */
+const ago = (t) => { const s = Math.round((Date.now() - t) / 1000); return s < 60 ? s + 's' : Math.round(s / 60) + 'm'; };
+function renderRail() {
+  undoBtn.toggleAttribute('disabled', cursor < 0); redoBtn.toggleAttribute('disabled', cursor >= history.length - 1);
+  cnt.textContent = history.length ? `${cursor + 1}/${history.length}` : '';
+  rail.innerHTML = '';
+  const snapBox = el('div', { class: 'snaps' });
+  for (const k of ['A', 'B']) {
+    const s = snaps[k];
+    snapBox.append(el('div', { class: 'snaprow' }, [
+      el('span', { class: 'tag', style: abSel === k ? 'background:var(--accent);color:#111' : '' }, k),
+      el('span', { class: 'meta' }, s ? `${s.n} edit${s.n === 1 ? '' : 's'} · saved ${ago(s.at)} ago` : 'empty'),
+      el('button', { class: 'btn small', onclick: () => { snaps[k] = { state: { ...state }, n: cursor + 1, at: Date.now() }; abSel = k; renderRail(); } }, s ? 'Overwrite' : 'Save ' + k),
+    ]));
+  }
+  const seg = el('div', { class: 'seg' }, ['A', 'B'].map((k) => el('span', { class: abSel === k ? 'on' : '', onclick: () => loadSnap(k) }, k)));
+  snapBox.append(el('div', { class: 'snaprow' }, [el('span', { class: 'meta' }, 'Compare on the page'), seg, el('span', { class: 'kbd' }, '\\')]));
+  rail.append(el('div', { class: 'rh', html: `${I.camera.replace('<svg', '<svg style="width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2"')} Snapshots` }), snapBox);
+  rail.append(el('div', { class: 'rh' }, [el('span', {}, 'History'), el('span', { class: 'spacer' }), el('span', { style: 'text-transform:none;letter-spacing:0' }, history.length ? `${history.length} edits` : 'no edits yet')]));
+  const list = el('div', { class: 'list' });
+  for (let i = history.length - 1; i >= 0; i--) {
+    const h = history[i]; const unit = TOKENS.find((t) => t.v === h.v)?.unit || '';
+    list.append(el('div', { class: 'ent' + (i === cursor ? ' is-cur' : '') + (i > cursor ? ' is-future' : ''), onclick: () => jumpTo(i) }, [
+      el('span', { class: 'v' }, h.v), el('span', { class: 'd', html: `${h.from}${unit} → <b>${h.to}${unit}</b> · ${ago(h.at)} ago` }),
+    ]));
+  }
+  if (cursor >= 0 || history.length) list.append(el('div', { class: 'ent' + (cursor < 0 ? ' is-cur' : ''), onclick: () => jumpTo(-1) }, [el('span', { class: 'd' }, '● manifest defaults (start)')]));
+  rail.append(list);
+}
+function loadSnap(k) { if (!snaps[k]) return; abSel = k; state = { ...snaps[k].state }; apply(); abHud.style.display = 'block'; abHud.textContent = `showing snapshot ${k}`; clearTimeout(abHud.t); abHud.t = setTimeout(() => (abHud.style.display = 'none'), 900); }
+function flipAB() { if (snaps.A && snaps.B) loadSnap(abSel === 'A' ? 'B' : 'A'); else abHud.style.display = 'block', abHud.textContent = 'save both A and B first', clearTimeout(abHud.t), abHud.t = setTimeout(() => (abHud.style.display = 'none'), 1200); }
+apply();
+/* seed a few edits so the rail isn't empty */
+commit('--spacing-hsp-lg', 1.5); commit('--radius-lg', 14); commit('--zd-accent', '#a35c1f');
+snaps.A = { state: { ...state }, n: 3, at: Date.now() }; abSel = 'A';
+commit('--text-scale-xl', 2.5); commit('--radius-lg', 4);
+snaps.B = { state: { ...state }, n: 5, at: Date.now() }; abSel = 'B'; renderRail();
+
+Z.banner(`<b>Idea 05 — Undo / redo + A/B snapshots.</b> Live tweaking is exploratory, but one bad drag and the previous value is gone. Here every commit lands in a history rail (click an entry to time-travel, <kbd>⌘Z</kbd>/<kbd>⌘⇧Z</kbd>), and two named <b>snapshots</b> let you flip the whole page between "A" and "B" with <kbd>\\</kbd> — the fastest way to decide between two directions. The host card / button / headline are bound to the tokens.`);
+</script></body></html>

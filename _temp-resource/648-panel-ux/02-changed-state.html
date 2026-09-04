@@ -1,0 +1,106 @@
+<!doctype html><html><head><meta charset="utf-8"><title>02 · Changed-state visibility + per-row revert</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+.row { position:relative; padding-left:10px; margin-left:-10px; border-left:2px solid transparent; border-radius:2px; }
+.row.is-changed { border-left-color:var(--accent); }
+.row.is-changed .num { border-color:var(--accent); color:#fff; }
+.ghost { font-family:var(--mono); font-size:10px; color:var(--muted); white-space:nowrap; }
+.ghost s { color:var(--muted-2); }
+.revert { display:none; color:var(--muted); cursor:pointer; }
+.revert svg { width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:2; }
+.revert:hover { color:var(--accent); }
+.row.is-changed .revert { display:inline-flex; }
+.tab .badge { position:absolute; top:6px; right:-2px; }
+.toggle { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--fg); cursor:pointer; user-select:none; margin-left:16px; }
+.toggle input { accent-color:var(--accent); }
+.foot { border-top:1px solid var(--muted); padding:8px 24px; display:flex; align-items:center; gap:14px; font-size:12px; flex-shrink:0; background:var(--bg); }
+.foot b { color:#fff; }
+.diffpop { position:absolute; left:24px; bottom:44px; background:var(--surface); border:1px solid var(--muted); border-radius:6px; padding:10px 12px; width:460px; font-family:var(--mono); font-size:11px; box-shadow:0 8px 24px rgb(0 0 0 / .5); display:none; z-index:5; }
+.diffpop.is-open { display:block; }
+.diffpop .ln { display:flex; gap:10px; padding:1px 0; }
+.diffpop .ln .v { color:var(--fg); width:220px; }
+.diffpop .ln .old { color:var(--danger); text-decoration:line-through; }
+.diffpop .ln .new { color:var(--success); }
+.diffpop .ttl { color:var(--muted); margin-bottom:6px; display:flex; gap:10px; }
+.body.changed-only .row:not(.is-changed) { display:none; }
+.body.changed-only .section:not(:has(.row.is-changed)) { display:none; }
+.empty { color:var(--muted); font-size:12px; text-align:center; padding:40px; display:none; }
+.body.changed-only:not(:has(.row.is-changed)) .empty { display:block; }
+</style></head><body>
+<script src="shared.js"></script>
+<script>
+const { el, I, DATA, section, row } = Z;
+Z.host();
+
+/* persisted overrides — what the user tweaked away from the manifest default */
+const ov = { '--spacing-hsp-md': 1, '--spacing-vsp-sm': 1.5, '--text-scale-md': 1.25, '--radius-lg': 12, '--leading-normal': 1.55, '--spacing-hsp-xl': 1.75, '--spacing-icon-md': 1.375 };
+let active = 'Spacing';
+const changedOnly = el('input', { type: 'checkbox' });
+const toggleLbl = el('span');
+const ui = Z.shell({ active, onTab: (l) => { active = l; render(); }, tabbarExtra: [el('label', { class: 'toggle' }, [changedOnly, toggleLbl])] });
+const foot = el('div', { class: 'foot' });
+const diffpop = el('div', { class: 'diffpop' });
+ui.shell.insertBefore(foot, ui.shell.querySelector('.grip'));
+ui.shell.append(diffpop);
+changedOnly.addEventListener('change', () => ui.body.classList.toggle('changed-only', changedOnly.checked));
+
+const tabOf = (v) => DATA.tabs.find((t) => (t.tiers || []).some((tier) => tier.items.some((i) => i.v === v)));
+const itemOf = (v) => { for (const t of DATA.tabs) for (const tier of t.tiers || []) for (const i of tier.items) if (i.v === v) return { i, tier, tab: t }; };
+
+function render() {
+  ui.body.innerHTML = '';
+  ui.body.append(el('div', { class: 'empty' }, 'No changed tokens in this tab — everything is at its manifest default.'));
+  const tab = DATA.tabs.find((t) => t.label === active);
+  for (const tier of tab.tiers || []) {
+    const rows = tier.items.map((t) => {
+      const changed = t.v in ov;
+      const ghost = el('span', { class: 'ghost' });
+      const rv = el('span', { class: 'revert', title: 'Revert to default', html: I.revert, onclick: () => { delete ov[t.v]; refresh(); } });
+      const r = row({ ...t, val: changed ? ov[t.v] : t.d }, tier.unit, { afterUnit: [rv], tail: [ghost], onInput: (val) => {
+        const n = parseFloat(val); if (Number.isNaN(n)) return;
+        if (n === t.d) delete ov[t.v]; else ov[t.v] = n;
+        refresh(false);
+      } });
+      r.classList.toggle('is-changed', changed);
+      ghost.innerHTML = changed ? `default <s>${t.d}${tier.unit}</s> → <span style="color:var(--accent)">${ov[t.v]}${tier.unit}</span>` : '';
+      return r;
+    });
+    ui.body.append(section(tier.label, el('div', { class: 'grid' }, rows)));
+  }
+  if (!tab.tiers) ui.body.append(el('div', { class: 'hint', style: 'padding:20px' }, `${active} tab — same treatment: a changed ramp step gets the accent bar + ↺.`));
+  refreshChrome();
+}
+function refresh(full = true) { full ? render() : refreshChrome(); }
+function refreshChrome() {
+  /* per-row state without re-rendering (keeps focus while typing) */
+  ui.body.querySelectorAll('.row').forEach((r) => {
+    const v = r.dataset.var; const { i, tier } = itemOf(v); const changed = v in ov;
+    r.classList.toggle('is-changed', changed);
+    r.querySelector('.ghost').innerHTML = changed ? `default <s>${i.d}${tier.unit}</s> → <span style="color:var(--accent)">${ov[v]}${tier.unit}</span>` : '';
+  });
+  /* tab badges */
+  const counts = {};
+  for (const v of Object.keys(ov)) { const t = tabOf(v); if (t) counts[t.label] = (counts[t.label] || 0) + 1; }
+  for (const [label, node] of Object.entries(ui.tabs)) {
+    node.querySelector('.badge')?.remove();
+    if (counts[label]) node.append(el('span', { class: 'badge' }, counts[label]));
+  }
+  const inTab = counts[active] || 0;
+  toggleLbl.textContent = `Changed only (${inTab})`;
+  const total = Object.keys(ov).length;
+  foot.innerHTML = '';
+  foot.append(
+    el('span', { html: total ? `<b>${total}</b> token${total > 1 ? 's' : ''} changed across <b>${Object.keys(counts).length}</b> tab${Object.keys(counts).length > 1 ? 's' : ''}` : 'No changes — page is at manifest defaults' }),
+    el('span', { class: 'spacer' }),
+    el('button', { class: 'link', onclick: () => { renderDiff(); diffpop.classList.toggle('is-open'); } }, 'Copy diff'),
+    el('button', { class: 'link', style: 'color:var(--danger)', onclick: () => { for (const k of Object.keys(ov)) delete ov[k]; render(); } }, 'Revert all'),
+  );
+}
+function renderDiff() {
+  diffpop.innerHTML = '';
+  diffpop.append(el('div', { class: 'ttl', html: `<span>${Object.keys(ov).length} overrides · goes to clipboard as CSS</span><span class="spacer"></span><span style="cursor:pointer" onclick="this.closest('.diffpop').classList.remove('is-open')">✕</span>` }));
+  for (const [v, val] of Object.entries(ov)) { const { i, tier } = itemOf(v); diffpop.append(el('div', { class: 'ln', html: `<span class="v">${v}:</span><span class="old">${i.d}${tier.unit}</span><span class="new">${val}${tier.unit};</span>` })); }
+}
+render();
+Z.banner(`<b>Idea 02 — Make "what did I change?" visible.</b> Today the only signal is nothing; you find out at Export. Here a changed token gets an accent bar, a bright input, a ghost <i>default → now</i> line and a one-click ↺. Tabs carry a count badge, <b>Changed only</b> filters the tab, and the footer offers <b>Copy diff</b> / <b>Revert all</b>. Try editing any number.`);
+</script></body></html>

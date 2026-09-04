@@ -1,0 +1,73 @@
+<!doctype html><html><head><meta charset="utf-8"><title>06 · Dock modes + ghost-when-idle</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+.host { transition: right 160ms, bottom 160ms; }
+.shell { transition: opacity 200ms; }
+.modes { display:flex; gap:2px; border:1px solid var(--muted-2); border-radius:var(--radius); padding:1px; }
+.modes .icon-btn.is-on { background:var(--surface-2); color:var(--accent); }
+.shell.mode-right { top:0; right:0; bottom:0; left:auto; width:440px; height:100vh; box-shadow:none; border-width:0 0 0 1px; }
+.shell.mode-bottom { left:0; right:0; bottom:0; top:auto; width:auto; height:340px; box-shadow:none; border-width:1px 0 0 0; }
+.shell.mode-right .grip, .shell.mode-bottom .grip { display:none; }
+.shell.mode-right .density, .shell.mode-right .hint-mode { display:none; }
+.shell.mode-right .edge { position:absolute; left:-3px; top:0; bottom:0; width:6px; cursor:ew-resize; }
+.shell.mode-bottom .edge { position:absolute; top:-3px; left:0; right:0; height:6px; cursor:ns-resize; }
+.shell.mode-mini { display:none; }
+.pill { position:fixed; right:20px; bottom:20px; z-index:11; display:none; align-items:center; gap:10px; background:var(--surface); color:var(--fg); border:1px solid var(--muted); border-radius:999px; padding:6px 8px 6px 14px; font-size:12px; box-shadow:0 4px 24px rgb(0 0 0 / .3); }
+.pill.is-on { display:flex; }
+.pill b { color:#fff; }
+.pill .badge { margin-left:-4px; }
+.pill .icon-btn { border-radius:999px; }
+.pill .sep { width:1px; height:16px; background:var(--muted-2); }
+.ghosted { opacity:.28; }
+.ghosted:hover { opacity:1; }
+.toggle { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--fg); cursor:pointer; user-select:none; margin-left:16px; white-space:nowrap; }
+.toggle input { accent-color:var(--accent); }
+.hint-mode { font-size:11px; color:var(--muted); margin-left:12px; white-space:nowrap; }
+</style></head><body>
+<script src="shared.js"></script>
+<script>
+const { el, I, DATA, section, row } = Z;
+const hostEl = Z.host();
+const MODES = [['float', 'Floating (default)', 'float'], ['right', 'Dock right — page reflows beside it', 'dockRight'], ['bottom', 'Dock bottom — DevTools style', 'dockBottom'], ['mini', 'Collapse to pill', 'mini']];
+let mode = localStorage.getItem('zdtp-proto-mode') || 'float';
+let lastFull = 'float';
+const modeBtns = {};
+const modes = el('div', { class: 'modes' }, MODES.map(([m, title, ic]) => (modeBtns[m] = el('button', { class: 'icon-btn', title: `${title}  (Alt+${MODES.findIndex((x) => x[0] === m) + 1})`, html: I[ic], onclick: () => setMode(m) }))));
+const ghost = el('input', { type: 'checkbox', checked: true });
+const ui = Z.shell({ active: 'Spacing', headerRight: [modes], tabbarExtra: [el('label', { class: 'toggle', title: 'Fade the panel while the pointer is on the page so you can judge the result underneath' }, [ghost, 'Ghost when idle']), el('span', { class: 'hint-mode', id: 'hm' })] });
+ui.shell.append(el('div', { class: 'edge' }));
+const pill = el('div', { class: 'pill' }, [
+  el('span', { html: '<b>zdtp</b>' }), el('span', { class: 'badge' }, '7'),
+  el('span', { class: 'muted' }, 'changes'), el('span', { class: 'sep' }),
+  el('button', { class: 'icon-btn', title: 'Undo', html: I.undo }), el('button', { class: 'link', style: 'padding:0 4px' }, 'Apply'),
+  el('span', { class: 'sep' }), el('button', { class: 'icon-btn', title: 'Expand', html: I.float, onclick: () => setMode(lastFull) }),
+]);
+document.body.append(pill);
+function setMode(m) {
+  mode = m; if (m !== 'mini') lastFull = m;
+  localStorage.setItem('zdtp-proto-mode', m);
+  ui.shell.className = 'shell mode-' + m;
+  hostEl.style.right = m === 'right' ? '440px' : '0'; hostEl.style.bottom = m === 'bottom' ? '340px' : '0';
+  pill.classList.toggle('is-on', m === 'mini');
+  for (const [k, b] of Object.entries(modeBtns)) b.classList.toggle('is-on', k === m);
+  window.bannerEl && (bannerEl.className = 'idea ' + ({ right: 'pos-bl', bottom: 'pos-tr', mini: 'pos-bl' }[m] || '') + (bannerEl.classList.contains('is-min') ? ' is-min' : ''));
+  document.getElementById('hm').textContent = { float: 'floating — drag header to move', right: 'docked right — page reflows, nothing hidden under the panel', bottom: 'docked bottom — wide tables of tokens fit', mini: '' }[m];
+}
+document.addEventListener('keydown', (e) => { if (e.altKey && e.key >= '1' && e.key <= '4') { e.preventDefault(); setMode(MODES[+e.key - 1][0]); } });
+
+/* ghost-when-idle: fade after the pointer has been outside the shell for 700ms */
+let t;
+document.addEventListener('pointermove', (e) => {
+  clearTimeout(t);
+  const inside = ui.shell.contains(e.target);
+  if (inside || !ghost.checked) ui.shell.classList.remove('ghosted');
+  else t = setTimeout(() => ui.shell.classList.add('ghosted'), 700);
+});
+ghost.addEventListener('change', () => !ghost.checked && ui.shell.classList.remove('ghosted'));
+
+const sp = DATA.tabs.find((t) => t.id === 'spacing');
+for (const tier of sp.tiers) ui.body.append(section(tier.label, el('div', { class: 'grid' }, tier.items.map((t) => row(t, tier.unit)))));
+
+const bannerEl = Z.banner(`<b>Idea 06 — Dock it, or get it out of the way.</b> A floating 900×560 window hides the very layout you're tuning. Header buttons switch <b>float / dock-right / dock-bottom / mini-pill</b> (<kbd>Alt+1…4</kbd>); docked modes reflow the host page instead of covering it, and the pill keeps the change count + undo + Apply within reach. <b>Ghost when idle</b> fades the panel while your pointer is on the page, so you can judge the result under it without closing anything. Mode persists in localStorage.`);
+window.bannerEl = bannerEl; setMode(mode);
+</script></body></html>

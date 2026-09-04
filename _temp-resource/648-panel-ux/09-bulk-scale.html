@@ -1,0 +1,82 @@
+<!doctype html><html><head><meta charset="utf-8"><title>09 · Bulk scale a ramp</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+:root { --spacing-hsp-lg:1rem; --spacing-hsp-md:.75rem; --spacing-vsp-sm:1.25rem; --spacing-vsp-md:1.5rem; }
+.host-body .card { padding: var(--spacing-vsp-sm) var(--spacing-hsp-lg); margin-block: var(--spacing-vsp-md); }
+.host-body .btn { padding: calc(var(--spacing-hsp-md) * .6) var(--spacing-hsp-md); }
+.cb { accent-color:var(--accent); margin:0 2px 0 0; }
+.section-h { display:flex; align-items:center; gap:8px; }
+.section-h .q { display:none; gap:4px; margin-left:6px; }
+.section:hover .section-h .q { display:inline-flex; }
+.q .btn { padding:0 6px; font-size:10px; line-height:16px; }
+.prev { font-family:var(--mono); font-size:10px; color:var(--muted); min-width:80px; }
+.prev b { color:var(--accent); font-weight:400; }
+.row.is-sel { background:rgb(214 154 102 / .08); border-radius:4px; }
+.bar { position:absolute; left:0; right:0; bottom:0; background:var(--bg); border-top:1px solid var(--accent); padding:10px 24px; display:none; align-items:center; gap:14px; font-size:12px; z-index:3; box-shadow:0 -8px 24px rgb(0 0 0 / .4); }
+.bar.is-on { display:flex; }
+.bar .op { display:flex; align-items:center; gap:6px; }
+.bar .op label { color:var(--muted); }
+.bar .num { width:60px; }
+.bar .num.active { border-color:var(--accent); }
+.rampviz { display:flex; align-items:flex-end; gap:3px; height:28px; }
+.rampviz i { width:8px; background:var(--muted-2); border-radius:1px 1px 0 0; position:relative; }
+.rampviz i::after { content:''; position:absolute; left:0; right:0; bottom:0; height:var(--new,0); background:var(--accent); opacity:.85; border-radius:1px 1px 0 0; }
+</style></head><body>
+<script src="shared.js"></script>
+<script>
+const { el, I, DATA, section, row } = Z;
+Z.host();
+const ui = Z.shell({ active: 'Spacing' });
+const sp = DATA.tabs.find((t) => t.id === 'spacing');
+const vals = {}; const sel = new Set(); const rows = {};
+const bar = el('div', { class: 'bar' }); ui.shell.append(bar);
+const round = (n, s) => Math.round(n / s) * s;
+const fmt = (n) => String(parseFloat(n.toFixed(4)));
+
+function setVal(v, n, unit) { vals[v] = n; rows[v].input.value = fmt(n); document.documentElement.style.setProperty(v, n + unit); }
+function tierRow(t, tier) {
+  const cb = el('input', { type: 'checkbox', class: 'cb', onchange: () => { cb.checked ? sel.add(t.v) : sel.delete(t.v); r.classList.toggle('is-sel', cb.checked); renderBar(); } });
+  const prev = el('span', { class: 'prev' });
+  const r = row(t, tier.unit, { beforeInput: [prev], onInput: (v) => { const n = parseFloat(v); if (!Number.isNaN(n)) setVal(t.v, n, tier.unit); } });
+  r.querySelector('.row-head').prepend(cb); r.cb = cb; r.prev = prev; r.tier = tier;
+  rows[t.v] = r; vals[t.v] = t.d;
+  return r;
+}
+function selectTier(tier, on) { tier.items.forEach((t) => { rows[t.v].cb.checked = on; on ? sel.add(t.v) : sel.delete(t.v); rows[t.v].classList.toggle('is-sel', on); }); renderBar(); }
+function quick(tier, k) { selectTier(tier, true); ops.mul.value = k; ops.add.value = 0; renderBar(); }
+for (const tier of sp.tiers) {
+  const s = section(tier.label, el('div', { class: 'grid' }, tier.items.map((t) => tierRow(t, tier))));
+  const h = s.querySelector('.section-h');
+  const all = el('input', { type: 'checkbox', class: 'cb', title: 'select whole tier', onchange: () => selectTier(tier, all.checked) });
+  h.prepend(all);
+  h.append(el('span', { class: 'q' }, [el('button', { class: 'btn', title: 'tighten 10%', onclick: () => quick(tier, 0.9) }, '×0.9'), el('button', { class: 'btn', title: 'loosen 10%', onclick: () => quick(tier, 1.1) }, '×1.1')]));
+  ui.body.append(s);
+}
+/* action bar */
+const ops = { mul: el('input', { class: 'num', value: 1 }), add: el('input', { class: 'num', value: 0 }), round: el('input', { class: 'num', value: 0.125 }), set: el('input', { class: 'num', value: '', placeholder: '—' }) };
+Object.values(ops).forEach((i) => i.addEventListener('input', preview));
+const cnt = el('span'), viz = el('div', { class: 'rampviz', title: 'ramp shape: grey = now, orange = preview' });
+bar.append(cnt, el('span', { class: 'op' }, [el('label', {}, '×'), ops.mul]), el('span', { class: 'op' }, [el('label', {}, '+'), ops.add]), el('span', { class: 'op' }, [el('label', {}, 'round to'), ops.round]), el('span', { class: 'op' }, [el('label', {}, 'set all'), ops.set]), viz, el('span', { class: 'spacer' }),
+  el('button', { class: 'btn', onclick: () => { sel.forEach((v) => (rows[v].cb.checked = false, rows[v].classList.remove('is-sel'))); sel.clear(); renderBar(); } }, 'Clear'), el('button', { class: 'btn primary', onclick: commit }, 'Apply to selection'));
+function compute(v) {
+  const setv = parseFloat(ops.set.value); if (!Number.isNaN(setv)) return setv;
+  const m = parseFloat(ops.mul.value) || 1, a = parseFloat(ops.add.value) || 0, r = parseFloat(ops.round.value) || 0;
+  let n = vals[v] * m + a; if (r > 0) n = round(n, r); return Math.max(0, n);
+}
+function preview() {
+  Object.values(ops).forEach((i) => i.classList.remove('active'));
+  if (ops.set.value !== '') ops.set.classList.add('active'); else { if (+ops.mul.value !== 1) ops.mul.classList.add('active'); if (+ops.add.value !== 0) ops.add.classList.add('active'); }
+  const list = [...sel]; viz.innerHTML = '';
+  const max = Math.max(...list.map((v) => Math.max(vals[v], compute(v))), 0.01);
+  for (const v of Object.keys(rows)) {
+    const r = rows[v];
+    if (!sel.has(v)) { r.prev.textContent = ''; continue; }
+    const n = compute(v); r.prev.innerHTML = n === vals[v] ? '' : `${fmt(vals[v])} → <b>${fmt(n)}</b>`;
+    viz.append(el('i', { style: `height:${(vals[v] / max) * 28}px;--new:${(n / max) * 28}px` }));
+  }
+}
+function renderBar() { bar.classList.toggle('is-on', sel.size > 0); cnt.innerHTML = `<b style="color:#fff">${sel.size}</b> selected`; preview(); }
+function commit() { sel.forEach((v) => setVal(v, compute(v), rows[v].tier.unit)); ops.mul.value = 1; ops.add.value = 0; ops.set.value = ''; preview(); }
+selectTier(sp.tiers[0], true); ops.mul.value = 1.1; renderBar();
+Z.banner(`<b>Idea 09 — Edit the ramp, not seven numbers.</b> "Make the whole horizontal scale 10% tighter" is one intent but today it is seven typed edits, and the ratios drift. Rows get checkboxes (tier heading selects all; hover a heading for ×0.9 / ×1.1), and the action bar applies <b>multiply / add / round-to-step / set-all</b> to the selection with an <i>old → new</i> preview per row and a before/after ramp silhouette. Horizontal spacing is pre-selected with ×1.1 — press <b>Apply to selection</b>.`);
+</script></body></html>

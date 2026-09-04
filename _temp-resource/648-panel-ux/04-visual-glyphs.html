@@ -1,0 +1,76 @@
+<!doctype html><html><head><meta charset="utf-8"><title>04 · Live value glyphs (see the number)</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+.g { width:48px; height:26px; display:flex; align-items:center; justify-content:center; flex-shrink:0; position:relative; }
+.g-aa { font-family: Georgia, serif; color:#fff; line-height:1; white-space:nowrap; }
+.g-lead { display:flex; flex-direction:column; justify-content:center; width:26px; }
+.g-lead i { display:block; height:2px; background:var(--fg); border-radius:1px; }
+.g-lead i:nth-child(2) { width:70%; }
+.g-bar { height:6px; background:var(--accent); border-radius:1px; position:relative; }
+.g-bar::after { content:''; position:absolute; right:-1px; top:-4px; width:1px; height:14px; background:var(--accent-hover); }
+.g-vbar { width:6px; background:var(--accent); border-radius:1px; align-self:flex-end; }
+.g-rad { width:22px; height:22px; border:2px solid var(--accent); }
+.g-icon { background:var(--fg); border-radius:2px; }
+.g-dot { position:absolute; left:2px; top:9px; width:8px; height:8px; border-radius:50%; background:var(--accent); transition-property: transform; transition-timing-function: ease; }
+.g.play .g-dot { transform: translateX(34px); }
+.g-track { position:absolute; left:2px; right:2px; top:13px; height:1px; background:var(--muted-2); }
+.g-swatch { width:26px; height:20px; border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; font-family: Georgia, serif; }
+.ramp { display:flex; align-items:flex-end; gap:6px; height:52px; padding:0 4px 4px; border-bottom:1px solid var(--muted-2); margin-bottom:14px; }
+.ramp i { display:block; width:14px; background:var(--accent); border-radius:2px 2px 0 0; position:relative; opacity:.9; }
+.ramp i::after { content: attr(data-l); position:absolute; top:100%; left:50%; transform:translateX(-50%); font-size:9px; color:var(--muted); font-family:var(--mono); margin-top:2px; }
+.ramp .lbl-r { font-size:10px; color:var(--muted); align-self:flex-start; margin-right:8px; }
+</style></head><body>
+<script src="shared.js"></script>
+<script>
+const { el, DATA, section, row } = Z;
+Z.host();
+let active = 'Font';
+const ui = Z.shell({ active, onTab: (l) => { active = l; render(); } });
+const px = (rem) => rem * 16;
+
+function glyph(kind, tier, t, val) {
+  const g = el('div', { class: 'g', title: `${val}${tier.unit}` });
+  switch (kind) {
+    case 'scale': g.append(el('span', { class: 'g-aa', style: `font-size:${Math.min(38, px(val) * 0.9)}px` }, 'Aa')); g.title = `${px(val)}px`; break;
+    case 'leading': { const l = el('div', { class: 'g-lead', style: `gap:${Math.max(1, (val - 0.8) * 8)}px` }); l.append(el('i'), el('i'), el('i')); g.append(l); break; }
+    case 'hsp': g.style.width = '70px'; g.style.justifyContent = 'flex-start'; g.append(el('i', { class: 'g-bar', style: `width:${Math.min(70, px(val))}px` })); g.title = `${px(val)}px`; break;
+    case 'vsp': g.append(el('i', { class: 'g-vbar', style: `height:${Math.min(26, px(val) / 2)}px` })); g.title = `${px(val)}px`; break;
+    case 'icon': g.append(el('i', { class: 'g-icon', style: `width:${px(val)}px;height:${px(val)}px` })); break;
+    case 'radius': g.append(el('i', { class: 'g-rad', style: `border-radius:${val}px` })); break;
+    case 'transition': { g.append(el('i', { class: 'g-track' }), el('i', { class: 'g-dot', style: `transition-duration:${val}ms` })); g.style.cursor = 'pointer'; g.title = 'click to replay'; g.addEventListener('click', () => g.classList.toggle('play')); g.addEventListener('mouseenter', () => g.classList.add('play')); g.addEventListener('mouseleave', () => g.classList.remove('play')); break; }
+    case 'color': { const c = contrast(t.hex, '#f4f2ee'); g.append(el('span', { class: 'g-swatch', style: `background:#f4f2ee;color:${t.hex};border:1px solid #ccc` }, 'Aa'), el('span', { class: 'chip', style: `margin-left:4px;background:${c >= 4.5 ? '#2f4a2a' : c >= 3 ? '#4a3d1a' : '#4a2323'};color:#fff` }, c.toFixed(1))); g.style.width = '90px'; break; }
+  }
+  return g;
+}
+function lum(hex) { const c = hex.replace('#', '').match(/../g).map((h) => parseInt(h, 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; }
+function contrast(a, b) { const [l1, l2] = [lum(a), lum(b)].sort((x, y) => y - x); return (l1 + 0.05) / (l2 + 0.05); }
+
+function render() {
+  ui.body.innerHTML = '';
+  const tab = DATA.tabs.find((t) => t.label === active);
+  if (!tab.tiers) { ui.body.append(el('div', { class: 'hint', style: 'padding:20px' }, 'Palette already has ramp glyphs — the point of this idea is bringing the same "see it" treatment to every numeric tab.')); return; }
+  for (const tier of tab.tiers) {
+    const kind = tier.kind === 'color' ? 'color' : tier.id;
+    const kids = [];
+    if (kind === 'hsp' || kind === 'vsp') {
+      const ramp = el('div', { class: 'ramp' }, [el('span', { class: 'lbl-r' }, 'ramp shape')]);
+      tier.items.forEach((t) => ramp.append(el('i', { 'data-l': t.id.split('-').pop(), 'data-var': t.v, style: `height:${Math.max(3, Math.min(46, px(t.d) / 1.4))}px` })));
+      kids.push(ramp);
+    }
+    const rows = tier.items.map((t) => {
+      if (kind === 'color') return el('div', { class: 'row', 'data-var': t.v }, [el('div', { class: 'row-head' }, [el('div', { class: 'lbl' }, [el('span', { class: 'var' }, t.v)]), glyph('color', tier, t, t.hex), el('select', { class: 'sel', html: `<option>${t.ref || 'Literal…'}</option>` }), el('span', { class: 'eye', html: Z.I.eye })])]);
+      const g = glyph(kind, tier, t, t.d);
+      const r = row(t, tier.unit, { beforeInput: [g], onInput: (v) => {
+        const n = parseFloat(v); if (Number.isNaN(n)) return;
+        g.replaceWith(Object.assign(glyph(kind, tier, t, n), {}));
+        const bar = ui.body.querySelector(`.ramp i[data-var="${t.v}"]`); if (bar) bar.style.height = Math.max(3, Math.min(46, px(n) / 1.4)) + 'px';
+      } });
+      return r;
+    });
+    kids.push(el('div', { class: 'grid' }, rows));
+    ui.body.append(section(tier.label, kids));
+  }
+}
+render();
+Z.banner(`<b>Idea 04 — Show the value, not just the number.</b> "1.375rem" means nothing until it is on the page. Each row gets a tiny live glyph: <b>Aa</b> at the real size, three lines at the line-height, a bar of the actual spacing length, a rounded square for radius, a dot that animates at the transition duration, and a contrast pill on colors. Spacing tiers also get a <b>ramp-shape</b> strip so a broken scale (a step out of order) is obvious. Edit any number to see the glyph move.`);
+</script></body></html>

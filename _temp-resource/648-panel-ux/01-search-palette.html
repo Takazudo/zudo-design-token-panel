@@ -1,0 +1,154 @@
+<!doctype html><html><head><meta charset="utf-8"><title>01 · Token search + command palette</title>
+<link rel="stylesheet" href="shared.css">
+<style>
+.search { display:flex; align-items:center; gap:6px; background:var(--bg); border:1px solid var(--muted-2); border-radius:var(--radius); padding:2px 8px; width:260px; }
+.search .ico svg { width:13px; height:13px; fill:none; stroke:var(--muted); stroke-width:2; }
+.search input { background:none; border:0; color:var(--fg); font:inherit; font-size:12px; font-family:var(--mono); flex:1; outline:none; min-width:0; }
+.search .kbd { margin-left:auto; }
+.matchbar { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); margin:-8px 0 -8px; min-height:18px; }
+.matchbar .chip { cursor:pointer; }
+.matchbar .chip:hover { color:var(--accent); }
+mark { background:transparent; color:var(--accent); font-weight:700; }
+.row.is-hit .var { text-decoration: underline dotted var(--muted-2); }
+.row.flash { animation: flash 1.2s ease; }
+@keyframes flash { 0%{ background:rgb(214 154 102 / .35);} 100%{ background:transparent;} }
+/* command palette */
+.cmdk-backdrop { position:absolute; inset:0; background:rgb(0 0 0 / .45); z-index:20; display:none; }
+.cmdk-backdrop.is-open { display:block; }
+.cmdk { position:absolute; left:50%; top:60px; transform:translateX(-50%); width:520px; max-height:380px; background:var(--surface); border:1px solid var(--muted); border-radius:6px; box-shadow:0 16px 48px rgb(0 0 0 / .5); display:flex; flex-direction:column; overflow:hidden; }
+.cmdk input { background:none; border:0; border-bottom:1px solid var(--muted-2); color:var(--fg); font:inherit; font-size:14px; padding:12px 14px; outline:none; }
+.cmdk .list { overflow:auto; padding:6px 0; }
+.cmdk .grp { font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); padding:8px 14px 2px; }
+.cmdk .it { display:flex; align-items:center; gap:10px; padding:6px 14px; cursor:pointer; font-size:13px; }
+.cmdk .it .mono { font-size:12px; }
+.cmdk .it .right { margin-left:auto; color:var(--muted); font-size:11px; font-family:var(--mono); }
+.cmdk .it.is-sel { background:var(--surface-2); color:var(--accent); }
+.cmdk .foot { border-top:1px solid var(--muted-2); padding:6px 14px; font-size:11px; color:var(--muted); display:flex; gap:14px; }
+.pal { display:flex; align-items:center; gap:10px; border:1px solid var(--muted); border-radius:6px; padding:10px 14px; }
+.pal .chips { margin-left:auto; display:flex; gap:3px; }
+.pal .chips i { width:11px; height:11px; border-radius:2px; display:block; }
+</style></head><body>
+<script src="shared.js"></script>
+<script>
+const { el, I, DATA, section, row } = Z;
+Z.host();
+
+let query = '';
+let active = 'Spacing';
+const searchInput = el('input', { placeholder: 'Filter tokens…', 'aria-label': 'Filter tokens' });
+const search = el('div', { class: 'search' }, [Z.icon('search'), searchInput, el('span', { class: 'kbd' }, '/')]);
+const matchbar = el('div', { class: 'matchbar' });
+const ui = Z.shell({ active, headerExtra: [search], onTab: (l) => { active = l; render(); } });
+ui.body.prepend(matchbar);
+
+const hi = (s) => {
+  if (!query) return s;
+  const i = s.toLowerCase().indexOf(query.toLowerCase());
+  if (i < 0) return s;
+  return s.slice(0, i) + '<mark>' + s.slice(i, i + query.length) + '</mark>' + s.slice(i + query.length);
+};
+const hits = (t, tier) => {
+  const q = query.toLowerCase();
+  if (!q) return true;
+  return t.v.toLowerCase().includes(q) || (t.id || '').toLowerCase().includes(q) || String(t.d ?? t.hex ?? '').includes(q) || (t.ref || '').includes(q) || tier.label.toLowerCase().includes(q);
+};
+const countIn = (tab) => (tab.tiers || []).reduce((n, tier) => n + tier.items.filter((t) => hits(t, tier)).length, 0);
+
+function render() {
+  ui.body.querySelectorAll('.section, .pal').forEach((n) => n.remove());
+  const tab = DATA.tabs.find((t) => t.label === active);
+  let shown = 0, total = 0;
+  if (tab.id === 'palette') {
+    [['Base', ['#f4f2ee', '#c9c4bb', '#8a857c', '#4a4640', '#1c1c1c']], ['Accent', ['#f3c99b', '#d69a66', '#a35c1f']], ['State', ['#c0392b', '#3e8a3c', '#a67c1a', '#2b6cb0']]]
+      .forEach(([l, cs]) => {
+        total++;
+        if (query && !l.toLowerCase().includes(query.toLowerCase())) return;
+        shown++;
+        ui.body.append(el('div', { class: 'pal', html: `<span class="ico" style="color:var(--muted)">${I.chevron}</span><span>${hi(l)}</span><span class="chips">${cs.map((c) => `<i style="background:${c}"></i>`).join('')}</span>` }));
+      });
+  } else {
+    for (const tier of tab.tiers) {
+      const items = tier.items.filter((t) => { total++; return hits(t, tier); });
+      if (!items.length) continue;
+      shown += items.length;
+      const rows = items.map((t) => {
+        let r;
+        if (tier.kind === 'color') {
+          r = el('div', { class: 'row is-hit', 'data-var': t.v }, [el('div', { class: 'row-head' }, [
+            el('div', { class: 'lbl' }, [el('span', { class: 'var', html: hi(t.v) })]),
+            el('span', { class: 'swatch', style: `background:${t.hex}` }),
+            el('select', { class: 'sel', html: `<option>${t.ref || 'Literal…'}</option>` }),
+            el('span', { class: 'eye', html: I.eye })])]);
+        } else {
+          r = row(t, tier.unit);
+          r.querySelector('.var').innerHTML = hi(t.v);
+          r.querySelector('.id').innerHTML = hi(t.id);
+        }
+        return r;
+      });
+      ui.body.append(section(tier.label, el('div', { class: 'grid' }, rows)));
+    }
+  }
+  const others = DATA.tabs.filter((t) => t.label !== active && t.tiers).map((t) => [t.label, countIn(t)]).filter(([, n]) => query && n);
+  matchbar.innerHTML = query
+    ? `<span><b style="color:var(--fg)">${shown}</b> of ${total} in ${active}</span>` + (others.length ? `<span>· also in</span>` + others.map(([l, n]) => `<span class="chip" data-tab="${l}">${l} ${n}</span>`).join('') : '')
+    : `<span class="hint">Type to filter this tab · <span class="kbd">⌘K</span> jumps anywhere</span>`;
+  matchbar.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', () => ui.tabs[c.dataset.tab].click()));
+}
+searchInput.addEventListener('input', () => { query = searchInput.value.trim(); render(); });
+searchInput.addEventListener('keydown', (e) => { if (e.key === 'Escape') { searchInput.value = ''; query = ''; render(); searchInput.blur(); } });
+
+/* ---- command palette (⌘K) ---- */
+const cmdInput = el('input', { placeholder: 'Jump to a token or run an action…' });
+const list = el('div', { class: 'list' });
+const cmdk = el('div', { class: 'cmdk' }, [cmdInput, list, el('div', { class: 'foot', html: '<span><span class="kbd">↑↓</span> navigate</span><span><span class="kbd">↵</span> go</span><span><span class="kbd">esc</span> close</span><span style="margin-left:auto">tokens are matched fuzzily across every tab</span>' })]);
+const backdrop = el('div', { class: 'cmdk-backdrop' }, [cmdk]);
+ui.shell.append(backdrop);
+const ACTIONS = ['Export JSON', 'Load from JSON…', 'Apply to disk', 'Reset all', 'Reset Spacing', 'Reset Font', 'Toggle highlight settings', 'Dock right', 'Close panel'];
+const TOKENS = DATA.tabs.flatMap((tab) => (tab.tiers || []).flatMap((tier) => tier.items.map((t) => ({ ...t, tab: tab.label, tier: tier.label, unit: tier.unit }))));
+const fuzzy = (q, s) => { q = q.toLowerCase(); s = s.toLowerCase(); let i = 0; for (const ch of s) if (ch === q[i]) i++; return i === q.length; };
+let sel = 0, results = [];
+function renderCmd() {
+  const q = cmdInput.value.trim();
+  const acts = ACTIONS.filter((a) => !q || fuzzy(q, a)).map((a) => ({ kind: 'action', label: a }));
+  const toks = TOKENS.filter((t) => !q || fuzzy(q, t.v) || fuzzy(q, t.id || '')).slice(0, 12).map((t) => ({ kind: 'token', ...t }));
+  results = q ? [...toks, ...acts] : [...acts.slice(0, 4), ...toks.slice(0, 8)];
+  sel = Math.min(sel, Math.max(0, results.length - 1));
+  list.innerHTML = '';
+  let lastKind = null;
+  results.forEach((r, i) => {
+    if (r.kind !== lastKind) { list.append(el('div', { class: 'grp' }, r.kind === 'token' ? 'Tokens' : 'Actions')); lastKind = r.kind; }
+    const it = el('div', { class: 'it' + (i === sel ? ' is-sel' : ''), onclick: () => go(r) });
+    if (r.kind === 'token') it.innerHTML = `<span class="mono">${r.v}</span><span class="right">${r.tab} › ${r.tier} · ${r.d ?? r.hex}${r.unit || ''}</span>`;
+    else it.innerHTML = `<span>${r.label}</span><span class="right">action</span>`;
+    list.append(it);
+  });
+}
+function go(r) {
+  closeCmd();
+  if (r.kind === 'action') { flashHint(`ran: ${r.label}`); return; }
+  ui.tabs[r.tab].click();
+  const target = ui.body.querySelector(`[data-var="${r.v}"]`);
+  if (target) { target.scrollIntoView({ block: 'center' }); target.classList.add('flash'); const inp = target.querySelector('input, select'); inp && inp.focus(); }
+}
+function openCmd() { backdrop.classList.add('is-open'); cmdInput.value = ''; sel = 0; renderCmd(); cmdInput.focus(); }
+function closeCmd() { backdrop.classList.remove('is-open'); }
+cmdInput.addEventListener('input', () => { sel = 0; renderCmd(); });
+cmdInput.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown') { sel = (sel + 1) % results.length; renderCmd(); e.preventDefault(); }
+  else if (e.key === 'ArrowUp') { sel = (sel - 1 + results.length) % results.length; renderCmd(); e.preventDefault(); }
+  else if (e.key === 'Enter') { results[sel] && go(results[sel]); }
+  else if (e.key === 'Escape') closeCmd();
+});
+backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closeCmd(); });
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openCmd(); }
+  else if (e.key === '/' && document.activeElement.tagName !== 'INPUT') { e.preventDefault(); searchInput.focus(); }
+});
+const hintEl = el('div', { class: 'hint', style: 'position:absolute;right:24px;bottom:10px;color:var(--accent)' });
+ui.shell.append(hintEl);
+function flashHint(t) { hintEl.textContent = t; setTimeout(() => (hintEl.textContent = ''), 1500); }
+render();
+
+Z.banner(`<b>Idea 01 — Token search + ⌘K palette.</b> The Color tab alone has ~30 rows; finding <code>--zd-chat-user-bg</code> is scrolling. A header filter (<kbd>/</kbd>) narrows the current tab and shows "also in Spacing 2" chips; <kbd>⌘K</kbd> fuzzy-jumps to any token in any tab and runs actions (Export, Reset Font…) without the mouse.`);
+</script></body></html>
