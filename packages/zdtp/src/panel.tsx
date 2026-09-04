@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback, useRef, useId, useMemo } from 'preact
 import type { RefObject } from 'preact';
 import { ExportModal } from './export-modal';
 import { ImportModal } from './import-modal';
-import { ApplyModal } from './apply-modal';
+import { ApplyModal, flattenApplyOverrides } from './apply-modal';
+import { loadLastApplied, saveLastApplied, unsavedCssVars } from './apply/last-applied';
+import { reconcileApplied } from './apply/reconcile-applied';
 import { RoleButton } from './controls/role-button';
 import { HighlightSettingsPopover } from './highlight/highlight-settings-popover';
 import { HighlightOrchestrator } from './highlight/highlight-orchestrator';
@@ -834,19 +836,31 @@ export default function DesignTokenTweakPanel({
     [handleResetAll],
   );
 
-  const handleApplied = useCallback(() => {
-    // After a successful apply the on-disk CSS now matches the current tweak,
-    // so drop the persisted override envelope and any inline overrides — the
-    // page will re-render from the fresh stylesheet. Scoped to THIS instance (#357).
-    // Always seed the secondary slice — every fresh-state path emits a
-    // uniform envelope shape.
-    commitTweakState('apply', freshTweakState(instanceConfig), {
-      apply: () => clearAppliedStyles(undefined, instanceConfig),
-      save: () => clearPersistedState(undefined, instanceConfig),
-      resetHistory: true,
-      forceRecord: true,
-    });
-  }, [instanceConfig, commitTweakState]);
+  const colorDefaults = useMemo(
+    () => initColorFromScheme(getActivePrimaryCluster(instanceConfig), instanceConfig),
+    [instanceConfig],
+  );
+  const secondaryDefaults = useMemo(() => initSecondaryFromConfig(instanceConfig), [instanceConfig]);
+  const flattenedOverrides = useMemo(
+    () => state ? flattenApplyOverrides(state, colorDefaults, instanceConfig) : {},
+    [state, colorDefaults, instanceConfig],
+  );
+  const [lastApplied, setLastApplied] = useState(() => loadLastApplied(instanceConfig));
+  const unsaved = useMemo(
+    () => unsavedCssVars(flattenedOverrides, lastApplied),
+    [flattenedOverrides, lastApplied],
+  );
+
+  const handleApplied = useCallback((writtenCssVars: string[]) => {
+    commitTweakState('apply', (current) => {
+      const next = reconcileApplied(current, writtenCssVars, instanceConfig, colorDefaults, secondaryDefaults);
+      // Disk now contains the written subset; retained overrides remain
+      // browser-only and therefore intentionally compare dirty against {}.
+      saveLastApplied({}, instanceConfig);
+      setLastApplied({});
+      return next;
+    }, { resetHistory: true, forceRecord: true });
+  }, [instanceConfig, colorDefaults, secondaryDefaults, commitTweakState]);
 
   // Build the active tab list from this instance's PanelConfig.tabs (required).
   // Keyed on `instanceConfig` so a non-default panel renders ITS own manifest,
@@ -928,6 +942,15 @@ export default function DesignTokenTweakPanel({
         },
       ],
       'header-right': [
+        {
+          id: 'apply-sync-status',
+          order: -2,
+          render: () => (
+            <div className={`tokenpanel-apply-sync${unsaved.length > 0 ? ' is-unsaved' : ''}`} role="status">
+              {unsaved.length > 0 ? `● ${unsaved.length} unsaved` : '✓ in sync'}
+            </div>
+          ),
+        },
         {
           id: 'dock-modes',
           order: -1,
@@ -1035,6 +1058,7 @@ export default function DesignTokenTweakPanel({
       instanceConfig,
       panelActions,
       showHighlightSettings,
+      unsaved.length,
     ],
   );
 
@@ -1082,6 +1106,7 @@ export default function DesignTokenTweakPanel({
               <MiniPill
                 onApply={() => setShowApply(true)}
                 onExpand={() => handleDockModeChange(lastFullDockModeRef.current)}
+                changedCount={unsaved.length > 0 ? unsaved.length : undefined}
               />
             ) : (
               <div
@@ -1257,7 +1282,7 @@ export default function DesignTokenTweakPanel({
         <ExportModal
           onClose={() => setShowExport(false)}
           state={state}
-          colorDefaults={initColorFromScheme(getActivePrimaryCluster(instanceConfig), instanceConfig)}
+          colorDefaults={colorDefaults}
           instanceConfig={instanceConfig}
         />
       )}
@@ -1276,7 +1301,7 @@ export default function DesignTokenTweakPanel({
           state={state}
           open={showApply}
           onClose={() => setShowApply(false)}
-          colorDefaults={initColorFromScheme(getActivePrimaryCluster(instanceConfig), instanceConfig)}
+          colorDefaults={colorDefaults}
           onApplied={handleApplied}
           instanceConfig={instanceConfig}
         />
