@@ -5,6 +5,9 @@ import type { TabOverrides } from '../../apply/tier-resolver';
 import { groupPaletteTiers } from './palette-tab';
 import { contrastRatio, contrastScore } from '../../utils/wcag-contrast';
 import { oklchaToHex, staticCssColorToOklcha, type Oklcha } from '../../utils/color-oklch';
+import { matchesSearchFields } from '../../search/token-search';
+import type { TokenAddress } from '../flat/types';
+import { tokenAddressKey } from '../flat/types';
 
 const CHIP_COLOR_AAA = '#1a7a3f';
 const CHIP_COLOR_AA = '#8a6200';
@@ -14,9 +17,11 @@ export interface PaletteCheckViewProps {
   tab: TabConfig;
   overrides: TabOverrides;
   onChange: (tierId: string, itemId: string, next: string) => void;
+  searchQuery?: string;
 }
 
 interface PaletteEntry {
+  address: TokenAddress;
   tierId: string;
   item: TierItem;
   value: string;
@@ -25,10 +30,10 @@ interface PaletteEntry {
   opaque: boolean;
 }
 
-function resolveEntry(item: TierItem, tierId: string, overrides: TabOverrides): PaletteEntry {
+function resolveEntry(tabId: string, item: TierItem, tierId: string, overrides: TabOverrides): PaletteEntry {
   const value = overrides[tierId]?.[item.id] ?? item.default;
   const color = staticCssColorToOklcha(value);
-  return { item, tierId, value, color, hex: color ? oklchaToHex(color) : null, opaque: color !== null && color.a >= 100 };
+  return { address: { tabId, tierId, itemId: item.id }, item, tierId, value, color, hex: color ? oklchaToHex(color) : null, opaque: color !== null && color.a >= 100 };
 }
 
 function entryKey(entry: PaletteEntry): string {
@@ -74,6 +79,7 @@ function BaseRow({ entry, isSelected, onSelect }: { entry: PaletteEntry; isSelec
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       data-testid={`palette-check-base-row-${entry.item.id}`}
+      data-address={tokenAddressKey(entry.address)}
       data-na-reason={disabled ? reason : undefined}
     >
       <div className={`tokenpanel-palette-check-swatch${entry.color ? '' : ' is-invalid'}`} style={entry.hex ? { background: entry.hex } : undefined} aria-hidden="true" />
@@ -89,7 +95,7 @@ function CandidateRow({ entry, base, isLarge }: { entry: PaletteEntry; base: Pal
   const score = ratio === null ? null : contrastScore(ratio, { large: isLarge });
   const reason = !base ? 'no valid opaque base' : !entry.color ? 'unsupported color' : !entry.opaque ? 'transparent color needs compositing' : null;
   return (
-    <div className={`tokenpanel-palette-check-candidate-row${computable ? '' : ' is-na'}`} data-testid={`palette-check-candidate-row-${entry.item.id}`} data-na-reason={reason ?? undefined}>
+    <div className={`tokenpanel-palette-check-candidate-row${computable ? '' : ' is-na'}`} data-testid={`palette-check-candidate-row-${entry.item.id}`} data-address={tokenAddressKey(entry.address)} data-na-reason={reason ?? undefined}>
       <div className={`tokenpanel-palette-check-aa-sample${entry.color ? '' : ' is-invalid'}`} style={entry.hex && base?.hex ? { color: entry.hex, background: base.hex } : undefined} aria-hidden="true">{entry.color ? 'Aa' : 'N/A'}</div>
       <EntryName entry={entry} />
       <div className="tokenpanel-palette-check-ratio">{ratio === null ? 'N/A' : ratio.toFixed(1)}</div>
@@ -123,10 +129,23 @@ function EntrySection(props: EntrySectionProps) {
   );
 }
 
-export default function PaletteCheckView({ tab, overrides }: PaletteCheckViewProps) {
+export default function PaletteCheckView({ tab, overrides, searchQuery = '' }: PaletteCheckViewProps) {
   const tiers = groupPaletteTiers(tab);
-  const entriesByTier = useMemo(() => new Map(tiers.map((tier) => [tier.id, tier.items.map((item) => resolveEntry(item, tier.id, overrides))])), [tiers, overrides]);
-  const allEntries = tiers.flatMap((tier) => entriesByTier.get(tier.id) ?? []);
+  const query = searchQuery.trim();
+  const visibleTiers = useMemo(
+    () => query
+      ? tiers.filter((tier) => matchesSearchFields({
+          cssVar: '',
+          id: tier.id,
+          label: tier.label,
+          value: '',
+          tierLabel: tier.label,
+        }, query))
+      : tiers,
+    [query, tiers],
+  );
+  const entriesByTier = useMemo(() => new Map(visibleTiers.map((tier) => [tier.id, tier.items.map((item) => resolveEntry(tab.id, item, tier.id, overrides))])), [overrides, tab.id, visibleTiers]);
+  const allEntries = visibleTiers.flatMap((tier) => entriesByTier.get(tier.id) ?? []);
   const firstOpaque = allEntries.find((entry) => entry.opaque) ?? null;
   const [selectedKey, setSelectedKey] = useState(() => firstOpaque ? entryKey(firstOpaque) : '');
   const [isGrouped, setIsGrouped] = useState(true);
@@ -144,7 +163,7 @@ export default function PaletteCheckView({ tab, overrides }: PaletteCheckViewPro
   const computableEntries = selectedBase ? allEntries.filter((entry) => entry.opaque && entry.hex) : [];
   const passCount = computableEntries.filter((entry) => contrastRatio(selectedBase!.hex!, entry.hex!) >= aaThreshold).length;
   const flatTier: TierConfig = { id: '__flat__', label: 'Palette', items: [] };
-  const renderSections = (side: 'left' | 'right') => isGrouped ? tiers.map((tier) => (
+  const renderSections = (side: 'left' | 'right') => isGrouped ? visibleTiers.map((tier) => (
     <EntrySection key={`${side}-${tier.id}`} tier={tier} entries={entriesByTier.get(tier.id) ?? []} side={side} showHeading={true} selectedKey={effectiveSelectedKey} onSelect={handleSelect} base={selectedBase} isLarge={isLarge} />
   )) : (
     <EntrySection tier={flatTier} entries={allEntries} side={side} showHeading={false} selectedKey={effectiveSelectedKey} onSelect={handleSelect} base={selectedBase} isLarge={isLarge} />

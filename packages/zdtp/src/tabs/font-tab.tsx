@@ -22,6 +22,7 @@ interface FontTabProps {
   renderOnPage?: boolean;
   /** Called when the toolbar toggles the page-level specimen. */
   onRenderOnPageChange?: (enabled: boolean) => void;
+  searchQuery?: string;
 }
 
 export default function FontTab({
@@ -31,6 +32,7 @@ export default function FontTab({
   instanceConfig = getPanelConfig(),
   renderOnPage: renderOnPageProp = false,
   onRenderOnPageChange,
+  searchQuery = '',
 }: FontTabProps) {
   const getValue = useCallback((_address: TokenAddress, item: TierItem) => state[item.id] ?? item.default, [state]);
   const setValue = useCallback((address: TokenAddress, next: string) => {
@@ -73,7 +75,7 @@ export default function FontTab({
       />
     )}
     <FlatTab tab={tab} getValue={getValue} setValue={setValue} deleteValue={deleteValue}
-      overrides={overrides} contributions={contributions} renderTierBody={renderTierBody}
+      overrides={overrides} contributions={contributions} searchQuery={searchQuery} renderTierBody={renderTierBody}
       sectionTestId={(tier) => `font-tier-${tier.id}`} actions={(
         <Fragment>
           {hasSpecimen && (

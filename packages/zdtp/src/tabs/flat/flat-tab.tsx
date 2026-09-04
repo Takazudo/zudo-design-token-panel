@@ -2,6 +2,7 @@ import type { ComponentChildren } from 'preact';
 import { useMemo } from 'preact/compat';
 import type { TabOverrides } from '../../apply/tier-resolver';
 import type { TabConfig, TierConfig, TierItem } from '../../tokens/tier-model';
+import { tokenSearchContribution } from '../../search/contribution';
 import { TokenControllerProvider } from './token-controller';
 import TierSection, { type SharedRowRenderer } from './tier-section';
 import type { FlatTabEntry, RowContribution, TokenAddress } from './types';
@@ -14,6 +15,8 @@ export interface FlatTabProps {
   deleteValue: (address: TokenAddress) => void;
   overrides?: TabOverrides;
   contributions?: readonly RowContribution[];
+  /** Header-filter query; implemented as an S3 row contribution. */
+  searchQuery?: string;
   actions?: ComponentChildren;
   className?: string;
   testId?: string;
@@ -29,6 +32,7 @@ export default function FlatTab({
   deleteValue,
   overrides = {},
   contributions = [],
+  searchQuery = '',
   actions,
   className,
   testId,
@@ -36,6 +40,12 @@ export default function FlatTab({
   renderTierBody,
   jumpTo,
 }: FlatTabProps) {
+  const allContributions = useMemo(
+    () => searchQuery.trim()
+      ? [...contributions, tokenSearchContribution(searchQuery)]
+      : contributions,
+    [contributions, searchQuery],
+  );
   const entriesByTier = useMemo(() => new Map(tab.tiers.map((tier) => [
     tier.id,
     tier.items.map((item): FlatTabEntry => {
@@ -63,14 +73,15 @@ export default function FlatTab({
         {actions}
         {tab.tiers.map((tier) => {
           const tierEntries = (entriesByTier.get(tier.id) ?? []).filter((entry) =>
-            contributions.every((contribution) => contribution.filter?.(entry) !== false));
+            allContributions.every((contribution) => contribution.filter?.(entry) !== false));
+          if (tierEntries.length === 0) return null;
           return (
             <TierSection
               key={tier.id}
               tier={tier}
               entries={tierEntries}
               overrides={overrides}
-              contributions={contributions}
+              contributions={allContributions}
               testId={sectionTestId?.(tier)}
               setValue={setValue}
               deleteValue={deleteValue}
