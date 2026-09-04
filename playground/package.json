@@ -1,0 +1,27 @@
+{
+  "name": "playground",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.12.0" },
+  "scripts": {
+    "dev": "concurrently -k -n zfb,tokens-bin -c blue,green \"pnpm run dev:zfb\" \"pnpm run dev:tokens-bin\"",
+    "dev:zfb": "zfb dev --port 44327",
+    "dev:tokens-bin": "node ../packages/zdtp/dist/bin/server.js --write-root . --routing scaffold.routing.json --port 24685 --allow-origin http://localhost:44327",
+    "build": "zfb build",
+    "preview": "zfb preview",
+    "typecheck": "zfb check"
+  },
+  "dependencies": {
+    "@takazudo/zdtp": "workspace:*",
+    "@takazudo/zfb": "2.13.1",
+    "@takazudo/zfb-runtime": "2.13.1",
+    "preact": "^10.29.1",
+    "preact-render-to-string": "^6.6.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.0"
+  }
+}

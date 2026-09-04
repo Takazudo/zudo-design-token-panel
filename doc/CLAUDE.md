@@ -40,6 +40,19 @@ src/
 
 Everything else — layout, header, sidebar, footer, doc chrome, islands, and the default design tokens — lives in `node_modules/@takazudo/zudo-doc`. For supported markup replacement, create `src/chrome-bindings.tsx` with `defineChromeBindings`, set `chromeBindingsModule`, and use the primary `Header` / `Footer` / `Sidebar` / `Toc` / `Breadcrumb` / `DocPager` slots or the named `headerRightComponents` registry. The generated default, locale, and doc-history route shapes already consume the same binding object; do not fork a route stub for presentational customization. `npx zudo-doc eject <component>` only copies source: heed its primary, nested-chrome, or content-layer remediation before expecting the copy to render. Settings you didn't set explicitly in `zfb.config.ts` use the package's documented defaults — hover `zudoDoc`'s `ZudoDocConfig` argument in your editor to see every field and its `@default`.
 
+## zdtp ↔ zudo-doc relationship
+
+The `doc/` workspace intentionally consumes the pinned npm release of
+`@takazudo/zdtp`; never force-link it to `packages/zdtp`. That keeps the docs
+build representative of the published dependency and prevents unpublished
+panel changes from leaking into release documentation accidentally.
+
+Use the root `playground/` workspace to exercise unpublished panel changes in
+a real zfb consumer. Its default manifest covers the panel's control kinds,
+while `?manifest=zudo-doc` uses the real zudo-doc `PanelConfig` vendored by
+`scripts/vendor-consumer-manifest.mjs` (the S17 vendor script). The generated
+file records the source `@takazudo/zudo-doc` version so drift is visible.
+
 ## Content Conventions
 
 ### Frontmatter
