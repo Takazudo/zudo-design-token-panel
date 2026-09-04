@@ -6,6 +6,7 @@ import { previewGlyphContribution } from '../specimen/preview-glyphs';
 import { createSpecimenContribution, renderSpecimenTierBody } from '../specimen/specimen-tab-body';
 import { loadSpecimenState, saveSpecimenState } from '../specimen/specimen-state';
 import SpecimenToolbar from '../specimen/specimen-toolbar';
+import OnPageSpecimen from '../specimen/on-page-specimen';
 import type { TabConfig, TierItem } from '../tokens/tier-model';
 import type { TokenOverrides } from '../state/tweak-state';
 import type { PersistFont } from '../state/persist';
@@ -17,9 +18,20 @@ interface FontTabProps {
   state: TokenOverrides;
   persistFont: PersistFont;
   instanceConfig?: PanelConfig;
+  /** Whether the read-only specimen is currently portaled into the host page. */
+  renderOnPage?: boolean;
+  /** Called when the toolbar toggles the page-level specimen. */
+  onRenderOnPageChange?: (enabled: boolean) => void;
 }
 
-export default function FontTab({ tab, state, persistFont, instanceConfig = getPanelConfig() }: FontTabProps) {
+export default function FontTab({
+  tab,
+  state,
+  persistFont,
+  instanceConfig = getPanelConfig(),
+  renderOnPage: renderOnPageProp = false,
+  onRenderOnPageChange,
+}: FontTabProps) {
   const getValue = useCallback((_address: TokenAddress, item: TierItem) => state[item.id] ?? item.default, [state]);
   const setValue = useCallback((address: TokenAddress, next: string) => {
     persistFont((prev) => ({ ...prev, [address.itemId]: next }));
@@ -32,27 +44,52 @@ export default function FontTab({ tab, state, persistFont, instanceConfig = getP
   const hasSpecimen = tab.tiers.some((tier) => tier.preview === 'size' || tier.preview === 'line-height');
   const hasLineHeight = tab.tiers.some((tier) => tier.preview === 'line-height');
   const [specimen, setSpecimen] = useState(() => loadSpecimenState(instanceConfig));
+  const [localRenderOnPage, setLocalRenderOnPage] = useState(false);
+  const renderOnPage = onRenderOnPageChange ? renderOnPageProp : localRenderOnPage;
+  const handleRenderOnPageChange = useCallback((enabled: boolean) => {
+    if (onRenderOnPageChange) onRenderOnPageChange(enabled);
+    else setLocalRenderOnPage(enabled);
+  }, [onRenderOnPageChange]);
   useEffect(() => {
     if (hasSpecimen) saveSpecimenState(instanceConfig, specimen);
   }, [hasSpecimen, instanceConfig, specimen]);
   const valueFor = useCallback((item: TierItem) => state[item.id] ?? item.default, [state]);
   const contributions = useMemo(() => [
     previewGlyphContribution(),
-    createSpecimenContribution({ tab, state: specimen, valueFor }),
-  ], [specimen, tab, valueFor]);
+    createSpecimenContribution({ tab, state: specimen, valueFor, onPage: renderOnPage }),
+  ], [renderOnPage, specimen, tab, valueFor]);
   const renderTierBody = useCallback((tier: Parameters<typeof renderSpecimenTierBody>[0], renderRow: Parameters<typeof renderSpecimenTierBody>[1]) => (
     renderSpecimenTierBody(tier, renderRow, { tab, state: specimen, valueFor })
   ), [specimen, tab, valueFor]);
 
-  return <FlatTab tab={tab} getValue={getValue} setValue={setValue} deleteValue={deleteValue}
-    overrides={overrides} contributions={contributions} renderTierBody={renderTierBody}
-    sectionTestId={(tier) => `font-tier-${tier.id}`} actions={(
-      <Fragment>
-        {hasSpecimen && <SpecimenToolbar state={specimen} showWidth={hasLineHeight} onChange={setSpecimen} />}
-        <div className="tokenpanel-tab-actions"><div role="button" tabIndex={0} className="tokenpanel-action-link"
-          onClick={resetAll} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); resetAll(); } }}>
-          Reset Font
-        </div></div>
-      </Fragment>
-    )} />;
+  return <>
+    {hasSpecimen && (
+      <OnPageSpecimen
+        enabled={renderOnPage}
+        tab={tab}
+        state={specimen}
+        valueFor={valueFor}
+        instanceConfig={instanceConfig}
+      />
+    )}
+    <FlatTab tab={tab} getValue={getValue} setValue={setValue} deleteValue={deleteValue}
+      overrides={overrides} contributions={contributions} renderTierBody={renderTierBody}
+      sectionTestId={(tier) => `font-tier-${tier.id}`} actions={(
+        <Fragment>
+          {hasSpecimen && (
+            <SpecimenToolbar
+              state={specimen}
+              showWidth={hasLineHeight}
+              onChange={setSpecimen}
+              renderOnPage={renderOnPage}
+              onRenderOnPageChange={handleRenderOnPageChange}
+            />
+          )}
+          <div className="tokenpanel-tab-actions"><div role="button" tabIndex={0} className="tokenpanel-action-link"
+            onClick={resetAll} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); resetAll(); } }}>
+            Reset Font
+          </div></div>
+        </Fragment>
+      )} />
+  </>;
 }

@@ -5,6 +5,8 @@ interface SpecimenToolbarProps {
   state: SpecimenState;
   showWidth: boolean;
   onChange: (next: SpecimenState) => void;
+  renderOnPage?: boolean;
+  onRenderOnPageChange?: (enabled: boolean) => void;
 }
 
 const PRESET_OPTIONS: readonly [SpecimenPreset, string][] = [
@@ -13,7 +15,13 @@ const PRESET_OPTIONS: readonly [SpecimenPreset, string][] = [
   ['mixed', 'Mixed'],
 ];
 
-export default function SpecimenToolbar({ state, showWidth, onChange }: SpecimenToolbarProps) {
+export default function SpecimenToolbar({
+  state,
+  showWidth,
+  onChange,
+  renderOnPage = false,
+  onRenderOnPageChange,
+}: SpecimenToolbarProps) {
   return (
     <div className="tokenpanel-specimen-toolbar">
       <label className="tokenpanel-specimen-field">
@@ -72,6 +80,18 @@ export default function SpecimenToolbar({ state, showWidth, onChange }: Specimen
           <span className="tokenpanel-specimen-width-value">{state.width}px</span>
         </label>
       )}
+      <label
+        className="tokenpanel-specimen-on-page-toggle"
+        title="Render the specimen in the host page using its real font, colors, and background"
+      >
+        <input
+          type="checkbox"
+          checked={renderOnPage}
+          onChange={(event) => onRenderOnPageChange?.(event.currentTarget.checked)}
+          aria-label="Render on page"
+        />
+        <span>Render on page</span>
+      </label>
     </div>
   );
 }

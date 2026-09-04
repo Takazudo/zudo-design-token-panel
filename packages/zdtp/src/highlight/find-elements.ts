@@ -309,15 +309,17 @@ const PSEUDOS: Array<string | null> = [null, '::before', '::after'];
 export const HIGHLIGHT_PORTAL_MOUNT_ID = 'tokenpanel-highlight-mount';
 export const ELPATH_PORTAL_MOUNT_ID = 'tokenpanel-elpath-mount';
 export const DOM_TWEAKER_PORTAL_MOUNT_ID = 'tokenpanel-domtweaker-mount';
+/** Attribute on the host-document font specimen portal mount. */
+export const ON_PAGE_SPECIMEN_SELECTOR = '[data-zdtp-specimen]';
 
 /**
  * Selector matching every panel-owned surface that must NEVER be treated as a
  * host element (the shell, modals, and the highlight/element-path/dom-tweaker
- * portal mounts). Exported so picker features can skip the same surfaces when
- * resolving the element under the cursor.
+ * and on-page specimen portal mounts). Exported so picker features can skip the
+ * same surfaces when resolving the element under the cursor.
  */
 export const PANEL_EXCLUSION_SELECTOR =
-  `.tokenpanel-shell, [data-design-token-panel-modal], #${HIGHLIGHT_PORTAL_MOUNT_ID}, #${ELPATH_PORTAL_MOUNT_ID}, #${DOM_TWEAKER_PORTAL_MOUNT_ID}`;
+  `.tokenpanel-shell, [data-design-token-panel-modal], #${HIGHLIGHT_PORTAL_MOUNT_ID}, #${ELPATH_PORTAL_MOUNT_ID}, #${DOM_TWEAKER_PORTAL_MOUNT_ID}, ${ON_PAGE_SPECIMEN_SELECTOR}`;
 
 // ---------------------------------------------------------------------------
 // Type detection

@@ -83,6 +83,7 @@ import {
 } from './state/autoload-state';
 import { isDocumentUsable } from './utils/document-liveness';
 import { releaseHostMutations } from './host/host-mutations';
+import { onPageSpecimenMutationOwner } from './specimen/on-page-specimen';
 
 // ---------------------------------------------------------------------------
 // Public DOM contract (kept in sync with astro/host-adapter.ts)
@@ -413,6 +414,7 @@ function unmountInstance(cfg: PanelConfig): void {
   // swap the global document may already be changing, while the shared host
   // registry still retains the exact elements and priorities it mutated.
   releaseHostMutations(cfg.storagePrefix);
+  releaseHostMutations(onPageSpecimenMutationOwner(cfg));
   const root = findRoot(cfg);
   if (!root) return;
   render(null, root);
@@ -566,6 +568,9 @@ function hideInstance(cfg: PanelConfig): void {
   // Straggler guard — see showInstance.
   if (!isDocumentUsable()) return;
   const isFreshMount = !findRoot(cfg);
+  // A public close should remove the page specimen immediately, before the
+  // mounted panel receives its open-state sync event and flushes effects.
+  releaseHostMutations(onPageSpecimenMutationOwner(cfg));
   seedOpenStateBeforeMount(cfg, false);
   ensureMounted(cfg);
   setStoredVisibility(cfg, false);

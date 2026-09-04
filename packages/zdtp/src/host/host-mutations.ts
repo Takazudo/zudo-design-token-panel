@@ -19,6 +19,8 @@ interface HostMutationClaim {
 
 interface HostMutationRegistry {
   claims: Map<DockEdge, HostMutationClaim>;
+  /** Host-owned nodes (for example the on-page specimen portal) by owner. */
+  nodes: Map<string, Set<Element>>;
 }
 
 const HOST_MUTATIONS = Symbol.for('zdtp.hostMutations');
@@ -27,7 +29,16 @@ type RegistryWindow = Window & { [HOST_MUTATIONS]?: HostMutationRegistry };
 
 function registry(targetWindow: Window): HostMutationRegistry {
   const shared = targetWindow as RegistryWindow;
-  return (shared[HOST_MUTATIONS] ??= { claims: new Map() });
+  const existing = shared[HOST_MUTATIONS];
+  if (existing) {
+    // Keep the registry compatible with an older bundle that may already have
+    // installed the dock-only shape on this window.  The on-page specimen is
+    // deliberately an additive claim type, so a mixed-version page can still
+    // release both kinds of host mutation safely.
+    existing.nodes ??= new Map();
+    return existing;
+  }
+  return (shared[HOST_MUTATIONS] = { claims: new Map(), nodes: new Map() });
 }
 
 function declaration(style: CSSStyleDeclaration, property: string): PriorDeclaration {
@@ -79,7 +90,29 @@ export function claimHostDock(
   return true;
 }
 
-/** Release every edge owned by one panel and restore exact value + priority. */
+/**
+ * Claim a host-owned DOM node for one panel owner.
+ *
+ * The node is removed when `releaseHostMutations(owner)` runs.  Keeping this
+ * ownership in the same window-level registry as dock declarations makes the
+ * cleanup path robust when a panel is destroyed or an Astro swap removes the
+ * Preact root before effect cleanups get a chance to run.  Claims are keyed by
+ * owner, rather than by node identity, so a single owner can safely recreate
+ * its portal during a navigation.
+ */
+export function claimHostNode(
+  owner: string,
+  node: Element,
+  doc: Document = node.ownerDocument ?? document,
+): void {
+  const targetWindow = doc.defaultView ?? (typeof window !== 'undefined' ? window : null);
+  if (!targetWindow) return;
+  const nodes = registry(targetWindow).nodes.get(owner) ?? new Set<Element>();
+  nodes.add(node);
+  registry(targetWindow).nodes.set(owner, nodes);
+}
+
+/** Release every edge and host node owned by one panel and restore exact values. */
 export function releaseHostMutations(owner: string, targetWindow?: Window): void {
   const win = targetWindow ?? (typeof window !== 'undefined' ? window : undefined);
   if (!win) return;
@@ -91,6 +124,10 @@ export function releaseHostMutations(owner: string, targetWindow?: Window): void
     restore(claim.root.style, claim.insetProperty, claim.priorInset);
     existing.claims.delete(edge);
   }
+  const nodes = existing.nodes?.get(owner);
+  if (!nodes) return;
+  for (const node of nodes) node.remove();
+  existing.nodes.delete(owner);
 }
 
 /** Test-only reset that also restores outstanding declarations. */
@@ -102,5 +139,9 @@ export function __resetHostMutationsForTests(targetWindow: Window = window): voi
     restore(claim.root.style, claim.insetProperty, claim.priorInset);
   }
   existing.claims.clear();
+  for (const nodes of existing.nodes?.values() ?? []) {
+    for (const node of nodes) node.remove();
+  }
+  existing.nodes?.clear();
   delete (targetWindow as RegistryWindow)[HOST_MUTATIONS];
 }
