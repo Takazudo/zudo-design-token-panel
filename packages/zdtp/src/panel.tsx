@@ -37,6 +37,7 @@ import {
 import type { TabConfig } from './tokens/tier-model';
 import { isDocumentUsable } from './utils/document-liveness';
 import { usePersist } from './state/persist';
+import { useTweakStateTransaction } from './state/transaction';
 import {
   type TweakState,
   type ColorTweakState,
@@ -65,7 +66,6 @@ import {
   loadPersistedState,
   loadPosition,
   loadSize,
-  savePersistedState,
   saveDensity,
   savePosition,
   saveSize,
@@ -233,8 +233,9 @@ export default function DesignTokenTweakPanel({
   // Track active resize listeners for cleanup on unmount
   const resizeCleanupRef = useRef<(() => void) | null>(null);
 
+  const { commitTweakState } = useTweakStateTransaction(state, setState, instanceConfig);
   const { persistColor, persistSpacing, persistFont, persistSize, persistSecondary, persistTab } =
-    usePersist(setState, instanceConfig);
+    usePersist(commitTweakState, instanceConfig);
 
   // Restore open state, position, and size from localStorage after mount (avoids SSR hydration mismatch)
   useEffect(() => {
@@ -378,15 +379,27 @@ export default function DesignTokenTweakPanel({
         nextColor = initColorFromScheme(cluster, instanceConfig);
         nextSecondary = initSecondaryFromConfig(instanceConfig);
       }
-      setState((prev) =>
-        prev
-          ? { ...prev, color: nextColor, secondary: nextSecondary }
-          : { ...freshTweakState(instanceConfig), color: nextColor, secondary: nextSecondary },
-      );
+      if (state) {
+        commitTweakState(
+          'scheme-reapply',
+          (previous) => ({
+            ...previous,
+            color: nextColor,
+            secondary: nextSecondary,
+          }),
+          { record: false, apply: false, save: false },
+        );
+      } else {
+        commitTweakState(
+          'scheme-reapply',
+          { ...freshTweakState(instanceConfig), color: nextColor, secondary: nextSecondary },
+          { record: false, apply: false, save: false },
+        );
+      }
     }
     window.addEventListener('color-scheme-changed', handleSchemeChange);
     return () => window.removeEventListener('color-scheme-changed', handleSchemeChange);
-  }, [instanceConfig]);
+  }, [instanceConfig, commitTweakState, state]);
 
   // Initialize state on first open. Every storage read + apply is scoped to
   // THIS instance's config (#357): panel A loads from A's storage keys and
@@ -408,7 +421,7 @@ export default function DesignTokenTweakPanel({
       } else {
         applyNonColorSlices(persisted, instanceConfig);
       }
-      setState(persisted);
+      commitTweakState('initialize', persisted, { record: false, apply: false, save: false });
       return;
     }
     // No saved state — page already has correct colors from ColorSchemeProvider.
@@ -416,8 +429,12 @@ export default function DesignTokenTweakPanel({
     // The `secondary` slice is always seeded — every fresh-state path
     // includes it so the persisted envelope shape stays stable regardless
     // of the user's path.
-    setState(freshTweakState(instanceConfig));
-  }, [open, state, instanceConfig]);
+    commitTweakState('initialize', freshTweakState(instanceConfig), {
+      record: false,
+      apply: false,
+      save: false,
+    });
+  }, [open, state, instanceConfig, commitTweakState]);
 
   // Drag handler for panel header (stable — reads position from ref)
   const handleDragStart = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -600,26 +617,26 @@ export default function DesignTokenTweakPanel({
       // (skipped by the resolver, #482 import nit) would leave the PREVIOUS
       // session's inline value painted instead of falling back to the
       // stylesheet default.
-      clearAppliedColorStyles(undefined, undefined, instanceConfig);
       // Replace the panel state with the loaded tweak, apply CSS vars, persist
-      // to localStorage (v3). Unknown tokens have already been filtered out by
+      // to localStorage. Unknown tokens have already been filtered out by
       // deserialize(). Apply + persist are scoped to THIS instance (#357).
-      applyFullState(loaded, instanceConfig);
-      savePersistedState(loaded, undefined, instanceConfig);
-      setState(loaded);
+      commitTweakState('import', loaded, {
+        beforeApply: () => clearAppliedColorStyles(undefined, undefined, instanceConfig),
+      });
     },
-    [instanceConfig],
+    [instanceConfig, commitTweakState],
   );
 
   const handleResetAll = useCallback(() => {
     // Clear + reset are scoped to THIS instance's storage keys, clusters, and
     // sink so a reset on panel A never touches panel B's storage/vars (#357).
-    clearPersistedState(undefined, instanceConfig);
-    clearAppliedStyles(undefined, instanceConfig);
     // Always seed the secondary slice — every fresh-state path emits a
     // uniform envelope shape so persistence stays consistent.
-    setState(freshTweakState(instanceConfig));
-  }, [instanceConfig]);
+    commitTweakState('reset', freshTweakState(instanceConfig), {
+      apply: () => clearAppliedStyles(undefined, instanceConfig),
+      save: () => clearPersistedState(undefined, instanceConfig),
+    });
+  }, [instanceConfig, commitTweakState]);
 
   // Single source of truth for the four header actions (#518) — rendered
   // both as the always-visible .tokenpanel-action-link header links AND
@@ -639,12 +656,15 @@ export default function DesignTokenTweakPanel({
     // After a successful apply the on-disk CSS now matches the current tweak,
     // so drop the persisted override envelope and any inline overrides — the
     // page will re-render from the fresh stylesheet. Scoped to THIS instance (#357).
-    clearPersistedState(undefined, instanceConfig);
-    clearAppliedStyles(undefined, instanceConfig);
     // Always seed the secondary slice — every fresh-state path emits a
     // uniform envelope shape.
-    setState(freshTweakState(instanceConfig));
-  }, [instanceConfig]);
+    commitTweakState('apply', freshTweakState(instanceConfig), {
+      apply: () => clearAppliedStyles(undefined, instanceConfig),
+      save: () => clearPersistedState(undefined, instanceConfig),
+      resetHistory: true,
+      forceRecord: true,
+    });
+  }, [instanceConfig, commitTweakState]);
 
   // Build the active tab list from this instance's PanelConfig.tabs (required).
   // Keyed on `instanceConfig` so a non-default panel renders ITS own manifest,

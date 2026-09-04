@@ -1,16 +1,15 @@
 /**
- * `usePersist` hook — orchestrates setState + DOM apply + localStorage write
- * for the design-token panel. Each callback is a persist pipeline:
+ * `usePersist` hook — adapts slice updaters to the panel's single state
+ * transaction path. Each callback is a persist pipeline:
  *
- *   updater  →  setState(updater)  →  applyFullState(next)  →  savePersistedState(next)
+ *   updater  →  commitTweakState('persist', updater)
  *
  * The slice-specific helpers (`persistColor`, `persistSpacing`, etc.) wrap a
  * slice updater into a full-state updater so callers don't have to thread the
  * whole envelope themselves.
  *
- * Framework-agnostic wrt. the setState function: pass any
- * `(updater) => void` that propagates `updater(prev)` to the caller's state.
- * In practice the panel passes Preact's `setState` from `useState`.
+ * The transaction owns apply/save/setState ordering and history recording;
+ * this hook only lifts legacy slice callbacks into whole-state updaters.
  *
  * `persistColor`'s updater is `(prev: ColorTweakState) => ColorTweakState`, so
  * the widened `ColorTweakState.semanticMappings: Record<string, SemanticValue>`
@@ -23,41 +22,34 @@
 import { useCallback } from 'preact/hooks';
 
 import {
-  applyFullState,
-  savePersistedState,
   type ColorTweakState,
   type TabOverrides,
   type TokenOverrides,
   type TweakState,
 } from './tweak-state';
 import type { PanelConfig } from '../config/panel-config';
+import type { CommitTweakStateOptions, TweakStateUpdater } from './transaction';
 
-type SetState<T> = (updater: (prev: T | null) => T | null) => void;
+type CommitTweakState = (
+  reason: string,
+  updater: TweakStateUpdater,
+  options?: CommitTweakStateOptions,
+) => void;
 
 /**
  * `usePersist` hook.
  *
- * Accepts an optional `cfg` — the panel instance config. When supplied its
- * `applySink` (if any) routes every CSS-var write through the sink instead
- * of `document.documentElement`, AND its `storagePrefix` scopes the persisted
- * envelope to THIS instance's storage key (multi-instance, #357). Omitting
- * `cfg` resolves the default instance via `getPanelConfig()` inside both
- * `applyFullState` and `savePersistedState`, preserving the single-panel path.
+ * `cfg` remains accepted for API compatibility; instance scoping is owned by
+ * the supplied transaction.
  */
-export function usePersist(setState: SetState<TweakState>, cfg?: PanelConfig) {
+export function usePersist(commitTweakState: CommitTweakState, cfg?: PanelConfig) {
   const persist = useCallback(
     (updater: (prev: TweakState) => TweakState) => {
-      setState((prev) => {
-        if (!prev) return prev;
-        const next = updater(prev);
-        applyFullState(next, cfg);
-        savePersistedState(next, undefined, cfg);
-        return next;
-      });
+      commitTweakState('persist', updater);
     },
     // cfg is intentionally included so the callback re-binds when the
     // config reference changes (e.g. hot-reload in dev).
-    [setState, cfg],
+    [commitTweakState, cfg],
   );
 
   /**
