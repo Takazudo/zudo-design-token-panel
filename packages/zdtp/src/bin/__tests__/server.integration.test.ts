@@ -15,14 +15,7 @@
  * fixed port to provoke the collision.
  */
 import { spawn, type ChildProcessByStdio } from 'node:child_process';
-import {
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import type { Readable } from 'node:stream';
@@ -236,6 +229,69 @@ describe.skipIf(!BIN_EXISTS)('zdtp-server bin (integration)', () => {
     expect(css).not.toContain('--x-color: red');
   }, 10_000);
 
+  it('POST /apply dryRun previews without writing, logs dry-run, and protects the real write', async () => {
+    const fix = makeTmpFixture();
+    cleanupTasks.push(() => rmSync(fix.dir, { recursive: true, force: true }));
+
+    const allowOrigin = 'http://localhost:9999';
+    const bin = await spawnBin([
+      '--root',
+      fix.dir,
+      '--write-root',
+      fix.dir,
+      '--routing',
+      fix.routingPath,
+      '--port',
+      '0',
+      '--allow-origin',
+      allowOrigin,
+    ]);
+    cleanupTasks.push(() => killBin(bin.child));
+
+    const before = readFileSync(fix.tokensPath, 'utf-8');
+    const previewResponse = await fetch(`http://127.0.0.1:${bin.port}/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: allowOrigin },
+      body: JSON.stringify({
+        dryRun: true,
+        tokens: { '--x-color': 'blue', '--no-route-value': '1px' },
+      }),
+    });
+    expect(previewResponse.status).toBe(200);
+    const preview = (await previewResponse.json()) as {
+      ok: boolean;
+      dryRun: boolean;
+      files: Array<{ file: string; digest: string; hunks: Array<{ cssVar: string }> }>;
+      rejected: string[];
+    };
+    expect(preview.ok).toBe(true);
+    expect(preview.dryRun).toBe(true);
+    expect(preview.files[0].hunks).toEqual([expect.objectContaining({ cssVar: '--x-color' })]);
+    expect(preview.rejected).toEqual(['--no-route-value']);
+    expect(readFileSync(fix.tokensPath, 'utf-8')).toBe(before);
+    await waitFor(() => bin.stdout.join('').includes('[design-token-panel] dry-run'), {
+      label: 'dry-run outcome log',
+    });
+
+    writeFileSync(fix.tokensPath, `${before}\n/* external edit */\n`, 'utf-8');
+    const externallyEdited = readFileSync(fix.tokensPath, 'utf-8');
+    const writeResponse = await fetch(`http://127.0.0.1:${bin.port}/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: allowOrigin },
+      body: JSON.stringify({
+        tokens: { '--x-color': 'blue' },
+        expectDigests: { [preview.files[0].file]: preview.files[0].digest },
+      }),
+    });
+    expect(writeResponse.status).toBe(409);
+    expect(await writeResponse.json()).toEqual({
+      ok: false,
+      reason: 'stale-file',
+      files: ['tokens.css'],
+    });
+    expect(readFileSync(fix.tokensPath, 'utf-8')).toBe(externallyEdited);
+  }, 10_000);
+
   it('POST /apply from a disallowed origin is rejected with 403 and no CORS header', async () => {
     const fix = makeTmpFixture();
     cleanupTasks.push(() => rmSync(fix.dir, { recursive: true, force: true }));
@@ -388,7 +444,10 @@ describe.skipIf(!BIN_EXISTS)('zdtp-server bin (integration)', () => {
       { timeout: 5000, label: 'symlink-invoked bin startup' },
     );
 
-    expect(child.exitCode, `bin exited prematurely. stdout: ${stdout.join('')} stderr: ${stderr.join('')}`).toBeNull();
+    expect(
+      child.exitCode,
+      `bin exited prematurely. stdout: ${stdout.join('')} stderr: ${stderr.join('')}`,
+    ).toBeNull();
     expect(port).toBeGreaterThan(0);
 
     const response = await fetch(`http://127.0.0.1:${port}/healthz`);

@@ -788,6 +788,60 @@ Content-Type: application/json
 }
 ```
 
+The same endpoint accepts two optional coordination fields:
+
+- `dryRun: true` computes a preview without creating a temporary file,
+  renaming a file, or otherwise mutating disk. A dry run may mix routed and
+  unrouted tokens; unrouted entries are diagnostics in the successful preview
+  rather than a whole-request error.
+- `expectDigests` maps the repo-relative `file` values from a preceding preview
+  to their SHA-256 `digest` values. On a real write, every supplied digest is
+  checked after all files have been read and before any file is written.
+
+**Response 200 (dry run)**
+
+```json
+{
+  "ok": true,
+  "dryRun": true,
+  "files": [
+    {
+      "file": "src/styles/tokens.css",
+      "blockKind": "root",
+      "digest": "<64 lowercase SHA-256 hex characters>",
+      "changed": ["--myapp-spacing-md"],
+      "unchanged": ["--myapp-spacing-lg"],
+      "unknown": [],
+      "unknownOutsideBlock": [],
+      "hunks": [
+        {
+          "cssVar": "--myapp-spacing-md",
+          "line": 12,
+          "before": "  --myapp-spacing-md: 1rem;",
+          "after": "  --myapp-spacing-md: 2rem;",
+          "context": {
+            "before": ["  --myapp-spacing-sm: 0.5rem;"],
+            "after": ["  --myapp-spacing-lg: 3rem;"]
+          }
+        }
+      ]
+    }
+  ],
+  "rejected": ["--unrouted-token"],
+  "rejectedReasons": ["--unrouted-token: no route configured for prefix family (...)"]
+}
+```
+
+`blockKind` identifies the scanned block containing the requested declaration;
+`:root` wins when a request changes declarations in both supported block kinds.
+For an unknown-only file result, the first available kind (`root`, then
+`theme`) is reported. `line` is one-based. `before` and `after` are complete
+declaration lines, while each context array contains the adjacent proposed-file
+line on that side. `hunks` contains exactly one entry per changed cssVar; two
+declarations on one physical line therefore produce two independently-keyed
+hunks with the same line number. Unknown and unchanged tokens do not produce
+hunks.
+
 **Response 200 (success)**
 
 ```json
@@ -836,6 +890,20 @@ Empty body, `Allow: POST, OPTIONS` header.
 { "ok": false, "error": "No top-level :root { ... } block in <file>" }
 ```
 
+A real write whose current file content does not match a supplied preview
+digest returns the following envelope before any target is written:
+
+```json
+{
+  "ok": false,
+  "reason": "stale-file",
+  "files": ["src/styles/tokens.css"]
+}
+```
+
+The client must request a new dry run and ask the user to review the refreshed
+hunks. Omitting `expectDigests` preserves the legacy write behaviour.
+
 **Response 500 (Internal server error)**
 
 ```json
@@ -866,11 +934,15 @@ Hosts physically unable to spawn Node.js must:
 4. Read & parse — load each CSS file, find the `:root { ... }` block (fail
    409 if missing), parse the existing variable values.
 5. Compute rewrite — compute `changed` / `unchanged` / `unknown`, build the
-   updated `:root` block.
-6. Atomic write — keep the original file content in memory. Write updated
+   updated `:root` / `@theme` content, its per-cssVar hunks, and the SHA-256 of
+   the original bytes.
+6. Preview/stale gate — for `dryRun: true`, return the preview immediately. For
+   a real write with `expectDigests`, compare every supplied digest and return
+   the stale-file 409 before the first mutation when any target differs.
+7. Atomic write — keep the original file content in memory. Write updated
    content to a temp file. Atomically rename temp to target. If any write
    fails, restore every previously-written file.
-7. Respond — return the exact JSON envelope shapes pinned in §5.1.
+8. Respond — return the exact JSON envelope shapes pinned in §5.1.
 
 ### 5.4 Routing config — single source of truth
 
@@ -1367,7 +1439,7 @@ Cross-reference table — what each section pins down.
 | JSON-serializable constraint on color tab config                                            | §4.2          |
 | `colorPresets` and `setPanelColorPresets()` lazy attachment                                 | §4.4          |
 | Color apply behaviour                                                                       | §4.5          |
-| Apply pipeline request / response envelopes                                                 | §5.1          |
+| Apply pipeline request / response envelopes, dry-run hunks/digests, stale-write 409          | §5.1          |
 | Reference-implementation algorithm + native-implementation guidance                         | §5.2, §5.3    |
 | Routing config single-source                                                                | §5.4          |
 | Astro `<DesignTokenPanelHost>` prop, lazy-load gate (4-signal), owner-autoload, console API | §6            |

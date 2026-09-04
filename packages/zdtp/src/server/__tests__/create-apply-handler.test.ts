@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { promises as fs } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { createApplyHandler } from '../create-apply-handler';
 
 // ----- fixtures & helpers -----------------------------------------------------
@@ -32,11 +32,7 @@ const SECONDARY_TOKENS_CSS_FIXTURE = `:root {
 async function makeTmpRepo(): Promise<string> {
   const dir = join(tmpdir(), `dtp-server-test-${randomBytes(6).toString('hex')}`);
   await fs.mkdir(join(dir, 'tokens'), { recursive: true });
-  await fs.writeFile(
-    join(dir, 'tokens/tokens.css'),
-    TOKENS_CSS_FIXTURE,
-    'utf-8',
-  );
+  await fs.writeFile(join(dir, 'tokens/tokens.css'), TOKENS_CSS_FIXTURE, 'utf-8');
   await fs.writeFile(
     join(dir, 'tokens/secondary-tokens.css'),
     SECONDARY_TOKENS_CSS_FIXTURE,
@@ -195,22 +191,170 @@ describe('createApplyHandler', () => {
       }),
     ]);
 
-    const tokensCss = await fs.readFile(
-      join(tmpRepo, 'tokens/tokens.css'),
-      'utf-8',
-    );
+    const tokensCss = await fs.readFile(join(tmpRepo, 'tokens/tokens.css'), 'utf-8');
     expect(tokensCss).toContain('--zd-p5: #66ff66;');
     // --zd-p6 was NOT supplied and must remain untouched.
     expect(tokensCss).toContain('--zd-p6: #888888;');
     // The nested @media :root block must be untouched.
     expect(tokensCss).toContain('--zd-p5: #1a1a1a;');
 
-    const secondaryCss = await fs.readFile(
-      join(tmpRepo, 'tokens/secondary-tokens.css'),
-      'utf-8',
-    );
+    const secondaryCss = await fs.readFile(join(tmpRepo, 'tokens/secondary-tokens.css'), 'utf-8');
     expect(secondaryCss).toContain('--secondary-pa7: #33dd33;');
     expect(secondaryCss).toContain('--secondary-pa8: #aa3333;');
+  });
+
+  // ----- dry-run preview + stale-write protection ---------------------------
+
+  it('previews routed tokens, reports unrouted tokens, and writes nothing in dryRun mode', async () => {
+    const absPath = join(tmpRepo, 'tokens/tokens.css');
+    const before = await fs.readFile(absPath, 'utf-8');
+    const beforeStat = await fs.stat(absPath);
+
+    const res = await handler(
+      makeRequest({
+        dryRun: true,
+        tokens: {
+          '--zd-p5': '#66ff66',
+          '--zd-p6': '#888888',
+          '--zd-missing': '1px',
+          '--unrouted-value': '2px',
+        },
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    const json = await readResponseJson(res);
+    expect(json).toEqual(
+      expect.objectContaining({
+        ok: true,
+        dryRun: true,
+        rejected: ['--unrouted-value'],
+      }),
+    );
+    expect(json.rejectedReasons).toEqual([expect.stringContaining('--unrouted-value')]);
+    const files = json.files as Array<{
+      file: string;
+      blockKind: string;
+      digest: string;
+      changed: string[];
+      unchanged: string[];
+      unknown: string[];
+      hunks: Array<{ cssVar: string; line: number; before: string; after: string }>;
+    }>;
+    expect(files).toHaveLength(1);
+    expect(files[0]).toEqual(
+      expect.objectContaining({
+        file: 'tokens/tokens.css',
+        blockKind: 'root',
+        digest: createHash('sha256').update(before).digest('hex'),
+        changed: ['--zd-p5'],
+        unchanged: ['--zd-p6'],
+        unknown: ['--zd-missing'],
+      }),
+    );
+    expect(files[0].hunks).toEqual([
+      expect.objectContaining({
+        cssVar: '--zd-p5',
+        line: 6,
+        before: '  --zd-p5: #33ff33; /* accent */',
+        after: '  --zd-p5: #66ff66; /* accent */',
+      }),
+    ]);
+
+    expect(await fs.readFile(absPath, 'utf-8')).toBe(before);
+    expect((await fs.stat(absPath)).mtimeMs).toBe(beforeStat.mtimeMs);
+    expect(
+      (await fs.readdir(join(tmpRepo, 'tokens'))).some((name) => name.startsWith('.tmp-')),
+    ).toBe(false);
+  });
+
+  it('returns a successful empty dry-run envelope when every token is unrouted', async () => {
+    const res = await handler(makeRequest({ dryRun: true, tokens: { '--unrouted-value': '2px' } }));
+    expect(res.status).toBe(200);
+    expect(await readResponseJson(res)).toEqual({
+      ok: true,
+      dryRun: true,
+      files: [],
+      rejected: ['--unrouted-value'],
+      rejectedReasons: [expect.stringContaining('--unrouted-value')],
+    });
+  });
+
+  it('returns 409 for stale expected digests before writing any file', async () => {
+    const preview = await handler(
+      makeRequest({
+        dryRun: true,
+        tokens: { '--zd-p5': '#fafafa', '--secondary-pa7': '#fafafa' },
+      }),
+    );
+    const previewJson = await readResponseJson(preview);
+    const files = previewJson.files as Array<{ file: string; digest: string }>;
+    const expectDigests = Object.fromEntries(files.map(({ file, digest }) => [file, digest]));
+
+    const primaryPath = join(tmpRepo, 'tokens/tokens.css');
+    const secondaryPath = join(tmpRepo, 'tokens/secondary-tokens.css');
+    const primaryBefore = await fs.readFile(primaryPath, 'utf-8');
+    await fs.writeFile(secondaryPath, `${SECONDARY_TOKENS_CSS_FIXTURE}\n/* external edit */\n`);
+    const secondaryBeforeWrite = await fs.readFile(secondaryPath, 'utf-8');
+
+    const res = await handler(
+      makeRequest({
+        tokens: { '--zd-p5': '#fafafa', '--secondary-pa7': '#fafafa' },
+        expectDigests,
+      }),
+    );
+    expect(res.status).toBe(409);
+    expect(await readResponseJson(res)).toEqual({
+      ok: false,
+      reason: 'stale-file',
+      files: ['tokens/secondary-tokens.css'],
+    });
+    expect(await fs.readFile(primaryPath, 'utf-8')).toBe(primaryBefore);
+    expect(await fs.readFile(secondaryPath, 'utf-8')).toBe(secondaryBeforeWrite);
+  });
+
+  it('writes normally when every supplied expected digest still matches', async () => {
+    const absPath = join(tmpRepo, 'tokens/tokens.css');
+    const digest = createHash('sha256')
+      .update(await fs.readFile(absPath))
+      .digest('hex');
+    const res = await handler(
+      makeRequest({
+        tokens: { '--zd-p5': '#abcdef' },
+        expectDigests: { 'tokens/tokens.css': digest },
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(await fs.readFile(absPath, 'utf-8')).toContain('--zd-p5: #abcdef;');
+  });
+
+  it('serializes concurrent digest-guarded batches so the second write is stale', async () => {
+    const absPath = join(tmpRepo, 'tokens/tokens.css');
+    const digest = createHash('sha256')
+      .update(await fs.readFile(absPath))
+      .digest('hex');
+    const firstRequest = handler(
+      makeRequest({
+        tokens: { '--zd-p5': '#111111' },
+        expectDigests: { 'tokens/tokens.css': digest },
+      }),
+    );
+    const secondRequest = handler(
+      makeRequest({
+        tokens: { '--zd-p5': '#222222' },
+        expectDigests: { 'tokens/tokens.css': digest },
+      }),
+    );
+
+    const [first, second] = await Promise.all([firstRequest, secondRequest]);
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(409);
+    expect(await readResponseJson(second)).toEqual({
+      ok: false,
+      reason: 'stale-file',
+      files: ['tokens/tokens.css'],
+    });
+    expect(await fs.readFile(absPath, 'utf-8')).toContain('--zd-p5: #111111;');
   });
 
   // ----- same-file coalescing (two prefixes → one file, #526) ---------------
@@ -457,9 +601,7 @@ describe('createApplyHandler', () => {
         routing: { zd: rel },
       });
 
-      const res = await nestedHandler(
-        makeRequest({ tokens: { '--zd-nested-only': '#333333' } }),
-      );
+      const res = await nestedHandler(makeRequest({ tokens: { '--zd-nested-only': '#333333' } }));
       expect(res.status).toBe(200);
       const json = await readResponseJson(res);
       expect(json.ok).toBe(true);
@@ -494,9 +636,7 @@ describe('createApplyHandler', () => {
         routing: { zd: rel },
       });
 
-      const res = await groupedHandler(
-        makeRequest({ tokens: { '--zd-grouped-only': '#555555' } }),
-      );
+      const res = await groupedHandler(makeRequest({ tokens: { '--zd-grouped-only': '#555555' } }));
       expect(res.status).toBe(200);
       const json = await readResponseJson(res);
       expect(json.ok).toBe(true);
@@ -600,11 +740,7 @@ describe('createApplyHandler', () => {
 
       const changed = (json.updated as Array<{ changed: string[] }>).flatMap((u) => u.changed);
       expect(changed).toEqual(
-        expect.arrayContaining([
-          '--tw-palette-cool-700',
-          '--tw-spacing-md',
-          '--tw-color-ink',
-        ]),
+        expect.arrayContaining(['--tw-palette-cool-700', '--tw-spacing-md', '--tw-color-ink']),
       );
       expect(changed).not.toContain('--tw-nested-only');
 
