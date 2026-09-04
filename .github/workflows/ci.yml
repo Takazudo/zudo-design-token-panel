@@ -57,7 +57,23 @@ jobs:
         # linux-keyed so they match this ubuntu-latest runner exactly.
         # Update flow: pnpm --filter @takazudo/zdtp test:vrt:update locally,
         # review PNG diff in the PR, then commit the updated baselines.
-        run: pnpm --filter @takazudo/zdtp test:vrt
+        run: pnpm --filter @takazudo/zdtp test:vrt -- --output=test-results/vrt
+
+      - name: Playground walking-skeleton E2E
+        run: pnpm --filter @takazudo/zdtp test:e2e
+
+      - name: Packed-tarball smoke
+        run: pnpm --filter @takazudo/zdtp test:pack
+
+      - name: Upload test-harness trace
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: panel-test-harness-trace
+          path: |
+            packages/zdtp/test-results/e2e/**/trace.zip
+            packages/zdtp/test-results/pack/trace.zip
+          if-no-files-found: error
 
       - name: Typecheck
         run: pnpm typecheck
