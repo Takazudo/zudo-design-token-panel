@@ -10,6 +10,12 @@ import { HighlightSettingsPopover } from './highlight/highlight-settings-popover
 import { HighlightOrchestrator } from './highlight/highlight-orchestrator';
 import { ElementPathOrchestrator } from './element-path/element-path-orchestrator';
 import { ElementPathToggleButton } from './element-path/element-path-toggle-button';
+import {
+  ElementInspectOrchestrator,
+  ElementInspectToggleButton,
+  ElementInspectView,
+  ELEMENT_INSPECT_TAB_ID,
+} from './element-inspect';
 import { DomTweakerOrchestrator } from './dom-tweaker/dom-tweaker-orchestrator';
 import { DomTweakerToggleButton } from './dom-tweaker/dom-tweaker-toggle-button';
 import { DomTweakerDiffActionLink } from './dom-tweaker/dom-tweaker-diff-action-link';
@@ -98,7 +104,7 @@ import {
 // tier-driven token editor and carries no state/persist props (see the
 // tab-body dispatch below and utils/design-token-serde.ts's OWN separate
 // RESERVED_TAB_IDS Set, which independently excludes it from export/import).
-const RESERVED_TAB_IDS = ['color', 'font', 'spacing', 'size', 'palette', 'notes'] as const;
+const RESERVED_TAB_IDS = ['color', 'font', 'spacing', 'size', 'palette', 'notes', ELEMENT_INSPECT_TAB_ID] as const;
 type ReservedTabId = (typeof RESERVED_TAB_IDS)[number];
 
 const DEFAULT_TAB_ID: ReservedTabId = 'color';
@@ -281,6 +287,7 @@ export default function DesignTokenTweakPanel({
   const [renderSpecimenOnPage, setRenderSpecimenOnPage] = useState(false);
   const specimenPreviousDockModeRef = useRef<DockMode | null>(null);
   const [ghostIdle, setGhostIdle] = useState(false);
+  const previousInspectTabRef = useRef<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   // tabRefs is now keyed by string to support host-supplied tab ids.
   const tabRefs = useRef<Record<string, HTMLDivElement | null>>({
@@ -922,8 +929,45 @@ export default function DesignTokenTweakPanel({
   // not the active default instance's (#354). configurePanel is one-shot per
   // prefix, so the list is stable for a mount's lifetime.
   const activeTabs = useMemo((): readonly { id: string; label: string }[] => {
-    return instanceConfig.tabs.map((t: TabConfig) => ({ id: t.id, label: t.label }));
+    return [
+      { id: ELEMENT_INSPECT_TAB_ID, label: 'Inspect' },
+      ...instanceConfig.tabs
+        .filter((t: TabConfig) => t.id !== ELEMENT_INSPECT_TAB_ID)
+        .map((t: TabConfig) => ({ id: t.id, label: t.label })),
+    ];
   }, [instanceConfig]);
+
+  const openInspectTab = useCallback(() => {
+    setActiveTab((current) => {
+      if (current !== ELEMENT_INSPECT_TAB_ID) previousInspectTabRef.current = current;
+      return ELEMENT_INSPECT_TAB_ID;
+    });
+  }, []);
+
+  const handleActiveTabChange = useCallback((nextTab: string) => {
+    setActiveTab((current) => {
+      if (nextTab === ELEMENT_INSPECT_TAB_ID && current !== ELEMENT_INSPECT_TAB_ID) {
+        previousInspectTabRef.current = current;
+      } else if (nextTab !== ELEMENT_INSPECT_TAB_ID && current === ELEMENT_INSPECT_TAB_ID) {
+        previousInspectTabRef.current = null;
+      }
+      return nextTab;
+    });
+  }, []);
+
+  const clearInspectTab = useCallback(() => {
+    setActiveTab((current) => {
+      if (current !== ELEMENT_INSPECT_TAB_ID) return current;
+      const previous = previousInspectTabRef.current;
+      previousInspectTabRef.current = null;
+      if (previous && activeTabs.some((tab) => tab.id === previous)) return previous;
+      return instanceConfig.tabs[0]?.id ?? DEFAULT_TAB_ID;
+    });
+  }, [activeTabs, instanceConfig]);
+
+  const jumpToColorTab = useCallback(() => {
+    if (activeTabs.some((tab) => tab.id === 'color')) setActiveTab('color');
+  }, [activeTabs]);
 
   // Build an id→TabConfig lookup for the tab-body dispatch (this instance's
   // tabs). Keyed on `instanceConfig` — same as `activeTabs` above — so the body
@@ -1022,18 +1066,23 @@ export default function DesignTokenTweakPanel({
           order: 0,
           render: () => <ElementPathToggleButton />,
         },
+        {
+          id: 'element-inspect',
+          order: 1,
+          render: () => <ElementInspectToggleButton />,
+        },
         ...(instanceConfig.domTweaker !== undefined
           ? [
               {
                 id: 'dom-tweaker',
-                order: 1,
+                order: 2,
                 render: () => <DomTweakerToggleButton />,
               } satisfies ShellRegionItem,
             ]
           : []),
         {
           id: 'highlight-settings',
-          order: 2,
+          order: 3,
           render: () => (
             <div
               ref={gearBtnRef}
@@ -1070,7 +1119,7 @@ export default function DesignTokenTweakPanel({
         },
         {
           id: 'close',
-          order: 3,
+          order: 4,
           render: () => (
             <RoleButton
               onClick={() => setOpen(false)}
@@ -1129,7 +1178,16 @@ export default function DesignTokenTweakPanel({
     />
     {open && <PanelEscapeShortcut onClose={() => setOpen(false)} />}
     <HighlightOrchestrator>
-      <ElementPathOrchestrator>
+    <ElementPathOrchestrator>
+    <ElementInspectOrchestrator
+      instanceConfig={instanceConfig}
+      state={state}
+      commitTweakState={commitTweakState}
+      onInspectTabOpen={openInspectTab}
+      onInspectTabClear={clearInspectTab}
+      onJumpToColorTab={jumpToColorTab}
+      panelOpen={open}
+    >
       <DomTweakerOrchestrator instanceConfig={instanceConfig}>
       <TooltipProvider>
       {open && (() => {
@@ -1192,7 +1250,7 @@ export default function DesignTokenTweakPanel({
         <ShellTabBar
           tabs={activeTabs}
           activeTab={activeTab}
-          onActiveTabChange={setActiveTab}
+          onActiveTabChange={handleActiveTabChange}
           ariaIdScope={ariaIdScope}
           tabRefs={tabRefs}
           density={density}
@@ -1215,6 +1273,9 @@ export default function DesignTokenTweakPanel({
                 tabIndex={0}
                 hidden={!isSelected}
               >
+                {tab.id === ELEMENT_INSPECT_TAB_ID && (
+                  <ElementInspectView onJumpToColorTab={jumpToColorTab} />
+                )}
                 {tab.id === 'color' && state && tabConfigById['color'] && (
                   <ColorTab
                     tab={tabConfigById['color']}
@@ -1376,6 +1437,7 @@ export default function DesignTokenTweakPanel({
       })()}
       </TooltipProvider>
       </DomTweakerOrchestrator>
+    </ElementInspectOrchestrator>
       </ElementPathOrchestrator>
     </HighlightOrchestrator>
     </ShellRegionsProvider>

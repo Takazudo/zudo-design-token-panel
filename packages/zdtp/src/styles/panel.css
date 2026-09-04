@@ -1,9 +1,10 @@
 /**
  * Design-token panel — bundled CSS.
  *
- * Owns every chrome rule for the panel SHELL, the four TABS (Color / Spacing
- * / Font / Size), and the four CONTROL rows (slider / pill-slider / select /
- * text). Modal-layer CSS is bundled in the same stylesheet further down.
+ * Owns every chrome rule for the panel SHELL, the token tabs, the transient
+ * element-inspect view, and the four CONTROL rows (slider / pill-slider /
+ * select / text). Modal-layer CSS is bundled in the same stylesheet further
+ * down.
  *
  * Why move this out of Tailwind?
  * ------------------------------
@@ -39,6 +40,7 @@
 @import '../tabs/palette/palette-edit-view.css';
 @import '../tabs/palette/palette-check-view.css';
 @import '../specimen/specimen.css';
+@import '../element-inspect/element-inspect.css';
 
 /* ===========================================================================
  * Scoped box-sizing reset
@@ -57,7 +59,10 @@
   .tokenpanel-highlight-settings-popover,
   .tokenpanel-tooltip,
   .tokenpanel-elpath-label,
-  .tokenpanel-elpath-toast
+  .tokenpanel-elpath-toast,
+  .tokenpanel-element-inspect-box,
+  .tokenpanel-element-inspect-label,
+  .tokenpanel-element-inspect-view
 ) {
   box-sizing: border-box;
 }
@@ -66,7 +71,8 @@
   .tokenpanel-mini-pill,
   [data-design-token-panel-modal],
   .tokenpanel-color-picker,
-  .tokenpanel-highlight-settings-popover
+  .tokenpanel-highlight-settings-popover,
+  .tokenpanel-element-inspect-view
 ) :where(*, *::before, *::after) {
   box-sizing: border-box;
 }
@@ -2226,11 +2232,18 @@ select.tokenpanel-tier-ref-select:focus-visible {
   color: var(--tokentweak-color-accent);
 }
 :where(.tokenpanel-shell) .tokenpanel-elpath-toggle svg,
-:where(.tokenpanel-shell) .tokenpanel-tweaker-toggle svg {
+:where(.tokenpanel-shell) .tokenpanel-tweaker-toggle svg,
+:where(.tokenpanel-shell) .tokenpanel-element-inspect-toggle svg {
   /* !important required — same reason as .tokenpanel-highlight-toggle svg above:
    * the base :where(.tokenpanel-shell) svg { fill: currentColor !important } rule
    * must be overridden for outline-only (stroke-drawn) icons. Higher specificity
    * alone (0-1-1) cannot beat a !important declaration at lower specificity. */
+  fill: none !important;
+  stroke: currentColor;
+}
+:where(.tokenpanel-shell) .tokenpanel-element-inspect-toggle svg path {
+  /* Protect the inspect icon's stroke paths from host `path { fill: ... }`
+   * resets as well as the package-wide SVG reset above. */
   fill: none !important;
   stroke: currentColor;
 }
