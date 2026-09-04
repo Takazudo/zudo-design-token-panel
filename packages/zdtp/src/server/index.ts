@@ -18,8 +18,18 @@
  */
 
 export { createApplyHandler } from './create-apply-handler';
-export type { ApplyHandlerOptions, PerFileResult } from './create-apply-handler';
+export type {
+  ApplyDryRunFileResult,
+  ApplyDryRunResponse,
+  ApplyHandlerOptions,
+  ApplyRequestBody,
+  ApplyStaleFileResponse,
+  ApplySuccessResponse,
+  ApplyWriteResponse,
+  PerFileResult,
+} from './create-apply-handler';
 export { serializeFileWrite } from './serialize-write';
+export type { ApplyHunk } from '../apply/compute-hunks';
 export {
   CSS_VAR_NAME_RE,
   isPathSafe,
