@@ -27,6 +27,7 @@ export interface RoleButtonProps {
   id?: string;
   title?: string;
   'aria-label'?: string;
+  'data-testid'?: string;
 }
 
 export function RoleButton({
@@ -39,6 +40,7 @@ export function RoleButton({
   id,
   title,
   'aria-label': ariaLabel,
+  'data-testid': testId,
 }: RoleButtonProps): JSX.Element {
   function handleKeyDown(e: KeyboardEvent) {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -62,6 +64,7 @@ export function RoleButton({
       id={id}
       title={title}
       aria-label={ariaLabel}
+      data-testid={testId}
       {...ariaProps}
     >
       {children}
