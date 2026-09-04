@@ -5,11 +5,14 @@
   "type": "module",
   "engines": { "node": ">=22.12.0" },
   "scripts": {
+    "predev": "pnpm --filter @takazudo/zdtp build",
     "dev": "concurrently -k -n zfb,tokens-bin -c blue,green \"pnpm run dev:zfb\" \"pnpm run dev:tokens-bin\"",
     "dev:zfb": "zfb dev --port 44327",
     "dev:tokens-bin": "node ../packages/zdtp/dist/bin/server.js --write-root . --routing scaffold.routing.json --port 24685 --allow-origin http://localhost:44327",
+    "prebuild": "pnpm --filter @takazudo/zdtp build",
     "build": "zfb build",
     "preview": "zfb preview",
+    "pretypecheck": "pnpm --filter @takazudo/zdtp build",
     "typecheck": "zfb check"
   },
   "dependencies": {
