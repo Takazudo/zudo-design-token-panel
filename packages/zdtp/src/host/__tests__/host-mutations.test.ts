@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   __resetHostMutationsForTests,
   claimHostDock,
+  claimHostNode,
   releaseHostMutations,
 } from '../host-mutations';
 
@@ -51,5 +52,19 @@ describe('host mutation ownership', () => {
     expect(document.body.style.getPropertyValue('margin-right')).toBe('9px');
     expect(document.body.style.getPropertyPriority('margin-right')).toBe('important');
     expect(document.documentElement.style.getPropertyValue('--zdtp-dock-inset-right')).toBe('440px');
+  });
+
+  it('removes owned host nodes without releasing another owner’s dock claim', () => {
+    const node = document.createElement('div');
+    document.body.appendChild(node);
+    expect(claimHostDock('panel', 'right', 440)).toBe(true);
+    claimHostNode('specimen', node);
+
+    releaseHostMutations('specimen');
+
+    expect(node.isConnected).toBe(false);
+    expect(document.body.style.marginRight).toBe('440px');
+    releaseHostMutations('panel');
+    expect(document.body.style.marginRight).toBe('');
   });
 });

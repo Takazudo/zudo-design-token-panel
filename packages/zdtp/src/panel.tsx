@@ -47,6 +47,7 @@ import {
 import type { TabConfig } from './tokens/tier-model';
 import { isDocumentUsable } from './utils/document-liveness';
 import { claimHostDock, releaseHostMutations } from './host/host-mutations';
+import { onPageSpecimenMutationOwner } from './specimen/on-page-specimen';
 import { usePersist } from './state/persist';
 import { useTweakStateTransaction } from './state/transaction';
 import {
@@ -274,6 +275,11 @@ export default function DesignTokenTweakPanel({
   const [density, setDensity] = useState<PanelDensity>(DEFAULT_DENSITY);
   const [dockMode, setDockMode] = useState<DockMode>(DEFAULT_DOCK_MODE);
   const [dockSize, setDockSize] = useState<DockSize>(DEFAULT_DOCK_SIZE);
+  // The page specimen temporarily forces right docking.  Its previous mode is
+  // transient (never persisted as a separate key) and must survive until the
+  // specimen exits through any path, including shell unmount/navigation.
+  const [renderSpecimenOnPage, setRenderSpecimenOnPage] = useState(false);
+  const specimenPreviousDockModeRef = useRef<DockMode | null>(null);
   const [ghostIdle, setGhostIdle] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   // tabRefs is now keyed by string to support host-supplied tab ids.
@@ -290,6 +296,8 @@ export default function DesignTokenTweakPanel({
   sizeRef.current = size;
   const dockSizeRef = useRef<DockSize>(dockSize);
   dockSizeRef.current = dockSize;
+  const dockModeRef = useRef<DockMode>(dockMode);
+  dockModeRef.current = dockMode;
   const lastFullDockModeRef = useRef<DockMode>('float');
   // Track active drag listeners for cleanup on unmount
   const dragCleanupRef = useRef<(() => void) | null>(null);
@@ -704,6 +712,10 @@ export default function DesignTokenTweakPanel({
 
   const handleDockModeChange = useCallback(
     (next: DockMode) => {
+      // Render on page owns the panel's right edge while active.  The only
+      // path allowed to leave that edge is restoreSpecimenDockMode(), which
+      // writes state directly after the page specimen has been disabled.
+      if (renderSpecimenOnPage && next !== 'right') return;
       // A shortcut can switch modes (or close can follow) while the pointer is
       // still held on a drag/resize handle. Cancel those document listeners
       // before changing ownership so a later mousemove cannot re-claim an edge
@@ -712,11 +724,54 @@ export default function DesignTokenTweakPanel({
       dragCleanupRef.current = null;
       resizeCleanupRef.current?.();
       resizeCleanupRef.current = null;
+      dockModeRef.current = next;
       setDockMode(next);
       saveDockMode(next, instanceConfig);
     },
-    [instanceConfig],
+    [instanceConfig, renderSpecimenOnPage],
   );
+
+  /** Restore the mode that was active before Render on page forced right dock. */
+  const restoreSpecimenDockMode = useCallback((syncState = true) => {
+    const previous = specimenPreviousDockModeRef.current;
+    if (previous === null) return;
+    specimenPreviousDockModeRef.current = null;
+    // Remove the host portal synchronously on every logical exit.  The
+    // OnPageSpecimen effect cleanup also releases this owner, but this direct
+    // release covers panel-close / toggle-off before the next effect flush.
+    releaseHostMutations(onPageSpecimenMutationOwner(instanceConfig));
+    if (syncState) setRenderSpecimenOnPage(false);
+    if (dockModeRef.current === previous) return;
+    dockModeRef.current = previous;
+    if (syncState) setDockMode(previous);
+    saveDockMode(previous, instanceConfig);
+  }, [instanceConfig]);
+
+  const handleRenderSpecimenOnPageChange = useCallback((enabled: boolean) => {
+    if (!enabled) {
+      restoreSpecimenDockMode();
+      return;
+    }
+    if (specimenPreviousDockModeRef.current !== null) return;
+    specimenPreviousDockModeRef.current = dockModeRef.current;
+    setRenderSpecimenOnPage(true);
+    if (dockModeRef.current !== 'right') handleDockModeChange('right');
+  }, [handleDockModeChange, restoreSpecimenDockMode]);
+
+  // Closing the panel unmounts FontTab (and thus the portal), so restore the
+  // dock mode while the shell still owns its state.  Leaving right is also an
+  // exit path: for example, the shared dock registry may reject this panel's
+  // right-edge claim when another instance already owns it and fall back to
+  // float. Restore the user's prior mode instead of leaving the page specimen
+  // active without the dock it depends on.
+  useEffect(() => {
+    if (!open) restoreSpecimenDockMode();
+    else if (renderSpecimenOnPage && dockMode !== 'right') restoreSpecimenDockMode();
+  }, [dockMode, open, renderSpecimenOnPage, restoreSpecimenDockMode]);
+
+  // Astro swaps and destroy() drive a real Preact unmount, but the state write
+  // must still happen even though the component itself is going away.
+  useEffect(() => () => restoreSpecimenDockMode(false), [restoreSpecimenDockMode]);
 
   useEffect(() => {
     if (open) return;
@@ -1185,6 +1240,8 @@ export default function DesignTokenTweakPanel({
                     state={state.typography}
                     persistFont={persistFont}
                     instanceConfig={instanceConfig}
+                    renderOnPage={renderSpecimenOnPage}
+                    onRenderOnPageChange={handleRenderSpecimenOnPageChange}
                   />
                 )}
                 {tab.id === 'size' && state && tabConfigById['size'] && (

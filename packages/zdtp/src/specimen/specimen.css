@@ -81,6 +81,141 @@
   font-family: var(--tokentweak-font-mono);
 }
 
+.tokenpanel-specimen-on-page-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-sm);
+  color: var(--tokentweak-color-fg);
+  cursor: pointer;
+  user-select: none;
+}
+
+.tokenpanel-specimen-on-page-toggle input {
+  accent-color: var(--tokentweak-color-accent);
+}
+
+/* While the real specimen is visible in the host page, keep the panel rows
+ * useful as a compact editor: labels + inputs stay, duplicate sample text
+ * and line-leading surfaces disappear. */
+.tokenpanel-row--specimen-compact .tokenpanel-specimen-size-text,
+.tokenpanel-row--specimen-compact .tokenpanel-specimen-line-height-text {
+  display: none;
+}
+
+/* Host-document portal.  The mount intentionally inherits the host's font and
+ * foreground colour; Canvas gives the page-level specimen a predictable paper
+ * surface while the panel itself remains in its private dark chrome scope. */
+.tokenpanel-on-page-specimen {
+  display: block;
+  box-sizing: border-box;
+  margin: 0 0 24px;
+  padding: 14px 18px;
+  border: 1px dashed var(--tokentweak-color-accent, currentColor);
+  border-radius: 8px;
+  background: Canvas;
+  color: inherit;
+  font: inherit;
+}
+
+.tokenpanel-on-page-specimen-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--tokentweak-pad-md, 12px);
+  margin-bottom: var(--tokentweak-pad-sm, 8px);
+  color: var(--tokentweak-color-accent, currentColor);
+  font: 11px/1.4 var(--tokentweak-font-mono, monospace);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tokenpanel-on-page-specimen-heading > span:last-child {
+  color: var(--tokentweak-color-muted, currentColor);
+  text-align: right;
+}
+
+.tokenpanel-on-page-specimen-section + .tokenpanel-on-page-specimen-section {
+  margin-top: var(--tokentweak-pad-md, 12px);
+}
+
+.tokenpanel-on-page-specimen-section-label {
+  margin-bottom: var(--tokentweak-pad-2xs, 2px);
+  color: var(--tokentweak-color-muted, currentColor);
+  font: 10px/1.4 var(--tokentweak-font-mono, monospace);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tokenpanel-on-page-specimen-row {
+  display: grid;
+  grid-template-columns: minmax(130px, 150px) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--tokentweak-pad-md, 12px);
+  min-width: 0;
+  padding: 5px 0;
+  border-bottom: 1px dashed color-mix(in srgb, currentColor 20%, transparent);
+}
+
+.tokenpanel-on-page-specimen-row:last-child {
+  border-bottom: 0;
+}
+
+.tokenpanel-on-page-specimen-meta {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--tokentweak-color-muted, currentColor);
+  font: 11px/1.35 var(--tokentweak-font-mono, monospace);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tokenpanel-on-page-specimen-meta > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tokenpanel-on-page-specimen-meta > span + span {
+  color: var(--tokentweak-color-accent-hover, currentColor);
+  font-size: 10px;
+}
+
+.tokenpanel-on-page-specimen-size-text,
+.tokenpanel-on-page-specimen-line-height-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tokenpanel-on-page-specimen-size-text {
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.tokenpanel-on-page-specimen-line-height-text {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0 var(--tokentweak-pad-sm, 8px);
+  border-radius: 3px;
+  background-color: color-mix(in srgb, currentColor 3%, transparent);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--tokenpanel-specimen-line) - 1px),
+    color-mix(in srgb, currentColor 45%, transparent) calc(var(--tokenpanel-specimen-line) - 1px),
+    color-mix(in srgb, currentColor 45%, transparent) var(--tokenpanel-specimen-line)
+  );
+  background-origin: content-box;
+}
+
+@media (max-width: 620px) {
+  .tokenpanel-on-page-specimen-row {
+    grid-template-columns: minmax(110px, 130px) minmax(0, 1fr);
+    gap: var(--tokentweak-pad-sm, 8px);
+  }
+}
+
 .tokenpanel-row--specimen-size .tokenpanel-row-head,
 .tokenpanel-row--specimen-line-height .tokenpanel-row-head,
 .tokenpanel-row.tokenpanel-row--specimen-size {

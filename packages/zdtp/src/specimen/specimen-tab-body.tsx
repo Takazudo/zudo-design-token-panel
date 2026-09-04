@@ -10,24 +10,40 @@ interface SpecimenRendererOptions {
   tab: TabConfig;
   state: SpecimenState;
   valueFor: (item: TierItem) => string;
+  /** Hide the rendered sample while keeping the editable row controls. */
+  onPage?: boolean;
 }
 
 function displayPx(px: number | null): string {
   return px === null ? 'unresolved' : `${Number(px.toFixed(2))}px`;
 }
 
-export function createSpecimenContribution({ tab, state, valueFor }: SpecimenRendererOptions): RowContribution {
+/** Resolve the font family/weight applied to every type specimen sample. */
+export function specimenFontStyle(
+  tab: TabConfig,
+  valueFor: (item: TierItem) => string,
+): CSSProperties {
   const family = tab.tiers.find((tier) => tier.preview === 'family')?.items[0];
   const weight = tab.tiers.find((tier) => tier.preview === 'weight')?.items[0];
-  const fontStyle: CSSProperties = {
+  return {
     ...(family ? { fontFamily: `var(${family.cssVar}, ${valueFor(family)})` } : {}),
     ...(weight ? { fontWeight: `var(${weight.cssVar}, ${valueFor(weight)})` } : {}),
   };
+}
+
+export function createSpecimenContribution({ tab, state, valueFor, onPage = false }: SpecimenRendererOptions): RowContribution {
+  const fontStyle = specimenFontStyle(tab, valueFor);
   return {
     id: 'font-specimen',
-    className: ({ tier }) => tier.preview === 'size' || tier.preview === 'line-height'
-      ? `tokenpanel-row--specimen-${tier.preview}`
-      : undefined,
+    className: ({ tier }) => {
+      const classes = tier.preview === 'size' || tier.preview === 'line-height'
+        ? [`tokenpanel-row--specimen-${tier.preview}`]
+        : [];
+      if (onPage && (tier.preview === 'size' || tier.preview === 'line-height')) {
+        classes.push('tokenpanel-row--specimen-compact');
+      }
+      return classes.length > 0 ? classes.join(' ') : undefined;
+    },
     leading: ({ tier, item }) => {
       if (tier.preview === 'size') {
         const resolved = resolvePreviewLength(tab, tier, item, valueFor);
