@@ -86,7 +86,11 @@ test('spacing tweak survives export, reload, import, and real-bin apply', async 
     expect(exportedJson).toContain('"--zfb-hsp-md": "1.25rem"');
     await exportDialog.getByText('Close', { exact: true }).click();
 
-    await page.reload();
+    // zfb's dev runtime can detach the frame while Playwright waits for the
+    // `load` event from `page.reload()`. Navigating to the same URL is still a
+    // full document reload, but lets Playwright observe the new document
+    // through its normal goto lifecycle without that race.
+    await page.goto(page.url(), { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => typeof window.zfb?.showDesignPanel === 'function');
     await page.evaluate(() => window.zfb?.showDesignPanel());
     await expect(hostElement).toHaveCSS('padding-left', '20px');
@@ -102,7 +106,9 @@ test('spacing tweak survives export, reload, import, and real-bin apply', async 
     await page.getByText('Apply', { exact: true }).first().click();
     const applyDialog = page.locator('[data-design-token-panel-modal-variant="apply"]');
     await expect(applyDialog).toBeVisible();
-    await applyDialog.getByText('Apply to styles/global.css', { exact: true }).click();
+    // The modal intentionally presents the routed file's basename (the same
+    // label users see in the preview heading), not the repo-relative route.
+    await applyDialog.getByRole('button', { name: 'Apply to global.css', exact: true }).click();
     await expect(applyDialog.getByRole('status')).toContainText('Applied successfully.');
 
     await expect.poll(async () => readFile(stylesheetPath, 'utf8')).toContain(

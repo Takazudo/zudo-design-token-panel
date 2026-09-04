@@ -53,7 +53,13 @@ import * as panel from '@takazudo/zdtp';
 import * as astro from '@takazudo/zdtp/astro';
 import '@takazudo/zdtp/styles';
 
-window.__zdtpSmoke = { entry: Object.keys(panel), astro: Object.keys(astro) };
+window.__zdtpSmoke = {
+  entry: Object.keys(panel),
+  astro: {
+    keys: Object.keys(astro),
+    setPanelColorPresets: typeof astro.setPanelColorPresets,
+  },
+};
 const handle = panel.configurePanel({
   storagePrefix: 'packed-consumer-smoke',
   consoleNamespace: 'packedConsumerSmoke',
@@ -104,7 +110,9 @@ try {
   await page.locator('.tokenpanel-shell').waitFor({ state: 'visible' });
   const smoke = await page.evaluate(() => window.__zdtpSmoke);
   if (!smoke?.entry.includes('configurePanel')) throw new Error('Package entry did not import');
-  if (!smoke?.astro.includes('configurePanel')) throw new Error('Astro subpath did not import');
+  if (smoke?.astro?.setPanelColorPresets !== 'function') {
+    throw new Error('Astro subpath did not expose setPanelColorPresets');
+  }
   if (errors.length > 0) throw new Error(`Packed browser smoke emitted errors:\n${errors.join('\n')}`);
   await context.tracing.stop();
   console.log(`Packed tarball mounted successfully: ${tarballs[0]}`);
