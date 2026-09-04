@@ -53,6 +53,7 @@ import {
   type TweakState,
 } from '../state/tweak-state';
 import { usePersist } from '../state/persist';
+import { useTweakStateTransaction } from '../state/transaction';
 import { buildApplyOverrides } from '../apply/build-apply-overrides';
 import { FIXTURE_TABS } from './_test-helpers';
 import type { TabConfig } from '../tokens/tier-model';
@@ -187,7 +188,8 @@ describe('state path — usePersist scoped to a non-default instance writes to A
       const setState = (updater: (prev: TweakState | null) => TweakState | null) => {
         stateRef = updater(stateRef);
       };
-      const { persistSpacing } = usePersist(setState, cfgA);
+      const { commitTweakState } = useTweakStateTransaction(stateRef, setState, cfgA);
+      const { persistSpacing } = usePersist(commitTweakState, cfgA);
       useEffect(() => {
         persistSpacing((prev) => ({ ...prev, 'hsp-md': '99px' }));
       }, [persistSpacing]);
