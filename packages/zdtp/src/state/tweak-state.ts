@@ -68,6 +68,9 @@ import {
   storageKey_stateV2,
   storageKey_stateV3,
   storageKey_stateV4,
+  storageKey_snapshot,
+  storageKey_snapshotA,
+  storageKey_snapshotB,
   markColorSchemeWritten,
   clearColorSchemeOwnership,
   ownsColorScheme,
@@ -165,6 +168,21 @@ export function getSizeKey(cfg: PanelConfig = getPanelConfig()): string {
 
 export function getDensityKey(cfg: PanelConfig = getPanelConfig()): string {
   return storageKey_density(cfg);
+}
+
+export function getSnapshotKey(
+  slot: 'a' | 'b',
+  cfg: PanelConfig = getPanelConfig(),
+): string {
+  return storageKey_snapshot(cfg, slot);
+}
+
+export function getSnapshotAKey(cfg: PanelConfig = getPanelConfig()): string {
+  return storageKey_snapshotA(cfg);
+}
+
+export function getSnapshotBKey(cfg: PanelConfig = getPanelConfig()): string {
+  return storageKey_snapshotB(cfg);
 }
 
 export type DockMode = 'float' | 'right' | 'bottom' | 'mini';

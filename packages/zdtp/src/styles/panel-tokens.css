@@ -12,7 +12,7 @@
  *
  * Scope
  * -----
- * Declared on the panel shell + the default modal class prefix (matching
+ * Declared on the panel shell + mini pill + the default modal class prefix (matching
  * `DEFAULT_PANEL_CONFIG.modalClassPrefix` in `config/panel-config.ts`).
  * Keeping the declaration local to those scopes — instead of `:root` —
  * means a host's stylesheet cannot be polluted by these names just because
@@ -46,6 +46,7 @@
  */
 :where(
   .tokenpanel-shell,
+  .tokenpanel-mini-pill,
   [data-design-token-panel-modal],
   .tokenpanel-highlight-settings-popover,
   .tokenpanel-color-picker,

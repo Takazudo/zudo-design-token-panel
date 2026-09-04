@@ -30,6 +30,17 @@ import {
   useLayerRegistration,
 } from './shell/layer-activity';
 import { ShortcutProvider, useShortcut } from './shell/shortcut-dispatcher';
+import {
+  HistoryButtons,
+  HistoryRail,
+  HistoryShortcuts,
+  HistoryUndoButton,
+} from './history';
+import {
+  restoreSnapshotState,
+  useSnapshots,
+  type SnapshotSlot,
+} from './history/snapshots';
 import ColorTab from './tabs/color-tab';
 import FontTab from './tabs/font-tab';
 import SizeTab from './tabs/size-tab';
@@ -49,6 +60,7 @@ import { isDocumentUsable } from './utils/document-liveness';
 import { claimHostDock, releaseHostMutations } from './host/host-mutations';
 import { onPageSpecimenMutationOwner } from './specimen/on-page-specimen';
 import { usePersist } from './state/persist';
+import { useHistory } from './state/history';
 import { useTweakStateTransaction } from './state/transaction';
 import {
   type TweakState,
@@ -74,6 +86,7 @@ import {
   densityToGridMin,
   emptyOverrides,
   getActivePrimaryCluster,
+  getActiveColorIdentity,
   getOpenKey,
   hasActiveColorSlot,
   initColorFromScheme,
@@ -259,6 +272,9 @@ export default function DesignTokenTweakPanel({
   const [showImport, setShowImport] = useState(false);
   const [showApply, setShowApply] = useState(false);
   const [showHighlightSettings, setShowHighlightSettings] = useState(false);
+  const [historyRailOpen, setHistoryRailOpen] = useState(false);
+  const [selectedSnapshot, setSelectedSnapshot] = useState<SnapshotSlot | null>(null);
+  const [historyNotice, setHistoryNotice] = useState<string | null>(null);
   const gearBtnRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<TweakState | null>(null);
   // activeTab holds a string to support host-supplied non-reserved tab ids.
@@ -304,9 +320,25 @@ export default function DesignTokenTweakPanel({
   // Track active resize listeners for cleanup on unmount
   const resizeCleanupRef = useRef<(() => void) | null>(null);
 
-  const { commitTweakState } = useTweakStateTransaction(state, setState, instanceConfig);
+  const { commitTweakState, history } = useTweakStateTransaction(state, setState, instanceConfig);
+  const historySnapshot = useHistory(history);
+  const { snapshots, save: saveSnapshotSlot } = useSnapshots(instanceConfig);
   const { persistColor, persistSpacing, persistFont, persistSize, persistSecondary, persistTab } =
     usePersist(commitTweakState, instanceConfig);
+
+  const activeColorIdentity = useMemo(
+    () => {
+      const cluster = getActivePrimaryCluster(instanceConfig);
+      // `getActiveColorIdentity` consults the host document for a
+      // light/dark cluster. During SSR there is no document yet, so use the
+      // cluster's configured scheme as the deterministic identity seed.
+      if (typeof document === 'undefined' || !document.documentElement) {
+        return cluster.panelSettings.colorScheme;
+      }
+      return getActiveColorIdentity(cluster, instanceConfig);
+    },
+    [instanceConfig, state],
+  );
 
   // Restore open state, position, and size from localStorage after mount (avoids SSR hydration mismatch)
   useEffect(() => {
@@ -877,6 +909,62 @@ export default function DesignTokenTweakPanel({
     });
   }, [instanceConfig, commitTweakState]);
 
+  const handleHistoryResult = useCallback(
+    (result: { skippedReason?: string }) => {
+      setHistoryNotice(result.skippedReason ?? null);
+    },
+    [],
+  );
+
+  const handleUndo = useCallback(() => {
+    if (!historySnapshot.canUndo) return;
+    handleHistoryResult(history.undo());
+  }, [handleHistoryResult, history, historySnapshot.canUndo]);
+
+  const handleRedo = useCallback(() => {
+    if (!historySnapshot.canRedo) return;
+    handleHistoryResult(history.redo());
+  }, [handleHistoryResult, history, historySnapshot.canRedo]);
+
+  const handleHistoryJump = useCallback(
+    (index: number) => {
+      handleHistoryResult(history.jumpTo(index));
+    },
+    [handleHistoryResult, history],
+  );
+
+  const handleSaveSnapshot = useCallback(
+    (slot: SnapshotSlot) => {
+      if (!state) return;
+      saveSnapshotSlot(slot, state, activeColorIdentity, historySnapshot.cursor);
+      setSelectedSnapshot(slot);
+      setHistoryNotice(null);
+    },
+    [activeColorIdentity, historySnapshot.cursor, saveSnapshotSlot, state],
+  );
+
+  const handleSelectSnapshot = useCallback(
+    (slot: SnapshotSlot) => {
+      const snapshot = snapshots[slot];
+      if (!snapshot || !state) return;
+      const restored = restoreSnapshotState(snapshot, state, activeColorIdentity, slot);
+      commitTweakState(`snapshot-${slot.toLowerCase()}`, restored.state, {
+        beforeApply: () => clearAppliedColorStyles(undefined, undefined, instanceConfig),
+      });
+      setSelectedSnapshot(slot);
+      setHistoryNotice(restored.skippedReason ?? `Showing snapshot ${slot}.`);
+    },
+    [activeColorIdentity, commitTweakState, instanceConfig, snapshots, state],
+  );
+
+  const handleFlipSnapshots = useCallback(() => {
+    if (!snapshots.A || !snapshots.B) {
+      setHistoryNotice('Save both A and B before flipping snapshots.');
+      return;
+    }
+    handleSelectSnapshot(selectedSnapshot === 'A' ? 'B' : 'A');
+  }, [handleSelectSnapshot, selectedSnapshot, snapshots.A, snapshots.B]);
+
   // Single source of truth for the four header actions (#518) — rendered
   // both as the always-visible .tokenpanel-action-link header links AND
   // inside the narrow-panel kebab popover, so a label/handler change only
@@ -1127,6 +1215,19 @@ export default function DesignTokenTweakPanel({
       applyOpen={showApply}
       highlightSettingsOpen={showHighlightSettings}
     />
+    <HistoryButtons
+      history={historySnapshot}
+      railOpen={historyRailOpen}
+      onUndo={handleUndo}
+      onRedo={handleRedo}
+      onToggleRail={() => setHistoryRailOpen((openState) => !openState)}
+    />
+    <HistoryShortcuts
+      enabled={open}
+      onUndo={handleUndo}
+      onRedo={handleRedo}
+      onFlipSnapshots={handleFlipSnapshots}
+    />
     {open && <PanelEscapeShortcut onClose={() => setOpen(false)} />}
     <HighlightOrchestrator>
       <ElementPathOrchestrator>
@@ -1162,11 +1263,17 @@ export default function DesignTokenTweakPanel({
                 onApply={() => setShowApply(true)}
                 onExpand={() => handleDockModeChange(lastFullDockModeRef.current)}
                 changedCount={unsaved.length > 0 ? unsaved.length : undefined}
+                undo={
+                  <HistoryUndoButton
+                    canUndo={historySnapshot.canUndo}
+                    onUndo={handleUndo}
+                  />
+                }
               />
             ) : (
-              <div
+        <div
         ref={panelRef}
-        className={`tokenpanel-shell${effectiveDockMode === 'right' ? ' is-docked-right' : ''}${effectiveDockMode === 'bottom' ? ' is-docked-bottom' : ''}`}
+        className={`tokenpanel-shell${effectiveDockMode === 'right' ? ' is-docked-right' : ''}${effectiveDockMode === 'bottom' ? ' is-docked-bottom' : ''}${historyRailOpen ? ' is-history-open' : ''}`}
         style={{
           ...panelPos,
           width: renderedWidth,
@@ -1309,6 +1416,19 @@ export default function DesignTokenTweakPanel({
             );
           })}
         </div>
+
+        {historyRailOpen && (
+          <HistoryRail
+            history={historySnapshot}
+            snapshots={snapshots}
+            selectedSnapshot={selectedSnapshot}
+            notice={historyNotice ?? historySnapshot.lastSkippedReason}
+            activeIdentity={activeColorIdentity}
+            onSaveSnapshot={handleSaveSnapshot}
+            onSelectSnapshot={handleSelectSnapshot}
+            onJumpTo={handleHistoryJump}
+          />
+        )}
 
         <ShellFooter />
 

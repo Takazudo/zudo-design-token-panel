@@ -894,6 +894,21 @@ export function storageKey_specimen(cfg: PanelConfig): string {
   return `${cfg.storagePrefix}-specimen`;
 }
 
+/** Persisted A/B snapshot slot. `slot` is lower-case for storage continuity. */
+export function storageKey_snapshot(cfg: PanelConfig, slot: 'a' | 'b'): string {
+  return `${cfg.storagePrefix}-snapshot-${slot}`;
+}
+
+/** Persisted snapshot A slot. */
+export function storageKey_snapshotA(cfg: PanelConfig): string {
+  return storageKey_snapshot(cfg, 'a');
+}
+
+/** Persisted snapshot B slot. */
+export function storageKey_snapshotB(cfg: PanelConfig): string {
+  return storageKey_snapshot(cfg, 'b');
+}
+
 /** Last flattened override set known to match the apply baseline. */
 export function storageKey_lastApplied(cfg: PanelConfig): string {
   return `${cfg.storagePrefix}-last-applied`;
