@@ -32,7 +32,9 @@ export default function FontTab({ tab, state, persistFont, instanceConfig = getP
   const hasSpecimen = tab.tiers.some((tier) => tier.preview === 'size' || tier.preview === 'line-height');
   const hasLineHeight = tab.tiers.some((tier) => tier.preview === 'line-height');
   const [specimen, setSpecimen] = useState(() => loadSpecimenState(instanceConfig));
-  useEffect(() => saveSpecimenState(instanceConfig, specimen), [instanceConfig, specimen]);
+  useEffect(() => {
+    if (hasSpecimen) saveSpecimenState(instanceConfig, specimen);
+  }, [hasSpecimen, instanceConfig, specimen]);
   const valueFor = useCallback((item: TierItem) => state[item.id] ?? item.default, [state]);
   const contributions = useMemo(() => [
     previewGlyphContribution(),

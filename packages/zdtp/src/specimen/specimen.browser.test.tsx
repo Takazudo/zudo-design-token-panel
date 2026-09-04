@@ -79,4 +79,18 @@ describe('font specimen browser rendering', () => {
     const stored = JSON.parse(localStorage.getItem('specimen-browser-specimen') ?? '{}') as Record<string, unknown>;
     expect(stored).toMatchObject({ text: '銀河鉄道の夜', preset: 'ja', overridden: true, width: 420 });
   });
+
+  it('leaves manifests without preview UI and storage exactly as before', async () => {
+    const legacyTab: TabConfig = {
+      ...TAB,
+      tiers: TAB.tiers.map(({ preview: _preview, ...tier }) => tier),
+    };
+    await act(() => render(
+      <FontTab tab={legacyTab} state={{}} persistFont={() => undefined} instanceConfig={CFG} />,
+      container,
+    ));
+    expect(container.querySelector('.tokenpanel-specimen-toolbar')).toBeNull();
+    expect(container.querySelector('[data-testid^="specimen-size-"]')).toBeNull();
+    expect(localStorage.getItem('specimen-browser-specimen')).toBeNull();
+  });
 });

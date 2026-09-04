@@ -17,7 +17,7 @@ export function previewGlyphContribution(): RowContribution {
         const px = lengthToPx(value);
         return (
           <span className="tokenpanel-preview-glyph tokenpanel-preview-glyph--bar" title={px === null ? value : `${px}px`}>
-            <span style={{ width: `${Math.max(0, px ?? 0)}px` }} />
+            <span style={{ width: value }} />
           </span>
         );
       }
