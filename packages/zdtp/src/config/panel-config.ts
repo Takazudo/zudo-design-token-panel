@@ -894,6 +894,11 @@ export function storageKey_specimen(cfg: PanelConfig): string {
   return `${cfg.storagePrefix}-specimen`;
 }
 
+/** Last flattened override set known to match the apply baseline. */
+export function storageKey_lastApplied(cfg: PanelConfig): string {
+  return `${cfg.storagePrefix}-last-applied`;
+}
+
 /**
  * Adapter-level visibility-intent flag.
  *
