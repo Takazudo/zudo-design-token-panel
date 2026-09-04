@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   __resetArmingCoordinatorForTests,
+  ELEMENT_INSPECT_PICKER_FEATURE_ID,
   getCurrentArmingOwnerForTests,
   registerArmingOwner,
   requestArming,
@@ -43,5 +44,21 @@ describe('arming coordinator', () => {
     expect(getCurrentArmingOwnerForTests()).toBe('stub-feature');
     expect(elementPathRevoked).toHaveBeenCalledTimes(1);
     expect(stubRevoked).not.toHaveBeenCalled();
+  });
+
+  it('gives the registered element-inspect owner exclusive arming', () => {
+    const previousRevoked = vi.fn();
+    const inspectRevoked = vi.fn();
+    registerArmingOwner('element-path', { onArmingRevoked: previousRevoked });
+    registerArmingOwner(ELEMENT_INSPECT_PICKER_FEATURE_ID, {
+      onArmingRevoked: inspectRevoked,
+    });
+    requestArming('element-path');
+
+    requestArming(ELEMENT_INSPECT_PICKER_FEATURE_ID);
+
+    expect(getCurrentArmingOwnerForTests()).toBe(ELEMENT_INSPECT_PICKER_FEATURE_ID);
+    expect(previousRevoked).toHaveBeenCalledOnce();
+    expect(inspectRevoked).not.toHaveBeenCalled();
   });
 });

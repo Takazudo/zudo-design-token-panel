@@ -1,11 +1,12 @@
 // @vitest-environment browser
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
+import { createRef, render } from 'preact';
 import { act } from 'preact/test-utils';
 import {
   AltClickPicker,
   type AltClickPickerClassNames,
+  type AltClickPickerHandle,
 } from '../alt-click-picker';
 import { __resetArmingCoordinatorForTests } from '../arming-coordinator';
 
@@ -143,6 +144,34 @@ afterEach(async () => {
 });
 
 describe('AltClickPicker', () => {
+  it('can be armed and disarmed through its imperative API', async () => {
+    createFixedElement({ id: 'programmatic-target' });
+    const pickerRef = createRef<AltClickPickerHandle>();
+    act(() => {
+      render(
+        <AltClickPicker
+          ref={pickerRef}
+          enabled
+          featureId="test-picker"
+          onElementPicked={vi.fn()}
+          classNames={PICKER_CLASS_NAMES}
+        />,
+        container,
+      );
+    });
+    await flushEffects();
+    act(() => movePointerTo(60, 70));
+
+    act(() => pickerRef.current?.arm());
+    expect(document.querySelector('.test-picker-box')).not.toBeNull();
+
+    act(() => releaseAlt());
+    expect(document.querySelector('.test-picker-box')).not.toBeNull();
+
+    act(() => pickerRef.current?.disarm());
+    expect(document.querySelector('.test-picker-box')).toBeNull();
+  });
+
   it('arms and shows a box over the hovered host element', async () => {
     const target = createFixedElement({ id: 'host-card' });
     renderPicker();
