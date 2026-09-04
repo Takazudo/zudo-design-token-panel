@@ -12,8 +12,16 @@
  *   - a fixed-position box + label track the hovered element with RAF.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import type { JSX } from 'preact';
+import { forwardRef } from 'preact/compat';
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'preact/hooks';
+import type { JSX, Ref } from 'preact';
 import { PANEL_EXCLUSION_SELECTOR } from '../highlight/find-elements';
 import { Z } from '../styles/z-index-tokens';
 import {
@@ -62,6 +70,13 @@ export interface AltClickPickerProps {
   labelGap?: number;
 }
 
+export interface AltClickPickerHandle {
+  /** Arm this picker without synthesizing an Alt keyboard gesture. */
+  arm(): void;
+  /** Disarm this picker and release coordinator ownership. */
+  disarm(): void;
+}
+
 const DEFAULT_CLASS_NAMES: AltClickPickerClassNames = {
   box: 'tokenpanel-picker-box',
   label: 'tokenpanel-picker-label',
@@ -83,7 +98,7 @@ function isExcludedElement(el: Element, selector: string): boolean {
   }
 }
 
-export function AltClickPicker({
+function AltClickPickerImpl({
   enabled,
   featureId,
   onElementPicked,
@@ -95,7 +110,7 @@ export function AltClickPicker({
   classNames,
   zIndex = Z.inspectorBox,
   labelGap = DEFAULT_LABEL_GAP,
-}: AltClickPickerProps): JSX.Element {
+}: AltClickPickerProps, ref: Ref<AltClickPickerHandle>): JSX.Element {
   const [armed, setArmed] = useState(false);
   const [hoverEl, setHoverEl] = useState<Element | null>(null);
 
@@ -110,6 +125,7 @@ export function AltClickPicker({
   // Last known pointer position so pressing Alt highlights the element already
   // under the cursor immediately (no need to nudge the mouse first).
   const lastMouseRef = useRef<{ x: number; y: number } | null>(null);
+  const programmaticArmingRef = useRef(false);
   const onArmingRevokedRef = useRef(onArmingRevoked);
   onArmingRevokedRef.current = onArmingRevoked;
 
@@ -119,14 +135,32 @@ export function AltClickPicker({
   );
 
   const disarm = useCallback(() => {
+    programmaticArmingRef.current = false;
     setArmed(false);
     setHoverEl(null);
     releaseArming(featureId);
   }, [featureId]);
 
+  const resolveHoverAt = useCallback((x: number, y: number) => {
+    const el = document.elementFromPoint(x, y);
+    setHoverEl(!el || isExcludedElement(el, excludeSelector) ? null : el);
+  }, [excludeSelector]);
+
+  const arm = useCallback(() => {
+    if (!enabled) return;
+    programmaticArmingRef.current = true;
+    requestArming(featureId);
+    setArmed(true);
+    const last = lastMouseRef.current;
+    if (last) resolveHoverAt(last.x, last.y);
+  }, [enabled, featureId, resolveHoverAt]);
+
+  useImperativeHandle(ref, () => ({ arm, disarm }), [arm, disarm]);
+
   useEffect(() => {
     return registerArmingOwner(featureId, {
       onArmingRevoked: () => {
+        programmaticArmingRef.current = false;
         setArmed(false);
         setHoverEl(null);
         onArmingRevokedRef.current?.();
@@ -149,11 +183,6 @@ export function AltClickPicker({
   useEffect(() => {
     if (!enabled) return;
 
-    function resolveHoverAt(x: number, y: number) {
-      const el = document.elementFromPoint(x, y);
-      setHoverEl(!el || isExcludedElement(el, excludeSelector) ? null : el);
-    }
-
     function onMouseMove(e: MouseEvent) {
       lastMouseRef.current = { x: e.clientX, y: e.clientY };
       if (armedRef.current) resolveHoverAt(e.clientX, e.clientY);
@@ -166,6 +195,7 @@ export function AltClickPicker({
       // elementFromPoint for no behavioural benefit — the position is already
       // tracked by the always-on mousemove handler.
       if ((e.key === 'Alt' || e.altKey) && !armedRef.current) {
+        programmaticArmingRef.current = false;
         requestArming(featureId);
         setArmed(true);
         const last = lastMouseRef.current;
@@ -174,6 +204,7 @@ export function AltClickPicker({
     }
 
     function onKeyUp(e: KeyboardEvent) {
+      if (programmaticArmingRef.current) return;
       if (e.key === 'Alt' || !e.altKey) disarm();
     }
 
@@ -192,7 +223,7 @@ export function AltClickPicker({
       window.removeEventListener('keyup', onKeyUp, true);
       window.removeEventListener('blur', disarm);
     };
-  }, [disarm, enabled, excludeSelector, featureId]);
+  }, [disarm, enabled, featureId, resolveHoverAt]);
 
   // Click-to-pick (active only while armed). The click + mousedown listeners
   // are in the capture phase so the interaction is intercepted before any host
@@ -350,3 +381,7 @@ export function AltClickPicker({
     </>
   );
 }
+
+export const AltClickPicker = forwardRef<AltClickPickerHandle, AltClickPickerProps>(
+  AltClickPickerImpl,
+);
