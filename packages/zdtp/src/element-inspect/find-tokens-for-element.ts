@@ -119,8 +119,9 @@ function declarationsForElement(
       declarations.push({ ...declaration, selector: rule.selectorText });
     }
   }
-  if (el instanceof HTMLElement || el instanceof SVGElement) {
-    for (const declaration of splitDeclarations(el.style.cssText)) {
+  const inlineStyle = (el as Element & { style?: CSSStyleDeclaration }).style;
+  if (inlineStyle) {
+    for (const declaration of splitDeclarations(inlineStyle.cssText)) {
       declarations.push({ ...declaration, selector: '<inline style>' });
     }
   }
@@ -154,6 +155,15 @@ function inheritedClaims(property: string): string[] {
 function propertyOwnsComputed(declared: string, computed: string): boolean {
   if (declared === computed || computed.startsWith(`${declared}-`)) return true;
   if (declared === 'font') return computed.startsWith('font-') || computed === 'line-height';
+  if (declared === 'border-radius') {
+    return [
+      'border-top-left-radius',
+      'border-top-right-radius',
+      'border-bottom-right-radius',
+      'border-bottom-left-radius',
+    ].includes(computed);
+  }
+  if (declared === 'gap') return computed === 'row-gap' || computed === 'column-gap';
   if (declared === 'inset') return ['top', 'right', 'bottom', 'left'].includes(computed);
   if (declared === 'inset-block') return ['top', 'bottom'].includes(computed);
   if (declared === 'inset-inline') return ['left', 'right'].includes(computed);
@@ -164,7 +174,12 @@ function propertyOwnsComputed(declared: string, computed: string): boolean {
   return false;
 }
 
-function toProbeKind(kind: TokenIndexEntry['kind']): ProbeTokenKind {
+function toProbeKind(
+  kind: TokenIndexEntry['kind'],
+  property: string,
+): ProbeTokenKind {
+  if (property.endsWith('-timing-function')) return 'easing';
+  if (property.endsWith('-duration') || property.endsWith('-delay')) return 'time';
   return kind;
 }
 
@@ -172,10 +187,10 @@ function makeMatches(
   target: Element,
   declarations: readonly MatchedDeclaration[],
   index: TokenIndex,
+  probeCache: Map<string, readonly string[]>,
   inheritedFrom?: Element,
 ): ElementTokenMatch[] {
   const matches: ElementTokenMatch[] = [];
-  const probeCache = new Map<string, readonly string[]>();
   const seen = new Set<string>();
 
   for (const declaration of declarations) {
@@ -188,10 +203,11 @@ function makeMatches(
       if (seen.has(key)) continue;
       seen.add(key);
 
-      const probeKey = `${cssVar}\u0000${entry.kind}`;
+      const probeKind = toProbeKind(entry.kind, declaration.property);
+      const probeKey = `${cssVar}\u0000${probeKind}`;
       let changedProperties = probeCache.get(probeKey);
       if (!changedProperties) {
-        changedProperties = probeElementForToken(target, cssVar, toProbeKind(entry.kind));
+        changedProperties = probeElementForToken(target, cssVar, probeKind);
         probeCache.set(probeKey, changedProperties);
       }
       const relevantChanges = changedProperties.filter((property) =>
@@ -236,6 +252,7 @@ export function findTokensForElement(
   const ownDeclarations = declarationsForElement(el, rules);
   const inheritedMatches: ElementTokenMatch[] = [];
   const claimedProperties = new Set<string>();
+  const probeCache = new Map<string, readonly string[]>();
 
   let ancestor = el.parentElement;
   while (ancestor) {
@@ -247,12 +264,12 @@ export function findTokensForElement(
     for (const { property } of nearest) {
       for (const claim of inheritedClaims(property)) claimedProperties.add(claim);
     }
-    inheritedMatches.push(...makeMatches(el, nearest, index, ancestor));
+    inheritedMatches.push(...makeMatches(el, nearest, index, probeCache, ancestor));
     ancestor = ancestor.parentElement;
   }
 
   return {
-    own: groupByProperty(makeMatches(el, ownDeclarations, index)),
+    own: groupByProperty(makeMatches(el, ownDeclarations, index, probeCache)),
     inherited: groupByProperty(inheritedMatches),
     warnings,
   };

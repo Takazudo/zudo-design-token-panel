@@ -617,7 +617,7 @@ export function probeElementForToken(
 ): string[] {
   const normalized = normalizeCssVar(cssVar);
   const warnings: string[] = [];
-  const normalizedKind = kind === 'select' ? 'text' : kind;
+  const normalizedKind = kind === 'select' ? detectKind(normalized, warnings) : kind;
   const conf = TOKEN_TYPES[normalizedKind] ?? TOKEN_TYPES.color;
   const propsToCheck = [...new Set([...conf.longhands, ...conf.compounds])];
   const definerSelectors = collectDefinerSelectors(normalized, warnings);
