@@ -3,7 +3,6 @@ import { ExportModal } from './export-modal';
 import { ImportModal } from './import-modal';
 import { ApplyModal } from './apply-modal';
 import { RoleButton } from './controls/role-button';
-import { ActionsMenuPopover, type ActionsMenuAction } from './controls/actions-menu-popover';
 import { HighlightSettingsPopover } from './highlight/highlight-settings-popover';
 import { HighlightOrchestrator } from './highlight/highlight-orchestrator';
 import { ElementPathOrchestrator } from './element-path/element-path-orchestrator';
@@ -11,6 +10,16 @@ import { ElementPathToggleButton } from './element-path/element-path-toggle-butt
 import { DomTweakerOrchestrator } from './dom-tweaker/dom-tweaker-orchestrator';
 import { DomTweakerToggleButton } from './dom-tweaker/dom-tweaker-toggle-button';
 import { DomTweakerDiffActionLink } from './dom-tweaker/dom-tweaker-diff-action-link';
+import { ShellHeader } from './shell/header';
+import { ShellTabBar } from './shell/tab-bar';
+import { ShellFooter } from './shell/footer';
+import { ShellRegionsProvider, type ShellRegionItem } from './shell/regions';
+import {
+  LayerActivityProvider,
+  useLayerActivity,
+  useLayerRegistration,
+} from './shell/layer-activity';
+import { ShortcutProvider, useShortcut } from './shell/shortcut-dispatcher';
 import ColorTab from './tabs/color-tab';
 import FontTab from './tabs/font-tab';
 import SizeTab from './tabs/size-tab';
@@ -74,18 +83,6 @@ type ReservedTabId = (typeof RESERVED_TAB_IDS)[number];
 
 const DEFAULT_TAB_ID: ReservedTabId = 'color';
 
-// Kebab-menu container-query breakpoint (px) — must match the
-// `@container tokenpanel (max-width: 479px)` rule in styles/panel.css (#518).
-// `@container` always evaluates the query container's CONTENT box (excludes
-// border/padding, regardless of box-sizing — confirmed against the CSS
-// Containment spec), while `size.width` below is the shell's BORDER box
-// (.tokenpanel-shell is box-sizing: border-box with a 1px border on each
-// side). Add that 2px back so this JS comparison agrees with the CSS
-// breakpoint at the same border-box width — omitting it left a ~2px dead
-// zone (480–481px) where the kebab was still visible per CSS but every
-// open attempt was immediately auto-closed by the width-close effect below.
-const ACTIONS_MENU_BREAKPOINT_PX = 480 + 2;
-
 // --- Panel sizing ---
 
 /**
@@ -127,6 +124,34 @@ function freshTweakState(cfg?: PanelConfig): TweakState {
     size: emptyOverrides(),
     secondary: initSecondaryFromConfig(cfg),
   };
+}
+
+function PanelLayerRegistrations({
+  exportOpen,
+  importOpen,
+  applyOpen,
+  highlightSettingsOpen,
+}: {
+  exportOpen: boolean;
+  importOpen: boolean;
+  applyOpen: boolean;
+  highlightSettingsOpen: boolean;
+}) {
+  useLayerRegistration('export-modal', exportOpen);
+  useLayerRegistration('import-modal', importOpen);
+  useLayerRegistration('apply-modal', applyOpen);
+  useLayerRegistration('highlight-settings', highlightSettingsOpen);
+  return null;
+}
+
+function PanelEscapeShortcut({ onClose }: { onClose: () => void }) {
+  const layerActive = useLayerActivity();
+  useShortcut({ key: 'Escape' }, (event) => {
+    if (event.defaultPrevented || layerActive) return;
+    event.preventDefault();
+    onClose();
+  });
+  return null;
 }
 
 // --- Main Component ---
@@ -177,12 +202,6 @@ export default function DesignTokenTweakPanel({
   const [showApply, setShowApply] = useState(false);
   const [showHighlightSettings, setShowHighlightSettings] = useState(false);
   const gearBtnRef = useRef<HTMLDivElement>(null);
-  // Actions kebab (narrow-panel replacement for the header action links, #518).
-  const [showActionsMenu, setShowActionsMenu] = useState(false);
-  const actionsMenuBtnRef = useRef<HTMLDivElement>(null);
-  // Tabs strip — measures scroll overflow for the right-edge fade hint (#518).
-  const tabsStripRef = useRef<HTMLDivElement>(null);
-  const [tabsHaveOverflow, setTabsHaveOverflow] = useState(false);
   const [state, setState] = useState<TweakState | null>(null);
   // activeTab holds a string to support host-supplied non-reserved tab ids.
   // Lands on the FIRST configured tab (instanceConfig.tabs[0]) rather than
@@ -289,31 +308,6 @@ export default function DesignTokenTweakPanel({
       /* ignore */
     }
   }, [open, instanceConfig]);
-
-  // ESC key closes the panel when no modal is open. When a modal is open the
-  // native <dialog> handles ESC first (fires cancel → onClose), and we must
-  // not also close the panel. Effect is installed only while open===true so
-  // the listener is automatically removed when the panel is closed.
-  useEffect(() => {
-    if (!open) return;
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key !== 'Escape') return;
-      // A layered popover (ColorPicker / HighlightSettingsPopover /
-      // PaletteSelector listbox) consumed this Escape via the shared
-      // dismiss-layer stack, which runs in the capture phase and marks the
-      // event handled. The panel is the base surface — stand down so one
-      // press never closes both the popover and the panel (F10).
-      if (e.defaultPrevented) return;
-      // If any modal is open, let the native <dialog> handle Escape.
-      if (showExport || showImport || showApply) return;
-      e.preventDefault();
-      setOpen(false);
-    }
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [open, showExport, showImport, showApply]);
 
   // Sync `open` from the authoritative `localStorage[OPEN_KEY]` whenever the
   // adapter (`index.tsx`) signals a change. The adapter writes OPEN_KEY itself
@@ -424,19 +418,6 @@ export default function DesignTokenTweakPanel({
     // of the user's path.
     setState(freshTweakState(instanceConfig));
   }, [open, state, instanceConfig]);
-
-  // Close the actions kebab popover when a resize drag carries the panel back
-  // across the wide-layout breakpoint (#518) — the trigger itself disappears
-  // via the @container rule, but the popover's own open state is JS-managed
-  // (usePopoverClose) and would otherwise stay open, invisible-anchor, until
-  // the next outside click/Escape. `size.width` already tracks the shell's
-  // inline width (the resize grip is JS-driven via setSize, not native CSS
-  // `resize`), so no separate ResizeObserver is needed for this check.
-  useEffect(() => {
-    if (showActionsMenu && size.width >= ACTIONS_MENU_BREAKPOINT_PX) {
-      setShowActionsMenu(false);
-    }
-  }, [size.width, showActionsMenu]);
 
   // Drag handler for panel header (stable — reads position from ref)
   const handleDragStart = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -645,7 +626,7 @@ export default function DesignTokenTweakPanel({
   // inside the narrow-panel kebab popover, so a label/handler change only
   // needs one edit instead of two synchronized ones.
   const panelActions = useMemo(
-    (): readonly ActionsMenuAction[] => [
+    () => [
       { label: 'Export', onSelect: () => setShowExport(true) },
       { label: 'Load from JSON…', onSelect: () => setShowImport(true) },
       { label: 'Apply', onSelect: () => setShowApply(true) },
@@ -686,60 +667,127 @@ export default function DesignTokenTweakPanel({
     return out;
   }, [instanceConfig]);
 
-  // --- Tab keyboard navigation (WAI-ARIA tablist pattern) ---
-  const handleTabKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLDivElement>) => {
-      const idx = activeTabs.findIndex((t) => t.id === activeTab);
-      if (idx === -1) return;
-      let nextIdx: number | null = null;
-      if (e.key === 'ArrowRight') nextIdx = (idx + 1) % activeTabs.length;
-      else if (e.key === 'ArrowLeft') nextIdx = (idx - 1 + activeTabs.length) % activeTabs.length;
-      else if (e.key === 'Home') nextIdx = 0;
-      else if (e.key === 'End') nextIdx = activeTabs.length - 1;
-      if (nextIdx === null) return;
-      e.preventDefault();
-      const next = activeTabs[nextIdx];
-      setActiveTab(next.id);
-      // Move focus to the newly selected tab so SR announces it
-      window.requestAnimationFrame(() => {
-        tabRefs.current[next.id]?.focus();
-      });
-    },
-    [activeTab, activeTabs],
+  const shellRegionItems = useMemo(
+    (): Partial<Record<'header-actions' | 'header-right', readonly ShellRegionItem[]>> => ({
+      'header-actions': [
+        ...panelActions.map(
+          (action, index): ShellRegionItem => ({
+            id: `panel-action-${action.label}`,
+            order: index,
+            compactAction: action,
+            render: () => (
+              <RoleButton onClick={action.onSelect} className="tokenpanel-action-link">
+                {action.label}
+              </RoleButton>
+            ),
+          }),
+        ),
+        {
+          id: 'dom-tweaker-diff',
+          order: panelActions.length,
+          renderInCompactMenu: true,
+          render: ({ compact, closeCompactMenu }) => (
+            <DomTweakerDiffActionLink
+              instanceConfig={instanceConfig}
+              onSelected={compact ? closeCompactMenu : undefined}
+            />
+          ),
+        },
+      ],
+      'header-right': [
+        {
+          id: 'element-path',
+          order: 0,
+          render: () => <ElementPathToggleButton />,
+        },
+        ...(instanceConfig.domTweaker !== undefined
+          ? [
+              {
+                id: 'dom-tweaker',
+                order: 1,
+                render: () => <DomTweakerToggleButton />,
+              } satisfies ShellRegionItem,
+            ]
+          : []),
+        {
+          id: 'highlight-settings',
+          order: 2,
+          render: () => (
+            <div
+              ref={gearBtnRef}
+              role="button"
+              tabIndex={0}
+              className="tokenpanel-gear-btn"
+              aria-label="Highlight outline settings"
+              aria-expanded={showHighlightSettings}
+              aria-haspopup="dialog"
+              onClick={() => setShowHighlightSettings((value) => !value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  setShowHighlightSettings((value) => !value);
+                }
+              }}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </div>
+          ),
+        },
+        {
+          id: 'close',
+          order: 3,
+          render: () => (
+            <RoleButton
+              onClick={() => setOpen(false)}
+              className="tokenpanel-close-btn"
+              aria-label="Close panel"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M18 6 6 18" />
+                <path d="m6 6 12 12" />
+              </svg>
+            </RoleButton>
+          ),
+        },
+      ],
+    }),
+    [instanceConfig, panelActions, showHighlightSettings],
   );
 
-  // Toggle the tabs strip's right-edge fade hint when it actually has
-  // scrollable overflow. Driven by a ResizeObserver on the strip itself (+ its
-  // own scroll events) rather than `window.resize`: a grip-driven panel
-  // resize changes the strip's layout size without ever firing a window
-  // resize event, so a window listener would miss it (#518).
-  useEffect(() => {
-    if (!open) return;
-    const el = tabsStripRef.current;
-    if (!el) return;
-    function updateOverflow() {
-      if (!el) return;
-      const hasOverflow =
-        el.scrollWidth > el.clientWidth && el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
-      setTabsHaveOverflow(hasOverflow);
-    }
-    updateOverflow();
-    if (typeof ResizeObserver === 'undefined') {
-      // jsdom (unit tests) has no ResizeObserver — the initial synchronous
-      // check above still runs; only the live-resize tracking is skipped.
-      el.addEventListener('scroll', updateOverflow);
-      return () => el.removeEventListener('scroll', updateOverflow);
-    }
-    const observer = new ResizeObserver(updateOverflow);
-    observer.observe(el);
-    el.addEventListener('scroll', updateOverflow);
-    return () => {
-      observer.disconnect();
-      el.removeEventListener('scroll', updateOverflow);
-    };
-  }, [open, activeTabs]);
-
   return (
+    <LayerActivityProvider>
+    <ShortcutProvider shellRef={panelRef} enabled={open}>
+    <ShellRegionsProvider initialItems={shellRegionItems}>
+    <PanelLayerRegistrations
+      exportOpen={showExport}
+      importOpen={showImport}
+      applyOpen={showApply}
+      highlightSettingsOpen={showHighlightSettings}
+    />
+    {open && <PanelEscapeShortcut onClose={() => setOpen(false)} />}
     <HighlightOrchestrator>
       <ElementPathOrchestrator>
       <DomTweakerOrchestrator instanceConfig={instanceConfig}>
@@ -765,186 +813,17 @@ export default function DesignTokenTweakPanel({
           ['--tokenpanel-grid-min' as string]: densityToGridMin(density),
         }}
       >
-        {/* Header row (expert/reset) — drag to move the panel */}
-        <div
-          className="tokenpanel-header"
-          style={{ cursor: 'move' }}
-          onMouseDown={handleDragStart}
-        >
-          <span className="tokenpanel-title">zdtp</span>
-          {panelActions.map((action) => (
-            <RoleButton
-              key={action.label}
-              onClick={action.onSelect}
-              className="tokenpanel-action-link"
-            >
-              {action.label}
-            </RoleButton>
-          ))}
-          <DomTweakerDiffActionLink instanceConfig={instanceConfig} />
-          {/* Actions kebab — narrow-panel replacement for the four action
-              links above (#518). Always rendered so the @container rule in
-              styles/panel.css can show/hide it with pure CSS; no JS width
-              tracking. Inline div (not RoleButton) so we can attach a ref for
-              popover anchoring, matching the gear button below. */}
-          <div
-            ref={actionsMenuBtnRef}
-            role="button"
-            tabIndex={0}
-            className="tokenpanel-actions-menu-btn"
-            aria-label="Panel actions"
-            aria-expanded={showActionsMenu}
-            aria-haspopup="dialog"
-            onClick={() => setShowActionsMenu((v) => !v)}
-            onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                setShowActionsMenu((v) => !v);
-              }
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="5" r="2" />
-              <circle cx="12" cy="12" r="2" />
-              <circle cx="12" cy="19" r="2" />
-            </svg>
-          </div>
-          {showActionsMenu && (
-            <ActionsMenuPopover
-              anchorRef={actionsMenuBtnRef}
-              actions={panelActions}
-              onClose={() => setShowActionsMenu(false)}
-            >
-              <DomTweakerDiffActionLink
-                instanceConfig={instanceConfig}
-                onSelected={() => setShowActionsMenu(false)}
-              />
-            </ActionsMenuPopover>
-          )}
-          <div className="tokenpanel-spacer" />
-          {/* Element-path-copy toggle — enable, then Alt+click any element to copy its path */}
-          <ElementPathToggleButton />
-          {instanceConfig.domTweaker !== undefined && (
-            <DomTweakerToggleButton />
-          )}
-          {/* Gear button — inline div so we can attach a ref for popover anchoring */}
-          <div
-            ref={gearBtnRef}
-            role="button"
-            tabIndex={0}
-            className="tokenpanel-gear-btn"
-            aria-label="Highlight outline settings"
-            aria-expanded={showHighlightSettings}
-            aria-haspopup="dialog"
-            onClick={() => setShowHighlightSettings((v) => !v)}
-            onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                setShowHighlightSettings((v) => !v);
-              }
-            }}
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-          </div>
-          <RoleButton
-            onClick={() => setOpen(false)}
-            className="tokenpanel-close-btn"
-            aria-label="Close panel"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M18 6 6 18" />
-              <path d="m6 6 12 12" />
-            </svg>
-          </RoleButton>
-        </div>
-
-        {/* Tab bar — data-driven when PanelConfig.tabs is supplied, otherwise
-            falls back to the legacy hard-coded LEGACY_TABS strip. The tablist
-            (role="tablist") and the density slider live side-by-side inside
-            `.tokenpanel-tabbar`; the wrapper is a plain container so the
-            tablist only ever has `role=tab` children. */}
-        <div className="tokenpanel-tabbar">
-          <div
-            ref={tabsStripRef}
-            role="tablist"
-            aria-label="Design token categories"
-            className={
-              tabsHaveOverflow
-                ? 'tokenpanel-tabbar-tabs has-overflow'
-                : 'tokenpanel-tabbar-tabs'
-            }
-          >
-            {activeTabs.map((tab) => {
-              const isSelected = activeTab === tab.id;
-              return (
-                <div
-                  key={tab.id}
-                  ref={(el) => {
-                    tabRefs.current[tab.id] = el;
-                  }}
-                  role="tab"
-                  id={`dtp-tab-${ariaIdScope}-${tab.id}`}
-                  aria-selected={isSelected}
-                  aria-controls={`dtp-panel-${ariaIdScope}-${tab.id}`}
-                  tabIndex={isSelected ? 0 : -1}
-                  onClick={() => setActiveTab(tab.id)}
-                  onKeyDown={handleTabKeyDown}
-                  className={
-                    isSelected ? 'tokenpanel-tab-button is-active' : 'tokenpanel-tab-button'
-                  }
-                >
-                  {tab.label}
-                </div>
-              );
-            })}
-          </div>
-          <div className="tokenpanel-density">
-            <label
-              htmlFor={`dtp-density-${ariaIdScope}`}
-              className="tokenpanel-density-label"
-              title="Tab grid density: dense / cozy / wide (forces 1 column)"
-            >
-              Density
-            </label>
-            <input
-              id={`dtp-density-${ariaIdScope}`}
-              type="range"
-              min={0}
-              max={2}
-              step={1}
-              value={density}
-              onInput={(e) => {
-                const raw = Number((e.currentTarget as HTMLInputElement).value);
-                if (raw === 0 || raw === 1 || raw === 2) handleDensityChange(raw);
-              }}
-              className="tokenpanel-density-slider"
-              aria-label="Tab grid density"
-            />
-          </div>
-        </div>
+        <ShellHeader width={size.width} onMouseDown={handleDragStart} />
+        <ShellTabBar
+          tabs={activeTabs}
+          activeTab={activeTab}
+          onActiveTabChange={setActiveTab}
+          ariaIdScope={ariaIdScope}
+          tabRefs={tabRefs}
+          density={density}
+          onDensityChange={handleDensityChange}
+          open={open}
+        />
 
         {/* Tab panels — reserved ids dispatch to their dedicated components;
             non-reserved ids dispatch to GenericTab. */}
@@ -1053,6 +932,8 @@ export default function DesignTokenTweakPanel({
           })}
         </div>
 
+        <ShellFooter />
+
         {/* Bottom-right resize grip — available on every viewport width.
 
             ARIA: `role="separator"` would imply a 1D resizer between two
@@ -1109,6 +990,9 @@ export default function DesignTokenTweakPanel({
       </DomTweakerOrchestrator>
       </ElementPathOrchestrator>
     </HighlightOrchestrator>
+    </ShellRegionsProvider>
+    </ShortcutProvider>
+    </LayerActivityProvider>
   );
 }
 
