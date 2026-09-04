@@ -45,6 +45,10 @@ function selectMode(label: string): void {
   control.click();
 }
 
+function useModeShortcut(key: string): void {
+  document.dispatchEvent(new KeyboardEvent('keydown', { key, altKey: true, bubbles: true }));
+}
+
 describe('dock modes', () => {
   let handle: PanelInstanceHandle;
 
@@ -100,8 +104,36 @@ describe('dock modes', () => {
     expect(
       getComputedStyle(document.querySelector<HTMLElement>('.tokenpanel-action-link')!).display,
     ).toBe('none');
+    document.querySelector<HTMLElement>('.tokenpanel-actions-menu-btn')!.click();
+    await settle();
+    expect(document.querySelector('.tokenpanel-dock-modes.is-compact')).not.toBeNull();
+    document.querySelector<HTMLElement>('.tokenpanel-actions-menu-btn')!.click();
+    await settle();
 
-    selectMode('Dock panel bottom');
+    const rightResize = document.querySelector<HTMLElement>(
+      '.tokenpanel-dock-resize-handle.is-right',
+    )!;
+    const resizeStart = rightResize.getBoundingClientRect().left;
+    rightResize.dispatchEvent(
+      new MouseEvent('mousedown', { clientX: resizeStart, bubbles: true, cancelable: true }),
+    );
+    document.dispatchEvent(
+      new MouseEvent('mousemove', {
+        clientX: resizeStart - 60,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    await settle();
+    expect(shell().getBoundingClientRect().width).toBe(500);
+    expect(document.body.style.marginRight).toBe('500px');
+    expect(JSON.parse(localStorage.getItem(getDockSizeKey(CFG))!)).toEqual({
+      right: 500,
+      bottom: 340,
+    });
+
+    useModeShortcut('3');
     await settle();
     expect(localStorage.getItem(getDockKey(CFG))).toBe('bottom');
     expect(shell().classList.contains('is-docked-bottom')).toBe(true);
@@ -119,9 +151,16 @@ describe('dock modes', () => {
     expect(shell().getBoundingClientRect().width).toBe(700);
     expect(document.body.style.marginBottom).toBe('');
 
+    selectMode('Mini panel');
+    await settle();
+    expect(localStorage.getItem(getDockKey(CFG))).toBe('mini');
+    expect(shell().classList.contains('is-docked-right')).toBe(false);
+    expect(shell().classList.contains('is-docked-bottom')).toBe(false);
+    expect(shell().getBoundingClientRect().left).toBe(47);
+
     selectMode('Dock panel right');
     await settle();
-    expect(document.body.style.marginRight).toBe('440px');
+    expect(document.body.style.marginRight).toBe('500px');
 
     document.querySelector<HTMLElement>('.tokenpanel-close-btn')!.click();
     await settle();
@@ -132,7 +171,7 @@ describe('dock modes', () => {
     handle.open();
     await settle();
     expect(shell().classList.contains('is-docked-right')).toBe(true);
-    expect(document.body.style.marginRight).toBe('440px');
+    expect(document.body.style.marginRight).toBe('500px');
 
     document.dispatchEvent(new CustomEvent('astro:before-swap'));
     await settle();

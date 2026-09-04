@@ -622,11 +622,27 @@ export default function DesignTokenTweakPanel({
 
   const handleDockModeChange = useCallback(
     (next: DockMode) => {
+      // A shortcut can switch modes (or close can follow) while the pointer is
+      // still held on a drag/resize handle. Cancel those document listeners
+      // before changing ownership so a later mousemove cannot re-claim an edge
+      // that this panel has already released.
+      dragCleanupRef.current?.();
+      dragCleanupRef.current = null;
+      resizeCleanupRef.current?.();
+      resizeCleanupRef.current = null;
       setDockMode(next);
       saveDockMode(next, instanceConfig);
     },
     [instanceConfig],
   );
+
+  useEffect(() => {
+    if (open) return;
+    dragCleanupRef.current?.();
+    dragCleanupRef.current = null;
+    resizeCleanupRef.current?.();
+    resizeCleanupRef.current = null;
+  }, [open]);
 
   // Clean up drag + resize listeners on unmount
   useEffect(() => {
