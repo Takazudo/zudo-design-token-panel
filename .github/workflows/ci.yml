@@ -64,3 +64,202 @@ jobs:
 
       - name: Lint
         run: pnpm lint
+
+  consumer-smoke:
+    name: Consumer smoke (local panel + doc)
+    # Keep this lane informational until the unpublished-panel workflow has
+    # proven stable enough to make it a required repository check.
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium for the consumer probe
+        run: pnpm --filter @takazudo/zdtp exec playwright install --with-deps chromium
+
+      - name: Build and pack the local panel
+        id: panel
+        shell: bash
+        run: |
+          set -euo pipefail
+          panel_pack_dir="$RUNNER_TEMP/zdtp-panel"
+          mkdir -p "$panel_pack_dir"
+          pnpm --filter @takazudo/zdtp build
+          pnpm --filter @takazudo/zdtp pack --pack-destination "$panel_pack_dir"
+          panel_tarball="$(find "$panel_pack_dir" -maxdepth 1 -type f -name '*.tgz' -print -quit)"
+          if [ -z "$panel_tarball" ]; then
+            echo "The panel pack command did not produce a tarball" >&2
+            exit 1
+          fi
+          echo "tarball=$panel_tarball" >> "$GITHUB_OUTPUT"
+
+      - name: Build the scratch doc with the local panel override
+        env:
+          PANEL_TARBALL: ${{ steps.panel.outputs.tarball }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          scratch_doc="$RUNNER_TEMP/zdtp-doc"
+          mkdir -p "$scratch_doc"
+
+          rsync -a \
+            --exclude '.git' \
+            --exclude '.zfb' \
+            --exclude '.zfb-build' \
+            --exclude '.wrangler' \
+            --exclude 'dist' \
+            --exclude 'node_modules' \
+            doc/ "$scratch_doc/"
+          cp pnpm-workspace.yaml "$scratch_doc/pnpm-workspace.yaml"
+
+          ROOT_WORKSPACE_FILE="$GITHUB_WORKSPACE/pnpm-workspace.yaml" \
+          SCRATCH_WORKSPACE_FILE="$scratch_doc/pnpm-workspace.yaml" \
+          LOCAL_PANEL_TARBALL="$PANEL_TARBALL" \
+          node --input-type=module <<'NODE'
+          import { readFile, writeFile } from 'node:fs/promises';
+
+          const rootWorkspaceFile = process.env.ROOT_WORKSPACE_FILE;
+          const scratchWorkspaceFile = process.env.SCRATCH_WORKSPACE_FILE;
+          const panelTarball = process.env.LOCAL_PANEL_TARBALL;
+          const source = await readFile(rootWorkspaceFile, 'utf8');
+          const marker = '\noverrides:\n';
+          const markerIndex = source.indexOf(marker);
+          const override = `  "@takazudo/zdtp": ${JSON.stringify(`file:${panelTarball}`)}\n`;
+
+          if (markerIndex >= 0) {
+            const insertAt = markerIndex + marker.length;
+            await writeFile(
+              scratchWorkspaceFile,
+              `${source.slice(0, insertAt)}${override}${source.slice(insertAt)}`,
+              'utf8',
+            );
+          } else {
+            await writeFile(
+              scratchWorkspaceFile,
+              `${source.trimEnd()}\n\noverrides:\n${override}`,
+              'utf8',
+            );
+          }
+          NODE
+
+          pnpm --dir "$scratch_doc" install --no-frozen-lockfile
+
+          EXPECTED_PANEL_VERSION="$(node -p "require('./packages/zdtp/package.json').version")" \
+          SCRATCH_DOC_DIR="$scratch_doc" \
+          node --input-type=module <<'NODE'
+          import { createRequire } from 'node:module';
+          import { readFile, realpath } from 'node:fs/promises';
+          import { dirname, resolve } from 'node:path';
+
+          const scratchDoc = process.env.SCRATCH_DOC_DIR;
+          const expectedPanelVersion = process.env.EXPECTED_PANEL_VERSION;
+          const scratchRequire = createRequire(resolve(scratchDoc, 'package.json'));
+          const panelPackagePath = scratchRequire.resolve('@takazudo/zdtp/package.json');
+          const panelPackage = JSON.parse(await readFile(panelPackagePath, 'utf8'));
+          const panelPreact = await realpath(
+            scratchRequire.resolve('preact/package.json', { paths: [dirname(panelPackagePath)] }),
+          );
+          const docPreact = await realpath(scratchRequire.resolve('preact/package.json'));
+
+          if (panelPackage.version !== expectedPanelVersion) {
+            throw new Error(
+              `Expected local @takazudo/zdtp@${expectedPanelVersion}, resolved @takazudo/zdtp@${panelPackage.version}`,
+            );
+          }
+          if (panelPreact !== docPreact) {
+            throw new Error(`Panel and zudo-doc resolved different Preact paths: ${panelPreact} vs ${docPreact}`);
+          }
+          console.log(`Resolved local @takazudo/zdtp@${panelPackage.version} with one shared Preact installation`);
+          NODE
+
+          pnpm --dir "$scratch_doc" build
+
+      - name: Serve the built doc and verify the panel
+        shell: bash
+        run: |
+          set -euo pipefail
+          scratch_doc="$RUNNER_TEMP/zdtp-doc"
+          python3 -m http.server 4321 \
+            --bind 127.0.0.1 \
+            --directory "$scratch_doc/dist" \
+            >"$RUNNER_TEMP/zdtp-doc-server.log" 2>&1 &
+          server_pid=$!
+          cleanup() {
+            kill "$server_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error \
+              http://127.0.0.1:4321/docs/getting-started/ \
+              >/dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              cat "$RUNNER_TEMP/zdtp-doc-server.log"
+              exit 1
+            fi
+            sleep 1
+          done
+
+          pnpm --filter @takazudo/zdtp exec node --input-type=module <<'NODE'
+          import { chromium } from 'playwright';
+
+          const browser = await chromium.launch({ headless: true });
+          const page = await browser.newPage();
+          const errors = [];
+          page.on('console', (message) => {
+            if (message.type() === 'error') {
+              errors.push(`console: ${message.text()}`);
+            }
+          });
+          page.on('pageerror', (error) => {
+            errors.push(`pageerror: ${error.message}`);
+          });
+
+          try {
+            await page.goto('http://127.0.0.1:4321/docs/getting-started/', {
+              waitUntil: 'domcontentloaded',
+            });
+            const trigger = page.locator('#design-token-trigger');
+            await trigger.waitFor({ state: 'visible', timeout: 15_000 });
+            await page.waitForFunction(() => {
+              const api = window.zdtp;
+              return Boolean(
+                api &&
+                typeof api.show === 'function' &&
+                typeof api.hide === 'function' &&
+                typeof api.toggle === 'function',
+              );
+            });
+            await trigger.click();
+            await page.locator('.tokenpanel-shell').waitFor({ state: 'visible' });
+
+            const title = (await page.locator('.tokenpanel-title').textContent())?.trim();
+            if (!title?.startsWith('zdtp')) {
+              throw new Error(`Expected the mounted panel title to start with zdtp, received ${title}`);
+            }
+            const tabs = await page.locator('[role="tab"]').allTextContents();
+            if (!tabs.some((tab) => tab.trim() === 'Color')) {
+              throw new Error(`Expected the real doc panel config to include Color, received ${tabs}`);
+            }
+            if (errors.length > 0) {
+              throw new Error(`Consumer smoke emitted browser errors:\n${errors.join('\n')}`);
+            }
+          } finally {
+            await browser.close();
+          }
+          NODE

@@ -1,0 +1,322 @@
+name: Consumer drift re-exam
+
+on:
+  schedule:
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: consumer-drift
+  cancel-in-progress: false
+
+jobs:
+  zudo-doc-manifest:
+    name: Latest zudo-doc manifest contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium for the manifest contract
+        run: pnpm --filter @takazudo/zdtp exec playwright install --with-deps chromium
+
+      - name: Install the latest zudo-doc in the disposable checkout
+        run: pnpm --filter doc update @takazudo/zudo-doc --latest
+
+      - name: Re-vendor the latest zudo-doc manifest
+        run: node scripts/vendor-consumer-manifest.mjs
+
+      - name: Run the consumer-manifest contract test
+        run: pnpm --filter @takazudo/zdtp test:browser -- src/__tests__/consumer-manifest.browser.test.tsx
+
+      - name: Open or update the manifest drift issue
+        if: ${{ failure() }}
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          DRIFT_MARKER: '<!-- consumer-drift:zudo-doc-manifest -->'
+        with:
+          script: |
+            const marker = process.env.DRIFT_MARKER;
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            const title = 'Consumer drift: latest zudo-doc manifest contract failed';
+            const body = `${marker}
+            ## Latest zudo-doc manifest drift
+
+            The weekly consumer-manifest contract check failed after installing the latest \`@takazudo/zudo-doc\`.
+
+            - Run: ${runUrl}
+            - Commit: \`${context.sha}\`
+
+            This issue is deduplicated by the marker above and will be updated by the next failed run.`;
+
+            const search = await github.rest.search.issuesAndPullRequests({
+              q: `repo:${context.repo.owner}/${context.repo.repo} is:issue is:open "${marker}"`,
+            });
+            const existing = search.data.items.find((item) => item.body?.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                title,
+                body,
+              });
+              console.log(`Updated existing drift issue #${existing.number}`);
+            } else {
+              const created = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+              });
+              console.log(`Created drift issue #${created.data.number}`);
+            }
+
+  cross-example:
+    name: Cross-example (${{ matrix.example }})
+    if: github.event_name == 'workflow_dispatch'
+    # The examples intentionally pin pre-local-panel API releases. Keep this
+    # matrix manual and informational until those consumers are updated.
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        example:
+          - astro
+          - vite-react
+          - nextjs
+          - zfb
+          - zfb-tailwind
+    steps:
+      - name: Checkout panel repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+
+      - name: Install panel repository dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium for the consumer probe
+        run: pnpm --filter @takazudo/zdtp exec playwright install --with-deps chromium
+
+      - name: Build and pack the panel from this commit
+        id: panel
+        shell: bash
+        run: |
+          set -euo pipefail
+          panel_pack_dir="$RUNNER_TEMP/zdtp-panel"
+          mkdir -p "$panel_pack_dir"
+          pnpm --filter @takazudo/zdtp build
+          pnpm --filter @takazudo/zdtp pack --pack-destination "$panel_pack_dir"
+          panel_tarball="$(find "$panel_pack_dir" -maxdepth 1 -type f -name '*.tgz' -print -quit)"
+          if [ -z "$panel_tarball" ]; then
+            echo "The panel pack command did not produce a tarball" >&2
+            exit 1
+          fi
+          echo "tarball=$panel_tarball" >> "$GITHUB_OUTPUT"
+
+      - name: Clone the public consumer example
+        env:
+          EXAMPLE: ${{ matrix.example }}
+        run: git clone --depth=1 "https://github.com/Takazudo/zudo-design-token-panel-example-${EXAMPLE}.git" "$RUNNER_TEMP/example"
+
+      - name: Add the disposable packed-panel override
+        env:
+          EXAMPLE_DIR: ${{ runner.temp }}/example
+          PANEL_TARBALL: ${{ steps.panel.outputs.tarball }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          workspace_file="$EXAMPLE_DIR/pnpm-workspace.yaml"
+          if [ -f "$workspace_file" ]; then
+            cp "$workspace_file" "$workspace_file.original"
+          else
+            : > "$workspace_file"
+          fi
+
+          ROOT_WORKSPACE_FILE="$workspace_file" \
+          LOCAL_PANEL_TARBALL="$PANEL_TARBALL" \
+          node --input-type=module <<'NODE'
+          import { readFile, writeFile } from 'node:fs/promises';
+
+          const workspaceFile = process.env.ROOT_WORKSPACE_FILE;
+          const panelTarball = process.env.LOCAL_PANEL_TARBALL;
+          const source = await readFile(workspaceFile, 'utf8');
+          const override = `  "@takazudo/zdtp": ${JSON.stringify(`file:${panelTarball}`)}\n`;
+          const marker = '\noverrides:\n';
+          const markerIndex = source.indexOf(marker);
+
+          if (markerIndex >= 0) {
+            const insertAt = markerIndex + marker.length;
+            await writeFile(
+              workspaceFile,
+              `${source.slice(0, insertAt)}${override}${source.slice(insertAt)}`,
+              'utf8',
+            );
+          } else if (source.trim().length > 0) {
+            await writeFile(
+              workspaceFile,
+              `${source.trimEnd()}\n\noverrides:\n${override}`,
+              'utf8',
+            );
+          } else {
+            await writeFile(
+              workspaceFile,
+              `packages:\n  - "."\n\nautoInstallPeers: true\nstrictPeerDependencies: false\nminimumReleaseAge: 0\nallowBuilds:\n  esbuild: true\n  lefthook: true\n  sharp: true\n  workerd: true\n\noverrides:\n${override}`,
+              'utf8',
+            );
+          }
+          NODE
+
+      - name: Install and build the consumer example
+        env:
+          EXAMPLE_DIR: ${{ runner.temp }}/example
+        run: |
+          pnpm --dir "$EXAMPLE_DIR" install --no-frozen-lockfile
+          pnpm --dir "$EXAMPLE_DIR" build
+
+      - name: Serve the consumer example and verify the panel
+        env:
+          EXAMPLE_DIR: ${{ runner.temp }}/example
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -d "$EXAMPLE_DIR/dist" ]; then
+            output_dir="$EXAMPLE_DIR/dist"
+          elif [ -d "$EXAMPLE_DIR/out" ]; then
+            output_dir="$EXAMPLE_DIR/out"
+          else
+            echo "The example build produced neither dist/ nor out/" >&2
+            exit 1
+          fi
+
+          python3 -m http.server 4321 \
+            --bind 127.0.0.1 \
+            --directory "$output_dir" \
+            >"$RUNNER_TEMP/example-server.log" 2>&1 &
+          server_pid=$!
+          cleanup() {
+            kill "$server_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:4321/ >/dev/null; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              cat "$RUNNER_TEMP/example-server.log"
+              exit 1
+            fi
+            sleep 1
+          done
+
+          pnpm --filter @takazudo/zdtp exec node --input-type=module <<'NODE'
+          import { chromium } from 'playwright';
+
+          const browser = await chromium.launch({ headless: true });
+          const page = await browser.newPage();
+          const errors = [];
+          page.on('console', (message) => {
+            if (message.type() === 'error') {
+              errors.push(`console: ${message.text()}`);
+            }
+          });
+          page.on('pageerror', (error) => {
+            errors.push(`pageerror: ${error.message}`);
+          });
+
+          try {
+            await page.goto('http://127.0.0.1:4321/', { waitUntil: 'domcontentloaded' });
+            const trigger = page.getByRole('button', {
+              name: /open design token panel/i,
+            }).first();
+            await trigger.waitFor({ state: 'visible', timeout: 15_000 });
+            await trigger.click();
+            await page
+              .locator('.tokenpanel-shell, [data-design-token-panel-modal]')
+              .first()
+              .waitFor({ state: 'visible', timeout: 15_000 });
+
+            const tabs = await page.locator('[role="tab"]').count();
+            if (tabs === 0) {
+              throw new Error('The mounted panel did not expose any tabs');
+            }
+            if (errors.length > 0) {
+              throw new Error(`Cross-example smoke emitted browser errors:\n${errors.join('\n')}`);
+            }
+          } finally {
+            await browser.close();
+          }
+          NODE
+
+      - name: Open or update the cross-example drift issue
+        if: ${{ failure() }}
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          DRIFT_MARKER: '<!-- consumer-drift:cross-example -->'
+          EXAMPLE: ${{ matrix.example }}
+        with:
+          script: |
+            const marker = process.env.DRIFT_MARKER;
+            const example = process.env.EXAMPLE;
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            const title = 'Consumer drift: cross-example panel smoke failed';
+            const body = `${marker}
+            ## Cross-example panel drift
+
+            The manual cross-example consumer smoke failed for \`${example}\`.
+
+            - Run: ${runUrl}
+            - Commit: \`${context.sha}\`
+
+            This issue is deduplicated by the marker above and will be updated by the next failed run.`;
+
+            const search = await github.rest.search.issuesAndPullRequests({
+              q: `repo:${context.repo.owner}/${context.repo.repo} is:issue is:open "${marker}"`,
+            });
+            const existing = search.data.items.find((item) => item.body?.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                title,
+                body,
+              });
+              console.log(`Updated existing drift issue #${existing.number}`);
+            } else {
+              const created = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body,
+              });
+              console.log(`Created drift issue #${created.data.number}`);
+            }
