@@ -12,6 +12,7 @@ import type { TokenOverrides } from '../state/tweak-state';
 import type { PersistFont } from '../state/persist';
 import FlatTab from './flat/flat-tab';
 import type { TokenAddress } from './flat/types';
+import type { BulkPatchEntry } from '../bulk';
 
 interface FontTabProps {
   tab: TabConfig;
@@ -22,6 +23,7 @@ interface FontTabProps {
   renderOnPage?: boolean;
   /** Called when the toolbar toggles the page-level specimen. */
   onRenderOnPageChange?: (enabled: boolean) => void;
+  onBulkApply?: (patch: readonly BulkPatchEntry[]) => void;
 }
 
 export default function FontTab({
@@ -31,6 +33,7 @@ export default function FontTab({
   instanceConfig = getPanelConfig(),
   renderOnPage: renderOnPageProp = false,
   onRenderOnPageChange,
+  onBulkApply,
 }: FontTabProps) {
   const getValue = useCallback((_address: TokenAddress, item: TierItem) => state[item.id] ?? item.default, [state]);
   const setValue = useCallback((address: TokenAddress, next: string) => {
@@ -73,7 +76,7 @@ export default function FontTab({
       />
     )}
     <FlatTab tab={tab} getValue={getValue} setValue={setValue} deleteValue={deleteValue}
-      overrides={overrides} contributions={contributions} renderTierBody={renderTierBody}
+      overrides={overrides} contributions={contributions} renderTierBody={renderTierBody} onBulkApply={onBulkApply}
       sectionTestId={(tier) => `font-tier-${tier.id}`} actions={(
         <Fragment>
           {hasSpecimen && (

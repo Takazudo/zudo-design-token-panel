@@ -43,6 +43,7 @@ import SpacingTab from './tabs/spacing-tab';
 import GenericTab from './tabs/generic-tab';
 import PaletteTab from './tabs/palette/palette-tab';
 import NotesTab from './tabs/notes-tab';
+import type { BulkPatchEntry } from './bulk';
 import { TooltipProvider } from './controls/tooltip';
 import {
   getPanelConfig,
@@ -314,6 +315,63 @@ export default function DesignTokenTweakPanel({
   const { commitTweakState } = useTweakStateTransaction(state, setState, instanceConfig);
   const { persistColor, persistSpacing, persistFont, persistSize, persistSecondary, persistTab } =
     usePersist(commitTweakState, instanceConfig);
+
+  // Bulk action bars hand the panel a complete patch. Keep the callback at
+  // this layer so the whole selection travels through exactly one transaction
+  // (apply → save → state → history), rather than one transaction per row.
+  const handleSpacingBulkApply = useCallback((patch: readonly BulkPatchEntry[]) => {
+    if (patch.length === 0) return;
+    commitTweakState('bulk', (previous) => ({
+      ...previous,
+      spacing: patch.reduce(
+        (next, item) => ({ ...next, [item.address.itemId]: item.value }),
+        { ...previous.spacing },
+      ),
+    }));
+  }, [commitTweakState]);
+
+  const handleFontBulkApply = useCallback((patch: readonly BulkPatchEntry[]) => {
+    if (patch.length === 0) return;
+    commitTweakState('bulk', (previous) => ({
+      ...previous,
+      typography: patch.reduce(
+        (next, item) => ({ ...next, [item.address.itemId]: item.value }),
+        { ...previous.typography },
+      ),
+    }));
+  }, [commitTweakState]);
+
+  const handleSizeBulkApply = useCallback((patch: readonly BulkPatchEntry[]) => {
+    if (patch.length === 0) return;
+    commitTweakState('bulk', (previous) => ({
+      ...previous,
+      size: patch.reduce(
+        (next, item) => ({ ...next, [item.address.itemId]: item.value }),
+        { ...previous.size },
+      ),
+    }));
+  }, [commitTweakState]);
+
+  const handleGenericBulkApply = useCallback((tabId: string, patch: readonly BulkPatchEntry[]) => {
+    if (patch.length === 0) return;
+    commitTweakState('bulk', (previous) => {
+      const previousTab = previous.tabs?.[tabId] ?? {};
+      const nextTab = { ...previousTab };
+      for (const item of patch) {
+        nextTab[item.address.tierId] = {
+          ...nextTab[item.address.tierId],
+          [item.address.itemId]: item.value,
+        };
+      }
+      return {
+        ...previous,
+        tabs: {
+          ...previous.tabs,
+          [tabId]: nextTab,
+        },
+      };
+    });
+  }, [commitTweakState]);
 
   // Restore open state, position, and size from localStorage after mount (avoids SSR hydration mismatch)
   useEffect(() => {
@@ -1293,6 +1351,7 @@ export default function DesignTokenTweakPanel({
                     tab={tabConfigById['spacing']}
                     state={state.spacing}
                     persistSpacing={persistSpacing}
+                    onBulkApply={handleSpacingBulkApply}
                   />
                 )}
                 {tab.id === 'font' && state && tabConfigById['font'] && (
@@ -1303,6 +1362,7 @@ export default function DesignTokenTweakPanel({
                     instanceConfig={instanceConfig}
                     renderOnPage={renderSpecimenOnPage}
                     onRenderOnPageChange={handleRenderSpecimenOnPageChange}
+                    onBulkApply={handleFontBulkApply}
                   />
                 )}
                 {tab.id === 'size' && state && tabConfigById['size'] && (
@@ -1310,6 +1370,7 @@ export default function DesignTokenTweakPanel({
                     tab={tabConfigById['size']}
                     state={state.size}
                     persistSize={persistSize}
+                    onBulkApply={handleSizeBulkApply}
                   />
                 )}
                 {tab.id === 'palette' && state && tabConfigById['palette'] && (
@@ -1344,6 +1405,7 @@ export default function DesignTokenTweakPanel({
                   <GenericTab
                     tab={tabConfigById[tab.id]}
                     overrides={state.tabs?.[tab.id] ?? {}}
+                    onBulkApply={(patch) => handleGenericBulkApply(tab.id, patch)}
                     onChange={(tierId, itemId, next) => {
                       // `next === undefined` (ref-tier "Literal…" pick, #470)
                       // means drop the stored override entirely so the item
