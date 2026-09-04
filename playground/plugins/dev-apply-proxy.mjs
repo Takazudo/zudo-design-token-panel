@@ -18,11 +18,16 @@ export default {
 
       let upstream;
       try {
+        const headers = {
+          'content-type': req.headers['content-type'] ?? 'application/json',
+          // The bin applies its explicit CORS allow-list to the incoming
+          // browser origin. Preserve it across this same-origin dev proxy so
+          // the sidecar can authorize the forwarded request.
+          ...(typeof req.headers.origin === 'string' ? { origin: req.headers.origin } : {}),
+        };
         upstream = await fetch(BIN_SIDECAR_APPLY_URL, {
           method: 'POST',
-          headers: {
-            'content-type': req.headers['content-type'] ?? 'application/json',
-          },
+          headers,
           body: req.body ?? '',
           signal: AbortSignal.timeout(SIDECAR_TIMEOUT_MS),
         });
