@@ -154,8 +154,12 @@ describe('dock modes', () => {
     selectMode('Mini panel');
     await settle();
     expect(localStorage.getItem(getDockKey(CFG))).toBe('mini');
-    expect(shell().classList.contains('is-docked-right')).toBe(false);
-    expect(shell().classList.contains('is-docked-bottom')).toBe(false);
+    expect(document.querySelector('.tokenpanel-shell')).toBeNull();
+    expect(document.querySelector('.tokenpanel-mini-pill')).not.toBeNull();
+
+    document.querySelector<HTMLElement>('[aria-label="Expand panel"]')!.click();
+    await settle();
+    expect(localStorage.getItem(getDockKey(CFG))).toBe('float');
     expect(shell().getBoundingClientRect().left).toBe(47);
 
     selectMode('Dock panel right');

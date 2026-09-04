@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useId, useMemo } from 'preact/compat';
+import type { RefObject } from 'preact';
 import { ExportModal } from './export-modal';
 import { ImportModal } from './import-modal';
 import { ApplyModal } from './apply-modal';
@@ -14,6 +15,12 @@ import { ShellHeader } from './shell/header';
 import { ShellTabBar } from './shell/tab-bar';
 import { ShellFooter } from './shell/footer';
 import { DockModeSwitch } from './shell/dock-mode-switch';
+import { MiniPill } from './shell/mini-pill';
+import {
+  loadGhostIdle,
+  saveGhostIdle,
+  useGhostIdle,
+} from './shell/ghost-idle';
 import { ShellRegionsProvider, type ShellRegionItem } from './shell/regions';
 import {
   LayerActivityProvider,
@@ -164,6 +171,44 @@ function PanelEscapeShortcut({ onClose }: { onClose: () => void }) {
   return null;
 }
 
+function GhostIdleBehavior({
+  enabled,
+  targetRef,
+}: {
+  enabled: boolean;
+  targetRef: RefObject<HTMLDivElement>;
+}) {
+  const layerActive = useLayerActivity();
+  useGhostIdle(targetRef, enabled, layerActive);
+  return null;
+}
+
+function GhostIdleToggle({
+  enabled,
+  onChange,
+  compact = false,
+}: {
+  enabled: boolean;
+  onChange: (enabled: boolean) => void;
+  compact?: boolean;
+}) {
+  return (
+    <label
+      className={`tokenpanel-ghost-idle-toggle${compact ? ' is-compact' : ''}`}
+      title="Fade the panel while the pointer is outside it"
+    >
+      <input
+        type="checkbox"
+        checked={enabled}
+        onInput={(event) => onChange((event.currentTarget as HTMLInputElement).checked)}
+        className="tokenpanel-ghost-idle-checkbox"
+        aria-label="Ghost when idle"
+      />
+      <span>Ghost when idle</span>
+    </label>
+  );
+}
+
 // --- Main Component ---
 
 /**
@@ -227,6 +272,7 @@ export default function DesignTokenTweakPanel({
   const [density, setDensity] = useState<PanelDensity>(DEFAULT_DENSITY);
   const [dockMode, setDockMode] = useState<DockMode>(DEFAULT_DOCK_MODE);
   const [dockSize, setDockSize] = useState<DockSize>(DEFAULT_DOCK_SIZE);
+  const [ghostIdle, setGhostIdle] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   // tabRefs is now keyed by string to support host-supplied tab ids.
   const tabRefs = useRef<Record<string, HTMLDivElement | null>>({
@@ -242,6 +288,7 @@ export default function DesignTokenTweakPanel({
   sizeRef.current = size;
   const dockSizeRef = useRef<DockSize>(dockSize);
   dockSizeRef.current = dockSize;
+  const lastFullDockModeRef = useRef<DockMode>('float');
   // Track active drag listeners for cleanup on unmount
   const dragCleanupRef = useRef<(() => void) | null>(null);
   // Track active resize listeners for cleanup on unmount
@@ -289,14 +336,30 @@ export default function DesignTokenTweakPanel({
     setDockSize(loadedDockSize);
     dockSizeRef.current = loadedDockSize;
     setDockMode(loadDockMode(instanceConfig));
+    setGhostIdle(loadGhostIdle(instanceConfig.storagePrefix));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The mini pill is a transient presentation of the last full mode. Keep
+  // that mode in memory so expanding after a mini switch returns to the exact
+  // float/right/bottom layout the user was looking at.
+  useEffect(() => {
+    if (dockMode !== 'mini') lastFullDockModeRef.current = dockMode;
+  }, [dockMode]);
 
   // Persist density on change
   const handleDensityChange = useCallback(
     (next: PanelDensity) => {
       setDensity(next);
       saveDensity(next, instanceConfig);
+    },
+    [instanceConfig],
+  );
+
+  const handleGhostIdleChange = useCallback(
+    (enabled: boolean) => {
+      setGhostIdle(enabled);
+      saveGhostIdle(instanceConfig.storagePrefix, enabled);
     },
     [instanceConfig],
   );
@@ -807,7 +870,9 @@ export default function DesignTokenTweakPanel({
   }, [instanceConfig]);
 
   const shellRegionItems = useMemo(
-    (): Partial<Record<'header-actions' | 'header-right', readonly ShellRegionItem[]>> => ({
+    (): Partial<
+      Record<'header-actions' | 'header-right' | 'tabbar-extras', readonly ShellRegionItem[]>
+    > => ({
       'header-actions': [
         ...panelActions.map(
           (action, index): ShellRegionItem => ({
@@ -844,6 +909,19 @@ export default function DesignTokenTweakPanel({
                   handleDockModeChange(mode);
                   closeCompactMenu();
                 }}
+                compact
+              />
+            ) : null,
+        },
+        {
+          id: 'ghost-idle-compact',
+          order: panelActions.length + 2,
+          renderInCompactMenu: true,
+          render: ({ compact }) =>
+            compact ? (
+              <GhostIdleToggle
+                enabled={ghostIdle}
+                onChange={handleGhostIdleChange}
                 compact
               />
             ) : null,
@@ -939,8 +1017,25 @@ export default function DesignTokenTweakPanel({
           ),
         },
       ],
+      'tabbar-extras': [
+        {
+          id: 'ghost-idle',
+          order: 0,
+          render: () => (
+            <GhostIdleToggle enabled={ghostIdle} onChange={handleGhostIdleChange} />
+          ),
+        },
+      ],
     }),
-    [dockMode, handleDockModeChange, instanceConfig, panelActions, showHighlightSettings],
+    [
+      dockMode,
+      ghostIdle,
+      handleDockModeChange,
+      handleGhostIdleChange,
+      instanceConfig,
+      panelActions,
+      showHighlightSettings,
+    ],
   );
 
   return (
@@ -983,7 +1078,13 @@ export default function DesignTokenTweakPanel({
 
         return (
           <>
-            <div
+            {dockMode === 'mini' ? (
+              <MiniPill
+                onApply={() => setShowApply(true)}
+                onExpand={() => handleDockModeChange(lastFullDockModeRef.current)}
+              />
+            ) : (
+              <div
         ref={panelRef}
         className={`tokenpanel-shell${effectiveDockMode === 'right' ? ' is-docked-right' : ''}${effectiveDockMode === 'bottom' ? ' is-docked-bottom' : ''}`}
         style={{
@@ -997,6 +1098,7 @@ export default function DesignTokenTweakPanel({
           ['--tokenpanel-grid-min' as string]: densityToGridMin(density),
         }}
       >
+        <GhostIdleBehavior enabled={ghostIdle} targetRef={panelRef} />
         <ShellHeader
           width={
             effectiveDockMode === 'right'
@@ -1148,7 +1250,8 @@ export default function DesignTokenTweakPanel({
             title="Drag to resize"
           />
         )}
-      </div>
+              </div>
+            )}
 
       {showExport && state && (
         <ExportModal
