@@ -2,7 +2,9 @@
 
 Project-scoped rules that apply across the whole monorepo. Subdirectories may have their own `CLAUDE.md` (e.g. `doc/CLAUDE.md` for the docs site) which adds rules specific to that workspace.
 
-For how the docs site's design-token-panel relates to this repo's `packages/zdtp` (never force-link the local workspace copy into `doc/`), see the "zdtp ↔ zudo-doc relationship" section in `doc/CLAUDE.md`.
+For how the npm-pinned docs panel relates to this repo's unpublished
+`packages/zdtp` build—and when to use the workspace-linked `playground/`—see
+the "zdtp ↔ zudo-doc relationship" section in `doc/CLAUDE.md`.
 
 ## Panel DOM hygiene — no host-stylable semantic tags
 

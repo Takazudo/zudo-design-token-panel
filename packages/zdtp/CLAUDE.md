@@ -2,6 +2,25 @@
 
 Package-level rules for `@takazudo/zdtp`. These supplement the root `CLAUDE.md` which contains the project-wide summary.
 
+## Verifying panel changes locally
+
+Build this package first because workspace consumers import its `dist/`
+exports, then run the root-level zfb playground:
+
+```sh
+pnpm --filter @takazudo/zdtp build
+pnpm play
+```
+
+`playground/` uses an explicit `workspace:*` dependency, so it loads the
+unpublished panel rather than the npm-pinned copy used by `doc/`. Check the
+compact consumer manifest first, then add `?manifest=zudo-doc` to exercise the
+vendored real zudo-doc configuration. An Apply in the default manifest should
+rewrite `playground/styles/global.css` through the local sidecar. Use
+`pnpm --filter playground typecheck && pnpm --filter playground build` for the
+bounded non-browser gate; browser/UI verification remains a manual manager
+step.
+
 ## Panel DOM hygiene — no host-stylable semantic tags
 
 ### Rule
