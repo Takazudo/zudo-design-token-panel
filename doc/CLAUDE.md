@@ -53,6 +53,44 @@ while `?manifest=zudo-doc` uses the real zudo-doc `PanelConfig` vendored by
 `scripts/vendor-consumer-manifest.mjs` (the S17 vendor script). The generated
 file records the source `@takazudo/zudo-doc` version so drift is visible.
 
+## Verifying an unpublished panel in the real doc site
+
+The committed `doc/` workspace remains pinned to the published panel release.
+To inspect an unpublished panel build in the real zudo-doc consumer, run this
+from the repository root:
+
+```sh
+bash scripts/doc-with-local-panel.sh
+```
+
+The script builds and packs `packages/zdtp`, copies the doc source into a
+temporary directory, and installs that scratch site with a file override for
+the packed panel. It prints the local panel version, then runs the scratch
+site's `pnpm dev`; open the printed URL and activate the design-token-panel
+header trigger. The terminal output includes the exact local package version
+being served (the fixed `window.zdtp` API itself intentionally exposes only
+`show`, `hide`, and `toggle`). The temporary directory, workspace override,
+install lock, and generated build output are removed when the dev command
+exits. The committed `doc/package.json` and root lockfile are never modified.
+
+The override belongs in the temporary `pnpm-workspace.yaml` rather than a
+package-level `pnpm` field because pnpm 11 no longer reads that package.json
+configuration. The script also verifies that the scratch site resolved the
+packed panel version and that the panel and zudo-doc share one Preact
+installation. A mismatch is a peer/bootstrap spike blocker: capture its
+logs in the PR and ship only the scheduled drift re-exam until the dependency
+boundary is resolved; do not force a package or lockfile change.
+
+The informational `consumer-smoke` job in `.github/workflows/ci.yml` repeats
+the packed-panel override, builds the scratch doc, serves its static output,
+and uses Chromium to open one doc page, activate the header trigger, assert
+the real zudo-doc panel tabs are mounted, and reject console or page errors.
+The scheduled `.github/workflows/consumer-drift.yml` workflow installs the
+latest zudo-doc for the consumer-manifest contract check. Its five-example
+matrix is manual-dispatch-only and informational while those public examples
+still pin older panel APIs; failures open or update one deduplicated issue per
+job.
+
 ## Content Conventions
 
 ### Frontmatter
