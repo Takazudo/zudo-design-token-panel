@@ -68,8 +68,8 @@ import TierRefSelector, {
   type TierRefSelectorValue,
   type TierRefTarget,
 } from '../controls/tier-ref-selector';
-import type { TokenAddress } from './flat/types';
-import { tokenAddressKey } from './flat/types';
+import { TokenChainButton } from '../chain';
+import { tokenAddressKey, type TokenAddress } from './flat/types';
 import { matchesSearchFields, stringifySearchValue } from '../search/token-search';
 
 // The bundled scheme registry now lives on
@@ -138,7 +138,6 @@ function colorSearchMatch(
     tierLabel: fields.tierLabel,
   }, query);
 }
-
 // --- Shared popover helpers (Color-tab scoped) ---
 
 /**
@@ -286,8 +285,8 @@ const ColorSwatch = memo(function ColorSwatch({
   index,
   label,
   cssVar,
-  valueFormat = 'hex',
   address,
+  valueFormat = 'hex',
   isChanged = false,
   onRevert,
 }: {
@@ -357,6 +356,7 @@ const ColorSwatch = memo(function ColorSwatch({
           {label}
         </span>
         {cssVar && <HighlightToggleButton cssVar={cssVar} />}
+        {address && <TokenChainButton address={address} />}
         {isChanged && onRevert && (
           <RoleButton
             className="tokenpanel-changed-revert"
@@ -430,7 +430,7 @@ const PaletteSelector = memo(function PaletteSelector({
    *  Omit for rows that have no real cssVar in the document (e.g. `background`,
    *  `foreground` Base knobs which are panel-internal palette indices). */
   cssVar?: string;
-  /** Stable address used by command-palette navigation. */
+  /** Stable address used by navigation, highlight, and chain-popover links. */
   address?: TokenAddress;
   isChanged?: boolean;
   onRevert?: () => void;
@@ -571,6 +571,7 @@ const PaletteSelector = memo(function PaletteSelector({
       </div>
 
       {cssVar && <HighlightToggleButton cssVar={cssVar} />}
+      {address && <TokenChainButton address={address} />}
       {isChanged && onRevert && (
         <RoleButton
           className="tokenpanel-changed-revert"
@@ -704,8 +705,8 @@ const SemanticLiteralRow = memo(function SemanticLiteralRow({
   value,
   onChange,
   cssVar,
-  defaultMode = 'light',
   address,
+  defaultMode = 'light',
   isChanged = false,
   onRevert,
 }: {
@@ -818,6 +819,7 @@ const SemanticLiteralRow = memo(function SemanticLiteralRow({
         />
       )}
       {cssVar && <HighlightToggleButton cssVar={cssVar} />}
+      {address && <TokenChainButton address={address} />}
       {isChanged && onRevert && (
         <RoleButton
           className="tokenpanel-changed-revert"
@@ -867,8 +869,8 @@ const SemanticRefOrLiteralRow = memo(function SemanticRefOrLiteralRow({
   onChange,
   previewValueFor,
   cssVar,
-  defaultMode,
   address,
+  defaultMode,
   isChanged = false,
   onRevert,
 }: {
@@ -909,6 +911,7 @@ const SemanticRefOrLiteralRow = memo(function SemanticRefOrLiteralRow({
         defaultMode={defaultMode}
       />
       {cssVar && <HighlightToggleButton cssVar={cssVar} />}
+      {address && <TokenChainButton address={address} />}
       {isChanged && onRevert && (
         <RoleButton
           className="tokenpanel-changed-revert"
@@ -1587,8 +1590,8 @@ export default function ColorTab({
                     onChange={handleSemanticRefOrLiteralChange}
                     previewValueFor={previewRampValue}
                     cssVar={semanticCssVar}
-                    defaultMode={primaryDefaultMode}
                     address={semanticAddress}
+                    defaultMode={primaryDefaultMode}
                     isChanged={rowChanged}
                     onRevert={semanticAddress && onRevert ? () => onRevert(semanticAddress) : undefined}
                   />
@@ -1608,8 +1611,8 @@ export default function ColorTab({
                     value={mapping}
                     onChange={handleSemanticLiteralChange}
                     cssVar={semanticCssVar}
-                    defaultMode={primaryDefaultMode}
                     address={semanticAddress}
+                    defaultMode={primaryDefaultMode}
                     isChanged={rowChanged}
                     onRevert={semanticAddress && onRevert ? () => onRevert(semanticAddress) : undefined}
                   />

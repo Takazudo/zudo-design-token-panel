@@ -46,7 +46,9 @@ import {
 import {
   configurePanel,
   __resetPanelConfigForTests,
+  type PanelConfig,
 } from '../../config/panel-config';
+import { tokenAddressKey } from '../../utils/token-index';
 
 // ---------------------------------------------------------------------------
 // Mock findElementsUsingToken
@@ -168,15 +170,44 @@ function ContextCapture({
 
 function renderOrchestrator(
   onCtx: (ctx: HighlightContextValue | null) => void,
+  instanceConfig?: PanelConfig,
 ): void {
   act(() => {
     render(
-      h(HighlightOrchestrator, null,
+      h(HighlightOrchestrator, { instanceConfig },
         h(ContextCapture, { onCtx }),
       ),
       container,
     );
   });
+}
+
+function makeProbeConfig(
+  storagePrefix: string,
+  kind: 'color' | 'text' = 'color',
+): PanelConfig {
+  return {
+    storagePrefix,
+    consoleNamespace: `probe-${storagePrefix}`,
+    modalClassPrefix: `probe-${storagePrefix}-modal`,
+    schemaId: 'zudo-design-tokens/v1',
+    exportFilenameBase: `probe-${storagePrefix}`,
+    tabs: [{
+      id: 'probe',
+      label: 'Probe',
+      tiers: [{
+        id: 'raw',
+        label: 'Raw',
+        items: [{
+          id: 'token',
+          cssVar: '--probe-shared',
+          label: 'Probe token',
+          default: kind === 'text' ? 'sans-serif' : '#ff0000',
+          type: kind === 'text' ? { kind: 'text' } : { kind: 'color' },
+        }],
+      }],
+    }],
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -451,6 +482,98 @@ describe('matchCounts', () => {
     renderOrchestrator((c) => { ctx = c; });
 
     expect(ctx!.matchCounts?.['--not-active']).toBeUndefined();
+  });
+});
+
+describe('lazy per-token match counts', () => {
+  it('does not probe until requestMatchCount and reuses the cached result', () => {
+    const element = makeElement();
+    mockFindElements.mockClear();
+    mockFindElements.mockReturnValue({ elements: [element], warnings: [] });
+    const config = makeProbeConfig('lazy-count');
+    const address = { tabId: 'probe', tierId: 'raw', itemId: 'token' };
+
+    let ctx: HighlightContextValue | null = null;
+    renderOrchestrator((value) => { ctx = value; }, config);
+
+    expect(mockFindElements).not.toHaveBeenCalled();
+    expect(ctx!.state.active).toEqual({});
+
+    act(() => {
+      expect(ctx!.requestMatchCount!(address)).toBe(1);
+    });
+    expect(mockFindElements).toHaveBeenCalledTimes(1);
+    expect(ctx!.matchCounts?.[tokenAddressKey(address)]).toBe(1);
+    expect(ctx!.matchCounts?.['--probe-shared']).toBe(1);
+    expect(ctx!.state.active).toEqual({});
+
+    act(() => {
+      expect(ctx!.requestMatchCount!(address)).toBe(1);
+    });
+    expect(mockFindElements).toHaveBeenCalledTimes(1);
+
+    element.remove();
+  });
+
+  it('keeps request counts and probe kind scoped to each explicit instance config', () => {
+    const colorElement = makeElement();
+    const textElement1 = makeElement();
+    const textElement2 = makeElement();
+    const colorConfig = makeProbeConfig('instance-color', 'color');
+    const textConfig = makeProbeConfig('instance-text', 'text');
+    const address = { tabId: 'probe', tierId: 'raw', itemId: 'token' };
+
+    // Make the global config disagree with the first instance. A global-only
+    // kind index would incorrectly send the color instance through equality.
+    __resetPanelConfigForTests();
+    configurePanel(textConfig);
+    mockFindElements.mockClear();
+    mockFindElements.mockImplementation((_cssVar: string, options?: { mode?: string }) => (
+      options?.mode === 'differential'
+        ? { elements: [colorElement], warnings: [] }
+        : { elements: [textElement1, textElement2], warnings: [] }
+    ));
+
+    try {
+      const firstRoot = document.createElement('div');
+      const secondRoot = document.createElement('div');
+      container.append(firstRoot, secondRoot);
+      let firstCtx: HighlightContextValue | null = null;
+      let secondCtx: HighlightContextValue | null = null;
+      act(() => {
+        render(
+          h(HighlightOrchestrator, { instanceConfig: colorConfig },
+            h(ContextCapture, { onCtx: (value) => { firstCtx = value; } }),
+          ),
+          firstRoot,
+        );
+        render(
+          h(HighlightOrchestrator, { instanceConfig: textConfig },
+            h(ContextCapture, { onCtx: (value) => { secondCtx = value; } }),
+          ),
+          secondRoot,
+        );
+      });
+
+      expect(mockFindElements).not.toHaveBeenCalled();
+      act(() => {
+        expect(firstCtx!.requestMatchCount!(address)).toBe(1);
+      });
+      act(() => {
+        expect(secondCtx!.requestMatchCount!(address)).toBe(2);
+      });
+
+      expect(firstCtx!.matchCounts?.[tokenAddressKey(address)]).toBe(1);
+      expect(secondCtx!.matchCounts?.[tokenAddressKey(address)]).toBe(2);
+      expect(mockFindElements).toHaveBeenCalledTimes(2);
+      expect(mockFindElements.mock.calls[0]?.[1]).toMatchObject({ mode: 'differential', kind: 'color' });
+      expect(mockFindElements.mock.calls[1]?.[1]).toEqual({});
+    } finally {
+      colorElement.remove();
+      textElement1.remove();
+      textElement2.remove();
+      __resetPanelConfigForTests();
+    }
   });
 });
 

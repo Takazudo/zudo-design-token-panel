@@ -15,6 +15,7 @@ import { TokenControllerProvider } from './token-controller';
 import TierSection, { type SharedRowRenderer } from './tier-section';
 import type { FlatTabEntry, RowContribution, TokenAddress } from './types';
 import { tokenAddressKey } from './types';
+import { TOKEN_CHAIN_CONTRIBUTION } from '../../chain';
 
 export interface FlatTabProps {
   tab: TabConfig;
@@ -178,6 +179,10 @@ export default function FlatTab({
     () => bulkContribution ? [bulkContribution, ...allContributions] : allContributions,
     [allContributions, bulkContribution],
   );
+  const rowContributions = useMemo(
+    () => [...renderedContributions, TOKEN_CHAIN_CONTRIBUTION],
+    [renderedContributions],
+  );
   const hasVisibleEntries = useMemo(
     () => [...visibleEntriesByTier.values()].some((entries) => entries.length > 0),
     [visibleEntriesByTier],
@@ -203,7 +208,7 @@ export default function FlatTab({
               tier={tier}
               entries={tierEntries}
               overrides={overrides}
-              contributions={renderedContributions}
+              contributions={rowContributions}
               testId={sectionTestId?.(tier)}
               setValue={setValue}
               deleteValue={deleteValue}

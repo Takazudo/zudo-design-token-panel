@@ -15,6 +15,7 @@ import { createContext } from 'preact';
 import { useContext, useCallback } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { HighlightState, HighlightSlotSpec } from './highlight-state';
+import type { TokenAddress } from '../utils/token-index';
 
 // ---------------------------------------------------------------------------
 // Context
@@ -25,6 +26,8 @@ export interface HighlightContextValue {
   toggle: (cssVar: string) => void;
   /** Optional — when the orchestrator computes match counts it injects them here for title attributes. */
   matchCounts?: Record<string, number>;
+  /** Lazily probe and cache the number of page elements using one token address. */
+  requestMatchCount?: (address: TokenAddress) => number | undefined;
   /** Optional — orchestrator may expose setSlot for slot colour editing. */
   setSlot?: (index: number, partial: Partial<HighlightSlotSpec>) => void;
   /** Optional — orchestrator may expose setOutlineWidth for global outline width editing. */
