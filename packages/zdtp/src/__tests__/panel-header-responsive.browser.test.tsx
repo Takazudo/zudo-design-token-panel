@@ -307,7 +307,10 @@ describe('tabs strip overflow (.has-overflow fade hint)', () => {
   });
 
   it('does not add has-overflow when the strip fits (few tabs, wide panel)', async () => {
-    await mountPanelAtWidth(700);
+    // Wave 3 adds the Inspect tab plus Changed-only controls to this real-shell
+    // fixture. At 700px those controls correctly leave the tab strip scrollable;
+    // 800px is the first comfortably-wide state where the four short tabs fit.
+    await mountPanelAtWidth(800);
 
     const strip = container.querySelector<HTMLElement>('.tokenpanel-tabbar-tabs');
     if (!strip) throw new Error('.tokenpanel-tabbar-tabs not found');

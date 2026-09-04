@@ -67,7 +67,7 @@ const HOSTILE_CSS = `
     margin: 2rem 0 !important;
     color: red !important;
   }
-  p, ul, li, table {
+  p, ul, li, table, button {
     margin: 3rem !important;
     padding: 2rem !important;
     color: red !important;
@@ -344,6 +344,68 @@ describe('F33 — panel chrome survives full hostile CSS environment', () => {
       expect(getComputedStyle(pill).backgroundColor).toBe('rgb(28, 28, 28)');
       expect(getComputedStyle(expand).paddingTop).toBe('4px');
       expect(getComputedStyle(svg).fill).toBe('none');
+    });
+  });
+
+  describe('Wave-3 surfaces — isolated as one integrated panel', () => {
+    it('protects search, command palette, footer, badges, rail, bulk bar, specimen, chain, and inspect chrome', async () => {
+      await setupHostile();
+
+      const shell = createElement('tokenpanel-shell');
+      const search = createElement('tokenpanel-search-control', 'div', shell);
+      const searchInput = createElement('tokenpanel-search-input', 'input', search);
+      const palette = createElement('tokenpanel-command-palette', 'div', shell);
+      const paletteItem = createElement('tokenpanel-command-palette-item is-selected', 'div', palette);
+      const badge = createElement('tokenpanel-changed-tab-badge', 'span', shell);
+      const rail = createElement('tokenpanel-history-rail', 'div', shell);
+      const bulkBar = createElement('tokenpanel-bulk-action-bar', 'div', shell);
+      const footer = createElement('tokenpanel-footer', 'div', shell);
+      const specimenToolbar = createElement('tokenpanel-specimen-toolbar', 'div', shell);
+      const inspectView = createElement('tokenpanel-element-inspect-view', 'div', shell);
+
+      const chain = createElement('tokenpanel-chain-popover');
+      const chainChip = createElement('tokenpanel-chain-chip', 'div', chain);
+      const onPageSpecimen = createElement('tokenpanel-on-page-specimen');
+      const inspectBox = createElement('tokenpanel-element-inspect-box');
+      const inspectLabel = createElement('tokenpanel-element-inspect-label');
+
+      const protectedDescendants = [
+        search,
+        searchInput,
+        palette,
+        paletteItem,
+        badge,
+        rail,
+        bulkBar,
+        footer,
+        specimenToolbar,
+        inspectView,
+        chain,
+        chainChip,
+        onPageSpecimen,
+        inspectBox,
+        inspectLabel,
+      ];
+      for (const element of protectedDescendants) {
+        expect(getComputedStyle(element).boxSizing, element.className).toBe('border-box');
+        expect(getComputedStyle(element).color, element.className).not.toBe('rgb(255, 0, 0)');
+      }
+
+      expect(getComputedStyle(search).display).toBe('flex');
+      expect(getComputedStyle(searchInput).fontSize).toBe('12px');
+      expect(getComputedStyle(palette).position).toBe('absolute');
+      expect(getComputedStyle(paletteItem).display).toBe('flex');
+      expect(getComputedStyle(badge).borderRadius).not.toBe('0px');
+      expect(getComputedStyle(rail).overflowY).toBe('hidden');
+      expect(getComputedStyle(bulkBar).position).toBe('sticky');
+      expect(getComputedStyle(footer).display).toBe('flex');
+      expect(getComputedStyle(specimenToolbar).display).toBe('flex');
+      expect(getComputedStyle(chain).overflowY).toBe('auto');
+      expect(getComputedStyle(chain).fontSize).toBe('11px');
+      expect(getComputedStyle(onPageSpecimen).display).toBe('block');
+      expect(getComputedStyle(inspectBox).pointerEvents).toBe('none');
+      expect(getComputedStyle(inspectLabel).fontSize).toBe('11px');
+      expect(getComputedStyle(inspectView).display).toBe('flex');
     });
   });
 

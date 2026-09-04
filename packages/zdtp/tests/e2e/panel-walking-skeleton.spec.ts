@@ -106,9 +106,9 @@ test('spacing tweak survives export, reload, import, and real-bin apply', async 
     await page.getByText('Apply', { exact: true }).first().click();
     const applyDialog = page.locator('[data-design-token-panel-modal-variant="apply"]');
     await expect(applyDialog).toBeVisible();
-    // The modal intentionally presents the routed file's basename (the same
-    // label users see in the preview heading), not the repo-relative route.
-    await applyDialog.getByRole('button', { name: 'Apply to global.css', exact: true }).click();
+    // Exercise the modal's primary write action. The routed basename is shown
+    // in the preview, while the action label summarizes selected files/tokens.
+    await applyDialog.getByRole('button', { name: /^Write 1 file \(1 token/ }).click();
     await expect(applyDialog.getByRole('status')).toContainText('Applied successfully.');
 
     await expect.poll(async () => readFile(stylesheetPath, 'utf8')).toContain(
