@@ -11,6 +11,9 @@ export interface ArmingOwner {
   onArmingRevoked: () => void;
 }
 
+/** Stable coordinator id reserved for the element-inspect picker. */
+export const ELEMENT_INSPECT_PICKER_FEATURE_ID = 'element-inspect';
+
 let currentOwner: string | null = null;
 const owners = new Map<string, ArmingOwner>();
 

@@ -1,3 +1,5 @@
+import { walkCssRules } from './walk-css-rules';
+
 /**
  * findElementsUsingToken — uses a sentinel-substitution probe to find every
  * DOM element whose computed style reflects a given CSS custom property.
@@ -68,6 +70,8 @@ export interface FindElementsOptions {
    */
   mode?: 'equality' | 'differential';
 }
+
+export type ProbeTokenKind = NonNullable<FindElementsOptions['kind']> | 'select';
 
 // ---------------------------------------------------------------------------
 // Token-type registry  (lifted verbatim from probe.js; font shorthand dropped
@@ -305,15 +309,19 @@ const PSEUDOS: Array<string | null> = [null, '::before', '::after'];
 export const HIGHLIGHT_PORTAL_MOUNT_ID = 'tokenpanel-highlight-mount';
 export const ELPATH_PORTAL_MOUNT_ID = 'tokenpanel-elpath-mount';
 export const DOM_TWEAKER_PORTAL_MOUNT_ID = 'tokenpanel-domtweaker-mount';
+export const ELEMENT_INSPECT_PORTAL_MOUNT_ID = 'tokenpanel-element-inspect-mount';
+/** Attribute on the host-document font specimen portal mount. */
+export const ON_PAGE_SPECIMEN_SELECTOR = '[data-zdtp-specimen]';
 
 /**
  * Selector matching every panel-owned surface that must NEVER be treated as a
- * host element (the shell, modals, and the highlight/element-path/dom-tweaker
- * portal mounts). Exported so picker features can skip the same surfaces when
+ * host element (the shell, modals, and the highlight/chain/element-path/
+ * dom-tweaker portal mounts, including element inspect and the on-page
+ * specimen). Exported so picker features can skip the same surfaces when
  * resolving the element under the cursor.
  */
 export const PANEL_EXCLUSION_SELECTOR =
-  `.tokenpanel-shell, [data-design-token-panel-modal], #${HIGHLIGHT_PORTAL_MOUNT_ID}, #${ELPATH_PORTAL_MOUNT_ID}, #${DOM_TWEAKER_PORTAL_MOUNT_ID}`;
+  `.tokenpanel-shell, [data-design-token-panel-modal], .tokenpanel-chain-popover, #${HIGHLIGHT_PORTAL_MOUNT_ID}, #${ELPATH_PORTAL_MOUNT_ID}, #${DOM_TWEAKER_PORTAL_MOUNT_ID}, #${ELEMENT_INSPECT_PORTAL_MOUNT_ID}, ${ON_PAGE_SPECIMEN_SELECTOR}`;
 
 // ---------------------------------------------------------------------------
 // Type detection
@@ -444,37 +452,6 @@ function detectKind(
 // Definer discovery (v2)
 // ---------------------------------------------------------------------------
 
-function walkCssRules(
-  rules: CSSRuleList | Iterable<CSSRule>,
-  cssVar: string,
-  out: Set<string>,
-): void {
-  for (const rule of rules) {
-    if (rule instanceof CSSStyleRule) {
-      // Check this rule's own declaration block for cssVar.
-      const s = rule.style;
-      for (let i = 0; i < s.length; i++) {
-        if (s[i] === cssVar) {
-          out.add(rule.selectorText);
-          break;
-        }
-      }
-      // Also recurse into nested rules (CSS nesting, Chrome 125+).
-      // CSSStyleRule.cssRules is always present in modern Chrome but may be empty.
-      if ((rule as unknown as { cssRules?: CSSRuleList }).cssRules?.length) {
-        walkCssRules(
-          (rule as unknown as { cssRules: CSSRuleList }).cssRules,
-          cssVar,
-          out,
-        );
-      }
-    } else if ('cssRules' in rule && rule.cssRules) {
-      // Recurse into grouping rules: @media, @supports, @layer, @container.
-      walkCssRules(rule.cssRules as CSSRuleList, cssVar, out);
-    }
-  }
-}
-
 function collectDefinerSelectors(cssVar: string, warnings: string[]): Set<string> {
   const out = new Set<string>();
   for (const sheet of document.styleSheets) {
@@ -486,7 +463,15 @@ function collectDefinerSelectors(cssVar: string, warnings: string[]): Set<string
       warnings.push(`Cross-origin stylesheet skipped: ${href}`);
       continue;
     }
-    walkCssRules(rules, cssVar, out);
+    walkCssRules(rules, (rule) => {
+      const s = rule.style;
+      for (let i = 0; i < s.length; i++) {
+        if (s[i] === cssVar) {
+          out.add(rule.selectorText);
+          break;
+        }
+      }
+    });
   }
   return out;
 }
@@ -616,6 +601,66 @@ function findFirstChange(
   return null;
 }
 
+function normalizeCssVar(cssVar: string): string {
+  let normalized = cssVar.trim();
+  if (normalized.startsWith('var(')) {
+    normalized = normalized.replace(/^var\(\s*/, '').replace(/\s*\)$/, '').trim();
+  }
+  return normalized;
+}
+
+/**
+ * Differentially probe one element and report the computed properties that
+ * actually respond to a token. Unlike the whole-document finder, this keeps
+ * property identity so callers can reject losing declarations independently.
+ */
+export function probeElementForToken(
+  el: Element,
+  cssVar: string,
+  kind: ProbeTokenKind,
+): string[] {
+  const normalized = normalizeCssVar(cssVar);
+  const warnings: string[] = [];
+  const normalizedKind = kind === 'select' ? detectKind(normalized, warnings) : kind;
+  const conf = TOKEN_TYPES[normalizedKind] ?? TOKEN_TYPES.color;
+  const propsToCheck = [...new Set([...conf.longhands, ...conf.compounds])];
+  const definerSelectors = collectDefinerSelectors(normalized, warnings);
+  const inlineDefinerElements = collectInlineDefinerElements(normalized);
+
+  let overA: OverrideEntry[] = [];
+  let snapA: Record<string, string> | null = null;
+  try {
+    overA = applyOverride(
+      normalized,
+      conf.sentinelA,
+      definerSelectors,
+      inlineDefinerElements,
+      warnings,
+    );
+    void document.documentElement.offsetHeight;
+    snapA = snapshotComputed(el, null, propsToCheck);
+  } finally {
+    restoreOverride(normalized, overA);
+  }
+
+  let overB: OverrideEntry[] = [];
+  try {
+    overB = applyOverride(
+      normalized,
+      conf.sentinelB,
+      definerSelectors,
+      inlineDefinerElements,
+      warnings,
+    );
+    void document.documentElement.offsetHeight;
+    const snapB = snapshotComputed(el, null, propsToCheck);
+    if (!snapA || !snapB) return [];
+    return propsToCheck.filter((property) => snapA[property] !== snapB[property]);
+  } finally {
+    restoreOverride(normalized, overB);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -668,10 +713,7 @@ export function findElementsUsingToken(
   options?: FindElementsOptions,
 ): FindElementsResult {
   // Defensive normalization: strip whitespace and var() wrapper if present.
-  let normalized = cssVar.trim();
-  if (normalized.startsWith('var(')) {
-    normalized = normalized.replace(/^var\(\s*/, '').replace(/\s*\)$/, '').trim();
-  }
+  const normalized = normalizeCssVar(cssVar);
 
   const warnings: string[] = [];
   const mode = options?.mode ?? 'equality';

@@ -14,11 +14,12 @@
  *   - groupPaletteTiers(tab): returns tiers in declaration order (alias for tab.tiers)
  */
 
-import { useState, useCallback } from 'preact/compat';
+import { useState, useCallback, useEffect } from 'preact/compat';
 import type { TabConfig, TierConfig, TierItem } from '../../tokens/tier-model';
 import type { TabOverrides } from '../../apply/tier-resolver';
 import PaletteEditView from './palette-edit-view';
 import PaletteCheckView from './palette-check-view';
+import type { TokenAddress } from '../flat/types';
 
 // ---------------------------------------------------------------------------
 // Shared helpers (exported for #394 / #395 view implementations)
@@ -63,14 +64,38 @@ export interface PaletteTabProps {
    * Optional — Check mode and older callers don't supply it.
    */
   onCommitBatch?: (tierId: string, patch: Record<string, string>) => void;
+  /** Header-filter query shared with the active tab. */
+  searchQuery?: string;
+  /** Transient active-tab Changed-only filter. */
+  changedOnly?: boolean;
+  /** S2 evaluator callback for palette-step addresses. */
+  isChanged?: (address: TokenAddress) => boolean;
+  /** Address selected by the command palette. */
+  jumpAddress?: TokenAddress | null;
+  /** Called after the Edit view has opened and selected the requested step. */
+  onJumpAddressHandled?: (address: TokenAddress) => void;
 }
 
 // ---------------------------------------------------------------------------
 // PaletteTab
 // ---------------------------------------------------------------------------
 
-export default function PaletteTab({ tab, overrides, onChange, onCommitBatch }: PaletteTabProps) {
+export default function PaletteTab({
+  tab,
+  overrides,
+  onChange,
+  onCommitBatch,
+  searchQuery = '',
+  changedOnly = false,
+  isChanged,
+  jumpAddress = null,
+  onJumpAddressHandled,
+}: PaletteTabProps) {
   const [mode, setMode] = useState<PaletteMode>('edit');
+
+  useEffect(() => {
+    if (jumpAddress) setMode('edit');
+  }, [jumpAddress]);
 
   const handleSetEdit = useCallback(() => {
     setMode('edit');
@@ -135,10 +160,22 @@ export default function PaletteTab({ tab, overrides, onChange, onCommitBatch }: 
           overrides={overrides}
           onChange={onChange}
           onCommitBatch={onCommitBatch}
+          searchQuery={searchQuery}
+          changedOnly={changedOnly}
+          isChanged={isChanged}
+          jumpAddress={jumpAddress}
+          onJumpAddressHandled={onJumpAddressHandled}
         />
       )}
       {mode === 'check' && (
-        <PaletteCheckView tab={tab} overrides={overrides} onChange={onChange} />
+        <PaletteCheckView
+          tab={tab}
+          overrides={overrides}
+          onChange={onChange}
+          searchQuery={searchQuery}
+          changedOnly={changedOnly}
+          isChanged={isChanged}
+        />
       )}
     </div>
   );

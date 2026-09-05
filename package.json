@@ -4,7 +4,9 @@
   "packageManager": "pnpm@11.3.0",
   "scripts": {
     "dev": "pnpm --filter doc dev",
-    "build": "pnpm -r --if-present build",
+    "play": "pnpm --filter playground dev",
+    "play:build": "pnpm --filter playground build",
+    "build": "pnpm -r --filter '!playground' --if-present build",
     "test": "pnpm -r --if-present test",
     "typecheck": "pnpm -r --if-present typecheck",
     "lint": "pnpm -r --if-present lint",

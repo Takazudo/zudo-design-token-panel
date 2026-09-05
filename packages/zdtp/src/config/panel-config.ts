@@ -77,6 +77,11 @@ export interface DomTweakerConfig {
   themeCss?: string;
 }
 
+export interface PanelDockConfig {
+  /** Whether docked panels reserve space in the host document. Defaults to body-margin. */
+  reflow?: 'body-margin' | 'none';
+}
+
 /**
  * Apply sink interface — allows routing CSS-var writes somewhere other than
  * the host `:root` (e.g. a shadow root, an iframe document, or a spy in
@@ -156,6 +161,8 @@ export interface PanelConfig {
    * panel config.
    */
   domTweaker?: DomTweakerConfig;
+  /** Docked-panel integration. Omitted values use body-margin host reflow. */
+  dock?: PanelDockConfig;
   /**
    * Host-supplied tab configuration for the data-driven tab strip.
    *
@@ -867,9 +874,44 @@ export function storageKey_size(cfg: PanelConfig): string {
   return `${cfg.storagePrefix}-size`;
 }
 
+/** Persisted shell dock mode. */
+export function storageKey_dock(cfg: PanelConfig): string {
+  return `${cfg.storagePrefix}-dock`;
+}
+
+/** Per-axis docked dimensions (`right` width and `bottom` height). */
+export function storageKey_dockSize(cfg: PanelConfig): string {
+  return `${cfg.storagePrefix}-dock-size`;
+}
+
 /** Tab-grid density preference (one of `0` / `1` / `2`). Lives alongside size/position. */
 export function storageKey_density(cfg: PanelConfig): string {
   return `${cfg.storagePrefix}-density`;
+}
+
+/** Font specimen toolbar state (`{ text, preset, overridden, width }`). */
+export function storageKey_specimen(cfg: PanelConfig): string {
+  return `${cfg.storagePrefix}-specimen`;
+}
+
+/** Persisted A/B snapshot slot. `slot` is lower-case for storage continuity. */
+export function storageKey_snapshot(cfg: PanelConfig, slot: 'a' | 'b'): string {
+  return `${cfg.storagePrefix}-snapshot-${slot}`;
+}
+
+/** Persisted snapshot A slot. */
+export function storageKey_snapshotA(cfg: PanelConfig): string {
+  return storageKey_snapshot(cfg, 'a');
+}
+
+/** Persisted snapshot B slot. */
+export function storageKey_snapshotB(cfg: PanelConfig): string {
+  return storageKey_snapshot(cfg, 'b');
+}
+
+/** Last flattened override set known to match the apply baseline. */
+export function storageKey_lastApplied(cfg: PanelConfig): string {
+  return `${cfg.storagePrefix}-last-applied`;
 }
 
 /**
@@ -1174,6 +1216,22 @@ export function assertValidPanelConfig(value: unknown): asserts value is PanelCo
       }
     }
   }
+  if (cfg.dock !== undefined) {
+    if (cfg.dock === null || typeof cfg.dock !== 'object' || Array.isArray(cfg.dock)) {
+      throw new Error('[design-token-panel] PanelConfig.dock must be a plain object');
+    }
+    const dock = cfg.dock as Record<string, unknown>;
+    for (const key of Object.keys(dock)) {
+      if (key !== 'reflow') {
+        throw new Error(`[design-token-panel] PanelConfig.dock.${key} is not a supported field`);
+      }
+    }
+    if (dock.reflow !== undefined && dock.reflow !== 'body-margin' && dock.reflow !== 'none') {
+      throw new Error(
+        '[design-token-panel] PanelConfig.dock.reflow must be "body-margin" or "none" when set',
+      );
+    }
+  }
   if (cfg.autoRememberOnOpen !== undefined && typeof cfg.autoRememberOnOpen !== 'boolean') {
     throw new Error(
       `[design-token-panel] PanelConfig.autoRememberOnOpen must be a boolean when set (got ${typeof cfg.autoRememberOnOpen})`,
@@ -1316,6 +1374,28 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>, allTabs: un
       throw new Error(
         `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${ti.id}"].semantic must be` +
           ` exactly \`true\` when present (got ${JSON.stringify(ti.semantic)})`,
+      );
+    }
+
+    const previews = new Set([
+      'size', 'line-height', 'family', 'weight', 'bar', 'radius', 'duration',
+    ]);
+    if (ti.preview !== undefined && !previews.has(ti.preview as string)) {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${ti.id}"].preview has unsupported value ${JSON.stringify(ti.preview)}`,
+      );
+    }
+    if (
+      ti.previewBase !== undefined &&
+      (typeof ti.previewBase !== 'string' || !ti.previewBase.startsWith('--') || ti.previewBase.length <= 2)
+    ) {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${ti.id}"].previewBase must be a CSS custom property name`,
+      );
+    }
+    if (ti.previewBase !== undefined && ti.preview !== 'line-height') {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${ti.id}"].previewBase is only valid with preview "line-height"`,
       );
     }
 
@@ -1475,6 +1555,48 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>, allTabs: un
         throw new Error(
           `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].referencesTier: referencing tier has kind "${referencingKind}" but referenced tier "${refId}" has kind "${referencedKind}" (cross-kind reference is only allowed when the referencing tier has kind "text")`,
         );
+      }
+    }
+  }
+
+  // Preview compatibility is checked after all representative tier kinds are
+  // known so a `size` reference tier can validate its resolved target kind.
+  for (const tier of tab.tiers) {
+    const ti = tier as Record<string, unknown>;
+    const tierId = ti.id as string;
+    const preview = ti.preview;
+    if (preview === undefined) continue;
+    const kind = tierKinds.get(tierId);
+    const refKind = typeof ti.referencesTier === 'string'
+      ? tierKinds.get(ti.referencesTier)
+      : undefined;
+    const fail = (expected: string) => {
+      throw new Error(
+        `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].preview "${preview}" requires ${expected}`,
+      );
+    };
+    if (preview === 'size' && (ti.referencesTier === undefined ? kind !== 'length' : refKind !== 'length')) {
+      fail('a length tier or a reference tier resolving to length');
+    }
+    if (preview === 'line-height' && kind !== 'number') fail('a number tier');
+    if (preview === 'family' && kind !== 'text') fail('a text tier');
+    if (preview === 'weight' && kind !== 'select' && kind !== 'number') {
+      fail('a select or number tier');
+    }
+    if ((preview === 'bar' || preview === 'radius') && kind !== 'length') {
+      fail('a length tier');
+    }
+    if (preview === 'duration') {
+      if (kind !== 'length' && kind !== 'number') fail('a length or number tier with unit "ms" or "s"');
+      for (const rawItem of ti.items as unknown[]) {
+        if (rawItem === null || typeof rawItem !== 'object' || Array.isArray(rawItem)) {
+          continue;
+        }
+        const type = (rawItem as Record<string, unknown>).type;
+        const unit = type !== null && typeof type === 'object' && !Array.isArray(type)
+          ? (type as Record<string, unknown>).unit
+          : undefined;
+        if (unit !== 'ms' && unit !== 's') fail('a length or number tier with unit "ms" or "s"');
       }
     }
   }

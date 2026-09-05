@@ -1,0 +1,373 @@
+/* Element → tokens inspect view and its body-level pinned marker. */
+
+.tokenpanel-element-inspect-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--tokentweak-color-muted);
+  cursor: pointer;
+  transition: color 150ms ease, background-color 150ms ease;
+}
+
+.tokenpanel-element-inspect-toggle:hover,
+.tokenpanel-element-inspect-toggle:focus-visible {
+  color: var(--tokentweak-color-fg);
+}
+
+.tokenpanel-element-inspect-toggle.is-active {
+  color: var(--tokentweak-color-accent);
+  background: rgb(from var(--tokentweak-color-accent) r g b / 0.12);
+  border-radius: 3px;
+}
+
+.tokenpanel-element-inspect-toggle:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+}
+
+.tokenpanel-element-inspect-toggle::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+}
+
+/* While armed, keep the gesture visibly distinct from host links, buttons,
+   and text selection. AltClickPicker toggles this class on <html>. */
+html.tokenpanel-element-inspect-inspecting,
+html.tokenpanel-element-inspect-inspecting * {
+  cursor: crosshair !important;
+  user-select: none !important;
+}
+
+/* The AltClickPicker and pinned marker share these classes. */
+.tokenpanel-element-inspect-box {
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  display: block !important;
+  background: rgb(from var(--tokentweak-color-accent-hover) r g b / 0.25);
+  outline: 1px solid rgb(from var(--tokentweak-color-accent-hover) r g b / 0.9);
+  outline-offset: -1px;
+  box-shadow: inset 0 0 0 1px rgb(from var(--tokentweak-color-accent-hover) r g b / 0.9);
+  pointer-events: none;
+}
+
+.tokenpanel-element-inspect-box.is-pinned {
+  background: transparent;
+  outline-style: dashed;
+  outline-color: var(--tokentweak-color-accent);
+  box-shadow: inset 0 0 0 1px var(--tokentweak-color-accent);
+}
+
+.tokenpanel-element-inspect-label {
+  box-sizing: border-box !important;
+  display: inline-flex !important;
+  align-items: baseline;
+  gap: var(--tokentweak-pad-sm, 8px);
+  max-width: 90vw;
+  margin: 0 !important;
+  padding: 2px 6px !important;
+  border-radius: 3px;
+  background: var(--tokentweak-color-surface);
+  color: var(--tokentweak-color-fg);
+  font-family: var(--tokentweak-font-mono, monospace);
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgb(from var(--tokentweak-color-bg) r g b / 0.4);
+  pointer-events: none;
+}
+
+.tokenpanel-element-inspect-label.is-pinned {
+  background: var(--tokentweak-color-accent);
+  color: var(--tokentweak-color-bg);
+}
+
+.tokenpanel-element-inspect-label-name {
+  overflow: hidden;
+  color: var(--tokentweak-color-accent);
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+.tokenpanel-element-inspect-label.is-pinned .tokenpanel-element-inspect-label-name {
+  color: var(--tokentweak-color-bg);
+}
+
+.tokenpanel-element-inspect-label-size {
+  flex-shrink: 0;
+  color: var(--tokentweak-color-muted);
+}
+
+.tokenpanel-element-inspect-label.is-pinned .tokenpanel-element-inspect-label-size {
+  color: var(--tokentweak-color-bg);
+}
+
+.tokenpanel-element-inspect-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tokentweak-gap-md);
+  color: var(--tokentweak-color-fg);
+}
+
+.tokenpanel-element-inspect-breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 24px;
+  margin-block: calc(var(--tokentweak-pad-sm) * -1);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 12px;
+}
+
+.tokenpanel-element-inspect-pinned-label {
+  color: var(--tokentweak-color-muted);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tokenpanel-element-inspect-crumb,
+.tokenpanel-element-inspect-clear,
+.tokenpanel-element-inspect-jump {
+  position: relative;
+  min-height: 22px;
+  padding: 2px 8px;
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: 3px;
+  background: none;
+  color: var(--tokentweak-color-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.tokenpanel-element-inspect-crumb:hover,
+.tokenpanel-element-inspect-crumb:focus-visible,
+.tokenpanel-element-inspect-clear:hover,
+.tokenpanel-element-inspect-clear:focus-visible,
+.tokenpanel-element-inspect-jump:hover,
+.tokenpanel-element-inspect-jump:focus-visible {
+  border-color: var(--tokentweak-color-accent);
+  color: var(--tokentweak-color-accent-hover);
+}
+
+.tokenpanel-element-inspect-crumb.is-pinned {
+  border-color: var(--tokentweak-color-accent);
+  background: var(--tokentweak-color-code-bg);
+  color: var(--tokentweak-color-fg);
+}
+
+.tokenpanel-element-inspect-clear {
+  margin-left: auto;
+  border-color: transparent;
+  color: var(--tokentweak-color-accent);
+}
+
+.tokenpanel-element-inspect-section {
+  position: relative;
+  flex-shrink: 0;
+  padding: var(--tokentweak-gap-sm) var(--tokentweak-pad-md) var(--tokentweak-pad-md);
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: var(--radius-tokentweak);
+}
+
+.tokenpanel-element-inspect-section-heading {
+  position: absolute;
+  top: -10px;
+  left: 12px;
+  padding-inline: var(--tokentweak-pad-sm);
+  background: var(--tokentweak-color-surface);
+  color: var(--tokentweak-color-fg);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.tokenpanel-element-inspect-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tokentweak-pad-md);
+}
+
+.tokenpanel-element-inspect-row {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) minmax(160px, 1.2fr) minmax(130px, 1fr);
+  align-items: center;
+  gap: var(--tokentweak-pad-md);
+  min-width: 0;
+}
+
+.tokenpanel-element-inspect-row.is-unconfirmed {
+  opacity: 0.45;
+}
+
+.tokenpanel-element-inspect-token-label,
+.tokenpanel-element-inspect-property {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-family: var(--tokentweak-font-mono);
+  line-height: 1.3;
+}
+
+.tokenpanel-element-inspect-token-var {
+  overflow: hidden;
+  color: var(--tokentweak-color-fg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tokenpanel-element-inspect-token-id,
+.tokenpanel-element-inspect-expression {
+  overflow: hidden;
+  color: var(--tokentweak-color-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tokenpanel-element-inspect-property-name {
+  color: var(--tokentweak-color-accent-hover);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 12px;
+}
+
+.tokenpanel-element-inspect-not-confirmed {
+  color: var(--tokentweak-color-warning);
+  font-size: 10px;
+}
+
+.tokenpanel-element-inspect-edit-value,
+.tokenpanel-element-inspect-color-value {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 0;
+}
+
+.tokenpanel-element-inspect-number-input,
+.tokenpanel-element-inspect-text-input,
+.tokenpanel-element-inspect-select {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  padding: 2px 6px;
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: var(--radius-tokentweak);
+  background: var(--tokentweak-color-surface);
+  color: var(--tokentweak-color-fg);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 12px;
+}
+
+.tokenpanel-element-inspect-number-input {
+  max-width: 80px;
+  text-align: right;
+}
+
+.tokenpanel-element-inspect-unit {
+  flex-shrink: 0;
+  width: 28px;
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 12px;
+}
+
+.tokenpanel-element-inspect-number-input:disabled,
+.tokenpanel-element-inspect-text-input:disabled,
+.tokenpanel-element-inspect-select:disabled {
+  opacity: 0.6;
+}
+
+.tokenpanel-element-inspect-number-input:focus-visible,
+.tokenpanel-element-inspect-text-input:focus-visible,
+.tokenpanel-element-inspect-select:focus-visible,
+.tokenpanel-element-inspect-crumb:focus-visible,
+.tokenpanel-element-inspect-clear:focus-visible,
+.tokenpanel-element-inspect-jump:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+}
+
+.tokenpanel-element-inspect-swatch {
+  width: 28px;
+  height: 22px;
+  flex-shrink: 0;
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: 3px;
+}
+
+.tokenpanel-element-inspect-resolved-value {
+  overflow: hidden;
+  color: var(--tokentweak-color-fg);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tokenpanel-element-inspect-jump {
+  flex-shrink: 0;
+  border-color: transparent;
+  color: var(--tokentweak-color-accent);
+  font-size: 10px;
+}
+
+.tokenpanel-element-inspect-empty,
+.tokenpanel-element-inspect-warning {
+  color: var(--tokentweak-color-muted);
+  font-size: 11px;
+}
+
+.tokenpanel-element-inspect-empty--start {
+  padding: var(--tokentweak-gap-lg) var(--tokentweak-pad-md);
+  text-align: center;
+}
+
+.tokenpanel-element-inspect-kbd {
+  padding-inline: 4px;
+  border: 1px solid var(--tokentweak-color-muted);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  background: var(--tokentweak-color-code-bg);
+  color: var(--tokentweak-color-fg);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 10px;
+}
+
+.tokenpanel-element-inspect-warning {
+  padding: var(--tokentweak-pad-sm) var(--tokentweak-pad-md);
+  border-left: 2px solid var(--tokentweak-color-warning);
+}
+
+.tokenpanel-element-inspect-value-empty {
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 11px;
+}
+
+/* The panel shell owns the `tokenpanel` container, so this responds to the
+   panel's width even when the host viewport is wide (for example a narrow
+   right-docked panel). */
+@container tokenpanel (max-width: 620px) {
+  .tokenpanel-element-inspect-row {
+    grid-template-columns: minmax(110px, 1fr) minmax(120px, 1fr);
+  }
+
+  .tokenpanel-element-inspect-row > :last-child {
+    grid-column: 2;
+  }
+}

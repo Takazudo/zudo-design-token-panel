@@ -473,7 +473,7 @@ describe('GenericTab — data-testid wrapper', () => {
 // The same "2 → 22 snaps to 6" bug existed in _generic-item-editor's
 // length/number branch. These tests confirm the fix is in place.
 //
-// Event simulation follows the same pattern as slider-row.test.tsx:
+// Event simulation uses native input/focusout events through Preact compat:
 //  - Object.defineProperty + `new Event('input', { bubbles: true })` for onChange
 //  - `new FocusEvent('focusout', { bubbles: true })` for onBlur
 //    (Preact-compat maps `onBlur` → `onfocusout`)

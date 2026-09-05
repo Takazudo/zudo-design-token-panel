@@ -1,16 +1,62 @@
 import { useState, useEffect, useCallback, useRef, useId, useMemo } from 'preact/compat';
+import type { RefObject } from 'preact';
 import { ExportModal } from './export-modal';
 import { ImportModal } from './import-modal';
-import { ApplyModal } from './apply-modal';
+import { ApplyModal, flattenApplyOverrides } from './apply-modal';
+import { loadLastApplied, saveLastApplied, unsavedCssVars } from './apply/last-applied';
+import { reconcileApplied } from './apply/reconcile-applied';
 import { RoleButton } from './controls/role-button';
-import { ActionsMenuPopover, type ActionsMenuAction } from './controls/actions-menu-popover';
 import { HighlightSettingsPopover } from './highlight/highlight-settings-popover';
 import { HighlightOrchestrator } from './highlight/highlight-orchestrator';
+import { TokenChainProvider } from './chain';
 import { ElementPathOrchestrator } from './element-path/element-path-orchestrator';
 import { ElementPathToggleButton } from './element-path/element-path-toggle-button';
+import {
+  ElementInspectOrchestrator,
+  ElementInspectToggleButton,
+  ElementInspectView,
+  ELEMENT_INSPECT_TAB_ID,
+} from './element-inspect';
 import { DomTweakerOrchestrator } from './dom-tweaker/dom-tweaker-orchestrator';
 import { DomTweakerToggleButton } from './dom-tweaker/dom-tweaker-toggle-button';
 import { DomTweakerDiffActionLink } from './dom-tweaker/dom-tweaker-diff-action-link';
+import { ShellHeader } from './shell/header';
+import { ShellTabBar } from './shell/tab-bar';
+import { ShellFooter } from './shell/footer';
+import { DockModeSwitch } from './shell/dock-mode-switch';
+import { MiniPill } from './shell/mini-pill';
+import {
+  loadGhostIdle,
+  saveGhostIdle,
+  useGhostIdle,
+} from './shell/ghost-idle';
+import { ShellRegionsProvider, type ShellRegionItem } from './shell/regions';
+import {
+  LayerActivityProvider,
+  useLayerActivity,
+  useLayerRegistration,
+} from './shell/layer-activity';
+import { ShortcutProvider, useShortcut } from './shell/shortcut-dispatcher';
+import {
+  HistoryButtons,
+  HistoryRail,
+  HistoryShortcuts,
+  HistoryUndoButton,
+} from './history';
+import {
+  restoreSnapshotState,
+  useSnapshots,
+  type SnapshotSlot,
+} from './history/snapshots';
+import { SearchHeader } from './search/search-header';
+import { SearchMatchBar, type SearchTabCount } from './search/match-bar';
+import { CommandPalette, type CommandPaletteAction } from './search/command-palette';
+import { buildTokenIndex, tokenAddressKey, type TokenAddress } from './utils/token-index';
+import { matchesTokenEntry } from './search/token-search';
+import { scrollToTokenRow } from './tabs/flat/scroll-to-token-row';
+import { changedContribution } from './changed/contribution';
+import { ChangedFooterContent } from './changed/footer-content';
+import { ChangedOnlyToggle } from './changed/tab-filter';
 import ColorTab from './tabs/color-tab';
 import FontTab from './tabs/font-tab';
 import SizeTab from './tabs/size-tab';
@@ -18,6 +64,7 @@ import SpacingTab from './tabs/spacing-tab';
 import GenericTab from './tabs/generic-tab';
 import PaletteTab from './tabs/palette/palette-tab';
 import NotesTab from './tabs/notes-tab';
+import type { BulkPatchEntry } from './bulk';
 import { TooltipProvider } from './controls/tooltip';
 import {
   getPanelConfig,
@@ -27,14 +74,22 @@ import {
 } from './config/panel-config';
 import type { TabConfig } from './tokens/tier-model';
 import { isDocumentUsable } from './utils/document-liveness';
+import { claimHostDock, releaseHostMutations } from './host/host-mutations';
+import { onPageSpecimenMutationOwner } from './specimen/on-page-specimen';
 import { usePersist } from './state/persist';
+import { useHistory } from './state/history';
+import { useTweakStateTransaction } from './state/transaction';
 import {
   type TweakState,
   type ColorTweakState,
   type PanelDensity,
+  type DockMode,
+  type DockSize,
   type PanelPosition,
   type PanelSize,
   DEFAULT_DENSITY,
+  DEFAULT_DOCK_MODE,
+  DEFAULT_DOCK_SIZE,
   DEFAULT_POSITION,
   applyColorSlices,
   applyFullState,
@@ -48,19 +103,29 @@ import {
   densityToGridMin,
   emptyOverrides,
   getActivePrimaryCluster,
+  getActiveColorIdentity,
   getOpenKey,
   hasActiveColorSlot,
   initColorFromScheme,
   initSecondaryFromConfig,
   loadDensity,
+  loadDockMode,
+  loadDockSize,
   loadPersistedState,
   loadPosition,
   loadSize,
-  savePersistedState,
   saveDensity,
+  saveDockMode,
+  saveDockSize,
   savePosition,
   saveSize,
 } from './state/tweak-state';
+import {
+  changedCounts,
+  isChanged,
+  revertEntry,
+  type ColorBaseline,
+} from './utils/token-diff';
 
 // --- Tab configuration ---
 
@@ -69,22 +134,10 @@ import {
 // tier-driven token editor and carries no state/persist props (see the
 // tab-body dispatch below and utils/design-token-serde.ts's OWN separate
 // RESERVED_TAB_IDS Set, which independently excludes it from export/import).
-const RESERVED_TAB_IDS = ['color', 'font', 'spacing', 'size', 'palette', 'notes'] as const;
+const RESERVED_TAB_IDS = ['color', 'font', 'spacing', 'size', 'palette', 'notes', ELEMENT_INSPECT_TAB_ID] as const;
 type ReservedTabId = (typeof RESERVED_TAB_IDS)[number];
 
 const DEFAULT_TAB_ID: ReservedTabId = 'color';
-
-// Kebab-menu container-query breakpoint (px) — must match the
-// `@container tokenpanel (max-width: 479px)` rule in styles/panel.css (#518).
-// `@container` always evaluates the query container's CONTENT box (excludes
-// border/padding, regardless of box-sizing — confirmed against the CSS
-// Containment spec), while `size.width` below is the shell's BORDER box
-// (.tokenpanel-shell is box-sizing: border-box with a 1px border on each
-// side). Add that 2px back so this JS comparison agrees with the CSS
-// breakpoint at the same border-box width — omitting it left a ~2px dead
-// zone (480–481px) where the kebab was still visible per CSS but every
-// open attempt was immediately auto-closed by the width-close effect below.
-const ACTIONS_MENU_BREAKPOINT_PX = 480 + 2;
 
 // --- Panel sizing ---
 
@@ -127,6 +180,72 @@ function freshTweakState(cfg?: PanelConfig): TweakState {
     size: emptyOverrides(),
     secondary: initSecondaryFromConfig(cfg),
   };
+}
+
+function PanelLayerRegistrations({
+  exportOpen,
+  importOpen,
+  applyOpen,
+  highlightSettingsOpen,
+}: {
+  exportOpen: boolean;
+  importOpen: boolean;
+  applyOpen: boolean;
+  highlightSettingsOpen: boolean;
+}) {
+  useLayerRegistration('export-modal', exportOpen);
+  useLayerRegistration('import-modal', importOpen);
+  useLayerRegistration('apply-modal', applyOpen);
+  useLayerRegistration('highlight-settings', highlightSettingsOpen);
+  return null;
+}
+
+function PanelEscapeShortcut({ onClose }: { onClose: () => void }) {
+  const layerActive = useLayerActivity();
+  useShortcut({ key: 'Escape' }, (event) => {
+    if (event.defaultPrevented || layerActive) return;
+    event.preventDefault();
+    onClose();
+  });
+  return null;
+}
+
+function GhostIdleBehavior({
+  enabled,
+  targetRef,
+}: {
+  enabled: boolean;
+  targetRef: RefObject<HTMLDivElement>;
+}) {
+  const layerActive = useLayerActivity();
+  useGhostIdle(targetRef, enabled, layerActive);
+  return null;
+}
+
+function GhostIdleToggle({
+  enabled,
+  onChange,
+  compact = false,
+}: {
+  enabled: boolean;
+  onChange: (enabled: boolean) => void;
+  compact?: boolean;
+}) {
+  return (
+    <label
+      className={`tokenpanel-ghost-idle-toggle${compact ? ' is-compact' : ''}`}
+      title="Fade the panel while the pointer is outside it"
+    >
+      <input
+        type="checkbox"
+        checked={enabled}
+        onInput={(event) => onChange((event.currentTarget as HTMLInputElement).checked)}
+        className="tokenpanel-ghost-idle-checkbox"
+        aria-label="Ghost when idle"
+      />
+      <span>Ghost when idle</span>
+    </label>
+  );
 }
 
 // --- Main Component ---
@@ -176,13 +295,16 @@ export default function DesignTokenTweakPanel({
   const [showImport, setShowImport] = useState(false);
   const [showApply, setShowApply] = useState(false);
   const [showHighlightSettings, setShowHighlightSettings] = useState(false);
+  const [historyRailOpen, setHistoryRailOpen] = useState(false);
+  const [selectedSnapshot, setSelectedSnapshot] = useState<SnapshotSlot | null>(null);
+  const [historyNotice, setHistoryNotice] = useState<string | null>(null);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  // Changed-only is intentionally transient UI state. It follows the active
+  // tab but is never written to localStorage or the tweak envelope.
+  const [changedOnly, setChangedOnly] = useState(false);
+  const [pendingJumpAddress, setPendingJumpAddress] = useState<TokenAddress | null>(null);
   const gearBtnRef = useRef<HTMLDivElement>(null);
-  // Actions kebab (narrow-panel replacement for the header action links, #518).
-  const [showActionsMenu, setShowActionsMenu] = useState(false);
-  const actionsMenuBtnRef = useRef<HTMLDivElement>(null);
-  // Tabs strip — measures scroll overflow for the right-edge fade hint (#518).
-  const tabsStripRef = useRef<HTMLDivElement>(null);
-  const [tabsHaveOverflow, setTabsHaveOverflow] = useState(false);
   const [state, setState] = useState<TweakState | null>(null);
   // activeTab holds a string to support host-supplied non-reserved tab ids.
   // Lands on the FIRST configured tab (instanceConfig.tabs[0]) rather than
@@ -196,6 +318,15 @@ export default function DesignTokenTweakPanel({
   const [position, setPosition] = useState<PanelPosition>(DEFAULT_POSITION);
   const [size, setSize] = useState<PanelSize>(defaultSize);
   const [density, setDensity] = useState<PanelDensity>(DEFAULT_DENSITY);
+  const [dockMode, setDockMode] = useState<DockMode>(DEFAULT_DOCK_MODE);
+  const [dockSize, setDockSize] = useState<DockSize>(DEFAULT_DOCK_SIZE);
+  // The page specimen temporarily forces right docking.  Its previous mode is
+  // transient (never persisted as a separate key) and must survive until the
+  // specimen exits through any path, including shell unmount/navigation.
+  const [renderSpecimenOnPage, setRenderSpecimenOnPage] = useState(false);
+  const specimenPreviousDockModeRef = useRef<DockMode | null>(null);
+  const [ghostIdle, setGhostIdle] = useState(false);
+  const previousInspectTabRef = useRef<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   // tabRefs is now keyed by string to support host-supplied tab ids.
   const tabRefs = useRef<Record<string, HTMLDivElement | null>>({
@@ -209,13 +340,92 @@ export default function DesignTokenTweakPanel({
   positionRef.current = position;
   const sizeRef = useRef<PanelSize>(size);
   sizeRef.current = size;
+  const dockSizeRef = useRef<DockSize>(dockSize);
+  dockSizeRef.current = dockSize;
+  const dockModeRef = useRef<DockMode>(dockMode);
+  dockModeRef.current = dockMode;
+  const lastFullDockModeRef = useRef<DockMode>('float');
   // Track active drag listeners for cleanup on unmount
   const dragCleanupRef = useRef<(() => void) | null>(null);
   // Track active resize listeners for cleanup on unmount
   const resizeCleanupRef = useRef<(() => void) | null>(null);
 
+  const { commitTweakState, history } = useTweakStateTransaction(state, setState, instanceConfig);
+  const historySnapshot = useHistory(history);
+  const { snapshots, save: saveSnapshotSlot } = useSnapshots(instanceConfig);
   const { persistColor, persistSpacing, persistFont, persistSize, persistSecondary, persistTab } =
-    usePersist(setState, instanceConfig);
+    usePersist(commitTweakState, instanceConfig);
+
+  const activeColorIdentity = useMemo(
+    () => {
+      const cluster = getActivePrimaryCluster(instanceConfig);
+      // `getActiveColorIdentity` consults the host document for a
+      // light/dark cluster. During SSR there is no document yet, so use the
+      // cluster's configured scheme as the deterministic identity seed.
+      if (typeof document === 'undefined' || !document.documentElement) {
+        return cluster.panelSettings.colorScheme;
+      }
+      return getActiveColorIdentity(cluster, instanceConfig);
+    },
+    [instanceConfig, state],
+  );
+
+  // Bulk action bars hand the panel a complete patch. Keep the callback at
+  // this layer so the whole selection travels through exactly one transaction
+  // (apply → save → state → history), rather than one transaction per row.
+  const handleSpacingBulkApply = useCallback((patch: readonly BulkPatchEntry[]) => {
+    if (patch.length === 0) return;
+    commitTweakState('bulk', (previous) => ({
+      ...previous,
+      spacing: patch.reduce(
+        (next, item) => ({ ...next, [item.address.itemId]: item.value }),
+        { ...previous.spacing },
+      ),
+    }));
+  }, [commitTweakState]);
+
+  const handleFontBulkApply = useCallback((patch: readonly BulkPatchEntry[]) => {
+    if (patch.length === 0) return;
+    commitTweakState('bulk', (previous) => ({
+      ...previous,
+      typography: patch.reduce(
+        (next, item) => ({ ...next, [item.address.itemId]: item.value }),
+        { ...previous.typography },
+      ),
+    }));
+  }, [commitTweakState]);
+
+  const handleSizeBulkApply = useCallback((patch: readonly BulkPatchEntry[]) => {
+    if (patch.length === 0) return;
+    commitTweakState('bulk', (previous) => ({
+      ...previous,
+      size: patch.reduce(
+        (next, item) => ({ ...next, [item.address.itemId]: item.value }),
+        { ...previous.size },
+      ),
+    }));
+  }, [commitTweakState]);
+
+  const handleGenericBulkApply = useCallback((tabId: string, patch: readonly BulkPatchEntry[]) => {
+    if (patch.length === 0) return;
+    commitTweakState('bulk', (previous) => {
+      const previousTab = previous.tabs?.[tabId] ?? {};
+      const nextTab = { ...previousTab };
+      for (const item of patch) {
+        nextTab[item.address.tierId] = {
+          ...nextTab[item.address.tierId],
+          [item.address.itemId]: item.value,
+        };
+      }
+      return {
+        ...previous,
+        tabs: {
+          ...previous.tabs,
+          [tabId]: nextTab,
+        },
+      };
+    });
+  }, [commitTweakState]);
 
   // Restore open state, position, and size from localStorage after mount (avoids SSR hydration mismatch)
   useEffect(() => {
@@ -247,14 +457,47 @@ export default function DesignTokenTweakPanel({
     setPosition(clampedPos);
     positionRef.current = clampedPos;
     setDensity(loadDensity(instanceConfig));
+    const storedDockSize = loadDockSize(instanceConfig);
+    const loadedDockSize = {
+      right: Math.max(320, Math.min(storedDockSize.right, window.innerWidth)),
+      bottom: Math.max(240, Math.min(storedDockSize.bottom, window.innerHeight)),
+    };
+    setDockSize(loadedDockSize);
+    dockSizeRef.current = loadedDockSize;
+    setDockMode(loadDockMode(instanceConfig));
+    setGhostIdle(loadGhostIdle(instanceConfig.storagePrefix));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // A public close can unmount the shell while the command palette is open;
+  // keep the transient overlay state aligned with the shell lifetime.
+  useEffect(() => {
+    if (!open) {
+      setShowCommandPalette(false);
+      setPendingJumpAddress(null);
+    }
+  }, [open]);
+
+  // The mini pill is a transient presentation of the last full mode. Keep
+  // that mode in memory so expanding after a mini switch returns to the exact
+  // float/right/bottom layout the user was looking at.
+  useEffect(() => {
+    if (dockMode !== 'mini') lastFullDockModeRef.current = dockMode;
+  }, [dockMode]);
 
   // Persist density on change
   const handleDensityChange = useCallback(
     (next: PanelDensity) => {
       setDensity(next);
       saveDensity(next, instanceConfig);
+    },
+    [instanceConfig],
+  );
+
+  const handleGhostIdleChange = useCallback(
+    (enabled: boolean) => {
+      setGhostIdle(enabled);
+      saveGhostIdle(instanceConfig.storagePrefix, enabled);
     },
     [instanceConfig],
   );
@@ -290,30 +533,30 @@ export default function DesignTokenTweakPanel({
     }
   }, [open, instanceConfig]);
 
-  // ESC key closes the panel when no modal is open. When a modal is open the
-  // native <dialog> handles ESC first (fires cancel → onClose), and we must
-  // not also close the panel. Effect is installed only while open===true so
-  // the listener is automatically removed when the panel is closed.
+  // Dock claims are live only while the shell is visible. The shared registry
+  // makes the ownership decision cross-bundle safe and restores host inline
+  // declarations on every cleanup path (mode change, close, or unmount).
   useEffect(() => {
-    if (!open) return;
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key !== 'Escape') return;
-      // A layered popover (ColorPicker / HighlightSettingsPopover /
-      // PaletteSelector listbox) consumed this Escape via the shared
-      // dismiss-layer stack, which runs in the capture phase and marks the
-      // event handled. The panel is the base surface — stand down so one
-      // press never closes both the popover and the panel (F10).
-      if (e.defaultPrevented) return;
-      // If any modal is open, let the native <dialog> handle Escape.
-      if (showExport || showImport || showApply) return;
-      e.preventDefault();
-      setOpen(false);
+    if (!open || (dockMode !== 'right' && dockMode !== 'bottom')) {
+      releaseHostMutations(instanceConfig.storagePrefix);
+      return;
     }
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [open, showExport, showImport, showApply]);
+    const claimed = claimHostDock(
+      instanceConfig.storagePrefix,
+      dockMode,
+      dockSize[dockMode],
+      instanceConfig.dock?.reflow ?? 'body-margin',
+    );
+    if (!claimed) {
+      console.warn(
+        `[design-token-panel] Cannot dock ${dockMode}: that edge is already owned; falling back to float`,
+      );
+      setDockMode('float');
+      saveDockMode('float', instanceConfig);
+      return;
+    }
+    return () => releaseHostMutations(instanceConfig.storagePrefix);
+  }, [dockMode, dockSize, instanceConfig, open]);
 
   // Sync `open` from the authoritative `localStorage[OPEN_KEY]` whenever the
   // adapter (`index.tsx`) signals a change. The adapter writes OPEN_KEY itself
@@ -384,15 +627,27 @@ export default function DesignTokenTweakPanel({
         nextColor = initColorFromScheme(cluster, instanceConfig);
         nextSecondary = initSecondaryFromConfig(instanceConfig);
       }
-      setState((prev) =>
-        prev
-          ? { ...prev, color: nextColor, secondary: nextSecondary }
-          : { ...freshTweakState(instanceConfig), color: nextColor, secondary: nextSecondary },
-      );
+      if (state) {
+        commitTweakState(
+          'scheme-reapply',
+          (previous) => ({
+            ...previous,
+            color: nextColor,
+            secondary: nextSecondary,
+          }),
+          { record: false, apply: false, save: false },
+        );
+      } else {
+        commitTweakState(
+          'scheme-reapply',
+          { ...freshTweakState(instanceConfig), color: nextColor, secondary: nextSecondary },
+          { record: false, apply: false, save: false },
+        );
+      }
     }
     window.addEventListener('color-scheme-changed', handleSchemeChange);
     return () => window.removeEventListener('color-scheme-changed', handleSchemeChange);
-  }, [instanceConfig]);
+  }, [instanceConfig, commitTweakState, state]);
 
   // Initialize state on first open. Every storage read + apply is scoped to
   // THIS instance's config (#357): panel A loads from A's storage keys and
@@ -414,7 +669,7 @@ export default function DesignTokenTweakPanel({
       } else {
         applyNonColorSlices(persisted, instanceConfig);
       }
-      setState(persisted);
+      commitTweakState('initialize', persisted, { record: false, apply: false, save: false });
       return;
     }
     // No saved state — page already has correct colors from ColorSchemeProvider.
@@ -422,27 +677,19 @@ export default function DesignTokenTweakPanel({
     // The `secondary` slice is always seeded — every fresh-state path
     // includes it so the persisted envelope shape stays stable regardless
     // of the user's path.
-    setState(freshTweakState(instanceConfig));
-  }, [open, state, instanceConfig]);
-
-  // Close the actions kebab popover when a resize drag carries the panel back
-  // across the wide-layout breakpoint (#518) — the trigger itself disappears
-  // via the @container rule, but the popover's own open state is JS-managed
-  // (usePopoverClose) and would otherwise stay open, invisible-anchor, until
-  // the next outside click/Escape. `size.width` already tracks the shell's
-  // inline width (the resize grip is JS-driven via setSize, not native CSS
-  // `resize`), so no separate ResizeObserver is needed for this check.
-  useEffect(() => {
-    if (showActionsMenu && size.width >= ACTIONS_MENU_BREAKPOINT_PX) {
-      setShowActionsMenu(false);
-    }
-  }, [size.width, showActionsMenu]);
+    commitTweakState('initialize', freshTweakState(instanceConfig), {
+      record: false,
+      apply: false,
+      save: false,
+    });
+  }, [open, state, instanceConfig, commitTweakState]);
 
   // Drag handler for panel header (stable — reads position from ref)
   const handleDragStart = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (dockMode === 'right' || dockMode === 'bottom') return;
     // Skip if target is a button (or role=button/tab div), select, or inside one
     const target = e.target as HTMLElement;
-    if (target.closest("button, select, option, [role='tab'], [role='button']")) return;
+    if (target.closest("button, input, textarea, select, option, [contenteditable], [role='tab'], [role='button'], .tokenpanel-search-control")) return;
     e.preventDefault();
     const startX = e.clientX;
     const startY = e.clientY;
@@ -486,7 +733,7 @@ export default function DesignTokenTweakPanel({
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
     };
-  }, [instanceConfig]);
+  }, [dockMode, instanceConfig]);
 
   // Resize handler for the bottom-right grip — mirrors handleDragStart's
   // structure: writes directly to the DOM during the drag (to avoid 60 fps
@@ -543,6 +790,124 @@ export default function DesignTokenTweakPanel({
       document.removeEventListener('mouseup', onMouseUp);
     };
   }, [instanceConfig]);
+
+  const handleDockResizeStart = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (dockMode !== 'right' && dockMode !== 'bottom') return;
+      const edge = dockMode;
+      e.preventDefault();
+      e.stopPropagation();
+      const start = edge === 'right' ? e.clientX : e.clientY;
+      const startSize = dockSizeRef.current[edge];
+      const min = edge === 'right' ? 320 : 240;
+      const viewportMax = edge === 'right' ? window.innerWidth : window.innerHeight;
+      const max = Math.max(min, viewportMax);
+
+      function onMouseMove(ev: MouseEvent) {
+        const pointer = edge === 'right' ? ev.clientX : ev.clientY;
+        const nextValue = Math.max(min, Math.min(max, startSize + start - pointer));
+        const next = { ...dockSizeRef.current, [edge]: nextValue };
+        dockSizeRef.current = next;
+        if (panelRef.current) {
+          if (edge === 'right') panelRef.current.style.width = `${nextValue}px`;
+          else panelRef.current.style.height = `${nextValue}px`;
+        }
+        claimHostDock(
+          instanceConfig.storagePrefix,
+          edge,
+          nextValue,
+          instanceConfig.dock?.reflow ?? 'body-margin',
+        );
+      }
+
+      function onMouseUp() {
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        resizeCleanupRef.current = null;
+        setDockSize(dockSizeRef.current);
+        saveDockSize(dockSizeRef.current, instanceConfig);
+      }
+
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+      resizeCleanupRef.current = () => {
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+      };
+    },
+    [dockMode, instanceConfig],
+  );
+
+  const handleDockModeChange = useCallback(
+    (next: DockMode) => {
+      // Render on page owns the panel's right edge while active.  The only
+      // path allowed to leave that edge is restoreSpecimenDockMode(), which
+      // writes state directly after the page specimen has been disabled.
+      if (renderSpecimenOnPage && next !== 'right') return;
+      // A shortcut can switch modes (or close can follow) while the pointer is
+      // still held on a drag/resize handle. Cancel those document listeners
+      // before changing ownership so a later mousemove cannot re-claim an edge
+      // that this panel has already released.
+      dragCleanupRef.current?.();
+      dragCleanupRef.current = null;
+      resizeCleanupRef.current?.();
+      resizeCleanupRef.current = null;
+      dockModeRef.current = next;
+      setDockMode(next);
+      saveDockMode(next, instanceConfig);
+    },
+    [instanceConfig, renderSpecimenOnPage],
+  );
+
+  /** Restore the mode that was active before Render on page forced right dock. */
+  const restoreSpecimenDockMode = useCallback((syncState = true) => {
+    const previous = specimenPreviousDockModeRef.current;
+    if (previous === null) return;
+    specimenPreviousDockModeRef.current = null;
+    // Remove the host portal synchronously on every logical exit.  The
+    // OnPageSpecimen effect cleanup also releases this owner, but this direct
+    // release covers panel-close / toggle-off before the next effect flush.
+    releaseHostMutations(onPageSpecimenMutationOwner(instanceConfig));
+    if (syncState) setRenderSpecimenOnPage(false);
+    if (dockModeRef.current === previous) return;
+    dockModeRef.current = previous;
+    if (syncState) setDockMode(previous);
+    saveDockMode(previous, instanceConfig);
+  }, [instanceConfig]);
+
+  const handleRenderSpecimenOnPageChange = useCallback((enabled: boolean) => {
+    if (!enabled) {
+      restoreSpecimenDockMode();
+      return;
+    }
+    if (specimenPreviousDockModeRef.current !== null) return;
+    specimenPreviousDockModeRef.current = dockModeRef.current;
+    setRenderSpecimenOnPage(true);
+    if (dockModeRef.current !== 'right') handleDockModeChange('right');
+  }, [handleDockModeChange, restoreSpecimenDockMode]);
+
+  // Closing the panel unmounts FontTab (and thus the portal), so restore the
+  // dock mode while the shell still owns its state.  Leaving right is also an
+  // exit path: for example, the shared dock registry may reject this panel's
+  // right-edge claim when another instance already owns it and fall back to
+  // float. Restore the user's prior mode instead of leaving the page specimen
+  // active without the dock it depends on.
+  useEffect(() => {
+    if (!open) restoreSpecimenDockMode();
+    else if (renderSpecimenOnPage && dockMode !== 'right') restoreSpecimenDockMode();
+  }, [dockMode, open, renderSpecimenOnPage, restoreSpecimenDockMode]);
+
+  // Astro swaps and destroy() drive a real Preact unmount, but the state write
+  // must still happen even though the component itself is going away.
+  useEffect(() => () => restoreSpecimenDockMode(false), [restoreSpecimenDockMode]);
+
+  useEffect(() => {
+    if (open) return;
+    dragCleanupRef.current?.();
+    dragCleanupRef.current = null;
+    resizeCleanupRef.current?.();
+    resizeCleanupRef.current = null;
+  }, [open]);
 
   // Clean up drag + resize listeners on unmount
   useEffect(() => {
@@ -619,33 +984,115 @@ export default function DesignTokenTweakPanel({
       // (skipped by the resolver, #482 import nit) would leave the PREVIOUS
       // session's inline value painted instead of falling back to the
       // stylesheet default.
-      clearAppliedColorStyles(undefined, undefined, instanceConfig);
       // Replace the panel state with the loaded tweak, apply CSS vars, persist
-      // to localStorage (v3). Unknown tokens have already been filtered out by
+      // to localStorage. Unknown tokens have already been filtered out by
       // deserialize(). Apply + persist are scoped to THIS instance (#357).
-      applyFullState(loaded, instanceConfig);
-      savePersistedState(loaded, undefined, instanceConfig);
-      setState(loaded);
+      commitTweakState('import', loaded, {
+        beforeApply: () => clearAppliedColorStyles(undefined, undefined, instanceConfig),
+      });
     },
-    [instanceConfig],
+    [instanceConfig, commitTweakState],
   );
 
   const handleResetAll = useCallback(() => {
     // Clear + reset are scoped to THIS instance's storage keys, clusters, and
     // sink so a reset on panel A never touches panel B's storage/vars (#357).
-    clearPersistedState(undefined, instanceConfig);
-    clearAppliedStyles(undefined, instanceConfig);
     // Always seed the secondary slice — every fresh-state path emits a
     // uniform envelope shape so persistence stays consistent.
-    setState(freshTweakState(instanceConfig));
-  }, [instanceConfig]);
+    commitTweakState('reset-all', freshTweakState(instanceConfig), {
+      apply: () => clearAppliedStyles(undefined, instanceConfig),
+      save: () => clearPersistedState(undefined, instanceConfig),
+    });
+  }, [instanceConfig, commitTweakState]);
+
+  const handleHistoryResult = useCallback(
+    (result: { skippedReason?: string }) => {
+      setHistoryNotice(result.skippedReason ?? null);
+    },
+    [],
+  );
+
+  const handleUndo = useCallback(() => {
+    if (!historySnapshot.canUndo) return;
+    handleHistoryResult(history.undo());
+  }, [handleHistoryResult, history, historySnapshot.canUndo]);
+
+  const handleRedo = useCallback(() => {
+    if (!historySnapshot.canRedo) return;
+    handleHistoryResult(history.redo());
+  }, [handleHistoryResult, history, historySnapshot.canRedo]);
+
+  const handleHistoryJump = useCallback(
+    (index: number) => {
+      handleHistoryResult(history.jumpTo(index));
+    },
+    [handleHistoryResult, history],
+  );
+
+  const handleSaveSnapshot = useCallback(
+    (slot: SnapshotSlot) => {
+      if (!state) return;
+      saveSnapshotSlot(slot, state, activeColorIdentity, historySnapshot.cursor);
+      setSelectedSnapshot(slot);
+      setHistoryNotice(null);
+    },
+    [activeColorIdentity, historySnapshot.cursor, saveSnapshotSlot, state],
+  );
+
+  const handleSelectSnapshot = useCallback(
+    (slot: SnapshotSlot) => {
+      const snapshot = snapshots[slot];
+      if (!snapshot || !state) return;
+      const restored = restoreSnapshotState(snapshot, state, activeColorIdentity, slot);
+      commitTweakState(`snapshot-${slot.toLowerCase()}`, restored.state, {
+        beforeApply: () => clearAppliedColorStyles(undefined, undefined, instanceConfig),
+      });
+      setSelectedSnapshot(slot);
+      setHistoryNotice(restored.skippedReason ?? `Showing snapshot ${slot}.`);
+    },
+    [activeColorIdentity, commitTweakState, instanceConfig, snapshots, state],
+  );
+
+  const handleFlipSnapshots = useCallback(() => {
+    if (!snapshots.A || !snapshots.B) {
+      setHistoryNotice('Save both A and B before flipping snapshots.');
+      return;
+    }
+    handleSelectSnapshot(selectedSnapshot === 'A' ? 'B' : 'A');
+  }, [handleSelectSnapshot, selectedSnapshot, snapshots.A, snapshots.B]);
+
+  const handleResetTab = useCallback((tabId: string) => {
+    if (tabId === 'color') {
+      commitTweakState('reset-color', (previous) => ({
+        ...previous,
+        color: freshTweakState(instanceConfig).color,
+      }), {
+        beforeApply: () => clearAppliedColorStyles(undefined, undefined, instanceConfig),
+      });
+      return;
+    }
+    if (tabId === 'spacing') {
+      persistSpacing(() => ({}));
+      return;
+    }
+    if (tabId === 'font') {
+      persistFont(() => ({}));
+      return;
+    }
+    if (tabId === 'size') {
+      persistSize(() => ({}));
+      return;
+    }
+    if (tabId === 'notes' || tabId === 'color-secondary') return;
+    persistTab(tabId, () => ({}));
+  }, [commitTweakState, instanceConfig, persistFont, persistSize, persistSpacing, persistTab]);
 
   // Single source of truth for the four header actions (#518) — rendered
   // both as the always-visible .tokenpanel-action-link header links AND
   // inside the narrow-panel kebab popover, so a label/handler change only
   // needs one edit instead of two synchronized ones.
   const panelActions = useMemo(
-    (): readonly ActionsMenuAction[] => [
+    () => [
       { label: 'Export', onSelect: () => setShowExport(true) },
       { label: 'Load from JSON…', onSelect: () => setShowImport(true) },
       { label: 'Apply', onSelect: () => setShowApply(true) },
@@ -654,24 +1101,79 @@ export default function DesignTokenTweakPanel({
     [handleResetAll],
   );
 
-  const handleApplied = useCallback(() => {
-    // After a successful apply the on-disk CSS now matches the current tweak,
-    // so drop the persisted override envelope and any inline overrides — the
-    // page will re-render from the fresh stylesheet. Scoped to THIS instance (#357).
-    clearPersistedState(undefined, instanceConfig);
-    clearAppliedStyles(undefined, instanceConfig);
-    // Always seed the secondary slice — every fresh-state path emits a
-    // uniform envelope shape.
-    setState(freshTweakState(instanceConfig));
-  }, [instanceConfig]);
+  const colorDefaults = useMemo(
+    () => initColorFromScheme(getActivePrimaryCluster(instanceConfig), instanceConfig),
+    // The active scheme/mode is the Color evaluator's identity baseline. A
+    // scheme change updates this memo so reverting a Color row restores the
+    // newly-active identity rather than the previous scheme's seed.
+    [activeColorIdentity, instanceConfig],
+  );
+  const secondaryDefaults = useMemo(() => initSecondaryFromConfig(instanceConfig), [instanceConfig]);
+  const flattenedOverrides = useMemo(
+    () => state ? flattenApplyOverrides(state, colorDefaults, instanceConfig) : {},
+    [state, colorDefaults, instanceConfig],
+  );
+  const [lastApplied, setLastApplied] = useState(() => loadLastApplied(instanceConfig));
+  const unsaved = useMemo(
+    () => unsavedCssVars(flattenedOverrides, lastApplied),
+    [flattenedOverrides, lastApplied],
+  );
+
+  const handleApplied = useCallback((writtenCssVars: string[]) => {
+    commitTweakState('apply', (current) => {
+      const next = reconcileApplied(current, writtenCssVars, instanceConfig, colorDefaults, secondaryDefaults);
+      // Disk now contains the written subset; retained overrides remain
+      // browser-only and therefore intentionally compare dirty against {}.
+      saveLastApplied({}, instanceConfig);
+      setLastApplied({});
+      return next;
+    }, { resetHistory: true, forceRecord: true });
+  }, [instanceConfig, colorDefaults, secondaryDefaults, commitTweakState]);
 
   // Build the active tab list from this instance's PanelConfig.tabs (required).
   // Keyed on `instanceConfig` so a non-default panel renders ITS own manifest,
   // not the active default instance's (#354). configurePanel is one-shot per
   // prefix, so the list is stable for a mount's lifetime.
   const activeTabs = useMemo((): readonly { id: string; label: string }[] => {
-    return instanceConfig.tabs.map((t: TabConfig) => ({ id: t.id, label: t.label }));
+    return [
+      { id: ELEMENT_INSPECT_TAB_ID, label: 'Inspect' },
+      ...instanceConfig.tabs
+        .filter((t: TabConfig) => t.id !== ELEMENT_INSPECT_TAB_ID)
+        .map((t: TabConfig) => ({ id: t.id, label: t.label })),
+    ];
   }, [instanceConfig]);
+
+  const openInspectTab = useCallback(() => {
+    setActiveTab((current) => {
+      if (current !== ELEMENT_INSPECT_TAB_ID) previousInspectTabRef.current = current;
+      return ELEMENT_INSPECT_TAB_ID;
+    });
+  }, []);
+
+  const handleActiveTabChange = useCallback((nextTab: string) => {
+    setActiveTab((current) => {
+      if (nextTab === ELEMENT_INSPECT_TAB_ID && current !== ELEMENT_INSPECT_TAB_ID) {
+        previousInspectTabRef.current = current;
+      } else if (nextTab !== ELEMENT_INSPECT_TAB_ID && current === ELEMENT_INSPECT_TAB_ID) {
+        previousInspectTabRef.current = null;
+      }
+      return nextTab;
+    });
+  }, []);
+
+  const clearInspectTab = useCallback(() => {
+    setActiveTab((current) => {
+      if (current !== ELEMENT_INSPECT_TAB_ID) return current;
+      const previous = previousInspectTabRef.current;
+      previousInspectTabRef.current = null;
+      if (previous && activeTabs.some((tab) => tab.id === previous)) return previous;
+      return instanceConfig.tabs[0]?.id ?? DEFAULT_TAB_ID;
+    });
+  }, [activeTabs, instanceConfig]);
+
+  const jumpToColorTab = useCallback(() => {
+    if (activeTabs.some((tab) => tab.id === 'color')) setActiveTab('color');
+  }, [activeTabs]);
 
   // Build an id→TabConfig lookup for the tab-body dispatch (this instance's
   // tabs). Keyed on `instanceConfig` — same as `activeTabs` above — so the body
@@ -686,265 +1188,476 @@ export default function DesignTokenTweakPanel({
     return out;
   }, [instanceConfig]);
 
-  // --- Tab keyboard navigation (WAI-ARIA tablist pattern) ---
-  const handleTabKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLDivElement>) => {
-      const idx = activeTabs.findIndex((t) => t.id === activeTab);
-      if (idx === -1) return;
-      let nextIdx: number | null = null;
-      if (e.key === 'ArrowRight') nextIdx = (idx + 1) % activeTabs.length;
-      else if (e.key === 'ArrowLeft') nextIdx = (idx - 1 + activeTabs.length) % activeTabs.length;
-      else if (e.key === 'Home') nextIdx = 0;
-      else if (e.key === 'End') nextIdx = activeTabs.length - 1;
-      if (nextIdx === null) return;
-      e.preventDefault();
-      const next = activeTabs[nextIdx];
-      setActiveTab(next.id);
-      // Move focus to the newly selected tab so SR announces it
-      window.requestAnimationFrame(() => {
-        tabRefs.current[next.id]?.focus();
+  const searchIndex = useMemo(() => buildTokenIndex(instanceConfig), [instanceConfig]);
+  // Color rows are backed by a complete ColorTweakState, so their baseline is
+  // the active identity's freshly-seeded state. Flat rows continue to compare
+  // against manifest defaults through the same S2 evaluator.
+  const changedBaseline = useMemo<ColorBaseline>(() => ({
+    color: colorDefaults,
+    ...(secondaryDefaults ? { secondary: secondaryDefaults } : {}),
+  }), [colorDefaults, secondaryDefaults]);
+  const changedTokenCounts = useMemo(
+    () => state
+      ? changedCounts(searchIndex.entries, state, changedBaseline, instanceConfig)
+      : {},
+    [changedBaseline, instanceConfig, searchIndex.entries, state],
+  );
+  const changedTotal = useMemo(
+    () => Object.values(changedTokenCounts).reduce((sum, count) => sum + count, 0),
+    [changedTokenCounts],
+  );
+  // The primary Color view owns both primary and optional secondary cluster
+  // sections, so its active-tab filter count includes both evaluator slices.
+  // Other tabs map one-to-one to their changedCounts entry.
+  const changedOnlyCount = activeTab === 'color'
+    ? (changedTokenCounts.color ?? 0) + (changedTokenCounts['color-secondary'] ?? 0)
+    : changedTokenCounts[activeTab] ?? 0;
+  const isTokenChanged = useCallback((address: TokenAddress) => {
+    const entry = searchIndex.entry(address);
+    return Boolean(entry && state && isChanged(entry, state, changedBaseline, instanceConfig));
+  }, [changedBaseline, instanceConfig, searchIndex, state]);
+  const handleRevertAddress = useCallback((address: TokenAddress) => {
+    if (!state) return;
+    const entry = searchIndex.entry(address);
+    if (!entry) return;
+    commitTweakState('revert', revertEntry(entry, changedBaseline, instanceConfig), {
+      address: tokenAddressKey(address),
+    });
+  }, [changedBaseline, commitTweakState, instanceConfig, searchIndex, state]);
+  const changedRowContribution = useMemo(
+    () => state
+      ? changedContribution({
+          index: searchIndex,
+          state,
+          baseline: changedBaseline,
+          cfg: instanceConfig,
+          changedOnly,
+          onRevert: handleRevertAddress,
+        })
+      : undefined,
+    [changedBaseline, changedOnly, handleRevertAddress, instanceConfig, searchIndex, state],
+  );
+  const searchCounts = useMemo<readonly SearchTabCount[]>(() => activeTabs.map((tab) => {
+    if (tab.id === 'palette') {
+      const config = tabConfigById[tab.id];
+      const total = config?.tiers.length ?? 0;
+      const matches = searchQuery.trim()
+        ? (config?.tiers ?? []).filter((tier) =>
+            [tier.id, tier.label].some((field) => field.toLocaleLowerCase().includes(searchQuery.trim().toLocaleLowerCase())),
+          ).length
+        : total;
+      return { tab: config ?? { id: tab.id, label: tab.label, tiers: [] }, total, matches };
+    }
+    const entries = searchIndex.entries.filter((entry) => entry.address.tabId === tab.id);
+    const total = entries.length;
+    const matches = entries.filter((entry) => matchesTokenEntry(entry, searchQuery, state ?? undefined, instanceConfig)).length;
+    return { tab: tabConfigById[tab.id] ?? { id: tab.id, label: tab.label, tiers: [] }, total, matches };
+  }), [activeTabs, instanceConfig, searchIndex, searchQuery, state, tabConfigById]);
+
+  const focusTokenAddress = useCallback((address: TokenAddress) => {
+    const row = panelRef.current ? scrollToTokenRow(panelRef.current, address) : null;
+    const focusSelector = 'input:not([type="hidden"]), select, textarea, [role="button"]';
+    const focusTarget = row?.matches(focusSelector)
+      ? row
+      : row?.querySelector<HTMLElement>(focusSelector);
+    focusTarget?.focus();
+  }, []);
+
+  const handleCommandToken = useCallback((address: TokenAddress) => {
+    // A secondary cluster is rendered inside the primary Color tab, not as a
+    // selectable tab of its own. The address stays intact for row navigation.
+    const targetTab = address.tabId === 'color-secondary' ? 'color' : address.tabId;
+    setSearchQuery('');
+    setActiveTab(targetTab);
+    if (address.tabId === 'palette') {
+      setPendingJumpAddress(address);
+      return;
+    }
+    window.requestAnimationFrame(() => focusTokenAddress(address));
+  }, [focusTokenAddress]);
+
+  const handlePaletteJumpHandled = useCallback((address: TokenAddress) => {
+    setPendingJumpAddress(null);
+    window.requestAnimationFrame(() => focusTokenAddress(address));
+  }, [focusTokenAddress]);
+
+  const commandActions = useMemo<readonly CommandPaletteAction[]>(() => {
+    const actions: CommandPaletteAction[] = [
+      { id: 'export', label: 'Export', onSelect: () => setShowExport(true) },
+      { id: 'import', label: 'Load from JSON…', onSelect: () => setShowImport(true) },
+      { id: 'apply', label: 'Apply', onSelect: () => setShowApply(true) },
+    ];
+    for (const tab of activeTabs) {
+      if (tab.id === 'notes' || tab.id === 'color-secondary') continue;
+      actions.push({
+        id: `reset-${tab.id}`,
+        label: `Reset ${tab.label}`,
+        onSelect: () => handleResetTab(tab.id),
       });
-    },
-    [activeTab, activeTabs],
+    }
+    for (const tab of activeTabs) {
+      if (tab.id === 'color-secondary') continue;
+      actions.push({
+        id: `goto-${tab.id}`,
+        label: `Go to ${tab.label}`,
+        onSelect: () => setActiveTab(tab.id),
+      });
+    }
+    actions.push({
+      id: 'highlight-settings',
+      label: 'Highlight settings',
+      onSelect: () => setShowHighlightSettings(true),
+    });
+    return actions;
+  }, [activeTabs, handleResetTab]);
+
+  const shellRegionItems = useMemo(
+    (): Partial<
+      Record<'header-actions' | 'header-right' | 'tabbar-extras' | 'footer', readonly ShellRegionItem[]>
+    > => ({
+      'header-actions': [
+        {
+          id: 'search-filter',
+          order: -1,
+          render: () => (
+            <SearchHeader
+              query={searchQuery}
+              onQueryChange={setSearchQuery}
+              onOpenPalette={() => setShowCommandPalette(true)}
+            />
+          ),
+        },
+        ...panelActions.map(
+          (action, index): ShellRegionItem => ({
+            id: `panel-action-${action.label}`,
+            order: index,
+            compactAction: action,
+            render: () => (
+              <RoleButton onClick={action.onSelect} className="tokenpanel-action-link">
+                {action.label}
+              </RoleButton>
+            ),
+          }),
+        ),
+        {
+          id: 'dom-tweaker-diff',
+          order: panelActions.length,
+          renderInCompactMenu: true,
+          render: ({ compact, closeCompactMenu }) => (
+            <DomTweakerDiffActionLink
+              instanceConfig={instanceConfig}
+              onSelected={compact ? closeCompactMenu : undefined}
+            />
+          ),
+        },
+        {
+          id: 'dock-modes-compact',
+          order: panelActions.length + 1,
+          renderInCompactMenu: true,
+          render: ({ compact, closeCompactMenu }) =>
+            compact ? (
+              <DockModeSwitch
+                value={dockMode}
+                onChange={(mode) => {
+                  handleDockModeChange(mode);
+                  closeCompactMenu();
+                }}
+                compact
+              />
+            ) : null,
+        },
+        {
+          id: 'ghost-idle-compact',
+          order: panelActions.length + 2,
+          renderInCompactMenu: true,
+          render: ({ compact }) =>
+            compact ? (
+              <GhostIdleToggle
+                enabled={ghostIdle}
+                onChange={handleGhostIdleChange}
+                compact
+              />
+            ) : null,
+        },
+      ],
+      'header-right': [
+        {
+          id: 'apply-sync-status',
+          order: -2,
+          render: () => (
+            <div className={`tokenpanel-apply-sync${unsaved.length > 0 ? ' is-unsaved' : ''}`} role="status">
+              {unsaved.length > 0 ? `● ${unsaved.length} unsaved` : '✓ in sync'}
+            </div>
+          ),
+        },
+        {
+          id: 'dock-modes',
+          order: -1,
+          render: () => (
+            <DockModeSwitch
+              value={dockMode}
+              onChange={handleDockModeChange}
+              enableShortcuts
+            />
+          ),
+        },
+        {
+          id: 'element-path',
+          order: 0,
+          render: () => <ElementPathToggleButton />,
+        },
+        {
+          id: 'element-inspect',
+          order: 1,
+          render: () => <ElementInspectToggleButton />,
+        },
+        ...(instanceConfig.domTweaker !== undefined
+          ? [
+              {
+                id: 'dom-tweaker',
+                order: 2,
+                render: () => <DomTweakerToggleButton />,
+              } satisfies ShellRegionItem,
+            ]
+          : []),
+        {
+          id: 'highlight-settings',
+          order: 3,
+          render: () => (
+            <div
+              ref={gearBtnRef}
+              role="button"
+              tabIndex={0}
+              className="tokenpanel-gear-btn"
+              aria-label="Highlight outline settings"
+              aria-expanded={showHighlightSettings}
+              aria-haspopup="dialog"
+              onClick={() => setShowHighlightSettings((value) => !value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  setShowHighlightSettings((value) => !value);
+                }
+              }}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </div>
+          ),
+        },
+        {
+          id: 'close',
+          order: 4,
+          render: () => (
+            <RoleButton
+              onClick={() => setOpen(false)}
+              className="tokenpanel-close-btn"
+              aria-label="Close panel"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M18 6 6 18" />
+                <path d="m6 6 12 12" />
+              </svg>
+            </RoleButton>
+          ),
+        },
+      ],
+      'tabbar-extras': [
+        {
+          id: 'ghost-idle',
+          order: 0,
+          render: () => (
+            <GhostIdleToggle enabled={ghostIdle} onChange={handleGhostIdleChange} />
+          ),
+        },
+        {
+          id: 'changed-only',
+          order: 1,
+          render: () => (
+            <ChangedOnlyToggle
+              enabled={changedOnly}
+              count={changedOnlyCount}
+              onChange={setChangedOnly}
+            />
+          ),
+        },
+      ],
+      footer: state ? [
+        {
+          id: 'changed-state-footer',
+          render: () => (
+            <ChangedFooterContent
+              index={searchIndex}
+              state={state}
+              baseline={changedBaseline}
+              cfg={instanceConfig}
+              onRevertAll={handleResetAll}
+            />
+          ),
+        },
+      ] : [],
+    }),
+    [
+      activeTab,
+      changedBaseline,
+      changedOnly,
+      changedOnlyCount,
+      changedTokenCounts,
+      dockMode,
+      ghostIdle,
+      handleDockModeChange,
+      handleGhostIdleChange,
+      handleResetAll,
+      instanceConfig,
+      panelActions,
+      searchQuery,
+      searchIndex,
+      showHighlightSettings,
+      state,
+      unsaved.length,
+    ],
   );
 
-  // Toggle the tabs strip's right-edge fade hint when it actually has
-  // scrollable overflow. Driven by a ResizeObserver on the strip itself (+ its
-  // own scroll events) rather than `window.resize`: a grip-driven panel
-  // resize changes the strip's layout size without ever firing a window
-  // resize event, so a window listener would miss it (#518).
-  useEffect(() => {
-    if (!open) return;
-    const el = tabsStripRef.current;
-    if (!el) return;
-    function updateOverflow() {
-      if (!el) return;
-      const hasOverflow =
-        el.scrollWidth > el.clientWidth && el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
-      setTabsHaveOverflow(hasOverflow);
-    }
-    updateOverflow();
-    if (typeof ResizeObserver === 'undefined') {
-      // jsdom (unit tests) has no ResizeObserver — the initial synchronous
-      // check above still runs; only the live-resize tracking is skipped.
-      el.addEventListener('scroll', updateOverflow);
-      return () => el.removeEventListener('scroll', updateOverflow);
-    }
-    const observer = new ResizeObserver(updateOverflow);
-    observer.observe(el);
-    el.addEventListener('scroll', updateOverflow);
-    return () => {
-      observer.disconnect();
-      el.removeEventListener('scroll', updateOverflow);
-    };
-  }, [open, activeTabs]);
-
   return (
-    <HighlightOrchestrator>
-      <ElementPathOrchestrator>
+    <LayerActivityProvider>
+    <ShortcutProvider shellRef={panelRef} enabled={open}>
+    <ShellRegionsProvider initialItems={shellRegionItems}>
+    <PanelLayerRegistrations
+      exportOpen={showExport}
+      importOpen={showImport}
+      applyOpen={showApply}
+      highlightSettingsOpen={showHighlightSettings}
+    />
+    <HistoryButtons
+      history={historySnapshot}
+      railOpen={historyRailOpen}
+      onUndo={handleUndo}
+      onRedo={handleRedo}
+      onToggleRail={() => setHistoryRailOpen((openState) => !openState)}
+    />
+    <HistoryShortcuts
+      enabled={open}
+      onUndo={handleUndo}
+      onRedo={handleRedo}
+      onFlipSnapshots={handleFlipSnapshots}
+    />
+    {open && <PanelEscapeShortcut onClose={() => setOpen(false)} />}
+    <HighlightOrchestrator instanceConfig={instanceConfig}>
+    <ElementPathOrchestrator>
+    <ElementInspectOrchestrator
+      instanceConfig={instanceConfig}
+      state={state}
+      commitTweakState={commitTweakState}
+      onInspectTabOpen={openInspectTab}
+      onInspectTabClear={clearInspectTab}
+      onJumpToColorTab={jumpToColorTab}
+      panelOpen={open}
+    >
       <DomTweakerOrchestrator instanceConfig={instanceConfig}>
+      <TokenChainProvider instanceConfig={instanceConfig} state={state}>
       <TooltipProvider>
       {open && (() => {
         const { width: panelW, height: panelH } = computePanelSize(size);
 
-        const panelPos = { position: 'fixed' as const, top: position.top, left: position.left };
+        const effectiveDockMode = dockMode === 'mini' ? 'float' : dockMode;
+        const panelPos =
+          effectiveDockMode === 'right'
+            ? { position: 'fixed' as const, top: 0, right: 0, bottom: 0, left: 'auto' }
+            : effectiveDockMode === 'bottom'
+              ? { position: 'fixed' as const, top: 'auto', right: 0, bottom: 0, left: 0 }
+              : { position: 'fixed' as const, top: position.top, left: position.left };
+        const renderedWidth =
+          effectiveDockMode === 'right'
+            ? dockSize.right
+            : effectiveDockMode === 'bottom'
+              ? '100vw'
+              : panelW;
+        const renderedHeight =
+          effectiveDockMode === 'bottom'
+            ? dockSize.bottom
+            : effectiveDockMode === 'right'
+              ? '100vh'
+              : panelH;
 
         return (
           <>
-            <div
+            {dockMode === 'mini' ? (
+              <MiniPill
+                onApply={() => setShowApply(true)}
+                onExpand={() => handleDockModeChange(lastFullDockModeRef.current)}
+                changedCount={changedTotal > 0 ? changedTotal : undefined}
+                undo={
+                  <HistoryUndoButton
+                    canUndo={historySnapshot.canUndo}
+                    onUndo={handleUndo}
+                  />
+                }
+              />
+            ) : (
+        <div
         ref={panelRef}
-        className="tokenpanel-shell"
+        className={`tokenpanel-shell${effectiveDockMode === 'right' ? ' is-docked-right' : ''}${effectiveDockMode === 'bottom' ? ' is-docked-bottom' : ''}${historyRailOpen ? ' is-history-open' : ''}`}
         style={{
           ...panelPos,
-          width: panelW,
-          height: panelH,
-          maxHeight: 'calc(100vh - 32px)',
+          width: renderedWidth,
+          height: renderedHeight,
+          maxHeight: effectiveDockMode === 'float' ? 'calc(100vh - 32px)' : 'none',
           // `--tokenpanel-grid-min` is read by .tokenpanel-tab-grid /
           // .tokenpanel-tab-advanced-grid; switching the variable rewires the
           // min-card-width without re-rendering the grids.
           ['--tokenpanel-grid-min' as string]: densityToGridMin(density),
         }}
       >
-        {/* Header row (expert/reset) — drag to move the panel */}
-        <div
-          className="tokenpanel-header"
-          style={{ cursor: 'move' }}
+        <GhostIdleBehavior enabled={ghostIdle} targetRef={panelRef} />
+        <ShellHeader
+          width={
+            effectiveDockMode === 'right'
+              ? dockSize.right
+              : effectiveDockMode === 'bottom'
+                ? window.innerWidth
+                : size.width
+          }
           onMouseDown={handleDragStart}
-        >
-          <span className="tokenpanel-title">zdtp</span>
-          {panelActions.map((action) => (
-            <RoleButton
-              key={action.label}
-              onClick={action.onSelect}
-              className="tokenpanel-action-link"
-            >
-              {action.label}
-            </RoleButton>
-          ))}
-          <DomTweakerDiffActionLink instanceConfig={instanceConfig} />
-          {/* Actions kebab — narrow-panel replacement for the four action
-              links above (#518). Always rendered so the @container rule in
-              styles/panel.css can show/hide it with pure CSS; no JS width
-              tracking. Inline div (not RoleButton) so we can attach a ref for
-              popover anchoring, matching the gear button below. */}
-          <div
-            ref={actionsMenuBtnRef}
-            role="button"
-            tabIndex={0}
-            className="tokenpanel-actions-menu-btn"
-            aria-label="Panel actions"
-            aria-expanded={showActionsMenu}
-            aria-haspopup="dialog"
-            onClick={() => setShowActionsMenu((v) => !v)}
-            onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                setShowActionsMenu((v) => !v);
-              }
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="5" r="2" />
-              <circle cx="12" cy="12" r="2" />
-              <circle cx="12" cy="19" r="2" />
-            </svg>
-          </div>
-          {showActionsMenu && (
-            <ActionsMenuPopover
-              anchorRef={actionsMenuBtnRef}
-              actions={panelActions}
-              onClose={() => setShowActionsMenu(false)}
-            >
-              <DomTweakerDiffActionLink
-                instanceConfig={instanceConfig}
-                onSelected={() => setShowActionsMenu(false)}
-              />
-            </ActionsMenuPopover>
-          )}
-          <div className="tokenpanel-spacer" />
-          {/* Element-path-copy toggle — enable, then Alt+click any element to copy its path */}
-          <ElementPathToggleButton />
-          {instanceConfig.domTweaker !== undefined && (
-            <DomTweakerToggleButton />
-          )}
-          {/* Gear button — inline div so we can attach a ref for popover anchoring */}
-          <div
-            ref={gearBtnRef}
-            role="button"
-            tabIndex={0}
-            className="tokenpanel-gear-btn"
-            aria-label="Highlight outline settings"
-            aria-expanded={showHighlightSettings}
-            aria-haspopup="dialog"
-            onClick={() => setShowHighlightSettings((v) => !v)}
-            onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                setShowHighlightSettings((v) => !v);
-              }
-            }}
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-          </div>
-          <RoleButton
-            onClick={() => setOpen(false)}
-            className="tokenpanel-close-btn"
-            aria-label="Close panel"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M18 6 6 18" />
-              <path d="m6 6 12 12" />
-            </svg>
-          </RoleButton>
-        </div>
-
-        {/* Tab bar — data-driven when PanelConfig.tabs is supplied, otherwise
-            falls back to the legacy hard-coded LEGACY_TABS strip. The tablist
-            (role="tablist") and the density slider live side-by-side inside
-            `.tokenpanel-tabbar`; the wrapper is a plain container so the
-            tablist only ever has `role=tab` children. */}
-        <div className="tokenpanel-tabbar">
-          <div
-            ref={tabsStripRef}
-            role="tablist"
-            aria-label="Design token categories"
-            className={
-              tabsHaveOverflow
-                ? 'tokenpanel-tabbar-tabs has-overflow'
-                : 'tokenpanel-tabbar-tabs'
-            }
-          >
-            {activeTabs.map((tab) => {
-              const isSelected = activeTab === tab.id;
-              return (
-                <div
-                  key={tab.id}
-                  ref={(el) => {
-                    tabRefs.current[tab.id] = el;
-                  }}
-                  role="tab"
-                  id={`dtp-tab-${ariaIdScope}-${tab.id}`}
-                  aria-selected={isSelected}
-                  aria-controls={`dtp-panel-${ariaIdScope}-${tab.id}`}
-                  tabIndex={isSelected ? 0 : -1}
-                  onClick={() => setActiveTab(tab.id)}
-                  onKeyDown={handleTabKeyDown}
-                  className={
-                    isSelected ? 'tokenpanel-tab-button is-active' : 'tokenpanel-tab-button'
-                  }
-                >
-                  {tab.label}
-                </div>
-              );
-            })}
-          </div>
-          <div className="tokenpanel-density">
-            <label
-              htmlFor={`dtp-density-${ariaIdScope}`}
-              className="tokenpanel-density-label"
-              title="Tab grid density: dense / cozy / wide (forces 1 column)"
-            >
-              Density
-            </label>
-            <input
-              id={`dtp-density-${ariaIdScope}`}
-              type="range"
-              min={0}
-              max={2}
-              step={1}
-              value={density}
-              onInput={(e) => {
-                const raw = Number((e.currentTarget as HTMLInputElement).value);
-                if (raw === 0 || raw === 1 || raw === 2) handleDensityChange(raw);
-              }}
-              className="tokenpanel-density-slider"
-              aria-label="Tab grid density"
-            />
-          </div>
-        </div>
+        />
+        <ShellTabBar
+          tabs={activeTabs}
+          activeTab={activeTab}
+          onActiveTabChange={handleActiveTabChange}
+          ariaIdScope={ariaIdScope}
+          tabRefs={tabRefs}
+          density={density}
+          onDensityChange={handleDensityChange}
+          open={open}
+          changedCounts={changedTokenCounts}
+        />
+        <SearchMatchBar
+          query={searchQuery}
+          activeTabId={activeTab}
+          counts={searchCounts}
+          onSelectTab={setActiveTab}
+        />
 
         {/* Tab panels — reserved ids dispatch to their dedicated components;
             non-reserved ids dispatch to GenericTab. */}
@@ -961,6 +1674,9 @@ export default function DesignTokenTweakPanel({
                 tabIndex={0}
                 hidden={!isSelected}
               >
+                {tab.id === ELEMENT_INSPECT_TAB_ID && (
+                  <ElementInspectView onJumpToColorTab={jumpToColorTab} />
+                )}
                 {tab.id === 'color' && state && tabConfigById['color'] && (
                   <ColorTab
                     tab={tabConfigById['color']}
@@ -971,6 +1687,10 @@ export default function DesignTokenTweakPanel({
                     persistSecondary={persistSecondary}
                     instanceConfig={instanceConfig}
                     tabOverrides={state.tabs ?? {}}
+                    searchQuery={searchQuery}
+                    isChanged={isTokenChanged}
+                    changedOnly={changedOnly}
+                    onRevert={handleRevertAddress}
                   />
                 )}
                 {tab.id === 'spacing' && state && tabConfigById['spacing'] && (
@@ -978,6 +1698,10 @@ export default function DesignTokenTweakPanel({
                     tab={tabConfigById['spacing']}
                     state={state.spacing}
                     persistSpacing={persistSpacing}
+                    searchQuery={searchQuery}
+                    onBulkApply={handleSpacingBulkApply}
+                    changedContribution={changedRowContribution}
+                    changedOnly={changedOnly}
                   />
                 )}
                 {tab.id === 'font' && state && tabConfigById['font'] && (
@@ -985,6 +1709,13 @@ export default function DesignTokenTweakPanel({
                     tab={tabConfigById['font']}
                     state={state.typography}
                     persistFont={persistFont}
+                    instanceConfig={instanceConfig}
+                    renderOnPage={renderSpecimenOnPage}
+                    onRenderOnPageChange={handleRenderSpecimenOnPageChange}
+                    searchQuery={searchQuery}
+                    onBulkApply={handleFontBulkApply}
+                    changedContribution={changedRowContribution}
+                    changedOnly={changedOnly}
                   />
                 )}
                 {tab.id === 'size' && state && tabConfigById['size'] && (
@@ -992,6 +1723,10 @@ export default function DesignTokenTweakPanel({
                     tab={tabConfigById['size']}
                     state={state.size}
                     persistSize={persistSize}
+                    searchQuery={searchQuery}
+                    onBulkApply={handleSizeBulkApply}
+                    changedContribution={changedRowContribution}
+                    changedOnly={changedOnly}
                   />
                 )}
                 {tab.id === 'palette' && state && tabConfigById['palette'] && (
@@ -1014,6 +1749,11 @@ export default function DesignTokenTweakPanel({
                         [tierId]: { ...prev[tierId], ...patch },
                       }))
                     }
+                    searchQuery={searchQuery}
+                    changedOnly={changedOnly}
+                    isChanged={isTokenChanged}
+                    jumpAddress={pendingJumpAddress}
+                    onJumpAddressHandled={handlePaletteJumpHandled}
                   />
                 )}
                 {tab.id === 'notes' && tabConfigById['notes'] && (
@@ -1026,6 +1766,10 @@ export default function DesignTokenTweakPanel({
                   <GenericTab
                     tab={tabConfigById[tab.id]}
                     overrides={state.tabs?.[tab.id] ?? {}}
+                    searchQuery={searchQuery}
+                    onBulkApply={(patch) => handleGenericBulkApply(tab.id, patch)}
+                    changedContribution={changedRowContribution}
+                    changedOnly={changedOnly}
                     onChange={(tierId, itemId, next) => {
                       // `next === undefined` (ref-tier "Literal…" pick, #470)
                       // means drop the stored override entirely so the item
@@ -1053,25 +1797,59 @@ export default function DesignTokenTweakPanel({
           })}
         </div>
 
+        {historyRailOpen && (
+          <HistoryRail
+            history={historySnapshot}
+            snapshots={snapshots}
+            selectedSnapshot={selectedSnapshot}
+            notice={historyNotice ?? historySnapshot.lastSkippedReason}
+            activeIdentity={activeColorIdentity}
+            onSaveSnapshot={handleSaveSnapshot}
+            onSelectSnapshot={handleSelectSnapshot}
+            onJumpTo={handleHistoryJump}
+          />
+        )}
+
+        <ShellFooter />
+
         {/* Bottom-right resize grip — available on every viewport width.
 
             ARIA: `role="separator"` would imply a 1D resizer between two
             regions; this grip resizes the panel on both axes, which has no
             standard role. We keep just `aria-label` for SR users — keyboard
             resize is intentionally out of scope. */}
-        <div
-          className="tokenpanel-resize-handle"
-          onMouseDown={handleResizeStart}
-          aria-label="Resize panel"
-          title="Drag to resize"
+        {effectiveDockMode === 'float' ? (
+          <div
+            className="tokenpanel-resize-handle"
+            onMouseDown={handleResizeStart}
+            aria-label="Resize panel"
+            title="Drag to resize"
+          />
+        ) : (
+          <div
+            className={`tokenpanel-dock-resize-handle is-${effectiveDockMode}`}
+            onMouseDown={handleDockResizeStart}
+            aria-label={`Resize ${effectiveDockMode}-docked panel`}
+            title="Drag to resize"
+          />
+        )}
+        <CommandPalette
+          open={showCommandPalette}
+          onOpen={() => setShowCommandPalette(true)}
+          onClose={() => setShowCommandPalette(false)}
+          config={instanceConfig}
+          state={state}
+          actions={commandActions}
+          onSelectToken={handleCommandToken}
         />
-      </div>
+              </div>
+            )}
 
       {showExport && state && (
         <ExportModal
           onClose={() => setShowExport(false)}
           state={state}
-          colorDefaults={initColorFromScheme(getActivePrimaryCluster(instanceConfig), instanceConfig)}
+          colorDefaults={colorDefaults}
           instanceConfig={instanceConfig}
         />
       )}
@@ -1090,7 +1868,7 @@ export default function DesignTokenTweakPanel({
           state={state}
           open={showApply}
           onClose={() => setShowApply(false)}
-          colorDefaults={initColorFromScheme(getActivePrimaryCluster(instanceConfig), instanceConfig)}
+          colorDefaults={colorDefaults}
           onApplied={handleApplied}
           instanceConfig={instanceConfig}
         />
@@ -1106,9 +1884,14 @@ export default function DesignTokenTweakPanel({
         );
       })()}
       </TooltipProvider>
+      </TokenChainProvider>
       </DomTweakerOrchestrator>
+    </ElementInspectOrchestrator>
       </ElementPathOrchestrator>
     </HighlightOrchestrator>
+    </ShellRegionsProvider>
+    </ShortcutProvider>
+    </LayerActivityProvider>
   );
 }
 

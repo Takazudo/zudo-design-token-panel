@@ -12,7 +12,7 @@
  *
  * Scope
  * -----
- * Declared on the panel shell + the default modal class prefix (matching
+ * Declared on the panel shell + mini pill + the default modal class prefix (matching
  * `DEFAULT_PANEL_CONFIG.modalClassPrefix` in `config/panel-config.ts`).
  * Keeping the declaration local to those scopes — instead of `:root` —
  * means a host's stylesheet cannot be polluted by these names just because
@@ -34,8 +34,10 @@
  * A host that wants to retheme the panel chrome assigns directly to the
  * `--tokentweak-color-*` / `--tokentweak-font-mono` / `--tokentweak-z-*`
  * names on either `.tokenpanel-shell`, `[data-design-token-panel-modal]`,
- * `.tokenpanel-highlight-settings-popover`, `.tokenpanel-color-picker`, or
- * `.tokenpanel-tooltip` (or any ancestor — `:where()` keeps specificity at 0).
+ * `.tokenpanel-highlight-settings-popover`, `.tokenpanel-chain-popover`,
+ * `.tokenpanel-color-picker`,
+ * `.tokenpanel-tooltip`, or an element-inspect surface (or any ancestor —
+ * `:where()` keeps specificity at 0).
  * The popover/tooltip classes are listed directly because they render OUTSIDE
  * `.tokenpanel-shell` (anchored siblings, or — for the tooltip — portaled to
  * `document.body`); without their own entry here `var(--tokentweak-*)` would
@@ -46,12 +48,17 @@
  */
 :where(
   .tokenpanel-shell,
+  .tokenpanel-mini-pill,
   [data-design-token-panel-modal],
   .tokenpanel-highlight-settings-popover,
+  .tokenpanel-chain-popover,
   .tokenpanel-color-picker,
   .tokenpanel-tooltip,
   .tokenpanel-elpath-label,
-  .tokenpanel-elpath-toast
+  .tokenpanel-elpath-toast,
+  .tokenpanel-element-inspect-box,
+  .tokenpanel-element-inspect-label,
+  .tokenpanel-element-inspect-view
 ) {
   /* Steer UA chrome (scrollbars, select dropdowns, number spin buttons) to
    * dark mode so they match the panel's own dark palette on any host page.
@@ -72,6 +79,9 @@
   --tokentweak-color-muted: #888888;
   --tokentweak-color-surface: #1c1c1c;
   --tokentweak-color-accent: #d69a66;
+  /* Dedicated changed-state accent: a little brighter than the tab accent so
+   * the left rail and compact markers remain legible on token controls. */
+  --tokentweak-color-accent-bar: #efb477;
   --tokentweak-color-accent-hover: #a7c0e3;
   --tokentweak-color-code-bg: #383838;
   --tokentweak-color-code-fg: #e0e0e0;
@@ -118,6 +128,7 @@
   --tokentweak-z-settings-popover: 2147482992; /* highlight-settings popover (body-sibling) */
   --tokentweak-z-color-picker:     2147482993; /* color-picker card (shell-local stacking context) */
   --tokentweak-z-tooltip:          2147482994; /* DOM tooltip portaled to body */
+  --tokentweak-z-command-palette:   2147482995; /* command palette overlay (shell-local) */
   --tokentweak-z-inspector-box:    2147483000; /* element-path inspector box */
   --tokentweak-z-toast:            2147483001; /* element-path toast */
 }

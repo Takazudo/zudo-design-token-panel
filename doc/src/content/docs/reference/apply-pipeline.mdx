@@ -1,13 +1,19 @@
 ---
 title: Apply pipeline
 sidebar_position: 5
-description: How the tier resolver turns TabOverrides into CSS-var writes, the v2 export schema, applyEndpoint + applyRouting, request/response envelopes, and atomicity guarantees.
+description: How the tier resolver turns TabOverrides into CSS-var writes, dry-run previews, digest-guarded source rewrites, applyEndpoint + applyRouting, and atomicity guarantees.
 ---
 
 The apply pipeline turns the panel's in-memory override state into CSS writes and (when the host wires an endpoint) into source-file rewrites on disk. There are two distinct paths:
 
-1. **`:root` inline style** — applied client-side, immediately, on every user tweak.
+1. **Inline style** — applied client-side, immediately, on every user tweak, to the configured `applySink` or (by default) `document.documentElement` (`:root`).
 2. **Apply-to-disk** — triggered by the Apply button; POSTs a diff to the host's dev endpoint which routes it to the bin server.
+
+The Apply modal uses a two-step protocol. It first sends a `dryRun: true`
+preview and displays the proposed file hunks. When the user confirms, it
+sends the same token map with the returned file digests in `expectDigests`.
+The server reads and computes every target before writing any file, so a
+stale preview returns a 409 and never partially applies the batch.
 
 ## State → tier resolver → CSS emission
 
@@ -54,13 +60,22 @@ semantic.tab-open override = 'ease-in'
   → emits --myapp-transition-tab-open: var(--myapp-easing-ease-in)
 ```
 
-Only the raw tier item's cssVar is written to `:root` directly. The semantic tier item always emits `var(...)` — it never writes a raw CSS value.
+The base tier's `cssVar` receives its literal value at the active write target. A
+reference-tier item also writes its own `cssVar` at that target, but its value
+is always `var(...)` — it never writes the referenced raw CSS value directly.
 
-### `:root` inline style write
+### Inline style write
 
-The panel writes overrides to `document.documentElement.style.setProperty(cssVar, value)` on every user change. When no override is active for an item, the inline property is removed (so the stylesheet default wins).
+The panel writes overrides to the configured `applySink` on every user change,
+or to `document.documentElement.style.setProperty(cssVar, value)` when no sink
+is configured. When no override is active for an item, the active target's
+property is removed (so the stylesheet default wins).
 
-The Color tab's palette, base-role, and semantic slots are written by the same mechanism — palette items directly, semantic items via `var(--palette-cssVar)`.
+The live Color-tab apply path writes palette items directly, declared base
+roles from their selected palette slots, and semantic items via
+`var(--palette-cssVar)` (or their literal/reference form). The disk apply
+payload intentionally contains palette and semantic CSS variables only; base
+roles are runtime wiring and are not emitted by `buildApplyOverrides`.
 
 ## Export schema (v2)
 
@@ -77,16 +92,20 @@ The panel exports and imports overrides as a JSON envelope with a `$schema` fiel
 The top-level keys (after `$schema`) are the CSS custom property names of every active override. The values are CSS strings. On import, the panel validates the `$schema` field against the canonical `SCHEMA_V1` / `SCHEMA_V2` / `SCHEMA_V3` constants — NOT against `PanelConfig.schemaId`, which is a display-only label the serde never reads (see [`configurePanel` reference](./configure-panel.mdx#panelconfig-interface)). A `$schema` value that matches none of the three canonical constants is rejected with a `schema-mismatch` error.
 
 <Note title="Flat cssVar-keyed shape">
-The v2 export format is a flat map of cssVar → CSS string. Reference-tier items are expanded to their emitted `var(...)` value at export time — the exported file contains only the CSS values the user would see in `:root`, not the intermediate item ids.
+The v2 export format is a flat map of cssVar → CSS string. Reference-tier items are expanded to their emitted `var(...)` value at export time — the exported file contains only the CSS values the user would see at the active CSS target, not the intermediate item ids.
 </Note>
 
 ## Apply-to-disk
 
 ### `applyEndpoint`
 
-When `PanelConfig.applyEndpoint` is set, the Apply button is enabled. Clicking it POSTs the active override diff to this URL.
+When `PanelConfig.applyEndpoint` is set together with a non-empty
+`applyRouting` map, the Apply button is eligible. Clicking it POSTs the active
+override diff to this URL.
 
-When `applyEndpoint` is `undefined`, the Apply button stays disabled with a tooltip — hosts that use export/import only can omit this field.
+When `applyEndpoint` is `undefined` (or `applyRouting` is empty), the Apply
+button stays disabled with a tooltip — hosts that use export/import only can
+omit these fields.
 
 ### `applyRouting`
 
@@ -138,15 +157,75 @@ Content-Type: application/json
 
 {
   "tokens": {
-    "--myapp-spacing-md": "1.5rem",
-    "--myapp-color-bg": "#0f172a"
+    "--myapp-spacing-md": "1.5rem"
+  },
+  "dryRun": true
+}
+```
+
+The confirming write sends the same `tokens` map without `dryRun` and includes
+the digest returned for each previewed file:
+
+```json
+{
+  "tokens": {
+    "--myapp-spacing-md": "1.5rem"
+  },
+  "expectDigests": {
+    "src/styles/spacing.css": "<64 lowercase SHA-256 hex characters>"
   }
 }
 ```
 
-`tokens` is a flat object: CSS custom property name (must start with `--`) → CSS string value.
+`tokens` is a non-empty flat object: CSS custom property name (must start
+with `--`) → CSS string value. `dryRun`, when supplied, must be `true`.
+`expectDigests` is optional and maps response `file` paths to 64-character
+SHA-256 hex digests from a previous preview. It is checked only for a real
+write.
 
-### Response 200 (success)
+### Response 200 — dry-run preview
+
+```json
+{
+  "ok": true,
+  "dryRun": true,
+  "files": [
+    {
+      "file": "src/styles/spacing.css",
+      "blockKind": "root",
+      "digest": "<64 lowercase SHA-256 hex characters>",
+      "changed": ["--myapp-spacing-md"],
+      "unchanged": [],
+      "unknown": [],
+      "unknownOutsideBlock": [],
+      "hunks": [
+        {
+          "cssVar": "--myapp-spacing-md",
+          "line": 12,
+          "before": "  --myapp-spacing-md: 1rem;",
+          "after": "  --myapp-spacing-md: 1.5rem;",
+          "context": {
+            "before": ["  --myapp-spacing-sm: 0.5rem;"],
+            "after": ["  --myapp-spacing-lg: 3rem;"]
+          }
+        }
+      ]
+    }
+  ],
+  "rejected": [],
+  "rejectedReasons": []
+}
+```
+
+`files[]` has one entry per physical target file. `blockKind` is `root` or
+`theme`, with `:root` winning when both contain requested declarations. The
+digest is of the exact bytes read. Hunk line numbers are one-based; each
+changed CSS variable gets one hunk, while unchanged and unknown variables get
+none. Dry runs may include unrouted variables: they are reported in
+`rejected`/`rejectedReasons` while routed files still preview successfully. A
+dry run with no routed variables returns an empty `files` array successfully.
+
+### Response 200 — write
 
 ```json
 {
@@ -156,24 +235,22 @@ Content-Type: application/json
       "file": "src/styles/spacing.css",
       "changed": ["--myapp-spacing-md"],
       "unchanged": [],
-      "unknown": ["--myapp-spacing-lg"],
-      "unknownOutsideBlock": ["--myapp-spacing-lg"]
+      "unknown": [],
+      "unknownOutsideBlock": []
     }
   ],
-  "unknownCssVars": ["--myapp-spacing-lg"],
+  "unknownCssVars": [],
   "unchangedCssVars": [],
-  "unknownOutsideBlockCssVars": ["--myapp-spacing-lg"]
+  "unknownOutsideBlockCssVars": []
 }
 ```
 
-| Field | Meaning |
-| --- | --- |
-| `ok: true` | Marks success. |
-| `updated[]` | Per-file results. `changed[]` = rewritten; `unchanged[]` = found in a scanned block but its value already matched; `unknown[]` = requested but not found in EITHER the file's scanned `:root` block or its scanned `@theme` block. |
-| `updated[].unknownOutsideBlock` | Subset of that file's `unknown[]`: the var IS declared somewhere in the file (found by a whole-file scan), just outside both scanned blocks — e.g. nested under `@media`/`@layer`/`@supports`, inside a grouped selector (`:root, html { ... }`), or in a SECOND top-level `:root`/`@theme` block. Distinguishes "wrong location" from "typo'd name" (the remaining entries in `unknown[]` not listed here). |
-| `unknownCssVars` | `unknown[]` flattened across all files, for UI feedback. |
-| `unchangedCssVars` | `unchanged[]` flattened across all files, for UI feedback. |
-| `unknownOutsideBlockCssVars` | `unknownOutsideBlock[]` flattened across all files, for UI feedback. |
+`changed` declarations are rewritten. `unchanged` declarations were found in
+a scanned block with the requested value already present. `unknown` were not
+found in either scanned block; `unknownOutsideBlock` is the subset declared
+elsewhere in the file (for example in a nested rule, grouped selector, or a
+second top-level block). The three top-level arrays flatten those per-file
+diagnostics for the panel.
 
 ### Response 400 (bad request)
 
@@ -181,7 +258,10 @@ Content-Type: application/json
 { "ok": false, "error": "<message>", "rejected": ["--invalid-token"] }
 ```
 
-Returned for malformed JSON, missing / empty `tokens`, invalid token names, or prefixes not in the routing map. `rejected` is optional.
+Returned for malformed JSON, a non-object body, missing/empty `tokens`, a
+non-`true` `dryRun`, invalid token names, invalid digest objects, or an
+unsupported prefix on a real write. Path-escape attempts and routing paths
+outside `writeRoot` are also rejected.
 
 ### Response 403 (Forbidden)
 
@@ -189,15 +269,27 @@ Returned for malformed JSON, missing / empty `tokens`, invalid token names, or p
 { "ok": false, "error": "Origin not allowed" }
 ```
 
-The bin rejects cross-origin requests.
+The CLI wrapper rejects origins outside its explicit allow-list.
 
 ### Response 409 (Conflict)
+
+The target file has neither a top-level `:root` nor a top-level `@theme`
+block:
 
 ```json
 { "ok": false, "error": "No top-level :root { ... } or @theme { ... } block in <file>" }
 ```
 
-The target CSS file has **neither** a top-level `:root` block nor a top-level `@theme` block — see [Which CSS blocks get rewritten](#apply-to-disk-which-css-blocks-get-rewritten) above. A file with only one of the two (e.g. `@theme`-only, no `:root` at all) does NOT 409; it applies normally against whichever block exists.
+A file containing only `@theme` (or only `:root`) is valid. A real write whose
+current bytes differ from a supplied preview digest returns a stale-file
+conflict before any file is written:
+
+```json
+{ "ok": false, "reason": "stale-file", "files": ["src/styles/spacing.css"] }
+```
+
+The client refreshes the preview and asks the user to review the new hunks.
+Omitting `expectDigests` preserves the legacy write behavior.
 
 ### Response 500 (Internal server error)
 
@@ -210,7 +302,25 @@ The target CSS file has **neither** a top-level `:root` block nor a top-level `@
 }
 ```
 
-Returned when a file write fails. `restoreFailures` is populated when the rollback also fails.
+Returned when a file write fails. `restoreFailures` is populated when the
+rollback also fails, meaning the listed files require manual inspection.
+
+## Apply modal behavior
+
+The panel debounces preview requests. It waits for the latest dry-run response
+before enabling confirmation, then sends the current `tokens` plus the
+preview's `expectDigests`. If a 409 stale-file response arrives, it refreshes
+the preview instead of treating the write as successful. On a successful
+write, only CSS variables reported in `changed` are reconciled in the in-memory
+state; unrouted tokens and variables in other files remain available for a
+later apply. The `${storagePrefix}-last-applied` key holds the flat comparison
+baseline used by the changed-state indicator. After a successful write the
+current implementation resets that baseline to `{}` while reconciling only
+the confirmed `changed` variables, so retained or unrouted overrides remain
+marked dirty.
+
+When no `applyEndpoint` or no non-empty `applyRouting` map is configured, the
+modal can still show the local diff but the disk-apply action stays disabled.
 
 ## Atomic write contract
 

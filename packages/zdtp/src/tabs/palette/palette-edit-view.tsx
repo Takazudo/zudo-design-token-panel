@@ -35,7 +35,7 @@
  * wide-gamut display (or a different clamp strategy) loses nothing.
  */
 
-import { useCallback, useMemo, useRef, useState } from 'preact/compat';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/compat';
 import type { TabConfig, TierConfig, TierItem } from '../../tokens/tier-model';
 import type { TabOverrides } from '../../apply/tier-resolver';
 import { groupPaletteTiers } from './palette-tab';
@@ -50,6 +50,9 @@ import { clampHueForPersist, type Channel } from '../../utils/palette-curve';
 import { PaletteChart } from '../../components/palette-chart';
 import { ColorField } from '../../components/color-picker/color-field';
 import PaletteReadout from './palette-readout';
+import type { TokenAddress } from '../flat/types';
+import { tokenAddressKey } from '../flat/types';
+import { matchesSearchFields } from '../../search/token-search';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -70,6 +73,13 @@ export interface PaletteEditViewProps {
    * per-item `onChange`).
    */
   onCommitBatch?: (tierId: string, patch: Record<string, string>) => void;
+  searchQuery?: string;
+  /** Transient active-tab Changed-only filter. */
+  changedOnly?: boolean;
+  /** S2 evaluator callback for palette-step addresses. */
+  isChanged?: (address: TokenAddress) => boolean;
+  jumpAddress?: TokenAddress | null;
+  onJumpAddressHandled?: (address: TokenAddress) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -120,9 +130,10 @@ interface SwatchProps {
   slot: ColorSlot;
   isSelected: boolean;
   onSelect: (index: number) => void;
+  address?: TokenAddress;
 }
 
-function Swatch({ item, index, slot, isSelected, onSelect }: SwatchProps) {
+function Swatch({ item, index, slot, isSelected, onSelect, address }: SwatchProps) {
   // Clamp only for the fill; the underlying value stays raw.
   const fill = slot.color ? oklchaToHex(slot.color) : undefined;
   const outOfGamut = slot.color ? !isInSrgbGamut(slot.color) : false;
@@ -153,6 +164,7 @@ function Swatch({ item, index, slot, isSelected, onSelect }: SwatchProps) {
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       data-testid={`palette-edit-swatch-${item.id}`}
+      {...(address ? { 'data-address': tokenAddressKey(address) } : {})}
     >
       <span className="tokenpanel-palette-edit-swatch-idx" aria-hidden="true">
         {index}
@@ -247,8 +259,41 @@ function ChannelToggle({ visible, onToggle }: ChannelToggleProps) {
 // PaletteEditView
 // ---------------------------------------------------------------------------
 
-export default function PaletteEditView({ tab, overrides, onChange, onCommitBatch }: PaletteEditViewProps) {
-  const tiers = groupPaletteTiers(tab);
+export default function PaletteEditView({
+  tab,
+  overrides,
+  onChange,
+  onCommitBatch,
+  searchQuery = '',
+  changedOnly = false,
+  isChanged,
+  jumpAddress = null,
+  onJumpAddressHandled,
+}: PaletteEditViewProps) {
+  const allTiers = groupPaletteTiers(tab);
+  const query = searchQuery.trim();
+  const changedFor = useCallback(
+    (address: TokenAddress) => isChanged?.(address) ?? false,
+    [isChanged],
+  );
+  const tiers = useMemo(
+    () => allTiers.filter((tier) => {
+      if (query && !matchesSearchFields({
+        cssVar: '',
+        id: tier.id,
+        label: tier.label,
+        value: '',
+        tierLabel: tier.label,
+      }, query)) return false;
+      if (changedOnly && !tier.items.some((item) => changedFor({
+        tabId: tab.id,
+        tierId: tier.id,
+        itemId: item.id,
+      }))) return false;
+      return true;
+    }),
+    [allTiers, changedFor, changedOnly, query, tab.id],
+  );
 
   // Single-open accordion. `null` = every group collapsed (the initial state):
   // the Edit view opens with ALL groups closed so the boxed headers read as
@@ -285,6 +330,20 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
   }, []);
 
   const activeTier = tiers.find((t) => t.id === activeTierId) ?? null;
+
+  useEffect(() => {
+    if (!jumpAddress || jumpAddress.tabId !== tab.id) return;
+    const targetTier = allTiers.find((tier) => tier.id === jumpAddress.tierId);
+    const targetIndex = targetTier?.items.findIndex((item) => item.id === jumpAddress.itemId) ?? -1;
+    if (!targetTier || targetIndex < 0) return;
+    setActiveTierId(targetTier.id);
+    setSelectedIndex(targetIndex);
+    gestureRef.current = null;
+    writeTransient({});
+    if (!onJumpAddressHandled) return;
+    const frame = window.requestAnimationFrame(() => onJumpAddressHandled(jumpAddress));
+    return () => window.cancelAnimationFrame(frame);
+  }, [allTiers, jumpAddress, onJumpAddressHandled, tab.id, writeTransient]);
   // Direct editor events can outlive the mounted ColorField DOM during a
   // config update. Read current selection/config through refs so even a stale
   // event closure cannot write an item that has since become readonly.
@@ -434,6 +493,11 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
         const chipSlots = isActive
           ? activeSlots
           : tier.items.map((item) => resolveItemSlot(item, tier.id, overrides));
+        const changedCount = tier.items.reduce((count, item) => count + (changedFor({
+          tabId: tab.id,
+          tierId: tier.id,
+          itemId: item.id,
+        }) ? 1 : 0), 0);
         return (
           <div
             key={tier.id}
@@ -481,6 +545,15 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
                 {tier.label}
               </div>
               <GroupPreviewChips slots={chipSlots} />
+              {changedCount > 0 && (
+                <span
+                  className="tokenpanel-palette-edit-group-changed-count"
+                  data-testid={`palette-edit-changed-count-${tier.id}`}
+                  aria-label={`${changedCount} changed step${changedCount === 1 ? '' : 's'}`}
+                >
+                  {changedCount}
+                </span>
+              )}
             </div>
 
             {isActive && (
@@ -489,16 +562,21 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
                   className="tokenpanel-palette-edit-swatches"
                   data-testid={`palette-edit-swatches-${tier.id}`}
                 >
-                  {tier.items.map((item, index) => (
-                    <Swatch
-                      key={item.id}
-                      item={item}
-                      index={index}
-                      slot={activeSlots[index]}
-                      isSelected={index === selectedIndex}
-                      onSelect={(i) => handleSelectGroup(tier.id, i)}
-                    />
-                  ))}
+                  {tier.items.map((item, index) => {
+                    const address = { tabId: tab.id, tierId: tier.id, itemId: item.id };
+                    if (changedOnly && !changedFor(address)) return null;
+                    return (
+                      <Swatch
+                        key={item.id}
+                        item={item}
+                        index={index}
+                        slot={activeSlots[index]}
+                        isSelected={index === selectedIndex}
+                        onSelect={(i) => handleSelectGroup(tier.id, i)}
+                        address={{ tabId: tab.id, tierId: tier.id, itemId: item.id }}
+                      />
+                    );
+                  })}
                 </div>
 
                 <ActiveGroupEditor
@@ -525,6 +603,11 @@ export default function PaletteEditView({ tab, overrides, onChange, onCommitBatc
           </div>
         );
       })}
+      {changedOnly && tiers.length === 0 && (
+        <div className="tokenpanel-changed-empty" data-testid="tokenpanel-changed-empty">
+          No changed tokens in this tab — everything is at its manifest default.
+        </div>
+      )}
     </div>
   );
 }

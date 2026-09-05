@@ -1,20 +1,33 @@
 ---
 title: パネル CSS トークン
 sidebar_position: 6
-description: "--tokentweak-* プライベート変数、panel-tokens.css に組み込まれた自己完結型のダークパレット、モーダルのデータ属性セレクター、対になるスタイルシート／ホストアダプターのインポート要件。"
+description: "--tokentweak-* プライベート変数、panel-tokens.css に組み込まれた自己完結型のダークパレット、モーダルのデータ属性セレクター、ホストアダプターのインポート要件。"
 ---
 
-パネルには独自の CSS がバンドルされています。利用側で Tailwind に依存することも、ホストの `--color-*` テーマを読み取ることもありません。このページでは、パネル専用の `--tokentweak-*` 名前空間、パネルが描画に使用する自己完結型のダークパレット、バンドル済みスタイルシートのモーダルセレクター契約、別の chrome テーマを求めるホスト向けのパネル専用オーバーライド範囲を明確にします。
+パネルには独自の CSS がバンドルされています。利用側で Tailwind に依存することも、ホストの `--color-*` テーマを読み取ることもありません。このページでは、パネル専用の `--tokentweak-*` 名前空間、パネルが描画に使用する自己完結型のダークパレット、バンドル済みスタイルシートのモーダルセレクター契約、ホストレイアウト用の dock 変数、別の chrome テーマを求めるホスト向けのパネル専用オーバーライド範囲を明確にします。
 
 ## パネル専用の名前空間
 
-バンドル済みのスタイルシートは、パネル chrome のすべての変数をパネル専用の名前空間で宣言し、パネルシェルとモーダルクラスのプレフィックスにスコープします。
+バンドル済みのスタイルシートは、パネル chrome のすべての変数をパネル専用の名前空間で宣言し、パネルシェル、モーダルのデータ属性、body レベルの機能サーフェスにスコープします。
 
 ```css
-:where(.tokenpanel-shell, [data-design-token-panel-modal]) {
-  --tokentweak-pad-md: …;
-  --tokentweak-gap-sm: …;
-  --tokentweak-text-body: …;
+:where(
+  .tokenpanel-shell,
+  .tokenpanel-mini-pill,
+  [data-design-token-panel-modal],
+  .tokenpanel-highlight-settings-popover,
+  .tokenpanel-chain-popover,
+  .tokenpanel-color-picker,
+  .tokenpanel-tooltip,
+  .tokenpanel-elpath-label,
+  .tokenpanel-elpath-toast,
+  .tokenpanel-element-inspect-box,
+  .tokenpanel-element-inspect-label,
+  .tokenpanel-element-inspect-view
+) {
+  --tokentweak-pad-md: 12px;
+  --tokentweak-gap-sm: 20px;
+  --tokentweak-text-body: 19px;
   --radius-tokentweak: …;
   /* …every panel-chrome value lives here */
 }
@@ -22,9 +35,10 @@ description: "--tokentweak-* プライベート変数、panel-tokens.css に組�
 
 ### 命名規則
 
-- `--tokentweak-*` は、パネル専用変数に認められる唯一のプレフィックスです。利用側の名前空間に属する識別子をパネル chrome に含めてはいけません。
-- chrome のスタイルシート（`panel.css`）は `--tokentweak-*` だけを読み取る**必要があります**。`--color-*` や `--font-mono` のようなホスト変数を直接読み取っては**いけません**。
+- パネル専用の色、フォント、スペーシング、タイポグラフィ、z-index 変数には `--tokentweak-*` プレフィックスを使用します。共有の角丸トークンには既存の `--radius-tokentweak` 名を使用します。利用側の名前空間に属する識別子をパネル chrome に含めてはいけません。
+- chrome のスタイルシート（`panel.css`）は、パッケージ所有のトークン（`--tokentweak-*`、`--radius-tokentweak`、`--tokenpanel-grid-min` のようなコンポーネントローカルのレイアウトヒント）だけを読み取る**必要があります**。`--color-*` や `--font-mono` のようなホスト変数を直接読み取っては**いけません**。
 - トークンシート（`panel-tokens.css`）は `--tokentweak-*` の値を具体的な色として宣言し（`var(--color-*)` は読み取りません）、ホストテーマの変更がパネル chrome へ入り込まないようにします。[下記の自己完結型パレット](#自己完結型のパネル-chrome-パレット)を参照してください。
+- ホストレイアウトとの連携用変数は、別の `--zdtp-dock-inset-*` 名前空間を使用します。これらは dock の claim が有効な間だけ document root に書き込まれ、パネル chrome のテーマ変更用フックではありません。
 
 ### ファイル
 
@@ -65,6 +79,7 @@ import '@takazudo/zdtp/styles';
   --tokentweak-color-muted: #888888;
   --tokentweak-color-surface: #1c1c1c;
   --tokentweak-color-accent: #d69a66;
+  --tokentweak-color-accent-bar: #efb477;
   --tokentweak-color-accent-hover: #a7c0e3;
   --tokentweak-color-code-bg: #383838;
   --tokentweak-color-code-fg: #e0e0e0;
@@ -89,6 +104,7 @@ import '@takazudo/zdtp/styles';
 | `--tokentweak-color-muted` | `#888888` | 控えめなテキストと区切り線。 |
 | `--tokentweak-color-surface` | `#1c1c1c` | 浮き上がったサーフェス（カード、モーダル）。 |
 | `--tokentweak-color-accent` | `#d69a66` | 主要アクションとハイライト。 |
+| `--tokentweak-color-accent-bar` | `#efb477` | 変更状態のレールとコンパクトなマーカー。 |
 | `--tokentweak-color-accent-hover` | `#a7c0e3` | アクセントサーフェスのホバー状態。 |
 | `--tokentweak-color-code-bg` | `#383838` | インライン／ブロックコードの背景。 |
 | `--tokentweak-color-code-fg` | `#e0e0e0` | インライン／ブロックコードの前景。 |
@@ -111,6 +127,32 @@ import '@takazudo/zdtp/styles';
 
 これが、パネル chrome に関するホストのオーバーライド契約のすべてです。`--color-*` と `--font-mono` はオーバーライド範囲に**含まれません**。ホストページ上でこれらへ値を割り当てても、パネルには影響しません。
 
+色以外のトークンスケールは具体的なピクセル値です。`--tokentweak-pad-*` は `2xs/xs/sm/md/lg/xl/2xl` に対して `2/6/8/12/16/24/32px`、`--tokentweak-gap-*` は同じ段階に対して `7/14/20/24/28/40/56px`、`--tokentweak-text-*` は `micro/caption/small/body/subheading/heading/display` に対して `12/14/16/19/22/48/60px` です。共有の角丸は `--radius-tokentweak: 4px` です。セマンティック z-index 値は、ランタイムが使う高い整数値域にある `--tokentweak-z-overlay`、`shell`、`settings-popover`、`color-picker`、`tooltip`、`command-palette`、`inspector-box`、`toast` として公開されます。
+
+| Z トークン | 値 |
+| --- | ---: |
+| `--tokentweak-z-overlay` | `2147482990` |
+| `--tokentweak-z-shell` | `2147482991` |
+| `--tokentweak-z-settings-popover` | `2147482992` |
+| `--tokentweak-z-color-picker` | `2147482993` |
+| `--tokentweak-z-tooltip` | `2147482994` |
+| `--tokentweak-z-command-palette` | `2147482995` |
+| `--tokentweak-z-inspector-box` | `2147483000` |
+| `--tokentweak-z-toast` | `2147483001` |
+
+## Dock とページ内 specimen の変数
+
+dock モードでは、`document.documentElement` 上にホストレイアウト用変数を 1 つ公開します。
+
+| 変数 | 書き込まれる期間 | 意味 |
+| --- | --- | --- |
+| `--zdtp-dock-inset-right` | `dockMode: 'right'` | 現在の右 dock の幅（ピクセル）。 |
+| `--zdtp-dock-inset-bottom` | `dockMode: 'bottom'` | 現在の下 dock の高さ（ピクセル）。 |
+
+claim が解放されると、変数は以前のインライン宣言そのものへ復元されます。`dock.reflow: 'body-margin'` では対応する body margin も設定されます。`'none'` では body margin が復元される一方、claim の有効中は root 変数をホストのレイアウト CSS から引き続き利用できます。
+
+ページ内 specimen はパネルシェルではなく、ホスト向けの `.tokenpanel-on-page-specimen`、`.tokenpanel-on-page-specimen-heading`、`.tokenpanel-on-page-specimen-section`、`.tokenpanel-on-page-specimen-row` クラスを使用します。ホストのフォントと前景色を継承し、背景には `Canvas` を使い、各 line-height サンプルにはインラインの `--tokenpanel-specimen-line` ガイド変数を付けます。specimen ノードには `data-zdtp-specimen` が付き、パネル所有の走査から除外されます。現在の実装は `.zdtp-specimen` クラスを出力しません。安定したセレクターとして、前述のクラスとデータ属性を使用してください。
+
 ### 不変条件 — パネルパッケージはホストテーマの変数を読み取ってはならない
 
 `panel.css` と `panel-tokens.css` のどちらも、`--color-*` または `--font-mono` を参照してはいけません。パッケージの CI は grep チェックによってこれを固定します。
@@ -128,7 +170,7 @@ grep -n 'var(--font-mono' src/styles/panel-tokens.css # → 0
 
 ## ホストアダプターの副作用インポート（対になる単位としての要件）
 
-利用側は `./styles` のインポートと並んで、`<DesignTokenPanelHost>` と対になるホストアダプターの副作用インポートも所有する**必要があります**。コンポーネントと、`@takazudo/zdtp/astro/host-adapter` を読み込む同階層の `<script>` ブロックは 1 つの単位です。常に 2 行とも必要です。
+利用側は `<DesignTokenPanelHost>` と対になる、ホストアダプターの副作用インポートを所有する**必要があります**。パネルのエントリがスタイルシートを自己注入するため `./styles` のインポートは任意であり、ホストが静的な CSS パイプラインを必要とする場合だけ使用します。コンポーネントと、`@takazudo/zdtp/astro/host-adapter` を読み込む同階層の `<script>` ブロックは 1 つの単位です。常に 2 行とも必要です。
 
 必要な配線の形式は次のとおりです。
 
@@ -156,15 +198,15 @@ grep -n 'var(--font-mono' src/styles/panel-tokens.css # → 0
 
 ## 利用側が制御するトークン
 
-パネルの書き込み先となるトークン（各 `TokenDef` の `cssVar` フィールドに加え、クラスターの `paletteCssVarTemplate`、ベースロール名、semantic-CSS 名）は、すべて利用側が制御します。ホストは `--myapp-spacing-hgap-md`、`--myapp-p0`、`--myapp-semantic-bg` のような名前を自身で選び、パネルは apply 時に `:root` 上の `setProperty` を通じてそのまま書き込むだけです。
+パネルの書き込み先となるトークン（各 `TierItem` の `cssVar` フィールドに加え、カラータブのベースロール名とセマンティック名）は、すべて利用側が制御します。ホストは `--myapp-spacing-hgap-md`、`--myapp-p0`、`--myapp-semantic-bg` のような名前を自身で選び、パネルはデフォルトの `:root` sink または設定済みの `applySink` を通じて書き込みます。
 
 したがって、パッケージの契約は次のようになります。
 
-- **読み取り:** パネルは利用側の CSS 変数を読み取りません（`TokenDef.default` を通じて独自のデフォルトを保持します）。
-- **書き込み:** パネルは、オーバーライドされたトークンごとに利用側が指定した `cssVar` 文字列だけを書き込み、apply 時にはクラスターの palette / base / semantic 変数も書き込みます。
+- **読み取り:** パネルは自身の chrome のために利用側の CSS 変数を読み取りません（`TierItem.default` を通じてデフォルトを保持します）。
+- **書き込み:** パネルは、利用側が指定した `cssVar` 文字列と、カラータブの palette / base / semantic 変数だけを、有効な sink を通じて書き込みます。
 
 ## 関連リファレンス
 
 - [`PanelConfig.modalClassPrefix`](./configure-panel.mdx) — モーダルクラスの BEM ルート（バンドル済み CSS がキーにするのはデータ属性です）。
-- [Token manifest](./token-manifest.mdx) — パネルが `:root` へ書き込む `cssVar` 名を宣言します。
+- [Token manifest](./token-manifest.mdx) — パネルがデフォルトの root または設定済みの `applySink` へ書き込む `cssVar` 名を宣言します。
 - [Color cluster](./color-cluster.mdx) — apply 時にパネルが書き込む palette / base-role / semantic CSS 変数名を宣言します。

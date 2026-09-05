@@ -59,6 +59,8 @@ import {
   getPanelConfig,
   resolveSecondaryColorCluster,
   storageKey_density,
+  storageKey_dock,
+  storageKey_dockSize,
   storageKey_open,
   storageKey_position,
   storageKey_size,
@@ -66,6 +68,9 @@ import {
   storageKey_stateV2,
   storageKey_stateV3,
   storageKey_stateV4,
+  storageKey_snapshot,
+  storageKey_snapshotA,
+  storageKey_snapshotB,
   markColorSchemeWritten,
   clearColorSchemeOwnership,
   ownsColorScheme,
@@ -163,6 +168,89 @@ export function getSizeKey(cfg: PanelConfig = getPanelConfig()): string {
 
 export function getDensityKey(cfg: PanelConfig = getPanelConfig()): string {
   return storageKey_density(cfg);
+}
+
+export function getSnapshotKey(
+  slot: 'a' | 'b',
+  cfg: PanelConfig = getPanelConfig(),
+): string {
+  return storageKey_snapshot(cfg, slot);
+}
+
+export function getSnapshotAKey(cfg: PanelConfig = getPanelConfig()): string {
+  return storageKey_snapshotA(cfg);
+}
+
+export function getSnapshotBKey(cfg: PanelConfig = getPanelConfig()): string {
+  return storageKey_snapshotB(cfg);
+}
+
+export type DockMode = 'float' | 'right' | 'bottom' | 'mini';
+
+export interface DockSize {
+  right: number;
+  bottom: number;
+}
+
+export const DEFAULT_DOCK_MODE: DockMode = 'float';
+export const DEFAULT_DOCK_SIZE: DockSize = { right: 440, bottom: 340 };
+
+export function getDockKey(cfg: PanelConfig = getPanelConfig()): string {
+  return storageKey_dock(cfg);
+}
+
+export function getDockSizeKey(cfg: PanelConfig = getPanelConfig()): string {
+  return storageKey_dockSize(cfg);
+}
+
+export function loadDockMode(cfg?: PanelConfig, storage?: StorageLike): DockMode {
+  try {
+    const value = (storage ?? localStorage).getItem(getDockKey(cfg));
+    if (value === 'float' || value === 'right' || value === 'bottom' || value === 'mini') {
+      return value;
+    }
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_DOCK_MODE;
+}
+
+export function saveDockMode(mode: DockMode, cfg?: PanelConfig, storage?: StorageLike): void {
+  try {
+    (storage ?? localStorage).setItem(getDockKey(cfg), mode);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadDockSize(cfg?: PanelConfig, storage?: StorageLike): DockSize {
+  try {
+    const saved = (storage ?? localStorage).getItem(getDockSizeKey(cfg));
+    if (saved) {
+      const value = JSON.parse(saved) as Partial<DockSize>;
+      return {
+        right:
+          typeof value.right === 'number' && Number.isFinite(value.right) && value.right > 0
+            ? value.right
+            : DEFAULT_DOCK_SIZE.right,
+        bottom:
+          typeof value.bottom === 'number' && Number.isFinite(value.bottom) && value.bottom > 0
+            ? value.bottom
+            : DEFAULT_DOCK_SIZE.bottom,
+      };
+    }
+  } catch {
+    /* ignore */
+  }
+  return { ...DEFAULT_DOCK_SIZE };
+}
+
+export function saveDockSize(size: DockSize, cfg?: PanelConfig, storage?: StorageLike): void {
+  try {
+    (storage ?? localStorage).setItem(getDockSizeKey(cfg), JSON.stringify(size));
+  } catch {
+    /* ignore */
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -1,0 +1,177 @@
+---
+title: Panel UX tour
+description: A feature-by-feature tour of the live design-token panel and its keyboard controls.
+sidebar_position: 9
+---
+
+The panel is a developer tool for making a token change, checking the result in
+the real page, and deciding whether to keep it. This tour follows the current
+shell from the everyday editing controls through the page-level helpers. The
+panel keeps one transaction path for edits, so row edits, bulk operations,
+imports, snapshots, and element inspection all participate in the same
+undo/redo history.
+
+## Search and the command palette
+
+The inline filter searches CSS-variable names, stable ids, labels, current
+values, tier labels, and tab labels with fuzzy subsequence matching. Press `/`
+to focus the filter; if the panel is closed, the command palette opens instead.
+Press `Cmd/Ctrl+K` at any time to open the command palette directly. The
+palette supports arrow-key navigation, `Home`, `End`, `Enter`, and `Escape`.
+Search results include cross-tab count chips so a query can find a token without
+manually visiting every tab.
+
+## Changed-state visibility
+
+The panel compares each value with its canonical baseline and marks changed
+rows with an accent marker and rail. Changed tabs receive badges, and the
+transient **Changed only** view filters the active tab without hiding the normal
+tab navigation. Each changed row has its own **Revert** action. The footer
+reports the number of changed tokens across tabs and offers **Copy diff** and
+**Revert all**. The last-applied comparison baseline is persisted separately
+from live overrides. After a successful disk apply the implementation resets
+that baseline to `{}` and reconciles only variables confirmed as written, so
+the user's retained or unrouted overrides remain visible as changed.
+
+## Type specimen and glyph previews
+
+Set `TierConfig.preview` to opt a tier into the matching preview. `size` shows
+one specimen row per token in resolved-pixel order; `line-height` shows a
+paragraph with a leading guide; `family` and `weight` render font samples;
+`bar`, `radius`, and `duration` render compact visual glyphs. A tier may set
+`previewBase` to choose the CSS variable used as the specimen's font-size or
+line-height base.
+
+The specimen toolbar stores its text, preset, override state, and width under
+`${storagePrefix}-specimen`. Width is clamped to 240–720 pixels. **Render on
+page** portals the specimen into the host document, uses the host's real font,
+temporarily claims the right dock, and restores the prior dock mode when it is
+disabled, closed, unmounted, or loses its dock claim. The page specimen is
+marked with `data-zdtp-specimen`, excluded from token scans, and does not
+participate in page pickers.
+
+## Undo, redo, and A/B snapshots
+
+Every state mutation goes through the panel transaction path in this order:
+apply the in-memory state and CSS variables, save the persisted envelope,
+update component state, then record history. `Cmd/Ctrl+Z` undoes and
+`Cmd/Ctrl+Shift+Z` (or `Ctrl+Y`) redoes. The history rail exposes the same
+in-memory entries; history itself is not persisted across reloads.
+
+Snapshots **A** and **B** are persisted and include the state, identity,
+timestamp, and edit metadata. Press `\` when no modifier is held and focus is
+not in an editable control to flip between the two snapshots. Reverting a
+snapshot is still a transaction and can be undone.
+
+## Dock, mini mode, and ghost idle
+
+The shell supports `float`, `right`, `bottom`, and `mini` modes. Right and
+bottom docks persist their dimensions under `${storagePrefix}-dock-size`; the
+mode is stored under `${storagePrefix}-dock`. `Alt+1` through `Alt+4` select
+the four modes. Mini mode is a compact pill that expands to the previous full
+mode. Ghost idle fades the panel chrome after inactivity and is persisted under
+`${storagePrefix}-ghost`.
+
+When `dock.reflow` is `body-margin` (the default), a right or bottom claim
+updates the corresponding body margin and publishes
+`--zdtp-dock-inset-right` or `--zdtp-dock-inset-bottom`. `none` leaves the body
+margin untouched while still publishing the inset. Claims are per window and
+per edge; a competing panel falls back to float, and releasing a claim restores
+the host's exact inline value and priority.
+
+## Token resolution chains and used-by information
+
+The chain popover explains how a token resolves through reference tiers and
+shows the downstream dependents, ramp siblings, and blast radius. **Used on
+page** counts are computed on demand, not for every row at mount time. Counts
+are cached by CSS variable and stylesheet/theme versions and invalidated when
+the document stylesheets or theme/class inputs change. Use the highlight action
+from the popover to connect a token to its page users.
+
+## Apply preview and disk writes
+
+When `applyEndpoint` and `applyRouting` are configured, **Apply** first sends a
+debounced `POST /apply` preview with `{ dryRun: true }`. The preview returns a
+digest and one-based hunks for each routed file. The confirmation write sends
+the selected token values and `expectDigests`; a changed file is rejected with
+`409` (`reason: 'stale-file'`) before any file is written, so the panel can
+refresh the preview safely.
+
+The modal can include only selected changed variables. Unrouted variables stay
+in the live state and are reported as diagnostics. After a successful partial
+apply, only variables confirmed as written are reconciled; the persisted
+last-applied baseline is reset to `{}`. Without both an endpoint and routing,
+the disk-apply action is disabled; export/import remains available.
+
+## Bulk ramp editing
+
+Select numeric writable literal rows in a tier to open the bulk action bar.
+Reference rows, read-only rows, active pill rows, and unparseable values are
+excluded. The available operations are multiply, add, round to step, and set
+all; the quick controls multiply by `0.9` or `1.1`. Negative results clamp to
+zero, and **Set all** takes precedence over the other operations. One **Apply
+to selection** commits the complete selection as one transaction; **Clear**
+only removes the selection.
+
+## Element inspect
+
+Use the header toggle or press `I` to arm element inspect, then click an element
+in the host page. The reserved inspect tab lists token-backed declarations on
+the selected element, including inherited matches and computed values that
+could not be confirmed in the scanned stylesheets. Rows can be edited or
+reverted through the normal transaction path. The inspect surface also offers
+**Clear** and a **Color** jump for relevant tokens.
+
+## Highlight token users
+
+The highlight helper marks page elements that use a selected CSS variable. It
+keeps ten persisted color slots in `${storagePrefix}-highlight-slots`, a global
+outline width in `${storagePrefix}-highlight-outline-width`, and the active
+CSS-variable-to-slot map for the session in `${storagePrefix}-highlight-active`.
+Inactive rows do not pay the count/probe cost until the user requests a count;
+the cache is invalidated when stylesheet or theme inputs change.
+
+## Element path
+
+Element path shares one Alt+click coordinator with DOM Tweaker and element
+inspect. Enable it through owner autoload or its panel toggle, then hold `Alt`
+and click a host element to copy an annotated selector/path block. Requesting a
+different picker revokes element path's armed state. Panel surfaces and the
+on-page specimen are excluded.
+
+## DOM Tweaker
+
+When `PanelConfig.domTweaker` is present, enable DOM Tweaker and hold `Alt`
+while clicking a host element to open the configured Tailwind-class editor and
+live utility preview. It shares the exclusive coordinator with element path
+and element inspect, so the most recently armed feature receives the gesture;
+owner autoload's element-path arm does not block a later DOM Tweaker arm.
+
+## Export, import, and reset
+
+The panel can export its canonical JSON envelope and import a compatible
+schema. Import, reset, snapshot restore, and ordinary row edits all use the
+same transaction path. Reset clears the panel instance's CSS-variable set (or
+the configured `applySink`) and removes the persisted token state; UI
+preferences such as dock geometry, ghost, specimen, and snapshots remain
+separate.
+
+## Keyboard shortcuts
+
+| Shortcut | Action |
+| --- | --- |
+| `Alt+1` | Float mode |
+| `Alt+2` | Right dock |
+| `Alt+3` | Bottom dock |
+| `Alt+4` | Mini pill |
+| `/` | Focus search; open the palette when the shell is hidden |
+| `Cmd/Ctrl+K` | Open the command palette |
+| `Cmd/Ctrl+Z` | Undo |
+| `Cmd/Ctrl+Shift+Z` | Redo |
+| `Ctrl+Y` | Redo on platforms using the alternate browser convention |
+| `\` | Flip A/B snapshots when no modifier is held and focus is not editable |
+| `I` | Arm element inspect when no modifier is held and focus is not editable |
+| `Escape` | Close the active top layer or panel |
+
+Search and palette lists additionally accept `ArrowUp`/`ArrowDown`, `Home`,
+`End`, `Enter`, and `Escape`.

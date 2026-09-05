@@ -103,6 +103,8 @@ async function renderAndSucceed(onClose: () => void, onApplied: () => void): Pro
       container,
     );
   });
+  // Confirmation is unavailable until the exact dry-run preview settles.
+  await flush();
   // Click Apply → applying → (mocked fetch resolves) → success.
   await act(async () => {
     primaryButton().dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -200,10 +202,10 @@ describe('ApplyModal success view — onApplied runs once per dismissal route', 
 
 describe('ApplyModal applying phase — cannot be dismissed mid-fetch', () => {
   beforeEach(() => {
-    // A fetch that never resolves — keeps the modal pinned in 'applying'.
-    globalThis.fetch = vi.fn(
-      () => new Promise<Response>(() => {}),
-    ) as unknown as typeof fetch;
+    // Let the required dry-run settle, then keep the write request pending.
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce(okResponse())
+      .mockImplementation(() => new Promise<Response>(() => {})) as unknown as typeof fetch;
   });
 
   async function renderAndStartApplying(onClose: () => void): Promise<void> {
@@ -219,6 +221,7 @@ describe('ApplyModal applying phase — cannot be dismissed mid-fetch', () => {
         container,
       );
     });
+    await flush();
     await act(async () => {
       primaryButton().dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });

@@ -50,6 +50,57 @@ src/
 
 Everything else — layout, header, sidebar, footer, doc chrome, islands, and the default design tokens — lives in `node_modules/@takazudo/zudo-doc`. For supported markup replacement, create `src/chrome-bindings.tsx` with `defineChromeBindings`, set `chromeBindingsModule`, and use the primary `Header` / `Footer` / `Sidebar` / `Toc` / `Breadcrumb` / `DocPager` slots or the named `headerRightComponents` registry. The generated default, locale, and doc-history route shapes already consume the same binding object; do not fork a route stub for presentational customization. `npx zudo-doc eject <component>` only copies source: heed its primary, nested-chrome, or content-layer remediation before expecting the copy to render. Settings you didn't set explicitly in `zfb.config.ts` use the package's documented defaults — hover `zudoDoc`'s `ZudoDocConfig` argument in your editor to see every field and its `@default`.
 
+## zdtp ↔ zudo-doc relationship
+
+The `doc/` workspace intentionally consumes the pinned npm release of
+`@takazudo/zdtp`; never force-link it to `packages/zdtp`. That keeps the docs
+build representative of the published dependency and prevents unpublished
+panel changes from leaking into release documentation accidentally.
+
+Use the root `playground/` workspace to exercise unpublished panel changes in
+a real zfb consumer. Its default manifest covers the panel's control kinds,
+while `?manifest=zudo-doc` uses the real zudo-doc `PanelConfig` vendored by
+`scripts/vendor-consumer-manifest.mjs` (the S17 vendor script). The generated
+file records the source `@takazudo/zudo-doc` version so drift is visible.
+
+## Verifying an unpublished panel in the real doc site
+
+The committed `doc/` workspace remains pinned to the published panel release.
+To inspect an unpublished panel build in the real zudo-doc consumer, run this
+from the repository root:
+
+```sh
+bash scripts/doc-with-local-panel.sh
+```
+
+The script builds and packs `packages/zdtp`, copies the doc source into a
+temporary directory, and installs that scratch site with a file override for
+the packed panel. It prints the local panel version, then runs the scratch
+site's `pnpm dev`; open the printed URL and activate the design-token-panel
+header trigger. The terminal output includes the exact local package version
+being served (the fixed `window.zdtp` API itself intentionally exposes only
+`show`, `hide`, and `toggle`). The temporary directory, workspace override,
+install lock, and generated build output are removed when the dev command
+exits. The committed `doc/package.json` and root lockfile are never modified.
+
+The override belongs in the temporary `pnpm-workspace.yaml` rather than a
+package-level `pnpm` field because pnpm 11 no longer reads that package.json
+configuration. The script also verifies that the scratch site resolved the
+packed panel version and that the panel and zudo-doc share one Preact
+installation. A mismatch is a peer/bootstrap spike blocker: capture its
+logs in the PR and ship only the scheduled drift re-exam until the dependency
+boundary is resolved; do not force a package or lockfile change.
+
+The informational `consumer-smoke` job in `.github/workflows/ci.yml` repeats
+the packed-panel override, builds the scratch doc, serves its static output,
+and uses Chromium to open one doc page, activate the header trigger, assert
+the real zudo-doc panel tabs are mounted, and reject console or page errors.
+The scheduled `.github/workflows/consumer-drift.yml` workflow installs the
+latest zudo-doc for the consumer-manifest contract check. Its five-example
+matrix is manual-dispatch-only and informational while those public examples
+still pin older panel APIs; failures open or update one deduplicated issue per
+job.
+
 ## Content Conventions
 
 ### Frontmatter

@@ -15,7 +15,7 @@
  *   active       → sessionStorage (cleared on reload — inspection set is ephemeral)
  */
 
-import { getPanelConfig } from '../config/panel-config';
+import { getPanelConfig, type PanelConfig } from '../config/panel-config';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -57,16 +57,16 @@ const DEFAULT_OUTLINE_WIDTH = 2;
 // Storage key helpers (read prefix at call-time — never at module init)
 // ---------------------------------------------------------------------------
 
-function storageKey_highlightSlots(): string {
-  return `${getPanelConfig().storagePrefix}-highlight-slots`;
+function storageKey_highlightSlots(cfg?: PanelConfig): string {
+  return `${(cfg ?? getPanelConfig()).storagePrefix}-highlight-slots`;
 }
 
-function storageKey_highlightActive(): string {
-  return `${getPanelConfig().storagePrefix}-highlight-active`;
+function storageKey_highlightActive(cfg?: PanelConfig): string {
+  return `${(cfg ?? getPanelConfig()).storagePrefix}-highlight-active`;
 }
 
-function storageKey_highlightOutlineWidth(): string {
-  return `${getPanelConfig().storagePrefix}-highlight-outline-width`;
+function storageKey_highlightOutlineWidth(cfg?: PanelConfig): string {
+  return `${(cfg ?? getPanelConfig()).storagePrefix}-highlight-outline-width`;
 }
 
 // ---------------------------------------------------------------------------
@@ -174,13 +174,13 @@ export function setOutlineWidth(state: HighlightState, width: number): Highlight
  * Migration: existing localStorage `slots` arrays may carry a per-slot
  * `outlineWidth` field — the extra field is simply ignored on load.
  */
-export function loadHighlightState(): HighlightState {
+export function loadHighlightState(cfg?: PanelConfig): HighlightState {
   let slots: HighlightSlotSpec[] = DEFAULT_HIGHLIGHT_SLOTS.map((s) => ({ ...s }));
   let outlineWidth: number = DEFAULT_OUTLINE_WIDTH;
   let active: Record<string, number> = {};
 
   try {
-    const raw = localStorage.getItem(storageKey_highlightSlots());
+    const raw = localStorage.getItem(storageKey_highlightSlots(cfg));
     if (raw !== null) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length === 10) {
@@ -193,7 +193,7 @@ export function loadHighlightState(): HighlightState {
   }
 
   try {
-    const raw = localStorage.getItem(storageKey_highlightOutlineWidth());
+    const raw = localStorage.getItem(storageKey_highlightOutlineWidth(cfg));
     if (raw !== null) {
       const parsed = JSON.parse(raw);
       if (typeof parsed === 'number' && parsed >= 1) {
@@ -205,7 +205,7 @@ export function loadHighlightState(): HighlightState {
   }
 
   try {
-    const raw = sessionStorage.getItem(storageKey_highlightActive());
+    const raw = sessionStorage.getItem(storageKey_highlightActive(cfg));
     if (raw !== null) {
       const parsed = JSON.parse(raw);
       if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
@@ -228,21 +228,21 @@ export function loadHighlightState(): HighlightState {
  *
  * Gracefully handles environments where storage is unavailable.
  */
-export function saveHighlightState(state: HighlightState): void {
+export function saveHighlightState(state: HighlightState, cfg?: PanelConfig): void {
   try {
-    localStorage.setItem(storageKey_highlightSlots(), JSON.stringify(state.slots));
+    localStorage.setItem(storageKey_highlightSlots(cfg), JSON.stringify(state.slots));
   } catch {
     // Storage unavailable — degrade silently.
   }
 
   try {
-    localStorage.setItem(storageKey_highlightOutlineWidth(), JSON.stringify(state.outlineWidth));
+    localStorage.setItem(storageKey_highlightOutlineWidth(cfg), JSON.stringify(state.outlineWidth));
   } catch {
     // Storage unavailable — degrade silently.
   }
 
   try {
-    sessionStorage.setItem(storageKey_highlightActive(), JSON.stringify(state.active));
+    sessionStorage.setItem(storageKey_highlightActive(cfg), JSON.stringify(state.active));
   } catch {
     // Storage unavailable — degrade silently.
   }

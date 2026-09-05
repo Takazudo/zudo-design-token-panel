@@ -1,9 +1,10 @@
 /**
  * Design-token panel — bundled CSS.
  *
- * Owns every chrome rule for the panel SHELL, the four TABS (Color / Spacing
- * / Font / Size), and the four CONTROL rows (slider / pill-slider / select /
- * text). Modal-layer CSS is bundled in the same stylesheet further down.
+ * Owns every chrome rule for the panel SHELL, the token tabs, the transient
+ * element-inspect view, and the four CONTROL rows (slider / pill-slider /
+ * select / text). Modal-layer CSS is bundled in the same stylesheet further
+ * down.
  *
  * Why move this out of Tailwind?
  * ------------------------------
@@ -38,6 +39,8 @@
 @import '../components/palette-chart/palette-chart.css';
 @import '../tabs/palette/palette-edit-view.css';
 @import '../tabs/palette/palette-check-view.css';
+@import '../specimen/specimen.css';
+@import '../element-inspect/element-inspect.css';
 
 /* ===========================================================================
  * Scoped box-sizing reset
@@ -50,20 +53,28 @@
  * ========================================================================= */
 :where(
   .tokenpanel-shell,
+  .tokenpanel-mini-pill,
   [data-design-token-panel-modal],
   .tokenpanel-color-picker,
   .tokenpanel-highlight-settings-popover,
+  .tokenpanel-chain-popover,
   .tokenpanel-tooltip,
   .tokenpanel-elpath-label,
-  .tokenpanel-elpath-toast
+  .tokenpanel-elpath-toast,
+  .tokenpanel-element-inspect-box,
+  .tokenpanel-element-inspect-label,
+  .tokenpanel-element-inspect-view
 ) {
   box-sizing: border-box;
 }
 :where(
   .tokenpanel-shell,
+  .tokenpanel-mini-pill,
   [data-design-token-panel-modal],
   .tokenpanel-color-picker,
-  .tokenpanel-highlight-settings-popover
+  .tokenpanel-highlight-settings-popover,
+  .tokenpanel-chain-popover,
+  .tokenpanel-element-inspect-view
 ) :where(*, *::before, *::after) {
   box-sizing: border-box;
 }
@@ -84,6 +95,227 @@
   background-color: var(--tokentweak-color-surface);
   border-radius: 0;
   box-shadow: 0 4px 24px rgb(0 0 0 / 0.25);
+  transition: opacity 200ms ease;
+}
+
+.tokenpanel-shell.is-ghosted {
+  opacity: 0.35;
+}
+
+.tokenpanel-shell.is-docked-right {
+  border-width: 0 0 0 1px;
+  box-shadow: none;
+}
+
+.tokenpanel-shell.is-docked-bottom {
+  border-width: 1px 0 0;
+  box-shadow: none;
+}
+
+.tokenpanel-shell.is-docked-right .tokenpanel-header,
+.tokenpanel-shell.is-docked-bottom .tokenpanel-header {
+  cursor: default !important;
+}
+
+.tokenpanel-dock-resize-handle {
+  position: absolute;
+  user-select: none;
+}
+
+.tokenpanel-dock-resize-handle.is-right {
+  inset-block: 0;
+  left: -3px;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.tokenpanel-dock-resize-handle.is-bottom {
+  inset-inline: 0;
+  top: -3px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.tokenpanel-dock-modes {
+  display: flex;
+  gap: 2px;
+  padding: 1px;
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.tokenpanel-dock-mode {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 3px;
+  color: var(--tokentweak-color-muted);
+  cursor: pointer;
+}
+
+.tokenpanel-dock-mode:hover,
+.tokenpanel-dock-mode:focus-visible {
+  color: var(--tokentweak-color-fg);
+  background: var(--tokentweak-color-bg);
+}
+
+.tokenpanel-dock-mode.is-active {
+  color: var(--tokentweak-color-accent);
+  background: var(--tokentweak-color-bg);
+}
+
+:where(.tokenpanel-shell) .tokenpanel-dock-mode svg {
+  fill: none !important;
+}
+
+.tokenpanel-dock-modes.is-compact {
+  flex-direction: column;
+  border: 0;
+  padding: 0;
+}
+
+.tokenpanel-dock-modes.is-compact .tokenpanel-dock-mode {
+  justify-content: flex-start;
+  gap: var(--tokentweak-pad-sm);
+  padding: var(--tokentweak-pad-sm) var(--tokentweak-pad-md);
+}
+
+/* ---------------------------------------------------------------------------
+ * Mini pill
+ *
+ * The pill replaces the shell in mini mode and therefore renders as a
+ * body-level sibling rather than inheriting the shell's private token scope.
+ * Fallbacks keep it self-contained in that position; hosts may still retheme
+ * it with the same --tokentweak-* override surface used by the shell.
+ * ------------------------------------------------------------------------- */
+
+.tokenpanel-mini-pill {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: var(--tokentweak-z-shell, 2147482991);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  padding: 6px 8px 6px 14px;
+  border: 1px solid var(--tokentweak-color-muted, #888888);
+  border-radius: 999px;
+  background: var(--tokentweak-color-surface, #1c1c1c);
+  color: var(--tokentweak-color-fg, #b8b8b8);
+  font-size: 12px;
+  line-height: 16px;
+  box-shadow: 0 4px 24px rgb(0 0 0 / 0.3);
+}
+
+.tokenpanel-mini-pill-brand {
+  color: var(--tokentweak-color-fg, #b8b8b8);
+  font-weight: 600;
+}
+
+.tokenpanel-mini-pill-changed-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding-inline: 5px;
+  border-radius: 999px;
+  background: var(--tokentweak-color-accent, #d69a66);
+  color: var(--tokentweak-color-bg, #181818);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.tokenpanel-mini-pill-changed-count:empty,
+.tokenpanel-mini-pill-undo:empty {
+  display: none;
+}
+
+.tokenpanel-mini-pill-changes {
+  color: var(--tokentweak-color-muted, #888888);
+}
+
+.tokenpanel-mini-pill-divider {
+  width: 1px;
+  height: 16px;
+  flex-shrink: 0;
+  background: var(--tokentweak-color-muted, #888888);
+  opacity: 0.55;
+}
+
+.tokenpanel-mini-pill-undo {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+
+.tokenpanel-mini-pill-apply,
+.tokenpanel-mini-pill-expand {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--tokentweak-color-accent, #d69a66);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 150ms ease, background-color 150ms ease;
+}
+
+.tokenpanel-mini-pill-apply {
+  padding-inline: 4px;
+  font: inherit;
+  font-weight: 600;
+}
+
+.tokenpanel-mini-pill-expand {
+  padding: 4px;
+  color: var(--tokentweak-color-muted, #888888);
+}
+
+.tokenpanel-mini-pill-apply:hover,
+.tokenpanel-mini-pill-apply:focus-visible,
+.tokenpanel-mini-pill-expand:hover,
+.tokenpanel-mini-pill-expand:focus-visible {
+  background: var(--tokentweak-color-bg, #181818);
+  color: var(--tokentweak-color-fg, #b8b8b8);
+}
+
+.tokenpanel-mini-pill-apply:focus-visible,
+.tokenpanel-mini-pill-expand:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent, #d69a66);
+  outline-offset: 2px;
+}
+
+/* Ghost toggle — rendered in the tabbar and in the narrow actions popover. */
+.tokenpanel-ghost-idle-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-xs);
+  flex-shrink: 0;
+  color: var(--tokentweak-color-fg);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tokenpanel-ghost-idle-toggle.is-compact {
+  padding: var(--tokentweak-pad-sm) var(--tokentweak-pad-md);
+}
+
+.tokenpanel-ghost-idle-checkbox {
+  accent-color: var(--tokentweak-color-accent);
+  cursor: pointer;
 }
 
 /* ===========================================================================
@@ -251,6 +483,454 @@
   color: var(--tokentweak-color-fg);
 }
 
+/* ==========================================================================
+ * Header token search
+ * ========================================================================== */
+
+.tokenpanel-search-control {
+  display: flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-xs);
+  width: 260px;
+  min-width: 0;
+  padding: var(--tokentweak-pad-2xs) var(--tokentweak-pad-sm);
+  color: var(--tokentweak-color-muted);
+  background: var(--tokentweak-color-bg);
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: var(--radius-tokentweak);
+  flex-shrink: 1;
+}
+
+.tokenpanel-search-glyph {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.tokenpanel-search-glyph svg,
+.tokenpanel-search-compact-btn svg {
+  fill: none !important;
+  stroke: currentColor;
+}
+
+.tokenpanel-search-input {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  color: var(--tokentweak-color-fg);
+  font: inherit;
+  font-family: var(--tokentweak-font-mono);
+  font-size: 12px;
+  background: none;
+  border: 0;
+  outline: none;
+}
+
+.tokenpanel-search-input::placeholder {
+  color: var(--tokentweak-color-muted);
+}
+
+.tokenpanel-search-key {
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.tokenpanel-search-compact-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  color: var(--tokentweak-color-muted);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.tokenpanel-search-compact-btn:hover,
+.tokenpanel-search-compact-btn:focus-visible {
+  color: var(--tokentweak-color-fg);
+}
+
+.tokenpanel-search-compact-btn:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ===========================================================================
+ * History controls + rail
+ *
+ * The rail is an optional second column of the shell. It is deliberately a
+ * container-query feature rather than a viewport breakpoint: a docked panel
+ * and a resized floating panel should make the same compactness decision.
+ * =========================================================================== */
+
+.tokenpanel-history-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-2xs);
+  flex-shrink: 0;
+}
+
+.tokenpanel-history-button,
+.tokenpanel-history-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-tokentweak);
+  background: none;
+  color: var(--tokentweak-color-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 150ms ease, background-color 150ms ease, opacity 150ms ease;
+}
+
+.tokenpanel-history-button:hover,
+.tokenpanel-history-button:focus-visible,
+.tokenpanel-history-toggle:hover,
+.tokenpanel-history-toggle:focus-visible,
+.tokenpanel-history-toggle.is-active {
+  color: var(--tokentweak-color-fg);
+  background: var(--tokentweak-color-bg);
+}
+
+.tokenpanel-history-button:focus-visible,
+.tokenpanel-history-toggle:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+}
+
+.tokenpanel-history-button.is-disabled,
+.tokenpanel-history-button[aria-disabled='true'] {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.tokenpanel-history-count {
+  min-width: 30px;
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+  user-select: none;
+}
+
+.tokenpanel-history-icon {
+  /* The shell-wide SVG reset is important for hostile hosts; this explicit
+   * stroke icon override also needs !important to beat that reset. */
+  fill: none !important;
+  stroke: currentColor !important;
+  pointer-events: none;
+}
+
+.tokenpanel-shell.is-history-open {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+}
+
+.tokenpanel-shell.is-history-open > .tokenpanel-header,
+.tokenpanel-shell.is-history-open > .tokenpanel-tabbar,
+.tokenpanel-shell.is-history-open > .tokenpanel-footer {
+  grid-column: 1 / -1;
+}
+
+.tokenpanel-shell.is-history-open > .tokenpanel-header {
+  grid-row: 1;
+}
+
+.tokenpanel-shell.is-history-open > .tokenpanel-tabbar {
+  grid-row: 2;
+}
+
+.tokenpanel-shell.is-history-open > .tokenpanel-body {
+  grid-column: 1;
+  grid-row: 3;
+}
+
+.tokenpanel-shell.is-history-open > .tokenpanel-history-rail {
+  grid-column: 2;
+  grid-row: 3;
+}
+
+.tokenpanel-history-rail {
+  display: flex;
+  flex-direction: column;
+  width: 270px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--tokentweak-color-muted);
+  background: var(--tokentweak-color-bg);
+  color: var(--tokentweak-color-fg);
+}
+
+.tokenpanel-history-rail-heading,
+.tokenpanel-history-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-xs);
+  min-height: 34px;
+  padding: var(--tokentweak-pad-sm) var(--tokentweak-pad-md);
+  border-bottom: 1px solid var(--tokentweak-color-muted);
+  color: var(--tokentweak-color-muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tokenpanel-history-heading {
+  justify-content: space-between;
+}
+
+.tokenpanel-history-heading-count {
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.tokenpanel-snapshots {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tokentweak-pad-xs);
+  padding: var(--tokentweak-pad-sm) var(--tokentweak-pad-md);
+  border-bottom: 1px solid var(--tokentweak-color-muted);
+}
+
+.tokenpanel-snapshot-row,
+.tokenpanel-snapshot-compare {
+  display: flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-xs);
+  min-width: 0;
+  font-size: 12px;
+}
+
+.tokenpanel-snapshot-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-tokentweak);
+  background: var(--tokentweak-color-code-bg);
+  color: var(--tokentweak-color-fg);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.tokenpanel-snapshot-tag:hover,
+.tokenpanel-snapshot-tag:focus-visible,
+.tokenpanel-snapshot-tag.is-selected {
+  background: var(--tokentweak-color-accent);
+  color: var(--tokentweak-color-bg);
+}
+
+.tokenpanel-snapshot-tag[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.tokenpanel-snapshot-tag:focus-visible,
+.tokenpanel-snapshot-save:focus-visible,
+.tokenpanel-snapshot-segmented [role='button']:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+}
+
+.tokenpanel-snapshot-meta {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.tokenpanel-snapshot-save {
+  padding: 3px 6px;
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: var(--radius-tokentweak);
+  background: none;
+  color: var(--tokentweak-color-accent);
+  cursor: pointer;
+  font-size: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.tokenpanel-snapshot-save:hover {
+  color: var(--tokentweak-color-fg);
+  border-color: var(--tokentweak-color-fg);
+}
+
+.tokenpanel-snapshot-compare {
+  padding-top: var(--tokentweak-pad-2xs);
+}
+
+.tokenpanel-snapshot-compare-label {
+  min-width: 0;
+  color: var(--tokentweak-color-muted);
+  font-size: 11px;
+  flex: 1;
+}
+
+.tokenpanel-snapshot-segmented {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: var(--radius-tokentweak);
+  flex-shrink: 0;
+}
+
+.tokenpanel-snapshot-segmented [role='button'] {
+  min-width: 25px;
+  padding: 3px 7px;
+  border: 0;
+  background: none;
+  color: var(--tokentweak-color-muted);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.tokenpanel-snapshot-segmented [role='button'] + [role='button'] {
+  border-left: 1px solid var(--tokentweak-color-muted);
+}
+
+.tokenpanel-snapshot-segmented [role='button']:hover,
+.tokenpanel-snapshot-segmented [role='button'].is-selected {
+  background: var(--tokentweak-color-accent);
+  color: var(--tokentweak-color-bg);
+}
+
+.tokenpanel-snapshot-segmented [role='button'][aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.tokenpanel-snapshot-flip-hint {
+  min-width: 12px;
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 11px;
+  text-align: center;
+}
+
+.tokenpanel-history-notice {
+  display: block;
+  overflow: hidden;
+  max-height: 42px;
+  padding: var(--tokentweak-pad-xs) var(--tokentweak-pad-md);
+  border-bottom: 1px solid var(--tokentweak-color-muted);
+  color: var(--tokentweak-color-warning);
+  font-size: 10px;
+  line-height: 14px;
+  text-overflow: ellipsis;
+}
+
+.tokenpanel-history-list {
+  min-height: 0;
+  overflow: auto;
+  padding-block: var(--tokentweak-pad-2xs);
+  flex: 1;
+}
+
+.tokenpanel-history-entry {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  gap: 2px;
+  padding: var(--tokentweak-pad-xs) var(--tokentweak-pad-md);
+  border: 0;
+  border-left: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+  color: var(--tokentweak-color-fg);
+  cursor: pointer;
+  text-align: left;
+}
+
+.tokenpanel-history-entry:hover,
+.tokenpanel-history-entry:focus-visible {
+  background: var(--tokentweak-color-surface);
+}
+
+.tokenpanel-history-entry:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: -2px;
+}
+
+.tokenpanel-history-entry.is-current {
+  border-left-color: var(--tokentweak-color-accent);
+  background: var(--tokentweak-color-surface);
+}
+
+.tokenpanel-history-entry.is-future {
+  opacity: 0.4;
+}
+
+.tokenpanel-history-entry-address {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--tokentweak-color-fg);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tokenpanel-history-entry-reason,
+.tokenpanel-history-entry-detail {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tokenpanel-history-entry-reason {
+  color: var(--tokentweak-color-accent);
+}
+
+.tokenpanel-history-start .tokenpanel-history-entry-detail {
+  color: var(--tokentweak-color-muted);
+}
+
+.tokenpanel-history-empty {
+  padding: var(--tokentweak-pad-md);
+  color: var(--tokentweak-color-muted);
+  font-size: 11px;
+}
+
+@container tokenpanel (max-width: 639px) {
+  .tokenpanel-shell.is-history-open {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .tokenpanel-shell.is-history-open > .tokenpanel-history-rail {
+    display: none;
+  }
+}
+
 /* ===========================================================================
  * Tab bar
  * ========================================================================= */
@@ -262,6 +942,47 @@
   padding-inline: var(--tokentweak-pad-xl);
   flex-shrink: 0;
   gap: var(--tokentweak-pad-md);
+}
+
+.tokenpanel-search-matchbar {
+  display: flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-sm);
+  min-height: 28px;
+  padding-inline: var(--tokentweak-pad-xl);
+  color: var(--tokentweak-color-muted);
+  font-size: 12px;
+  border-bottom: 1px solid var(--tokentweak-color-muted);
+  flex-shrink: 0;
+}
+
+.tokenpanel-search-match-count {
+  color: var(--tokentweak-color-fg);
+  font-weight: 700;
+}
+
+.tokenpanel-search-hint {
+  color: var(--tokentweak-color-muted);
+}
+
+.tokenpanel-search-chip {
+  padding: 0;
+  color: var(--tokentweak-color-muted);
+  font: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.tokenpanel-search-chip:hover,
+.tokenpanel-search-chip:focus-visible {
+  color: var(--tokentweak-color-accent);
+}
+
+.tokenpanel-search-chip:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 
 .tokenpanel-tabbar-tabs {
@@ -350,6 +1071,20 @@
   .tokenpanel-header > .tokenpanel-action-link {
     display: none;
   }
+  .tokenpanel-search-control {
+    width: auto;
+    padding: 0;
+    background: none;
+    border-color: transparent;
+  }
+  .tokenpanel-search-glyph,
+  .tokenpanel-search-input,
+  .tokenpanel-search-key {
+    display: none;
+  }
+  .tokenpanel-search-compact-btn {
+    display: inline-flex;
+  }
   .tokenpanel-actions-menu-btn {
     display: inline-flex;
   }
@@ -375,6 +1110,133 @@
   overflow-y: auto;
   padding-inline: var(--tokentweak-pad-xl);
   padding-block: var(--tokentweak-gap-sm);
+}
+
+.tokenpanel-footer {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 34px;
+  padding-inline: var(--tokentweak-pad-xl);
+  padding-block: var(--tokentweak-pad-xs);
+  border-top: 1px solid var(--tokentweak-color-muted);
+  flex-shrink: 0;
+}
+
+/* ==========================================================================
+ * Command palette
+ * ========================================================================== */
+
+.tokenpanel-command-palette-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: var(--tokentweak-z-command-palette);
+  background: rgb(0 0 0 / 0.45);
+}
+
+.tokenpanel-command-palette {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  width: min(520px, calc(100% - 32px));
+  max-height: min(460px, calc(100% - 80px));
+  overflow: hidden;
+  color: var(--tokentweak-color-fg);
+  background: var(--tokentweak-color-surface);
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: 6px;
+  box-shadow: 0 16px 48px rgb(0 0 0 / 0.5);
+  transform: translateX(-50%);
+}
+
+.tokenpanel-command-palette-input {
+  padding: var(--tokentweak-pad-md) var(--tokentweak-pad-lg);
+  color: var(--tokentweak-color-fg);
+  font: inherit;
+  font-family: var(--tokentweak-font-mono);
+  font-size: 14px;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--tokentweak-color-muted);
+  outline: none;
+}
+
+.tokenpanel-command-palette-input::placeholder {
+  color: var(--tokentweak-color-muted);
+}
+
+.tokenpanel-command-palette-list {
+  min-height: 0;
+  padding-block: var(--tokentweak-pad-xs);
+  overflow-y: auto;
+}
+
+.tokenpanel-command-palette-group {
+  padding: var(--tokentweak-pad-sm) var(--tokentweak-pad-lg) var(--tokentweak-pad-2xs);
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.tokenpanel-command-palette-item {
+  display: flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-sm);
+  padding: var(--tokentweak-pad-xs) var(--tokentweak-pad-lg);
+  cursor: pointer;
+}
+
+.tokenpanel-command-palette-item:hover,
+.tokenpanel-command-palette-item.is-selected {
+  color: var(--tokentweak-color-accent);
+  background: rgb(from var(--tokentweak-color-fg) r g b / 0.06);
+}
+
+.tokenpanel-command-palette-item-label {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tokenpanel-command-palette-item-detail {
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tokenpanel-command-palette-item.is-selected .tokenpanel-command-palette-item-detail {
+  color: var(--tokentweak-color-accent-hover);
+}
+
+.tokenpanel-command-palette-empty {
+  padding: var(--tokentweak-pad-lg);
+  color: var(--tokentweak-color-muted);
+  font-size: 13px;
+}
+
+.tokenpanel-command-palette-footer {
+  display: flex;
+  gap: var(--tokentweak-pad-md);
+  padding: var(--tokentweak-pad-xs) var(--tokentweak-pad-lg);
+  color: var(--tokentweak-color-muted);
+  font-size: 11px;
+  border-top: 1px solid var(--tokentweak-color-muted);
+}
+
+.tokenpanel-command-palette-footer-hint {
+  margin-left: auto;
+  font-family: var(--tokentweak-font-mono);
 }
 
 /* ===========================================================================
@@ -626,6 +1488,193 @@
   display: flex;
   align-items: center;
   gap: var(--tokentweak-pad-md);
+}
+
+/* ===========================================================================
+ * Bulk numeric actions
+ * =========================================================================== */
+
+.tokenpanel-bulk-tier-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-xs);
+  margin-left: var(--tokentweak-pad-xs);
+}
+
+.tokenpanel-bulk-checkbox {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: var(--tokentweak-color-accent);
+  cursor: pointer;
+}
+
+.tokenpanel-bulk-checkbox:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.tokenpanel-bulk-tier-quick {
+  display: none;
+  align-items: center;
+  gap: 2px;
+}
+
+.tokenpanel-tab-section:hover .tokenpanel-bulk-tier-quick,
+.tokenpanel-tab-section:focus-within .tokenpanel-bulk-tier-quick {
+  display: inline-flex;
+}
+
+.tokenpanel-bulk-quick-btn {
+  min-width: 28px;
+  padding-inline: var(--tokentweak-pad-xs);
+  padding-block: 1px;
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 10px;
+  line-height: 16px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.tokenpanel-bulk-quick-btn:hover,
+.tokenpanel-bulk-quick-btn:focus-visible {
+  color: var(--tokentweak-color-fg);
+  background: var(--tokentweak-color-bg);
+}
+
+.tokenpanel-row--bulk-selected {
+  background: rgb(from var(--tokentweak-color-accent) r g b / 0.08);
+  border-radius: 4px;
+}
+
+.tokenpanel-bulk-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-xs);
+  min-width: 0;
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 10px;
+  line-height: 16px;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.tokenpanel-bulk-preview-new {
+  color: var(--tokentweak-color-accent);
+}
+
+.tokenpanel-bulk-preview-arrow {
+  color: var(--tokentweak-color-muted);
+}
+
+.tokenpanel-bulk-action-bar {
+  position: sticky;
+  bottom: calc(-1 * var(--tokentweak-gap-sm));
+  z-index: var(--tokentweak-z-color-picker);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--tokentweak-pad-sm);
+  margin-inline: calc(-1 * var(--tokentweak-pad-xl));
+  margin-top: var(--tokentweak-gap-2xs);
+  padding-inline: var(--tokentweak-pad-xl);
+  padding-block: var(--tokentweak-pad-sm);
+  border-top: 1px solid var(--tokentweak-color-accent);
+  background: var(--tokentweak-color-bg);
+  box-shadow: 0 -8px 24px rgb(0 0 0 / 0.4);
+  color: var(--tokentweak-color-fg);
+  font-size: 12px;
+}
+
+.tokenpanel-bulk-selection-count {
+  color: var(--tokentweak-color-fg);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tokenpanel-bulk-operation {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-xs);
+  color: var(--tokentweak-color-muted);
+  white-space: nowrap;
+}
+
+.tokenpanel-bulk-number-input {
+  width: 60px;
+  min-width: 0;
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: var(--radius-tokentweak);
+  background: var(--tokentweak-color-surface);
+  color: var(--tokentweak-color-fg);
+  padding-inline: var(--tokentweak-pad-xs);
+  padding-block: 2px;
+  font-family: var(--tokentweak-font-mono);
+  font-size: 12px;
+  text-align: right;
+}
+
+.tokenpanel-bulk-number-input.is-active {
+  border-color: var(--tokentweak-color-accent);
+}
+
+.tokenpanel-bulk-number-input:focus,
+.tokenpanel-bulk-number-input:focus-visible {
+  border-color: var(--tokentweak-color-accent);
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 1px;
+}
+
+.tokenpanel-bulk-ramp {
+  flex: 0 0 auto;
+  display: inline-block;
+  height: 28px;
+  overflow: visible;
+  color: var(--tokentweak-color-muted);
+}
+
+.tokenpanel-bulk-ramp-old {
+  fill: var(--tokentweak-color-muted) !important;
+  opacity: 0.55;
+}
+
+.tokenpanel-bulk-ramp-new {
+  fill: var(--tokentweak-color-accent) !important;
+  opacity: 0.85;
+}
+
+.tokenpanel-bulk-clear {
+  white-space: nowrap;
+}
+
+.tokenpanel-bulk-apply {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-inline: var(--tokentweak-pad-md);
+  padding-block: var(--tokentweak-pad-xs);
+  border: 1px solid var(--tokentweak-color-accent);
+  border-radius: var(--radius-tokentweak);
+  background: var(--tokentweak-color-accent);
+  color: var(--tokentweak-color-bg);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tokenpanel-bulk-apply:hover,
+.tokenpanel-bulk-apply:focus-visible {
+  background: var(--tokentweak-color-accent-hover);
+  border-color: var(--tokentweak-color-accent-hover);
+}
+
+.tokenpanel-bulk-apply[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.6;
 }
 
 .tokenpanel-tab-section {
@@ -1047,28 +2096,41 @@
 }
 
 /* ===========================================================================
- * Control rows (slider / pill-slider / select / text)
+ * Token rows
  * ========================================================================= */
 
-/* Single-line row used by select-row and text-row */
+/* Single-line token row. */
 .tokenpanel-row {
   display: flex;
   align-items: center;
   gap: var(--tokentweak-pad-sm);
 }
 
-/* Stacked row (label + number on one line, slider beneath) used by slider-row */
+/* Stacked row with label + number on one line. */
 .tokenpanel-row--stacked {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-/* Row used by pill-slider as outer wrapper */
+/* Pill-enabled row outer wrapper. */
 .tokenpanel-row--column {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.tokenpanel-row--flash {
+  animation: tokenpanel-row-flash 900ms ease-out;
+}
+
+@keyframes tokenpanel-row-flash {
+  0%, 35% {
+    outline: 1px solid var(--tokentweak-color-accent);
+  }
+  100% {
+    outline-color: transparent;
+  }
 }
 
 /* Inner row inside .tokenpanel-row--stacked top: label + number */
@@ -1296,6 +2358,66 @@
   gap: var(--tokentweak-pad-md);
   margin-top: var(--tokentweak-gap-md);
 }
+
+.tokenpanel-apply-sync {
+  color: var(--tokentweak-color-success);
+  font-size: var(--tokentweak-text-small);
+  white-space: nowrap;
+}
+.tokenpanel-apply-sync.is-unsaved { color: var(--tokentweak-color-warning); }
+
+.tokenpanel-apply-preview {
+  display: grid;
+  grid-template-columns: minmax(180px, 34%) minmax(0, 1fr);
+  min-height: 320px;
+  max-height: 58vh;
+  border: 1px solid var(--tokentweak-color-muted);
+  background: var(--tokentweak-color-code-bg);
+}
+.tokenpanel-apply-preview-files {
+  overflow: auto;
+  border-right: 1px solid var(--tokentweak-color-muted);
+}
+.tokenpanel-apply-preview-file {
+  display: flex;
+  align-items: center;
+  gap: var(--tokentweak-gap-xs);
+  padding: var(--tokentweak-pad-sm);
+  cursor: pointer;
+  font-family: var(--tokentweak-font-mono);
+  font-size: var(--tokentweak-text-small);
+}
+.tokenpanel-apply-preview-file.is-selected { background: var(--tokentweak-color-surface); }
+.tokenpanel-apply-preview-file input,
+.tokenpanel-apply-preview-hunk-header input { accent-color: var(--tokentweak-color-accent); }
+.tokenpanel-apply-preview-file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tokenpanel-apply-preview-file-meta { color: var(--tokentweak-color-muted); font-size: var(--tokentweak-text-small); white-space: nowrap; }
+.tokenpanel-apply-preview-unrouted {
+  margin: var(--tokentweak-pad-sm);
+  padding: var(--tokentweak-pad-sm);
+  border: 1px solid var(--tokentweak-color-warning);
+  color: var(--tokentweak-color-warning);
+  font-size: var(--tokentweak-text-small);
+}
+.tokenpanel-apply-preview-diff { overflow: auto; font-family: var(--tokentweak-font-mono); font-size: var(--tokentweak-text-small); }
+.tokenpanel-apply-preview-hunk { border-bottom: 1px solid var(--tokentweak-color-muted); }
+.tokenpanel-apply-preview-hunk.is-off .is-delete,
+.tokenpanel-apply-preview-hunk.is-off .is-add { opacity: 0.35; text-decoration: line-through; }
+.tokenpanel-apply-preview-hunk-header {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--tokentweak-gap-xs);
+  padding: var(--tokentweak-pad-xs) var(--tokentweak-pad-sm);
+  background: var(--tokentweak-color-surface);
+  color: var(--tokentweak-color-accent);
+}
+.tokenpanel-apply-preview-line { display: flex; min-width: max-content; white-space: pre; line-height: 18px; }
+.tokenpanel-apply-preview-line-number { width: 44px; padding-right: var(--tokentweak-pad-sm); color: var(--tokentweak-color-muted); text-align: right; user-select: none; }
+.tokenpanel-apply-preview-line.is-context { color: var(--tokentweak-color-muted); }
+.tokenpanel-apply-preview-line.is-delete { color: var(--tokentweak-color-danger); background: rgb(from var(--tokentweak-color-danger) r g b / 0.14); }
+.tokenpanel-apply-preview-line.is-add { color: var(--tokentweak-color-success); background: rgb(from var(--tokentweak-color-success) r g b / 0.14); }
 
 [data-design-token-panel-modal] [class*='__toggle'] {
   display: inline-flex;
@@ -1697,7 +2819,186 @@ select.tokenpanel-tier-ref-select:focus-visible {
   opacity: 1;
 }
 
-:where(.tokenpanel-shell) svg {
+/* ===========================================================================
+ * Per-token chain popover (#667)
+ *
+ * The trigger is a small trailing link icon. The popover is fixed-positioned
+ * from its trigger's viewport rect and renders into document.body, keeping it
+ * clear of the tab body's scrolling/clipping context. All chrome colours use
+ * the panel-private tokentweak tokens so this surface remains isolated from
+ * host CSS.
+ * ========================================================================= */
+
+.tokenpanel-chain-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  color: var(--tokentweak-color-muted);
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.tokenpanel-chain-button:hover,
+.tokenpanel-chain-button:focus-visible,
+.tokenpanel-chain-button.is-open {
+  color: var(--tokentweak-color-accent);
+  background-color: rgb(from var(--tokentweak-color-fg) r g b / 0.1);
+}
+
+.tokenpanel-chain-button:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+}
+
+.tokenpanel-chain-button::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+}
+
+:where(.tokenpanel-shell) .tokenpanel-chain-button svg {
+  fill: none !important;
+  stroke: currentColor !important;
+}
+
+.tokenpanel-chain-popover {
+  box-sizing: border-box;
+  width: min(460px, calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  padding: var(--tokentweak-pad-md);
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: 6px;
+  background: var(--tokentweak-color-surface);
+  color: var(--tokentweak-color-fg);
+  box-shadow: 0 8px 32px rgb(0 0 0 / 0.5);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.tokenpanel-chain-hops {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-bottom: var(--tokentweak-pad-sm);
+  border-bottom: 1px solid var(--tokentweak-color-muted);
+}
+
+.tokenpanel-chain-hop-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.tokenpanel-chain-hop {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 3px 6px;
+  border-radius: 3px;
+  background: var(--tokentweak-color-code-bg);
+  color: var(--tokentweak-color-code-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tokenpanel-chain-hop.is-literal {
+  color: var(--tokentweak-color-accent-hover);
+}
+
+.tokenpanel-chain-hop-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: 2px;
+}
+
+.tokenpanel-chain-arrow {
+  color: var(--tokentweak-color-muted);
+}
+
+.tokenpanel-chain-row {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: var(--tokentweak-pad-sm);
+  min-height: 22px;
+  padding-top: var(--tokentweak-pad-sm);
+}
+
+.tokenpanel-chain-row-label {
+  flex: 0 0 104px;
+  color: var(--tokentweak-color-muted);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tokenpanel-chain-row-value {
+  color: var(--tokentweak-color-fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.tokenpanel-chain-row-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-xs);
+  margin-left: auto;
+  color: var(--tokentweak-color-muted);
+  white-space: nowrap;
+}
+
+.tokenpanel-chain-chip-list {
+  display: inline-flex;
+  flex: 1 1 180px;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.tokenpanel-chain-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 2px 6px;
+  border: 1px solid var(--tokentweak-color-muted);
+  border-radius: 3px;
+  background: none;
+  color: var(--tokentweak-color-fg);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tokenpanel-chain-chip:hover,
+.tokenpanel-chain-chip:focus-visible {
+  border-color: var(--tokentweak-color-accent);
+  color: var(--tokentweak-color-accent);
+}
+
+.tokenpanel-chain-chip:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 1px;
+}
+
+.tokenpanel-chain-empty {
+  color: var(--tokentweak-color-muted);
+}
+
+:where(.tokenpanel-shell, .tokenpanel-mini-pill) svg {
   /* !important beats a hostile `svg { fill: red !important }` at the same
    * specificity (0-0-1) because the panel CSS is injected AFTER host CSS at
    * runtime, so a later !important at equal specificity wins the cascade.
@@ -1709,10 +3010,31 @@ select.tokenpanel-tier-ref-select:focus-visible {
   overflow: visible;
 }
 
+/* The popover is portaled to document.body, so it needs the same defensive
+ * SVG reset as the shell-local panel icons. */
+:where(.tokenpanel-chain-popover) svg {
+  fill: currentColor !important;
+  pointer-events: none;
+  display: inline-block;
+  overflow: visible;
+}
+
+:where(.tokenpanel-chain-popover) .tokenpanel-highlight-toggle svg {
+  fill: none !important;
+  stroke: currentColor !important;
+}
+
 :where(.tokenpanel-shell) .tokenpanel-highlight-toggle svg {
   /* Higher specificity (0-1-1 via .tokenpanel-highlight-toggle) than the base
    * reset above (0-0-1). !important required here too: when the base rule is
    * !important, a non-!important override cannot win regardless of specificity. */
+  fill: none !important;
+  stroke: currentColor;
+}
+
+:where(.tokenpanel-mini-pill) svg {
+  /* The expand icon is outline-drawn, so it needs the same explicit override
+   * as shell-local outline icons while also surviving hostile svg rules. */
   fill: none !important;
   stroke: currentColor;
 }
@@ -1922,11 +3244,18 @@ select.tokenpanel-tier-ref-select:focus-visible {
   color: var(--tokentweak-color-accent);
 }
 :where(.tokenpanel-shell) .tokenpanel-elpath-toggle svg,
-:where(.tokenpanel-shell) .tokenpanel-tweaker-toggle svg {
+:where(.tokenpanel-shell) .tokenpanel-tweaker-toggle svg,
+:where(.tokenpanel-shell) .tokenpanel-element-inspect-toggle svg {
   /* !important required — same reason as .tokenpanel-highlight-toggle svg above:
    * the base :where(.tokenpanel-shell) svg { fill: currentColor !important } rule
    * must be overridden for outline-only (stroke-drawn) icons. Higher specificity
    * alone (0-1-1) cannot beat a !important declaration at lower specificity. */
+  fill: none !important;
+  stroke: currentColor;
+}
+:where(.tokenpanel-shell) .tokenpanel-element-inspect-toggle svg path {
+  /* Protect the inspect icon's stroke paths from host `path { fill: ... }`
+   * resets as well as the package-wide SVG reset above. */
   fill: none !important;
   stroke: currentColor;
 }
@@ -2044,6 +3373,8 @@ html.tokenpanel-elpath-inspecting * {
 .tokenpanel-color-preset-select:focus-visible,
 .tokenpanel-density-slider:focus-visible,
 .tokenpanel-pill-toggle-checkbox:focus-visible,
+.tokenpanel-bulk-checkbox:focus-visible,
+.tokenpanel-bulk-number-input:focus-visible,
 .tokenpanel-highlight-settings-outline-input:focus-visible,
 [data-design-token-panel-modal] [class*='__textarea']:focus-visible {
   outline: 2px solid var(--tokentweak-color-accent);
@@ -2144,5 +3475,265 @@ html.tokenpanel-elpath-inspecting * {
 
   .tokenpanel-tooltip[data-show='true'] {
     transform: none;
+  }
+}
+
+/* ===========================================================================
+ * Changed state (#661)
+ *
+ * These accents intentionally use panel-private tokens only. Changed rows
+ * retain the existing grid geometry while gaining a narrow rail, brighter
+ * controls, and a compact default → current tail. The same classes are used
+ * by Color and Palette views so the evaluator has one visual vocabulary.
+ * =========================================================================== */
+
+.tokenpanel-tab-button {
+  position: relative;
+}
+
+.tokenpanel-changed-tab-badge {
+  position: absolute;
+  top: 6px;
+  right: -2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding-inline: 4px;
+  border-radius: 999px;
+  background: var(--tokentweak-color-accent-bar);
+  color: var(--tokentweak-color-bg);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.tokenpanel-changed-only-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-xs);
+  flex-shrink: 0;
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+  user-select: none;
+  cursor: pointer;
+}
+
+.tokenpanel-changed-only-toggle:hover {
+  color: var(--tokentweak-color-fg);
+}
+
+.tokenpanel-changed-only-checkbox {
+  accent-color: var(--tokentweak-color-accent-bar);
+}
+
+.tokenpanel-changed-footer-content {
+  display: flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-sm);
+  width: 100%;
+  min-width: 0;
+}
+
+.tokenpanel-changed-summary {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tokenpanel-changed-summary-count {
+  color: var(--tokentweak-color-fg);
+  font-weight: 700;
+}
+
+.tokenpanel-changed-footer-spacer {
+  flex: 1 1 auto;
+  min-width: var(--tokentweak-pad-xs);
+}
+
+.tokenpanel-changed-footer-content .tokenpanel-action-link {
+  flex-shrink: 0;
+}
+
+.tokenpanel-changed-copy[aria-disabled='true'],
+.tokenpanel-changed-revert-all[aria-disabled='true'] {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.tokenpanel-changed-revert-all {
+  color: var(--tokentweak-color-danger);
+}
+
+.tokenpanel-changed-revert-all:hover,
+.tokenpanel-changed-revert-all:focus-visible {
+  color: var(--tokentweak-color-fg);
+}
+
+.tokenpanel-row.is-changed,
+.tokenpanel-row--column.is-changed {
+  position: relative;
+  border-left: 2px solid var(--tokentweak-color-accent-bar);
+  padding-left: 6px;
+  margin-left: -8px;
+}
+
+.tokenpanel-row.is-changed .tokenpanel-row-number-input,
+.tokenpanel-row--column.is-changed .tokenpanel-row-number-input,
+.tokenpanel-row.is-changed .tokenpanel-row-select,
+.tokenpanel-row--column.is-changed .tokenpanel-row-select,
+.tokenpanel-row.is-changed .tokenpanel-row-text-input,
+.tokenpanel-row--column.is-changed .tokenpanel-row-text-input,
+.tokenpanel-row.is-changed .tokenpanel-color-field-swatch,
+.tokenpanel-row--column.is-changed .tokenpanel-color-field-swatch,
+.tokenpanel-row.is-changed .tokenpanel-row-color-input,
+.tokenpanel-row--column.is-changed .tokenpanel-row-color-input {
+  border-color: var(--tokentweak-color-accent-bar);
+  color: var(--tokentweak-color-code-fg);
+}
+
+.tokenpanel-row.is-changed .tokenpanel-row-number-input:focus-visible,
+.tokenpanel-row.is-changed .tokenpanel-row-select:focus-visible,
+.tokenpanel-row.is-changed .tokenpanel-row-text-input:focus-visible,
+.tokenpanel-row.is-changed .tokenpanel-color-field-swatch:focus-visible {
+  outline-color: var(--tokentweak-color-accent-bar);
+}
+
+.tokenpanel-changed-tail {
+  display: inline-flex;
+  align-items: baseline;
+  min-width: 0;
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 10px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.tokenpanel-changed-tail-old {
+  text-decoration: line-through;
+  text-decoration-color: var(--tokentweak-color-muted);
+}
+
+.tokenpanel-changed-tail-new {
+  color: var(--tokentweak-color-accent-bar);
+}
+
+.tokenpanel-changed-revert {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: var(--radius-tokentweak);
+  color: var(--tokentweak-color-muted);
+  cursor: pointer;
+}
+
+.tokenpanel-changed-revert:hover,
+.tokenpanel-changed-revert:focus-visible {
+  color: var(--tokentweak-color-accent-bar);
+}
+
+.tokenpanel-changed-revert:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent-bar);
+  outline-offset: 1px;
+}
+
+.tokenpanel-changed-revert::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+}
+
+.tokenpanel-changed-revert svg {
+  fill: none !important;
+  stroke: currentColor !important;
+  pointer-events: none;
+}
+
+.tokenpanel-changed-marker {
+  flex: 0 0 auto;
+  color: var(--tokentweak-color-accent-bar);
+  font-size: 9px;
+  line-height: 1;
+}
+
+.tokenpanel-color-swatch-wrap.is-changed {
+  position: relative;
+  border-left: 2px solid var(--tokentweak-color-accent-bar);
+  padding-left: 4px;
+  margin-left: -6px;
+}
+
+.tokenpanel-color-swatch-wrap.is-changed .tokenpanel-color-swatch-button {
+  border-color: var(--tokentweak-color-accent-bar);
+}
+
+.tokenpanel-color-swatch-wrap.is-changed .tokenpanel-color-swatch-button:focus-visible {
+  outline-color: var(--tokentweak-color-accent-bar);
+}
+
+.tokenpanel-palette-selector.is-changed {
+  border-left: 2px solid var(--tokentweak-color-accent-bar);
+  padding-left: 4px;
+  margin-left: -6px;
+}
+
+.tokenpanel-palette-selector.is-changed .tokenpanel-palette-trigger {
+  border-color: var(--tokentweak-color-accent-bar);
+}
+
+.tokenpanel-palette-selector.is-changed .tokenpanel-palette-trigger:focus-visible {
+  outline-color: var(--tokentweak-color-accent-bar);
+}
+
+.tokenpanel-palette-edit-group-changed-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  margin-left: 4px;
+  padding-inline: 4px;
+  border-radius: 999px;
+  background: var(--tokentweak-color-accent-bar);
+  color: var(--tokentweak-color-bg);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.tokenpanel-changed-empty {
+  padding: var(--tokentweak-pad-lg);
+  color: var(--tokentweak-color-muted);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 12px;
+  text-align: center;
+}
+
+@container tokenpanel (max-width: 479px) {
+  .tokenpanel-changed-footer-content {
+    flex-wrap: wrap;
+  }
+
+  .tokenpanel-changed-summary {
+    flex: 1 1 100%;
+  }
+
+  .tokenpanel-changed-footer-spacer {
+    display: none;
   }
 }

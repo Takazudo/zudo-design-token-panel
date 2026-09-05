@@ -35,10 +35,11 @@ import {
 import { findElementsUsingToken, HIGHLIGHT_PORTAL_MOUNT_ID } from './find-elements';
 import type { FindElementsResult } from './find-elements';
 import { HighlightOverlay, type HighlightOverlayItem } from './highlight-overlay';
-import { getPanelConfig } from '../config/panel-config';
+import { getPanelConfig, type PanelConfig } from '../config/panel-config';
 import { usePortalMount } from '../utils/use-portal-mount';
 import { isDocumentUsable } from '../utils/document-liveness';
 import type { TierValueKind } from '../tokens/tier-model';
+import { buildTokenIndex, tokenAddressKey, type TokenAddress, type TokenIndex } from '../utils/token-index';
 
 // ---------------------------------------------------------------------------
 // Kind helpers
@@ -69,15 +70,15 @@ export function tierKindToProbeKind(t: TierValueKind | undefined): ProbeKind | u
   }
 }
 
-/** Build a cssVar → TierValueKind map from the current panel config's tier items. */
-function buildCssVarKindIndex(): Map<string, TierValueKind> {
+/** Build a cssVar → TierValueKind map from one mounted panel instance. */
+function buildCssVarKindIndex(cfg: PanelConfig, index: TokenIndex): Map<string, TierValueKind> {
   const out = new Map<string, TierValueKind>();
-  for (const tab of getPanelConfig().tabs) {
-    for (const tier of tab.tiers) {
-      for (const item of tier.items) {
-        out.set(item.cssVar, item.type);
-      }
-    }
+  for (const entry of index.entries) {
+    const item = cfg.tabs
+      .find((tab) => tab.id === entry.address.tabId)
+      ?.tiers.find((tier) => tier.id === entry.address.tierId)
+      ?.items.find((candidate) => candidate.id === entry.address.itemId);
+    if (item) out.set(entry.cssVar, item.type);
   }
   return out;
 }
@@ -86,7 +87,7 @@ function buildCssVarKindIndex(): Map<string, TierValueKind> {
 // Match cache
 // ---------------------------------------------------------------------------
 
-type CacheKey = string; // `${cssVar}|${stylesheetVersion}|${themeVersion}`
+type CacheKey = string; // `${storagePrefix}|${cssVar}|${stylesheetVersion}|${themeVersion}`
 type CacheEntry = FindElementsResult;
 
 // ---------------------------------------------------------------------------
@@ -129,8 +130,26 @@ function OverlayPortal({ items }: OverlayPortalProps) {
 // HighlightOrchestrator
 // ---------------------------------------------------------------------------
 
-export function HighlightOrchestrator({ children }: { children: ComponentChildren }) {
-  const [state, setState] = useState<HighlightState>(loadHighlightState);
+export interface HighlightOrchestratorProps {
+  children?: ComponentChildren;
+  /** Config for the mounted panel instance; omitted for the default path. */
+  instanceConfig?: PanelConfig;
+}
+
+export function HighlightOrchestrator({
+  children,
+  instanceConfig: instanceConfigProp,
+}: HighlightOrchestratorProps) {
+  // Keep all probe-kind and cssVar resolution tied to this mounted instance.
+  // Looking up the global active config here causes two panels to probe with
+  // whichever manifest happened to be configured last.
+  const instanceConfig = instanceConfigProp ?? getPanelConfig();
+  const tokenIndex = useMemo(() => buildTokenIndex(instanceConfig), [instanceConfig]);
+  const cssVarKindIndex = useMemo(
+    () => buildCssVarKindIndex(instanceConfig, tokenIndex),
+    [instanceConfig, tokenIndex],
+  );
+  const [state, setState] = useState<HighlightState>(() => loadHighlightState(instanceConfig));
 
   // Track stylesheet version for cache-busting when new sheets are injected.
   const [stylesheetVersion, setStylesheetVersion] = useState(0);
@@ -140,6 +159,16 @@ export function HighlightOrchestrator({ children }: { children: ComponentChildre
 
   // Per-cssVar match cache keyed by (cssVar, stylesheetVersion, themeVersion).
   const matchCacheRef = useRef<Map<CacheKey, CacheEntry>>(new Map());
+  const [requestedMatchCounts, setRequestedMatchCounts] = useState<Record<string, number>>({});
+
+  // A mounted orchestrator can be reused with another instance config by a
+  // host during a view transition. Drop both DOM results and address counts
+  // when that instance identity changes; otherwise a same-cssVar token could
+  // inherit the previous instance's probe result.
+  useEffect(() => {
+    matchCacheRef.current.clear();
+    setRequestedMatchCounts({});
+  }, [instanceConfig.storagePrefix]);
 
   // -------------------------------------------------------------------------
   // State mutation helpers
@@ -148,42 +177,42 @@ export function HighlightOrchestrator({ children }: { children: ComponentChildre
   const toggle = useCallback((cssVar: string) => {
     setState((s) => {
       const next = toggleHighlight(s, cssVar);
-      saveHighlightState(next);
+      saveHighlightState(next, instanceConfig);
       return next;
     });
-  }, []);
+  }, [instanceConfig]);
 
   const setSlot = useCallback((index: number, partial: Partial<HighlightSlotSpec>) => {
     setState((s) => {
       const next = setSlotHelper(s, index, partial);
-      saveHighlightState(next);
+      saveHighlightState(next, instanceConfig);
       return next;
     });
-  }, []);
+  }, [instanceConfig]);
 
   const setOutlineWidth = useCallback((width: number) => {
     setState((s) => {
       const next = setOutlineWidthHelper(s, width);
-      saveHighlightState(next);
+      saveHighlightState(next, instanceConfig);
       return next;
     });
-  }, []);
+  }, [instanceConfig]);
 
   const reset = useCallback(() => {
     setState((s) => {
       const next = resetSlots(s);
-      saveHighlightState(next);
+      saveHighlightState(next, instanceConfig);
       return next;
     });
-  }, []);
+  }, [instanceConfig]);
 
   const disableAll = useCallback(() => {
     setState((s) => {
       const next = clearAllActive(s);
-      saveHighlightState(next);
+      saveHighlightState(next, instanceConfig);
       return next;
     });
-  }, []);
+  }, [instanceConfig]);
 
   // -------------------------------------------------------------------------
   // Stylesheet MutationObserver — bumps stylesheetVersion when <style> or
@@ -279,65 +308,84 @@ export function HighlightOrchestrator({ children }: { children: ComponentChildre
   // only state.slots — do not re-probe the DOM.
   // -------------------------------------------------------------------------
 
-  const { items, matchCounts } = useMemo(() => {
-    const cssVarKindIndex = buildCssVarKindIndex();
-
-    function lookupOrProbe(cssVar: string): CacheEntry {
-      const key: CacheKey = `${cssVar}|${stylesheetVersion}|${themeVersion}`;
-      const cached = matchCacheRef.current.get(key);
-      if (cached) {
-        // F26: Evict the entry if any element has been detached from the DOM
-        // since it was cached (e.g. SPA re-render without a version bump).
-        // Re-probe so we don't pass disconnected Elements to HighlightOverlay,
-        // which would draw a 0×0 ring at the viewport origin.
-        if (cached.elements.every((el) => el.isConnected)) {
-          return cached;
-        }
-        matchCacheRef.current.delete(key);
+  const lookupOrProbe = useCallback((cssVar: string): CacheEntry => {
+    const key: CacheKey = `${instanceConfig.storagePrefix}|${cssVar}|${stylesheetVersion}|${themeVersion}`;
+    const cached = matchCacheRef.current.get(key);
+    if (cached) {
+      // F26: Evict the entry if any element has been detached from the DOM
+      // since it was cached (e.g. SPA re-render without a version bump).
+      // Re-probe so we don't pass disconnected Elements to HighlightOverlay,
+      // which would draw a 0×0 ring at the viewport origin.
+      if (cached.elements.every((el) => el.isConnected)) {
+        return cached;
       }
-
-      const tierKind = cssVarKindIndex.get(cssVar);
-      const kind = tierKindToProbeKind(tierKind);
-      const kindOpt = kind ? { kind } : {};
-
-      let elements: Element[];
-      let warnings: string[];
-
-      if (isDifferentialEligible(tierKind)) {
-        // F31 (option a): Skip the separate equality pass for differential-eligible
-        // kinds. Differential's A/B comparison already detects direct consumers —
-        // any element whose computed longhand equals sentinelA in phase A will
-        // produce a different value in phase B (where sentinelB ≠ sentinelA).
-        // This reduces the DOM walk from 3 (equality + differential A + B) to 2
-        // (differential A + B), halving the style-recalculation cost for the most
-        // common token kinds (color, length, number, auto-detect).
-        const diffResult = findElementsUsingToken(cssVar, { ...kindOpt, mode: 'differential' });
-        elements = diffResult.elements;
-        warnings = diffResult.warnings;
-      } else {
-        // String-only kinds (text, cursor, content, mask-image): differential mode
-        // is not applicable. Run a single equality probe.
-        const eqResult = findElementsUsingToken(cssVar, kindOpt);
-        elements = eqResult.elements;
-        warnings = eqResult.warnings;
-      }
-
-      const entry: CacheEntry = { elements, warnings };
-      matchCacheRef.current.set(key, entry);
-      return entry;
+      matchCacheRef.current.delete(key);
     }
+
+    const tierKind = cssVarKindIndex.get(cssVar);
+    const kind = tierKindToProbeKind(tierKind);
+    const kindOpt = kind ? { kind } : {};
+
+    let elements: Element[];
+    let warnings: string[];
+
+    if (isDifferentialEligible(tierKind)) {
+      // F31 (option a): Skip the separate equality pass for differential-eligible
+      // kinds. Differential's A/B comparison already detects direct consumers —
+      // any element whose computed longhand equals sentinelA in phase A will
+      // produce a different value in phase B (where sentinelB ≠ sentinelA).
+      // This reduces the DOM walk from 3 (equality + differential A + B) to 2
+      // (differential A + B), halving the style-recalculation cost for the most
+      // common token kinds (color, length, number, auto-detect).
+      const diffResult = findElementsUsingToken(cssVar, { ...kindOpt, mode: 'differential' });
+      elements = diffResult.elements;
+      warnings = diffResult.warnings;
+    } else {
+      // String-only kinds (text, cursor, content, mask-image): differential mode
+      // is not applicable. Run a single equality probe.
+      const eqResult = findElementsUsingToken(cssVar, kindOpt);
+      elements = eqResult.elements;
+      warnings = eqResult.warnings;
+    }
+
+    const entry: CacheEntry = { elements, warnings };
+    matchCacheRef.current.set(key, entry);
+    return entry;
+  }, [cssVarKindIndex, instanceConfig.storagePrefix, stylesheetVersion, themeVersion]);
+
+  const logProbeWarnings = useCallback((result: CacheEntry) => {
+    if (result.warnings.length === 0) return;
+    for (const warning of result.warnings) {
+      console.warn('[zudo-design-token-panel] highlight:', warning);
+    }
+  }, []);
+
+  const requestMatchCount = useCallback((address: TokenAddress): number | undefined => {
+    const entry = tokenIndex.entry(address);
+    if (!entry) return undefined;
+    const result = lookupOrProbe(entry.cssVar);
+    logProbeWarnings(result);
+    const count = result.elements.length;
+    const key = tokenAddressKey(address);
+    setRequestedMatchCounts((previous) => {
+      // Keep the historical cssVar lookup available to existing consumers
+      // while also retaining an address key for same-cssVar tokens in one
+      // manifest. The chain UI uses the address key; the highlight toggle
+      // continues to read the cssVar key.
+      if (previous[key] === count && previous[entry.cssVar] === count) return previous;
+      return { ...previous, [key]: count, [entry.cssVar]: count };
+    });
+    return count;
+  }, [logProbeWarnings, lookupOrProbe, tokenIndex]);
+
+  const { items, matchCounts: activeMatchCounts } = useMemo(() => {
 
     const resolvedItems: HighlightOverlayItem[] = [];
     const counts: Record<string, number> = {};
 
     for (const [cssVar, slotIdx] of Object.entries(state.active)) {
       const result = lookupOrProbe(cssVar);
-
-      if (result.warnings.length > 0) {
-        for (const warning of result.warnings) {
-          console.warn('[zudo-design-token-panel] highlight:', warning);
-        }
-      }
+      logProbeWarnings(result);
 
       const elements = result.elements;
       counts[cssVar] = elements.length;
@@ -354,16 +402,36 @@ export function HighlightOrchestrator({ children }: { children: ComponentChildre
     }
 
     return { items: resolvedItems, matchCounts: counts };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.active, state.slots, state.outlineWidth, stylesheetVersion, themeVersion]);
+  }, [logProbeWarnings, lookupOrProbe, state.active, state.outlineWidth, state.slots]);
+
+  // A stylesheet/theme change invalidates the DOM cache. Previously requested
+  // counts are likewise stale, but remain lazy: the next open/request probes
+  // the new cache entry and repopulates them.
+  useEffect(() => {
+    setRequestedMatchCounts({});
+  }, [stylesheetVersion, themeVersion]);
+
+  const matchCounts = useMemo(
+    () => ({ ...requestedMatchCounts, ...activeMatchCounts }),
+    [activeMatchCounts, requestedMatchCounts],
+  );
 
   // -------------------------------------------------------------------------
   // Context value
   // -------------------------------------------------------------------------
 
   const ctxValue = useMemo<HighlightContextValue>(
-    () => ({ state, toggle, setSlot, setOutlineWidth, reset, disableAll, matchCounts }),
-    [state, toggle, setSlot, setOutlineWidth, reset, disableAll, matchCounts],
+    () => ({
+      state,
+      toggle,
+      setSlot,
+      setOutlineWidth,
+      reset,
+      disableAll,
+      matchCounts,
+      requestMatchCount,
+    }),
+    [state, toggle, setSlot, setOutlineWidth, reset, disableAll, matchCounts, requestMatchCount],
   );
 
   return (

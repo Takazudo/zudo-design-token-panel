@@ -120,21 +120,26 @@ function logApplyOutcome(quiet: boolean, payload: string): void {
   try {
     const parsed = JSON.parse(payload) as {
       ok?: boolean;
+      dryRun?: boolean;
+      files?: Array<{ file: string; changed?: string[] }>;
       updated?: Array<{ file: string; changed?: string[] }>;
       unknownCssVars?: string[];
       unknownOutsideBlockCssVars?: string[];
     };
-    if (!parsed.ok || !Array.isArray(parsed.updated)) return;
-    const totalTokens = parsed.updated.reduce(
+    if (!parsed.ok) return;
+    const results = parsed.dryRun === true ? parsed.files : parsed.updated;
+    if (!Array.isArray(results)) return;
+    const totalTokens = results.reduce(
       (sum, entry) => sum + (Array.isArray(entry.changed) ? entry.changed.length : 0),
       0,
     );
-    const fileCount = parsed.updated.length;
-    const changedFiles = parsed.updated
+    const fileCount = results.length;
+    const changedFiles = results
       .filter((entry) => Array.isArray(entry.changed) && entry.changed.length > 0)
       .map((entry) => entry.file);
+    const outcome = parsed.dryRun === true ? 'dry-run' : 'applied';
     console.log(
-      `[design-token-panel] applied ${totalTokens} tokens to ${fileCount} files ` +
+      `[design-token-panel] ${outcome} ${totalTokens} tokens to ${fileCount} files ` +
         `(changed: ${changedFiles.length > 0 ? changedFiles.join(', ') : 'none'})`,
     );
     // #508: surface unknown cssVars (silently ignored before this fix) and
