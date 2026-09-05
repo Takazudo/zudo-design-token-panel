@@ -5,7 +5,7 @@ import { useShortcut } from '../shell/shortcut-dispatcher';
 import { ElementInspectContext } from './element-inspect-context';
 
 /** Header control for the element → tokens picker. */
-export function ElementInspectToggleButton(): JSX.Element | null {
+export function ElementInspectToggleButton({ compact = false }: { compact?: boolean } = {}): JSX.Element | null {
   const context = useContext(ElementInspectContext);
   if (context === null) return null;
 
@@ -37,6 +37,7 @@ export function ElementInspectToggleButton(): JSX.Element | null {
         : 'Inspect an element to see its tokens (I)'}
       onClick={toggle}
     >
+      <>
       <svg
         width="16"
         height="16"
@@ -53,6 +54,8 @@ export function ElementInspectToggleButton(): JSX.Element | null {
         <path d="M8 1v2M8 13v2M1 8h2M13 8h2" />
         <path d="M16 6h6M16 11h6M16 16h6" />
       </svg>
+      {compact && <span>Inspect element tokens</span>}
+      </>
     </RoleButton>
   );
 }
