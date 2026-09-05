@@ -105,7 +105,16 @@ describe('changed row label allocation', () => {
     const row = required('[data-testid="tier-item-spacing-0"]');
     const label = required('.tokenpanel-row-label', row);
     const card = row.closest<HTMLElement>('.tokenpanel-card')!;
-    const compact = contentWidth(card) <= 319;
+    const cardWidth = contentWidth(card);
+    const compact = cardWidth <= 319;
+    expect(getComputedStyle(card).containerName).toBe('tokenpanel-card');
+    expect(getComputedStyle(card).containerType).toBe('inline-size');
+    expect(getComputedStyle(required('.tokenpanel-card-label', row)).display)
+      .toBe(compact ? 'flex' : 'contents');
+    // These checks use CSS pixels in the iframe, not screenshot pixels:
+    // the browser runner can scale its screenshot of the iframe.
+    if (width === undefined || width === 560) expect(cardWidth).toBeGreaterThan(319);
+    else expect(cardWidth).toBeLessThanOrEqual(319);
     const originalHeight = row.getBoundingClientRect().height;
     expect(getComputedStyle(label).minWidth).toBe('0px');
 
@@ -119,6 +128,7 @@ describe('changed row label allocation', () => {
     const tail = required('.tokenpanel-changed-tail', row);
     expect(tail.title).toBe(BEFORE_AFTER);
     expect(tail.textContent).toBe(BEFORE_AFTER);
+    expect(contentWidth(card)).toBeCloseTo(cardWidth, 1);
     if (compact) {
       expect(getComputedStyle(label).minWidth).toBe('0px');
       for (const text of [label, tail]) {
@@ -143,7 +153,26 @@ describe('changed row label allocation', () => {
       expect(row.getBoundingClientRect().height).toBeCloseTo(originalHeight, 1);
       expect(getComputedStyle(tail).textOverflow).toBe('ellipsis');
       expect(getComputedStyle(tail).whiteSpace).toBe('nowrap');
-      expect(contentWidth(tail) + 0.1).toBeGreaterThanOrEqual(textWidth(tail, BEFORE_AFTER));
+      if (width === undefined) {
+        // The default-size grid has >319px cards and retains its original
+        // single-line layout. Prove the ellipsis affordance is visible,
+        // with complete text exposed by the native title above; the roomy
+        // single-column case below still proves complete inline text.
+        expect(getComputedStyle(tail).overflowX).toBe('hidden');
+        expect(tail.scrollWidth).toBeGreaterThan(tail.clientWidth);
+        expect(contentWidth(tail) + 0.1).toBeGreaterThanOrEqual(textWidth(tail, 'def…'));
+      } else {
+        expect(contentWidth(tail) + 0.1).toBeGreaterThanOrEqual(textWidth(tail, BEFORE_AFTER));
+        const range = document.createRange();
+        range.selectNodeContents(tail);
+        const box = tail.getBoundingClientRect();
+        for (const rect of range.getClientRects()) {
+          expect(rect.left).toBeGreaterThanOrEqual(box.left - 0.5);
+          expect(rect.right).toBeLessThanOrEqual(box.right + 0.5);
+          expect(rect.top).toBeGreaterThanOrEqual(box.top - 0.5);
+          expect(rect.bottom).toBeLessThanOrEqual(box.bottom + 0.5);
+        }
+      }
     }
     expect(getComputedStyle(required('.tokenpanel-row-label', required('[data-testid="tier-item-spacing-1"]'))).minWidth)
       .toBe('0px');

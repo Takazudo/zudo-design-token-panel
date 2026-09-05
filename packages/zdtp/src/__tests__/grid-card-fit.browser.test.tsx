@@ -57,7 +57,9 @@ function colorConfig(shape: 'index' | 'literal' | 'grouped'): PanelConfig {
         ...(shape === 'grouped' ? { referencesRamps: [{ tier: 'palette' }] } : {}),
         items: [{
           id: shape, cssVar: `--fit-semantic-${shape}`, label: LONG_LABEL,
-          default: shape === 'literal' ? 'oklch(0.6 0.2 30)' : 'fixture-p6',
+          // A bare local palette item is intentionally resolved as an index
+          // before referencesRamps; qualify the tier to request a real ref.
+          default: shape === 'literal' ? 'oklch(0.6 0.2 30)' : 'palette:fixture-p6',
           type: { kind: 'color', format: 'oklch' },
         }],
       }],
@@ -257,13 +259,22 @@ describe('full vendored zudo-doc minimum card fit', () => {
     inside(effectiveTarget(required('.tokenpanel-help-icon', heading)), heading.parentElement!.getBoundingClientRect(), 'vendored help target');
   });
 
-  it.each([0, 1, 2] as const)('fits unchanged, mixed and all-changed Spacing at 320px / density %i', async (density) => {
+  it.each([0, 1, 2] as const)('fits unchanged, mixed and all-editable-changed Spacing at 320px / density %i', async (density) => {
     const root = await mount(zudoDocConfigs.dark, 320, density, 'Spacing');
     const inputs = [...root.querySelectorAll<HTMLInputElement>('.tokenpanel-row-number-input')];
     expect(inputs).toHaveLength(23);
     expect(root.querySelectorAll('.tokenpanel-row-label')).toHaveLength(23);
-    expect(root.querySelectorAll('.tokenpanel-row-unit')).toHaveLength(23);
-    expect(root.querySelectorAll('.tokenpanel-bulk-row-checkbox')).toHaveLength(23);
+    expect(root.querySelectorAll('.tokenpanel-row-unit')).toHaveLength(21);
+    const readonly = inputs.filter((input) => input.disabled);
+    expect(readonly.map((input) => input.closest<HTMLElement>('[data-css-var]')!.dataset.cssVar))
+      .toEqual(['--spacing-0', '--spacing-px', '--zd-sidebar-w']);
+    for (const cssVar of ['--spacing-0', '--zd-sidebar-w']) {
+      const row = required(`[data-css-var="${cssVar}"]`, root);
+      expect(row.querySelector('.tokenpanel-row-unit'), `${cssVar} is explicitly unitless`).toBeNull();
+    }
+    const editable = inputs.filter((input) => !input.disabled);
+    expect(editable).toHaveLength(20);
+    expect(root.querySelectorAll('.tokenpanel-bulk-row-checkbox')).toHaveLength(20);
     expect(root.querySelectorAll('.tokenpanel-chain-button')).toHaveLength(23);
     expect(root.querySelectorAll('.tokenpanel-highlight-toggle')).toHaveLength(23);
     checkGridAndBody(root);
@@ -272,9 +283,12 @@ describe('full vendored zudo-doc minimum card fit', () => {
     expect(root.querySelectorAll('.is-changed')).toHaveLength(1);
     checkGridAndBody(root);
     checkCards(root);
-    for (const [index, input] of inputs.entries()) await edit(input, String(-20.5 - index));
-    expect(root.querySelectorAll('.tokenpanel-changed-revert')).toHaveLength(23);
-    expect(root.querySelectorAll('.tokenpanel-changed-tail')).toHaveLength(23);
+    // Respect the real manifest's three readonly rows. All writable rows
+    // change, including every row of the hsp/vsp/icon tiers.
+    for (const [index, input] of editable.entries()) await edit(input, String(-20.5 - index));
+    expect(root.querySelectorAll('.tokenpanel-changed-revert')).toHaveLength(20);
+    expect(root.querySelectorAll('.tokenpanel-changed-tail')).toHaveLength(20);
+    for (const input of readonly) expect(input.closest('.is-changed')).toBeNull();
     checkGridAndBody(root);
     checkCards(root);
   });
@@ -374,7 +388,8 @@ describe('bounded absent control shapes and interactions', () => {
     expect(bulk.checked).toBe(true);
     const highlight = required('.tokenpanel-highlight-toggle', root);
     await page.elementLocator(highlight).click();
-    expect(highlight.classList.contains('is-active')).toBe(true);
+    await flushEffects();
+    await expect.poll(() => highlight.title).toMatch(/^Stop highlighting --fit-a-long-numeric-token-name/);
     const chain = required('.tokenpanel-chain-button', root);
     await page.elementLocator(chain).click();
     await flushEffects();
