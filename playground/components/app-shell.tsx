@@ -32,7 +32,7 @@ export function AppShell({ title, activePath, lang = 'en', children }: AppShellP
       <body>
         <header class="zfb-topbar">
           <a class="zfb-brand" href="/">zdtp playground</a>
-          <Island when="load" ssrFallback={<span class="zfb-meta">Loading workspace panel…</span>}>
+          <Island when="load" ssrFallback={<span aria-hidden="true" />}>
             {(<PlaygroundControls />) as unknown as IslandProps['children']}
           </Island>
         </header>
