@@ -14,7 +14,7 @@
   min-width: 0;
   gap: var(--tokentweak-pad-sm);
   padding: 2px 8px;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: var(--radius-tokentweak);
   background: var(--tokentweak-color-bg);
 }
@@ -40,7 +40,7 @@
 .tokenpanel-specimen-presets {
   display: inline-flex;
   overflow: hidden;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: var(--radius-tokentweak);
 }
 

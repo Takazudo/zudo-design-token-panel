@@ -201,7 +201,7 @@ describe('Invariant F — panel CSS does not read host theme vars', () => {
   it('panel-tokens.css declares a baked-in dark base ramp', () => {
     const source = stripCssComments(panelTokens);
     expect(source).toMatch(/--tokentweak-palette-base-0\s*:\s*oklch\(/);
-    expect(source).toMatch(/--tokentweak-palette-base-5\s*:\s*oklch\(/);
+    expect(source).toMatch(/--tokentweak-palette-base-6\s*:\s*oklch\(/);
   });
 
   it('panel-tokens.css maps panel roles onto its private ramp', () => {
@@ -210,7 +210,7 @@ describe('Invariant F — panel CSS does not read host theme vars', () => {
       /--tokentweak-color-bg\s*:\s*var\(\s*--tokentweak-palette-base-0\s*\)/,
     );
     expect(source).toMatch(
-      /--tokentweak-color-fg\s*:\s*var\(\s*--tokentweak-palette-base-4\s*\)/,
+      /--tokentweak-color-fg\s*:\s*var\(\s*--tokentweak-palette-base-5\s*\)/,
     );
   });
 });

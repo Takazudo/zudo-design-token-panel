@@ -172,13 +172,14 @@ describe('F21 — color-scheme: dark on panel surfaces', () => {
 // ---------------------------------------------------------------------------
 
 describe('F34 — panel neutral color ramp', () => {
-  const expectedColors = {
-    bg: [24, 24, 24, 255],
-    surface: [28, 28, 28, 255],
-    'code-bg': [56, 56, 56, 255],
-    muted: [136, 136, 136, 255],
-    fg: [184, 184, 184, 255],
-    'code-fg': [224, 224, 224, 255],
+  const roleStops = {
+    bg: 0,
+    surface: 1,
+    'code-bg': 2,
+    border: 3,
+    muted: 4,
+    fg: 5,
+    'code-fg': 6,
   } as const;
 
   function paintedRgba(color: string): number[] {
@@ -192,14 +193,18 @@ describe('F34 — panel neutral color ramp', () => {
     return [...context.getImageData(0, 0, 1, 1).data];
   }
 
-  it('resolves every neutral role to its exact legacy sRGB color', async () => {
+  it('resolves every neutral role to its declared palette stop', async () => {
     await injectPanelCss();
     const shell = createElement('tokenpanel-shell');
 
-    for (const [role, expected] of Object.entries(expectedColors)) {
-      const sample = createElement('tokenpanel-color-test-sample', shell);
-      sample.style.color = `var(--tokentweak-color-${role})`;
-      expect(paintedRgba(getComputedStyle(sample).color), role).toEqual(expected);
+    for (const [role, stop] of Object.entries(roleStops)) {
+      const semanticSample = createElement('tokenpanel-color-test-sample', shell);
+      semanticSample.style.color = `var(--tokentweak-color-${role})`;
+      const paletteSample = createElement('tokenpanel-color-test-sample', shell);
+      paletteSample.style.color = `var(--tokentweak-palette-base-${stop})`;
+      expect(paintedRgba(getComputedStyle(semanticSample).color), role).toEqual(
+        paintedRgba(getComputedStyle(paletteSample).color),
+      );
     }
   });
 

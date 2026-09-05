@@ -28,7 +28,7 @@
   width: 320px;
   padding: var(--tokentweak-pad-md);
   background: var(--tokentweak-color-surface);
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: var(--radius-tokentweak);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   display: flex;
@@ -97,7 +97,7 @@
   align-items: center;
   gap: 2px;
   background: var(--tokentweak-color-bg);
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: 999px;
   padding: 2px;
   flex-shrink: 0;
@@ -199,7 +199,7 @@
   width: 48px;
   height: 48px;
   border-radius: var(--radius-tokentweak);
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   overflow: hidden;
 }
 
@@ -226,7 +226,7 @@
   font-size: var(--tokentweak-text-caption);
   background: var(--tokentweak-color-bg);
   color: var(--tokentweak-color-fg);
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: var(--radius-tokentweak);
   padding: var(--tokentweak-pad-2xs) var(--tokentweak-pad-xs);
   transition: border-color 120ms ease;
@@ -354,7 +354,7 @@
   height: 18px;
   border-radius: 9px;
   overflow: hidden;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   /* background (gradient) is set inline by the component (alpha channel) or
      statically by component for L/C/H channels */
 }
@@ -369,7 +369,7 @@
   border-radius: 50%;
   background: var(--tokentweak-color-fg);
   border: 2px solid var(--tokentweak-color-bg);
-  box-shadow: 0 0 0 1px var(--tokentweak-color-muted);
+  box-shadow: 0 0 0 1px var(--tokentweak-color-border);
   pointer-events: none;
   /* left is set inline by the component as a percentage */
 }
@@ -393,7 +393,7 @@
   font-size: var(--tokentweak-text-micro);
   color: var(--tokentweak-color-muted);
   padding-top: var(--tokentweak-pad-2xs);
-  border-top: 1px solid var(--tokentweak-color-muted);
+  border-top: 1px solid var(--tokentweak-color-border);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

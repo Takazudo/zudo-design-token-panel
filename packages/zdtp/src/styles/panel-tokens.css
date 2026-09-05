@@ -31,9 +31,10 @@
  *
  * Host override surface
  * ---------------------
- * A host that wants to retheme the panel chrome assigns directly to the
- * `--tokentweak-color-*` / `--tokentweak-font-mono` / `--tokentweak-z-*`
- * names on either `.tokenpanel-shell`, `[data-design-token-panel-modal]`,
+ * A host that wants to retheme the panel chrome assigns to a semantic
+ * `--tokentweak-color-*` role, a shared `--tokentweak-palette-base-*` stop,
+ * or the `--tokentweak-font-mono` / `--tokentweak-z-*` names on either
+ * `.tokenpanel-shell`, `[data-design-token-panel-modal]`,
  * `.tokenpanel-highlight-settings-popover`, `.tokenpanel-chain-popover`,
  * `.tokenpanel-color-picker`,
  * `.tokenpanel-tooltip`, or an element-inspect surface (or any ancestor —
@@ -72,18 +73,21 @@
    * The base ramp is numbered from the darkest ground (0) upward toward the
    * foreground. Semantic color roles alias the ramp so components never
    * reach into palette values directly. Hosts can override either a semantic
-   * `--tokentweak-color-*` role or a ramp stop on this scope.
+   * `--tokentweak-color-*` role or a ramp stop on this scope. Borders use a
+   * dedicated role so overriding `muted` affects secondary text only.
    * ---------------------------------------------------------------------- */
-  --tokentweak-palette-base-0: oklch(0.20903608651870992 0 0);
-  --tokentweak-palette-base-1: oklch(0.22644986475198373 0 0);
-  --tokentweak-palette-base-2: oklch(0.3406970568972224 0 0);
-  --tokentweak-palette-base-3: oklch(0.6267535410065036 0 0);
-  --tokentweak-palette-base-4: oklch(0.7826037156503541 0 0);
-  --tokentweak-palette-base-5: oklch(0.9067006916295425 0 0);
+  --tokentweak-palette-base-0: oklch(0.18 0 0);
+  --tokentweak-palette-base-1: oklch(0.25 0 0);
+  --tokentweak-palette-base-2: oklch(0.34 0 0);
+  --tokentweak-palette-base-3: oklch(0.536 0 0);
+  --tokentweak-palette-base-4: oklch(0.66 0 0);
+  --tokentweak-palette-base-5: oklch(0.8 0 0);
+  --tokentweak-palette-base-6: oklch(0.91 0 0);
 
-  --tokentweak-color-fg: var(--tokentweak-palette-base-4);
+  --tokentweak-color-fg: var(--tokentweak-palette-base-5);
   --tokentweak-color-bg: var(--tokentweak-palette-base-0);
-  --tokentweak-color-muted: var(--tokentweak-palette-base-3);
+  --tokentweak-color-muted: var(--tokentweak-palette-base-4);
+  --tokentweak-color-border: var(--tokentweak-palette-base-3);
   --tokentweak-color-surface: var(--tokentweak-palette-base-1);
   --tokentweak-color-accent: #d69a66;
   /* Dedicated changed-state accent: a little brighter than the tab accent so
@@ -91,7 +95,7 @@
   --tokentweak-color-accent-bar: #efb477;
   --tokentweak-color-accent-hover: #a7c0e3;
   --tokentweak-color-code-bg: var(--tokentweak-palette-base-2);
-  --tokentweak-color-code-fg: var(--tokentweak-palette-base-5);
+  --tokentweak-color-code-fg: var(--tokentweak-palette-base-6);
   --tokentweak-color-success: #93bb77;
   --tokentweak-color-danger: #da6871;
   --tokentweak-color-warning: #dfbb77;

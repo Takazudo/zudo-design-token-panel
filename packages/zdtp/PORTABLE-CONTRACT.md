@@ -1392,21 +1392,30 @@ rules on `[data-design-token-panel-modal]`.
 
 ### 7.4 Self-contained panel chrome palette (no host theme reads)
 
-The panel-chrome color tokens are declared in `panel-tokens.css` as
-concrete dark-palette values so the panel paints as a neutral dark surface
+The panel-chrome color tokens are declared in `panel-tokens.css` as semantic
+aliases onto a private OKLCH ramp so the panel paints as a neutral dark surface
 regardless of what the host's `--color-*` tokens resolve to:
 
 ```css
 :where(.tokenpanel-shell, [data-design-token-panel-modal]) {
-  --tokentweak-color-fg: #b8b8b8;
-  --tokentweak-color-bg: #181818;
-  --tokentweak-color-muted: #888888;
-  --tokentweak-color-surface: #1c1c1c;
+  /* base-0 is the darkest ground; stops ascend toward the foreground. */
+  --tokentweak-palette-base-0: oklch(0.18 0 0);
+  --tokentweak-palette-base-1: oklch(0.25 0 0);
+  --tokentweak-palette-base-2: oklch(0.34 0 0);
+  --tokentweak-palette-base-3: oklch(0.536 0 0);
+  --tokentweak-palette-base-4: oklch(0.66 0 0);
+  --tokentweak-palette-base-5: oklch(0.8 0 0);
+  --tokentweak-palette-base-6: oklch(0.91 0 0);
+  --tokentweak-color-fg: var(--tokentweak-palette-base-5);
+  --tokentweak-color-bg: var(--tokentweak-palette-base-0);
+  --tokentweak-color-muted: var(--tokentweak-palette-base-4);
+  --tokentweak-color-border: var(--tokentweak-palette-base-3);
+  --tokentweak-color-surface: var(--tokentweak-palette-base-1);
   --tokentweak-color-accent: #d69a66;
   --tokentweak-color-accent-bar: #efb477;
   --tokentweak-color-accent-hover: #a7c0e3;
-  --tokentweak-color-code-bg: #383838;
-  --tokentweak-color-code-fg: #e0e0e0;
+  --tokentweak-color-code-bg: var(--tokentweak-palette-base-2);
+  --tokentweak-color-code-fg: var(--tokentweak-palette-base-6);
   --tokentweak-color-success: #93bb77;
   --tokentweak-color-danger: #da6871;
   --tokentweak-color-warning: #dfbb77;
@@ -1428,6 +1437,12 @@ settings and chain popovers, the color picker, tooltip, element-path label and
 toast, or an element-inspect surface (or any ancestor). `:where()` keeps
 specificity at 0. This single name layer is the entire host-override contract
 for panel chrome — `--color-*` reads are not part of it.
+
+Hosts may instead override a `--tokentweak-palette-base-*` stop to update all
+roles that alias it; a direct semantic `--tokentweak-color-*` assignment still
+wins. The border role is intentionally separate: `--tokentweak-color-muted`
+now recolors secondary text only. A host that previously used it for both text
+and 1px dividers must also assign `--tokentweak-color-border`.
 
 **Invariant:** the panel package MUST NOT read `--color-*` or
 `--font-mono` anywhere. Both `panel.css` and `panel-tokens.css` are pinned

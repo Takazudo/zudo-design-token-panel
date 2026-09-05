@@ -143,7 +143,7 @@ html.tokenpanel-element-inspect-inspecting * {
   position: relative;
   min-height: 22px;
   padding: 2px 8px;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: 3px;
   background: none;
   color: var(--tokentweak-color-muted);
@@ -179,7 +179,7 @@ html.tokenpanel-element-inspect-inspecting * {
   position: relative;
   flex-shrink: 0;
   padding: var(--tokentweak-gap-sm) var(--tokentweak-pad-md) var(--tokentweak-pad-md);
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: var(--radius-tokentweak);
 }
 
@@ -265,7 +265,7 @@ html.tokenpanel-element-inspect-inspecting * {
   min-width: 0;
   width: 100%;
   padding: 2px 6px;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: var(--radius-tokentweak);
   background: var(--tokentweak-color-surface);
   color: var(--tokentweak-color-fg);
@@ -306,7 +306,7 @@ html.tokenpanel-element-inspect-inspecting * {
   width: 28px;
   height: 22px;
   flex-shrink: 0;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: 3px;
 }
 
@@ -339,7 +339,7 @@ html.tokenpanel-element-inspect-inspecting * {
 
 .tokenpanel-element-inspect-kbd {
   padding-inline: 4px;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-bottom-width: 2px;
   border-radius: 3px;
   background: var(--tokentweak-color-code-bg);

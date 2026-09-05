@@ -1214,21 +1214,30 @@ Tweaker or element-inspect arm.
 ## 11. Tailwind not required
 
 The panel ships its own bundled CSS scoped under a panel-private namespace. The
-chrome palette is concrete and self-contained; it does not read host
+chrome palette is a self-contained OKLCH ramp; it does not read host
 `--color-*` or `--font-mono` variables. A host can opt into a different chrome
 theme by assigning the same `--tokentweak-*` variables on a listed scope.
 
 ```css
 :where(.tokenpanel-shell, [data-design-token-panel-modal]) {
-  --tokentweak-color-fg: #b8b8b8;
-  --tokentweak-color-bg: #181818;
-  --tokentweak-color-muted: #888888;
-  --tokentweak-color-surface: #1c1c1c;
+  /* base-0 is the darkest ground; stops ascend toward the foreground. */
+  --tokentweak-palette-base-0: oklch(0.18 0 0);
+  --tokentweak-palette-base-1: oklch(0.25 0 0);
+  --tokentweak-palette-base-2: oklch(0.34 0 0);
+  --tokentweak-palette-base-3: oklch(0.536 0 0);
+  --tokentweak-palette-base-4: oklch(0.66 0 0);
+  --tokentweak-palette-base-5: oklch(0.8 0 0);
+  --tokentweak-palette-base-6: oklch(0.91 0 0);
+  --tokentweak-color-fg: var(--tokentweak-palette-base-5);
+  --tokentweak-color-bg: var(--tokentweak-palette-base-0);
+  --tokentweak-color-muted: var(--tokentweak-palette-base-4);
+  --tokentweak-color-border: var(--tokentweak-palette-base-3);
+  --tokentweak-color-surface: var(--tokentweak-palette-base-1);
   --tokentweak-color-accent: #d69a66;
   --tokentweak-color-accent-bar: #efb477;
   --tokentweak-color-accent-hover: #a7c0e3;
-  --tokentweak-color-code-bg: #383838;
-  --tokentweak-color-code-fg: #e0e0e0;
+  --tokentweak-color-code-bg: var(--tokentweak-palette-base-2);
+  --tokentweak-color-code-fg: var(--tokentweak-palette-base-6);
   --tokentweak-color-success: #93bb77;
   --tokentweak-color-danger: #da6871;
   --tokentweak-color-warning: #dfbb77;
@@ -1236,6 +1245,13 @@ theme by assigning the same `--tokentweak-*` variables on a listed scope.
   /* pad-*, gap-*, text-*, radius, and z-* tokens are also declared here. */
 }
 ```
+
+Hosts may override a `--tokentweak-palette-base-*` stop to move all semantic
+roles that alias it, or continue assigning a `--tokentweak-color-*` role
+directly. The direct semantic assignment still wins. Borders now use
+`--tokentweak-color-border`; a host that previously assigned
+`--tokentweak-color-muted` to recolor both secondary text and 1px dividers must
+also assign the border role.
 
 - **Naming:** panel-private color, font, spacing, typography, and z-index variables use the `--tokentweak-*` prefix; the shared radius token is `--radius-tokentweak`. Consumer-namespaced identifiers do not appear in the panel chrome — `panel.css` reads only package-owned tokens and component-local layout hints.
 - **Files:** `panel.css` (chrome layout / typography / controls) + `panel-tokens.css` (the `--tokentweak-*` declarations). Both ship from the package and the consumer pulls them in via `sideEffects`.
