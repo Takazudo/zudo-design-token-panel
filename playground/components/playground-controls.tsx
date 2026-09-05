@@ -1,8 +1,13 @@
 "use client";
 
 import { useEffect, useState } from 'preact/hooks';
-import panelPackage from '@takazudo/zdtp/package.json';
 import * as zdtp from '@takazudo/zdtp';
+import {
+  COMMIT_SHA,
+  NPM_LATEST,
+  PANEL_VERSION,
+  PROVENANCE,
+} from '../config/build-info.generated';
 import { panelConfig } from '../config/panel-config';
 import { ZUDO_DOC_SOURCE_VERSION, zudoDocConfigs } from '../config/zudo-doc-manifest.generated';
 
@@ -34,6 +39,15 @@ function requestedManifest(): ManifestName {
     : 'playground';
 }
 
+function buildProvenanceLabel(): string {
+  const build = `zdtp ${PANEL_VERSION}+${COMMIT_SHA}`;
+  if (PROVENANCE === 'unknown') return `${build} · provenance unknown`;
+  if (PROVENANCE === 'released') {
+    return `${build} · released · npm latest ${NPM_LATEST}`;
+  }
+  return `${build} · ahead of v${PANEL_VERSION} · npm latest ${NPM_LATEST}`;
+}
+
 export default function PlaygroundControls() {
   const [mode, setMode] = useState<Mode>('light');
   const [manifest, setManifest] = useState<ManifestName>('playground');
@@ -49,7 +63,7 @@ export default function PlaygroundControls() {
     setManifest(selected);
 
     window.zfb = {
-      version: panelPackage.version,
+      version: PANEL_VERSION,
       manifest: selected,
       ...(selected === 'zudo-doc' ? { manifestSourceVersion: ZUDO_DOC_SOURCE_VERSION } : {}),
       showDesignPanel: () => handle.open(),
@@ -60,7 +74,7 @@ export default function PlaygroundControls() {
     const alias = (window as unknown as {
       zdtp?: { show(): void; hide(): void; toggle(): void; version?: string };
     }).zdtp;
-    if (alias) alias.version = panelPackage.version;
+    if (alias) alias.version = PANEL_VERSION;
 
     const onSchemeChange = () => {
       const nextMode = readMode();
@@ -91,7 +105,7 @@ export default function PlaygroundControls() {
   return (
     <div class="zfb-controls">
       <span class="zfb-meta">
-        {manifest === 'zudo-doc' ? `zudo-doc ${ZUDO_DOC_SOURCE_VERSION}` : 'playground manifest'} · zdtp {panelPackage.version}
+        {manifest === 'zudo-doc' ? `zudo-doc ${ZUDO_DOC_SOURCE_VERSION}` : 'playground manifest'} · {buildProvenanceLabel()}
       </span>
       <button type="button" class="zfb-button zfb-button--quiet" onClick={toggleTheme}>
         {mode === 'dark' ? 'Light mode' : 'Dark mode'}

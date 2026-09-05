@@ -1,5 +1,6 @@
 import type { PanelConfig } from '@takazudo/zdtp';
 import { defaultTabs } from './default-manifest';
+import { DEPLOY_MODE } from './build-info.generated';
 
 export const panelConfig: PanelConfig = {
   storagePrefix: 'zfb-playground-tokens',
@@ -8,6 +9,6 @@ export const panelConfig: PanelConfig = {
   schemaId: 'zfb-playground-design-tokens/v1',
   exportFilenameBase: 'zfb-playground-design-tokens',
   tabs: defaultTabs,
-  applyEndpoint: '/api/dev/apply',
-  applyRouting: { zfb: 'styles/global.css' },
+  applyEndpoint: DEPLOY_MODE ? undefined : '/api/dev/apply',
+  applyRouting: DEPLOY_MODE ? undefined : { zfb: 'styles/global.css' },
 };
