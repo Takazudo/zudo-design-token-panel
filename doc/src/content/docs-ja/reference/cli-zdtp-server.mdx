@@ -10,9 +10,9 @@ sidebar_position: 10
 
 ブラウザータブで動作するパネルから、変更をディスク上の実際の CSS ファイルへ書き戻したい場合に使用します。たとえば、デザインシステムのトークンを調整するときや、既存のフロントエンドアプリへパネルを組み込むときに役立ちます。
 
-この bin が公開する HTTP エンドポイントは、次の 3 つだけです。
+この bin が公開するエンドポイントとメソッドの組み合わせは、次の 3 つだけです（`/apply` の 2 メソッドとヘルスチェック 1 つ）。
 
-- `POST /apply` — トークンの変更をディスクへ適用する
+- `POST /apply` — トークンの変更をプレビューまたは適用する
 - `OPTIONS /apply` — 上記リクエストの CORS プリフライト
 - `GET /healthz` — readiness probe
 
@@ -189,7 +189,7 @@ zdtp-server \
 - **デフォルト:** `false`
 - **必須:** いいえ
 
-リクエストごとのログを抑制します。起動行とエラーログは引き続き表示され、apply ごとの要約ログ行（`[design-token-panel] applied N tokens to M files ...`）と起動時の `listening on ...` バナーだけが抑制されます。
+起動バナー、allow-origin 未設定の警告、リクエストごとの要約ログを抑制します。エラーログは引き続き出力されます。
 
 ```bash
 zdtp-server --quiet \
@@ -222,29 +222,47 @@ bin が提供するルートは、正確に 3 つです。それ以外のパス�
 
 - ヘッダー `Content-Type` には `application/json` を含める必要があります（大文字と小文字は区別しません）。そうでない場合、bin は `415 { ok: false, error: "Content-Type must be application/json" }` を返します。
 - ヘッダー `Origin` は、設定済みの `--allow-origin` 値のいずれかと完全に一致する必要があります。そうでない場合、bin は `403 { ok: false, error: "Origin not allowed" }` を返します。
-- ボディ: apply ハンドラーが受け付ける JSON ペイロード。完全なペイロードスキーマについては、[Apply pipeline reference](./apply-pipeline.mdx)を参照してください。
+- ボディ: apply ハンドラーが受け付ける JSON ペイロード。ファイルごとの digest と hunk を含む、変更を伴わないプレビューには `dryRun: true` を送信します。確定書き込み時には、それらの digest を `expectDigests` として送り返します。完全なペイロードスキーマについては、[Apply pipeline reference](./apply-pipeline.mdx)を参照してください。
 
 **レスポンス:**
 
-- 成功時: apply ハンドラーが生成した JSON ボディとともに `200`。ボディの形式は次のとおりです。
+- dry-run 成功時: `{ ok: true, dryRun: true, files: [...], rejected: [...], rejectedReasons: [...] }` とともに `200`。各ファイルには `blockKind`、SHA-256 `digest`、`changed`／`unchanged`／`unknown` の診断、変更された CSS 変数ごとの hunk が含まれます。
+- 書き込み成功時: apply ハンドラーが生成した JSON ボディとともに `200`。ボディの形式は次のとおりです。
 
   ```json
   {
     "ok": true,
     "updated": [
-      { "file": "tokens/colors.css", "changed": ["--color-bg", "--color-fg"] },
-      { "file": "tokens/spacing.css", "changed": [] }
-    ]
+      {
+        "file": "tokens/colors.css",
+        "changed": ["--color-bg", "--color-fg"],
+        "unchanged": [],
+        "unknown": [],
+        "unknownOutsideBlock": []
+      },
+      {
+        "file": "tokens/spacing.css",
+        "changed": [],
+        "unchanged": [],
+        "unknown": [],
+        "unknownOutsideBlock": []
+      }
+    ],
+    "unknownCssVars": [],
+    "unchangedCssVars": [],
+    "unknownOutsideBlockCssVars": []
   }
   ```
 
 - 4 つの `Access-Control-Allow-*` ヘッダー（下記のプリフライトを参照）も成功レスポンスに設定されるため、許可済みのブラウザーオリジンからの fetch は完全に CORS 準拠したレスポンスを受け取ります。
 
-- エラー時: apply ハンドラーのステータスコード（通常は `4xx`）と JSON ボディが変更されずに渡されます。
+- 古いプレビューの場合: `409 { ok: false, reason: "stale-file", files: [...] }`。対象ファイルは一切書き込まれず、ブラウザーは新しいプレビューを要求する必要があります。
+- その他のエラーの場合: apply ハンドラーのステータスコード（通常は `4xx`）と JSON ボディが変更されずに渡されます。
 
-`--quiet` が設定されていない場合、apply が成功すると bin の stdout に次のような要約行も出力されます。
+`--quiet` が設定されていない場合、プレビューまたは apply が成功すると bin の stdout に要約行も 1 行出力されます。結果を表す単語は、プレビューでは `dry-run`、実際の書き込みでは `applied` です。
 
 ```text
+[design-token-panel] dry-run 2 tokens to 2 files (changed: tokens/colors.css)
 [design-token-panel] applied 2 tokens to 2 files (changed: tokens/colors.css)
 ```
 

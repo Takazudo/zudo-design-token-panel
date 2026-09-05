@@ -1,31 +1,211 @@
 ---
 title: configurePanel
 sidebar_position: 2
-description: configurePanel の初期化契約と、PanelConfig.domTweaker による開発用クラスエディターの設定。
+description: マルチインスタンスの初期化、tabs ベースのマニフェストを持つ PanelConfig の形状、DOM Tweaker、PanelInstanceHandle、applySink、およびライフサイクルヘルパー（show / hide / toggle / reapply）。
 ---
 
-## `PanelConfig.domTweaker`
+パッケージのポータブルな契約全体は、単一のセットアップ関数を通じて提供されます。
+`configurePanel({...})` は、**互いに独立した複数のパネルインスタンス**をサポートします。異なる `storagePrefix` 値を指定して呼び出すと、個別のインスタンスが登録されます。
+各呼び出しは `PanelInstanceHandle` を返します。
 
-> `configurePanel` 全体のリファレンスは現在 [英語版](../../docs/reference/configure-panel.mdx)を参照してください。このページでは `domTweaker` の設定を日本語で説明します。
+このページでは、`PanelConfig` の公開形状、`configurePanel` の呼び出し、`PanelInstanceHandle`、`domTweaker` と `applySink` の契約、およびランタイムのライフサイクルヘルパーを明確に定義します。
 
-`PanelConfig` に `domTweaker` オブジェクトを置くと、パネルのヘッダーに DOM Tweaker のトグルが現れます。設定を省略したホストではトグルを表示せず、以前の有効状態が `localStorage` に残っていても DOM Tweaker を起動しません。
+## `configurePanel(config)`
 
 ```ts
-export interface DomTweakerConfig {
-  themeCss?: string;
-}
+import { configurePanel } from '@takazudo/zdtp';
 
-export interface PanelConfig {
-  // ...ほかのフィールド...
-  domTweaker?: DomTweakerConfig;
+const handle = configurePanel({
+  storagePrefix: 'myapp-design-token-panel',
+  consoleNamespace: 'myapp',
+  modalClassPrefix: 'myapp-design-token-panel-modal',
+  schemaId: 'zudo-design-tokens/v2',
+  exportFilenameBase: 'myapp-design-tokens',
+  tabs: [
+    {
+      id: 'spacing',
+      label: 'Spacing',
+      tiers: [
+        {
+          id: 'base',
+          label: 'Base',
+          items: [
+            { id: 'sp-md', cssVar: '--myapp-spacing-md', label: 'MD', default: '1rem',
+              type: { kind: 'length', step: 0.25, unit: 'rem' } },
+          ],
+        },
+      ],
+    },
+    // additional tabs...
+  ],
+  applyEndpoint: 'http://localhost:4321/_dev/apply-tokens',
+  applyRouting: {
+    'myapp-spacing': 'src/styles/spacing.css',
+  },
+  domTweaker: {
+    themeCss: '@theme { --color-brand: #7c3aed; }',
+  },
+});
+
+// handle.instanceId === 'myapp-design-token-panel'
+// handle.open() / close() / toggle() / destroy()
+```
+
+### 必須の動作
+
+- **マルチインスタンス。** **異なる** `storagePrefix` を指定して `configurePanel` を呼び出すと、ストレージキー、DOM ルート、トグルイベント、適用先がそれぞれ独立した新しいインスタンスが登録されます。例外はスローされません。
+- **同じプレフィックスと設定に対してべき等。** 同じ `storagePrefix` と構造的に等しい値で `configurePanel` を再度呼び出すと、何もせず同じハンドルを返します。これは、インライン JSON 設定が再解析される Astro のビュートランジションでの再実行にも対応します。
+- **同じプレフィックスで設定が異なる場合は例外をスロー。** そのプレフィックスのインスタンスがすでに存在し、設定が異なる場合、`configurePanel` は直ちに例外をスローします。再設定するには、先に `handle.destroy()` を呼び出してから、もう一度 `configurePanel` を呼び出してください。
+- **同期処理。** I/O も await もありません。モジュール初期化時にインラインで安全に呼び出せます。
+- **純粋なデータのみ（`applySink` を除く）。** `applySink` 以外の `PanelConfig` の全フィールドは JSON シリアライズ可能でなければなりません。Astro の frontmatter から island の props への受け渡しでは設定が文字列化されるため、関数フィールドはそのラウンドトリップ中に暗黙のうちに消えます。`applySink` は関数参照を保持するため、Astro のインライン JSON 設定には含めないでください。
+
+<Warning title="デフォルトなし — 明示的な設定が必要">
+最初に `configurePanel(...)` を呼び出さずにパッケージをインポートすると、パネルは空の `tabs` 配列を持つ最小限のスタブ状態になります。パネルには「トークンが設定されていません」と表示されます。有用な動作を得るには、ホストが `configurePanel(...)` を必ず呼び出す必要があります。
+</Warning>
+
+## `PanelInstanceHandle`
+
+```ts
+export interface PanelInstanceHandle {
+  /** Stable instance id — equal to the instance's storagePrefix. */
+  readonly instanceId: string;
+  /** Show this instance's panel. */
+  open(): void;
+  /** Hide this instance's panel. */
+  close(): void;
+  /** Toggle this instance's panel open/closed. */
+  toggle(): void;
+  /**
+   * Deregister this instance. Unmounts the Preact tree, removes the DOM
+   * root, and unbinds the instance's toggle-event listener. After
+   * destroy() the prefix can be re-configured via configurePanel.
+   */
+  destroy(): void;
 }
 ```
 
-空のオブジェクトでも有効化できます。ホスト固有の Tailwind v4 テーマを候補表示とブラウザーランタイムへ渡したい場合だけ、`themeCss` を指定します。
+同じ `storagePrefix` と等しい設定で `configurePanel` を 2 回呼び出すと、**同じハンドル**が返されます（べき等な再呼び出しでも参照同一性が維持されます）。異なるプレフィックスでは、異なるハンドルが返されます。
+
+## `PanelConfig` インターフェース
+
+```ts
+export interface DomTweakerConfig {
+  /** Optional host Tailwind v4 theme CSS used by the lazy runtime and suggestions. */
+  themeCss?: string;
+}
+
+export interface PanelDockConfig {
+  /** Reserve host-document space for a docked panel. Defaults to body-margin. */
+  reflow?: 'body-margin' | 'none';
+}
+
+export interface PanelConfig {
+  /** Base for every derived storage key. Also the instance id. */
+  storagePrefix: string;
+  /** Console API namespace — installed as `window[consoleNamespace].showDesignPanel`, etc. */
+  consoleNamespace: string;
+  /** BEM-style prefix used by every modal in the panel (export / import / apply). */
+  modalClassPrefix: string;
+  /** Display-only label shown by the import/export UI; not used by serde validation. */
+  schemaId: string;
+  /** Default filename base — exports save as `${exportFilenameBase}.json`. */
+  exportFilenameBase: string;
+  /**
+   * Optional window-event name that toggles THIS instance's panel.
+   * The default (single-panel) instance keeps `toggle-design-token-panel`.
+   * Any other instance defaults to `toggle-${storagePrefix}` when this field
+   * is omitted, giving each instance its own independent toggle channel.
+   */
+  toggleEvent?: string;
+  /**
+   * Host-supplied tab configuration. Required.
+   * The panel renders its tab strip from this array.
+   *  - Dedicated ids ('color', 'font', 'spacing', 'size', 'palette', 'notes')
+   *    dispatch to built-in tab components. A 'color-secondary' entry supplies
+   *    companion color-cluster data to the primary Color tab. Every other id
+   *    dispatches to GenericTab, which renders the tab's tiers using
+   *    kind-appropriate editors.
+   */
+  tabs: readonly TabConfig[];
+  /**
+   * Optional host-supplied color-scheme presets. Surfaces additional named
+   * ColorScheme entries in the Color tab "Scheme..." dropdown. Defaults to {}.
+   */
+  colorPresets?: Record<string, ColorScheme>;
+  /**
+   * Optional dev-API endpoint URL. When set together with a non-empty
+   * applyRouting map, the Apply button POSTs its diff payload to it. When
+   * either is absent, the Apply button stays disabled with a tooltip.
+   */
+  applyEndpoint?: string;
+  /**
+   * Optional CSS-var prefix → repo-relative source-file routing map.
+   * Apply is gated on applyEndpoint AND a non-empty routing map.
+   */
+  applyRouting?: Record<string, string>;
+  /**
+   * Optional DOM Tweaker feature config. Presence enables the header toggle
+   * and persisted revival path. The object must contain pure JSON data.
+   */
+  domTweaker?: DomTweakerConfig;
+  /** Docked-panel integration. Omitted values use body-margin host reflow. */
+  dock?: PanelDockConfig;
+  /**
+   * Optional apply sink. Routes this instance's CSS-var writes off :root.
+   * Not JSON-serializable — supply via a custom adapter, not inline Astro config.
+   * See the applySink section below.
+   */
+  applySink?: ApplySink;
+  /**
+   * Optional id rename map applied during loadPersistedState migration.
+   * Keys are old ids found in persisted state; values are:
+   *   - string — new canonical id; the value moves to that key.
+   *   - null   — drop the id entirely.
+   * Defaults to an empty map (no renaming, no drops).
+   */
+  legacyIdRenameMap?: Record<string, string | null>;
+  /**
+   * Whether opening the panel writes the owner-autoload flag
+   * (`${storagePrefix}:autoload`) with `'auto'` provenance.
+   * Defaults to true. Set false on a public site that shows a panel-open
+   * button to every visitor. enableAutoload()'s explicit '1' write is
+   * unaffected.
+   */
+  autoRememberOnOpen?: boolean;
+}
+```
+
+### フィールドリファレンス
+
+| フィールド | 型 | 必須 | 備考 |
+| --- | --- | --- | --- |
+| `storagePrefix` | `string` | はい | 永続化されるすべての localStorage キーを決定します。インスタンス ID でもあります。 |
+| `consoleNamespace` | `string` | はい | `window[consoleNamespace]` の下にグローバルをインストールします。 |
+| `modalClassPrefix` | `string` | はい | パネルが所有するすべてのモーダルの BEM ルートです。 |
+| `schemaId` | `string` | はい | `getDesignTokenSchema()` が返す**表示専用**のラベルです。組み込みのインポート／エクスポート UI はこの値を読み取りません。`serialize()` / `deserialize()` は常に正規の `SCHEMA_V1` / `SCHEMA_V2` / `SCHEMA_V3` 定数を使用し、このフィールドを参照することはありません。[Apply パイプライン](./apply-pipeline.mdx)を参照してください。 |
+| `exportFilenameBase` | `string` | はい | `${exportFilenameBase}.json` として保存します。 |
+| `toggleEvent` | `string` | いいえ | このインスタンスのトグルイベント名です。デフォルトは、デフォルト以外のインスタンスでは `toggle-${storagePrefix}`、デフォルトインスタンスでは `toggle-design-token-panel` です。 |
+| `tabs` | [`TabConfig[]`](./token-manifest.mdx) | はい | タブストリップの定義です。Color タブは `colorExtras` と `TierItem[]` を通じて tier モデルからデータを読み取ります。 |
+| `colorPresets` | `Record<string, ColorScheme>` | いいえ | ホスト提供のスキームプリセットです。[Color クラスター](./color-cluster.mdx)を参照してください。 |
+| `applyEndpoint` | `string` | いいえ | Apply の POST 先です。[Apply パイプライン](./apply-pipeline.mdx)を参照してください。 |
+| `applyRouting` | `Record<string, string>` | いいえ | Apply のルーティングマップです。[Apply パイプライン](./apply-pipeline.mdx)を参照してください。 |
+| `domTweaker` | `DomTweakerConfig` | いいえ | 開発時の Tailwind クラスエディターを有効にします。機能を非表示にするには省略してください。[DOM Tweaker](./dom-tweaker.mdx)を参照してください。 |
+| `dock` | `PanelDockConfig` | いいえ | 右または下にドッキングしたとき、ホストの領域を確保するかどうかを制御します。デフォルトは `{ reflow: 'body-margin' }` です。 |
+| `applySink` | `ApplySink` | いいえ | CSS 変数の任意の書き込み先です。JSON シリアライズできません。以下を参照してください。 |
+| `legacyIdRenameMap` | `Record<string, string \| null>` | いいえ | 永続化された ID の名前変更と削除に使用するマイグレーションマップです。 |
+| `autoRememberOnOpen` | `boolean` | いいえ | パネルを開いたとき、オーナーモードの自動読み込み（`:autoload = 'auto'`）を有効にするかどうかです。デフォルトは `true` です。訪問者にもパネルを開くボタンを表示する公開サイトでは `false` に設定してください。[自分だけがパネルを読み込む](../recipes/owner-autoload.mdx)を参照してください。 |
+
+<Info title="JSON シリアライズ可能という不変条件">
+`applySink` 以外の `PanelConfig` の全フィールド（ネストされた `tabs` の内容を含む）は、情報を失わずに `JSON.stringify` をラウンドトリップできなければなりません。Astro ホストアダプターは各ページでインラインの `<script type="application/json">` ペイロードを解析します。関数フィールド、クラスインスタンス、`Symbol` キーは暗黙のうちに消え、後から不可解なランタイムエラーとして表面化します。
+</Info>
+
+## `domTweaker` — 開発時に使用できるクラスエディター
+
+`PanelConfig.domTweaker` は、存在することで有効になります。空のオブジェクトを指定すると、同梱の Tailwind 候補を備えたヘッダートグルが有効になります。トグルを非表示にし、永続化されている DOM Tweaker の有効状態を無視するには、このフィールド自体を省略してください。
 
 ```ts
 configurePanel({
-  // ...必須フィールド...
+  // ...required fields...
   domTweaker: {
     themeCss: `
       @theme {
@@ -37,19 +217,336 @@ configurePanel({
 });
 ```
 
-| フィールド | 型 | 必須 | 内容 |
-| --- | --- | --- | --- |
-| `domTweaker` | `DomTweakerConfig` | いいえ | 指定すると開発用の Tailwind クラスエディターを有効化します。省略時は機能そのものを表示しません。 |
-| `domTweaker.themeCss` | `string` | いいえ | ホストの Tailwind v4 トークン／テーマ宣言。遅延ロードされるランタイムと入力候補に渡されます。 |
+設定オブジェクトは意図的に小さく保たれ、JSON シリアライズ可能です。
 
-### バリデーション
+- `themeCss` を指定する場合、ホストの Tailwind v4 トークン／テーマ宣言を含む文字列でなければなりません。遅延読み込みされる Tailwind ランタイムと、ホストテーマの候補の両方に使用されます。
+- `@import` は一つでも含まれていると拒否されます。DOM Tweaker は preflight を含まない独自の Tailwind 入力を管理するため、この橋渡しを通じたスタイルシートのインポートは受け付けません。
+- 未知のフィールド、関数、配列、`null`、および文字列以外の `themeCss` 値は、`configurePanel` の検証で拒否されます。
 
-- `domTweaker` は JSON にシリアライズできるプレーンオブジェクトでなければなりません。`null`、配列、関数は受け付けません。
-- v1 で使える子フィールドは `themeCss` だけです。未知のフィールドや文字列以外の値は `configurePanel` がエラーにします。
-- `themeCss` に `@import` を含めることはできません。DOM Tweaker が preflight を読み込まない状態を守り、外部スタイルシートをこの経路へ持ち込ませないためです。
+編集ワークフロー、開発時のみの配置、`themeCss` の橋渡し、ランタイムの制約については、[DOM Tweaker](./dom-tweaker.mdx)を参照してください。
 
-<Warning title="開発環境だけで有効にする">
-`domTweaker` は `applyEndpoint` と同じく、開発者が作業中に使うための設定です。一般の本番ユーザーへ有効化したまま配布しないでください。
-</Warning>
+## `dock` — 任意のホストリフロー
 
-操作方法、`themeCss` の役割、対応範囲については [DOM Tweaker](./dom-tweaker.mdx)を参照してください。
+シェルは `float`、`right`、`bottom`、`mini` の 4 つの表示モードをサポートします。モードと 2 つのドック寸法はインスタンスごとに永続化されます（後述の「ストレージキーの派生」を参照）。フルパネルを開いている間、`Alt+1`、`Alt+2`、`Alt+3`、`Alt+4` で、それぞれ float、right、bottom、mini を選択できます。mini のピルを展開すると、直前のフルモードに戻ります。
+
+```ts
+configurePanel({
+  // ...required fields...
+  dock: { reflow: 'body-margin' },
+});
+```
+
+`reflow` は `right` モードと `bottom` モードにのみ適用されます。
+
+| 値 | ホストドキュメントの動作 |
+| --- | --- |
+| `'body-margin'`（デフォルト） | `body.style.margin-right` または `body.style.margin-bottom` を現在のドックサイズに設定し、対応する `--zdtp-dock-inset-*` ルート変数も公開します。 |
+| `'none'` | ルートの inset 変数を公開しますが、body の margin は確保前の値へ正確に復元します。 |
+
+領域の確保はウィンドウおよび辺ごとに行われます。すでに使われている辺を 2 つ目のパネルが確保することはできません。その場合は `float` にフォールバックし、その結果を永続化します。最初の確保時に以前のインライン値と優先度を記録し、パネルによる確保の解除、モード変更、パネルを閉じる操作、または破棄の際に、その宣言を正確に復元します。ページ内の specimen は一時的に `right` ドッキングを強制し、specimen が有効になる前のモードを復元します。
+
+## `applySink` — 任意の CSS 変数書き込み先
+
+`PanelConfig.applySink` を指定すると、そのインスタンスによる CSS 変数の書き込みと削除はすべて `document.documentElement` ではなく sink を経由します。これにより、`:root` に触れずに、shadow root、iframe document、またはテスト用 spy へパネルを埋め込めます。
+
+```ts
+export interface ApplySink {
+  /** Upsert the given var name→value pairs on the sink target. */
+  apply(pairs: ReadonlyArray<readonly [string, string]>): void;
+  /** Remove the given var names from the sink target. */
+  clear(names: readonly string[]): void;
+}
+```
+
+契約は次のとおりです。
+
+- `apply(pairs)` — **upsert**：各 `[name, value]` の CSS 変数を sink の対象に設定します。
+- `clear(names)` — **remove**：指定された各 CSS 変数を sink の対象から削除します。
+- **Reset はトークンの完全な集合を送信します。** ユーザーが Reset をクリックすると、`sink.clear` はそのインスタンスが所有できるすべての変数（palette、base role、semantic、および color 以外のタブの全変数）を受け取ります。dirty な変数だけではないため、sink の対象は完全に消去されます。
+- **デフォルト（sink なし）：** 書き込み先は従来どおり `document.documentElement` です。
+- **sink のエラーは致命的ではありません。** パイプラインは `console.warn` を出してエラーを握りつぶし、処理を続行します。
+- **sink の対象のライフサイクルはホストが管理します。** インスタンスが存在する間は、対象も存続させてください。
+- **JSON シリアライズ不可。** sink を設定済みの設定オブジェクトを構築するか、`configurePanel` を直接呼び出すカスタムアダプターを介して指定してください。
+
+```ts
+// Example: routing a panel instance to a shadow root
+const shadow = shadowHost.attachShadow({ mode: 'open' });
+
+const handle = configurePanel({
+  storagePrefix: 'myapp-shadow-panel',
+  // ...other required fields...
+  applySink: {
+    apply(pairs) {
+      for (const [name, value] of pairs) {
+        (shadow.host as HTMLElement).style.setProperty(name, value);
+      }
+    },
+    clear(names) {
+      for (const name of names) {
+        (shadow.host as HTMLElement).style.removeProperty(name);
+      }
+    },
+  },
+});
+```
+
+## インスタンスごとのトグルイベント
+
+各パネルインスタンスは固有のトグルイベントチャネルを持つため、1 ページに複数のパネルがあっても互いに干渉しません。
+
+| インスタンス | `toggleEvent` フィールド | 実際のトグルイベント名 |
+| --- | --- | --- |
+| デフォルト（単一パネルのパス） | （無視） | `toggle-design-token-panel` |
+| デフォルト以外、フィールド省略 | — | `toggle-${storagePrefix}` |
+| デフォルト以外、フィールド指定 | カスタム文字列 | 指定した文字列 |
+
+デフォルトインスタンスは、`storagePrefix` がパッケージの従来のデフォルト値（`'zudo-design-token-panel'`）と等しいインスタンスです。それ以外のすべてのインスタンスには、プレフィックスごとのチャネルが割り当てられます。
+
+```ts
+// Dispatch the toggle event for a non-default instance:
+window.dispatchEvent(new CustomEvent('toggle-myapp-preview-panel'));
+// or, if you supplied toggleEvent: 'my-custom-event':
+window.dispatchEvent(new CustomEvent('my-custom-event'));
+```
+
+## ストレージキーの派生
+
+`storagePrefix` は、永続化されるすべてのキーを制御する唯一の設定です。パネルは、この 1 つのベース値から実行時にキーを派生させます。
+
+| 論理キー | 派生 | 目的 |
+| --- | --- | --- |
+| `state-v4` | `${storagePrefix}-state-v4` | 現在の統合エンベロープです。v3 と同じ slice を持ちますが、`color`（および任意の secondary cluster slice）は単一のフラットなオブジェクトではなく、identity をキーとするマップで、アクティブな（scheme、mode）identity ごとに 1 スロットを持ちます。以下の「スキームごとの color 永続化」を参照してください。 |
+| `state-v3` | `${storagePrefix}-state-v3` | v4 より前の従来のエンベロープです（フラットな単一スロットの `color`）。初回読み込み時に `state-v4` へ移行されます。ダウングレード時にも読み取れるよう、削除せず残されます。 |
+| `state-v2` | `${storagePrefix}-state-v2` | v2 エンベロープです。初回読み込み時に v3 へ移行され、そこから v4 へ移行された後に削除されます。 |
+| `state-v1` | `${storagePrefix}-state` | v2 より前のフラットな state 形式（Color のみ）です。初回読み込み時に v3 へ移行され、そこから v4 へ移行された後に削除されます。 |
+| `open` | `${storagePrefix}-open` | パネルの open ブール状態のミラーです。 |
+| `position` | `${storagePrefix}-position` | ドラッグ位置 `{ top, left }` です。ユーザーが最後に置いた場所へパネルを再表示します。 |
+| `size` | `${storagePrefix}-size` | float シェルの寸法 `{ width, height }`（ピクセル）です。 |
+| `dock` | `${storagePrefix}-dock` | ドックモード：`'float'`、`'right'`、`'bottom'`、`'mini'` のいずれかです。 |
+| `dock-size` | `${storagePrefix}-dock-size` | ドック寸法 `{ right, bottom }`（ピクセル）です。デフォルトは `{ right: 440, bottom: 340 }` です。 |
+| `density` | `${storagePrefix}-density` | タブグリッドの密度設定（`0`、`1`、`2`）です。 |
+| `ghost` | `${storagePrefix}-ghost` | ghost idle の設定です（有効時は `'1'`）。フェードは表示設定であり、トークン状態ではありません。 |
+| `specimen` | `${storagePrefix}-specimen` | フォント specimen ツールバーの JSON：`{ text, preset, overridden, width }`。width は 240〜720 に制限されます。 |
+| `snapshot-a` | `${storagePrefix}-snapshot-a` | 永続化された A スナップショット：`{ state, identity, savedAt, edits }`。 |
+| `snapshot-b` | `${storagePrefix}-snapshot-b` | 永続化された B スナップショット：`{ state, identity, savedAt, edits }`。 |
+| `last-applied` | `${storagePrefix}-last-applied` | フラットな CSS 変数比較の基準です。適用に成功すると、現在の実装は `{}` を保存し、確認されていない override のみを live state に保持します。 |
+| `visible` | `${storagePrefix}:visible` | アダプターレベルの表示意図フラグです。 |
+| `autoload` | `${storagePrefix}:autoload` | オーナーの自動読み込みの由来：`'1'`（明示的）または `'auto'`（自動記憶）です。 |
+| `elpath-enabled` | `${storagePrefix}-elpath-enabled` | element path picker の有効化ビットです。 |
+| `domtweaker-enabled` | `${storagePrefix}-domtweaker-enabled` | DOM Tweaker の有効化ビットです。`domTweaker` が設定されている場合にのみ意味を持ちます。 |
+| `highlight-slots` | `${storagePrefix}-highlight-slots` | 10 個のハイライトスロットの色（local storage）です。 |
+| `highlight-outline-width` | `${storagePrefix}-highlight-outline-width` | グローバルなハイライトアウトラインの幅（ピクセル、local storage）です。 |
+| `highlight-active` | `${storagePrefix}-highlight-active` | アクティブな CSS 変数からスロットへのマップ（session storage）です。 |
+
+<Note title="`visible` と `autoload` はダッシュではなくコロン">
+`visible` キーと `autoload` キーは `:` 区切りを使用します。その他すべての派生キーは `-` を使用します。これは、ストレージキーの継続性を保つために維持されている歴史的な名残です。
+</Note>
+
+### スキームごとの color 永続化（v4 エンベロープ）
+
+Color／secondary の調整値は、単一の `state-v4` キー内で**（scheme、mode）の identity ごと**に永続化されます。スキームごとにキーが増えることはありません。identity は、シード時にパネルがすでに解決しているアクティブなスキーム名です。`colorMode` のないクラスターは 1 つの一定した identity（1 スロット）に解決され、light／dark のクラスターはそれぞれの側で異なる identity に解決されます。このため、light と dark の調整値は同じエンベロープ内の独立したスロットを占め、もう一方のスキームを経由してラウンドトリップしても、それぞれが**維持**されます。`spacing` / `typography` / `size` / `tabs` の slice は v1〜v3 とまったく同じく、グローバルでキー分けされません。scheme／mode の切り替えによって変更されることはありません。ある identity で color を編集しても、その identity のスロットだけが上書きされ、他のすべての identity のスロットは保存時にもそのまま維持されます。ホストが所有するインラインの `color-scheme`（サイトレベルのテーマ切り替えなど）は、パネルによって消去されることはありません。削除されるのは、パネル自身が適用した `color-scheme` 値だけです。
+
+### `legacyIdRenameMap` のマイグレーション
+
+`loadPersistedState` は、パネルをレンダリングする前のマイグレーション処理で `legacyIdRenameMap` を適用します。古い item ID は新しい正規 ID へ移動され、`null` にマップされた ID は完全に削除されるため、古い localStorage エントリが蓄積しません。
+
+item ID が安定している（過去に名前変更がない）ホストは、このフィールドを省略できます。デフォルトは空のマップで、名前変更も削除も行いません。
+
+### `ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP`
+
+```ts
+import { ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP } from '@takazudo/zdtp';
+
+configurePanel({
+  // ...
+  legacyIdRenameMap: ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP,
+});
+```
+
+`ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP` は、`legacyIdRenameMap` フィールドが導入される前のバージョンで自動適用されていた、従来の内部名前変更マップです。そのバージョンより前から永続化された state を持つ呼び出し元が明示的に利用できるよう、現在はエクスポートされています。過去の内部名前変更に依存したことがないホストは、`legacyIdRenameMap` を `undefined` のままにするか、空のオブジェクトを渡してください。
+
+## 永続化された state／外部 SerDe
+
+パネル外でパネルの state を読み書きする必要があるホスト向けに、パネルは 2 つのプリミティブをエクスポートします。たとえば、タブ間でのトークン override の同期や、カスタムのインポート／エクスポートフローの構築に使用できます。
+
+### `TweakState`
+
+```ts
+import type { TweakState } from '@takazudo/zdtp';
+```
+
+`TweakState` は、パネルが `localStorage` に永続化し、JSON エクスポートへ埋め込む、シリアライズ可能な override state の TypeScript 型です。パネルの state を入力または出力する、型付けされた SerDe ユーティリティを構築するときにインポートしてください。
+
+### `emptyOverrides`
+
+```ts
+import { emptyOverrides } from '@takazudo/zdtp';
+```
+
+`emptyOverrides` は、すべての override マップが空になっている、すぐに使用できる `TweakState` 値です。新しい state オブジェクトを構築するときや、プログラムから override をリセットするときの開始点として使用してください。
+
+## 完全な設定例
+
+```ts
+import { configurePanel } from '@takazudo/zdtp';
+import type { TabConfig } from '@takazudo/zdtp';
+
+const colorTab: TabConfig = {
+  id: 'color',
+  label: 'Color',
+  tiers: [
+    {
+      id: 'palette',
+      label: 'Palette',
+      items: [
+        { id: 'p0', cssVar: '--myapp-p0', label: 'P0', default: '#0f172a', type: { kind: 'color' } },
+        { id: 'p1', cssVar: '--myapp-p1', label: 'P1', default: '#38bdf8', type: { kind: 'color' } },
+      ],
+    },
+    {
+      id: 'semantic',
+      label: 'Semantic',
+      referencesTier: 'palette',
+      items: [
+        { id: 'bg', cssVar: '--myapp-color-bg', label: 'Background', default: 'p0', type: { kind: 'color' } },
+        { id: 'accent', cssVar: '--myapp-color-accent', label: 'Accent', default: 'p1', type: { kind: 'color' } },
+      ],
+    },
+  ],
+  colorExtras: {
+    id: 'myapp',
+    baseRoles: { background: '--myapp-p0', foreground: '--myapp-p1' },
+    baseDefaults: { background: 0, foreground: 1 },
+    defaultShikiTheme: 'github-dark',
+    // Keep the two-slot example scheme-free; named ColorScheme values use
+    // the package's fixed 16-entry palette type (see Token tiers).
+    colorSchemes: {},
+    panelSettings: { colorScheme: 'Default', colorMode: false },
+  },
+};
+
+const spacingTab: TabConfig = {
+  id: 'spacing',
+  label: 'Spacing',
+  tiers: [
+    {
+      id: 'base',
+      label: 'Base spacing',
+      items: [
+        { id: 'sp-sm', cssVar: '--myapp-spacing-sm', label: 'SM', default: '0.5rem', type: { kind: 'length', step: 0.125, unit: 'rem' } },
+        { id: 'sp-md', cssVar: '--myapp-spacing-md', label: 'MD', default: '1rem',   type: { kind: 'length', step: 0.25,  unit: 'rem' } },
+      ],
+    },
+  ],
+};
+
+const handle = configurePanel({
+  storagePrefix: 'myapp-design-token-panel',
+  consoleNamespace: 'myapp',
+  modalClassPrefix: 'myapp-design-token-panel-modal',
+  schemaId: 'zudo-design-tokens/v2',
+  exportFilenameBase: 'myapp-design-tokens',
+  tabs: [colorTab, spacingTab],
+  applyEndpoint: 'http://localhost:4321/_dev/apply-tokens',
+  applyRouting: {
+    'myapp-p': 'src/styles/color.css',
+    'myapp-color': 'src/styles/color.css',
+    'myapp-spacing': 'src/styles/spacing.css',
+  },
+  domTweaker: {
+    themeCss: '@theme { --color-brand: #38bdf8; }',
+  },
+});
+// handle.instanceId === 'myapp-design-token-panel'
+```
+
+## ライフサイクルヘルパー
+
+パッケージは、ルートエントリから 4 つのランタイムヘルパーを公開しています。通常はコンソール名前空間を通じて呼び出します（ホストアダプターが `window[consoleNamespace].showDesignPanel` などをインストールします）が、Vite のみを使用するホストは直接インポートできます。
+
+```ts
+import {
+  showDesignTokenPanel,
+  hideDesignTokenPanel,
+  toggleDesignPanel,
+  reapplyPersistedOverrides,
+} from '@takazudo/zdtp';
+```
+
+### `showDesignTokenPanel(): void`
+
+パネルを開きます。べき等であり、パネルがすでに開いているときに呼び出しても何も行いません。`storagePrefix` から ID を派生させた、body 直下の `<div>` に Preact シェルをマウントします。
+
+### `hideDesignTokenPanel(): void`
+
+パネルを閉じます。Preact シェルはマウントされたまま（CSS で非表示）で、open フラグだけが切り替わります。
+
+### `toggleDesignPanel(): void`
+
+パネルの open／closed を切り替えます。エクスポートされる関数名は `toggleDesignPanel`（`toggleDesignTokenPanel` ではありません）で、コンソール API のヘルパー名も同じです。
+
+### `reapplyPersistedOverrides(): void`
+
+Preact がレンダリングされる**前に**、永続化されたトークン override を各インスタンスのデフォルトの `:root` 対象（または設定済みの `applySink`）へ適用します。アダプターモジュールの初期化時（および `astro:page-load` のたび）に呼び出されるため、バンドルが到着するとハードナビゲーション時の FOUT が解消されます。何も永続化されていない場合は何も行いません。破損した state が UI スレッドを妨げないよう、エラーは握りつぶされます。
+
+<Tip title="コンソール API">
+ホストアダプターは `window[consoleNamespace]` の下に遅延インポートのラッパーをインストールします。
+
+```ts
+window[consoleNamespace].showDesignPanel = () => Promise<void>;
+window[consoleNamespace].hideDesignPanel = () => Promise<void>;
+window[consoleNamespace].toggleDesignPanel = () => Promise<void>;
+```
+
+各ヘルパーはアダプターモジュールを遅延インポートし、対応する同期の公開関数へ転送します。
+</Tip>
+
+### 固定名の `window.zdtp` グローバル
+
+`consoleNamespace` は `PanelConfig` の**必須**フィールドであるため、上記のコンソール API は常にホストが選択した名前の下に置かれます。`window.zdtp` は、open／close の 3 つの動作に固定名でアクセスできる追加のエイリアスで、名前空間を調べる必要はありません。
+
+```ts
+window.zdtp.show   = () => void | Promise<void>;
+window.zdtp.hide   = () => void | Promise<void>;
+window.zdtp.toggle = () => void | Promise<void>;
+```
+
+- **範囲：** `show` / `hide` / `toggle` のみです。`window.zdtp.enableAutoload` はありません。オーナーの自動読み込みは、`window[consoleNamespace].*` とパッケージルートの `enableAutoload()` / `disableAutoload()` エクスポートに残ります。
+- **インストール箇所：** パッケージルートモジュールはモジュール初期化時に同期エイリアスをインストールします（Astro 以外のホスト向け）。Astro ホストアダプターは、自身の bootstrap から上記のコンソール API とともに、非同期ラッパーのエイリアスを即座にインストールします。そのため、パネルバンドルが読み込まれる前でも `zdtp.show()` が動作します。
+- **ホストが定義した `window.zdtp` を上書きすることはありません。** 既存の値が呼び出し可能な `show`、`hide`、`toggle` メソッドを公開している場合、インストールは暗黙にスキップされます。このため、ホストはパネルバンドルを遅延読み込みする前にエイリアスを確保できます。それ以外の既存値も変更せず、`console.warn` を出します（ホスト自身が `consoleNamespace: 'zdtp'` を選択した場合も含みます）。
+- **デフォルトインスタンスを対象にします。** 上記の `showDesignTokenPanel()` / `hideDesignTokenPanel()` / `toggleDesignPanel()` とまったく同じです。マルチインスタンスのページで特定のインスタンスを操作するには、`configurePanel(cfg)` が返す [`PanelInstanceHandle`](#panelinstancehandle) を直接呼び出してください。
+- `zdtp.show()` で開いた場合も、`showDesignTokenPanel()` と同じようにオーナーの自動読み込みフラグが有効になります。[オーナー自動読み込みのレシピ](../recipes/owner-autoload.mdx)を参照してください。
+
+<Tip title="ここに enableAutoload はありません">
+`window.zdtp` は、オーナー自動読み込みの全機能ではなく、open／close の 3 つの動作だけを意図的に反映します。その機能には `window[consoleNamespace].enableAutoload()` / `disableAutoload()`（またはパッケージルートのエクスポート）を使用してください。
+</Tip>
+
+### `setLifecycleAdapter(adapter)`
+
+```ts
+import { setLifecycleAdapter } from '@takazudo/zdtp';
+
+setLifecycleAdapter({
+  onBeforeSwap: (cb) => { /* register a before-swap hook */ },
+  onPageLoad:   (cb) => { /* register a page-load hook  */ },
+});
+```
+
+Astro 以外のホスト（Vite、プレーン HTML、Next.js など）向けにライフサイクルフックを登録します。Astro ホストアダプターは `astro:before-swap` イベントと `astro:page-load` イベントを介してこれらを自動的に接続します。Astro 以外のホストでは、ナビゲーションのたびに `reapplyPersistedOverrides` が実行されるよう、パネルが動的に読み込まれる前に `setLifecycleAdapter` を呼び出す必要があります。
+
+`configurePanel` の後、パネルを初めて表示する前に `setLifecycleAdapter` を呼び出してください。複数回呼び出すと、以前のアダプターを置き換えます。
+
+## `setPanelColorPresets(presets)`
+
+```ts
+import { setPanelColorPresets } from '@takazudo/zdtp';
+
+setPanelColorPresets({
+  Dracula: { /* ColorScheme */ },
+  Solarized: { /* ColorScheme */ },
+});
+```
+
+プリセットを遅延して関連付けます。SSR 設定 blob にプリセットライブラリをインラインで同梱したくないホストは、遅延された動的インポートから `configurePanel` の**後に**これを呼び出せます。マージ規則は `PanelConfig.colorPresets` と同じです。完全なマージ契約については、[Color クラスター](./color-cluster.mdx)を参照してください。
+
+競合時は後からの呼び出しが優先されます（`configurePanel` とは異なり、例外はスローされません）。ホストが `configurePanel` より先に `setPanelColorPresets` を呼び出した場合は、panel-config モジュール内の一時保持スロットを介して処理されます。
