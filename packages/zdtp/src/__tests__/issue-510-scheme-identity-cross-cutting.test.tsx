@@ -24,11 +24,13 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { act } from 'preact/test-utils';
 import { __resetInstanceBindingsForTests } from '../index';
 import {
   __resetPanelConfigForTests,
   configurePanel,
   type PanelConfig,
+  type PanelInstanceHandle,
 } from '../config/panel-config';
 import {
   getActiveColorIdentity,
@@ -125,7 +127,10 @@ function readVar(name: string): string {
 }
 
 describe('#506 x #509 — scheme toggle with a host-owned inline color-scheme', () => {
+  let handle: PanelInstanceHandle | undefined;
+
   beforeEach(() => {
+    handle = undefined;
     __resetInstanceBindingsForTests();
     __resetPanelConfigForTests();
     localStorage.clear();
@@ -134,7 +139,14 @@ describe('#506 x #509 — scheme toggle with a host-owned inline color-scheme', 
     document.documentElement.removeAttribute('data-theme');
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Removing the root DOM directly leaves Preact's mounted tree and deferred
+    // effects alive after Vitest disposes this test's jsdom environment.
+    // Destroy through the public lifecycle while `document` still exists, then
+    // let Preact finish the unmount cleanups before resetting module state.
+    act(() => handle?.destroy());
+    handle = undefined;
+    await flushEffects();
     __resetInstanceBindingsForTests();
     __resetPanelConfigForTests();
     document.body.innerHTML = '';
@@ -162,7 +174,7 @@ describe('#506 x #509 — scheme toggle with a host-owned inline color-scheme', 
     document.documentElement.style.setProperty('color-scheme', 'only dark');
 
     setTheme('dark');
-    const handle = configurePanel(cfg);
+    handle = configurePanel(cfg);
     handle.open();
     await flushEffects();
     expect(readVar('--hop0')).toBe('#cc0000');
