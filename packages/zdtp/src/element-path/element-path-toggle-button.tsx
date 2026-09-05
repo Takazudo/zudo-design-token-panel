@@ -15,7 +15,7 @@ import type { JSX } from 'preact';
 import { ElementPathContext } from './element-path-context';
 import { RoleButton } from '../controls/role-button';
 
-export function ElementPathToggleButton(): JSX.Element | null {
+export function ElementPathToggleButton({ compact = false }: { compact?: boolean } = {}): JSX.Element | null {
   const ctx = useContext(ElementPathContext);
   if (ctx === null) return null;
 
@@ -33,6 +33,7 @@ export function ElementPathToggleButton(): JSX.Element | null {
       title={title}
       onClick={toggle}
     >
+      <>
       <svg
         width="14"
         height="14"
@@ -52,6 +53,8 @@ export function ElementPathToggleButton(): JSX.Element | null {
         <line x1="20" y1="12" x2="23" y2="12" />
         <circle cx="12" cy="12" r="1.5" />
       </svg>
+      {compact && <span>Element path copy</span>}
+      </>
     </RoleButton>
   );
 }

@@ -10,8 +10,8 @@
  * out at a deterministic px width without a real resize-drag gesture.
  *
  * Covers:
- *   - ≥480px: header action links visible, kebab hidden.
- *   - <480px: header action links hidden, kebab visible; kebab opens a
+ *   - >1135px content width: header action links visible, kebab hidden.
+ *   - ≤1135px: header action links hidden, kebab visible; kebab opens a
  *     popover with all 4 actions; an action both fires (opens its modal)
  *     and closes the popover; Escape and outside-click also close it.
  *   - <480px: density, Ghost when idle, and Changed only move into the
@@ -34,7 +34,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { page } from 'vitest/browser';
+import { page, userEvent } from 'vitest/browser';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
 import DesignTokenTweakPanel from '../panel';
@@ -48,6 +48,9 @@ import {
 } from '../state/tweak-state';
 import { FIXTURE_PANEL_CONFIG, flushEffects } from './_test-helpers';
 import type { TabConfig } from '../tokens/tier-model';
+import { zudoDocConfigs } from '../../../../playground/config/zudo-doc-manifest.generated';
+import { SCHEMA_V2 } from '../utils/design-token-serde';
+import { DOM_TWEAKER_PORTAL_MOUNT_ID } from '../highlight/find-elements';
 
 // ---------------------------------------------------------------------------
 // Panel CSS — injected as a real <style> tag so `@container` rules and the
@@ -275,6 +278,259 @@ beforeEach(async () => {
   await injectPanelCss();
 });
 
+function requiredElement(root: ParentNode, selector: string): HTMLElement {
+  const element = root.querySelector<HTMLElement>(selector);
+  if (!element) throw new Error(`Missing expected control: ${selector}`);
+  return element;
+}
+
+function visible(element: HTMLElement): boolean {
+  return element.getBoundingClientRect().width > 0 && element.getBoundingClientRect().height > 0;
+}
+
+/** Deliberately checks geometry before visibility expectations: reverting the
+ * header CSS must reproduce the 700px containment failure here. */
+function expectHeaderContainment(): void {
+  const shell = getShell();
+  const bounds = shell.getBoundingClientRect();
+  const style = getComputedStyle(shell);
+  const left = bounds.left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft);
+  const right = bounds.right - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight);
+  const header = requiredElement(shell, '.tokenpanel-header');
+  const controls = [...header.children] as HTMLElement[];
+  expect(controls.length).toBeGreaterThan(10);
+  const interactive = [...header.querySelectorAll<HTMLElement>('[role="button"], input')]
+    .filter((element) => !element.closest('.tokenpanel-actions-popover') && visible(element));
+  expect(interactive.length).toBeGreaterThanOrEqual(8);
+  for (const control of [...controls, ...interactive].filter(visible)) {
+    const rect = control.getBoundingClientRect();
+    expect(rect.left, `${control.className} left`).toBeGreaterThanOrEqual(left - 0.01);
+    expect(rect.right, `${control.className} right`).toBeLessThanOrEqual(right + 0.01);
+  }
+  for (const [index, target] of interactive.entries()) {
+    const rect = target.getBoundingClientRect();
+    expect(rect.width, `${target.className} actual width`).toBeGreaterThanOrEqual(24);
+    expect(rect.height, `${target.className} actual height`).toBeGreaterThanOrEqual(24);
+    if (target.getAttribute('aria-disabled') !== 'true') {
+      for (const [x, y] of [
+        [rect.left + rect.width / 2, rect.top + rect.height / 2],
+        // Probe every edge inside the painted box. Rounded corners (history
+        // uses a 4px radius) intentionally do not own their clipped corners.
+        [rect.left + 1, rect.top + rect.height / 2],
+        [rect.right - 1, rect.top + rect.height / 2],
+        [rect.left + rect.width / 2, rect.top + 1],
+        [rect.left + rect.width / 2, rect.bottom - 1],
+      ]) {
+        const hit = document.elementFromPoint(x!, y!);
+        expect(hit === target || (hit !== null && target.contains(hit)), `${target.className} hit`).toBe(true);
+      }
+    }
+    for (const other of interactive.slice(index + 1)) {
+      if (target.contains(other) || other.contains(target)) continue;
+      const next = other.getBoundingClientRect();
+      const overlapX = Math.min(rect.right, next.right) - Math.max(rect.left, next.left);
+      const overlapY = Math.min(rect.bottom, next.bottom) - Math.max(rect.top, next.top);
+      expect(overlapX > 0.01 && overlapY > 0.01, `${target.className} overlaps ${other.className}`).toBe(false);
+    }
+  }
+}
+
+describe('locked yielded-header geometry with the full vendored manifest', () => {
+  for (const width of [700, 1152]) {
+    it(`preserves configured Tweaker and diff affordances at ${width}px`, async () => {
+      await mountPanelAtWidth(width, {
+        ...zudoDocConfigs.dark,
+        domTweaker: { themeCss: '@theme { --color-brand: #7c3aed; }' },
+      });
+      expectHeaderContainment();
+      const inlineDiff = requiredElement(getShell(), '.tokenpanel-header > .tokenpanel-domtweaker-diff-button');
+      expect(visible(inlineDiff)).toBe(width === 1152);
+      if (width === 1152) {
+        expect(inlineDiff.getBoundingClientRect().width).toBeGreaterThanOrEqual(24);
+      } else {
+        await page.elementLocator(getKebabTrigger()).click();
+        await flushEffects();
+        const popover = getPopover()!;
+        expect(popover.querySelector('.tokenpanel-domtweaker-diff-button')).toBeNull();
+        const diffActions = [...popover.querySelectorAll<HTMLElement>('.tokenpanel-action-link')]
+          .filter((element) => element.textContent === 'DOM Tweaker diff');
+        expect(diffActions).toHaveLength(1);
+        const toggle = requiredElement(popover, '.tokenpanel-tweaker-toggle');
+        expect(toggle.textContent).toContain('DOM Tweaker');
+        await page.elementLocator(toggle).click();
+        await flushEffects();
+        expect(toggle.getAttribute('aria-pressed')).toBe('true');
+        toggle.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+        await flushEffects();
+        expect(toggle.getAttribute('aria-pressed')).toBe('false');
+        await page.elementLocator(diffActions[0]!).click();
+        // The lazy orchestrator portals this dialog into document.body,
+        // outside the panel mount. Wait for both lazy mount and showModal().
+        await expect.poll(() => document.querySelector<HTMLDialogElement>(
+          `#${DOM_TWEAKER_PORTAL_MOUNT_ID} [data-design-token-panel-modal-variant="dom-tweaker-diff"]`,
+        )?.open, { timeout: 5000 }).toBe(true);
+        expect(requiredElement(document, `#${DOM_TWEAKER_PORTAL_MOUNT_ID} [aria-label="DOM Tweaker session diff"]`)).toBeInstanceOf(HTMLTextAreaElement);
+        expect(getPopover()).toBeNull();
+      }
+    });
+  }
+
+  it('loads JSON, updates history and sync, undoes/redoes, resets, and opens Apply from the 700px menu', async () => {
+    await mountPanelAtWidth(700, {
+      ...CFG,
+      applyEndpoint: '/api/dev/apply',
+      applyRouting: { zd: 'styles/tokens.css' },
+    });
+    const openMenu = async () => {
+      await page.elementLocator(getKebabTrigger()).click();
+      await flushEffects();
+      expect(getPopover()).not.toBeNull();
+    };
+    await openMenu();
+    getPopoverActionByLabel('Load from JSON…').click();
+    await flushEffects();
+    expect(getPopover()).toBeNull();
+    const dialog = requiredElement(container, '[data-design-token-panel-modal-variant="import"]') as HTMLDialogElement;
+    const input = requiredElement(dialog, 'textarea') as HTMLTextAreaElement;
+    await page.elementLocator(input).fill(JSON.stringify({ $schema: SCHEMA_V2, tabs: { spacing: { raw: { '--zd-spacing-hgap-md': '53px' } } } }));
+    await flushEffects();
+    const load = [...dialog.querySelectorAll<HTMLElement>('[role="button"]')].find((element) => element.textContent === 'Load');
+    expect(load).toBeDefined();
+    load!.click();
+    await flushEffects();
+    expect(dialog.textContent).toContain('Loaded.');
+    expect(document.documentElement.style.getPropertyValue('--zd-spacing-hgap-md')).toBe('53px');
+    dialog.close();
+    await flushEffects();
+    await openMenu();
+    expect(requiredElement(getPopover()!, '.tokenpanel-apply-sync').textContent).toContain('unsaved');
+    const undo = requiredElement(getPopover()!, '[aria-label="Undo"]');
+    expect(undo.getAttribute('aria-disabled')).not.toBe('true');
+    undo.click();
+    await flushEffects();
+    expect(getPopover()).toBeNull();
+    expect(document.documentElement.style.getPropertyValue('--zd-spacing-hgap-md')).not.toBe('53px');
+    await openMenu();
+    const redo = requiredElement(getPopover()!, '[aria-label="Redo"]');
+    expect(redo.getAttribute('aria-disabled')).not.toBe('true');
+    redo.click();
+    await flushEffects();
+    expect(document.documentElement.style.getPropertyValue('--zd-spacing-hgap-md')).toBe('53px');
+    await openMenu();
+    const history = requiredElement(getPopover()!, '[aria-label="History rail"]');
+    history.click();
+    await flushEffects();
+    expect(getPopover()).toBeNull();
+    await openMenu();
+    expect(requiredElement(getPopover()!, '[aria-label="History rail"]').getAttribute('aria-expanded')).toBe('true');
+    getPopoverActionByLabel('Reset').click();
+    await flushEffects();
+    expect(getPopover()).toBeNull();
+    expect(document.documentElement.style.getPropertyValue('--zd-spacing-hgap-md')).toBe('');
+    await openMenu();
+    const apply = getPopoverActionByLabel('Apply');
+    expect(apply.getAttribute('aria-disabled')).not.toBe('true');
+    apply.click();
+    await flushEffects();
+    expect(getPopover()).toBeNull();
+    expect(container.querySelector('[data-design-token-panel-modal-variant="apply"]')).not.toBeNull();
+  });
+
+  for (const width of [320, 380, 440, 700, 1152]) {
+    it(`contains every direct and nested header control at ${width}px`, async () => {
+      await mountPanelAtWidth(width, zudoDocConfigs.dark);
+      expectHeaderContainment();
+      expectInlineDockGeometry();
+      const shell = getShell();
+      const header = requiredElement(shell, '.tokenpanel-header');
+      const compact = width < 482;
+      const yielded = width < 1138;
+      expect(getComputedStyle(header).paddingLeft).toBe(compact ? '16px' : '24px');
+      expect(getComputedStyle(header).columnGap).toBe(compact ? '8px' : '12px');
+      const title = requiredElement(header, '.tokenpanel-title');
+      expect(visible(title)).toBe(true);
+      expect(getComputedStyle(title).flexShrink).toBe('0');
+      expect(visible(getKebabTrigger())).toBe(yielded);
+      expect(getHeaderActionLinks()).toHaveLength(4);
+      for (const selector of ['.tokenpanel-action-link', '.tokenpanel-history-controls', '.tokenpanel-apply-sync', '.tokenpanel-elpath-toggle', '.tokenpanel-element-inspect-toggle']) {
+        expect(visible(requiredElement(header, `:scope > ${selector}`)), selector).toBe(!yielded);
+      }
+      const search = requiredElement(header, '.tokenpanel-search-control');
+      const searchWidth = search.getBoundingClientRect().width;
+      if (compact) expect(searchWidth).toBe(24);
+      else {
+        expect(searchWidth).toBeGreaterThanOrEqual(120);
+        expect(searchWidth).toBeLessThanOrEqual(260);
+      }
+      expect(visible(requiredElement(search, '.tokenpanel-search-input'))).toBe(!compact);
+      expect(visible(requiredElement(search, '.tokenpanel-search-compact-btn'))).toBe(compact);
+      expect(visible(requiredElement(shell, '.tokenpanel-tabbar > .tokenpanel-density'))).toBe(!compact);
+      if (yielded) {
+        await page.elementLocator(getKebabTrigger()).click();
+        await flushEffects();
+        const popover = getPopover()!;
+        const menuBounds = popover.getBoundingClientRect();
+        const headerBounds = header.getBoundingClientRect();
+        expect(menuBounds.left).toBeCloseTo(headerBounds.left + (compact ? 16 : 24), 1);
+        expect(menuBounds.right).toBeLessThanOrEqual(headerBounds.right - (compact ? 16 : 24));
+        for (const selector of ['.tokenpanel-elpath-toggle', '.tokenpanel-element-inspect-toggle']) {
+          const control = requiredElement(popover, selector);
+          expect(control.textContent?.trim().length).toBeGreaterThan(0);
+          expect(control.getBoundingClientRect().height).toBeGreaterThanOrEqual(24);
+          await page.elementLocator(control).click();
+          await flushEffects();
+          expect(control.getAttribute('aria-pressed')).toBe('true');
+          control.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
+          await flushEffects();
+          expect(control.getAttribute('aria-pressed')).toBe('false');
+        }
+        expect(requiredElement(popover, '.tokenpanel-apply-sync').textContent).toContain('in sync');
+        for (const name of ['Undo', 'Redo', 'History rail']) {
+          expect(requiredElement(popover, `[aria-label="${name}"]`).getBoundingClientRect().width).toBeGreaterThanOrEqual(24);
+        }
+        expect(requiredElement(popover, '.tokenpanel-history-count').textContent).toBe('0/0');
+      }
+    });
+  }
+
+  for (const width of [320, 700]) {
+    it(`keeps all three density stops reachable at ${width}px`, async () => {
+      await mountPanelAtWidth(width, zudoDocConfigs.dark);
+      if (width === 320) {
+        await page.elementLocator(getKebabTrigger()).click();
+        await flushEffects();
+      }
+      const root = width === 320 ? getPopover()! : getShell();
+      const slider = requiredElement(root, width === 320 ? '.tokenpanel-density-slider' : '.tokenpanel-tabbar .tokenpanel-density-slider') as HTMLInputElement;
+      expect(visible(slider)).toBe(true);
+      slider.focus();
+      await userEvent.keyboard('{Home}');
+      for (const [index, value] of ['192px', '288px', '100%'].entries()) {
+        if (index) await userEvent.keyboard('{ArrowRight}');
+        await flushEffects();
+        expect(slider.value).toBe(String(index));
+        expect(getShell().style.getPropertyValue('--tokenpanel-grid-min')).toBe(value);
+      }
+      for (const [index, value] of ['192px', '288px', '100%'].entries()) {
+        const rect = slider.getBoundingClientRect();
+        await page.elementLocator(slider).click({ position: { x: 8 + (rect.width - 16) * index / 2, y: rect.height / 2 } });
+        await flushEffects();
+        expect(getShell().style.getPropertyValue('--tokenpanel-grid-min')).toBe(value);
+      }
+    });
+  }
+
+  for (const contentWidth of [478.5, 479, 479.5, 480, 1134.5, 1135, 1135.5, 1136]) {
+    it(`honors fractional float content width ${contentWidth}px`, async () => {
+      await mountPanelAtWidth(contentWidth + 2);
+      getShell().style.width = `${contentWidth + 2}px`;
+      expectShellWidth(contentWidth + 2, 2);
+      expect(visible(getKebabTrigger())).toBe(contentWidth <= 1135);
+      expect(visible(requiredElement(getShell(), '.tokenpanel-search-input'))).toBe(contentWidth > 479);
+    });
+  }
+});
+
 afterEach(async () => {
   await flushEffects();
   if (container) {
@@ -289,10 +545,10 @@ afterEach(async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Wide layout (≥480px) — unchanged from today
+// Full inline layout (>1135px content width)
 // ---------------------------------------------------------------------------
 
-describe('wide panel (≥480px container width)', () => {
+describe('wide panel (>1135px container width)', () => {
   it('shows the four header action links and hides the kebab', async () => {
     // Leave room for the complete existing wide header control set.
     await mountPanelAtWidth(1152);
@@ -313,7 +569,7 @@ describe('wide panel (≥480px container width)', () => {
   });
 
   it('disables Apply when disk-rewrite wiring is absent and enables it when configured', async () => {
-    await mountPanelAtWidth(700);
+    await mountPanelAtWidth(1152);
 
     const disabledApply = getHeaderActionLinks().find((el) => el.textContent === 'Apply');
     expect(disabledApply?.getAttribute('aria-disabled')).toBe('true');
@@ -328,7 +584,7 @@ describe('wide panel (≥480px container width)', () => {
       applyEndpoint: '/api/dev/apply',
       applyRouting: { fixture: 'styles/tokens.css' },
     };
-    await mountPanelAtWidth(700, configured);
+    await mountPanelAtWidth(1152, configured);
 
     const enabledApply = getHeaderActionLinks().find((el) => el.textContent === 'Apply');
     expect(enabledApply?.getAttribute('aria-disabled')).not.toBe('true');
@@ -373,7 +629,7 @@ describe('narrow panel (<480px container width)', () => {
   });
 
   it('clicking an action closes the popover and fires the action (Export modal opens)', async () => {
-    await mountPanelAtWidth(400);
+    await mountPanelAtWidth(700);
     getKebabTrigger().click();
     await flushEffects();
 
@@ -574,18 +830,18 @@ describe('440px right-docked panel', () => {
 });
 
 describe('rendered CSS actions-menu boundary', () => {
-  for (const width of [479, 480, 481, 482]) {
+  for (const width of [1135, 1136, 1136.5, 1137]) {
     it(`uses actual right-dock content width at mounted ${width}px`, async () => {
       await mountPanelDockedRight(width);
       expectShellWidth(width, 1);
-      expect(getComputedStyle(getKebabTrigger()).display === 'none').toBe(width > 480);
+      expect(getComputedStyle(getKebabTrigger()).display === 'none').toBe(width > 1136);
       expect(getKebabTrigger().getAttribute('aria-expanded')).toBe('false');
     });
   }
 
   for (const mode of ['right', 'float'] as const) {
     it(`closes on a style-only ${mode} boundary change and never reopens itself`, async () => {
-      const compactWidth = mode === 'right' ? 480 : 481;
+      const compactWidth = mode === 'right' ? 1136 : 1137;
       const borders = mode === 'right' ? 1 : 2;
       if (mode === 'right') await mountPanelDockedRight(compactWidth);
       else await mountPanelAtWidth(compactWidth);
@@ -603,6 +859,9 @@ describe('rendered CSS actions-menu boundary', () => {
       expect(getComputedStyle(trigger).display).toBe('none');
       await expect.poll(() => getPopover()).toBeNull();
       expect(trigger.getAttribute('aria-expanded')).toBe('false');
+      trigger.click();
+      await flushEffects();
+      expect(getPopover()).toBeNull();
       expect(localStorage.getItem(mode === 'right' ? getDockSizeKey(CFG) : getSizeKey(CFG))).toBe(storedSize);
 
       getShell().style.width = `${compactWidth}px`;
