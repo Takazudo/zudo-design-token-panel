@@ -55,7 +55,7 @@ export default function HomePage() {
             static host has no sidecar or writable source tree, so this deployed demo disables the
             action. Clone the repository and run <code>pnpm play</code> to try the complete write-to-disk
             workflow. The{' '}
-            <a href="https://zudo-design-token-panel.takazudomodular.com/recipes/apply-pipeline-setup/">
+            <a href="https://zudo-design-token-panel.takazudomodular.com/docs/recipes/apply-pipeline-setup/">
               Apply pipeline setup guide
             </a>{' '}
             explains how it works.
