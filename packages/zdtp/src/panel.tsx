@@ -68,6 +68,7 @@ import type { BulkPatchEntry } from './bulk';
 import { TooltipProvider } from './controls/tooltip';
 import {
   getPanelConfig,
+  isApplyConfigured,
   openStateChangedEventName,
   storageKey_visible,
   type PanelConfig,
@@ -138,6 +139,7 @@ const RESERVED_TAB_IDS = ['color', 'font', 'spacing', 'size', 'palette', 'notes'
 type ReservedTabId = (typeof RESERVED_TAB_IDS)[number];
 
 const DEFAULT_TAB_ID: ReservedTabId = 'color';
+const APPLY_DISABLED_REASON = 'Apply unavailable: configure an apply endpoint and a non-empty routing map.';
 
 // --- Panel sizing ---
 
@@ -1115,14 +1117,20 @@ export default function DesignTokenTweakPanel({
   // both as the always-visible .tokenpanel-action-link header links AND
   // inside the narrow-panel kebab popover, so a label/handler change only
   // needs one edit instead of two synchronized ones.
+  const applyConfigured = isApplyConfigured(instanceConfig);
   const panelActions = useMemo(
     () => [
       { label: 'Export', onSelect: () => setShowExport(true) },
       { label: 'Load from JSON…', onSelect: () => setShowImport(true) },
-      { label: 'Apply', onSelect: () => setShowApply(true) },
+      {
+        label: 'Apply',
+        onSelect: () => setShowApply(true),
+        disabled: !applyConfigured,
+        disabledReason: !applyConfigured ? APPLY_DISABLED_REASON : undefined,
+      },
       { label: 'Reset', onSelect: handleResetAll },
     ],
-    [handleResetAll],
+    [applyConfigured, handleResetAll],
   );
 
   const colorDefaults = useMemo(
@@ -1309,7 +1317,13 @@ export default function DesignTokenTweakPanel({
     const actions: CommandPaletteAction[] = [
       { id: 'export', label: 'Export', onSelect: () => setShowExport(true) },
       { id: 'import', label: 'Load from JSON…', onSelect: () => setShowImport(true) },
-      { id: 'apply', label: 'Apply', onSelect: () => setShowApply(true) },
+      {
+        id: 'apply',
+        label: 'Apply',
+        onSelect: () => setShowApply(true),
+        disabled: !applyConfigured,
+        disabledReason: !applyConfigured ? APPLY_DISABLED_REASON : undefined,
+      },
     ];
     for (const tab of activeTabs) {
       if (tab.id === 'notes' || tab.id === 'color-secondary') continue;
@@ -1333,7 +1347,7 @@ export default function DesignTokenTweakPanel({
       onSelect: () => setShowHighlightSettings(true),
     });
     return actions;
-  }, [activeTabs, handleResetTab]);
+  }, [activeTabs, applyConfigured, handleResetTab]);
 
   const shellRegionItems = useMemo(
     (): Partial<
@@ -1357,7 +1371,12 @@ export default function DesignTokenTweakPanel({
             order: index,
             compactAction: action,
             render: () => (
-              <RoleButton onClick={action.onSelect} className="tokenpanel-action-link">
+              <RoleButton
+                onClick={action.onSelect}
+                className="tokenpanel-action-link"
+                aria-disabled={action.disabled}
+                title={action.disabledReason}
+              >
                 {action.label}
               </RoleButton>
             ),
@@ -1631,6 +1650,8 @@ export default function DesignTokenTweakPanel({
               <MiniPill
                 rootRef={shortcutRootRef}
                 onApply={() => setShowApply(true)}
+                applyDisabled={!applyConfigured}
+                applyDisabledReason={!applyConfigured ? APPLY_DISABLED_REASON : undefined}
                 onExpand={() => handleDockModeChange(lastFullDockModeRef.current)}
                 changedCount={changedTotal > 0 ? changedTotal : undefined}
                 undo={

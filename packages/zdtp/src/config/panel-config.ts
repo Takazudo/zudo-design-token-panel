@@ -1951,6 +1951,11 @@ export function resolveApplyRouting(cfg: PanelConfig = getPanelConfig()): ApplyR
   return cfg.applyRouting ?? {};
 }
 
+/** Whether the host has supplied both pieces required for disk-rewrite Apply. */
+export function isApplyConfigured(cfg: PanelConfig = getPanelConfig()): boolean {
+  return Boolean(cfg.applyEndpoint) && Object.keys(resolveApplyRouting(cfg)).length > 0;
+}
+
 /**
  * Lazily attach a host-supplied color-preset map AFTER `configurePanel(...)`.
  *

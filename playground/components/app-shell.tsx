@@ -32,7 +32,7 @@ export function AppShell({ title, activePath, lang = 'en', children }: AppShellP
       <body>
         <header class="zfb-topbar">
           <a class="zfb-brand" href="/">zdtp playground</a>
-          <Island when="load" ssrFallback={<span class="zfb-meta">Loading workspace panel…</span>}>
+          <Island when="load" ssrFallback={<span aria-hidden="true" />}>
             {(<PlaygroundControls />) as unknown as IslandProps['children']}
           </Island>
         </header>
@@ -43,9 +43,15 @@ export function AppShell({ title, activePath, lang = 'en', children }: AppShellP
                 {label}
               </a>
             ))}
-            <a class="zfb-nav__link" href={`${activePath}?manifest=zudo-doc`}>
-              Use zudo-doc manifest
-            </a>
+            <div class="zfb-nav__manifest">
+              <span class="zfb-eyebrow">MANIFEST</span>
+              <a class="zfb-nav__link" href={`${activePath}?manifest=zudo-doc`}>
+                Try the zudo-doc manifest
+              </a>
+              <p class="zfb-nav__note">
+                Switch from the compact playground tour to the real vendored zudo-doc configuration.
+              </p>
+            </div>
           </nav>
           <main class="zfb-main">{children}</main>
         </div>

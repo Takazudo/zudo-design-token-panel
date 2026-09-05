@@ -13,6 +13,8 @@ export interface CommandPaletteAction {
   id: string;
   label: string;
   onSelect: () => void;
+  disabled?: boolean;
+  disabledReason?: string;
 }
 
 export interface CommandPaletteProps {
@@ -109,6 +111,7 @@ export function CommandPalette({
 
   function selectResult(result: PaletteResult | undefined): void {
     if (!result) return;
+    if (result.kind === 'action' && result.action.disabled) return;
     onClose();
     if (result.kind === 'action') result.action.onSelect();
     else onSelectToken(result.token.address);
@@ -219,11 +222,15 @@ export function CommandPalette({
                   id={`tokenpanel-command-result-${index}`}
                   role="option"
                   aria-selected={selected}
-                  className={selected ? 'tokenpanel-command-palette-item is-selected' : 'tokenpanel-command-palette-item'}
+                  aria-disabled={result.action.disabled || undefined}
+                  title={result.action.disabledReason}
+                  className={`tokenpanel-command-palette-item${selected ? ' is-selected' : ''}${result.action.disabled ? ' is-disabled' : ''}`}
                   onClick={() => selectResult(result)}
                 >
                   <span className="tokenpanel-command-palette-item-label">{result.action.label}</span>
-                  <span className="tokenpanel-command-palette-item-detail">action</span>
+                  <span className="tokenpanel-command-palette-item-detail">
+                    {result.action.disabled ? 'unavailable' : 'action'}
+                  </span>
                 </div>
               </Fragment>
             );

@@ -6,6 +6,23 @@ For how the npm-pinned docs panel relates to this repo's unpublished
 `packages/zdtp` build—and when to use the workspace-linked `playground/`—see
 the "zdtp ↔ zudo-doc relationship" section in `doc/CLAUDE.md`.
 
+## Public live demo split
+
+The public surfaces have a deliberate three-site split: `doc/` runs the pinned
+npm release, while `examples/minimal/` and `playground/` run the workspace build
+and therefore lead it. The two first-party demo hostnames are:
+
+- `https://zdtp-minimal.takazudomodular.com/` (`examples/minimal/`) — minimal =
+  "the smallest wiring that works".
+- `https://zdtp-playground.takazudomodular.com/` (`playground/`) — playground =
+  "full size, plus the real vendored zudo-doc `PanelConfig` and prose pages".
+
+The provenance badge on each demo is a load-bearing honesty mechanism. Removing
+or weakening it is a regression. `PROVENANCE` is derived from git tag position,
+never from a version-string equality check: that shortcut can mislabel an
+unreleased build as `released`, which is exactly what the badge exists to
+prevent.
+
 ## Panel DOM hygiene — no host-stylable semantic tags
 
 The panel is embedded inside a host app. Any semantic HTML element whose default browser styles can be reset or overridden by the host's global CSS must NOT appear in the panel's own markup.

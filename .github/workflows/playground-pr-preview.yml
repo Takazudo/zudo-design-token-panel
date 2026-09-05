@@ -1,0 +1,113 @@
+name: Playground PR preview
+
+# Builds the full playground demo and deploys a per-PR preview to Cloudflare
+# Workers via `wrangler versions upload --preview-alias=pr-<N>`. Build +
+# wrangler dry-run always run without credentials; the upload and comment are
+# gated on CF_WORKERS_DEPLOY and trusted, non-Dependabot repository PRs.
+
+on:
+  pull_request:
+    branches:
+      - main
+      - 'base/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: playground-pr-${{ github.event.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    name: Build & deploy playground PR preview (Cloudflare Workers)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build playground
+        run: pnpm --filter playground build:deploy
+
+      - name: Validate wrangler config (dry-run, no credentials needed)
+        run: pnpm --dir playground exec wrangler deploy --dry-run
+
+      - name: Deploy playground PR preview
+        id: deploy
+        if: >-
+          vars.CF_WORKERS_DEPLOY == 'true' &&
+          github.actor != 'dependabot[bot]' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PR_NUMBER: ${{ github.event.number }}
+        run: |
+          set -o pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "::notice::Skipping playground PR preview upload — Cloudflare credentials are unavailable for this PR."
+            exit 0
+          fi
+          SLUG="pr-${PR_NUMBER}"
+          DEPLOY_LOG=$(mktemp)
+          bash scripts/upload-demo-preview.sh playground zdtp-playground "$SLUG" \
+            "Playground PR #${PR_NUMBER} preview @ ${GITHUB_SHA:0:7}" \
+            2>&1 | tee "$DEPLOY_LOG"
+          DEPLOY_URL=$(grep -oE "https://${SLUG}-[a-z0-9.-]+\.workers\.dev" "$DEPLOY_LOG" | head -1)
+          if [ -z "$DEPLOY_URL" ]; then
+            echo "::error::Failed to parse alias preview URL for slug '$SLUG' from wrangler output"
+            exit 1
+          fi
+          echo "deploy_url=$DEPLOY_URL" >> "$GITHUB_OUTPUT"
+          echo "Preview URL: $DEPLOY_URL"
+
+      - name: Comment playground preview URL on PR
+        if: steps.deploy.outcome == 'success' && steps.deploy.outputs.deploy_url != ''
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          DEPLOY_URL: ${{ steps.deploy.outputs.deploy_url }}
+          PR_NUMBER: ${{ github.event.number }}
+        with:
+          script: |
+            const deployUrl = process.env.DEPLOY_URL;
+            const prNumber = Number(process.env.PR_NUMBER);
+            const marker = '<!-- cf-playground-preview-pr -->';
+            const body = `${marker}\n### 🟢 Cloudflare Workers playground preview\n\nPR preview deployed: ${deployUrl}\n\n_Updated for commit \`${context.sha.substring(0, 7)}\`._`;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+            const existing = comments.find((comment) => comment.body && comment.body.startsWith(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body,
+              });
+            }

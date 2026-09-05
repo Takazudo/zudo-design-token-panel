@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="The smallest framework-free Vite setup for zudo design token panel." />
+    <title>Minimal setup · zdtp</title>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/">zdtp / minimal</a>
+      <button class="open-panel" type="button" data-open-panel>Open token panel</button>
+    </header>
+    <main class="page">
+      <section class="hero" aria-labelledby="hero-title">
+        <div>
+          <p class="eyebrow">Two direct runtime dependencies</p>
+          <h1 id="hero-title">Tokens you can touch.</h1>
+          <p class="lede">This page is a plain Vite app. Open the panel, change a color or spacing value, and watch the same CSS custom properties redraw this page.</p>
+        </div>
+        <div class="surface token-card">
+          <span class="build-badge" data-build-info>Loading build provenance…</span>
+          <h2>One small config.</h2>
+          <p>The swatches below use the exact color variables listed in the panel's Theme tab.</p>
+          <div class="swatches" aria-label="Configured color token swatches">
+            <span class="swatch swatch--ink" title="Ink"></span>
+            <span class="swatch swatch--muted" title="Muted ink"></span>
+            <span class="swatch swatch--surface" title="Surface"></span>
+            <span class="swatch swatch--accent" title="Accent"></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="setup" aria-labelledby="setup-title">
+        <div class="setup-header">
+          <p class="eyebrow">Copy this setup</p>
+          <h2 id="setup-title">The whole integration.</h2>
+          <p>Install the published package, define a <code>PanelConfig</code>, import the documented stylesheet export, then configure and open the panel.</p>
+          <code class="install-line">pnpm add @takazudo/zdtp preact</code>
+        </div>
+        <div class="code-grid">
+          <article class="code-card">
+            <h3>panel-config.ts</h3>
+            <pre><code>import type { PanelConfig } from '@takazudo/zdtp';
+
+export const panelConfig = {
+  storagePrefix: 'my-panel',
+  consoleNamespace: 'myPanel',
+  modalClassPrefix: 'my-panel-modal',
+  schemaId: 'my-tokens/v1',
+  exportFilenameBase: 'my-tokens',
+  tabs: [{
+    id: 'theme',
+    label: 'Theme',
+    tiers: [{
+      id: 'colors',
+      label: 'Colors',
+      items: [{
+        id: 'accent',
+        cssVar: '--my-accent',
+        label: 'Accent',
+        default: '#5b4be7',
+        type: { kind: 'color' },
+      }],
+    }],
+  }],
+} satisfies PanelConfig;</code></pre>
+          </article>
+          <article class="code-card">
+            <h3>main.ts</h3>
+            <pre><code>import '@takazudo/zdtp/styles';
+import {
+  configurePanel,
+  showDesignTokenPanel,
+} from '@takazudo/zdtp';
+import { panelConfig } from './panel-config';
+import './tokens.css';
+
+configurePanel(panelConfig);
+showDesignTokenPanel();</code></pre>
+          </article>
+          <article class="code-card">
+            <h3>tokens.css</h3>
+            <pre><code>:root {
+  --my-accent: #5b4be7;
+}
+
+h1 {
+  color: var(--my-accent);
+}</code></pre>
+          </article>
+        </div>
+      </section>
+
+      <section class="notes" aria-label="Demo notes">
+        <article class="surface note">
+          <h3>Apply is disabled here</h3>
+          <p>This static site has no local sidecar or source files to write, so its config intentionally omits <code>applyEndpoint</code>. Browser edits and JSON export still work. Follow the <a href="https://zudo-design-token-panel.takazudomodular.com/docs/recipes/apply-pipeline-setup/">apply pipeline setup</a> for the local write-back round trip.</p>
+        </article>
+        <article class="surface note">
+          <h3>Know what you are running</h3>
+          <p><span data-build-mode>Workspace build</span>, built <time data-built-at>at an unknown time</time>. To reproduce this exact live build, clone the repository at commit <a data-commit>unknown</a>. The copyable snippet above was also checked against npm latest.</p>
+        </article>
+      </section>
+    </main>
+    <footer class="site-footer">Direct runtime dependencies: <code>@takazudo/zdtp</code> and <code>preact</code>. The panel installs its own transitive dependencies.</footer>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
