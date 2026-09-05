@@ -43,9 +43,15 @@ export function AppShell({ title, activePath, lang = 'en', children }: AppShellP
                 {label}
               </a>
             ))}
-            <a class="zfb-nav__link" href={`${activePath}?manifest=zudo-doc`}>
-              Use zudo-doc manifest
-            </a>
+            <div class="zfb-nav__manifest">
+              <span class="zfb-eyebrow">MANIFEST</span>
+              <a class="zfb-nav__link" href={`${activePath}?manifest=zudo-doc`}>
+                Try the zudo-doc manifest
+              </a>
+              <p class="zfb-nav__note">
+                Switch from the compact playground tour to the real vendored zudo-doc configuration.
+              </p>
+            </div>
           </nav>
           <main class="zfb-main">{children}</main>
         </div>
