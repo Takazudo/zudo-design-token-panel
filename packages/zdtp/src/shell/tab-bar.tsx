@@ -4,6 +4,7 @@ import type { PanelDensity } from '../state/tweak-state';
 import { useShellRegions } from './regions';
 import { useShortcut } from './shortcut-dispatcher';
 import { ChangedTabBadge } from '../changed/tab-badge';
+import { TabOverflowPopover } from './tab-overflow-popover';
 
 export interface ShellTab {
   id: string;
@@ -33,7 +34,11 @@ export function ShellTabBar({
 }) {
   const { items } = useShellRegions();
   const stripRef = useRef<HTMLDivElement>(null);
+  const overflowTriggerRef = useRef<HTMLDivElement>(null);
   const [hasOverflow, setHasOverflow] = useState(false);
+  const [hasTotalOverflow, setHasTotalOverflow] = useState(false);
+  const [hiddenTabIds, setHiddenTabIds] = useState<readonly string[]>([]);
+  const [overflowOpen, setOverflowOpen] = useState(false);
 
   useShortcut(
     {
@@ -58,16 +63,45 @@ export function ShellTabBar({
   );
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      setOverflowOpen(false);
+      return;
+    }
     const element = stripRef.current;
     if (!element) return;
     function updateOverflow() {
       const current = stripRef.current;
       if (!current) return;
-      const overflows =
+      const remainingOverflow =
         current.scrollWidth > current.clientWidth &&
         current.scrollLeft + current.clientWidth < current.scrollWidth - 1;
-      setHasOverflow(overflows);
+      const trigger = overflowTriggerRef.current;
+      const parentGap = Number.parseFloat(getComputedStyle(current.parentElement!).columnGap) || 0;
+      const availableWithoutTrigger = current.clientWidth
+        + (trigger ? trigger.getBoundingClientRect().width + parentGap : 0);
+      const totalOverflow = current.scrollWidth > availableWithoutTrigger + 1;
+      setHasOverflow(remainingOverflow);
+      setHasTotalOverflow(totalOverflow);
+
+      if (!totalOverflow) {
+        setHiddenTabIds([]);
+        const activeElement = document.activeElement;
+        if (activeElement && trigger?.parentElement?.contains(activeElement)) {
+          tabRefs.current?.[activeTab]?.focus();
+        }
+        setOverflowOpen(false);
+        return;
+      }
+      const stripRect = current.getBoundingClientRect();
+      const tolerance = 1;
+      setHiddenTabIds(tabs
+        .filter((tab) => {
+          const rect = tabRefs.current?.[tab.id]?.getBoundingClientRect();
+          return Boolean(rect && (
+            rect.left < stripRect.left - tolerance || rect.right > stripRect.right + tolerance
+          ));
+        })
+        .map((tab) => tab.id));
     }
     updateOverflow();
     element.addEventListener('scroll', updateOverflow);
@@ -76,11 +110,33 @@ export function ShellTabBar({
     }
     const observer = new ResizeObserver(updateOverflow);
     observer.observe(element);
+    for (const tab of tabs) {
+      const tabElement = tabRefs.current?.[tab.id];
+      if (tabElement) observer.observe(tabElement);
+    }
     return () => {
       observer.disconnect();
       element.removeEventListener('scroll', updateOverflow);
     };
-  }, [open, tabs]);
+  }, [activeTab, changedCounts, open, tabRefs, tabs]);
+
+  useEffect(() => {
+    if (!hasTotalOverflow) return;
+    const frame = window.requestAnimationFrame(() => {
+      stripRef.current?.dispatchEvent(new Event('scroll'));
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [hasTotalOverflow]);
+
+  function selectOverflowTab(id: string): void {
+    onActiveTabChange(id);
+    setOverflowOpen(false);
+    window.requestAnimationFrame(() => {
+      const tab = tabRefs.current?.[id];
+      tab?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      window.requestAnimationFrame(() => tab?.focus());
+    });
+  }
 
   return (
     <div className="tokenpanel-tabbar">
@@ -112,6 +168,17 @@ export function ShellTabBar({
           );
         })}
       </div>
+      {hasTotalOverflow && (
+        <TabOverflowPopover
+          tabs={tabs.filter((tab) => hiddenTabIds.includes(tab.id))}
+          activeTab={activeTab}
+          anchorRef={overflowTriggerRef}
+          open={overflowOpen}
+          onOpenChange={setOverflowOpen}
+          onSelect={selectOverflowTab}
+          ariaIdScope={ariaIdScope}
+        />
+      )}
       <div className="tokenpanel-density">
         <label
           htmlFor={`dtp-density-${ariaIdScope}`}
