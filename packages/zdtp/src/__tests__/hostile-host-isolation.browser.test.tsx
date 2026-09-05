@@ -341,7 +341,10 @@ describe('F33 — panel chrome survives full hostile CSS environment', () => {
       expect(getComputedStyle(pill).boxSizing).toBe('border-box');
       expect(getComputedStyle(expand).boxSizing).toBe('border-box');
       expect(getComputedStyle(pill).position).toBe('fixed');
-      expect(getComputedStyle(pill).backgroundColor).toBe('rgb(28, 28, 28)');
+      const pillStyle = getComputedStyle(pill);
+      expect(pillStyle.backgroundColor).toBe(
+        pillStyle.getPropertyValue('--tokentweak-color-surface').trim(),
+      );
       expect(getComputedStyle(expand).paddingTop).toBe('4px');
       expect(getComputedStyle(svg).fill).toBe('none');
     });
@@ -568,7 +571,9 @@ describe('F33 — panel chrome survives full hostile CSS environment', () => {
       expect(dialogStyle.position).toBe('fixed');
       expect(dialogStyle.maxWidth).toBe('736px');
       expect(dialogStyle.padding).toBe('24px');
-      expect(dialogStyle.backgroundColor).toBe('rgb(28, 28, 28)');
+      expect(dialogStyle.backgroundColor).toBe(
+        dialogStyle.getPropertyValue('--tokentweak-color-surface').trim(),
+      );
       expect(title.tagName).toBe('DIV');
       expect(getComputedStyle(title).fontSize).toBe('22px');
       expect(getComputedStyle(textarea).boxSizing).toBe('border-box');
