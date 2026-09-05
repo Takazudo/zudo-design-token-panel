@@ -4,7 +4,7 @@ import { flattenApplyOverrides } from '../../apply-modal';
 import { resolveColorClusterFromTab } from '../../config/cluster-config';
 import type { ColorTweakState, TweakState } from '../../state/tweak-state';
 import { FIXTURE_PANEL_CONFIG } from '../../__tests__/_test-helpers';
-import { semanticMappingsEqual, serialize } from '../design-token-serde';
+import { serialize } from '../design-token-serde';
 import { buildTokenIndex } from '../token-index';
 import type { TabConfig } from '../../tokens/tier-model';
 import {
@@ -12,6 +12,7 @@ import {
   changedEntries,
   formatCssDeclarations,
   revertEntry,
+  semanticMappingsEqual,
 } from '../token-diff';
 
 const baseline: ColorTweakState = {
@@ -114,7 +115,7 @@ describe('canonical token diff', () => {
     const roleEquivalent = makeState();
     roleEquivalent.color.semanticMappings.accent = 'bg';
     const numericBaseline = { ...baseline, semanticMappings: { ...baseline.semanticMappings, accent: 0 } };
-    expect(semanticMappingsEqual('bg', 0, 0, 15, numericBaseline)).toBe(true);
+    expect(semanticMappingsEqual('bg', 0, roleEquivalent.color, numericBaseline)).toBe(true);
     assertParity(roleEquivalent, numericBaseline);
 
     const literal = makeState();
