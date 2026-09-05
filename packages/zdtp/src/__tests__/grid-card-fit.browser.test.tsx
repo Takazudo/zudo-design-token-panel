@@ -6,6 +6,7 @@ import { render } from 'preact';
 import { act } from 'preact/test-utils';
 import DesignTokenTweakPanel from '../panel';
 import GenericItemEditor from '../tabs/_generic-item-editor';
+import { loadHighlightState } from '../highlight/highlight-state';
 import type { PanelConfig } from '../config/panel-config';
 import type { TabConfig, TierItem } from '../tokens/tier-model';
 import { densityToGridMin, getDensityKey, getOpenKey, getPositionKey, getSizeKey, type PanelDensity } from '../state/tweak-state';
@@ -228,6 +229,9 @@ async function mount(cfg: PanelConfig, width: number, density: PanelDensity, tab
 
 beforeEach(async () => {
   localStorage.clear();
+  // Active highlights use sessionStorage, independently of panel settings.
+  // Every density case must begin with the same inactive inspection state.
+  sessionStorage.clear();
   await page.viewport(1440, 1000);
   style = document.createElement('style');
   style.textContent = ((await panelCssModule) as { default: string }).default;
@@ -240,6 +244,7 @@ afterEach(async () => {
   host.remove();
   style.remove();
   localStorage.clear();
+  sessionStorage.clear();
   await page.viewport(1280, 800);
 });
 
@@ -386,10 +391,23 @@ describe('bounded absent control shapes and interactions', () => {
     const bulk = required<HTMLInputElement>('.tokenpanel-bulk-row-checkbox', root);
     await page.elementLocator(bulk).click();
     expect(bulk.checked).toBe(true);
-    const highlight = required('.tokenpanel-highlight-toggle', root);
-    await page.elementLocator(highlight).click();
+    const highlightToken = '--fit-a-long-numeric-token-name';
+    const liveHighlight = () => required(`[data-css-var="${highlightToken}"] .tokenpanel-highlight-toggle`);
+    expect(loadHighlightState(EXTRA_CONFIG).active[highlightToken]).toBeUndefined();
+    expect(liveHighlight().title).toBe(`Highlight elements using ${highlightToken}`);
+    expect(liveHighlight().classList.contains('is-active')).toBe(false);
+    await page.elementLocator(liveHighlight()).click();
     await flushEffects();
-    await expect.poll(() => highlight.title).toMatch(/^Stop highlighting --fit-a-long-numeric-token-name/);
+    // Persistence proves the click reached the real toggle handler. Query
+    // the live DOM on every poll so a rerender cannot leave a stale target.
+    await expect.poll(() => loadHighlightState(EXTRA_CONFIG).active[highlightToken]).toBe(0);
+    await expect.poll(() => liveHighlight().title).toMatch(/^Stop highlighting --fit-a-long-numeric-token-name/);
+    expect(liveHighlight().classList.contains('is-active')).toBe(true);
+    await page.elementLocator(liveHighlight()).click();
+    await flushEffects();
+    await expect.poll(() => loadHighlightState(EXTRA_CONFIG).active[highlightToken]).toBeUndefined();
+    await expect.poll(() => liveHighlight().title).toBe(`Highlight elements using ${highlightToken}`);
+    expect(liveHighlight().classList.contains('is-active')).toBe(false);
     const chain = required('.tokenpanel-chain-button', root);
     await page.elementLocator(chain).click();
     await flushEffects();
