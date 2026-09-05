@@ -4,6 +4,37 @@ All notable changes to `@takazudo/zdtp` are documented in this file.
 
 The format is based on Keep a Changelog, and release notes are generated from the changelog MDX pages.
 
+## [0.5.0] - 2026-09-06
+
+`@takazudo/zdtp/constants` now exposes `DEFAULT_STORAGE_PREFIX`, `DEFAULT_TOGGLE_EVENT`, `resolveToggleEventName`, `EAGER_LOAD_GATE_KEY_SUFFIXES`, and `EAGER_LOAD_GATE_STATE_FAMILY` without importing the panel. Lazy hosts can share toggle-event rules and eager-load metadata; state-family matching still requires the documented content checks. The storage-key documentation is also corrected: position, size, density, and all three highlight keys already existed in published 0.4.14.
+
+### Features
+
+- feat(zdtp): publish isolated constants entry (11ff48b)
+- feat: describe eager-load gate signals with behavioral drift guard (0a2b610)
+
+### Fixed
+
+- fix: keep dock controls visible and reconcile menu with rendered CSS (dae7dcc)
+- fix(zdtp): preserve readable labels in changed token rows (97ede7f)
+
+### Other Changes
+
+- Merge pull request [#769](https://github.com/Takazudo/zudo-design-token-panel/pull/769) from Takazudo/base/sweep-260906 (c4c6230)
+- Merge pull request [#778](https://github.com/Takazudo/zudo-design-token-panel/pull/778) from Takazudo/base/sweep-260906-gate-constants (cc29811)
+- Merge branch 'topic/765-constants-docs' into base/sweep-260906-gate-constants (a82dc82)
+- docs: document constants subpath and storage key continuity (17426e0)
+- Merge branch 'topic/764-constants-package' into base/sweep-260906-gate-constants (572d11c)
+- Merge branch 'topic/763-gate-signals' into base/sweep-260906-gate-constants (c09f456)
+- Merge branch 'topic/762-constants-leaf' into base/sweep-260906-gate-constants (f038f71)
+- refactor(zdtp): extract panel constants leaf (369e495)
+- Merge pull request [#773](https://github.com/Takazudo/zudo-design-token-panel/pull/773) from Takazudo/base/sweep-260906-dock-escape (08678c2)
+- Merge branch 'topic/759-dock-fix' into base/sweep-260906-dock-escape (a44f2a4)
+- Merge branch 'topic/758-dock-decision' into base/sweep-260906-dock-escape (3d1ee55)
+- docs: define visible dock controls and CSS-driven menu contract (0da81f3)
+- Merge pull request [#768](https://github.com/Takazudo/zudo-design-token-panel/pull/768) from Takazudo/base/sweep-260906-changed-row-label (323b9b0)
+- Merge branch 'topic/754-changed-row-label' into base/sweep-260906-changed-row-label (69846f2)
+
 ## [0.4.15] - 2026-09-05
 
 ### Features

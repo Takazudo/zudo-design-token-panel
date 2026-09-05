@@ -1,0 +1,36 @@
+---
+title: "0.5.0"
+description: "0.5.0 のリリースノート。"
+sidebar_position: 101
+---
+
+Released: 2026-09-06
+
+`@takazudo/zdtp/constants` から、パネルを読み込まずに `DEFAULT_STORAGE_PREFIX`、`DEFAULT_TOGGLE_EVENT`、`resolveToggleEventName`、`EAGER_LOAD_GATE_KEY_SUFFIXES`、`EAGER_LOAD_GATE_STATE_FAMILY` を利用できるようになりました。遅延読み込みを行うホストで、トグルイベントの規則と先行読み込みの判定メタデータを共有できます。状態キーは名前の一致だけでなく、文書化された内容の確認も必要です。ストレージキーの説明も訂正しました。位置、サイズ、密度、および3種類のハイライト用キーは、公開済みの 0.4.14 にすでに存在していました。
+
+### 機能
+
+- feat(zdtp): 独立した constants エントリーポイントを公開 (11ff48b)
+- feat: 先行読み込みの判定条件をメタデータとして公開し、実際の動作との一致をテスト (0a2b610)
+
+### バグ修正
+
+- fix: ドック操作を常に表示し、メニューの状態を実際の CSS 表示に同期 (dae7dcc)
+- fix(zdtp): 変更済みトークン行のラベルに読みやすい幅を確保 (97ede7f)
+
+### その他の変更
+
+- プルリクエストをマージ: [#769](https://github.com/Takazudo/zudo-design-token-panel/pull/769) from Takazudo/base/sweep-260906 (c4c6230)
+- プルリクエストをマージ: [#778](https://github.com/Takazudo/zudo-design-token-panel/pull/778) from Takazudo/base/sweep-260906-gate-constants (cc29811)
+- ブランチをマージ: 'topic/765-constants-docs' → base/sweep-260906-gate-constants (a82dc82)
+- docs: constants サブパスの使用例とストレージキーの履歴を文書化 (17426e0)
+- ブランチをマージ: 'topic/764-constants-package' → base/sweep-260906-gate-constants (572d11c)
+- ブランチをマージ: 'topic/763-gate-signals' → base/sweep-260906-gate-constants (c09f456)
+- ブランチをマージ: 'topic/762-constants-leaf' → base/sweep-260906-gate-constants (f038f71)
+- refactor(zdtp): パネルの定数を依存のないモジュールに抽出 (369e495)
+- プルリクエストをマージ: [#773](https://github.com/Takazudo/zudo-design-token-panel/pull/773) from Takazudo/base/sweep-260906-dock-escape (08678c2)
+- ブランチをマージ: 'topic/759-dock-fix' → base/sweep-260906-dock-escape (a44f2a4)
+- ブランチをマージ: 'topic/758-dock-decision' → base/sweep-260906-dock-escape (3d1ee55)
+- docs: ドック操作の常時表示と CSS に基づくメニューの仕様を定義 (0da81f3)
+- プルリクエストをマージ: [#768](https://github.com/Takazudo/zudo-design-token-panel/pull/768) from Takazudo/base/sweep-260906-changed-row-label (323b9b0)
+- ブランチをマージ: 'topic/754-changed-row-label' → base/sweep-260906-changed-row-label (69846f2)
