@@ -34,6 +34,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { page } from 'vitest/browser';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
 import DesignTokenTweakPanel from '../panel';
@@ -222,6 +223,53 @@ function getPopoverActionByLabel(label: string): HTMLElement {
   return match;
 }
 
+function expectInlineDockGeometry(): void {
+  const shellRect = getShell().getBoundingClientRect();
+  const controls = Array.from(container.querySelectorAll<HTMLElement>(
+    '.tokenpanel-header > .tokenpanel-dock-modes .tokenpanel-dock-mode',
+  ));
+  expect(controls).toHaveLength(4);
+  const chrome = ['.tokenpanel-gear-btn', '.tokenpanel-close-btn'];
+  if (getComputedStyle(getKebabTrigger()).display !== 'none') chrome.push('.tokenpanel-actions-menu-btn');
+  const targets = [...controls, ...chrome.map((selector) => {
+    const el = container.querySelector<HTMLElement>(selector);
+    if (!el) throw new Error(`${selector} not found`);
+    return el;
+  })];
+  for (const target of targets) {
+    const rect = target.getBoundingClientRect();
+    if (controls.includes(target)) {
+      expect(rect.width).toBeGreaterThanOrEqual(24);
+      expect(rect.height).toBeGreaterThanOrEqual(24);
+    } else {
+      expect(rect.width).toBeGreaterThan(0);
+      expect(rect.height).toBeGreaterThan(0);
+    }
+    expect(rect.left).toBeGreaterThanOrEqual(shellRect.left);
+    expect(rect.right).toBeLessThanOrEqual(shellRect.right);
+    expect(rect.top).toBeGreaterThanOrEqual(shellRect.top);
+    expect(rect.bottom).toBeLessThanOrEqual(shellRect.bottom);
+    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    expect(hit === target || (hit !== null && target.contains(hit)), target.className).toBe(true);
+  }
+  const sorted = targets.map((target) => target.getBoundingClientRect()).sort((a, b) => a.left - b.left);
+  for (let i = 1; i < sorted.length; i++) expect(sorted[i]!.left).toBeGreaterThanOrEqual(sorted[i - 1]!.right);
+  for (const control of controls) {
+    expect(control.getAttribute('title')).toBe(control.getAttribute('aria-label'));
+    expect(control.getAttribute('tabindex')).toBe('0');
+  }
+}
+
+function expectShellWidth(borderBox: number, borders: number): void {
+  const shell = getShell();
+  const style = getComputedStyle(shell);
+  expect(shell.getBoundingClientRect().width).toBe(borderBox);
+  const measuredBorders = parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
+  expect(measuredBorders).toBe(borders);
+  expect(shell.getBoundingClientRect().width - measuredBorders
+    - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)).toBe(borderBox - borders);
+}
+
 beforeEach(async () => {
   localStorage.clear();
   await injectPanelCss();
@@ -246,7 +294,9 @@ afterEach(async () => {
 
 describe('wide panel (≥480px container width)', () => {
   it('shows the four header action links and hides the kebab', async () => {
-    await mountPanelAtWidth(700);
+    // Leave room for the complete existing wide header control set.
+    await mountPanelAtWidth(1152);
+    expectInlineDockGeometry();
 
     const links = getHeaderActionLinks();
     expect(links.map((el) => el.textContent)).toEqual([
@@ -421,6 +471,7 @@ describe('very narrow panel (<380px container width)', () => {
 describe('320px right-docked panel', () => {
   it('contains both chrome rows while preserving the resize grip and compact controls', async () => {
     await mountPanelDockedRight(320);
+    expectInlineDockGeometry();
 
     const shell = getShell();
     expect(shell.classList.contains('is-docked-right')).toBe(true);
@@ -497,6 +548,7 @@ describe('320px right-docked panel', () => {
 describe('440px right-docked panel', () => {
   it('keeps the header and tab strip contained at the default dock width', async () => {
     await mountPanelDockedRight(440);
+    expectInlineDockGeometry();
 
     const shellRect = getShell().getBoundingClientRect();
     for (const selector of ['.tokenpanel-header', '.tokenpanel-tabbar']) {
@@ -519,6 +571,58 @@ describe('440px right-docked panel', () => {
     if (!strip) throw new Error('.tokenpanel-tabbar-tabs not found');
     expect(strip.clientWidth).toBeGreaterThanOrEqual(160);
   });
+});
+
+describe('rendered CSS actions-menu boundary', () => {
+  for (const width of [479, 480, 481, 482]) {
+    it(`uses actual right-dock content width at mounted ${width}px`, async () => {
+      await mountPanelDockedRight(width);
+      expectShellWidth(width, 1);
+      expect(getComputedStyle(getKebabTrigger()).display === 'none').toBe(width > 480);
+      expect(getKebabTrigger().getAttribute('aria-expanded')).toBe('false');
+    });
+  }
+
+  for (const mode of ['right', 'float'] as const) {
+    it(`closes on a style-only ${mode} boundary change and never reopens itself`, async () => {
+      const compactWidth = mode === 'right' ? 480 : 481;
+      const borders = mode === 'right' ? 1 : 2;
+      if (mode === 'right') await mountPanelDockedRight(compactWidth);
+      else await mountPanelAtWidth(compactWidth);
+      const storedSize = localStorage.getItem(mode === 'right' ? getDockSizeKey(CFG) : getSizeKey(CFG));
+      const trigger = getKebabTrigger();
+      expectShellWidth(compactWidth, borders);
+      await page.elementLocator(trigger).click();
+      await expect.poll(() => getPopover() !== null).toBe(true);
+      expect(trigger.getAttribute('aria-expanded')).toBe('true');
+
+      // No pointer event and no Preact width update: only ResizeObserver can
+      // reconcile the still-open menu with this actual CSS layout change.
+      getShell().style.width = `${compactWidth + 1}px`;
+      expectShellWidth(compactWidth + 1, borders);
+      expect(getComputedStyle(trigger).display).toBe('none');
+      await expect.poll(() => getPopover()).toBeNull();
+      expect(trigger.getAttribute('aria-expanded')).toBe('false');
+      expect(localStorage.getItem(mode === 'right' ? getDockSizeKey(CFG) : getSizeKey(CFG))).toBe(storedSize);
+
+      getShell().style.width = `${compactWidth}px`;
+      expectShellWidth(compactWidth, borders);
+      await flushEffects();
+      expect(getComputedStyle(trigger).display).not.toBe('none');
+      expect(getPopover()).toBeNull();
+      expect(trigger.getAttribute('aria-expanded')).toBe('false');
+      await page.elementLocator(trigger).click();
+      await expect.poll(() => getPopover() !== null).toBe(true);
+      const labeledFloat = getPopover()!.querySelector<HTMLElement>(
+        '.tokenpanel-dock-modes.is-compact [aria-label^="Float panel ("]',
+      );
+      expect(labeledFloat?.textContent).toBe('Float panel');
+      await page.elementLocator(labeledFloat!).click();
+      await flushEffects();
+      expect(getPopover()).toBeNull();
+      expect(localStorage.getItem(getDockKey(CFG))).toBe('float');
+    });
+  }
 });
 
 describe('right-docked panel integration (overflow, tooltip, and chrome colors)', () => {

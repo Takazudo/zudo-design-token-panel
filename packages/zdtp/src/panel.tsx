@@ -1721,16 +1721,7 @@ export default function DesignTokenTweakPanel({
         }}
       >
         <GhostIdleBehavior enabled={ghostIdle} targetRef={panelRef} />
-        <ShellHeader
-          width={
-            effectiveDockMode === 'right'
-              ? dockSize.right
-              : effectiveDockMode === 'bottom'
-                ? window.innerWidth
-                : size.width
-          }
-          onMouseDown={handleDragStart}
-        />
+        <ShellHeader onMouseDown={handleDragStart} />
         <ShellTabBar
           tabs={activeTabs}
           activeTab={activeTab}
