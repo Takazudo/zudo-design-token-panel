@@ -198,12 +198,20 @@ describe('Invariant F — panel CSS does not read host theme vars', () => {
     expect(stripCssComments(panelChrome)).not.toMatch(/var\(\s*--font-mono/);
   });
 
-  it('panel-tokens.css declares the baked-in dark --tokentweak-color-bg', () => {
-    expect(panelTokens).toMatch(/--tokentweak-color-bg\s*:\s*#181818/);
+  it('panel-tokens.css declares a baked-in dark base ramp', () => {
+    const source = stripCssComments(panelTokens);
+    expect(source).toMatch(/--tokentweak-palette-base-0\s*:\s*oklch\(/);
+    expect(source).toMatch(/--tokentweak-palette-base-5\s*:\s*oklch\(/);
   });
 
-  it('panel-tokens.css declares the baked-in dark --tokentweak-color-fg', () => {
-    expect(panelTokens).toMatch(/--tokentweak-color-fg\s*:\s*#b8b8b8/);
+  it('panel-tokens.css maps panel roles onto its private ramp', () => {
+    const source = stripCssComments(panelTokens);
+    expect(source).toMatch(
+      /--tokentweak-color-bg\s*:\s*var\(\s*--tokentweak-palette-base-0\s*\)/,
+    );
+    expect(source).toMatch(
+      /--tokentweak-color-fg\s*:\s*var\(\s*--tokentweak-palette-base-4\s*\)/,
+    );
   });
 });
 

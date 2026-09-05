@@ -69,22 +69,29 @@
   /* ----------------------------------------------------------------------
    * Color palette (self-contained, dark)
    *
-   * Values mirror a terminal-style "Default Dark" palette so the panel
-   * reads as a neutral dark surface against any host backdrop. Hosts can
-   * override any of these by assigning to the same `--tokentweak-color-*`
-   * name on this scope.
+   * The base ramp is numbered from the darkest ground (0) upward toward the
+   * foreground. Semantic color roles alias the ramp so components never
+   * reach into palette values directly. Hosts can override either a semantic
+   * `--tokentweak-color-*` role or a ramp stop on this scope.
    * ---------------------------------------------------------------------- */
-  --tokentweak-color-fg: #b8b8b8;
-  --tokentweak-color-bg: #181818;
-  --tokentweak-color-muted: #888888;
-  --tokentweak-color-surface: #1c1c1c;
+  --tokentweak-palette-base-0: oklch(0.20903608651870992 0 0);
+  --tokentweak-palette-base-1: oklch(0.22644986475198373 0 0);
+  --tokentweak-palette-base-2: oklch(0.3406970568972224 0 0);
+  --tokentweak-palette-base-3: oklch(0.6267535410065036 0 0);
+  --tokentweak-palette-base-4: oklch(0.7826037156503541 0 0);
+  --tokentweak-palette-base-5: oklch(0.9067006916295425 0 0);
+
+  --tokentweak-color-fg: var(--tokentweak-palette-base-4);
+  --tokentweak-color-bg: var(--tokentweak-palette-base-0);
+  --tokentweak-color-muted: var(--tokentweak-palette-base-3);
+  --tokentweak-color-surface: var(--tokentweak-palette-base-1);
   --tokentweak-color-accent: #d69a66;
   /* Dedicated changed-state accent: a little brighter than the tab accent so
    * the left rail and compact markers remain legible on token controls. */
   --tokentweak-color-accent-bar: #efb477;
   --tokentweak-color-accent-hover: #a7c0e3;
-  --tokentweak-color-code-bg: #383838;
-  --tokentweak-color-code-fg: #e0e0e0;
+  --tokentweak-color-code-bg: var(--tokentweak-palette-base-2);
+  --tokentweak-color-code-fg: var(--tokentweak-palette-base-5);
   --tokentweak-color-success: #93bb77;
   --tokentweak-color-danger: #da6871;
   --tokentweak-color-warning: #dfbb77;

@@ -14,6 +14,7 @@
  *        the host root font-size differs from 16px.
  *
  *   F21: color-scheme — panel elements report color-scheme: dark.
+ *   F34: color ramp — neutral semantic roles resolve to exact painted colors.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -163,5 +164,51 @@ describe('F21 — color-scheme: dark on panel surfaces', () => {
     await injectPanelCss();
     const toast = createElement('tokenpanel-elpath-toast');
     expect(getComputedStyle(toast).colorScheme).toBe('dark');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F34: private neutral ramp resolution and host override precedence
+// ---------------------------------------------------------------------------
+
+describe('F34 — panel neutral color ramp', () => {
+  const expectedColors = {
+    bg: [24, 24, 24, 255],
+    surface: [28, 28, 28, 255],
+    'code-bg': [56, 56, 56, 255],
+    muted: [136, 136, 136, 255],
+    fg: [184, 184, 184, 255],
+    'code-fg': [224, 224, 224, 255],
+  } as const;
+
+  function paintedRgba(color: string): number[] {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1;
+    canvas.height = 1;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('2D canvas context unavailable');
+    context.fillStyle = color;
+    context.fillRect(0, 0, 1, 1);
+    return [...context.getImageData(0, 0, 1, 1).data];
+  }
+
+  it('resolves every neutral role to its exact legacy sRGB color', async () => {
+    await injectPanelCss();
+    const shell = createElement('tokenpanel-shell');
+
+    for (const [role, expected] of Object.entries(expectedColors)) {
+      const sample = createElement('tokenpanel-color-test-sample', shell);
+      sample.style.color = `var(--tokentweak-color-${role})`;
+      expect(paintedRgba(getComputedStyle(sample).color), role).toEqual(expected);
+    }
+  });
+
+  it('lets a host semantic-role assignment override the ramp alias', async () => {
+    await injectPanelCss();
+    injectStyle('.tokenpanel-shell { --tokentweak-color-muted: rgb(1 2 3); }');
+    const shell = createElement('tokenpanel-shell');
+    const sample = createElement('tokenpanel-color-test-sample', shell);
+    sample.style.color = 'var(--tokentweak-color-muted)';
+    expect(getComputedStyle(sample).color).toBe('rgb(1, 2, 3)');
   });
 });
