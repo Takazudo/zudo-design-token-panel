@@ -16,7 +16,7 @@ export interface TokenLabelProps {
  * (avoids redundant repetition for tokens whose label IS the cssVar).
  */
 function TokenLabelInner({ cssVar, label, className }: TokenLabelProps) {
-  const tooltipProps = useTooltip(cssVar);
+  const tooltipProps = useTooltip(cssVar, { anchor: 'text' });
   return (
     <span className={className ?? 'tokenpanel-row-label'} {...tooltipProps}>
       {cssVar}
