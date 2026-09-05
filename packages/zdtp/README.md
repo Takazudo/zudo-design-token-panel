@@ -414,6 +414,57 @@ Copy an example's structure when porting the panel into a new host.
 
 If you are building a **Rust SSG** or other non-Node host, the bin still runs as a sidecar Node.js subprocess (started by your host's build orchestration). The same routing JSON and host-adapter setup applies — the only difference is your host ships its own config format (not TypeScript) and you invoke the bin via your build system's subprocess spawner rather than npm scripts.
 
+#### Pre-import activation from a custom host
+
+The side-effect-free `@takazudo/zdtp/constants` subpath exposes
+`DEFAULT_STORAGE_PREFIX`, `DEFAULT_TOGGLE_EVENT`, and
+`resolveToggleEventName` without importing the panel. It also exports the
+machine-readable eager-load metadata (`EAGER_LOAD_GATE_KEY_SUFFIXES` and
+`EAGER_LOAD_GATE_STATE_FAMILY`); the exact gate contract lives in
+[`PORTABLE-CONTRACT.md`](./PORTABLE-CONTRACT.md) §6.2.
+
+A custom host can use those constants to register its toggle listener in the
+initial bundle and fetch the panel only when activated. Keep the stylesheet
+setup from §4.2 (or import `@takazudo/zdtp/styles` in your host stylesheet
+pipeline):
+
+```ts
+import type { PanelConfig } from '@takazudo/zdtp';
+import { resolveToggleEventName } from '@takazudo/zdtp/constants';
+
+// Call once with your complete config (for example myPanelConfig in §4.1.1).
+export function installLazyPanel(config: PanelConfig): void {
+  const toggleEvent = resolveToggleEventName(config);
+  let loading: Promise<void> | undefined;
+
+  function loadOnToggle(): void {
+    if (loading) return;
+    loading = import('@takazudo/zdtp')
+      .then(({ configurePanel }) => {
+        configurePanel(config);
+        window.removeEventListener(toggleEvent, loadOnToggle);
+        window.dispatchEvent(new CustomEvent(toggleEvent));
+      })
+      .catch((error: unknown) => {
+        loading = undefined;
+        console.error('Failed to load @takazudo/zdtp', error);
+      });
+  }
+
+  window.addEventListener(toggleEvent, loadOnToggle);
+}
+```
+
+The default `DEFAULT_STORAGE_PREFIX` is
+`'zudo-design-token-panel'`, and its `DEFAULT_TOGGLE_EVENT` is
+`'toggle-design-token-panel'`. `resolveToggleEventName` preserves that
+historical event even when a default-prefix config supplies `toggleEvent`; a
+non-default prefix uses its supplied `toggleEvent`, or derives
+`toggle-${storagePrefix}` when the override is omitted. The same config
+resolves the listener event and configures the loaded panel. This activation-only
+example does not implement the saved-state eager-load gate; see §6.2 of the
+contract when building a complete host adapter.
+
 ### 4.3 Recipe — Rust SSG (zfb)
 
 Worked example for the case where the host is a Rust dev server (e.g. [zfb / zudo-front-builder](https://github.com/Takazudo/zudo-front-builder)) rather than a Node-based runner. The bin itself is unchanged — it remains a Node.js subprocess invoked as `node path/to/dist/bin/server.js ...`. The Rust host's only job is to spawn that Node process, forward shutdown signals to it, and configure `--allow-origin` so the browser POST from the panel UI is accepted.
