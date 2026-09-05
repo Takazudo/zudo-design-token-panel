@@ -1834,6 +1834,7 @@
 }
 
 .tokenpanel-tab-section {
+  container: tokenpanel-section / inline-size;
   /* Fieldset-style bordered box; heading floats on the top border. */
   position: relative;
   flex-shrink: 0;
@@ -1875,14 +1876,8 @@
    keeps the rule working if the variable is ever absent. */
 .tokenpanel-tab-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(var(--tokenpanel-grid-min, 288px), 1fr));
-  gap: var(--tokentweak-gap-xs);
-}
-
-/* A changed row still has to fit when panel padding leaves less room than
- * the density's preferred column width (notably the 320px panel minimum). */
-.tokenpanel-tab-grid:where(:has(.is-changed)) {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--tokenpanel-grid-min, 288px)), 1fr));
+  gap: var(--tokentweak-gap-xs);
 }
 
 /* Type samples need the tier's full width regardless of the density setting. */
@@ -1932,7 +1927,7 @@
   display: grid;
   /* Width-based reflow for pulldown rows. 176px fallback keeps each row
      wide enough that the label + color swatch + value label are readable. */
-  grid-template-columns: repeat(auto-fit, minmax(var(--tokenpanel-grid-min, 176px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--tokenpanel-grid-min, 176px)), 1fr));
   gap: 6px;
 }
 
@@ -2273,6 +2268,26 @@
 /* ===========================================================================
  * Token rows
  * ========================================================================= */
+
+/* The grid owns the containing box, including when dense columns appear
+ * inside a wide shell. Never contain the row or its intrinsic editor. */
+.tokenpanel-card {
+  min-width: 0;
+  container: tokenpanel-card / inline-size;
+}
+
+/* Specimens have their own grid-based interior and responsive rules. Keep
+ * the regions transparent there, including at the supported panel minimum. */
+.tokenpanel-tab-grid--specimen .tokenpanel-card {
+  container-name: tokenpanel-specimen-card;
+}
+
+/* Transparent in roomy cards so the existing flex geometry is unchanged. */
+.tokenpanel-card-label,
+.tokenpanel-card-editor,
+.tokenpanel-card-actions {
+  display: contents;
+}
 
 /* Single-line token row. */
 .tokenpanel-row {
@@ -2844,6 +2859,20 @@ select.tokenpanel-tier-ref-select:focus-visible {
   display: inline-flex !important;
   align-items: center;
   gap: 6px;
+}
+
+@container tokenpanel-section (max-width: 319px) {
+  .tokenpanel-tab-section-heading--with-help {
+    position: static;
+    max-width: 100%;
+    box-sizing: border-box;
+    flex-wrap: wrap;
+    padding: 0;
+    /* Keep the help icon's existing 5px pseudo-target inside this heading. */
+    padding-inline: 5px;
+    margin: 0 0 8px;
+    overflow-wrap: anywhere;
+  }
 }
 
 /* ===========================================================================
@@ -3811,25 +3840,130 @@ html.tokenpanel-elpath-inspecting * {
   white-space: nowrap;
 }
 
-/* Column width, rather than shell width, determines the row's budget: a
- * wide panel can also contain narrow columns at the default density. */
-.tokenpanel-row--stacked:where(.is-changed),
-.is-changed .tokenpanel-row--stacked {
-  container: tokenpanel-changed-row / inline-size;
-}
-
-@container tokenpanel-changed-row (max-width: 319px) {
-  /* Keep the prefix, bulk/chain/highlight controls and revert on one line.
-   * Trim horizontal space only; the input and row retain their height. */
-  .is-changed .tokenpanel-row-head {
-    gap: 2px;
+/* One card threshold for every state and every density. A narrow track must
+ * not merely relocate grid overflow into its label, editor or hit targets. */
+@container tokenpanel-card (max-width: 319px) {
+  .tokenpanel-row,
+  .tokenpanel-row-head,
+  .tokenpanel-palette-selector {
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
-  .is-changed .tokenpanel-row-head .tokenpanel-row-number-input {
+  .tokenpanel-card-label,
+  .tokenpanel-card-editor,
+  .tokenpanel-card-actions {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .tokenpanel-card-label {
+    flex: 1 0 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .tokenpanel-card-editor {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Native selectors/text fields need a complete line. Changed rows also
+   * put their trailing revert cluster below the editor, in DOM order. */
+  .tokenpanel-card-editor:has(.tokenpanel-row-select, .tokenpanel-row-text-input, .tokenpanel-tier-ref-selector, .tokenpanel-palette-trigger),
+  .is-changed .tokenpanel-card-editor {
+    flex: 1 0 100%;
+  }
+
+  .tokenpanel-card-actions {
+    flex: 0 0 auto;
+    gap: 8px;
+    padding-inline: 4px;
+    box-sizing: border-box;
+  }
+
+  .tokenpanel-card-actions:empty {
+    display: none;
+  }
+
+  .tokenpanel-card-actions > *,
+  .tokenpanel-bulk-checkbox,
+  .tokenpanel-chain-button,
+  .tokenpanel-highlight-toggle,
+  .tokenpanel-changed-revert,
+  .tokenpanel-color-field-swatch {
+    flex-shrink: 0;
+  }
+
+  .tokenpanel-row-label,
+  .tokenpanel-row-label-sub,
+  .tokenpanel-palette-trigger-label,
+  .tokenpanel-palette-trigger-value,
+  .tokenpanel-changed-tail {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    overflow: visible;
+    text-overflow: clip;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .is-changed .tokenpanel-row-label {
+    min-width: 0;
+  }
+
+  .tokenpanel-changed-tail {
+    flex: 1 0 100%;
+  }
+
+  .tokenpanel-row-input-group {
+    flex: 0 0 auto;
+    gap: 4px;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .tokenpanel-row-number-input {
+    width: 80px;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .is-changed .tokenpanel-row-number-input {
     width: 56px;
   }
 
-  .is-changed .tokenpanel-row-head .tokenpanel-row-unit {
+  .tokenpanel-row-unit {
+    width: auto;
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .tokenpanel-row-select,
+  .tokenpanel-row-text-input,
+  .tokenpanel-tier-ref-selector,
+  select.tokenpanel-tier-ref-select {
+    flex: 1 0 100%;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .tokenpanel-palette-selector,
+  .tokenpanel-palette-trigger {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .tokenpanel-palette-trigger {
+    flex-wrap: wrap;
+  }
+
+  .tokenpanel-palette-trigger-value {
     width: auto;
   }
 }
