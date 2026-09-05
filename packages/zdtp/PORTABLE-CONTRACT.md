@@ -1339,7 +1339,9 @@ surfaces:
 
 ```css
 :where(.tokenpanel-shell, [data-design-token-panel-modal]) {
-  --tokentweak-color-fg: #b8b8b8;
+  /* base-0 is the darkest ground; stops ascend toward the foreground. */
+  --tokentweak-palette-base-5: oklch(0.8 0 0);
+  --tokentweak-color-fg: var(--tokentweak-palette-base-5);
   --tokentweak-color-accent-bar: #efb477;
   /* …every panel-chrome value lives here */
 }
@@ -1356,9 +1358,10 @@ surfaces:
   import '@takazudo/zdtp/styles'; // optional static-CSS path
   ```
 
-The concrete palette includes `--tokentweak-color-fg`, `bg`, `muted`,
-`surface`, `accent`, `accent-bar`, `accent-hover`, `code-bg`, `code-fg`,
-`success`, `danger`, and `warning`, plus `--tokentweak-font-mono`. Spacing,
+The semantic color layer includes `--tokentweak-color-fg`, `bg`, `muted`,
+`border`, `surface`, `accent`, `accent-bar`, `accent-hover`, `code-bg`,
+`code-fg`, `success`, `danger`, and `warning`, backed by the private
+`--tokentweak-palette-base-*` OKLCH ramp, plus `--tokentweak-font-mono`. Spacing,
 typography, radius, and stacking values use the same prefix (`pad-*`, `gap-*`,
 `text-*`, `--radius-tokentweak`, and `z-*`). The chrome does not read host
 `--color-*` or `--font-mono` variables; hosts that retheme it assign the
