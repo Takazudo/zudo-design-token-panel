@@ -14,7 +14,7 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   webServer: {
-    command: `pnpm --filter playground exec zfb dev --port ${playgroundPort}`,
+    command: 'pnpm --filter playground run dev:zfb',
     cwd: '../..',
     url: `http://127.0.0.1:${playgroundPort}`,
     reuseExistingServer: false,
