@@ -1,0 +1,18 @@
+# Cloudflare Workers Static Assets configuration for the minimal zdtp demo.
+# The Vite app is a prerendered static site, so it has no worker entrypoint.
+
+name = "zdtp-minimal"
+compatibility_date = "2026-09-05"
+
+# Serve production from the custom domain while retaining version preview URLs
+# for PR validation. These keys must remain above the [assets] table because
+# TOML scopes later keys to the current table.
+preview_urls = true
+workers_dev = false
+
+[assets]
+directory = "./dist"
+
+[[routes]]
+pattern = "zdtp-minimal.takazudomodular.com"
+custom_domain = true

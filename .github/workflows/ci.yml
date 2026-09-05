@@ -53,6 +53,9 @@ jobs:
       - name: Build playground deploy bundle
         run: pnpm --filter playground build:deploy
 
+      - name: Build minimal deploy bundle
+        run: pnpm --filter minimal build:deploy
+
       - name: Test
         run: pnpm test
 
