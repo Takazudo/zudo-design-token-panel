@@ -102,7 +102,7 @@ import {
 import { getPanelConfig, type PanelConfig } from '../config/panel-config';
 import { resolvePaletteCssVar } from '../config/cluster-config';
 import { resolveRefToCssVar } from '../apply/tier-resolver';
-import { structuralEqual } from './structural-equal';
+import { flatOverrideChanged, semanticMappingsEqual as canonicalSemanticMappingsEqual } from './token-diff';
 import type { TierItem } from '../tokens/tier-model';
 
 /** Minimal token-like interface extracted from TierItem for serde lookups. */
@@ -548,7 +548,7 @@ function serializeColorTab(
     const unchanged =
       !full &&
       baselineVal !== undefined &&
-      semanticMappingsEqual(cur, baselineVal, color.background, color.foreground, baseline);
+      canonicalSemanticMappingsEqual(cur, baselineVal, color, baseline);
     if (unchanged) continue;
     const external = toSemanticExternalValue(cur, color.background, color.foreground);
     semantic[cssName] = external;
@@ -590,22 +590,12 @@ export function semanticMappingsEqual(
   curFg: number,
   baseline: ColorTweakState | undefined,
 ): boolean {
-  if (isIndexMapping(cur) && isIndexMapping(baselineVal)) {
-    const resolvedBaseline = resolveIndexMapping(
-      baselineVal,
-      baseline?.background ?? 0,
-      baseline?.foreground ?? 1,
-    );
-    return resolveIndexMapping(cur, curBg, curFg) === resolvedBaseline;
-  }
-  if (isIndexMapping(cur) !== isIndexMapping(baselineVal)) return false;
-  // Both are object variants (literal / ref) — compare structurally.
-  // JSON.stringify is key-order sensitive, so a structurally identical ref
-  // built with a different property insertion order (e.g. baseline via
-  // parseSemanticExternalValue's `{tier, item, tab}` vs. a UI-produced
-  // `{tab, tier, item}`) would spuriously compare "changed" and get emitted
-  // as diff-noise (import-modal.tsx's `structuralEqual` avoids the same trap).
-  return structuralEqual(cur, baselineVal);
+  return canonicalSemanticMappingsEqual(
+    cur,
+    baselineVal,
+    { background: curBg, foreground: curFg } as ColorTweakState,
+    baseline,
+  );
 }
 
 /**
@@ -657,7 +647,7 @@ function serializeOverridesV2(
     for (const t of items) {
       if (t.readonly) continue;
       const v = overrides[t.id];
-      if (typeof v === 'string' && v.length > 0 && v !== t.default) {
+      if (flatOverrideChanged(v, t.default)) {
         raw[t.cssVar] = v;
         wrote = true;
       }

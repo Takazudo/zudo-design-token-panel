@@ -55,8 +55,8 @@
  * degraded-init paths) can pass `colorDefaults: undefined`; in that case the
  * whole color block is treated as changed.
  *
- * For non-color tokens, `TokenOverrides` is already a sparse diff (only
- * overridden tokens appear in the map) — no baseline comparison is needed.
+ * For non-color tokens, the sparse maps may retain empty or default-equal
+ * values. Those entries are omitted so Apply matches UI and diff-only export.
  *
  * Pure / no IO — safe to import anywhere (browser, Node, tests).
  */
@@ -78,7 +78,7 @@ import {
   resolveRefToCssVar,
   type TabOverrides,
 } from './tier-resolver';
-import { structuralEqual } from '../utils/structural-equal';
+import { flatOverrideChanged, semanticMappingsEqual } from '../utils/token-diff';
 
 /**
  * Produce the flat cssVar → value map for the dev-API handler.
@@ -136,7 +136,8 @@ export function buildApplyOverrides(
     // an immutable update is a fresh reference every time even when its value
     // is unchanged. `!==` would always see it as "changed" and defeat the
     // diff-only contract documented at the top of this file.
-    const changed = colorDefaults === undefined || !structuralEqual(currentMapping, baselineMapping);
+    const changed = colorDefaults === undefined || baselineMapping === undefined ||
+      !semanticMappingsEqual(currentMapping, baselineMapping, color, colorDefaults);
     if (!changed) continue;
 
     // Per-mode `{ literal: { light, dark } }` (#472). Emit a CSS
@@ -199,8 +200,8 @@ export function buildApplyOverrides(
   }
 
   // ---------- Non-color tabs: spacing / typography / size ----------
-  // `TokenOverrides` is already a sparse diff (absent = use stylesheet default)
-  // so no baseline comparison is needed — every present key is an override.
+  // Sparse maps can retain empty/default-equal edits, so emission still uses
+  // the canonical flat-token predicate.
   // The state's `typography` field maps to the panel tab with id `font`.
   const NON_COLOR_SLICES: ReadonlyArray<{ tabId: string; overrides: Record<string, string> }> = [
     { tabId: 'spacing', overrides: state.spacing },
@@ -258,7 +259,7 @@ function emitTabOverrides(
     const tierOverrides: Record<string, string> = {};
     for (const item of tier.items) {
       const v = overrides[item.id];
-      if (typeof v === 'string' && v.length > 0) {
+      if (flatOverrideChanged(v, item.default)) {
         tierOverrides[item.id] = v;
       }
     }
@@ -272,7 +273,7 @@ function emitTabOverrides(
     for (const item of tier.items) {
       if (item.readonly) continue;
       const v = overrides[item.id];
-      if (typeof v !== 'string' || v.length === 0) continue;
+      if (!flatOverrideChanged(v, item.default)) continue;
       try {
         const resolved = resolveTierItemValue(tab, tier.id, item.id, tabOverrides as TabOverrides);
         out[item.cssVar] = emitTierItemCssValue(resolved);

@@ -77,22 +77,28 @@ roles from their selected palette slots, and semantic items via
 payload intentionally contains palette and semantic CSS variables only; base
 roles are runtime wiring and are not emitted by `buildApplyOverrides`.
 
-## Export schema (v2)
+## Export schema (v2 and v3)
 
 The panel exports and imports overrides as a JSON envelope with a `$schema` field for version identification:
 
 ```json
 {
   "$schema": "zudo-design-tokens/v2",
-  "--myapp-spacing-md": "1.5rem",
-  "--myapp-easing-ease-in": "cubic-bezier(0.42, 0, 1, 1)"
+  "exportedAt": "2026-01-01T00:00:00.000Z",
+  "tabs": {
+    "spacing": {
+      "raw": {
+        "--myapp-spacing-md": "1.5rem"
+      }
+    }
+  }
 }
 ```
 
-The top-level keys (after `$schema`) are the CSS custom property names of every active override. The values are CSS strings. On import, the panel validates the `$schema` field against the canonical `SCHEMA_V1` / `SCHEMA_V2` / `SCHEMA_V3` constants — NOT against `PanelConfig.schemaId`, which is a display-only label the serde never reads (see [`configurePanel` reference](./configure-panel.mdx#panelconfig-interface)). A `$schema` value that matches none of the three canonical constants is rejected with a `schema-mismatch` error.
+Overrides are grouped under `tabs`, then by tier (`raw`, `palette`, or `semantic`), with CSS custom properties as leaf keys. Generic reference-tier overrides retain their selected item id in this portable state format; the Apply emitter resolves that id to `var(--targetCssVar)` when producing CSS. Semantic color object mappings require v3. On import, the panel validates `$schema` against the canonical `SCHEMA_V1` / `SCHEMA_V2` / `SCHEMA_V3` constants — NOT against `PanelConfig.schemaId`, which is a display-only label the serde never reads (see [`configurePanel` reference](./configure-panel.mdx#panelconfig-interface)). A value matching none of the canonical constants is rejected with a `schema-mismatch` error.
 
-<Note title="Flat cssVar-keyed shape">
-The v2 export format is a flat map of cssVar → CSS string. Reference-tier items are expanded to their emitted `var(...)` value at export time — the exported file contains only the CSS values the user would see at the active CSS target, not the intermediate item ids.
+<Note title="Diff-only export">
+By default, export contains only changed flat-tab tokens and primary-color tokens. The current schema does not export the secondary color cluster.
 </Note>
 
 ## Apply-to-disk
@@ -102,6 +108,16 @@ The v2 export format is a flat map of cssVar → CSS string. Reference-tier item
 When `PanelConfig.applyEndpoint` is set together with a non-empty
 `applyRouting` map, the Apply button is eligible. Clicking it POSTs the active
 override diff to this URL.
+
+The UI, diff-only export, and Apply use one definition of changed: the token's
+emitted CSS value differs from its baseline's emitted value. Empty flat
+overrides and values equal to the manifest default are omitted. Semantic role
+aliases compare by the palette slot they currently resolve to; literal and
+reference mappings compare structurally. A persisted default-equal override
+can resurface if a future manifest changes that default. To write today's
+default into a hand-edited file, edit that file directly or choose a different
+value first. Apply also diffs the secondary color cluster against its own
+configured defaults, while export remains scoped to the primary cluster.
 
 When `applyEndpoint` is `undefined` (or `applyRouting` is empty), the Apply
 button stays disabled with a tooltip — hosts that use export/import only can
