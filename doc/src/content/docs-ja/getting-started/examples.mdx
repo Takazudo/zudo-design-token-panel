@@ -3,35 +3,44 @@ title: サンプル
 sidebar_position: 90
 ---
 
-5 つの代表的なスタックで `zudo-design-token-panel` を組み込むためのリファレンス実装です。各サンプルでは、ホストが提供する `tabs: TabConfig[]` 配列にパネルを接続し、変更をソースへ反映するための bin サーバーも併用しています。すべてのサンプルに、デモ固有のトークン名前空間を使って Markdown 由来の HTML 要素を一通り確認できる `/prose` ページがあります。
+まずは、以下の公式デモで `zudo-design-token-panel` を試してみてください。どちらも、このリポジトリにある現行ビルドで動作するため、公開済みのリリースより先の機能を含む場合があります。実際に動作しているバージョンは各ページに表示されます。ソースへの書き戻しにはローカル開発用のサイドカーが必要なため、公開サイトでは Apply を無効にしています。
 
-## 試す
+## 公式デモ
 
-- **Astro** —
+- **[最小構成](https://zdtp-minimal.takazudomodular.com/)** — HTML、エントリーモジュール、トークンのスタイルシート、`PanelConfig` を 1 ファイルずつ用意した、動作に必要な最小限の構成です。**初めて試す場合はこちらから始めてください。**
+  [`examples/minimal/` のソースを見る](https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples/minimal/)
+- **[フルプレイグラウンド](https://zdtp-playground.takazudomodular.com/)** — すべてのコントロール種別と prose ページをまとめて確認できます。[`?manifest=zudo-doc`](https://zdtp-playground.takazudomodular.com/?manifest=zudo-doc) では、実際の zudo-doc から取り込んだ `PanelConfig` が動作します。
+  [`playground/` のソースを見る](https://github.com/Takazudo/zudo-design-token-panel/tree/main/playground/)
+
+## フレームワーク別の組み込み例
+
+以下のサンプルは現在の機能セットより前に作られたもので、各スタックへ組み込む際の配線を確認するためのリファレンスとして残しています。ホストが提供する `tabs: TabConfig[]` 配列への接続と、変更をソースへ反映する bin サーバーの併用方法を示しています。また、各デモには、そのデモ固有のトークン名前空間で Markdown 由来の HTML 要素を一通り確認できる `/prose` ページがあります。
+
+- **Astro** — `@takazudo/zdtp` `0.2.0-next.2` を使用しています。
   [ライブデモ](https://zudo-design-token-panel-example-astro.pages.dev/)
   · [GitHub ソース](https://github.com/Takazudo/zudo-design-token-panel-example-astro)
   — Astro サイトへパネルを組み込みます。Astro 開発サーバーでのホスト設定と bin の apply パイプラインを示します。
   [Prose ページ](https://zudo-design-token-panel-example-astro.pages.dev/prose/)
   では、`--astro-*` トークン名前空間に対してすべての prose 要素を確認できます。
-- **Vite + React** —
+- **Vite + React** — `@takazudo/zdtp` `0.2.2` を使用しています。
   [ライブデモ](https://zudo-design-token-panel-example-vite-react.pages.dev/)
   · [GitHub ソース](https://github.com/Takazudo/zudo-design-token-panel-example-vite-react)
   — Vite + React アプリからパネルを使います。compat shim により Preact ランタイムと React が共存する構成を示します。
   [Prose ページ](https://zudo-design-token-panel-example-vite-react.pages.dev/prose)
   では、`--vr-*` トークン名前空間に対してすべての prose 要素を確認できます。
-- **Next.js** —
+- **Next.js** — `@takazudo/zdtp` `0.2.2` を使用しています。
   [ライブデモ](https://zudo-design-token-panel-example-nextjs.pages.dev/)
   · [GitHub ソース](https://github.com/Takazudo/zudo-design-token-panel-example-nextjs)
   — Next.js App Router プロジェクトへパネルを組み込み、Next 開発サーバーと bin サーバーを並行実行します。
   [Prose ページ](https://zudo-design-token-panel-example-nextjs.pages.dev/prose/)
   では、`--nx-*` トークン名前空間に対してすべての prose 要素を確認できます。
-- **zfb** —
+- **zfb** — `@takazudo/zdtp` `0.2.2` を使用しています。
   [ライブデモ](https://zudo-design-token-panel-example-zfb.pages.dev/)
   · [GitHub ソース](https://github.com/Takazudo/zudo-design-token-panel-example-zfb)
   — [zfb](https://github.com/Takazudo/zudo-front-builder) プロジェクトへパネルを組み込みます。Vite 組み込みのプロキシ機構ではなく、`devMiddleware` プラグインフックを apply プロキシに使います。apply エンドポイント URL には base プレフィックス全体が必要です。経緯は [`PROBE-REPORT.md`](https://github.com/Takazudo/zudo-design-token-panel-example-zfb/blob/main/PROBE-REPORT.md) を参照してください。
   [Prose ページ](https://zudo-design-token-panel-example-zfb.pages.dev/prose/)
   では、`--zfb-*` トークン名前空間に対してすべての prose 要素を確認できます。
-- **zfb + Tailwind v4** —
+- **zfb + Tailwind v4** — `@takazudo/zdtp` `0.2.2` を使用しています。
   [ライブデモ](https://zudo-design-token-panel-example-zfb-tailwind.pages.dev/)
   · [GitHub ソース](https://github.com/Takazudo/zudo-design-token-panel-example-zfb-tailwind)
   — zfb サンプルを Tailwind v4 対応に拡張します。`@theme` ブロックで Tailwind のデザインシステム名前空間にトークンを登録するため、`text-body` や `p-hsp-md` のようなユーティリティクラスがビルド時にパネルのカスタムプロパティへ解決されます。
