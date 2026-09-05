@@ -18,6 +18,9 @@
  *     compact menu so the tab strip retains usable width.
  *   - 320px and 440px right docks: both chrome rows remain contained while
  *     the resize grip and compact popover remain functional.
+ *   - 320px and 440px right docks: a long real token label stays anchored to
+ *     its visible text while the tab strip overflows and the private chrome
+ *     color roles paint the shell, overflow trigger, and tooltip together.
  *   - Tabs strip: `.has-overflow` (right-edge fade hint) appears only while
  *     the strip actually has scrollable overflow, and clears once scrolled
  *     to the end.
@@ -94,6 +97,34 @@ const MANY_TABS: readonly TabConfig[] = Array.from({ length: 12 }, (_, i) => ({
 
 const CFG = FIXTURE_PANEL_CONFIG;
 
+const CONFIRMATION_TOKEN = '--confirm-panel-token-with-a-long-visible-name';
+
+/**
+ * Real-panel fixture for the combined narrow-dock interaction. The first
+ * spacing row is deliberately long enough to truncate at both dock widths;
+ * the extra tabs keep the category strip in its overflow state at either
+ * width so the tooltip and chrome colors are exercised in the same layout.
+ */
+const COMBINED_CFG: typeof FIXTURE_PANEL_CONFIG = {
+  ...CFG,
+  storagePrefix: 'zudo-design-token-panel-confirmation',
+  tabs: [
+    {
+      ...CFG.tabs[0]!,
+      tiers: CFG.tabs[0]!.tiers.map((tier, tierIndex) => tierIndex === 0
+        ? {
+            ...tier,
+            items: tier.items.map((item, itemIndex) => itemIndex === 0
+              ? { ...item, cssVar: CONFIRMATION_TOKEN, label: CONFIRMATION_TOKEN }
+              : item),
+          }
+        : tier),
+    },
+    ...CFG.tabs.slice(1),
+    ...MANY_TABS,
+  ],
+};
+
 // Kept near the top-left so the shell (any of the widths under test) stays
 // fully on-screen in a headless Chromium viewport.
 const SEED_POSITION = { top: 20, left: 20 };
@@ -118,11 +149,14 @@ async function mountPanelAtWidth(
   await flushEffects();
 }
 
-async function mountPanelDockedRight(width: number): Promise<void> {
-  localStorage.setItem(getOpenKey(CFG), '1');
-  localStorage.setItem(getDockKey(CFG), 'right');
+async function mountPanelDockedRight(
+  width: number,
+  cfg: typeof FIXTURE_PANEL_CONFIG = CFG,
+): Promise<void> {
+  localStorage.setItem(getOpenKey(cfg), '1');
+  localStorage.setItem(getDockKey(cfg), 'right');
   localStorage.setItem(
-    getDockSizeKey(CFG),
+    getDockSizeKey(cfg),
     JSON.stringify({ right: width, bottom: 340 }),
   );
 
@@ -130,9 +164,32 @@ async function mountPanelDockedRight(width: number): Promise<void> {
   document.body.appendChild(container);
 
   act(() => {
-    render(<DesignTokenTweakPanel instanceConfig={CFG} />, container);
+    render(<DesignTokenTweakPanel instanceConfig={cfg} />, container);
   });
   await flushEffects();
+}
+
+function getVisibleTextExtent(label: HTMLElement): {
+  left: number;
+  right: number;
+  rawRight: number;
+} {
+  const textNode = Array.from(label.childNodes).find(
+    (node): node is Text => node.nodeType === 3,
+  );
+  if (!textNode) throw new Error('TokenLabel text node not found');
+
+  const range = document.createRange();
+  range.selectNodeContents(textNode);
+  const textRect = range.getBoundingClientRect();
+  const labelRect = label.getBoundingClientRect();
+  const clientLeft = labelRect.left + label.clientLeft;
+  const clientRight = clientLeft + label.clientWidth;
+  return {
+    left: Math.max(textRect.left, clientLeft),
+    right: Math.min(textRect.right, clientRight),
+    rawRight: textRect.right,
+  };
 }
 
 function getShell(): HTMLElement {
@@ -350,6 +407,11 @@ describe('very narrow panel (<380px container width)', () => {
 
     getKebabTrigger().click();
     await flushEffects();
+    const compactDensityLabel = getPopover()?.querySelector<HTMLElement>(
+      '.tokenpanel-density.is-compact .tokenpanel-density-label',
+    );
+    expect(compactDensityLabel).not.toBeNull();
+    expect(getComputedStyle(compactDensityLabel!).display).not.toBe('none');
     expect(
       getPopover()?.querySelector<HTMLInputElement>('.tokenpanel-density-slider'),
     ).not.toBeNull();
@@ -457,6 +519,73 @@ describe('440px right-docked panel', () => {
     if (!strip) throw new Error('.tokenpanel-tabbar-tabs not found');
     expect(strip.clientWidth).toBeGreaterThanOrEqual(160);
   });
+});
+
+describe('right-docked panel integration (overflow, tooltip, and chrome colors)', () => {
+  for (const width of [320, 440]) {
+    it(`keeps the real token tooltip anchored through overflow at ${width}px`, async () => {
+      await mountPanelDockedRight(width, COMBINED_CFG);
+
+      const shell = getShell();
+      const strip = container.querySelector<HTMLElement>('.tokenpanel-tabbar-tabs');
+      if (!strip) throw new Error('.tokenpanel-tabbar-tabs not found');
+      expect(strip.scrollWidth).toBeGreaterThan(strip.clientWidth);
+      expect(strip.classList.contains('has-overflow')).toBe(true);
+
+      const overflowTrigger = container.querySelector<HTMLElement>(
+        '.tokenpanel-tab-overflow-trigger',
+      );
+      expect(overflowTrigger).not.toBeNull();
+
+      const label = Array.from(
+        container.querySelectorAll<HTMLElement>('.tokenpanel-row-label'),
+      ).find((element) => element.textContent === CONFIRMATION_TOKEN);
+      if (!label) throw new Error('confirmation token label not found');
+
+      const labelRect = label.getBoundingClientRect();
+      const textExtent = getVisibleTextExtent(label);
+      expect(textExtent.rawRight).toBeGreaterThan(labelRect.left + label.clientWidth);
+      expect(textExtent.right).toBeGreaterThan(textExtent.left);
+
+      act(() => {
+        label.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+      });
+      await flushEffects();
+
+      const tooltip = document.querySelector<HTMLElement>(
+        '.tokenpanel-tooltip[data-show="true"]',
+      );
+      if (!tooltip) throw new Error('visible token tooltip not found');
+      expect(tooltip.textContent).toBe(CONFIRMATION_TOKEN);
+      const tooltipRect = tooltip.getBoundingClientRect();
+      const textCenter = (textExtent.left + textExtent.right) / 2;
+      const tooltipCenter = (tooltipRect.left + tooltipRect.right) / 2;
+      expect(tooltipRect.left).toBeLessThan(textExtent.right);
+      expect(tooltipRect.right).toBeGreaterThan(textExtent.left);
+      expect(Math.abs(tooltipCenter - textCenter)).toBeLessThanOrEqual(24);
+
+      const shellStyle = getComputedStyle(shell);
+      const surface = shellStyle.getPropertyValue('--tokentweak-color-surface').trim();
+      const border = shellStyle.getPropertyValue('--tokentweak-color-border').trim();
+      expect(surface).not.toBe('');
+      expect(border).not.toBe('');
+      expect(surface).not.toBe(border);
+      expect(shellStyle.backgroundColor).toBe(surface);
+      expect(shellStyle.borderLeftColor).toBe(border);
+
+      const overflowStyle = getComputedStyle(overflowTrigger!);
+      expect(overflowStyle.borderLeftColor).toBe(border);
+      expect(overflowStyle.color).toBe(
+        shellStyle.getPropertyValue('--tokentweak-color-muted').trim(),
+      );
+
+      const tooltipStyle = getComputedStyle(tooltip);
+      expect(tooltipStyle.backgroundColor).toBe(
+        tooltipStyle.getPropertyValue('--tokentweak-color-surface').trim(),
+      );
+      expect(tooltipStyle.backgroundColor).toBe(surface);
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------

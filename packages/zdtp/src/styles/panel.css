@@ -1211,6 +1211,11 @@
   .tokenpanel-density-label {
     display: none;
   }
+  /* The compact-menu copy needs its label to remain understandable even
+   * though the inline tabbar copy drops the label at this width. */
+  .tokenpanel-density.is-compact .tokenpanel-density-label {
+    display: inline;
+  }
 }
 @container tokenpanel (max-width: 299px) {
   .tokenpanel-density-slider {

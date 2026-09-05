@@ -118,7 +118,7 @@ export function ShellTabBar({
       observer.disconnect();
       element.removeEventListener('scroll', updateOverflow);
     };
-  }, [activeTab, changedCounts, open, tabRefs, tabs]);
+  }, [activeTab, open, tabRefs, tabs]);
 
   useEffect(() => {
     if (!hasTotalOverflow) return;
