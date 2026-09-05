@@ -217,6 +217,18 @@ describe('HighlightToggleButton — active', () => {
     const btn = container.querySelector('.tokenpanel-highlight-toggle') as HTMLElement;
     expect(btn.title).toBe('Stop highlighting --my-token (7 elements)');
   });
+
+  it('uses singular wording for one matched element', () => {
+    const state = makeState({ active: { '--my-token': 0 } });
+    const toggle = vi.fn();
+    renderWithCtx(
+      '--my-token',
+      makeCtx(state, toggle, { matchCounts: { '--my-token': 1 } }),
+    );
+
+    const btn = container.querySelector('.tokenpanel-highlight-toggle') as HTMLElement;
+    expect(btn.title).toBe('Stop highlighting --my-token (1 element)');
+  });
 });
 
 // ---------------------------------------------------------------------------
