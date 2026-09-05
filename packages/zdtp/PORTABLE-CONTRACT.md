@@ -293,6 +293,13 @@ derives the keys at runtime from this single base.
 | `highlight-outline-width` | `${storagePrefix}-highlight-outline-width` | highlight-state | Global highlight outline width in local storage, clamped to 1–20.                              |
 | `highlight-active` | `${storagePrefix}-highlight-active` | highlight-state | Active CSS-variable-to-slot map in session storage.                                                                                                        |
 
+This is the current storage-key inventory, not a release-history table. The
+published 0.4.14 bundle already wrote `${storagePrefix}-position`,
+`${storagePrefix}-size`, `${storagePrefix}-density`, and all three
+`${storagePrefix}-highlight-*` keys. Their appearance in the 0.4.15 contract
+documentation records existing storage continuity; it does not make those keys
+new in 0.4.15.
+
 **Constraint — colon, not dash, for `visible` and `autoload`.** Both adapter-
 level flags use a `:` separator; every other derived key uses `-`. The colon
 form is a historical artifact for `visible`, preserved for storage-key
@@ -1094,8 +1101,17 @@ This is the reason the JSON-serializable constraint in §4.2 is non-negotiable.
 
 ### 6.2 Lazy-load gate
 
-The host adapter fires one eager `loadPanelModule()` call when any of the
-following signals is present in `localStorage` at page load:
+The machine-readable metadata for these signals is exported from the
+side-effect-free `@takazudo/zdtp/constants` subpath. Use
+`EAGER_LOAD_GATE_KEY_SUFFIXES` for the five fixed suffix descriptors
+(`:visible`, `-open`, `:autoload`, `-elpath-enabled`, and
+`-domtweaker-enabled`), and `EAGER_LOAD_GATE_STATE_FAMILY` for the versioned
+`-state` family. These exports are the source of truth for consumers that
+mirror the gate. Each fixed descriptor supplies `acceptedValues` and
+`requiredConfig`; presence alone is insufficient, and a named required config
+property must be defined. The prose below explains the runtime meaning. The host adapter fires one eager
+`loadPanelModule()` call when any of these signals activates in `localStorage`
+at page load:
 
 ```ts
 if (
@@ -1126,6 +1142,14 @@ if (
   hand or by another tool.) Overrides MUST be re-applied to the configured
   sink (or default `:root`) even when the panel stays hidden, otherwise
   hard-nav produces a FOUT.
+
+  `EAGER_LOAD_GATE_STATE_FAMILY.matchesKey(storagePrefix, key)` only recognizes
+  the exact `${storagePrefix}-state` / `${storagePrefix}-state-vN` key shape. It
+  does not read storage or perform the content check. The consumer must apply
+  the accompanying `valueRules`: raw empty strings, JSON `null`, and empty
+  objects/arrays do not activate; non-empty collections, every other parsed
+  primitive (including `false`, `0`, and JSON `""`), and malformed JSON do
+  activate.
 - `shouldAutoload()` — reads `${storagePrefix}:autoload` (colon-form, §2).
   Returns `true` when the flag is `'1'` (explicit, written by `enableAutoload()`)
   OR `'auto'` (auto-remembered, written by opening the panel — see "Auto-remember

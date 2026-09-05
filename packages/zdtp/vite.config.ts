@@ -1,4 +1,71 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
+import { fileURLToPath } from 'node:url';
+
+const constantsSource = fileURLToPath(new URL('./src/constants.ts', import.meta.url));
+
+function normalizeModuleId(id: string): string {
+  return id.split('?')[0];
+}
+
+/**
+ * Keep the public constants entry a true leaf. Rollup's `chunk.modules` is
+ * the source-of-truth here: checking output filenames alone would miss panel
+ * code moved into a shared chunk with an unrelated name.
+ */
+function assertConstantsEntryIsolation(): Plugin {
+  return {
+    name: 'zdtp-constants-entry-isolation',
+    apply: 'build' as const,
+    moduleParsed(moduleInfo: { id: string; importedIds: readonly string[] }) {
+      if (
+        normalizeModuleId(moduleInfo.id) === constantsSource &&
+        moduleInfo.importedIds.length > 0
+      ) {
+        this.error(
+          `src/constants.ts must remain import-free; found: ${moduleInfo.importedIds.join(', ')}`,
+        );
+      }
+    },
+    generateBundle(_options, bundle) {
+      const chunks = Object.values(bundle).filter(
+        (output): output is Extract<(typeof bundle)[string], { type: 'chunk' }> =>
+          output.type === 'chunk',
+      );
+      const entry = chunks.find((chunk) => chunk.isEntry && chunk.name === 'constants');
+      if (!entry) {
+        this.error('Could not find the constants entry chunk during the package build.');
+        return;
+      }
+
+      const byFileName = new Map(chunks.map((chunk) => [chunk.fileName, chunk]));
+      const reachableModules = new Set<string>();
+      const visitedChunks = new Set<string>();
+      const pending = [entry];
+      while (pending.length > 0) {
+        const chunk = pending.pop();
+        if (!chunk || visitedChunks.has(chunk.fileName)) continue;
+        visitedChunks.add(chunk.fileName);
+        for (const moduleId of Object.keys(chunk.modules)) {
+          reachableModules.add(normalizeModuleId(moduleId));
+        }
+        for (const importedFile of [...chunk.imports, ...chunk.dynamicImports]) {
+          const importedChunk = byFileName.get(importedFile);
+          if (importedChunk) pending.push(importedChunk);
+        }
+      }
+
+      const unexpectedModules = [...reachableModules].filter(
+        (moduleId) => moduleId !== constantsSource,
+      );
+      if (unexpectedModules.length > 0) {
+        this.error(
+          'The ./constants entry must contain only src/constants.ts; reachable source modules:\n' +
+            unexpectedModules.map((moduleId) => `- ${moduleId}`).join('\n'),
+        );
+      }
+    },
+  };
+}
 
 /**
  * Vite config for `@takazudo/zdtp`.
@@ -35,6 +102,7 @@ import { defineConfig } from 'vite';
  *    explicitly here.
  */
 export default defineConfig({
+  plugins: [assertConstantsEntryIsolation()],
   resolve: {
     alias: {
       react: 'preact/compat',
@@ -68,6 +136,10 @@ export default defineConfig({
         // storage-key continuity tests (configurePanel, storageKey_*, etc.)
         // without exposing the full internal source tree.
         testing: 'src/testing.ts',
+        // Leaf constants entry. This must stay independent from the panel
+        // runtime so consumers can use storage/event contracts without
+        // pulling in Preact, panel config, or CSS.
+        constants: 'src/constants.ts',
       },
       formats: ['es'],
       // Explicit cssFileName so the exports map contract ("./styles": "./dist/zdtp.css")
