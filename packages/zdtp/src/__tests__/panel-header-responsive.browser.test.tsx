@@ -50,6 +50,7 @@ import { FIXTURE_PANEL_CONFIG, flushEffects } from './_test-helpers';
 import type { TabConfig } from '../tokens/tier-model';
 import { zudoDocConfigs } from '../../../../playground/config/zudo-doc-manifest.generated';
 import { SCHEMA_V2 } from '../utils/design-token-serde';
+import { DOM_TWEAKER_PORTAL_MOUNT_ID } from '../highlight/find-elements';
 
 // ---------------------------------------------------------------------------
 // Panel CSS — injected as a real <style> tag so `@container` rules and the
@@ -313,8 +314,12 @@ function expectHeaderContainment(): void {
     if (target.getAttribute('aria-disabled') !== 'true') {
       for (const [x, y] of [
         [rect.left + rect.width / 2, rect.top + rect.height / 2],
-        [rect.left + 1, rect.top + 1],
-        [rect.right - 1, rect.bottom - 1],
+        // Probe every edge inside the painted box. Rounded corners (history
+        // uses a 4px radius) intentionally do not own their clipped corners.
+        [rect.left + 1, rect.top + rect.height / 2],
+        [rect.right - 1, rect.top + rect.height / 2],
+        [rect.left + rect.width / 2, rect.top + 1],
+        [rect.left + rect.width / 2, rect.bottom - 1],
       ]) {
         const hit = document.elementFromPoint(x!, y!);
         expect(hit === target || (hit !== null && target.contains(hit)), `${target.className} hit`).toBe(true);
@@ -359,7 +364,12 @@ describe('locked yielded-header geometry with the full vendored manifest', () =>
         await flushEffects();
         expect(toggle.getAttribute('aria-pressed')).toBe('false');
         await page.elementLocator(diffActions[0]!).click();
-        await expect.poll(() => container.querySelector('[data-design-token-panel-modal-variant="dom-tweaker-diff"]')).not.toBeNull();
+        // The lazy orchestrator portals this dialog into document.body,
+        // outside the panel mount. Wait for both lazy mount and showModal().
+        await expect.poll(() => document.querySelector<HTMLDialogElement>(
+          `#${DOM_TWEAKER_PORTAL_MOUNT_ID} [data-design-token-panel-modal-variant="dom-tweaker-diff"]`,
+        )?.open, { timeout: 5000 }).toBe(true);
+        expect(requiredElement(document, `#${DOM_TWEAKER_PORTAL_MOUNT_ID} [aria-label="DOM Tweaker session diff"]`)).toBeInstanceOf(HTMLTextAreaElement);
         expect(getPopover()).toBeNull();
       }
     });
@@ -382,8 +392,7 @@ describe('locked yielded-header geometry with the full vendored manifest', () =>
     expect(getPopover()).toBeNull();
     const dialog = requiredElement(container, '[data-design-token-panel-modal-variant="import"]') as HTMLDialogElement;
     const input = requiredElement(dialog, 'textarea') as HTMLTextAreaElement;
-    input.value = JSON.stringify({ $schema: SCHEMA_V2, tabs: { spacing: { raw: { '--zd-spacing-hgap-md': '53px' } } } });
-    input.dispatchEvent(new Event('change', { bubbles: true }));
+    await page.elementLocator(input).fill(JSON.stringify({ $schema: SCHEMA_V2, tabs: { spacing: { raw: { '--zd-spacing-hgap-md': '53px' } } } }));
     await flushEffects();
     const load = [...dialog.querySelectorAll<HTMLElement>('[role="button"]')].find((element) => element.textContent === 'Load');
     expect(load).toBeDefined();
