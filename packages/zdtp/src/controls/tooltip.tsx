@@ -29,10 +29,13 @@ import { isDocumentUsable } from '../utils/document-liveness';
 /**
  * Opt-in tooltip presentation variant. `'help'` applies the wrapped,
  * bounded-width `.tokenpanel-tooltip--help` class (see panel.css) instead of
- * the default single-line `nowrap` tooltip — used by `controls/help-icon.tsx`
+ * the default token tooltip — used by `controls/help-icon.tsx`
  * for the multi-sentence Literal / Per-mode explainer tips.
  */
 export type TooltipVariant = 'help';
+
+/** Opt-in horizontal anchor for triggers whose box is wider than its text. */
+export type TooltipAnchor = 'text';
 
 interface TooltipState {
   visible: boolean;
@@ -40,10 +43,16 @@ interface TooltipState {
   /** The element that is currently triggering the tooltip. */
   triggerEl: HTMLElement | null;
   variant?: TooltipVariant;
+  anchor?: TooltipAnchor;
 }
 
 interface TooltipContextValue {
-  show: (el: HTMLElement, text: string, variant?: TooltipVariant) => void;
+  show: (
+    el: HTMLElement,
+    text: string,
+    variant?: TooltipVariant,
+    anchor?: TooltipAnchor,
+  ) => void;
   hide: (el: HTMLElement) => void;
 }
 
@@ -59,6 +68,39 @@ const TooltipContext = createContext<TooltipContextValue | null>(null);
 
 interface TooltipElementProps {
   state: TooltipState;
+}
+
+/**
+ * Return the visible horizontal part of a trigger's first text node.
+ *
+ * A Range measures the text's full layout extent, including characters hidden
+ * by text-overflow. Intersecting it with the trigger's client box gives the
+ * displayed text area for both truncated and untruncated labels. The
+ * intersection is intentionally horizontal only; the trigger's border box
+ * still controls vertical placement and flipping.
+ */
+function getTextAnchorRect(
+  trigger: HTMLElement,
+  triggerRect: DOMRect,
+): { left: number; right: number } | null {
+  const textNode = Array.from(trigger.childNodes).find(
+    (node): node is Text => node.nodeType === 3,
+  );
+  if (!textNode) return null;
+
+  const range = document.createRange();
+  range.selectNodeContents(textNode);
+  if (typeof range.getBoundingClientRect !== 'function') return null;
+  const textRect = range.getBoundingClientRect();
+  if (textRect.width <= 0 || textRect.height <= 0) return null;
+
+  const clientLeft = triggerRect.left + trigger.clientLeft;
+  const clientRight = clientLeft + trigger.clientWidth;
+  const left = Math.max(textRect.left, clientLeft);
+  const right = Math.min(textRect.right, clientRight);
+  if (right <= left) return null;
+
+  return { left, right };
 }
 
 /**
@@ -80,10 +122,18 @@ function TooltipElement({ state }: TooltipElementProps) {
     const th = tip.offsetHeight;
     const gap = 6;
     const pad = 6;
-    let left = r.left + r.width / 2 - tw / 2;
+    const textAnchor = state.anchor === 'text' ? getTextAnchorRect(trigger, r) : null;
+    const anchorLeft = textAnchor?.left ?? r.left;
+    const anchorRight = textAnchor?.right ?? r.left + r.width;
+    let left = (anchorLeft + anchorRight) / 2 - tw / 2;
     left = Math.max(pad, Math.min(left, window.innerWidth - tw - pad));
     let top = r.top - th - gap; // prefer above
     if (top < pad) top = r.bottom + gap; // flip below
+    // The below branch can itself run past the viewport (for example when a
+    // trigger is near the bottom edge), so apply the same vertical clamp after
+    // choosing the preferred side. `th` is read above after CSS wrapping has
+    // determined the tooltip's actual height.
+    top = Math.max(pad, Math.min(top, window.innerHeight - th - pad));
     tip.style.left = `${left}px`;
     tip.style.top = `${top}px`;
   });
@@ -128,10 +178,13 @@ export function TooltipProvider({ children }: TooltipProviderProps) {
 
   const currentTriggerRef = useRef<HTMLElement | null>(null);
 
-  const show = useCallback((el: HTMLElement, text: string, variant?: TooltipVariant) => {
-    currentTriggerRef.current = el;
-    setTooltipState({ visible: true, text, triggerEl: el, variant });
-  }, []);
+  const show = useCallback(
+    (el: HTMLElement, text: string, variant?: TooltipVariant, anchor?: TooltipAnchor) => {
+      currentTriggerRef.current = el;
+      setTooltipState({ visible: true, text, triggerEl: el, variant, anchor });
+    },
+    [],
+  );
 
   const hide = useCallback((el: HTMLElement) => {
     // Only hide if this is the element that triggered us (prevents race conditions).
@@ -240,16 +293,18 @@ export function TooltipProvider({ children }: TooltipProviderProps) {
 // ---------------------------------------------------------------------------
 
 export interface UseTooltipOptions {
-  /** Opt into a presentation variant — see `TooltipVariant` above. Omit for
-   *  the default single-line `nowrap` tooltip. */
+  /** Opt into a presentation variant — see `TooltipVariant` above. */
   variant?: TooltipVariant;
+  /** Opt into horizontal centering over the trigger's displayed text area. */
+  anchor?: TooltipAnchor;
 }
 
 /**
  * Returns event handler props to spread onto the tooltip trigger element.
  *
  * @param text - The full text to show in the tooltip.
- * @param opts - Optional presentation variant (see `UseTooltipOptions`).
+ * @param opts - Optional presentation variant and horizontal anchor (see
+ *               `UseTooltipOptions`).
  * @returns An object of `onMouseEnter`, `onMouseLeave`, `onFocusIn`, `onFocusOut`
  *          handlers to spread onto the trigger element, plus imperative
  *          `show`/`hide` escape hatches for callers that need to
@@ -269,13 +324,14 @@ export function useTooltip(
 } {
   const ctx = useContext(TooltipContext);
   const variant = opts?.variant;
+  const anchor = opts?.anchor;
 
   const onMouseEnter: JSX.MouseEventHandler<HTMLElement> = useCallback(
     (e) => {
       if (!ctx) return;
-      ctx.show(e.currentTarget as HTMLElement, text, variant);
+      ctx.show(e.currentTarget as HTMLElement, text, variant, anchor);
     },
-    [ctx, text, variant],
+    [ctx, text, variant, anchor],
   );
 
   const onMouseLeave: JSX.MouseEventHandler<HTMLElement> = useCallback(
@@ -289,9 +345,9 @@ export function useTooltip(
   const onFocusIn: JSX.FocusEventHandler<HTMLElement> = useCallback(
     (e) => {
       if (!ctx) return;
-      ctx.show(e.currentTarget as HTMLElement, text, variant);
+      ctx.show(e.currentTarget as HTMLElement, text, variant, anchor);
     },
-    [ctx, text, variant],
+    [ctx, text, variant, anchor],
   );
 
   const onFocusOut: JSX.FocusEventHandler<HTMLElement> = useCallback(
@@ -305,9 +361,9 @@ export function useTooltip(
   const show = useCallback(
     (el: HTMLElement) => {
       if (!ctx) return;
-      ctx.show(el, text, variant);
+      ctx.show(el, text, variant, anchor);
     },
-    [ctx, text, variant],
+    [ctx, text, variant, anchor],
   );
 
   const hide = useCallback(
