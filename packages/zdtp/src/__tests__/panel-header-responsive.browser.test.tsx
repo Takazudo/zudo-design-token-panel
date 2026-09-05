@@ -18,9 +18,10 @@
  *     compact menu so the tab strip retains usable width.
  *   - 320px and 440px right docks: both chrome rows remain contained while
  *     the resize grip and compact popover remain functional.
- *   - 320px and 440px right docks: a long real token label stays anchored to
- *     its visible text while the tab strip overflows and the private chrome
- *     color roles paint the shell, overflow trigger, and tooltip together.
+ *   - 320px and 440px right docks: a long real token label stays fully visible
+ *     in compact cards (and remains truncatable/tooltip-anchored in roomy
+ *     cards) while the tab strip overflows and the private chrome color roles
+ *     paint the shell, overflow trigger, and tooltip together.
  *   - Tabs strip: `.has-overflow` (right-edge fade hint) appears only while
  *     the strip actually has scrollable overflow, and clears once scrolled
  *     to the end.
@@ -105,9 +106,10 @@ const CONFIRMATION_TOKEN = '--confirm-panel-token-with-a-long-visible-name';
 
 /**
  * Real-panel fixture for the combined narrow-dock interaction. The first
- * spacing row is deliberately long enough to truncate at both dock widths;
- * the extra tabs keep the category strip in its overflow state at either
- * width so the tooltip and chrome colors are exercised in the same layout.
+ * spacing row is deliberately long enough to exercise compact-card wrapping
+ * at 320px and roomy-card truncation at 440px; the extra tabs keep the
+ * category strip in its overflow state at either width so the tooltip and
+ * chrome colors are exercised in the same layout.
  */
 const COMBINED_CFG: typeof FIXTURE_PANEL_CONFIG = {
   ...CFG,
@@ -193,6 +195,56 @@ function getVisibleTextExtent(label: HTMLElement): {
     left: Math.max(textRect.left, clientLeft),
     right: Math.min(textRect.right, clientRight),
     rawRight: textRect.right,
+  };
+}
+
+/**
+ * Compact card labels wrap after the #788 card-fit change instead of being
+ * clipped and recovered by a tooltip. Measure every rendered text line so the
+ * assertion proves that the complete expected label is inside the label's
+ * content box, rather than merely checking the element's own dimensions.
+ */
+function getCompleteTextExtent(label: HTMLElement, expected: string): {
+  left: number;
+  right: number;
+  rawRight: number;
+} {
+  expect(label.textContent).toBe(expected);
+
+  const textNodes: Text[] = [];
+  const walker = document.createTreeWalker(label, NodeFilter.SHOW_TEXT);
+  let node: Node | null;
+  while ((node = walker.nextNode())) {
+    if (node.textContent?.trim()) textNodes.push(node as Text);
+  }
+  expect(textNodes.length).toBeGreaterThan(0);
+  expect(textNodes.map((textNode) => textNode.textContent ?? '').join('')).toBe(expected);
+
+  const labelRect = label.getBoundingClientRect();
+  const style = getComputedStyle(label);
+  const content = {
+    left: labelRect.left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft),
+    right: labelRect.right - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight),
+    top: labelRect.top + parseFloat(style.borderTopWidth) + parseFloat(style.paddingTop),
+    bottom: labelRect.bottom - parseFloat(style.borderBottomWidth) - parseFloat(style.paddingBottom),
+  };
+  const rects = textNodes.flatMap((textNode) => {
+    const range = document.createRange();
+    range.selectNodeContents(textNode);
+    return Array.from(range.getClientRects()).filter((rect) => rect.width > 0 && rect.height > 0);
+  });
+  expect(rects.length).toBeGreaterThan(0);
+  for (const rect of rects) {
+    expect(rect.left).toBeGreaterThanOrEqual(content.left - 0.6);
+    expect(rect.right).toBeLessThanOrEqual(content.right + 0.6);
+    expect(rect.top).toBeGreaterThanOrEqual(content.top - 0.6);
+    expect(rect.bottom).toBeLessThanOrEqual(content.bottom + 0.6);
+  }
+
+  return {
+    left: Math.min(...rects.map((rect) => rect.left)),
+    right: Math.max(...rects.map((rect) => rect.right)),
+    rawRight: Math.max(...rects.map((rect) => rect.right)),
   };
 }
 
@@ -886,7 +938,7 @@ describe('rendered CSS actions-menu boundary', () => {
 
 describe('right-docked panel integration (overflow, tooltip, and chrome colors)', () => {
   for (const width of [320, 440]) {
-    it(`keeps the real token tooltip anchored through overflow at ${width}px`, async () => {
+    it(`keeps the real token label contained through overflow at ${width}px`, async () => {
       await mountPanelDockedRight(width, COMBINED_CFG);
 
       const shell = getShell();
@@ -906,8 +958,32 @@ describe('right-docked panel integration (overflow, tooltip, and chrome colors)'
       if (!label) throw new Error('confirmation token label not found');
 
       const labelRect = label.getBoundingClientRect();
-      const textExtent = getVisibleTextExtent(label);
-      expect(textExtent.rawRight).toBeGreaterThan(labelRect.left + label.clientWidth);
+      const card = label.closest<HTMLElement>('.tokenpanel-card');
+      if (!card) throw new Error('confirmation token card not found');
+      const cardRect = card.getBoundingClientRect();
+      const cardStyle = getComputedStyle(card);
+      const cardContent = {
+        left: cardRect.left + parseFloat(cardStyle.borderLeftWidth) + parseFloat(cardStyle.paddingLeft),
+        right: cardRect.right - parseFloat(cardStyle.borderRightWidth) - parseFloat(cardStyle.paddingRight),
+        top: cardRect.top + parseFloat(cardStyle.borderTopWidth) + parseFloat(cardStyle.paddingTop),
+        bottom: cardRect.bottom - parseFloat(cardStyle.borderBottomWidth) - parseFloat(cardStyle.paddingBottom),
+      };
+      expect(labelRect.left).toBeGreaterThanOrEqual(cardContent.left - 0.6);
+      expect(labelRect.right).toBeLessThanOrEqual(cardContent.right + 0.6);
+      expect(labelRect.top).toBeGreaterThanOrEqual(cardContent.top - 0.6);
+      expect(labelRect.bottom).toBeLessThanOrEqual(cardContent.bottom + 0.6);
+      const compactCard = card.getBoundingClientRect().width <= 319.6;
+      const textExtent = compactCard
+        ? getCompleteTextExtent(label, CONFIRMATION_TOKEN)
+        : getVisibleTextExtent(label);
+      if (compactCard) {
+        // #788 intentionally changes the 320px card from truncation to
+        // complete wrapped text. Keep the old truncation assertion only for
+        // the roomy 440px card where that behavior remains applicable.
+        expect(textExtent.rawRight).toBeLessThanOrEqual(labelRect.right + 0.6);
+      } else {
+        expect(textExtent.rawRight).toBeGreaterThan(labelRect.left + label.clientWidth);
+      }
       expect(textExtent.right).toBeGreaterThan(textExtent.left);
 
       act(() => {
