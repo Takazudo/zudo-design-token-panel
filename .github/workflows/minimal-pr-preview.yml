@@ -65,9 +65,8 @@ jobs:
           fi
           SLUG="pr-${PR_NUMBER}"
           DEPLOY_LOG=$(mktemp)
-          pnpm --dir examples/minimal exec wrangler versions upload \
-            --preview-alias="$SLUG" \
-            --message="Minimal PR #${PR_NUMBER} preview @ ${GITHUB_SHA:0:7}" \
+          bash scripts/upload-demo-preview.sh examples/minimal zdtp-minimal "$SLUG" \
+            "Minimal PR #${PR_NUMBER} preview @ ${GITHUB_SHA:0:7}" \
             2>&1 | tee "$DEPLOY_LOG"
           DEPLOY_URL=$(grep -oE "https://${SLUG}-[a-z0-9.-]+\.workers\.dev" "$DEPLOY_LOG" | head -1)
           if [ -z "$DEPLOY_URL" ]; then
