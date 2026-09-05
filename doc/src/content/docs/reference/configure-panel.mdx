@@ -94,6 +94,11 @@ export interface DomTweakerConfig {
   themeCss?: string;
 }
 
+export interface PanelDockConfig {
+  /** Reserve host-document space for a docked panel. Defaults to body-margin. */
+  reflow?: 'body-margin' | 'none';
+}
+
 export interface PanelConfig {
   /** Base for every derived storage key. Also the instance id. */
   storagePrefix: string;
@@ -101,7 +106,7 @@ export interface PanelConfig {
   consoleNamespace: string;
   /** BEM-style prefix used by every modal in the panel (export / import / apply). */
   modalClassPrefix: string;
-  /** `$schema` value emitted into export JSON and required on import. */
+  /** Display-only label shown by the import/export UI; not used by serde validation. */
   schemaId: string;
   /** Default filename base — exports save as `${exportFilenameBase}.json`. */
   exportFilenameBase: string;
@@ -115,9 +120,11 @@ export interface PanelConfig {
   /**
    * Host-supplied tab configuration. Required.
    * The panel renders its tab strip from this array.
-   *  - Reserved ids ('color', 'color-secondary') dispatch to built-in color tab
-   *    components. Every other id dispatches to GenericTab, which renders the
-   *    tab's tiers using kind-appropriate editors.
+   *  - Dedicated ids ('color', 'font', 'spacing', 'size', 'palette', 'notes')
+   *    dispatch to built-in tab components. A 'color-secondary' entry supplies
+   *    companion color-cluster data to the primary Color tab. Every other id
+   *    dispatches to GenericTab, which renders the tab's tiers using
+   *    kind-appropriate editors.
    */
   tabs: readonly TabConfig[];
   /**
@@ -126,8 +133,9 @@ export interface PanelConfig {
    */
   colorPresets?: Record<string, ColorScheme>;
   /**
-   * Optional dev-API endpoint URL. When set, the Apply button POSTs its diff payload to it.
-   * When undefined, the Apply button stays disabled with a tooltip.
+   * Optional dev-API endpoint URL. When set together with a non-empty
+   * applyRouting map, the Apply button POSTs its diff payload to it. When
+   * either is absent, the Apply button stays disabled with a tooltip.
    */
   applyEndpoint?: string;
   /**
@@ -140,6 +148,8 @@ export interface PanelConfig {
    * and persisted revival path. The object must contain pure JSON data.
    */
   domTweaker?: DomTweakerConfig;
+  /** Docked-panel integration. Omitted values use body-margin host reflow. */
+  dock?: PanelDockConfig;
   /**
    * Optional apply sink. Routes this instance's CSS-var writes off :root.
    * Not JSON-serializable — supply via a custom adapter, not inline Astro config.
@@ -172,7 +182,7 @@ export interface PanelConfig {
 | `storagePrefix` | `string` | yes | Drives every persisted localStorage key. Also the instance id. |
 | `consoleNamespace` | `string` | yes | Globals installed under `window[consoleNamespace]`. |
 | `modalClassPrefix` | `string` | yes | BEM root for every modal the panel owns. |
-| `schemaId` | `string` | yes | **Display-only** label surfaced in the Import modal's copy. `serialize()`/`deserialize()` always use the canonical `SCHEMA_V1`/`SCHEMA_V2`/`SCHEMA_V3` constants and never read this field — set it to one of those constants for a truthful label. See [Apply pipeline](./apply-pipeline.mdx#export-schema-v2). |
+| `schemaId` | `string` | yes | **Display-only** label returned by `getDesignTokenSchema()`. The built-in import/export UI does not read it; `serialize()`/`deserialize()` always use the canonical `SCHEMA_V1`/`SCHEMA_V2`/`SCHEMA_V3` constants and never read this field. See [Apply pipeline](./apply-pipeline.mdx#export-schema-v2). |
 | `exportFilenameBase` | `string` | yes | Saves as `${exportFilenameBase}.json`. |
 | `toggleEvent` | `string` | no | Toggle-event name for this instance. Default: `toggle-${storagePrefix}` (non-default instances); the default instance uses `toggle-design-token-panel`. |
 | `tabs` | [`TabConfig[]`](./token-manifest.mdx) | yes | Tab strip definition. The Color tab reads its data from the tier model via `colorExtras` + `TierItem[]`. |
@@ -180,6 +190,7 @@ export interface PanelConfig {
 | `applyEndpoint` | `string` | no | Apply POST target — see [Apply pipeline](./apply-pipeline.mdx). |
 | `applyRouting` | `Record<string, string>` | no | Apply routing map — see [Apply pipeline](./apply-pipeline.mdx). |
 | `domTweaker` | `DomTweakerConfig` | no | Opts into the dev-time Tailwind class editor. Omit it to hide the feature — see [DOM Tweaker](./dom-tweaker.mdx). |
+| `dock` | `PanelDockConfig` | no | Controls whether right/bottom docking reserves host space. Default: `{ reflow: 'body-margin' }`. |
 | `applySink` | `ApplySink` | no | Optional CSS-var write target. Not JSON-serializable. See below. |
 | `legacyIdRenameMap` | `Record<string, string \| null>` | no | Migration map for persisted id renames and drops. |
 | `autoRememberOnOpen` | `boolean` | no | Whether opening the panel arms owner-mode autoload (`:autoload = 'auto'`). Default `true`. Set `false` for a public site with a visitor-visible panel button — see [Load the panel only for you](../recipes/owner-autoload.mdx). |
@@ -213,6 +224,35 @@ The config object is deliberately narrow and JSON-serializable:
 - Unknown fields, functions, arrays, `null`, and non-string `themeCss` values are rejected by `configurePanel` validation.
 
 See [DOM Tweaker](./dom-tweaker.mdx) for the editing workflow, development-only positioning, `themeCss` bridge, and runtime limitations.
+
+## `dock` — optional host reflow
+
+The shell supports four presentation modes: `float`, `right`, `bottom`, and
+`mini`. The mode and the two dock dimensions are persisted per instance (see
+[Storage-key derivation](#storage-key-derivation)). `Alt+1`, `Alt+2`, `Alt+3`,
+and `Alt+4` select float, right, bottom, and mini while the full panel is open.
+The mini pill expands back to the last full mode.
+
+```ts
+configurePanel({
+  // ...required fields...
+  dock: { reflow: 'body-margin' },
+});
+```
+
+`reflow` applies only to `right` and `bottom` modes:
+
+| Value | Host-document behavior |
+| --- | --- |
+| `'body-margin'` (default) | Sets `body.style.margin-right` or `body.style.margin-bottom` to the current dock size, while also publishing the corresponding `--zdtp-dock-inset-*` root variable. |
+| `'none'` | Publishes the root inset variable but restores the body margin to its exact pre-claim value. |
+
+The claim is per window and per edge. A second panel cannot claim an occupied
+edge; it falls back to `float` and persists that fallback. The first claim
+captures the previous inline value and priority, and releasing the panel,
+changing mode, closing it, or destroying it restores that exact declaration.
+The on-page specimen temporarily forces `right` docking and restores the mode
+that was active before the specimen was enabled.
 
 ## `applySink` — optional CSS-var write target
 
@@ -287,14 +327,29 @@ window.dispatchEvent(new CustomEvent('my-custom-event'));
 | `state-v4` | `${storagePrefix}-state-v4` | Current unified envelope. Same slices as v3, EXCEPT `color` (and optional secondary cluster slice) is an identity-keyed map — one slot per active (scheme, mode) identity — instead of a single flat object. See "Per-scheme color persistence" below. |
 | `state-v3` | `${storagePrefix}-state-v3` | Legacy pre-v4 envelope (flat, single-slot `color`). Migrated into `state-v4` on first load; left in place (not deleted) so a downgrade can still read it. |
 | `state-v2` | `${storagePrefix}-state-v2` | v2 envelope — migrated to v3 (and from there into v4) on first load, then deleted. |
-| `state-v1` | `${storagePrefix}-state` | Pre-v2 flat-state format (Color-only). Migrated to v2 (and from there into v4) on first load, then deleted. |
+| `state-v1` | `${storagePrefix}-state` | Pre-v2 flat-state format (Color-only). Migrated to v3 (and from there into v4) on first load, then deleted. |
 | `open` | `${storagePrefix}-open` | Mirror of the panel's open boolean state. |
-| `position` | `${storagePrefix}-position` | Drag position `{ top, right }` so the panel reappears where the user left it. |
+| `position` | `${storagePrefix}-position` | Drag position `{ top, left }` so the panel reappears where the user left it. |
+| `size` | `${storagePrefix}-size` | Floating shell dimensions `{ width, height }` in pixels. |
+| `dock` | `${storagePrefix}-dock` | Dock mode: `'float'`, `'right'`, `'bottom'`, or `'mini'`. |
+| `dock-size` | `${storagePrefix}-dock-size` | Dock dimensions `{ right, bottom }` in pixels; defaults to `{ right: 440, bottom: 340 }`. |
+| `density` | `${storagePrefix}-density` | Tab-grid density preference (`0`, `1`, or `2`). |
+| `ghost` | `${storagePrefix}-ghost` | Ghost-idle preference (`'1'` when enabled); fading is a presentation preference, not token state. |
+| `specimen` | `${storagePrefix}-specimen` | Font specimen toolbar JSON: `{ text, preset, overridden, width }`; width is clamped to 240–720. |
+| `snapshot-a` | `${storagePrefix}-snapshot-a` | Persisted A snapshot: `{ state, identity, savedAt, edits }`. |
+| `snapshot-b` | `${storagePrefix}-snapshot-b` | Persisted B snapshot: `{ state, identity, savedAt, edits }`. |
+| `last-applied` | `${storagePrefix}-last-applied` | Flat CSS-variable comparison baseline; after a successful apply the current implementation stores `{}` while retaining only unconfirmed overrides in live state. |
 | `visible` | `${storagePrefix}:visible` | Adapter-level visibility-intent flag. |
-| `domtweaker-enabled` | `${storagePrefix}-domtweaker-enabled` | DOM Tweaker enabled bit. Meaningful only when `PanelConfig.domTweaker` is present. |
+| `autoload` | `${storagePrefix}:autoload` | Owner autoload provenance: `'1'` (explicit) or `'auto'` (auto-remember). |
+| `elpath-enabled` | `${storagePrefix}-elpath-enabled` | Element-path picker enabled bit. |
+| `domtweaker-enabled` | `${storagePrefix}-domtweaker-enabled` | DOM Tweaker enabled bit; meaningful only when `domTweaker` is configured. |
+| `highlight-slots` | `${storagePrefix}-highlight-slots` | Ten highlight slot colors (local storage). |
+| `highlight-outline-width` | `${storagePrefix}-highlight-outline-width` | Global highlight outline width in pixels (local storage). |
+| `highlight-active` | `${storagePrefix}-highlight-active` | Active CSS-variable → slot map (session storage). |
 
-<Note title="Colon, not dash, for `visible`">
-The `visible` key uses a `:` separator; every other derived key uses `-`. This is a historical artifact preserved for storage-key continuity.
+<Note title="Colon, not dash, for `visible` and `autoload`">
+The `visible` and `autoload` keys use a `:` separator; every other derived key
+uses `-`. This is a historical artifact preserved for storage-key continuity.
 </Note>
 
 ### Per-scheme color persistence (v4 envelope)
@@ -373,14 +428,10 @@ const colorTab: TabConfig = {
     baseRoles: { background: '--myapp-p0', foreground: '--myapp-p1' },
     baseDefaults: { background: 0, foreground: 1 },
     defaultShikiTheme: 'github-dark',
-    colorSchemes: {
-      'Default Dark': {
-        background: 0, foreground: 1, cursor: 1, selectionBg: 0, selectionFg: 1,
-        palette: ['#0f172a', '#38bdf8'],
-        shikiTheme: 'github-dark',
-      },
-    },
-    panelSettings: { colorScheme: 'Default Dark', colorMode: false },
+    // Keep the two-slot example scheme-free; named ColorScheme values use
+    // the package's fixed 16-entry palette type (see Token tiers).
+    colorSchemes: {},
+    panelSettings: { colorScheme: 'Default', colorMode: false },
   },
 };
 
@@ -446,7 +497,11 @@ Flips the panel between open and closed. The exported function name is `toggleDe
 
 ### `reapplyPersistedOverrides(): void`
 
-Applies persisted token overrides directly to `:root` BEFORE any Preact render. Called at adapter module init (and again on every `astro:page-load`) so the bundle's arrival eliminates the FOUT on hard navigation. This is a no-op when nothing is persisted; it swallows errors so corrupt state never blocks the UI thread.
+Applies persisted token overrides to each instance's default `:root` target
+(or configured `applySink`) BEFORE any Preact render. Called at adapter module
+init (and again on every `astro:page-load`) so the bundle's arrival eliminates
+the FOUT on hard navigation. This is a no-op when nothing is persisted; it
+swallows errors so corrupt state never blocks the UI thread.
 
 <Tip title="Console API">
 The host adapter installs lazy-import wrappers under `window[consoleNamespace]`:

@@ -23,6 +23,24 @@ Treat `PanelConfig.domTweaker` like `applyEndpoint`: enable it for a developer o
 
 The exported text is a description of the current page-load session. Give it to an AI coding tool together with the relevant source context so the live experiment can be translated into a durable source change.
 
+## Shared Alt+click picker
+
+DOM Tweaker shares one document-level Alt+click picker coordinator with the
+**element-path** copier and **element inspect**. Holding `Alt` arms whichever
+feature is enabled and requests the exclusive gesture owner. Enabling a
+different picker revokes the previous owner, which disarms it before the new
+feature starts; the three features never intercept the same click at once.
+Panel-owned surfaces and the on-page specimen are excluded from all three
+pickers. DOM Tweaker's own lazy boundary claims the coordinator while active,
+so turning it off releases the gesture without tearing down the Tailwind
+runtime.
+
+The element-path feature copies an annotated selector/path block. Element
+inspect can instead be armed from its header button (or `I`) and then clicked
+to open a token list with computed properties, inherited matches, editable
+values, revert controls, and a Color-tab jump. These are separate results, but
+they use the same exclusive picker ownership.
+
 ## Enabling DOM Tweaker
 
 The feature is disabled by omission. Add `domTweaker` to `PanelConfig` to show its header controls and allow its enabled state to revive on later page loads.
@@ -37,6 +55,11 @@ configurePanel({
 ```
 
 An empty object uses the bundled suggestion set and Tailwind's default theme. See the [`PanelConfig.domTweaker` reference](./configure-panel.mdx) for the exact type and validation rules.
+
+When enabled, the preference is stored as `${storagePrefix}-domtweaker-enabled`
+(`'1'`/`'0'`). The lazy runtime and its edit-session diff are otherwise
+page-local: class edits are not written to source or persisted across a full
+reload.
 
 ## Bridging a host theme with `themeCss`
 

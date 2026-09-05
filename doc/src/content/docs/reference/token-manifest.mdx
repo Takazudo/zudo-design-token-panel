@@ -16,11 +16,11 @@ Discriminated union that controls which editor widget appears for a row.
 
 ```ts
 export type TierValueKind =
-  | { kind: 'length'; step: number; unit: string }
-  | { kind: 'number'; step: number }
+  | { kind: 'length'; step: number; unit: string; units?: readonly string[] }
+  | { kind: 'number'; step: number; unit?: string }
   | { kind: 'select'; options: readonly string[] }
   | { kind: 'text' }
-  | { kind: 'color' }
+  | { kind: 'color'; format?: 'hex' | 'oklch' }
   | { kind: 'cursor' }
   | { kind: 'content' }
   | { kind: 'mask-image' };
@@ -66,7 +66,7 @@ One editable row inside a tier.
 export interface TierItem {
   /** Stable id used as the key in persisted state. Rename = state loss. */
   id: string;
-  /** CSS custom property written to `:root` (must start with `--`). */
+  /** CSS custom property written to the default root or configured apply sink (must start with `--`). */
   cssVar: string;
   /** Human-visible label rendered in the panel row. */
   label: string;
@@ -82,7 +82,11 @@ export interface TierItem {
 ```
 
 <Note title="No `group` field">
-`TierItem.group` (a sub-heading key inside a tier) was removed in #148 — the panel's [one-tier-one-heading policy](./architecture.mdx) requires each tier to render exactly one section heading. A tier that conceptually needs sub-grouping is split into multiple `TierConfig` entries instead. Example manifests must not reference `group`.
+`TierItem.group` (a sub-heading key inside a tier) is not part of the current
+contract — the panel's [one-tier-one-heading policy](./architecture.mdx)
+requires each tier to render exactly one section heading. A tier that
+conceptually needs sub-grouping is split into multiple `TierConfig` entries.
+Example manifests must not reference `group`.
 </Note>
 
 ### Field reference
@@ -90,7 +94,7 @@ export interface TierItem {
 | Field | Required | Notes |
 | --- | --- | --- |
 | `id` | yes | Stable key in the persisted override map. Renaming breaks existing user state unless `legacyIdRenameMap` is configured. |
-| `cssVar` | yes | The CSS custom property written to `:root`. Must start with `--` and be non-empty after the prefix; validated by `assertValidPanelConfig`. |
+| `cssVar` | yes | The CSS custom property written to the default root or configured `applySink`. Must start with `--` and be non-empty after the prefix; validated by `assertValidPanelConfig`. |
 | `label` | yes | Display label inside the panel row. |
 | `default` | yes | Fallback CSS string emitted when no override is active. |
 | `type` | yes | Controls which editor renders for this row. |
@@ -124,7 +128,7 @@ export interface TierConfig {
    * `kind: 'color'`. A tier with `semantic: true` and no sibling palette
    * tier is a **lone semantic tier** — the Color tab renders it with no
    * palette grid at all. Additive: omitting `semantic` preserves the
-   * pre-#459 structural palette-detection behavior.
+   * earlier structural palette-detection behavior.
    */
   semantic?: true;
   /**
@@ -135,6 +139,10 @@ export interface TierConfig {
    * front by `assertValidPanelConfig` before any row renders.
    */
   referencesRamps?: readonly { tab?: string; tier: string }[];
+  /** Optional row previews for size/typography and compact value glyphs. */
+  preview?: 'size' | 'line-height' | 'family' | 'weight' | 'bar' | 'radius' | 'duration';
+  /** Font-size CSS variable used as a line-height preview base. */
+  previewBase?: string;
 }
 ```
 
@@ -143,6 +151,25 @@ A tier with `referencesTier` is called a **reference tier**. Its items don't hol
 <Info title="semantic + referencesRamps are Color-tab concepts">
 `semantic` is a Color-tab concept, and `referencesRamps` is valid only on a tier inside a `TabConfig` whose id is exactly `'color'` or `'color-secondary'`; `assertValidPanelConfig` rejects every other owning tab id. For the full behavioral contract — the `SemanticValue` union, how a lone semantic tier renders, and a worked cross-tab example — see [Color cluster § Semantic-only tier](./color-cluster.mdx#semantic-only-tier-semantic-true).
 </Info>
+
+### Preview matrix
+
+`preview` is optional. Omit it for an ordinary flat tier; do not combine
+multiple preview meanings on one tier.
+
+| `preview` | Valid value kinds | Runtime rendering |
+| --- | --- | --- |
+| `size` | `length`, or a `referencesTier` that resolves to lengths | Sorts rows by resolved pixels and renders the specimen text at each size. |
+| `line-height` | `number` | Renders repeated specimen text with a leading guide. `previewBase` names a CSS variable whose manifest value (or document-root computed value) is used when available; otherwise the nearest size to 16px (or 16px fallback) is used. |
+| `family` | `text` | The first item supplies `font-family` to all size and line-height samples. |
+| `weight` | `select` or `number` | The first item supplies `font-weight` to all samples. |
+| `bar` | `length` | Draws a width bar using the current token value. |
+| `radius` | `length` | Draws a rounded-square glyph using the current token value. |
+| `duration` | `length` or `number` with `ms`/`s` units | Draws a transition dot whose hover motion uses the current duration. |
+
+The on-page Font-tab specimen uses the same size and line-height metadata, but
+renders a host-page portal rather than panel samples. The portal is described
+in [Architecture](./architecture.mdx#font-specimen-and-host-page-rendering).
 
 ## `TabConfig`
 
@@ -159,13 +186,31 @@ export interface TabConfig {
   /**
    * Color-tab metadata. Required for the reserved `'color'` and
    * `'color-secondary'` ids — ignored (and unnecessary) for all other ids.
-   */
+  */
   colorExtras?: ColorClusterExtras;
+  /** Required on the reserved `notes` tab; forbidden on other tabs. */
+  notesExtras?: NotesExtras;
 }
 ```
 
+```ts
+export interface NotesExtras {
+  title: string;
+  html: string;
+}
+```
+
+The reserved `notes` tab must provide non-empty `notesExtras.title` and
+`notesExtras.html`, and its `tiers` array must be empty. The HTML is sanitized
+before rendering as host-authored notes content; it does not contribute token
+state or apply/export entries. Other tab ids must not set `notesExtras`.
+
 <Note title="No `advancedTiers` field">
-`TabConfig.advancedTiers` (a per-tab "Advanced" `<details>` disclosure) was removed in #148 — the panel's [no-progressive-disclosure policy](./architecture.mdx) requires every tier to render flat, with no collapsed sections. If a tab has many tokens, render them flat in tier-section order instead. Example manifests must not reference `advancedTiers`.
+`TabConfig.advancedTiers` (a per-tab "Advanced" `<details>` disclosure) is
+not part of the current contract — the panel's [no-progressive-disclosure
+policy](./architecture.mdx) requires every tier to render flat, with no
+collapsed sections. If a tab has many tokens, render them flat in tier-section
+order instead. Example manifests must not reference `advancedTiers`.
 </Note>
 
 ### Reserved tab ids
@@ -173,11 +218,17 @@ export interface TabConfig {
 | `id` | Dispatches to |
 | --- | --- |
 | `'color'` | Primary color tab — palette + base roles + semantic table. Requires `colorExtras`. |
-| `'color-secondary'` | Secondary color tab. Requires `colorExtras`. |
-| `'font'` | Typography tab. |
-| `'spacing'` | Spacing tab. |
-| `'size'` | Size tab. |
+| `'font'` | Dedicated typography tab with family/weight previews and the host-page specimen option. |
+| `'spacing'` | Dedicated spacing tab with the numeric bulk editor. |
+| `'size'` | Dedicated size tab with the numeric bulk editor. |
+| `'palette'` | Dedicated palette editor for a generic palette tab. |
+| `'notes'` | Dedicated notes tab; it carries no token state or apply/export overrides. |
 | Any other string | `GenericTab` — renders the tab's `tiers` using kind-appropriate editors. |
+
+The panel also prepends a synthetic `Inspect` tab for element inspection; it is
+not supplied in `PanelConfig.tabs`. A configured `color-secondary` entry is
+companion color-cluster data consumed by the primary Color tab and requires
+`colorExtras`.
 
 ## `ColorClusterExtras`
 
@@ -199,6 +250,8 @@ export interface ColorClusterExtras {
   colorSchemes: Record<string, ColorScheme>;
   /** Panel-level scheme settings (seed scheme, optional light/dark mode). */
   panelSettings: ClusterPanelSettings;
+  /** Optional semantic-item-id → SemanticValue defaults override map. */
+  semanticDefaults?: Record<string, SemanticValue>;
 }
 
 export type BaseRoleKey = 'background' | 'foreground' | 'cursor' | 'selectionBg' | 'selectionFg';

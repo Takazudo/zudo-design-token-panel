@@ -4,13 +4,13 @@ sidebar_position: 7
 description: Inspect which DOM elements consume a token by toggling its eye icon
 ---
 
-The Highlight Token Users feature lets you visually inspect which DOM elements in the host page are consuming any given design token. Toggle the eye icon next to a token row and every matching element gets an outline; open the gear settings to customise each highlight slot's color and outline width.
+The Highlight Token Users feature lets you visually inspect which DOM elements in the host page are consuming any given design token. Toggle the eye icon next to a token row and every matching element gets an outline; open the gear settings to customise each highlight slot's color and the shared outline width. Match counts are calculated on demand, not for every visible row.
 
 ## Overview
 
 **Eye icon** — toggle button next to each token row. Clicking it activates an inspection highlight for that token: every element whose computed style is influenced by that CSS custom property receives a colored outline overlay in the host page. Clicking the icon a second time removes the highlight.
 
-**Gear icon** — opens the settings popover in the panel header. From there you can change the color and outline width of each of the 10 available highlight slots, and reset all slot colors to the vivid default palette.
+**Gear icon** — opens the settings popover in the panel header. From there you can change the color of each of the 10 available highlight slots, set the shared outline width, and reset the slot palette.
 
 **Visual outcome** — active highlights appear as colored outlines overlaid on top of the host page's content. The overlays sit just below the panel shell in the panel's z-index scale (`--tokentweak-z-overlay`), above typical host content. Up to 10 tokens can be highlighted at the same time.
 
@@ -26,14 +26,27 @@ Up to 10 simultaneous highlights are supported. Click the eye icon again to disa
 4. Observe the colored outlines that appear on elements in the host page.
 5. Click the eye icon again to remove the highlight.
 
+## On-demand counts
+
+Inactive rows do not scan the page just to populate a number. Open a token's
+chain popover and the panel probes that token, caches the result, and shows
+the count in the popover. Active highlights are probed as needed to draw their
+overlays and therefore show their current count automatically. A new
+stylesheet, theme/class change, or navigation invalidates the cache; the next
+request probes again. Counts are element matches (not declarations), and the
+walk includes `::before` and `::after` pseudo-elements where supported.
+
 ## Reservation-sheet semantics
 
-Highlights are allocated from a fixed 10-slot "reservation sheet". Each slot has an index (0–9), a color, and an outline width. The lowest available index is always claimed first; releasing a slot in the middle leaves higher-index slots at their current positions.
+Highlights are allocated from a fixed 10-slot "reservation sheet". Each slot
+has an index (0–9) and a color; one global outline width applies to every slot.
+The lowest available index is always claimed first; releasing a slot in the
+middle leaves higher-index slots at their current positions.
 
 **Slot allocation rules:**
 
 1. When you activate a token, the highlight system finds the lowest free slot index and claims it.
-2. That slot's color and outline width are applied to the token's outlines.
+2. That slot's color and the global outline width are applied to the token's outlines.
 3. When you deactivate a token, its slot is freed; all other slots stay put.
 4. The next activation claims the lowest free slot again (which may be a previously-freed lower index).
 
@@ -49,25 +62,25 @@ Result: D is at slot 0, B is at slot 1, C is at slot 2.
 
 ## Settings popover
 
-Click the **gear icon** in the panel header to open the highlight settings popover. It lists all 10 slots in a 4-column grid:
+Click the **gear icon** in the panel header to open the highlight settings popover. It lists all 10 slots in a 2-column grid and exposes one global outline-width input:
 
 | Column | What it shows |
 | --- | --- |
 | Index | Slot number (0–9) |
 | Ring swatch | A ring whose border is a live preview of the slot's current outline color |
 | Token label | The CSS variable name of the token currently using this slot, or "available" if the slot is free |
-| Slider + readout | Outline width control from 1–10 px; the readout shows the current value (e.g. `4px`) |
+| Global width | Outline width control from 1–20 px; the value applies to every active ring. |
 
 **Changing the color:** click the ring swatch to open a color picker for that slot. The outline on any currently-highlighted element updates live.
 
-**Changing the width:** drag the slider to change the outline width. The ring swatch's border and the outline on any highlighted element update live.
+**Changing the width:** edit the number input (minimum 1px, maximum 20px). The ring swatches and every active outline update live.
 
 ## Reset to defaults
 
-The **Reset to defaults** button in the settings popover footer restores all 10 slot colors to the vivid built-in default palette (red, pink, skyblue, and so on).
+The **Reset to defaults** button in the settings popover footer restores all 10 slot colors and the global outline width (2px) to their built-in defaults.
 
 <Tip>
-Reset to defaults only restores slot colors and widths. It does NOT clear the active inspection set — any tokens you currently have highlighted stay highlighted, with their slots now showing the default colors.
+Reset to defaults does NOT clear the active inspection set — any tokens you currently have highlighted stay highlighted, with their slots now showing the default colors and 2px outline.
 </Tip>
 
 ## Disable all highlights
@@ -79,34 +92,33 @@ The **Disable all highlights** button in the settings popover footer clears the 
 The feature uses two distinct storage layers:
 
 <Info>
-**Slot configuration (colors + widths)** — stored in `localStorage`. Persists across browser sessions. These are your personalised settings and should survive a page reload or a new browser tab.
+**Slot configuration (colors + global width)** — stored in `localStorage` under `${storagePrefix}-highlight-slots` and `${storagePrefix}-highlight-outline-width`. Persists across browser sessions. These are your personalised settings and should survive a page reload or a new browser tab.
 
-**Active inspection set (which tokens are highlighted)** — stored in `sessionStorage`. Cleared on a full page reload (`Ctrl+Shift+R` / `Cmd+Shift+R`). Each debug session starts fresh with no outlines active.
+**Active inspection set (which tokens are highlighted)** — stored in `sessionStorage` under `${storagePrefix}-highlight-active`. Cleared on a full page reload (`Ctrl+Shift+R` / `Cmd+Shift+R`). Each debug session starts fresh with no outlines active.
 </Info>
 
 This split means you can set up your preferred slot colors once and keep them permanently, while the list of things you are currently inspecting resets automatically when you reload — preventing leftover debug state from a previous session from polluting a fresh page load.
 
 ## How it works
 
-When you click the eye icon next to a token, the panel runs a **sentinel-substitution probe**:
+When you activate a token, or when a count is requested from an inactive row or token-chain popover, the panel runs a **sentinel-substitution probe**. The result is cached until the stylesheet or host theme changes:
 
 1. The panel temporarily writes a unique marker value (the "sentinel") to the token's CSS custom property — overriding both `:root` and every other element where a stylesheet rule defines that token directly. This ensures cascade-scoped overrides (such as `[data-theme="dark"]` blocks) are covered, not just `:root`.
 2. A style recalculation is forced synchronously.
-3. Every element in the page body — along with their `::before` and `::after` pseudo-elements — is asked for its computed CSS values. Elements whose computed value contains the sentinel are consumers of the token.
+3. Every element in the page body — along with its `::before` and `::after` pseudo-elements — is asked for its computed CSS values. Elements whose computed value contains the sentinel are consumers of the token.
 4. The original token value is restored immediately, in the same browser tick. There is no visible flicker.
 
-**Tokens that pass through CSS functions** — if a token's value flows through `calc()`, `min()`, `max()`, `clamp()`, `color-mix()`, or a similar CSS function, the single-sentinel equality check is unreliable (because the function may transform the sentinel beyond recognition). In this case the panel automatically falls back to a **two-probe strategy**: it applies two different sentinel values in sequence and marks elements whose computed properties differ between the two probes. This slower fallback catches transform-wrapped consumers that the fast equality path would miss.
+**Tokens that pass through CSS functions** — for color, length, number, and auto-detected values, the panel uses a **two-probe differential strategy**: it applies two different sentinel values in sequence and marks elements whose computed properties differ between the probes. This catches transform-wrapped consumers such as `calc()` and `color-mix()`. String-only manifest kinds use one equality probe because those transforms are not grammatically applicable.
 
-**Token type drives property inspection** — the panel needs to know which CSS properties to interrogate. The type hint is supplied by the panel manifest via the token's `type.kind` field. Supported kinds are `color`, `length`, `number`, `text`, `easing`, `time`, `cursor`, `content`, and `mask-image`. For tokens the manifest does not know about, the type is auto-detected from the token's resolved value on `documentElement`. The type determines the list of computed longhand and compound properties that are compared against the sentinel.
+**Token type drives property inspection** — the panel needs to know which CSS properties to interrogate. The type hint is supplied by the panel manifest via the token's `type.kind` field. Public kinds are `color`, `length`, `number`, `text`, `select`, `cursor`, `content`, and `mask-image`; `text` and `select` values use internal auto-detection from the resolved value on `documentElement`. The type determines the list of computed longhand and compound properties that are compared against the sentinel.
 
 - `color` — inspects color properties (`color`, `background-color`, `border-color`, etc.) and compound properties like `box-shadow`.
 - `length` — inspects dimension properties (`padding`, `margin`, `width`, `font-size`, etc.) and compound properties like `transform`.
 - `number` — inspects unitless numeric properties (`opacity`, `line-height`, `z-index`, etc.).
 - `text` — inspects custom-ident properties (`font-family`, `animation-name`, `transition-property`, `will-change`).
-- `easing` — inspects timing-function properties (`transition-timing-function`, `animation-timing-function`).
-- `time` — inspects duration and delay properties (`transition-duration`, `transition-delay`, `animation-duration`, `animation-delay`). Token values like `0.3s` or `150ms` are automatically classified as this kind.
+- **Auto-detected easing/time values** — a `text` or `select` item is auto-detected from its resolved value; timing-function and duration/delay properties are included when the value matches those internal probe classifications. There are no `easing` or `time` values in the public `TierValueKind` union.
 
-**The three new string-property kinds added in [#285](https://github.com/Takazudo/zudo-design-token-panel/issues/285) have important probe characteristics:**
+**The three string-property kinds (`cursor`, `content`, and `mask-image`) have important probe characteristics:**
 
 - **`cursor`** — uses bare cursor-keyword sentinels (`crosshair` / `move`). Chrome's `getComputedStyle` drops the `url()` part from cursor values (the fallback keyword is also discarded when the image cannot load, returning `auto`), so `url()`-based cursor sentinels are not viable. Keyword sentinels round-trip correctly. Trade-off: elements with a literal `cursor: crosshair` or `cursor: move` (without a CSS variable) will be reported as false-positives. Auto-detect does NOT route to `cursor`; you must supply `kind: 'cursor'` explicitly in the manifest.
 
