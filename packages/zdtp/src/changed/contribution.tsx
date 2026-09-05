@@ -39,7 +39,11 @@ function entryChanged(
 /** A stable text-only ghost line that survives hostile host styles. */
 function ChangedTail({ defaultValue, currentValue }: { defaultValue: string; currentValue: string }) {
   return (
-    <span className="tokenpanel-changed-tail" data-testid="tokenpanel-changed-tail">
+    <span
+      className="tokenpanel-changed-tail"
+      data-testid="tokenpanel-changed-tail"
+      title={`default ${defaultValue} → ${currentValue}`}
+    >
       <span className="tokenpanel-changed-tail-prefix">default </span>
       <span className="tokenpanel-changed-tail-old">{defaultValue}</span>
       <span className="tokenpanel-changed-tail-arrow"> → </span>

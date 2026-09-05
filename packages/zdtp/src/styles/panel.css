@@ -1857,6 +1857,12 @@
   gap: var(--tokentweak-gap-xs);
 }
 
+/* A changed row still has to fit when panel padding leaves less room than
+ * the density's preferred column width (notably the 320px panel minimum). */
+.tokenpanel-tab-grid:where(:has(.is-changed)) {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--tokenpanel-grid-min, 288px)), 1fr));
+}
+
 /* Type samples need the tier's full width regardless of the density setting. */
 .tokenpanel-tab-grid--specimen {
   grid-template-columns: minmax(0, 1fr);
@@ -3754,15 +3760,46 @@ html.tokenpanel-elpath-inspecting * {
   outline-color: var(--tokentweak-color-accent-bar);
 }
 
+/* Keep eight monospace prefix characters plus the ellipsis visible. Only
+ * changed rows reserve this space; their ghost values yield to the label. */
+.is-changed .tokenpanel-row-label {
+  min-width: 9ch;
+}
+
 .tokenpanel-changed-tail {
-  display: inline-flex;
-  align-items: baseline;
+  /* Inline children need a block formatting context for text-overflow. */
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
   min-width: 0;
   color: var(--tokentweak-color-muted);
   font-family: var(--tokentweak-font-mono);
   font-size: 10px;
   line-height: 1.2;
   white-space: nowrap;
+}
+
+/* Column width, rather than shell width, determines the row's budget: a
+ * wide panel can also contain narrow columns at the default density. */
+.tokenpanel-row--stacked:where(.is-changed),
+.is-changed .tokenpanel-row--stacked {
+  container: tokenpanel-changed-row / inline-size;
+}
+
+@container tokenpanel-changed-row (max-width: 319px) {
+  /* Keep the prefix, bulk/chain/highlight controls and revert on one line.
+   * Trim horizontal space only; the input and row retain their height. */
+  .is-changed .tokenpanel-row-head {
+    gap: 2px;
+  }
+
+  .is-changed .tokenpanel-row-head .tokenpanel-row-number-input {
+    width: 56px;
+  }
+
+  .is-changed .tokenpanel-row-head .tokenpanel-row-unit {
+    width: auto;
+  }
 }
 
 .tokenpanel-changed-tail-old {
