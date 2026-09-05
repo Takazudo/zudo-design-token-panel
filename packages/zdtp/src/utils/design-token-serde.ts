@@ -102,7 +102,7 @@ import {
 import { getPanelConfig, type PanelConfig } from '../config/panel-config';
 import { resolvePaletteCssVar } from '../config/cluster-config';
 import { resolveRefToCssVar } from '../apply/tier-resolver';
-import { structuralEqual } from './structural-equal';
+import { flatOverrideChanged, semanticMappingsEqual } from './token-diff';
 import type { TierItem } from '../tokens/tier-model';
 
 /** Minimal token-like interface extracted from TierItem for serde lookups. */
@@ -548,7 +548,7 @@ function serializeColorTab(
     const unchanged =
       !full &&
       baselineVal !== undefined &&
-      semanticMappingsEqual(cur, baselineVal, color.background, color.foreground, baseline);
+      semanticMappingsEqual(cur, baselineVal, color, baseline);
     if (unchanged) continue;
     const external = toSemanticExternalValue(cur, color.background, color.foreground);
     semantic[cssName] = external;
@@ -569,43 +569,6 @@ function serializeColorTab(
  */
 function resolveIndexMapping(v: number | 'bg' | 'fg', bg: number, fg: number): number {
   return typeof v === 'number' ? v : v === 'bg' ? bg : fg;
-}
-
-/**
- * True when `cur` (the current state's mapping) is unchanged from
- * `baselineVal` for diff-only serialize purposes. Index mappings are compared
- * by their RESOLVED palette index (so e.g. `'bg'` and a baseline numeric
- * mapping that happens to equal the current background index are treated as
- * equal, matching pre-#462 behavior). The `{ literal }` / `{ ref }` variants
- * have no index to resolve to, so they're compared structurally (order-
- * independent — see `structuralEqual`, so a `{ ref }` reconstructed by
- * `parseSemanticExternalValue` compares equal to a UI-produced ref with
- * different key insertion order); a mapping that changed KIND (index → object
- * or vice versa) is always "changed".
- */
-export function semanticMappingsEqual(
-  cur: SemanticValue,
-  baselineVal: SemanticValue,
-  curBg: number,
-  curFg: number,
-  baseline: ColorTweakState | undefined,
-): boolean {
-  if (isIndexMapping(cur) && isIndexMapping(baselineVal)) {
-    const resolvedBaseline = resolveIndexMapping(
-      baselineVal,
-      baseline?.background ?? 0,
-      baseline?.foreground ?? 1,
-    );
-    return resolveIndexMapping(cur, curBg, curFg) === resolvedBaseline;
-  }
-  if (isIndexMapping(cur) !== isIndexMapping(baselineVal)) return false;
-  // Both are object variants (literal / ref) — compare structurally.
-  // JSON.stringify is key-order sensitive, so a structurally identical ref
-  // built with a different property insertion order (e.g. baseline via
-  // parseSemanticExternalValue's `{tier, item, tab}` vs. a UI-produced
-  // `{tab, tier, item}`) would spuriously compare "changed" and get emitted
-  // as diff-noise (import-modal.tsx's `structuralEqual` avoids the same trap).
-  return structuralEqual(cur, baselineVal);
 }
 
 /**
@@ -657,7 +620,7 @@ function serializeOverridesV2(
     for (const t of items) {
       if (t.readonly) continue;
       const v = overrides[t.id];
-      if (typeof v === 'string' && v.length > 0 && v !== t.default) {
+      if (flatOverrideChanged(v, t.default)) {
         raw[t.cssVar] = v;
         wrote = true;
       }

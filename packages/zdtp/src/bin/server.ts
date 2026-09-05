@@ -138,8 +138,10 @@ function logApplyOutcome(quiet: boolean, payload: string): void {
       .filter((entry) => Array.isArray(entry.changed) && entry.changed.length > 0)
       .map((entry) => entry.file);
     const outcome = parsed.dryRun === true ? 'dry-run' : 'applied';
+    const tokenLabel = totalTokens === 1 ? 'token' : 'tokens';
+    const fileLabel = fileCount === 1 ? 'file' : 'files';
     console.log(
-      `[design-token-panel] ${outcome} ${totalTokens} tokens to ${fileCount} files ` +
+      `[design-token-panel] ${outcome} ${totalTokens} ${tokenLabel} to ${fileCount} ${fileLabel} ` +
         `(changed: ${changedFiles.length > 0 ? changedFiles.join(', ') : 'none'})`,
     );
     // #508: surface unknown cssVars (silently ignored before this fix) and

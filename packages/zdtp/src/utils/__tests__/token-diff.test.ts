@@ -1,16 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { buildApplyOverrides } from '../../apply/build-apply-overrides';
+import { flattenApplyOverrides } from '../../apply-modal';
 import { resolveColorClusterFromTab } from '../../config/cluster-config';
 import type { ColorTweakState, TweakState } from '../../state/tweak-state';
 import { FIXTURE_PANEL_CONFIG } from '../../__tests__/_test-helpers';
-import { semanticMappingsEqual, serialize } from '../design-token-serde';
+import { serialize } from '../design-token-serde';
 import { buildTokenIndex } from '../token-index';
+import type { TabConfig } from '../../tokens/tier-model';
 import {
   changedCounts,
   changedEntries,
   formatCssDeclarations,
-  isChanged,
   revertEntry,
+  semanticMappingsEqual,
 } from '../token-diff';
 
 const baseline: ColorTweakState = {
@@ -82,21 +84,77 @@ describe('canonical token diff', () => {
     expect(reverted.color.palette[2]).toBe(baseline.palette[2]);
   });
 
-  it('pins the intentional serde and Apply divergences', () => {
-    const state = makeState();
-    state.spacing['hsp-md'] = '40px';
-    const serialized = serialize(state, { colorDefaults: baseline }, FIXTURE_PANEL_CONFIG);
-    expect(serialized.tabs?.spacing).toBeUndefined();
+  it('uses the same changed cssVar set for UI, export, and Apply', () => {
     const colorTab = FIXTURE_PANEL_CONFIG.tabs.find((tab) => tab.id === 'color')!;
     const cluster = resolveColorClusterFromTab(colorTab, FIXTURE_PANEL_CONFIG.tabs)!;
-    expect(buildApplyOverrides(state, baseline, cluster, FIXTURE_PANEL_CONFIG.tabs)).toMatchObject({
-      '--zd-spacing-hgap-md': '40px',
-    });
+    const index = buildTokenIndex(FIXTURE_PANEL_CONFIG);
+    const exportedCssVars = (state: TweakState, colorBaseline: ColorTweakState): string[] => {
+      const tabs = serialize(state, { colorDefaults: colorBaseline }, FIXTURE_PANEL_CONFIG).tabs ?? {};
+      return Object.values(tabs).flatMap((tab) =>
+        Object.values(tab).flatMap((tier) => Object.keys(tier)),
+      ).sort();
+    };
+    const assertParity = (state: TweakState, colorBaseline = baseline) => {
+      const ui = changedEntries(index.entries, state, colorBaseline, FIXTURE_PANEL_CONFIG)
+        .map((entry) => entry.cssVar).sort();
+      const exported = exportedCssVars(state, colorBaseline);
+      const applied = Object.keys(buildApplyOverrides(
+        state, colorBaseline, cluster, FIXTURE_PANEL_CONFIG.tabs,
+      )).sort();
+      expect({ exported, applied }).toEqual({ exported: ui, applied: ui });
+    };
 
-    expect(semanticMappingsEqual('bg', 0, 0, 15, baseline)).toBe(true);
-    const accent = buildTokenIndex(FIXTURE_PANEL_CONFIG).entry({ tabId: 'color', tierId: 'semantic', itemId: 'accent' })!;
-    state.color.semanticMappings.accent = 'bg';
+    const defaultEqual = makeState();
+    defaultEqual.spacing['hsp-md'] = '40px';
+    assertParity(defaultEqual);
+
+    const empty = makeState();
+    empty.spacing['hsp-md'] = '';
+    assertParity(empty);
+
+    const roleEquivalent = makeState();
+    roleEquivalent.color.semanticMappings.accent = 'bg';
     const numericBaseline = { ...baseline, semanticMappings: { ...baseline.semanticMappings, accent: 0 } };
-    expect(isChanged(accent, state, numericBaseline, FIXTURE_PANEL_CONFIG)).toBe(true);
+    expect(semanticMappingsEqual('bg', 0, roleEquivalent.color, numericBaseline)).toBe(true);
+    assertParity(roleEquivalent, numericBaseline);
+
+    const literal = makeState();
+    literal.color.semanticMappings.accent = { literal: '#123456' };
+    assertParity(literal);
+
+    const ref = makeState();
+    ref.color.semanticMappings.accent = { ref: { tier: 'palette', item: 'fixture-p2' } };
+    assertParity(ref);
+
+    const palette = makeState();
+    palette.color.palette[2] = '#abcdef';
+    assertParity(palette);
+  });
+
+  it('flattenApplyOverrides diffs the secondary cluster against its configured defaults', () => {
+    const secondaryTab: TabConfig = {
+      id: 'color-secondary', label: 'Secondary',
+      colorExtras: {
+        id: 'secondary', label: 'Secondary', baseRoles: {},
+        baseDefaults: { background: 0, foreground: 1, cursor: 0, selectionBg: 0, selectionFg: 1 },
+        defaultShikiTheme: 'dracula' as const, colorSchemes: {}, panelSettings: { colorScheme: '', colorMode: false as const },
+      },
+      tiers: [
+        { id: 'palette', label: 'Palette', items: [
+          { id: 'secondary-p0', cssVar: '--secondary-p0', label: 'P0', default: '#000000', type: { kind: 'color' as const } },
+          { id: 'secondary-p1', cssVar: '--secondary-p1', label: 'P1', default: '#ffffff', type: { kind: 'color' as const } },
+        ] },
+        { id: 'semantic', label: 'Semantic', semantic: true as const, items: [
+          { id: 'surface', cssVar: '--secondary-surface', label: 'Surface', default: 'secondary-p0', type: { kind: 'color' as const } },
+        ] },
+      ],
+    };
+    const cfg = { ...FIXTURE_PANEL_CONFIG, tabs: [...FIXTURE_PANEL_CONFIG.tabs, secondaryTab] };
+    const state = makeState();
+    state.secondary = {
+      palette: ['#123456', '#ffffff'], background: 0, foreground: 1, cursor: 0,
+      selectionBg: 0, selectionFg: 1, semanticMappings: { surface: 0 }, shikiTheme: 'dracula',
+    };
+    expect(flattenApplyOverrides(state, baseline, cfg)).toEqual({ '--secondary-p0': '#123456' });
   });
 });

@@ -28,6 +28,7 @@ function TierSection({
   deleteValue,
   renderTierBody,
 }: TierSectionProps) {
+  const isFullWidthSpecimen = tier.preview === 'size' || tier.preview === 'line-height';
   const entryByItem = useMemo(() => new Map(entries.map((entry) => [entry.item.id, entry])), [entries]);
   const renderRow = useCallback<SharedRowRenderer>((item) => {
     const entry = entryByItem.get(item.id);
@@ -52,7 +53,9 @@ function TierSection({
           ? <span key={contribution.id} className="tokenpanel-tab-section-heading-extra">{contribution.tierHeadingExtra(tier)}</span>
           : null)}
       </div>
-      <div className="tokenpanel-tab-grid">
+      <div className={isFullWidthSpecimen
+        ? 'tokenpanel-tab-grid tokenpanel-tab-grid--specimen'
+        : 'tokenpanel-tab-grid'}>
         {renderTierBody
           ? renderTierBody(tier, renderRow)
           : tier.items.map((item) => renderRow(item))}

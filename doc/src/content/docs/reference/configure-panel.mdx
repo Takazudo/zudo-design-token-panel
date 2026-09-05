@@ -182,7 +182,7 @@ export interface PanelConfig {
 | `storagePrefix` | `string` | yes | Drives every persisted localStorage key. Also the instance id. |
 | `consoleNamespace` | `string` | yes | Globals installed under `window[consoleNamespace]`. |
 | `modalClassPrefix` | `string` | yes | BEM root for every modal the panel owns. |
-| `schemaId` | `string` | yes | **Display-only** label returned by `getDesignTokenSchema()`. The built-in import/export UI does not read it; `serialize()`/`deserialize()` always use the canonical `SCHEMA_V1`/`SCHEMA_V2`/`SCHEMA_V3` constants and never read this field. See [Apply pipeline](./apply-pipeline.mdx#export-schema-v2). |
+| `schemaId` | `string` | yes | **Display-only** label returned by `getDesignTokenSchema()`. The built-in import/export UI does not read it; `serialize()`/`deserialize()` always use the canonical `SCHEMA_V1`/`SCHEMA_V2`/`SCHEMA_V3` constants and never read this field. See [Apply pipeline](./apply-pipeline.mdx#export-schema-v2-and-v3). |
 | `exportFilenameBase` | `string` | yes | Saves as `${exportFilenameBase}.json`. |
 | `toggleEvent` | `string` | no | Toggle-event name for this instance. Default: `toggle-${storagePrefix}` (non-default instances); the default instance uses `toggle-design-token-panel`. |
 | `tabs` | [`TabConfig[]`](./token-manifest.mdx) | yes | Tab strip definition. The Color tab reads its data from the tier model via `colorExtras` + `TierItem[]`. |

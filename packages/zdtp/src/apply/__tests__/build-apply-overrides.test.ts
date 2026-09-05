@@ -202,6 +202,12 @@ describe('buildApplyOverrides — spacing diffs', () => {
     const result = buildApplyOverrides(state, undefined, STUB_CLUSTER, FIXTURE_TABS);
     expect(result['--zd-spacing-vgap-sm']).toBeUndefined();
   });
+
+  it('omits retained empty and manifest-default spacing overrides', () => {
+    const state = makeState({ 'hsp-md': '40px', 'vsp-sm': '' });
+    expect(buildApplyOverrides(state, undefined, STUB_CLUSTER, FIXTURE_TABS)).toEqual({});
+    expect(state.spacing).toEqual({ 'hsp-md': '40px', 'vsp-sm': '' });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -377,6 +383,15 @@ describe('buildApplyOverrides — color-only regression', () => {
     };
     const result = buildApplyOverrides(state, BASE_COLOR, FIXTURE_CLUSTER, []);
     expect(result['--fixture-semantic-accent']).toBe('var(--fixture-p2)');
+  });
+
+  it('omits role aliases and numeric mappings that resolve to the same slot', () => {
+    const state: TweakState = {
+      color: { ...BASE_COLOR, semanticMappings: { accent: 'bg' } },
+      spacing: {}, typography: {}, size: {},
+    };
+    const baseline = { ...BASE_COLOR, semanticMappings: { accent: 0 } };
+    expect(buildApplyOverrides(state, baseline, FIXTURE_CLUSTER, [])).toEqual({});
   });
 
   it('emits the full color block when colorDefaults is undefined', () => {

@@ -361,6 +361,12 @@ describe('F33 — panel chrome survives full hostile CSS environment', () => {
       const bulkBar = createElement('tokenpanel-bulk-action-bar', 'div', shell);
       const footer = createElement('tokenpanel-footer', 'div', shell);
       const specimenToolbar = createElement('tokenpanel-specimen-toolbar', 'div', shell);
+      const specimenTab = createElement('tokenpanel-tab-content', 'div', shell);
+      specimenTab.style.width = '440px';
+      shell.style.setProperty('--tokenpanel-grid-min', '192px');
+      const specimenSection = createElement('tokenpanel-tab-section', 'div', specimenTab);
+      const specimenGrid = createElement('tokenpanel-tab-grid tokenpanel-tab-grid--specimen', 'div', specimenSection);
+      createElement('tokenpanel-row--stacked tokenpanel-row--specimen-size', 'div', specimenGrid);
       const inspectView = createElement('tokenpanel-element-inspect-view', 'div', shell);
 
       const chain = createElement('tokenpanel-chain-popover');
@@ -400,6 +406,9 @@ describe('F33 — panel chrome survives full hostile CSS environment', () => {
       expect(getComputedStyle(bulkBar).position).toBe('sticky');
       expect(getComputedStyle(footer).display).toBe('flex');
       expect(getComputedStyle(specimenToolbar).display).toBe('flex');
+      expect(getComputedStyle(specimenGrid).gridTemplateColumns.trim().split(/\s+/)).toHaveLength(1);
+      expect(specimenGrid.scrollWidth).toBe(specimenGrid.clientWidth);
+      expect(specimenTab.scrollWidth).toBe(specimenTab.clientWidth);
       expect(getComputedStyle(chain).overflowY).toBe('auto');
       expect(getComputedStyle(chain).fontSize).toBe('11px');
       expect(getComputedStyle(onPageSpecimen).display).toBe('block');

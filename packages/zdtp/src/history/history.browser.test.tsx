@@ -122,6 +122,7 @@ describe('history controls and snapshots', () => {
       savedAt: expect.any(Number),
       edits: 1,
     });
+    expect(container.querySelector('.tokenpanel-history-heading-count')?.textContent).toBe('1 edit');
 
     await editSpacing('52px');
     container.querySelector<HTMLElement>('[aria-label="Save snapshot B"]')?.click();

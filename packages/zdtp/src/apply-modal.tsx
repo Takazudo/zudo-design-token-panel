@@ -4,7 +4,7 @@ import { buildApplyOverrides } from './apply/build-apply-overrides';
 import { writtenCssVarsFromResponse } from './apply/reconcile-applied';
 import { routeTokensToFiles } from './apply/route-tokens-to-files';
 import { getPanelConfig, modalClass, resolveApplyRouting, resolveSecondaryColorCluster, type PanelConfig } from './config/panel-config';
-import { getActivePrimaryCluster, type ColorTweakState, type TweakState } from './state/tweak-state';
+import { getActivePrimaryCluster, initSecondaryFromConfig, type ColorTweakState, type TweakState } from './state/tweak-state';
 import { serialize } from './utils/design-token-serde';
 import { useDialogBackdropClose } from './controls/use-dialog-backdrop-close';
 
@@ -77,7 +77,7 @@ export function flattenApplyOverrides(
   const secondaryCluster = resolveSecondaryColorCluster(cfg);
   const secondaryTab = cfg.tabs.find((tab) => tab.id === 'color-secondary');
   const secondary = secondaryCluster && state.secondary
-    ? buildApplyOverrides({ color: state.secondary, spacing: {}, typography: {}, size: {} }, undefined, secondaryCluster, cfg.tabs, secondaryTab)
+    ? buildApplyOverrides({ color: state.secondary, spacing: {}, typography: {}, size: {} }, initSecondaryFromConfig(cfg), secondaryCluster, cfg.tabs, secondaryTab)
     : {};
   return { ...primary, ...secondary };
 }
@@ -257,7 +257,7 @@ export function ApplyModal(props: ApplyModalProps) {
       {phase.kind === 'error' && <div className={cls.error} role="alert">{phase.message}</div>}
     </div>
     <div className={cls.actions}>
-      {phase.kind === 'preview' && <><RoleButton buttonRef={primaryRef} className={cls.primary} disabled={disabled} onClick={() => void apply()}>Write {selectedFiles} file{selectedFiles === 1 ? '' : 's'} ({selected.size} tokens)</RoleButton><RoleButton className={cls.neutral} onClick={close}>Close</RoleButton></>}
+      {phase.kind === 'preview' && <><RoleButton buttonRef={primaryRef} className={cls.primary} disabled={disabled} onClick={() => void apply()}>Write {selectedFiles} file{selectedFiles === 1 ? '' : 's'} ({selected.size} token{selected.size === 1 ? '' : 's'})</RoleButton><RoleButton className={cls.neutral} onClick={close}>Close</RoleButton></>}
       {phase.kind === 'applying' && <RoleButton className={cls.primary} disabled onClick={() => undefined}>Applying…</RoleButton>}
       {phase.kind === 'success' && <RoleButton className={cls.primary} onClick={close}>Done</RoleButton>}
       {phase.kind === 'error' && <><RoleButton className={cls.primary} onClick={() => { setPhase({ kind: 'preview' }); setSelectionVersion((version) => version + 1); }}>Retry</RoleButton><RoleButton className={cls.neutral} onClick={close}>Close</RoleButton></>}

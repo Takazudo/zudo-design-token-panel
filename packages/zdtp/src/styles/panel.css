@@ -1723,6 +1723,13 @@
   gap: var(--tokentweak-gap-xs);
 }
 
+/* Type samples need the tier's full width regardless of the density setting. */
+.tokenpanel-tab-grid--specimen {
+  grid-template-columns: minmax(0, 1fr);
+  /* Keep the trailing controls' 4px pointer hit areas inside the grid. */
+  padding-inline: 4px;
+}
+
 /* ===========================================================================
  * Color tab — preset select + palette grids + base/semantic grids
  * ========================================================================= */

@@ -426,10 +426,11 @@ export function createApplyHandler(
             if (!result.ok) restoreFailures.push(persisted[i].relPath);
           }
           if (restoreFailures.length > 0) {
+            const restoreFileLabel = restoreFailures.length === 1 ? 'file' : 'files';
             return jsonResponse(
               {
                 ok: false,
-                error: `Failed to write file ${rewrite.relPath}; rollback also failed for ${restoreFailures.length} file(s) — disk state is inconsistent. Inspect the listed files manually.`,
+                error: `Failed to write file ${rewrite.relPath}; rollback also failed for ${restoreFailures.length} ${restoreFileLabel} — disk state is inconsistent. Inspect the listed files manually.`,
                 failedFile: rewrite.relPath,
                 restoreFailures,
               },

@@ -272,6 +272,7 @@ describe.skipIf(!BIN_EXISTS)('zdtp-server bin (integration)', () => {
     await waitFor(() => bin.stdout.join('').includes('[design-token-panel] dry-run'), {
       label: 'dry-run outcome log',
     });
+    expect(bin.stdout.join('')).toContain('[design-token-panel] dry-run 1 token to 1 file');
 
     writeFileSync(fix.tokensPath, `${before}\n/* external edit */\n`, 'utf-8');
     const externallyEdited = readFileSync(fix.tokensPath, 'utf-8');

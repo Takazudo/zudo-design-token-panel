@@ -188,7 +188,9 @@ export function HistoryRail({
       <div className="tokenpanel-history-heading">
         <span role="heading" aria-level={3}>History</span>
         <span className="tokenpanel-history-heading-count">
-          {history.entries.length > 0 ? `${history.entries.length} edits` : 'no edits yet'}
+          {history.entries.length > 0
+            ? `${history.entries.length} ${history.entries.length === 1 ? 'edit' : 'edits'}`
+            : 'no edits yet'}
         </span>
       </div>
       <div className="tokenpanel-history-list">

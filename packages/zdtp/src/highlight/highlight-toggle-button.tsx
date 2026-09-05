@@ -66,7 +66,7 @@ export function HighlightToggleButton({ cssVar }: HighlightToggleButtonProps): J
   }, [toggle, cssVar]);
 
   const title = isActive
-    ? `Stop highlighting ${cssVar}` + (count !== undefined ? ` (${count} elements)` : '')
+    ? `Stop highlighting ${cssVar}` + (count !== undefined ? ` (${count} element${count === 1 ? '' : 's'})` : '')
     : `Highlight elements using ${cssVar}`;
 
   return (
