@@ -10,7 +10,7 @@ The design-token panel is split into three layers connected through narrow, JSON
 
 There are three concerns the package keeps in three separate layers:
 
-1. **Panel UI** — the Preact island that renders the side panel, owns tab and control state, and writes overrides to `:root` via `setProperty`. Lives entirely in the browser.
+1. **Panel UI** — the Preact island that renders the side panel, owns tab and control state, and writes overrides through the configured `applySink` (or the default `:root` sink). Lives entirely in the browser.
 2. **Host-adapter** — the thin shim a host imports as a side effect. It reads the inline JSON config, calls `configurePanel(...)`, installs `window.<consoleNamespace>.*` plus the fixed-name `window.zdtp.{show,hide,toggle}()` alias, and gates the lazy-load of the panel module.
 3. **Apply-pipeline** — the optional path from the panel's Apply button back to disk. It is the in-package payload builder plus the standalone Node bin server (`zdtp-server`) that owns the file rewrites.
 
@@ -25,7 +25,7 @@ There are three concerns the package keeps in three separate layers:
 │                                        ▼                  │
 │                               ┌────────────────┐         │
 │                               │   Panel UI     │ writes  │
-│                               │   (Preact)     │ ──────▶ :root
+│                               │   (Preact)     │ ──────▶ CSS target
 │                               └────────┬───────┘         │
 │                                        │ POST /apply     │
 └────────────────────────────────────────┼─────────────────┘
@@ -61,14 +61,14 @@ With tiers, the host declares the relationship once in config and the resolver t
 interface PanelConfig {
   // ...identity and routing fields...
   tabs: readonly TabConfig[];
-  colorPresets?: readonly ColorPreset[];
+  dock?: { reflow?: 'body-margin' | 'none' };
+  colorPresets?: Record<string, ColorScheme>;
 }
 
 interface TabConfig {
   id: string;
   label: string;
   tiers: readonly TierConfig[];
-  advancedTiers?: readonly string[];   // tier ids to hide in Advanced disclosure
   colorExtras?: ColorClusterExtras;    // color-tab-only non-item metadata
 }
 
@@ -77,13 +77,16 @@ interface TierConfig {
   label: string;
   items: readonly TierItem[];
   referencesTier?: string;             // when set, items hold refs to another tier
+  semantic?: true;                     // Color-tab semantic tier marker
+  referencesRamps?: readonly { tab?: string; tier: string }[];
+  preview?: 'size' | 'line-height' | 'family' | 'weight' | 'bar' | 'radius' | 'duration';
+  previewBase?: string;
 }
 
 interface TierItem {
   id: string;
   cssVar: string;
   label: string;
-  group?: string;
   default: string;
   type: TierValueKind;
   pill?: PillSpec;
@@ -108,11 +111,11 @@ Each `TierItem` carries a `type` discriminated union that determines what edit c
 
 ```ts
 type TierValueKind =
-  | { kind: 'length'; step: number; unit: string }
-  | { kind: 'number'; step: number }
+  | { kind: 'length'; step: number; unit: string; units?: readonly string[] }
+  | { kind: 'number'; step: number; unit?: string }
   | { kind: 'select'; options: readonly string[] }
   | { kind: 'text' }
-  | { kind: 'color' }
+  | { kind: 'color'; format?: 'hex' | 'oklch' }
   | { kind: 'cursor' }
   | { kind: 'content' }
   | { kind: 'mask-image' };
@@ -135,7 +138,6 @@ const spacingTab: TabConfig = {
           id: 'myapp-spacing-md',
           cssVar: '--myapp-spacing-md',
           label: 'Spacing M',
-          group: 'hsp',
           default: '1rem',
           type: { kind: 'length', step: 0.0625, unit: 'rem' },
         },
@@ -145,7 +147,7 @@ const spacingTab: TabConfig = {
 };
 ```
 
-At apply time, the resolver emits `--myapp-spacing-md: 1.25rem` (or whatever the current override is) directly to `:root`.
+At apply time, the resolver emits `--myapp-spacing-md: 1.25rem` (or whatever the current override is) directly to the configured `applySink`, or to `:root` when no sink is configured.
 
 ### Cross-tier references
 
@@ -155,7 +157,6 @@ When a `TierConfig` declares `referencesTier`, its items do not hold CSS strings
 const fontTab: TabConfig = {
   id: 'font',
   label: 'Font',
-  advancedTiers: ['raw'],          // hide raw scale in Advanced disclosure
   tiers: [
     {
       id: 'raw',
@@ -190,7 +191,10 @@ Changing `--myapp-scale-base` updates `--myapp-text-body` automatically through 
 
 ### Color extras
 
-The color tab carries extra non-item metadata (HSL picker state, color schemes, base roles, secondary cluster) in `colorExtras` on the `TabConfig`. This metadata does not map to individual TierItems; it drives the color tab's UI chrome and scheme switching.
+The color tab carries extra non-item metadata (color-picker configuration,
+color schemes, base roles, and optional secondary-cluster data) in
+`colorExtras` on the `TabConfig`. This metadata does not map to individual
+TierItems; it drives the color tab's UI chrome and scheme switching.
 
 ```ts
 const colorTab: TabConfig = {
@@ -198,8 +202,8 @@ const colorTab: TabConfig = {
   label: 'Color',
   colorExtras: {
     id: 'myapp-colors',
-    baseRoles: { bg: '--myapp-palette-0', text: '--myapp-palette-15' },
-    baseDefaults: { bg: 0, text: 15 },
+    baseRoles: { background: '--myapp-palette-0', foreground: '--myapp-palette-15' },
+    baseDefaults: { background: 0, foreground: 15 },
     defaultShikiTheme: 'github-dark',
     colorSchemes: { /* scheme registry */ },
     panelSettings: { /* cluster UI settings */ },
@@ -228,6 +232,61 @@ const colorTab: TabConfig = {
 
 The `tiers` array follows the same raw/semantic pattern as any other tab. `colorExtras` sits alongside `tiers` and is only consumed by the color tab's specialized UI.
 
+## Font specimen and host-page rendering
+
+The font tab can mark tiers with `preview` metadata. `size` tiers are sorted
+by resolved pixel value and show the configured specimen text; a
+`line-height` tier repeats that text at a base size. When `previewBase` names
+a CSS variable, the renderer first resolves a matching manifest item and then
+the document-root computed value; otherwise it uses the nearest resolved size
+to 16px (or 16px when no size can be resolved). The first item in a `family`
+or `weight` tier supplies the font style used by every sample. `bar`,
+`radius`, and `duration` render compact glyphs in ordinary token rows.
+
+The Font tab's **Render on page** option creates a
+`body`-first `div.tokenpanel-on-page-specimen[data-zdtp-specimen]` portal.
+The portal deliberately inherits the host page's font and foreground color;
+it is not panel chrome and is excluded from token/highlight/picker scans. It
+contains a level-three heading and one **Scale** section with one row for every
+`preview: 'size'` item, plus a **Line height** section for each line-height
+tier. Each line-height sample exposes a leading guide through
+`--tokenpanel-specimen-line` and uses
+the toolbar width (240–720px, default 420px).
+
+While this portal is enabled, the panel temporarily claims the `right` dock so
+the page specimen has room. The panel remembers the prior mode in memory,
+never as a second storage key, and restores it when the option is disabled,
+the panel closes, navigation unmounts the shell, or a dock claim is lost.
+
+## Dock reflow and host mutations
+
+`dock.reflow` controls the host-document side effect for a `right` or `bottom`
+dock. The default `'body-margin'` sets `body.style.margin-right` or
+`body.style.margin-bottom` to the current dock dimension and publishes the
+same pixel value as `--zdtp-dock-inset-right` or `--zdtp-dock-inset-bottom` on
+the document root. `'none'` publishes the root inset but restores the body's
+exact pre-claim value. The registry permits one owner per edge across bundles;
+another owner falls back to `float`. The first claim snapshots both inline
+values and priorities, and every release restores them exactly.
+
+`float` is draggable and `right`/`bottom` are resizable from their inner edge.
+`mini` is a compact pill that expands back to the last full mode. Dock mode,
+dimensions, and the ghost-idle preference are independent of token state and
+are persisted under the instance's storage prefix.
+
+## One transaction path for token state
+
+All mounted-panel token mutations go through `commitTweakState(reason,
+updater, options)`. The transaction applies the next state, saves the
+persisted envelope, updates component state, and then records history in that
+fixed order. It is used by single-row edits, bulk edits, element-inspect
+adjust/revert, imports, snapshot restores, and undo/redo; bulk operations
+therefore create one history entry even when they touch many rows. History is
+in memory only. The v4 envelope and the A/B snapshot slots are persisted
+separately, while `last-applied` stores the flat comparison baseline used by
+the changed-state indicator. After a successful disk apply it is reset to
+`{}`, and only confirmed-written variables are reconciled from live state.
+
 ## Apply pipeline
 
 ```mermaid
@@ -237,7 +296,7 @@ flowchart LR
     C --> D["Resolver\nresolveTierItemValue()"]
     D -->|"literal tier"| E["CSS string\n(e.g. 1.25rem)"]
     D -->|"reference tier"| F["var(--raw-cssvar)"]
-    E --> G[":root inline style\nsetProperty()"]
+    E --> G["default :root or applySink\nCSS write"]
     F --> G
     G -->|"Apply button"| H["POST /apply"]
     H --> I["Bin server\natomic file rewrite"]
@@ -251,7 +310,7 @@ The panel keeps an in-memory `TabOverrides` map — a two-level nested record:
 tierId → itemId → overrideValue (CSS string or ref item id)
 ```
 
-On every input change or color pick, the resolver calls `resolveTierItemValue(tab, tierId, itemId, overrides)` and then `emitTierItemCssValue(resolved)` to get the final CSS string. The result is written to `:root` via `document.documentElement.style.setProperty(cssVar, value)` immediately.
+On every input change or color pick, the resolver calls `resolveTierItemValue(tab, tierId, itemId, overrides)` and then `emitTierItemCssValue(resolved)` to get the final CSS string. The result is written immediately to the default `:root` target via `document.documentElement.style.setProperty(cssVar, value)`, or to the configured `applySink` for that instance.
 
 ### Resolver semantics
 
@@ -265,22 +324,22 @@ On every input change or color pick, the resolver calls `resolveTierItemValue(ta
 
 ### Storage schema and migration
 
-State is persisted to `localStorage` under `${storagePrefix}-state-v4`. On first load after an upgrade the panel automatically migrates any existing v3 state into the v4 envelope (the legacy v3 key is left in place, not deleted); v2 is promoted to v3 and v1 to v2 in the same pass. No user action is required.
+State is persisted to `localStorage` under `${storagePrefix}-state-v4`. On first load after an upgrade the panel automatically migrates any existing v3 state into the v4 envelope (the legacy v3 key is left in place, not deleted); v2 and v1 are normalised to v3, then copied into v4 in the same pass. No user action is required.
 
 | Storage key | Contents | Lifecycle |
 | --- | --- | --- |
 | `${storagePrefix}-state-v4` | Current unified envelope. Same slices as v3, except `color` (and any secondary cluster slice) is keyed by active (scheme, mode) identity — one slot per identity — rather than a single flat object. | Live; written on every change. See [Per-scheme color persistence](./configure-panel.mdx#storage-key-derivation-per-scheme-color-persistence-v4-envelope). |
 | Previous v3 key | v3 envelope (flat, single-slot `color`) — migrated into v4 on first load. Left in place (not deleted) so a downgrade can still read it. | Transitional — see [Storage-key derivation](./configure-panel.mdx#storage-key-derivation). |
 | Previous v2 key | v2 envelope — migrated to v3 (and from there into v4) on first load, then deleted. | Transitional. |
-| `${storagePrefix}-state` | Pre-v2 flat state (color-only). Migrated to v2 (and from there into v4) on first load, then deleted. | Legacy. |
+| `${storagePrefix}-state` | Pre-v2 flat state (color-only). Migrated to v3 (and from there into v4) on first load, then deleted. | Legacy. |
 
 ### JSON export and import
 
-The **Export** button emits a JSON file whose `$schema` field identifies it as `SCHEMA_V2` or, when the state holds a semantic mapping v2's number-only leaf can't represent (a `{ literal }` / `{ literal: { light, dark } }` / `{ ref }` value), the superset `SCHEMA_V3`. The **Import** modal accepts `SCHEMA_V1`, `SCHEMA_V2`, and `SCHEMA_V3` payloads and normalises them internally before applying. `PanelConfig.schemaId` is a display-only label surfaced in the Import modal's copy — it is never read by the serializer or the validator; see [`PanelConfig` interface](./configure-panel.mdx#panelconfig-interface). The export schema version is independent of the localStorage schema version — bumps to one do not imply a bump to the other.
+The **Export** button emits a JSON file whose `$schema` field identifies it as `SCHEMA_V2` or, when the state holds a semantic mapping v2's number-only leaf can't represent (a `{ literal }` / `{ literal: { light, dark } }` / `{ ref }` value), the superset `SCHEMA_V3`. The **Import** modal accepts `SCHEMA_V1`, `SCHEMA_V2`, and `SCHEMA_V3` payloads and normalises them internally before applying. `PanelConfig.schemaId` is a display-only label returned by `getDesignTokenSchema()`; the built-in UI does not read it, and it is never read by the serializer or validator; see [`PanelConfig` interface](./configure-panel.mdx#panelconfig-interface). The export schema version is independent of the localStorage schema version — bumps to one do not imply a bump to the other.
 
 ### Optional disk rewrite
 
-A tweak never leaves the browser — `:root` updates synchronously on every change and the state is persisted to `localStorage` under `${storagePrefix}-state-v4`. The bin server only runs when the host passes `applyEndpoint` + `applyRouting` on `PanelConfig`, and even then only activates when the user clicks Apply.
+A tweak never leaves the browser — the active CSS target updates synchronously on every change and the state is persisted to `localStorage` under `${storagePrefix}-state-v4`. The bin server only runs when the host passes `applyEndpoint` + `applyRouting` on `PanelConfig`, and even then only activates when the user clicks Apply.
 
 The bin server receives a POST with the current override diff, validates the request origin against its CORS allow-list, validates each routing entry against the write-root sandbox, and rewrites the target CSS files atomically (temp file + rename, per-file mutex). Any write failure triggers an in-memory snapshot rollback so no file is left in a partial state.
 

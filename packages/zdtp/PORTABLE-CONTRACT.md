@@ -25,6 +25,11 @@ one page: call it with a distinct `storagePrefix` to register a new instance;
 call it with the same prefix and equal config for an idempotent no-op.
 
 ```ts
+export interface PanelDockConfig {
+  /** Reserve host-document space for a right/bottom dock. Defaults to body-margin. */
+  reflow?: 'body-margin' | 'none';
+}
+
 export interface PanelConfig {
   /** Base for every derived storage key. Also the instance id. See §2. */
   storagePrefix: string;
@@ -32,7 +37,7 @@ export interface PanelConfig {
   consoleNamespace: string;
   /** BEM-style prefix used by every modal in the panel (export / import / apply). */
   modalClassPrefix: string;
-  /** `$schema` value emitted into export JSON and required on import. */
+  /** Display-only label returned by getDesignTokenSchema(); not used by built-in UI or serde validation. */
   schemaId: string;
   /** Default filename base — exports save as `${exportFilenameBase}.json`. */
   exportFilenameBase: string;
@@ -63,10 +68,9 @@ export interface PanelConfig {
    */
   colorPresets?: Record<string, ColorScheme>;
   /**
-   * Optional dev-API endpoint URL. When the host wires the panel into a
-   * project that ships its own design-tokens-apply route, supply the URL
-   * here; the Apply button POSTs its diff payload to it. When `undefined`,
-   * the Apply button stays disabled with a tooltip.
+   * Optional dev-API endpoint URL. When supplied together with a non-empty
+   * `applyRouting` map, the Apply button POSTs its diff payload to it. When
+   * either field is absent, the button stays disabled with a tooltip.
    */
   applyEndpoint?: string;
   /**
@@ -96,10 +100,12 @@ export interface PanelConfig {
     /** Optional host Tailwind v4 theme CSS used by the lazy side for suggestions. */
     themeCss?: string;
   };
+  /** Optional dock integration; omitted values use body-margin host reflow. */
+  dock?: PanelDockConfig;
   /**
    * Optional apply sink. Routes this instance's CSS-var writes and clears
    * through the caller-supplied object instead of `document.documentElement`.
-   * See §3.5 for the full sink contract.
+   * See §3.6 for the full sink contract.
    *
    * NOTE: this field carries a function reference and is therefore NOT
    * JSON-serializable. It cannot pass through Astro's inline JSON config.
@@ -126,7 +132,7 @@ export interface PanelConfig {
 
 /**
  * Apply sink — routes CSS-var writes for one panel instance somewhere other
- * than the host `:root`. See §3.5.
+ * than the host `:root`. See §3.6.
  */
 export interface ApplySink {
   /** Upsert the given var name→value pairs on the sink target. */
@@ -270,9 +276,22 @@ derives the keys at runtime from this single base.
 | `state-v1`  | `${storagePrefix}-state`    | tweak-state (legacy) | Pre-v2 flat-state format (Color-only). When selected, it is written to `state-v3` and the v1 key is deleted, then the result is copied into v4. |
 | `open`      | `${storagePrefix}-open`     | panel                | Mirror of the panel's `open` boolean state (so the next mount opens directly into the user's last state without a post-render toggle dispatch).              |
 | `position`  | `${storagePrefix}-position` | panel                | Drag position (`{ top, left }`) so the panel reappears where the user left it.                                                                              |
+| `size`      | `${storagePrefix}-size`     | panel                | Floating shell dimensions (`{ width, height }`) in pixels.                                                                                                  |
+| `dock`      | `${storagePrefix}-dock`     | panel                | Presentation mode: `'float'`, `'right'`, `'bottom'`, or `'mini'`.                                                                                          |
+| `dock-size` | `${storagePrefix}-dock-size` | panel               | Right/bottom dock dimensions (`{ right, bottom }`), defaulting to `{ right: 440, bottom: 340 }`.                                                           |
+| `density`   | `${storagePrefix}-density`  | panel                | Tab-grid density preference (`0`, `1`, or `2`).                                                                                                             |
+| `ghost`     | `${storagePrefix}-ghost`    | shell                | Ghost-when-idle preference (`'1'` when enabled).                                                                                                            |
+| `specimen`  | `${storagePrefix}-specimen` | specimen              | Font specimen toolbar JSON: `{ text, preset, overridden, width }`; width is clamped to 240–720.                                                          |
+| `snapshot-a` | `${storagePrefix}-snapshot-a` | snapshots            | Persisted A snapshot: `{ state, identity, savedAt, edits }`.                                                                                               |
+| `snapshot-b` | `${storagePrefix}-snapshot-b` | snapshots            | Persisted B snapshot: `{ state, identity, savedAt, edits }`.                                                                                               |
+| `last-applied` | `${storagePrefix}-last-applied` | apply              | Flat comparison baseline; a successful apply resets it to `{}` while unconfirmed overrides remain in live state.                                             |
 | `visible`   | `${storagePrefix}:visible`  | adapter              | Adapter-level visibility-intent flag, owned by the lazy-load gate (§6).                                                                                      |
 | `autoload`  | `${storagePrefix}:autoload` | autoload-state       | Owner-mode autoload flag. `'1'` (explicit, set by `enableAutoload()`) or `'auto'` (auto-remembered, set by opening the panel — see §6.2) both mean "load the panel bundle eagerly and mount CLOSED on every page load." `enableAutoload()` / `disableAutoload()` manage the explicit value; `disableAutoload()` clears either. See §6.2. |
+| `elpath-enabled` | `${storagePrefix}-elpath-enabled` | element-path-state | Element-path picker enabled bit.                                                                                                                           |
 | `domtweaker-enabled` | `${storagePrefix}-domtweaker-enabled` | dom-tweaker-state | DOM Tweaker enabled bit. `'1'` means "mount the closed shell and load the DOM Tweaker lazy boundary." Only meaningful when `PanelConfig.domTweaker` is present. |
+| `highlight-slots` | `${storagePrefix}-highlight-slots` | highlight-state | Ten highlight slot colors in local storage.                                                                                                                |
+| `highlight-outline-width` | `${storagePrefix}-highlight-outline-width` | highlight-state | Global highlight outline width in local storage, clamped to 1–20.                              |
+| `highlight-active` | `${storagePrefix}-highlight-active` | highlight-state | Active CSS-variable-to-slot map in session storage.                                                                                                        |
 
 **Constraint — colon, not dash, for `visible` and `autoload`.** Both adapter-
 level flags use a `:` separator; every other derived key uses `-`. The colon
@@ -290,9 +309,22 @@ myapp-design-token-panel-state-v2
 myapp-design-token-panel-state
 myapp-design-token-panel-open
 myapp-design-token-panel-position
+myapp-design-token-panel-size
+myapp-design-token-panel-dock
+myapp-design-token-panel-dock-size
+myapp-design-token-panel-density
+myapp-design-token-panel-ghost
+myapp-design-token-panel-specimen
+myapp-design-token-panel-snapshot-a
+myapp-design-token-panel-snapshot-b
+myapp-design-token-panel-last-applied
 myapp-design-token-panel:visible
 myapp-design-token-panel:autoload
+myapp-design-token-panel-elpath-enabled
 myapp-design-token-panel-domtweaker-enabled
+myapp-design-token-panel-highlight-slots
+myapp-design-token-panel-highlight-outline-width
+myapp-design-token-panel-highlight-active  # sessionStorage
 ```
 
 Unit tests in the package verify these derivations with literal-equality
@@ -387,14 +419,14 @@ public surface:
 ```ts
 // Value-kind discriminated union — describes how a tier item is edited.
 export type TierValueKind =
-  | { kind: 'length'; step: number; unit: string }
-  | { kind: 'number'; step: number }
+  | { kind: 'length'; step: number; unit: string; units?: readonly string[] }
+  | { kind: 'number'; step: number; unit?: string }
   | { kind: 'select'; options: readonly string[] }
   | { kind: 'text' }
   | { kind: 'cursor' }
   | { kind: 'content' }
   | { kind: 'mask-image' }
-  | { kind: 'color' };
+  | { kind: 'color'; format?: 'hex' | 'oklch' };
 
 export interface PillSpec {
   value: string;
@@ -414,12 +446,10 @@ export type SemanticValue =
 export interface TierItem {
   /** Stable id used as the key in persisted state (e.g. `hsp-2xs`). */
   id: string;
-  /** CSS custom property written to `:root` (e.g. `--myapp-spacing-hgap-2xs`). */
+  /** CSS custom property written to the default root or configured apply sink (e.g. `--myapp-spacing-hgap-2xs`). */
   cssVar: string;
   /** Display label shown in the panel row. */
   label: string;
-  /** Optional manifest group — tab components use this for section headers. */
-  group?: string;
   /** Default value as a CSS string (`0.125rem`, `12px`, etc.). */
   default: string;
   /** Discriminated union describing the control kind and its metadata. */
@@ -459,6 +489,10 @@ export interface TierConfig {
    * this is a multi-source allow-list for individual semantic mappings.
    */
   referencesRamps?: readonly { tab?: string; tier: string }[];
+  /** Optional visual treatment rendered for this tier's values. */
+  preview?: 'size' | 'line-height' | 'family' | 'weight' | 'bar' | 'radius' | 'duration';
+  /** CSS variable used as the font-size base for a preview, when supplied. */
+  previewBase?: string;
 }
 
 For the full `SemanticValue` mapping and emission behavior, see the maintained
@@ -477,38 +511,78 @@ export interface ColorClusterExtras {
   defaultShikiTheme: string;
   colorSchemes: Record<string, ColorScheme>;
   panelSettings: ClusterPanelSettings;
+  /** Optional semantic-item-id → SemanticValue defaults override map. */
+  semanticDefaults?: Record<string, SemanticValue>;
 }
 
 /** Top-level tab entry on PanelConfig.tabs. */
 export interface TabConfig {
-  /** Stable id. Reserved ids: 'color' (primary color tab), 'color-secondary'. */
+  /** Stable id. Dedicated panel ids are 'color', 'font', 'spacing', 'size', 'palette', and 'notes'. */
   id: string;
   /** Display label rendered on the tab strip. */
   label: string;
   /** Ordered list of tiers within this tab. */
   tiers: readonly TierConfig[];
-  /** Tier ids whose rows are hidden behind an Advanced <details> disclosure. */
-  advancedTiers?: readonly string[];
   /**
-   * Required on color tabs (id 'color' / 'color-secondary'). Carries the
+   * Required on color entries (id 'color' / 'color-secondary'). Carries the
    * structural metadata (base roles, scheme registry, panel settings) for the
    * color tab's palette picker and semantic table. Absent on non-color tabs.
    */
   colorExtras?: ColorClusterExtras;
+  /** Required on the reserved `notes` tab; forbidden on other tabs. */
+  notesExtras?: NotesExtras;
+}
+
+export interface NotesExtras {
+  title: string;
+  html: string;
 }
 ```
 
-### 3.2 Reserved tab ids
+### 3.2 Preview matrix
+
+`preview` is opt-in. Omitting it preserves the ordinary flat tier rows, and a
+tier remains one visible heading; previews do not introduce a collapsed or
+progressive-disclosure tier. The current values are:
+
+| `preview` | Valid value kind | Runtime treatment |
+| --- | --- | --- |
+| `'size'` | `length`, or a `referencesTier` resolving to `length` | One type-size sample per item, sorted by resolved pixel size. |
+| `'line-height'` | `number` | Paragraph sample with a leading guide; `previewBase` selects a font-size CSS variable when supplied. |
+| `'family'` | `text` | The first item's font-family value supplies the style for every size and line-height sample. |
+| `'weight'` | `select` or `number` | The first item's font-weight value supplies the style for every sample. |
+| `'bar'` | `length` | Compact bar sized from the token value. |
+| `'radius'` | `length` | Compact rounded-corner glyph. |
+| `'duration'` | `length` or `number` with unit `ms` or `s` | Compact timing glyph using the token's duration value. |
+
+The font specimen toolbar persists `{ text, preset, overridden, width }` under
+`${storagePrefix}-specimen`; width is clamped to 240–720 pixels. **Render on
+page** mounts a read-only specimen in the host document under
+`.tokenpanel-on-page-specimen[data-zdtp-specimen]`, temporarily forces the
+right dock, and restores the prior mode when the specimen is disabled, closed,
+unmounted, or loses its dock claim. The specimen is excluded from token scans
+and page pickers.
+
+### 3.3 Reserved tab ids
 
 | Tab id             | Meaning                                            |
 | ------------------ | -------------------------------------------------- |
 | `color`            | Primary color tab — palette + base roles + semantics + scheme picker. Requires `colorExtras`. |
-| `color-secondary`  | Secondary color tab (same shape as `color`). Requires `colorExtras`. |
+| `font`             | Dedicated typography tab with family/weight previews and the host-page specimen option. |
+| `spacing`          | Dedicated spacing tab with the numeric bulk editor. |
+| `size`             | Dedicated size tab with the numeric bulk editor. |
+| `palette`          | Dedicated palette editor for a generic palette tab. |
+| `notes`            | Dedicated notes tab; it renders content but carries no token state or apply/export overrides. |
 
-Any other id dispatches to `GenericTab`, which renders the tab's `tiers`
-using kind-appropriate editors.
+The panel always prepends a synthetic `Inspect` tab for element inspection; it
+is not supplied in `PanelConfig.tabs`. A configured `color-secondary` entry is
+the companion color-cluster data source consumed by the primary Color tab (and
+requires `colorExtras`); it is not an additional dedicated body dispatcher.
 
-### 3.3 Validation rules
+Any other configured id dispatches to `GenericTab`, which renders the tab's
+`tiers` using kind-appropriate editors.
+
+### 3.4 Validation rules
 
 `assertValidPanelConfig` enforces these structural rules at the host-adapter
 trust boundary:
@@ -523,7 +597,7 @@ trust boundary:
 - `referencesTier` must name an existing tier in the same tab, and the
   referencing tier's kind must match the referenced tier's kind.
 
-### 3.4 Apply behaviour for ref-tier items
+### 3.5 Apply behaviour for ref-tier items
 
 When a `TierConfig` carries `referencesTier`, the apply pipeline treats each
 item's persisted value as the id of an item in the referenced tier. The
@@ -532,9 +606,9 @@ emitted CSS override is `var(--target-cssvar)` where `target-cssvar` is the
 
 By default the write target is `:root` (`document.documentElement`). When a
 `PanelConfig.applySink` is configured for the instance, writes are routed
-through the sink instead — see §3.5.
+through the sink instead — see §3.6.
 
-### 3.5 `applySink` — optional CSS-var write target
+### 3.6 `applySink` — optional CSS-var write target
 
 When `PanelConfig.applySink` is set, all CSS-var writes and clears for that
 panel instance route through the sink rather than `document.documentElement`.
@@ -596,7 +670,7 @@ const handle = configurePanel({
 });
 ```
 
-### 3.6 Helpers (re-exported from the package root)
+### 3.7 Helpers (re-exported from the package root)
 
 ```ts
 export function isLengthKind(v: TierValueKind): boolean;
@@ -608,6 +682,17 @@ export function isCursorKind(v: TierValueKind): boolean;
 export function isContentKind(v: TierValueKind): boolean;
 export function isMaskImageKind(v: TierValueKind): boolean;
 ```
+
+### 3.8 Canonical state transaction
+
+All panel mutations use one transaction path, including ordinary row edits,
+bulk actions, imports, snapshot restore, undo, redo, and reset. A transaction
+applies the new state and CSS-variable writes, saves the persisted envelope,
+updates component state, and then records the history entry in that order.
+History is identity-aware and held in memory only; the persisted A/B snapshots
+and token envelope are separate storage concerns. After a disk apply, the
+implementation resets the last-applied baseline to `{}` and reconciles only
+variables confirmed as written, so retained or unrouted overrides stay dirty.
 
 ---
 
@@ -659,9 +744,11 @@ export interface ColorClusterExtras {
      * on init. Set to `false` to disable scheme-to-`data-theme` binding; this
      * does not disable per-mode literal editing or emitted `light-dark(...)`
      * values.
-     */
+    */
     colorMode: false | { defaultMode: 'light' | 'dark'; lightScheme: string; darkScheme: string };
   };
+  /** Optional semantic-item-id → SemanticValue defaults override map. */
+  semanticDefaults?: Record<string, SemanticValue>;
 }
 ```
 
@@ -676,8 +763,8 @@ export interface ColorScheme {
   cursor: ColorRef;
   selectionBg: ColorRef;
   selectionFg: ColorRef;
-  palette: readonly string[]; // length must match the palette tier's item count
-  shikiTheme: string;
+  palette: readonly string[]; // the public type requires exactly 16 entries
+  shikiTheme?: string;
   semantic?: Record<string, ColorRef>;
 }
 ```
@@ -744,12 +831,18 @@ The apply pipeline for color tabs:
 
 - For each palette `TierItem` in the palette tier, write
   `item.cssVar` ← `palette[i]` from the active scheme / user override.
-- For each `(roleKey, cssName)` in `colorExtras.baseRoles`, write
-  `cssName` ← `palette[state[roleKey]]`.
+- For each `(roleKey, cssName)` in `colorExtras.baseRoles`, the live DOM apply
+  path writes `cssName` ← `palette[state[roleKey]]`.
 - For each semantic `TierItem`, resolve
   `state.semanticMappings[key] ?? colorExtras.semanticDefaults[key]`
-  through `resolveMapping` and write `item.cssVar` ← resolved hex.
+  through `resolveMapping` and write the emitted CSS value: `var(...)` for a
+  palette/reference mapping, a literal string for a literal mapping, or
+  `light-dark(light, dark)` for a per-mode literal.
 - `clearAppliedStyles()` removes every property the cluster could have set.
+
+The disk `buildApplyOverrides` payload intentionally emits palette and
+semantic CSS variables only; base-role values are runtime wiring and are not
+included in source-file rewrites.
 
 ### 4.6 `applyEndpoint` and `applyRouting`
 
@@ -852,11 +945,13 @@ hunks.
       "file": "src/styles/tokens.css",
       "changed": ["--myapp-spacing-md"],
       "unchanged": ["--myapp-spacing-lg"],
-      "unknown": []
+      "unknown": [],
+      "unknownOutsideBlock": []
     }
   ],
   "unknownCssVars": [],
-  "unchangedCssVars": ["--myapp-spacing-lg"]
+  "unchangedCssVars": ["--myapp-spacing-lg"],
+  "unknownOutsideBlockCssVars": []
 }
 ```
 
@@ -871,8 +966,10 @@ hunks.
 ```
 
 Returned for: malformed JSON, missing `tokens` field, empty tokens map,
-invalid token names (no `--` prefix, spaces, slashes), unsupported CSS-var
-prefix, path escape attempts.
+invalid token names (no `--` prefix, spaces, slashes), or path escape attempts.
+For a real write, an unsupported CSS-var prefix is also a 400 error. A dry run
+keeps unsupported prefixes in its `rejected` / `rejectedReasons` diagnostics
+so the caller can preview the rest of the request.
 
 **Response 403 (Forbidden)**
 
@@ -887,8 +984,15 @@ Empty body, `Allow: POST, OPTIONS` header.
 **Response 409 (Conflict)**
 
 ```json
-{ "ok": false, "error": "No top-level :root { ... } block in <file>" }
+{ "ok": false, "error": "No top-level :root { ... } or @theme { ... } block in <file>" }
 ```
+
+The handler scans only the first top-level `:root` block and the first
+top-level `@theme` block (bare or with one modifier). `:root` wins when the
+same variable is declared in both. Later blocks and nested blocks are not
+rewritable. A dry run can succeed with only unrouted tokens; those tokens are
+listed in `rejected` and `rejectedReasons`, while a file with no supported
+block is a `409`.
 
 A real write whose current file content does not match a supplied preview
 digest returns the following envelope before any target is written:
@@ -931,11 +1035,12 @@ Hosts physically unable to spawn Node.js must:
    the routing map, reject prefixes not in the map.
 3. Path safety — resolve each target path to an absolute path, verify it sits
    within `writeRoot`, reject path-escape attempts.
-4. Read & parse — load each CSS file, find the `:root { ... }` block (fail
-   409 if missing), parse the existing variable values.
-5. Compute rewrite — compute `changed` / `unchanged` / `unknown`, build the
-   updated `:root` / `@theme` content, its per-cssVar hunks, and the SHA-256 of
-   the original bytes.
+4. Read & parse — load each CSS file, find the first top-level `:root { ... }`
+   or first top-level `@theme { ... }` block (bare or with one modifier; fail
+   409 if neither exists), parse the existing variable values.
+5. Compute rewrite — compute `changed` / `unchanged` / `unknown` and
+   `unknownOutsideBlock`, build the updated `:root` / `@theme` content, its
+   per-cssVar hunks, and the SHA-256 of the original bytes.
 6. Preview/stale gate — for `dryRun: true`, return the preview immediately. For
    a real write with `expectDigests`, compare every supplied digest and return
    the stale-file 409 before the first mutation when any target differs.
@@ -1005,15 +1110,17 @@ if (
   specific version key — an empty `{}` / `[]` / `null` / `''` does NOT trigger
   it. (zdtp itself never writes such a value: `clearPersistedState()` removes
   the `-state` keys outright, so this guard only covers envelopes written by
-  hand or by another tool.) Overrides MUST be re-applied to `:root` even when
-  the panel stays hidden, otherwise hard-nav produces a FOUT.
+  hand or by another tool.) Overrides MUST be re-applied to the configured
+  sink (or default `:root`) even when the panel stays hidden, otherwise
+  hard-nav produces a FOUT.
 - `shouldAutoload()` — reads `${storagePrefix}:autoload` (colon-form, §2).
   Returns `true` when the flag is `'1'` (explicit, written by `enableAutoload()`)
   OR `'auto'` (auto-remembered, written by opening the panel — see "Auto-remember
   on open" below). This is the owner-mode signal: the panel bundle fetches
   eagerly and mounts CLOSED so the element-path inspector is armed even though
-  the panel UI is hidden. General visitors (no flag, or `'0'`) pay zero bundle
-  cost. A downstream host that wants to distinguish the two populations can
+  the panel UI is hidden. General visitors (no flag, or `'0'`) pay no
+  panel-bundle cost; the small host adapter/config bootstrap still runs. A
+  downstream host that wants to distinguish the two populations can
   test `=== '1'` directly — see "Auto-remember on open" for the caveat.
 - `loadElementPathEnabled()` — reads the element-path inspector's persistence
   key. Returns `true` when the inspector was left enabled. Ensures the Preact
@@ -1024,9 +1131,11 @@ if (
   enabled. Ensures the Preact shell is mounted and the lazy boundary is
   imported even when the panel UI is hidden.
 
-When none of the five signals is present — the common case for first-time
+When none of the six signals is present — the common case for first-time
 visitors and general site visitors on a public site with owner-autoload — the
-panel bundle is NOT fetched and the page is completely free of panel JS.
+panel bundle is NOT fetched, no panel stylesheet is injected, and no panel
+root is mounted. The small host adapter/config bootstrap still runs to make
+that decision.
 
 #### Storage-key table for §6.2 signals
 
@@ -1078,7 +1187,9 @@ panel bundle is NOT fetched and the page is completely free of panel JS.
 #### Auto-remember on open
 
 Any action that shows the panel (`showDesignPanel()`, `toggleDesignPanel()`,
-or the panel's header button) MUST also write
+the fixed-name `window.zdtp.show()` / `.toggle()` aliases, an instance
+handle's `open()` / `toggle()`, the panel header's open action, or an instance
+toggle event) MUST also write
 `${storagePrefix}:autoload = 'auto'` (auto-remembered provenance, distinct
 from the `'1'` that `enableAutoload()` writes) — implemented by
 `rememberAutoload()`. This ensures that once the owner has opened the panel
@@ -1106,13 +1217,26 @@ already hold `'1'`, and that provenance was never recorded, so it cannot be
 reclassified. The `=== '1'` discrimination applies only to opens made from
 this version onward.
 
+#### Shared Alt+click picker ownership
+
+Element path, DOM Tweaker, and element inspect share one document-level
+Alt+click coordinator. Only one owner may be armed at a time; a new request
+revokes the previous owner's armed state before it starts. Panel-owned surfaces
+and the host-page specimen are excluded from all three pickers.
+
+| Feature | Activation | Result |
+| --- | --- | --- |
+| Element path | Owner autoload or its panel toggle, then `Alt+click` | Copies an annotated selector/path block. |
+| DOM Tweaker | Configured feature toggle, then `Alt+click` | Opens the Tailwind class editor and live utility preview. |
+| Element inspect | Header toggle or `I`, then click; `Alt` also arms the coordinator | Opens the reserved inspect tab with computed and inherited token rows. |
+
 ### 6.3 Astro view-transition lifecycle
 
 The adapter's existing `astro:before-swap` and `astro:page-load` listeners
 stay. They are Astro-specific and only register when `document` is available:
 
 - `astro:before-swap` → unmount the Preact tree, remove the host node, snapshot/restore visibility intent.
-- `astro:page-load` → re-apply persisted overrides + re-materialise the shell when any of the four gate signals (§6.2) is true.
+- `astro:page-load` → re-apply persisted overrides + re-materialise the shell when any of the six gate signals (§6.2) is true.
 
 ### 6.4 Console API
 
@@ -1194,32 +1318,52 @@ window.zdtp.toggle = () => void | Promise<void>;  // toggle the panel
 
 ### 7.1 Panel-private namespace
 
-The panel ships its own bundled CSS. All panel-chrome variables use the
-`--tokentweak-*` prefix, scoped to the panel shell + modal class prefix:
+The panel ships its own bundled CSS. Panel-private color, font, spacing,
+typography, and z-index variables use the `--tokentweak-*` prefix; the shared
+radius token is `--radius-tokentweak`. They are scoped to the panel shell,
+mini pill, modal class prefix, and the body-level popover/tooltip/inspector
+surfaces:
 
 ```css
 :where(.tokenpanel-shell, [data-design-token-panel-modal]) {
-  --tokentweak-pad-md: …;
-  --tokentweak-gap-sm: …;
   --tokentweak-color-fg: #b8b8b8;
+  --tokentweak-color-accent-bar: #efb477;
   /* …every panel-chrome value lives here */
 }
 ```
 
 - **No Tailwind dependency.** The package builds and runs without Tailwind in
   the consumer.
-- **Consumer import required.** The `./styles` sub-export must be imported
-  exactly once from the consumer's static module graph:
+- **Self-injected by the panel entry.** The panel calls `ensurePanelStyles()`
+  when it first mounts, so a consumer does not need a CSS import. The `./styles`
+  sub-export remains available when a host wants to pull the stylesheet into its
+  own static CSS pipeline; importing it twice is unnecessary.
 
   ```ts
-  import '@takazudo/zdtp/styles';
+  import '@takazudo/zdtp/styles'; // optional static-CSS path
   ```
+
+The concrete palette includes `--tokentweak-color-fg`, `bg`, `muted`,
+`surface`, `accent`, `accent-bar`, `accent-hover`, `code-bg`, `code-fg`,
+`success`, `danger`, and `warning`, plus `--tokentweak-font-mono`. Spacing,
+typography, radius, and stacking values use the same prefix (`pad-*`, `gap-*`,
+`text-*`, `--radius-tokentweak`, and `z-*`). The chrome does not read host
+`--color-*` or `--font-mono` variables; hosts that retheme it assign the
+`--tokentweak-*` names directly on one of the listed scopes.
+
+Docking is a host-document contract rather than a panel-private token:
+`--zdtp-dock-inset-right` and `--zdtp-dock-inset-bottom` are published on the
+host root while the corresponding dock claim is active. The on-page specimen
+uses `.tokenpanel-on-page-specimen[data-zdtp-specimen]`; it inherits the host
+font/foreground, is excluded from token scans and page pickers, and is removed
+when the specimen is disabled, closed, unmounted, or loses its dock claim.
 
 ### 7.2 Consumer's editable tokens
 
 The tokens the panel writes to (the `cssVar` field on each `TierItem`) are
-entirely consumer-controlled. The package just writes them through `setProperty`
-on `:root`.
+entirely consumer-controlled. The package writes them through the configured
+`applySink`, or through `setProperty` on the default `:root` target when no
+sink is supplied.
 
 - **Read:** the panel never reads consumer CSS variables (it carries its own
   defaults via `TierItem.default`).
@@ -1246,6 +1390,7 @@ regardless of what the host's `--color-*` tokens resolve to:
   --tokentweak-color-muted: #888888;
   --tokentweak-color-surface: #1c1c1c;
   --tokentweak-color-accent: #d69a66;
+  --tokentweak-color-accent-bar: #efb477;
   --tokentweak-color-accent-hover: #a7c0e3;
   --tokentweak-color-code-bg: #383838;
   --tokentweak-color-code-fg: #e0e0e0;
@@ -1265,9 +1410,11 @@ in a demo — MUST NOT bleed into the panel chrome.
 **Override surface for hosts:** a host that wants to retheme the panel
 chrome assigns directly to the `--tokentweak-color-*` /
 `--tokentweak-font-mono` names on `.tokenpanel-shell`,
-`[data-design-token-panel-modal]`, or any ancestor (`:where()` keeps
-specificity at 0). This single name layer is the entire host-override
-contract for panel chrome — `--color-*` reads are not part of it.
+`.tokenpanel-mini-pill`, `[data-design-token-panel-modal]`, the highlight
+settings and chain popovers, the color picker, tooltip, element-path label and
+toast, or an element-inspect surface (or any ancestor). `:where()` keeps
+specificity at 0. This single name layer is the entire host-override contract
+for panel chrome — `--color-*` reads are not part of it.
 
 **Invariant:** the panel package MUST NOT read `--color-*` or
 `--font-mono` anywhere. Both `panel.css` and `panel-tokens.css` are pinned
@@ -1282,8 +1429,10 @@ grep -n 'var(--font-mono' src/styles/panel-tokens.css # → 0
 
 ### 7.5 Host-adapter side-effect import (paired-unit obligation)
 
-Alongside the `./styles` import, the consumer MUST own a side-effect import
-for the host-adapter, paired with `<DesignTokenPanelHost>`:
+The consumer MUST own a side-effect import for the host-adapter, paired with
+`<DesignTokenPanelHost>`. The `./styles` import is optional because the panel
+entry self-injects its stylesheet; use it only when the host wants a static CSS
+pipeline:
 
 ```astro
 <DesignTokenPanelHost config={myPanelConfig} />
@@ -1297,11 +1446,13 @@ for the host-adapter, paired with `<DesignTokenPanelHost>`:
 
 ## 8. Storage-key continuity & migration paths
 
-### 8.1 No default `PanelConfig`
+### 8.1 Minimal fallback before configuration
 
-The package ships **zero** baked-in identifiers. The host MUST configure the
-panel explicitly. A package import without an explicit configure-call surfaces
-a clear runtime error.
+The package ships **zero** host-specific identifiers. Before the first explicit
+`configurePanel` call, `getPanelConfig()` returns a minimal sentinel with empty
+token manifests and a stub color cluster so imports and adapter boot can remain
+safe; it is not a useful consumer configuration. Hosts MUST configure the
+panel explicitly to render their own tabs and token values.
 
 ### 8.2 Storage-key derivation is literal
 
@@ -1358,7 +1509,7 @@ The historical zdtp-internal map is exported as `ZDTP_LEGACY_TYPOGRAPHY_RENAME_M
 
 ---
 
-## 9. JSON export / import schema (serde v2)
+## 9. JSON export / import schema (serde)
 
 ### 9.1 Schema versioning
 
@@ -1366,9 +1517,12 @@ The historical zdtp-internal map is exported as `ZDTP_LEGACY_TYPOGRAPHY_RENAME_M
 | ----------------------- | ------- | ------------------------------------------------------ |
 | `zudo-design-tokens/v1` | Legacy  | Flat top-level `color`/`spacing`/`typography`/`size` keys |
 | `zudo-design-tokens/v2` | Current | `tabs` wrapper keyed by tab id; cssVar-keyed leaves    |
+| `zudo-design-tokens/v3` | Current | v2 structure with object-valued semantic color mappings |
 
-`serialize()` always emits v2. `deserialize()` accepts both v1 and v2 and
-normalises to an internal `TweakState`.
+`serialize()` emits v2 for states whose semantic mappings are representable by
+the v2 shape, and upgrades to v3 when an object-valued semantic mapping needs
+the v3 shape. `deserialize()` accepts v1, v2, and v3 and normalises each to an
+internal `TweakState`.
 
 ### 9.2 v2 format
 
@@ -1414,10 +1568,12 @@ Items this contract deliberately does NOT pin down:
 
 - **Persist envelope internal shape** — frozen at the current shape so
   existing user state round-trips without migration.
-- **Schema id versioning.** `schemaId` is a configure-time string; bumping
-  it is the host's responsibility.
+- **Schema id versioning.** `schemaId` is a configure-time display label
+  returned by `getDesignTokenSchema()`; it does not select or version the
+  serializer. The package-owned `SCHEMA_V1` / `SCHEMA_V2` / `SCHEMA_V3`
+  constants govern export and import validation.
 - **Shadow-DOM scoping.** The panel writes to `:root` by default; hosts
-  that need scoped writes use `PanelConfig.applySink` (§3.5). The sink
+  that need scoped writes use `PanelConfig.applySink` (§3.6). The sink
   target's lifecycle is owned by the host — not pinned here.
 - **Theme-API surface.** The panel does not expose a programmatic API for
   reading the current overrides outside the persist envelope.
@@ -1433,21 +1589,26 @@ Cross-reference table — what each section pins down.
 | `configurePanel({...})` signature, multi-instance, `PanelInstanceHandle`, per-instance toggle events | §1     |
 | Storage-key derivation                                                                      | §2, §8        |
 | Default first-open geometry (coherent size+position, viewport containment, cascade, persisted-position precedence) | §2.1 |
+| `PanelDockConfig`, dock modes, body-margin reflow, edge claims, and dock storage | §1, §2, §7 |
 | `TabConfig` / `TierConfig` / `TierItem` / `TierValueKind` interfaces and apply behaviour   | §3            |
-| `applySink` — optional CSS-var write target (upsert / clear / Reset full set)              | §3.5          |
+| `TierConfig.preview` / `previewBase` matrix and host-page specimen lifecycle | §3.2 |
+| `applySink` — optional CSS-var write target (upsert / clear / Reset full set)              | §3.6          |
 | `ColorClusterExtras` shape and multi-cluster support                                        | §4.1, §4.3    |
 | JSON-serializable constraint on color tab config                                            | §4.2          |
 | `colorPresets` and `setPanelColorPresets()` lazy attachment                                 | §4.4          |
 | Color apply behaviour                                                                       | §4.5          |
 | Apply pipeline request / response envelopes, dry-run hunks/digests, stale-write 409          | §5.1          |
+| Canonical transaction order and in-memory undo/redo history                                 | §3.8          |
 | Reference-implementation algorithm + native-implementation guidance                         | §5.2, §5.3    |
 | Routing config single-source                                                                | §5.4          |
-| Astro `<DesignTokenPanelHost>` prop, lazy-load gate (4-signal), owner-autoload, console API | §6            |
+| Astro `<DesignTokenPanelHost>` prop, lazy-load gate (6-signal), owner-autoload, console API | §6            |
+| Shared Alt+click owner for element path, DOM Tweaker, and element inspect                   | §6.2          |
 | Fixed-name global open API (`window.zdtp.show/hide/toggle`)                                 | §6.5          |
 | `--tokentweak-*` namespace and Tailwind-free CSS contract                                   | §7.1          |
 | Modal class prefix and `data-design-token-panel-modal` selector contract                    | §7.3          |
 | Self-contained panel chrome palette (no host theme reads)                                  | §7.4          |
 | Host-adapter side-effect import (paired-unit obligation)                                    | §7.5          |
 | v4 envelope precedence, v1/v2/v3 storage migration, and typography-id rename map             | §2, §8.3, §8.4 |
-| JSON export/import schema v2 (serde v2)                                                     | §9            |
+| JSON export/import schemas v1/v2/v3 (serde)                                                  | §9            |
 | Out-of-scope / deferred concerns                                                            | §10           |
+| Feature walkthrough and shortcut table                                                     | [Panel UX tour](/docs/recipes/panel-ux-tour) |

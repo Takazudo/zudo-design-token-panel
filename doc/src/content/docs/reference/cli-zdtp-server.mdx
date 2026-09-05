@@ -16,9 +16,10 @@ Use it when you want the panel running in a browser tab to write changes
 back to real CSS files on disk — for example, while iterating on tokens in
 a design system, or wiring the panel into an existing frontend app.
 
-The bin exposes exactly three HTTP endpoints:
+The bin exposes exactly three endpoint/method pairs (two `/apply` methods and
+one health check):
 
-- `POST /apply` — apply a token mutation to disk
+- `POST /apply` — preview or apply a token mutation
 - `OPTIONS /apply` — CORS preflight for the above
 - `GET /healthz` — readiness probe
 
@@ -233,10 +234,8 @@ production-style use of the panel will work without it.
 - **Default:** `false`
 - **Required:** No
 
-Suppress per-request logs. The startup line and error logs still print;
-only the per-apply summary log line (`[design-token-panel] applied N
-tokens to M files ...`) and the startup `listening on ...` banner are
-silenced.
+Suppress the startup banner, the no-allow-origin warning, and per-request
+summary logs. Error logs still print.
 
 ```bash
 zdtp-server --quiet \
@@ -260,7 +259,7 @@ zdtp-server -h
 
 ## Endpoint contract
 
-The bin serves exactly three routes. Any other path returns
+The bin serves exactly three endpoint/method pairs. Any other path returns
 `404 { ok: false, error: "Not found" }`. Any other method on `/apply`
 returns `405 { ok: false, error: "Method not allowed" }` with an
 `Allow: POST, OPTIONS` header.
@@ -277,22 +276,42 @@ Apply a token mutation to disk via the wrapped apply handler.
 - Header `Origin` must exactly match one of the configured
   `--allow-origin` values. Otherwise the bin returns
   `403 { ok: false, error: "Origin not allowed" }`.
-- Body: JSON payload accepted by the apply handler. See
-  [Apply pipeline reference](./apply-pipeline.mdx) for the full
-  payload schema.
+- Body: JSON payload accepted by the apply handler. Send `dryRun: true` for
+  a non-mutating preview with per-file digests and hunks; send those digests
+  back as `expectDigests` on the confirming write. See [Apply pipeline
+  reference](./apply-pipeline.mdx) for the full payload schema.
 
 **Response:**
 
-- On success: `200` with the JSON body produced by the apply handler. The
-  body has the shape:
+- On a dry-run success: `200` with `{ ok: true, dryRun: true, files: [...],
+  rejected: [...], rejectedReasons: [...] }`; each file includes `blockKind`,
+  a SHA-256 `digest`, `changed`/`unchanged`/`unknown` diagnostics, and one
+  hunk per changed CSS variable.
+- On a write success: `200` with the JSON body produced by the apply handler.
+  The body has the shape:
 
   ```json
   {
     "ok": true,
     "updated": [
-      { "file": "tokens/colors.css", "changed": ["--color-bg", "--color-fg"] },
-      { "file": "tokens/spacing.css", "changed": [] }
-    ]
+      {
+        "file": "tokens/colors.css",
+        "changed": ["--color-bg", "--color-fg"],
+        "unchanged": [],
+        "unknown": [],
+        "unknownOutsideBlock": []
+      },
+      {
+        "file": "tokens/spacing.css",
+        "changed": [],
+        "unchanged": [],
+        "unknown": [],
+        "unknownOutsideBlock": []
+      }
+    ],
+    "unknownCssVars": [],
+    "unchangedCssVars": [],
+    "unknownOutsideBlockCssVars": []
   }
   ```
 
@@ -300,13 +319,17 @@ Apply a token mutation to disk via the wrapped apply handler.
   set on the success response, so a fetch from an allowed browser origin
   receives a fully CORS-compliant reply.
 
-- On error: the apply handler's status code (typically `4xx`) and JSON body
-  pass through unchanged.
+- On a stale preview: `409 { ok: false, reason: "stale-file", files: [...] }`;
+  no target is written and the browser should request a fresh preview.
+- On other errors: the apply handler's status code (typically `4xx`) and JSON
+  body pass through unchanged.
 
-When `--quiet` is not set, a successful apply also writes one summary line
-to the bin's stdout, e.g.:
+When `--quiet` is not set, a successful preview or apply also writes one
+summary line to the bin's stdout. The outcome word is `dry-run` for a preview
+and `applied` for a real write:
 
 ```text
+[design-token-panel] dry-run 2 tokens to 2 files (changed: tokens/colors.css)
 [design-token-panel] applied 2 tokens to 2 files (changed: tokens/colors.css)
 ```
 

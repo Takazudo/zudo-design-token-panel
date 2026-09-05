@@ -1,15 +1,17 @@
 ---
 title: Load the panel only for you (the site owner)
-description: Use owner-autoload to load the design-token panel only in your own browser, keeping general visitors completely free of panel JS.
+description: Use owner-autoload to load the design-token panel only in your own browser, keeping the panel bundle, stylesheet, and root out of general visitors' pages.
 sidebar_position: 8
 ---
 
 You are deploying a public site and want the design-token panel available
-to **yourself** as the developer — without loading any panel JavaScript for
-general visitors. The owner-autoload feature is the answer:
+to **yourself** as the developer — without fetching the panel bundle or
+injecting its stylesheet for general visitors. The small host adapter still
+runs to make the lazy-load decision. The owner-autoload feature is the answer:
 
-- **General visitors:** zero bundle cost. The panel JS is never fetched.
-  No JavaScript, no CSS, no DOM element.
+- **General visitors:** the panel bundle is never fetched. The small host
+  adapter/config bootstrap still runs, but no panel stylesheet is injected and
+  no panel root is mounted.
 - **You (the owner):** the panel bundle loads eagerly on every page visit,
   mounts CLOSED, and arms the **Alt+click element-path inspector** so you
   can click any element to copy its selector — even without opening the
@@ -34,7 +36,7 @@ fetched at all. The owner-autoload flag is one of those signals.
 |--------|---------|
 | `${storagePrefix}:visible` | Panel was open on the last visit |
 | `${storagePrefix}-open` | The same open state, under the panel's own open-state key |
-| `${storagePrefix}-state` (v1) and `${storagePrefix}-state-v2` … `-vN` | User has saved token overrides |
+| `${storagePrefix}-state` (v1) and `${storagePrefix}-state-v2` … `-state-vN` | User has saved token overrides |
 | `${storagePrefix}:autoload` | Owner-autoload flag — **you** are in owner mode |
 | `${storagePrefix}-elpath-enabled` | Element-path inspector is enabled |
 | `${storagePrefix}-domtweaker-enabled` | DOM Tweaker is enabled (probed only when the host configures `domTweaker`) |
@@ -47,9 +49,12 @@ or an empty string) is not a signal. Note that a panel reset does not leave
 one behind — it removes the `-state` keys outright — so in practice this
 guard only matters for envelopes written by hand or by another tool.
 
-`enableAutoload()` writes the `:autoload` flag and arms the element-path
-inspector. `disableAutoload()` clears all four owner-mode keys and unmounts
-the panel.
+`enableAutoload()` writes `:autoload = '1'` and
+`-elpath-enabled = '1'`, then mounts the shell closed with the element-path
+inspector armed. `disableAutoload()` removes `:autoload`, sets `:visible` and
+`-elpath-enabled` to `'0'`, removes the `-open` key, and unmounts the panel.
+It does not clear token overrides, geometry, snapshots, highlights, or a
+persisted DOM Tweaker preference.
 
 ## Opt in (run this once in DevTools)
 
@@ -78,15 +83,17 @@ To stop loading the panel in your browser:
 window.myapp.disableAutoload();
 ```
 
-This clears the `:autoload` flag, the `:visible` flag, the element-path
-enabled key, and the open-state key, then unmounts the Preact shell. The
-next page load will be panel-free again.
+This removes the `:autoload` flag, writes `'0'` to the `:visible` and
+element-path enabled keys, removes the open-state key, and unmounts the Preact
+shell. Owner-autoload is disabled on the next page; persisted token overrides
+or other enabled features can still independently satisfy the lazy-load gate.
 
 ## Auto-remember: opening the panel arms autoload
 
 Opening the panel by any means — `showDesignPanel()`, `toggleDesignPanel()`,
-the fixed-name `zdtp.show()` / `zdtp.toggle()` global, or the panel header's
-close/re-open button — **automatically sets the `:autoload` flag**. You do
+the fixed-name `zdtp.show()` / `zdtp.toggle()` global, an instance handle's
+`open()` / `toggle()`, or an instance toggle event — **automatically sets the
+`:autoload` flag**. You do
 not need to call `enableAutoload()` explicitly if you have already opened
 the panel through any of these paths. The flag is set on first open and
 persists across page loads.
@@ -121,7 +128,8 @@ armed owner mode deliberately and later open the panel, the value stays
 `'1'`.
 
 <Note>
-`disableAutoload()` removes the key outright, whichever value it held. There
+`disableAutoload()` removes the `:autoload` key outright, whichever value it
+held. There
 is no "downgrade to `'auto'`" path — opting out is always a full opt-out.
 </Note>
 
@@ -198,9 +206,27 @@ but it is why `autoRememberOnOpen: false` is not the same as "never load for
 anyone but the owner". Closing the panel clears `:visible` again.
 </Tip>
 
+## The three page pickers share one gesture owner
+
+Owner mode may mount the shell closed, but it does not make all page pickers
+active at once. Element path, DOM Tweaker, and element inspect each use the
+same Alt+click coordinator. Only one can own the armed gesture at a time:
+
+| Feature | How it is armed | Result |
+| --- | --- | --- |
+| Element path | Enabled by owner autoload or its panel toggle; hold `Alt` and click a host element. | Copies an annotated selector/path block. |
+| DOM Tweaker | Enable its opt-in toggle; hold `Alt` and click a host element. | Opens the Tailwind class editor and live utility preview. |
+| Element inspect | Click its header toggle or press `I`, then click a host element; holding `Alt` also arms the shared picker. | Opens the reserved inspect tab with token-backed declarations and inherited matches. |
+
+When one feature requests the coordinator, the previous owner receives an
+arming-revoked callback and disarms. Panel surfaces and the on-page specimen
+are excluded from every picker. Enabling owner autoload for element path does
+not prevent later use of DOM Tweaker or element inspect; the most recently
+armed feature owns the gesture.
+
 ## Worked example — a safe owner-only loader
 
-Below is the pattern this documentation site itself uses (#422): a tiny
+Below is the pattern this documentation site itself uses: a tiny
 always-present `<script>` block that checks localStorage and dynamically
 imports the panel **only when the owner flag is already set**. The panel is
 never imported on first visit, and the flag is set only via the DevTools
@@ -265,7 +291,7 @@ cleared.
 |------|--------|
 | Opt in | `window.myapp.enableAutoload()` in DevTools (once) — writes `'1'` |
 | Opt out | `window.myapp.disableAutoload()` in DevTools — removes the key |
-| General visitors | Zero cost — no bundle, no CSS, no DOM |
+| General visitors | No panel bundle fetch, injected CSS, or mounted panel root |
 | You (after opt-in) | Bundle loads eagerly, panel mounts CLOSED, Alt+click armed |
 | First open | Writes `'auto'` so future pages re-load the panel |
 | Public site with a visible panel button | `autoRememberOnOpen: false` — opening never writes `:autoload` |
