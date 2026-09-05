@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
 import DesignTokenTweakPanel from '../panel';
+import { MiniPill } from '../shell/mini-pill';
 import {
   getDockKey,
   getDockSizeKey,
@@ -108,8 +109,8 @@ describe('mini pill', () => {
     const pill = container.querySelector<HTMLElement>('.tokenpanel-mini-pill');
     expect(pill).not.toBeNull();
     expect(pill?.textContent).toContain('zdtp');
-    expect(pill?.textContent).toContain('changes');
-    expect(pill?.querySelector('[data-mini-pill-slot="changed-count"]')).not.toBeNull();
+    expect(pill?.textContent).toContain('0 changes');
+    expect(pill?.querySelector('[data-mini-pill-slot="changed-count"]')?.textContent).toBe('0');
     expect(pill?.querySelector('[data-mini-pill-slot="undo"]')).not.toBeNull();
     expect(pill?.querySelector('[aria-label="Apply changes"]')).not.toBeNull();
 
@@ -120,6 +121,32 @@ describe('mini pill', () => {
 
     expect(localStorage.getItem(getDockKey(CFG))).toBe('right');
     expect(shell().classList.contains('is-docked-right')).toBe(true);
+  });
+
+  it('pluralizes the changed count for zero, one, and many changes', () => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+
+    const renderCount = (changedCount: number | undefined): void => {
+      act(() => {
+        render(
+          <MiniPill
+            changedCount={changedCount}
+            onApply={() => undefined}
+            onExpand={() => undefined}
+          />,
+          container,
+        );
+      });
+    };
+
+    renderCount(undefined);
+    expect(container.querySelector('.tokenpanel-mini-pill')?.textContent).toContain('0 changes');
+    renderCount(1);
+    expect(container.querySelector('.tokenpanel-mini-pill')?.textContent).toContain('1 change');
+    expect(container.querySelector('.tokenpanel-mini-pill')?.textContent).not.toContain('1 changes');
+    renderCount(3);
+    expect(container.querySelector('.tokenpanel-mini-pill')?.textContent).toContain('3 changes');
   });
 
   it('uses Alt+1 through Alt+3 to leave mini and persists each mode once', async () => {

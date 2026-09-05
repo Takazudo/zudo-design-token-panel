@@ -257,7 +257,7 @@ export function ApplyModal(props: ApplyModalProps) {
       {phase.kind === 'error' && <div className={cls.error} role="alert">{phase.message}</div>}
     </div>
     <div className={cls.actions}>
-      {phase.kind === 'preview' && <><RoleButton buttonRef={primaryRef} className={cls.primary} disabled={disabled} onClick={() => void apply()}>Write {selectedFiles} file{selectedFiles === 1 ? '' : 's'} ({selected.size} tokens)</RoleButton><RoleButton className={cls.neutral} onClick={close}>Close</RoleButton></>}
+      {phase.kind === 'preview' && <><RoleButton buttonRef={primaryRef} className={cls.primary} disabled={disabled} onClick={() => void apply()}>Write {selectedFiles} file{selectedFiles === 1 ? '' : 's'} ({selected.size} token{selected.size === 1 ? '' : 's'})</RoleButton><RoleButton className={cls.neutral} onClick={close}>Close</RoleButton></>}
       {phase.kind === 'applying' && <RoleButton className={cls.primary} disabled onClick={() => undefined}>Applying…</RoleButton>}
       {phase.kind === 'success' && <RoleButton className={cls.primary} onClick={close}>Done</RoleButton>}
       {phase.kind === 'error' && <><RoleButton className={cls.primary} onClick={() => { setPhase({ kind: 'preview' }); setSelectionVersion((version) => version + 1); }}>Retry</RoleButton><RoleButton className={cls.neutral} onClick={close}>Close</RoleButton></>}

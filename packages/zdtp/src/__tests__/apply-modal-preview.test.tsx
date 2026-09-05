@@ -34,6 +34,16 @@ const twoFilePreview = (includeFont = true) => ({ ok: true, dryRun: true, files:
     changed: ['--zd-font-base-size'], hunks: [],
   }] : []),
 ], rejected: [], rejectedReasons: [] });
+const threeTokenTwoFilePreview = () => ({ ok: true, dryRun: true, files: [
+  {
+    file: 'src/spacing.css', blockKind: 'root', digest: 'a'.repeat(64),
+    changed: ['--zd-spacing-hgap-md'], hunks: [],
+  },
+  {
+    file: 'src/font.css', blockKind: 'root', digest: 'b'.repeat(64),
+    changed: ['--zd-font-base-size', '--radius-lg'], hunks: [],
+  },
+], rejected: [], rejectedReasons: [] });
 
 async function flush() { await act(async () => { vi.runAllTimers(); await Promise.resolve(); await Promise.resolve(); }); }
 function mount(nextState = state()) {
@@ -55,6 +65,7 @@ describe('ApplyModal dry-run preview', () => {
     globalThis.fetch = fetchMock;
     mount(state('24px', true)); await flush();
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ dryRun: true, tokens: { '--zd-spacing-hgap-md': '24px', '--radius-lg': '12px' } });
+    expect(container.textContent).toContain('Write 1 file (1 token)');
     expect(container.textContent).toContain('-   --zd-spacing-hgap-md: 16px;');
     expect(container.textContent).toContain('Copy as CSS');
   });
@@ -81,6 +92,27 @@ describe('ApplyModal dry-run preview', () => {
     await act(async () => { await Promise.resolve(); await Promise.resolve(); });
     expect(container.textContent).not.toContain('stale');
     expect(container.textContent).toContain('Write 0 files (0 tokens)');
+  });
+
+  it('pluralizes both file and token counts in the write action', async () => {
+    installFixturePanelConfig({
+      applyEndpoint: '/apply',
+      applyRouting: {
+        'zd-spacing': 'src/spacing.css',
+        'zd-font': 'src/font.css',
+        radius: 'src/font.css',
+      },
+      tabs: FIXTURE_TABS,
+    });
+    globalThis.fetch = vi.fn().mockResolvedValue(response(threeTokenTwoFilePreview()));
+    mount({
+      ...state(),
+      typography: { 'text-base': '2rem' },
+      size: { 'radius-lg': '12px' },
+    });
+    await flush();
+
+    expect(container.textContent).toContain('Write 2 files (3 tokens)');
   });
 
   it('refreshes the dry-run with a notice after a stale-file 409', async () => {
