@@ -6,6 +6,8 @@ import { RoleButton } from '../controls/role-button';
 export interface MiniPillProps {
   rootRef?: RefObject<HTMLDivElement>;
   onApply: () => void;
+  applyDisabled?: boolean;
+  applyDisabledReason?: string;
   onExpand: () => void;
   changedCount?: number | undefined;
   undo?: ComponentChildren;
@@ -22,6 +24,8 @@ export interface MiniPillProps {
 export function MiniPill({
   rootRef,
   onApply,
+  applyDisabled,
+  applyDisabledReason,
   onExpand,
   changedCount,
   undo,
@@ -48,7 +52,9 @@ export function MiniPill({
       <RoleButton
         className="tokenpanel-mini-pill-apply"
         onClick={() => onApply()}
+        aria-disabled={applyDisabled}
         aria-label="Apply changes"
+        title={applyDisabledReason}
       >
         Apply
       </RoleButton>

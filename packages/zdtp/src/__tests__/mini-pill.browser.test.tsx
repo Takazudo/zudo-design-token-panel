@@ -149,6 +149,30 @@ describe('mini pill', () => {
     expect(container.querySelector('.tokenpanel-mini-pill')?.textContent).toContain('3 changes');
   });
 
+  it('renders an unavailable Apply control as disabled and inert', () => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    const onApply = vi.fn();
+    act(() => {
+      render(
+        <MiniPill
+          onApply={onApply}
+          applyDisabled
+          applyDisabledReason="Apply unavailable: configure an apply endpoint and a non-empty routing map."
+          onExpand={() => undefined}
+        />,
+        container,
+      );
+    });
+
+    const apply = container.querySelector<HTMLElement>('[aria-label="Apply changes"]');
+    expect(apply?.getAttribute('aria-disabled')).toBe('true');
+    expect(apply?.title).toContain('configure an apply endpoint');
+    apply?.click();
+    apply?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(onApply).not.toHaveBeenCalled();
+  });
+
   it('uses Alt+1 through Alt+3 to leave mini and persists each mode once', async () => {
     await mountPanel({ dock: 'mini' });
     const setItem = vi.spyOn(Storage.prototype, 'setItem');
