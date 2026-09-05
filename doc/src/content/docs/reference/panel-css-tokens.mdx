@@ -70,19 +70,28 @@ The class prefix remains useful as a higher-specificity hook for hosts that want
 
 ## Self-contained panel chrome palette
 
-The panel-chrome color tokens are declared in `panel-tokens.css` as concrete dark-palette values. The panel reads NOTHING from the host's `--color-*` / `--font-mono` theme — host theme changes (including theme tweaks driven through this very panel in a demo) cannot bleed into the panel chrome:
+The panel-chrome color tokens are declared in `panel-tokens.css` as semantic aliases onto a private OKLCH ramp. The panel reads NOTHING from the host's `--color-*` / `--font-mono` theme — host theme changes (including theme tweaks driven through this very panel in a demo) cannot bleed into the panel chrome:
 
 ```css
 :where(.tokenpanel-shell, [data-design-token-panel-modal]) {
-  --tokentweak-color-fg: #b8b8b8;
-  --tokentweak-color-bg: #181818;
-  --tokentweak-color-muted: #888888;
-  --tokentweak-color-surface: #1c1c1c;
+  /* base-0 is the darkest ground; stops ascend toward the foreground. */
+  --tokentweak-palette-base-0: oklch(0.18 0 0);
+  --tokentweak-palette-base-1: oklch(0.25 0 0);
+  --tokentweak-palette-base-2: oklch(0.34 0 0);
+  --tokentweak-palette-base-3: oklch(0.536 0 0);
+  --tokentweak-palette-base-4: oklch(0.66 0 0);
+  --tokentweak-palette-base-5: oklch(0.8 0 0);
+  --tokentweak-palette-base-6: oklch(0.91 0 0);
+  --tokentweak-color-fg: var(--tokentweak-palette-base-5);
+  --tokentweak-color-bg: var(--tokentweak-palette-base-0);
+  --tokentweak-color-muted: var(--tokentweak-palette-base-4);
+  --tokentweak-color-border: var(--tokentweak-palette-base-3);
+  --tokentweak-color-surface: var(--tokentweak-palette-base-1);
   --tokentweak-color-accent: #d69a66;
   --tokentweak-color-accent-bar: #efb477;
   --tokentweak-color-accent-hover: #a7c0e3;
-  --tokentweak-color-code-bg: #383838;
-  --tokentweak-color-code-fg: #e0e0e0;
+  --tokentweak-color-code-bg: var(--tokentweak-palette-base-2);
+  --tokentweak-color-code-fg: var(--tokentweak-palette-base-6);
   --tokentweak-color-success: #93bb77;
   --tokentweak-color-danger: #da6871;
   --tokentweak-color-warning: #dfbb77;
@@ -91,7 +100,7 @@ The panel-chrome color tokens are declared in `panel-tokens.css` as concrete dar
 }
 ```
 
-The palette mirrors a terminal-style "Default Dark" scheme — low-saturation neutrals with a warm accent and a cool accent-hover — so the panel reads as a separate dark surface on top of any host backdrop.
+The palette mirrors a terminal-style "Default Dark" scheme — achromatic neutrals with a warm accent and a cool accent-hover — so the panel reads as a separate dark surface on top of any host backdrop. The private `--tokentweak-palette-base-0` through `--tokentweak-palette-base-6` ramp is numbered from the darkest ground upward; the semantic color roles below alias those stops.
 
 ### Public surface
 
@@ -99,15 +108,16 @@ These are the panel-private variables a host MAY override on the same scope to r
 
 | Variable | Default | Role |
 | --- | --- | --- |
-| `--tokentweak-color-fg` | `#b8b8b8` | Foreground text. |
-| `--tokentweak-color-bg` | `#181818` | Panel background. |
-| `--tokentweak-color-muted` | `#888888` | Muted text and dividers. |
-| `--tokentweak-color-surface` | `#1c1c1c` | Raised surfaces (cards, modals). |
+| `--tokentweak-color-fg` | `oklch(0.8 0 0)` | Foreground text. |
+| `--tokentweak-color-bg` | `oklch(0.18 0 0)` | Recessed wells and inverse ink on accent fills. |
+| `--tokentweak-color-muted` | `oklch(0.66 0 0)` | Muted and secondary text. |
+| `--tokentweak-color-border` | `oklch(0.536 0 0)` | Borders and dividers. |
+| `--tokentweak-color-surface` | `oklch(0.25 0 0)` | Panel shell and raised surfaces (cards, modals). |
 | `--tokentweak-color-accent` | `#d69a66` | Primary actions and highlights. |
 | `--tokentweak-color-accent-bar` | `#efb477` | Changed-state rails and compact markers. |
 | `--tokentweak-color-accent-hover` | `#a7c0e3` | Hover state for accent surfaces. |
-| `--tokentweak-color-code-bg` | `#383838` | Inline / block code background. |
-| `--tokentweak-color-code-fg` | `#e0e0e0` | Inline / block code foreground. |
+| `--tokentweak-color-code-bg` | `oklch(0.34 0 0)` | Inline / block code background. |
+| `--tokentweak-color-code-fg` | `oklch(0.91 0 0)` | Inline / block code foreground. |
 | `--tokentweak-color-success` | `#93bb77` | Success state colour. |
 | `--tokentweak-color-danger` | `#da6871` | Danger / error state colour. |
 | `--tokentweak-color-warning` | `#dfbb77` | Warning state colour. |
@@ -126,6 +136,8 @@ A host that wants a different chrome theme assigns directly to the `--tokentweak
 ```
 
 This is the entire host-override contract for panel chrome. `--color-*` and `--font-mono` are NOT part of the override surface — assigning to them on the host page has no effect on the panel.
+
+A host may also override one `--tokentweak-palette-base-*` stop to move every semantic role that aliases it. Direct `--tokentweak-color-*` assignments still win because the panel's defaults use zero-specificity `:where()`. `--tokentweak-color-muted` now affects secondary text only; hosts that previously used it to recolor both text and 1px dividers must also assign `--tokentweak-color-border`.
 
 The non-color token scales are concrete pixel values: `--tokentweak-pad-*` is
 `2/6/8/12/16/24/32px` for `2xs/xs/sm/md/lg/xl/2xl`,

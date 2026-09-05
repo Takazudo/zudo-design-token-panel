@@ -70,19 +70,28 @@ import '@takazudo/zdtp/styles';
 
 ## 自己完結型のパネル chrome パレット
 
-パネル chrome のカラートークンは、`panel-tokens.css` で具体的なダークパレット値として宣言されています。パネルは、ホストの `--color-*` / `--font-mono` テーマを**一切読み取りません**。ホストテーマの変更（デモ内でこのパネル自身を使って行ったテーマ調整も含む）が、パネル chrome へ入り込むことはありません。
+パネル chrome のカラートークンは、`panel-tokens.css` でプライベートな OKLCH ランプへのセマンティックエイリアスとして宣言されています。パネルは、ホストの `--color-*` / `--font-mono` テーマを**一切読み取りません**。ホストテーマの変更（デモ内でこのパネル自身を使って行ったテーマ調整も含む）が、パネル chrome へ入り込むことはありません。
 
 ```css
 :where(.tokenpanel-shell, [data-design-token-panel-modal]) {
-  --tokentweak-color-fg: #b8b8b8;
-  --tokentweak-color-bg: #181818;
-  --tokentweak-color-muted: #888888;
-  --tokentweak-color-surface: #1c1c1c;
+  /* base-0 は最も暗い地色で、前景に向かって明るくなります。 */
+  --tokentweak-palette-base-0: oklch(0.18 0 0);
+  --tokentweak-palette-base-1: oklch(0.25 0 0);
+  --tokentweak-palette-base-2: oklch(0.34 0 0);
+  --tokentweak-palette-base-3: oklch(0.536 0 0);
+  --tokentweak-palette-base-4: oklch(0.66 0 0);
+  --tokentweak-palette-base-5: oklch(0.8 0 0);
+  --tokentweak-palette-base-6: oklch(0.91 0 0);
+  --tokentweak-color-fg: var(--tokentweak-palette-base-5);
+  --tokentweak-color-bg: var(--tokentweak-palette-base-0);
+  --tokentweak-color-muted: var(--tokentweak-palette-base-4);
+  --tokentweak-color-border: var(--tokentweak-palette-base-3);
+  --tokentweak-color-surface: var(--tokentweak-palette-base-1);
   --tokentweak-color-accent: #d69a66;
   --tokentweak-color-accent-bar: #efb477;
   --tokentweak-color-accent-hover: #a7c0e3;
-  --tokentweak-color-code-bg: #383838;
-  --tokentweak-color-code-fg: #e0e0e0;
+  --tokentweak-color-code-bg: var(--tokentweak-palette-base-2);
+  --tokentweak-color-code-fg: var(--tokentweak-palette-base-6);
   --tokentweak-color-success: #93bb77;
   --tokentweak-color-danger: #da6871;
   --tokentweak-color-warning: #dfbb77;
@@ -91,7 +100,7 @@ import '@takazudo/zdtp/styles';
 }
 ```
 
-このパレットは、ターミナル風の「Default Dark」スキームを踏襲しています。彩度を抑えたニュートラルカラーに暖色のアクセントと寒色のホバーアクセントを組み合わせることで、どのようなホストの背景上でも、パネルが独立したダークサーフェスとして見えるようにしています。
+このパレットは、ターミナル風の「Default Dark」スキームを踏襲しています。無彩色のニュートラルカラーに暖色のアクセントと寒色のホバーアクセントを組み合わせることで、どのようなホストの背景上でも、パネルが独立したダークサーフェスとして見えるようにしています。非公開の `--tokentweak-palette-base-0` から `--tokentweak-palette-base-6` までのランプは、最も暗い地色から明るい順に並び、以下のセマンティックカラーロールは各段階を参照します。
 
 ### 公開範囲
 
@@ -99,15 +108,16 @@ import '@takazudo/zdtp/styles';
 
 | 変数 | デフォルト | 役割 |
 | --- | --- | --- |
-| `--tokentweak-color-fg` | `#b8b8b8` | 前景テキスト。 |
-| `--tokentweak-color-bg` | `#181818` | パネルの背景。 |
-| `--tokentweak-color-muted` | `#888888` | 控えめなテキストと区切り線。 |
-| `--tokentweak-color-surface` | `#1c1c1c` | 浮き上がったサーフェス（カード、モーダル）。 |
+| `--tokentweak-color-fg` | `oklch(0.8 0 0)` | 前景テキスト。 |
+| `--tokentweak-color-bg` | `oklch(0.18 0 0)` | くぼんだ領域とアクセント塗り上の反転文字色。 |
+| `--tokentweak-color-muted` | `oklch(0.66 0 0)` | 控えめなテキストと補助テキスト。 |
+| `--tokentweak-color-border` | `oklch(0.536 0 0)` | 境界線と区切り線。 |
+| `--tokentweak-color-surface` | `oklch(0.25 0 0)` | パネルシェルと浮き上がったサーフェス（カード、モーダル）。 |
 | `--tokentweak-color-accent` | `#d69a66` | 主要アクションとハイライト。 |
 | `--tokentweak-color-accent-bar` | `#efb477` | 変更状態のレールとコンパクトなマーカー。 |
 | `--tokentweak-color-accent-hover` | `#a7c0e3` | アクセントサーフェスのホバー状態。 |
-| `--tokentweak-color-code-bg` | `#383838` | インライン／ブロックコードの背景。 |
-| `--tokentweak-color-code-fg` | `#e0e0e0` | インライン／ブロックコードの前景。 |
+| `--tokentweak-color-code-bg` | `oklch(0.34 0 0)` | インライン／ブロックコードの背景。 |
+| `--tokentweak-color-code-fg` | `oklch(0.91 0 0)` | インライン／ブロックコードの前景。 |
 | `--tokentweak-color-success` | `#93bb77` | 成功状態の色。 |
 | `--tokentweak-color-danger` | `#da6871` | 危険／エラー状態の色。 |
 | `--tokentweak-color-warning` | `#dfbb77` | 警告状態の色。 |
@@ -126,6 +136,8 @@ import '@takazudo/zdtp/styles';
 ```
 
 これが、パネル chrome に関するホストのオーバーライド契約のすべてです。`--color-*` と `--font-mono` はオーバーライド範囲に**含まれません**。ホストページ上でこれらへ値を割り当てても、パネルには影響しません。
+
+ホストは `--tokentweak-palette-base-*` の各段階をオーバーライドし、その段階を参照するすべてのセマンティックロールをまとめて変更することもできます。パネルのデフォルトは詳細度 0 の `:where()` で定義されるため、`--tokentweak-color-*` への直接指定は引き続き優先されます。`--tokentweak-color-muted` が影響するのは補助テキストだけになりました。これまでこの変数でテキストと 1px の区切り線をまとめて変更していたホストは、`--tokentweak-color-border` も指定してください。
 
 色以外のトークンスケールは具体的なピクセル値です。`--tokentweak-pad-*` は `2xs/xs/sm/md/lg/xl/2xl` に対して `2/6/8/12/16/24/32px`、`--tokentweak-gap-*` は同じ段階に対して `7/14/20/24/28/40/56px`、`--tokentweak-text-*` は `micro/caption/small/body/subheading/heading/display` に対して `12/14/16/19/22/48/60px` です。共有の角丸は `--radius-tokentweak: 4px` です。セマンティック z-index 値は、ランタイムが使う高い整数値域にある `--tokentweak-z-overlay`、`shell`、`settings-popover`、`color-picker`、`tooltip`、`command-palette`、`inspector-box`、`toast` として公開されます。
 

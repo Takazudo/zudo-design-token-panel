@@ -91,7 +91,7 @@
   z-index: var(--tokentweak-z-shell);
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   background-color: var(--tokentweak-color-surface);
   border-radius: 0;
   box-shadow: 0 4px 24px rgb(0 0 0 / 0.25);
@@ -140,7 +140,7 @@
   display: flex;
   gap: 2px;
   padding: 1px;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: 3px;
   flex-shrink: 0;
 }
@@ -202,7 +202,7 @@
   gap: 10px;
   box-sizing: border-box;
   padding: 6px 8px 6px 14px;
-  border: 1px solid var(--tokentweak-color-muted, #888888);
+  border: 1px solid var(--tokentweak-color-border, #6d6d6d);
   border-radius: 999px;
   background: var(--tokentweak-color-surface, #1c1c1c);
   color: var(--tokentweak-color-fg, #b8b8b8);
@@ -243,7 +243,7 @@
   width: 1px;
   height: 16px;
   flex-shrink: 0;
-  background: var(--tokentweak-color-muted, #888888);
+  background: var(--tokentweak-color-border, #6d6d6d);
   opacity: 0.55;
 }
 
@@ -347,8 +347,8 @@
     -45deg,
     transparent 0,
     transparent 2px,
-    var(--tokentweak-color-muted) 2px,
-    var(--tokentweak-color-muted) 3px
+    var(--tokentweak-color-border) 2px,
+    var(--tokentweak-color-border) 3px
   );
   -webkit-mask-image: linear-gradient(135deg, transparent 50%, #000 50%);
   mask-image: linear-gradient(135deg, transparent 50%, #000 50%);
@@ -363,11 +363,12 @@
 
 .tokenpanel-header {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: var(--tokentweak-pad-md);
   padding-inline: var(--tokentweak-pad-xl);
   padding-block: var(--tokentweak-gap-xs);
-  border-bottom: 1px solid var(--tokentweak-color-muted);
+  border-bottom: 1px solid var(--tokentweak-color-border);
   flex-shrink: 0;
   /* Anchor for .tokenpanel-actions-popover (#518). */
   position: relative;
@@ -459,7 +460,7 @@
   flex-direction: column;
   min-width: 180px;
   background: var(--tokentweak-color-surface);
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: 6px;
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
   padding: 4px;
@@ -510,7 +511,7 @@
   padding: var(--tokentweak-pad-2xs) var(--tokentweak-pad-sm);
   color: var(--tokentweak-color-muted);
   background: var(--tokentweak-color-bg);
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: var(--radius-tokentweak);
   flex-shrink: 1;
 }
@@ -684,7 +685,7 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  border-left: 1px solid var(--tokentweak-color-muted);
+  border-left: 1px solid var(--tokentweak-color-border);
   background: var(--tokentweak-color-bg);
   color: var(--tokentweak-color-fg);
 }
@@ -696,7 +697,7 @@
   gap: var(--tokentweak-pad-xs);
   min-height: 34px;
   padding: var(--tokentweak-pad-sm) var(--tokentweak-pad-md);
-  border-bottom: 1px solid var(--tokentweak-color-muted);
+  border-bottom: 1px solid var(--tokentweak-color-border);
   color: var(--tokentweak-color-muted);
   font-size: 11px;
   letter-spacing: 0.08em;
@@ -717,7 +718,7 @@
   flex-direction: column;
   gap: var(--tokentweak-pad-xs);
   padding: var(--tokentweak-pad-sm) var(--tokentweak-pad-md);
-  border-bottom: 1px solid var(--tokentweak-color-muted);
+  border-bottom: 1px solid var(--tokentweak-color-border);
 }
 
 .tokenpanel-snapshot-row,
@@ -778,7 +779,7 @@
 
 .tokenpanel-snapshot-save {
   padding: 3px 6px;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: var(--radius-tokentweak);
   background: none;
   color: var(--tokentweak-color-accent);
@@ -807,7 +808,7 @@
 .tokenpanel-snapshot-segmented {
   display: inline-flex;
   overflow: hidden;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: var(--radius-tokentweak);
   flex-shrink: 0;
 }
@@ -823,7 +824,7 @@
 }
 
 .tokenpanel-snapshot-segmented [role='button'] + [role='button'] {
-  border-left: 1px solid var(--tokentweak-color-muted);
+  border-left: 1px solid var(--tokentweak-color-border);
 }
 
 .tokenpanel-snapshot-segmented [role='button']:hover,
@@ -850,7 +851,7 @@
   overflow: hidden;
   max-height: 42px;
   padding: var(--tokentweak-pad-xs) var(--tokentweak-pad-md);
-  border-bottom: 1px solid var(--tokentweak-color-muted);
+  border-bottom: 1px solid var(--tokentweak-color-border);
   color: var(--tokentweak-color-warning);
   font-size: 10px;
   line-height: 14px;
@@ -952,10 +953,11 @@
 .tokenpanel-tabbar {
   display: flex;
   align-items: center;
-  border-bottom: 1px solid var(--tokentweak-color-muted);
+  border-bottom: 1px solid var(--tokentweak-color-border);
   padding-inline: var(--tokentweak-pad-xl);
   flex-shrink: 0;
   gap: var(--tokentweak-pad-md);
+  position: relative;
 }
 
 .tokenpanel-search-matchbar {
@@ -966,7 +968,7 @@
   padding-inline: var(--tokentweak-pad-xl);
   color: var(--tokentweak-color-muted);
   font-size: 12px;
-  border-bottom: 1px solid var(--tokentweak-color-muted);
+  border-bottom: 1px solid var(--tokentweak-color-border);
   flex-shrink: 0;
 }
 
@@ -1016,6 +1018,80 @@
 .tokenpanel-tabbar-tabs.has-overflow {
   -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
   mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+}
+
+.tokenpanel-tab-overflow {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.tokenpanel-tab-overflow-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-inline-start: 1px solid var(--tokentweak-color-border);
+  background: none;
+  color: var(--tokentweak-color-muted);
+  cursor: pointer;
+}
+
+.tokenpanel-tab-overflow-trigger:hover,
+.tokenpanel-tab-overflow-trigger:focus-visible {
+  color: var(--tokentweak-color-fg);
+}
+
+.tokenpanel-tab-overflow-trigger:focus-visible,
+.tokenpanel-tab-overflow-popover:focus-visible {
+  outline: 2px solid var(--tokentweak-color-accent);
+  outline-offset: 2px;
+}
+
+.tokenpanel-tab-overflow-trigger svg {
+  fill: none !important;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tokenpanel-tab-overflow-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: var(--tokentweak-z-color-picker);
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  max-width: min(240px, calc(100cqw - 16px));
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--tokentweak-color-border);
+  border-radius: 6px;
+  background: var(--tokentweak-color-surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
+}
+
+.tokenpanel-tab-overflow-option {
+  padding: 6px 10px;
+  border-radius: 4px;
+  color: var(--tokentweak-color-muted);
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.tokenpanel-tab-overflow-option.is-focused {
+  background: rgb(from var(--tokentweak-color-fg) r g b / 0.06);
+  color: var(--tokentweak-color-fg);
+}
+
+.tokenpanel-tab-overflow-option[aria-selected='true'] {
+  color: var(--tokentweak-color-accent);
+  font-weight: 600;
 }
 
 .tokenpanel-tab-button {
@@ -1070,6 +1146,18 @@
   cursor: pointer;
 }
 
+.tokenpanel-density.is-compact,
+.tokenpanel-actions-popover .tokenpanel-changed-only-toggle {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--tokentweak-pad-sm) var(--tokentweak-pad-md);
+}
+
+.tokenpanel-density.is-compact .tokenpanel-density-slider {
+  min-width: 0;
+  flex: 1;
+}
+
 /* ===========================================================================
  * Container-query responsive breakpoints (#518)
  *
@@ -1082,7 +1170,23 @@
  * simply keep the wide layout above with no JS fallback (see package README).
  * ========================================================================= */
 @container tokenpanel (max-width: 479px) {
+  .tokenpanel-header {
+    gap: var(--tokentweak-pad-sm);
+  }
   .tokenpanel-header > .tokenpanel-action-link {
+    display: none;
+  }
+  .tokenpanel-header > .tokenpanel-history-controls,
+  .tokenpanel-header > .tokenpanel-apply-sync,
+  .tokenpanel-header > .tokenpanel-dock-modes,
+  .tokenpanel-header > .tokenpanel-elpath-toggle,
+  .tokenpanel-header > .tokenpanel-element-inspect-toggle,
+  .tokenpanel-header > .tokenpanel-tweaker-toggle {
+    display: none;
+  }
+  .tokenpanel-tabbar > .tokenpanel-density,
+  .tokenpanel-tabbar > .tokenpanel-ghost-idle-toggle,
+  .tokenpanel-tabbar > .tokenpanel-changed-only-toggle {
     display: none;
   }
   .tokenpanel-search-control {
@@ -1106,6 +1210,11 @@
 @container tokenpanel (max-width: 379px) {
   .tokenpanel-density-label {
     display: none;
+  }
+  /* The compact-menu copy needs its label to remain understandable even
+   * though the inline tabbar copy drops the label at this width. */
+  .tokenpanel-density.is-compact .tokenpanel-density-label {
+    display: inline;
   }
 }
 @container tokenpanel (max-width: 299px) {
@@ -1133,7 +1242,7 @@
   min-height: 34px;
   padding-inline: var(--tokentweak-pad-xl);
   padding-block: var(--tokentweak-pad-xs);
-  border-top: 1px solid var(--tokentweak-color-muted);
+  border-top: 1px solid var(--tokentweak-color-border);
   flex-shrink: 0;
 }
 
@@ -1159,7 +1268,7 @@
   overflow: hidden;
   color: var(--tokentweak-color-fg);
   background: var(--tokentweak-color-surface);
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: 6px;
   box-shadow: 0 16px 48px rgb(0 0 0 / 0.5);
   transform: translateX(-50%);
@@ -1173,7 +1282,7 @@
   font-size: 14px;
   background: none;
   border: 0;
-  border-bottom: 1px solid var(--tokentweak-color-muted);
+  border-bottom: 1px solid var(--tokentweak-color-border);
   outline: none;
 }
 
@@ -1256,7 +1365,7 @@
   padding: var(--tokentweak-pad-xs) var(--tokentweak-pad-lg);
   color: var(--tokentweak-color-muted);
   font-size: 11px;
-  border-top: 1px solid var(--tokentweak-color-muted);
+  border-top: 1px solid var(--tokentweak-color-border);
 }
 
 .tokenpanel-command-palette-footer-hint {
@@ -1376,7 +1485,7 @@
 :where(.tokenpanel-shell) .tokenpanel-notes-body th,
 :where(.tokenpanel-shell) .tokenpanel-notes-body td {
   display: table-cell !important;
-  border: 1px solid var(--tokentweak-color-muted) !important;
+  border: 1px solid var(--tokentweak-color-border) !important;
   padding: var(--tokentweak-pad-2xs) var(--tokentweak-pad-xs) !important;
   text-align: left !important;
   color: var(--tokentweak-color-fg) !important;
@@ -1391,7 +1500,7 @@
   margin: 0 0 var(--tokentweak-gap-2xs) 0 !important;
   padding: var(--tokentweak-pad-xs) var(--tokentweak-pad-md) !important;
   border: 0 !important;
-  border-left: 3px solid var(--tokentweak-color-muted) !important;
+  border-left: 3px solid var(--tokentweak-color-border) !important;
   color: var(--tokentweak-color-muted) !important;
   font-style: normal !important;
 }
@@ -1426,7 +1535,7 @@
   margin: var(--tokentweak-gap-2xs) 0 !important;
   height: 0 !important;
   border: 0 !important;
-  border-top: 1px solid var(--tokentweak-color-muted) !important;
+  border-top: 1px solid var(--tokentweak-color-border) !important;
 }
 
 :where(.tokenpanel-shell) .tokenpanel-notes-body img {
@@ -1631,7 +1740,7 @@
 .tokenpanel-bulk-number-input {
   width: 60px;
   min-width: 0;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: var(--radius-tokentweak);
   background: var(--tokentweak-color-surface);
   color: var(--tokentweak-color-fg);
@@ -1706,7 +1815,7 @@
   /* Fieldset-style bordered box; heading floats on the top border. */
   position: relative;
   flex-shrink: 0;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: 8px;
   padding: 18px 14px 14px;
 }
@@ -1762,7 +1871,7 @@
 .tokenpanel-color-preset-select {
   background-color: var(--tokentweak-color-surface);
   color: var(--tokentweak-color-fg);
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   padding-inline: var(--tokentweak-pad-sm);
   padding-block: 2px;
   font-size: 12px;
@@ -1814,7 +1923,7 @@
 
 .tokenpanel-color-swatch-button {
   display: block;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   cursor: pointer;
   width: 56px;
   height: 56px;
@@ -1842,7 +1951,7 @@
   display: block;
   width: 44px;
   height: 28px;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: var(--radius-tokentweak);
   cursor: pointer;
   padding: 0;
@@ -1894,13 +2003,20 @@
   pointer-events: none;
   background: var(--tokentweak-color-surface);
   color: var(--tokentweak-color-fg);
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: 4px;
   padding: 4px 8px;
   font-family: var(--tokentweak-font-mono);
   font-size: 11px;
   line-height: 1.3;
-  white-space: nowrap;
+  /* Keep intrinsic width independent of the previous left position. A fixed
+   * auto-width tooltip can shrink against stale left when its text changes,
+   * then grow after this component repositions it and invalidate the height
+   * used for vertical placement. */
+  width: max-content;
+  max-width: calc(100vw - 12px);
+  white-space: normal;
+  overflow-wrap: anywhere;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
   opacity: 0;
   transform: translateY(2px);
@@ -1913,12 +2029,11 @@
 }
 
 /* Help variant (#520 / #544) — wrapped, multi-sentence explainer text instead
- * of the default single-line nowrap tooltip. Applied ON TOP OF
- * .tokenpanel-tooltip, never replacing it — do not mutate the base rule above,
- * which other (short, single-line) tooltip callers still rely on being nowrap. */
+ * of the default token tooltip. Applied ON TOP OF .tokenpanel-tooltip, never
+ * replacing it. Keep its cap viewport-safe on narrow windows. */
 .tokenpanel-tooltip--help {
   white-space: normal;
-  max-width: 320px;
+  max-width: min(320px, calc(100vw - 12px));
 }
 
 /* ===========================================================================
@@ -1940,7 +2055,7 @@
   width: 15px;
   height: 15px;
   border-radius: 50%;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   color: var(--tokentweak-color-muted);
   font-family: var(--tokentweak-font-mono);
   font-size: 10px;
@@ -1970,7 +2085,7 @@
  * ========================================================================= */
 
 .tokenpanel-popover {
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   background-color: var(--tokentweak-color-surface);
   padding: 12px;
   border-radius: var(--radius-tokentweak);
@@ -1999,7 +2114,7 @@
      width:100% removed — would fight the flex layout. */
   flex: 1;
   min-width: 0;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   background-color: var(--tokentweak-color-surface);
   padding-inline: 6px;
   padding-block: 4px;
@@ -2029,7 +2144,7 @@
 
 .tokenpanel-palette-trigger-color {
   flex-shrink: 0;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   width: 14px;
   height: 14px;
   border-radius: 2px;
@@ -2048,7 +2163,7 @@
 }
 
 .tokenpanel-palette-options {
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   background-color: var(--tokentweak-color-surface);
   padding: 10px;
   border-radius: var(--radius-tokentweak);
@@ -2060,7 +2175,7 @@
   gap: 6px;
   margin-bottom: 8px;
   padding-bottom: 8px;
-  border-bottom: 1px solid var(--tokentweak-color-muted);
+  border-bottom: 1px solid var(--tokentweak-color-border);
 }
 
 .tokenpanel-palette-extra-option {
@@ -2093,7 +2208,7 @@
   width: 28px;
   height: 28px;
   border-radius: 3px;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
 }
 
 .tokenpanel-palette-extra-label {
@@ -2110,7 +2225,7 @@
   width: 48px;
   height: 48px;
   border-radius: 3px;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   cursor: pointer;
   padding: 0;
   transition: box-shadow 150ms ease;
@@ -2193,7 +2308,7 @@
 .tokenpanel-row-number-input {
   background-color: var(--tokentweak-color-surface);
   color: var(--tokentweak-color-fg);
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   padding-inline: 6px;
   padding-block: 2px;
   font-family: var(--tokentweak-font-mono);
@@ -2240,7 +2355,7 @@
 .tokenpanel-row-select {
   background-color: var(--tokentweak-color-surface);
   color: var(--tokentweak-color-fg);
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   padding-inline: 6px;
   padding-block: 2px;
   font-family: var(--tokentweak-font-mono);
@@ -2255,7 +2370,7 @@
 .tokenpanel-row-text-input {
   background-color: var(--tokentweak-color-surface);
   color: var(--tokentweak-color-fg);
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   padding-inline: 6px;
   padding-block: 2px;
   font-family: var(--tokentweak-font-mono);
@@ -2328,7 +2443,7 @@
   max-width: 736px;
   max-height: 80vh;
   overflow-y: auto;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   background-color: var(--tokentweak-color-surface);
   color: var(--tokentweak-color-fg);
   padding: var(--tokentweak-pad-xl);
@@ -2372,7 +2487,7 @@
 
 [data-design-token-panel-modal] [class*='__list']:not([class*='__list-item']) {
   overflow-x: auto;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   background-color: var(--tokentweak-color-code-bg);
   color: var(--tokentweak-color-code-fg);
   padding: var(--tokentweak-pad-sm);
@@ -2403,12 +2518,12 @@
   grid-template-columns: minmax(180px, 34%) minmax(0, 1fr);
   min-height: 320px;
   max-height: 58vh;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   background: var(--tokentweak-color-code-bg);
 }
 .tokenpanel-apply-preview-files {
   overflow: auto;
-  border-right: 1px solid var(--tokentweak-color-muted);
+  border-right: 1px solid var(--tokentweak-color-border);
 }
 .tokenpanel-apply-preview-file {
   display: flex;
@@ -2432,7 +2547,7 @@
   font-size: var(--tokentweak-text-small);
 }
 .tokenpanel-apply-preview-diff { overflow: auto; font-family: var(--tokentweak-font-mono); font-size: var(--tokentweak-text-small); }
-.tokenpanel-apply-preview-hunk { border-bottom: 1px solid var(--tokentweak-color-muted); }
+.tokenpanel-apply-preview-hunk { border-bottom: 1px solid var(--tokentweak-color-border); }
 .tokenpanel-apply-preview-hunk.is-off .is-delete,
 .tokenpanel-apply-preview-hunk.is-off .is-add { opacity: 0.35; text-decoration: line-through; }
 .tokenpanel-apply-preview-hunk-header {
@@ -2464,7 +2579,7 @@
 [data-design-token-panel-modal] [class*='__textarea'] {
   width: 100%;
   min-height: 192px;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   background-color: var(--tokentweak-color-code-bg);
   color: var(--tokentweak-color-code-fg);
   padding: var(--tokentweak-pad-sm);
@@ -2476,7 +2591,7 @@
 
 [data-design-token-panel-modal] [class*='__json'] {
   overflow-x: auto;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   background-color: var(--tokentweak-color-code-bg);
   color: var(--tokentweak-color-code-fg);
   padding: var(--tokentweak-pad-sm);
@@ -2509,7 +2624,7 @@
   display: flex;
   align-items: center;
   gap: var(--tokentweak-pad-sm);
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   background-color: var(--tokentweak-color-code-bg);
   color: var(--tokentweak-color-muted);
   padding: var(--tokentweak-pad-sm);
@@ -2520,7 +2635,7 @@
   display: inline-block;
   width: 16px;
   height: 16px;
-  border: 2px solid var(--tokentweak-color-muted);
+  border: 2px solid var(--tokentweak-color-border);
   border-top-color: var(--tokentweak-color-fg);
   border-radius: 50%;
   animation: design-token-panel-modal-spin 0.75s linear infinite;
@@ -2540,7 +2655,7 @@
 }
 
 [data-design-token-panel-modal] [class*='__button'] {
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   background-color: var(--tokentweak-color-surface);
   color: var(--tokentweak-color-muted);
   padding-inline: var(--tokentweak-pad-lg);
@@ -2575,7 +2690,7 @@
 }
 
 [data-design-token-panel-modal] [class*='__close-button'] {
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   background-color: var(--tokentweak-color-surface);
   color: var(--tokentweak-color-muted);
   padding-inline: var(--tokentweak-pad-sm);
@@ -2617,7 +2732,7 @@ select.tokenpanel-tier-ref-select {
   width: 100%;
   background-color: var(--tokentweak-color-surface);
   color: var(--tokentweak-color-fg);
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: var(--radius-tokentweak);
   padding-inline: var(--tokentweak-pad-sm);
   padding-block: 4px;
@@ -2677,7 +2792,7 @@ select.tokenpanel-tier-ref-select:focus-visible {
   width: 18px;
   height: 18px;
   flex-shrink: 0;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: 3px;
   pointer-events: none;
 }
@@ -2904,7 +3019,7 @@ select.tokenpanel-tier-ref-select:focus-visible {
   max-height: calc(100vh - 16px);
   overflow-y: auto;
   padding: var(--tokentweak-pad-md);
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: 6px;
   background: var(--tokentweak-color-surface);
   color: var(--tokentweak-color-fg);
@@ -2920,7 +3035,7 @@ select.tokenpanel-tier-ref-select:focus-visible {
   flex-wrap: wrap;
   gap: 4px;
   padding-bottom: var(--tokentweak-pad-sm);
-  border-bottom: 1px solid var(--tokentweak-color-muted);
+  border-bottom: 1px solid var(--tokentweak-color-border);
 }
 
 .tokenpanel-chain-hop-wrap {
@@ -2953,7 +3068,7 @@ select.tokenpanel-tier-ref-select:focus-visible {
   width: 12px;
   height: 12px;
   flex: 0 0 auto;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: 2px;
 }
 
@@ -3005,7 +3120,7 @@ select.tokenpanel-tier-ref-select:focus-visible {
   align-items: center;
   max-width: 100%;
   padding: 2px 6px;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: 3px;
   background: none;
   color: var(--tokentweak-color-fg);
@@ -3083,14 +3198,14 @@ select.tokenpanel-tier-ref-select:focus-visible {
 .tokenpanel-highlight-settings-popover {
   width: 370px;
   background: var(--tokentweak-color-surface);
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: 6px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
 
 .tokenpanel-highlight-settings-header {
   padding: 10px 16px;
-  border-bottom: 1px solid var(--tokentweak-color-muted);
+  border-bottom: 1px solid var(--tokentweak-color-border);
   font-weight: 600;
   font-size: 13px;
   color: var(--tokentweak-color-fg);
@@ -3115,7 +3230,7 @@ select.tokenpanel-tier-ref-select:focus-visible {
 .tokenpanel-highlight-settings-outline-input {
   width: 44px;
   background: var(--tokentweak-color-bg);
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: 3px;
   color: var(--tokentweak-color-fg);
   font-size: 12px;
@@ -3186,7 +3301,7 @@ select.tokenpanel-tier-ref-select:focus-visible {
 
 .tokenpanel-highlight-settings-footer {
   padding: 12px 16px;
-  border-top: 1px solid var(--tokentweak-color-muted);
+  border-top: 1px solid var(--tokentweak-color-border);
   display: flex;
   justify-content: flex-end;
   gap: var(--tokentweak-pad-sm);
@@ -3195,7 +3310,7 @@ select.tokenpanel-tier-ref-select:focus-visible {
 .tokenpanel-highlight-settings-reset-btn {
   padding: 6px 12px;
   background: var(--tokentweak-color-code-bg);
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: 3px;
   cursor: pointer;
   font-size: 12px;

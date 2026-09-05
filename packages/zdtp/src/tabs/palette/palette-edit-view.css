@@ -16,7 +16,7 @@
  * (chevron + label + preview chips). Open = header + body (swatch strip +
  * curve editor). Single-open: opening one closes the others. */
 .tokenpanel-palette-edit-group {
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: var(--radius-tokentweak);
   /* Clip the header/body corners to the box radius. */
   overflow: hidden;
@@ -40,7 +40,7 @@
 
 /* Open group: divider between the header and the body below it. */
 .tokenpanel-palette-edit-group.is-active .tokenpanel-palette-edit-group-header {
-  border-bottom: 1px solid var(--tokentweak-color-muted);
+  border-bottom: 1px solid var(--tokentweak-color-border);
 }
 
 /* Chevron: > when collapsed, v when open. Rotating the wrapper (not the SVG)
@@ -161,7 +161,7 @@
   border-radius: var(--radius-tokentweak);
   color: var(--tokentweak-color-fg);
   background: var(--tokentweak-color-surface);
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   pointer-events: none;
 }
 
@@ -182,7 +182,7 @@
 
 .tokenpanel-palette-edit-swatch[data-invalid] {
   border-style: dashed;
-  border-color: var(--tokentweak-color-muted);
+  border-color: var(--tokentweak-color-border);
 }
 
 .tokenpanel-palette-edit-swatch-idx {
@@ -199,7 +199,7 @@
 /* ── Per-group editor ── */
 .tokenpanel-palette-edit-editor {
   /* Spacing from the swatch strip is owned by the group body's flex `gap`. */
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: var(--radius-tokentweak);
   background: var(--tokentweak-color-surface);
 }
@@ -209,7 +209,7 @@
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  border-bottom: 1px solid var(--tokentweak-color-muted);
+  border-bottom: 1px solid var(--tokentweak-color-border);
 }
 
 .tokenpanel-palette-edit-editor-title {
@@ -229,7 +229,7 @@
   font-size: 11px;
   font-weight: 650;
   border-radius: var(--radius-tokentweak);
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   color: var(--tokentweak-color-muted);
   cursor: pointer;
   user-select: none;
@@ -261,7 +261,7 @@
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  border-top: 1px solid var(--tokentweak-color-muted);
+  border-top: 1px solid var(--tokentweak-color-border);
 }
 
 .tokenpanel-palette-edit-direct-hint {
@@ -275,7 +275,7 @@
   gap: 10px;
   align-items: center;
   padding: 8px 10px 10px;
-  border-top: 1px solid var(--tokentweak-color-muted);
+  border-top: 1px solid var(--tokentweak-color-border);
 }
 
 .tokenpanel-palette-readout-swatch {

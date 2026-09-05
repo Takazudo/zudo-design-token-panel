@@ -91,6 +91,7 @@ import {
   DEFAULT_DENSITY,
   DEFAULT_DOCK_MODE,
   DEFAULT_DOCK_SIZE,
+  MIN_PANEL_WIDTH,
   DEFAULT_POSITION,
   applyColorSlices,
   applyFullState,
@@ -485,7 +486,7 @@ export default function DesignTokenTweakPanel({
     setDensity(loadDensity(instanceConfig));
     const storedDockSize = loadDockSize(instanceConfig);
     const loadedDockSize = {
-      right: Math.max(320, Math.min(storedDockSize.right, window.innerWidth)),
+      right: Math.max(MIN_PANEL_WIDTH, Math.min(storedDockSize.right, window.innerWidth)),
       bottom: Math.max(240, Math.min(storedDockSize.bottom, window.innerHeight)),
     };
     setDockSize(loadedDockSize);
@@ -825,7 +826,7 @@ export default function DesignTokenTweakPanel({
       e.stopPropagation();
       const start = edge === 'right' ? e.clientX : e.clientY;
       const startSize = dockSizeRef.current[edge];
-      const min = edge === 'right' ? 320 : 240;
+      const min = edge === 'right' ? MIN_PANEL_WIDTH : 240;
       const viewportMax = edge === 'right' ? window.innerWidth : window.innerHeight;
       const max = Math.max(min, viewportMax);
 
@@ -1422,11 +1423,49 @@ export default function DesignTokenTweakPanel({
               />
             ) : null,
         },
+        {
+          id: 'density-compact',
+          order: panelActions.length + 3,
+          renderInCompactMenu: true,
+          render: ({ compact }) =>
+            compact ? (
+              <label className="tokenpanel-density is-compact">
+                <span className="tokenpanel-density-label">Density</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={2}
+                  step={1}
+                  value={density}
+                  onInput={(event) => {
+                    const raw = Number((event.currentTarget as HTMLInputElement).value);
+                    if (raw === 0 || raw === 1 || raw === 2) handleDensityChange(raw);
+                  }}
+                  className="tokenpanel-density-slider"
+                  aria-label="Tab grid density"
+                />
+              </label>
+            ) : null,
+        },
+        {
+          id: 'changed-only-compact',
+          order: panelActions.length + 4,
+          renderInCompactMenu: true,
+          render: ({ compact }) =>
+            compact ? (
+              <ChangedOnlyToggle
+                enabled={changedOnly}
+                count={changedOnlyCount}
+                onChange={setChangedOnly}
+              />
+            ) : null,
+        },
       ],
       'header-right': [
         {
           id: 'apply-sync-status',
           order: -2,
+          renderInCompactMenu: true,
           render: () => (
             <div className={`tokenpanel-apply-sync${unsaved.length > 0 ? ' is-unsaved' : ''}`} role="status">
               {unsaved.length > 0 ? `● ${unsaved.length} unsaved` : '✓ in sync'}
@@ -1446,11 +1485,13 @@ export default function DesignTokenTweakPanel({
         {
           id: 'element-path',
           order: 0,
+          renderInCompactMenu: true,
           render: () => <ElementPathToggleButton />,
         },
         {
           id: 'element-inspect',
           order: 1,
+          renderInCompactMenu: true,
           render: () => <ElementInspectToggleButton />,
         },
         ...(instanceConfig.domTweaker !== undefined
@@ -1458,6 +1499,7 @@ export default function DesignTokenTweakPanel({
               {
                 id: 'dom-tweaker',
                 order: 2,
+                renderInCompactMenu: true,
                 render: () => <DomTweakerToggleButton />,
               } satisfies ShellRegionItem,
             ]
@@ -1567,8 +1609,10 @@ export default function DesignTokenTweakPanel({
       changedOnly,
       changedOnlyCount,
       changedTokenCounts,
+      density,
       dockMode,
       ghostIdle,
+      handleDensityChange,
       handleDockModeChange,
       handleGhostIdleChange,
       handleResetAll,

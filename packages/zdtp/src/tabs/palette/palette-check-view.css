@@ -10,7 +10,7 @@
 .tokenpanel-palette-mode-toggle {
   display: inline-flex;
   align-self: flex-start;
-  border: 1px solid var(--tokentweak-color-muted);
+  border: 1px solid var(--tokentweak-color-border);
   border-radius: 6px;
   overflow: hidden;
 }
@@ -26,7 +26,7 @@
 }
 
 .tokenpanel-palette-mode-btn + .tokenpanel-palette-mode-btn {
-  border-left: 1px solid var(--tokentweak-color-muted);
+  border-left: 1px solid var(--tokentweak-color-border);
 }
 
 .tokenpanel-palette-mode-btn:hover {
@@ -237,14 +237,14 @@
 }
 
 .tokenpanel-palette-check-chip.is-na {
-  border: 1px dashed var(--tokentweak-color-muted);
+  border: 1px dashed var(--tokentweak-color-border);
   color: var(--tokentweak-color-muted);
 }
 
 /* ── Footer tally ── */
 .tokenpanel-palette-check-footer {
   padding-top: 12px;
-  border-top: 1px solid rgb(from var(--tokentweak-color-muted) r g b / 0.35);
+  border-top: 1px solid rgb(from var(--tokentweak-color-border) r g b / 0.35);
   color: var(--tokentweak-color-muted);
   font-family: var(--tokentweak-font-mono);
   font-size: 12px;
