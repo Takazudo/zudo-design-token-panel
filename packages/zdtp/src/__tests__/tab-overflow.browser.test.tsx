@@ -163,7 +163,9 @@ describe('tab overflow chooser', () => {
   });
 
   it('removes an unnecessary chooser on resize and restores focus from its listbox', async () => {
-    await mount(400, RESIZE_CONFIG);
+    // Stay above the 480px container breakpoint throughout this resize so
+    // density/extras consume the same width before and after the calculation.
+    await mount(500, RESIZE_CONFIG);
     trigger()!.click();
     await flushEffects();
     expect(document.activeElement?.getAttribute('role')).toBe('listbox');
