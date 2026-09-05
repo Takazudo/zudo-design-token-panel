@@ -693,6 +693,12 @@ History is identity-aware and held in memory only; the persisted A/B snapshots
 and token envelope are separate storage concerns. After a disk apply, the
 implementation resets the last-applied baseline to `{}` and reconciles only
 variables confirmed as written, so retained or unrouted overrides stay dirty.
+Because disk Apply does not write base-role variables, a confirmed semantic
+write derived from an unchanged `bg` or `fg` alias also reconciles that alias's
+role-index dependency. Before resetting the dependency, other unwritten
+semantic aliases using the same role are materialized to their resolved
+numeric palette index. Their emitted value and dirty state are preserved for a
+later Apply.
 
 ---
 

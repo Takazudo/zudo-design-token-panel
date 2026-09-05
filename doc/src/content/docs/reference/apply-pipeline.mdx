@@ -333,7 +333,12 @@ later apply. The `${storagePrefix}-last-applied` key holds the flat comparison
 baseline used by the changed-state indicator. After a successful write the
 current implementation resets that baseline to `{}` while reconciling only
 the confirmed `changed` variables, so retained or unrouted overrides remain
-marked dirty.
+marked dirty. Base-role variables are excluded from disk Apply. When a
+confirmed semantic write changed only because an unchanged `bg` or `fg` alias
+resolved through a moved role index, reconciliation also resets that role
+dependency. Any unwritten semantic alias using the same role is first converted
+to its resolved numeric palette index, preserving its emitted value and dirty
+state for a later Apply.
 
 When no `applyEndpoint` or no non-empty `applyRouting` map is configured, the
 modal can still show the local diff but the disk-apply action stays disabled.
