@@ -11,7 +11,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushEffects } from '../../__tests__/_test-helpers';
-import type { PanelConfig } from '../../config/panel-config';
+import type { PanelConfig, PanelInstanceHandle } from '../../config/panel-config';
 
 const OPEN_PANEL_HEADER_TEXT = 'zdtp';
 
@@ -28,6 +28,7 @@ function makeConfig(): PanelConfig {
 }
 
 describe('adapter — DOM Tweaker mounts the shell while closed', () => {
+  let handle: PanelInstanceHandle | undefined;
   beforeEach(() => {
     localStorage.clear();
     document.body.innerHTML = '';
@@ -36,7 +37,12 @@ describe('adapter — DOM Tweaker mounts the shell while closed', () => {
     delete adapterWin.__zudoDesignTokenPanelLifecycle;
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Removing DOM nodes alone leaves Preact effects and the lazy Tweaker
+    // boundary alive after Vitest disposes this test's jsdom environment.
+    handle?.destroy();
+    handle = undefined;
+    await flushEffects();
     document.body.innerHTML = '';
     localStorage.clear();
     vi.resetModules();
@@ -52,7 +58,7 @@ describe('adapter — DOM Tweaker mounts the shell while closed', () => {
     await import('../../index');
     expect(document.getElementById(panelConfig.panelRootId(cfg))).toBeNull();
 
-    panelConfig.configurePanel(cfg);
+    handle = panelConfig.configurePanel(cfg);
     await flushEffects();
 
     const root = document.getElementById(panelConfig.panelRootId(cfg));
