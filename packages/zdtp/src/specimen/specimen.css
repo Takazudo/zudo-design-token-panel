@@ -220,9 +220,16 @@
 .tokenpanel-row--specimen-line-height .tokenpanel-row-head,
 .tokenpanel-row.tokenpanel-row--specimen-size {
   display: grid;
-  grid-template-columns: minmax(145px, 190px) minmax(0, 1fr) auto auto;
+  grid-template-columns:
+    13px
+    minmax(120px, 150px)
+    minmax(0, 1fr)
+    auto
+    repeat(3, auto);
   align-items: center;
-  gap: var(--tokentweak-pad-md);
+  column-gap: var(--tokentweak-pad-xs);
+  row-gap: var(--tokentweak-pad-xs);
+  min-width: 0;
   width: 100%;
 }
 
@@ -235,6 +242,58 @@
 .tokenpanel-specimen-size-leading,
 .tokenpanel-specimen-line-height-leading {
   display: contents;
+}
+
+.tokenpanel-row--specimen-size .tokenpanel-bulk-row-checkbox,
+.tokenpanel-row--specimen-line-height .tokenpanel-bulk-row-checkbox {
+  grid-column: 1;
+}
+
+.tokenpanel-row--specimen-size .tokenpanel-specimen-meta,
+.tokenpanel-row--specimen-line-height .tokenpanel-specimen-meta {
+  grid-column: 2;
+}
+
+.tokenpanel-row--specimen-size .tokenpanel-specimen-size-text,
+.tokenpanel-row--specimen-line-height .tokenpanel-specimen-line-height-text {
+  grid-column: 3;
+}
+
+.tokenpanel-row--specimen-size .tokenpanel-row-input-group,
+.tokenpanel-row--specimen-line-height .tokenpanel-row-input-group,
+.tokenpanel-row.tokenpanel-row--specimen-size > .tokenpanel-row-select,
+.tokenpanel-row.tokenpanel-row--specimen-size > .tokenpanel-tier-ref-selector {
+  grid-column: 4;
+}
+
+.tokenpanel-row--specimen-size .tokenpanel-row-number-input,
+.tokenpanel-row--specimen-line-height .tokenpanel-row-number-input {
+  width: 64px;
+}
+
+.tokenpanel-row--specimen-size .tokenpanel-row-unit,
+.tokenpanel-row--specimen-line-height .tokenpanel-row-unit {
+  width: 28px;
+}
+
+.tokenpanel-row--specimen-size .tokenpanel-changed-revert,
+.tokenpanel-row--specimen-line-height .tokenpanel-changed-revert {
+  grid-column: 5;
+}
+
+.tokenpanel-row--specimen-size .tokenpanel-chain-button,
+.tokenpanel-row--specimen-line-height .tokenpanel-chain-button {
+  grid-column: 6;
+}
+
+.tokenpanel-row--specimen-size .tokenpanel-highlight-toggle,
+.tokenpanel-row--specimen-line-height .tokenpanel-highlight-toggle {
+  grid-column: 7;
+}
+
+.tokenpanel-row--specimen-size :is(.tokenpanel-bulk-preview, .tokenpanel-changed-tail),
+.tokenpanel-row--specimen-line-height :is(.tokenpanel-bulk-preview, .tokenpanel-changed-tail) {
+  grid-column: 2 / -1;
 }
 
 .tokenpanel-specimen-meta {
@@ -345,7 +404,22 @@
   .tokenpanel-row--specimen-size .tokenpanel-row-head,
   .tokenpanel-row--specimen-line-height .tokenpanel-row-head,
   .tokenpanel-row.tokenpanel-row--specimen-size {
-    grid-template-columns: minmax(110px, 145px) minmax(0, 1fr) auto auto;
-    gap: var(--tokentweak-pad-sm);
+    grid-template-columns:
+      13px
+      minmax(110px, 145px)
+      minmax(0, 1fr)
+      auto
+      repeat(3, auto);
+    column-gap: var(--tokentweak-pad-sm);
+  }
+
+  .tokenpanel-row--specimen-size .tokenpanel-row-number-input,
+  .tokenpanel-row--specimen-line-height .tokenpanel-row-number-input {
+    width: 80px;
+  }
+
+  .tokenpanel-row--specimen-size .tokenpanel-row-unit,
+  .tokenpanel-row--specimen-line-height .tokenpanel-row-unit {
+    width: 32px;
   }
 }

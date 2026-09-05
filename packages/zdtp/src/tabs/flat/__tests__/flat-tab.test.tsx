@@ -52,6 +52,35 @@ function mount(contributions: readonly RowContribution[] = []) {
 }
 
 describe('FlatTab contributions', () => {
+  it('makes size and line-height preview tiers full-width without changing other grids', () => {
+    const previewTab: TabConfig = {
+      id: 'font',
+      label: 'Font',
+      tiers: [
+        { ...TAB.tiers[0], id: 'sizes', label: 'Sizes', preview: 'size' },
+        { ...TAB.tiers[0], id: 'leading', label: 'Leading', preview: 'line-height' },
+        { ...TAB.tiers[0], id: 'families', label: 'Families', preview: 'family' },
+        { ...TAB.tiers[0], id: 'plain', label: 'Plain' },
+      ],
+    };
+    act(() => {
+      render(
+        <FlatTab
+          tab={previewTab}
+          getValue={(_address, item) => item.default}
+          setValue={vi.fn()}
+          deleteValue={vi.fn()}
+        />,
+        container,
+      );
+    });
+
+    const grids = Array.from(container.querySelectorAll('.tokenpanel-tab-grid'));
+    expect(grids.map((grid) => grid.classList.contains('tokenpanel-tab-grid--specimen'))).toEqual([
+      true, true, false, false,
+    ]);
+  });
+
   it('renders every ordered region contribution and combines filters with AND', () => {
     mount([
       {

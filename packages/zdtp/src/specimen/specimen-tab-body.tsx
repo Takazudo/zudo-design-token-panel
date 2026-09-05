@@ -72,7 +72,7 @@ export function createSpecimenContribution({ tab, state, valueFor, onPage = fals
           ...fontStyle,
           fontSize: `${basePx}px`,
           lineHeight,
-          width: `${state.width}px`,
+          width: `min(${state.width}px, 100%)`,
           '--tokenpanel-specimen-line': `${linePx}px`,
         } as CSSProperties;
         return (
