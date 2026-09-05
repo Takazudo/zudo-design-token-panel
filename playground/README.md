@@ -10,6 +10,19 @@ From the repository root, run `pnpm play`. This starts zfb at
 panel's Apply action is proxied through zfb and rewrites
 `playground/styles/global.css` according to `scaffold.routing.json`.
 
+`build:deploy` prepares the workspace panel and emits the static bundle for the
+`zdtp-playground` Worker configured in `playground/wrangler.toml`:
+
+```sh
+pnpm --filter playground build:deploy
+pnpm --dir playground exec wrangler deploy
+```
+
+The production deploy target runs from the `main` push workflow; pull requests
+use a version preview. Apply is disabled in the deployed build because it needs
+the local `zdtp-server` sidecar, which a static host does not provide. Use
+`pnpm play` for the local write-back flow described above.
+
 The default URL uses the compact playground manifest. Add
 `?manifest=zudo-doc` to any page URL to exercise the real `PanelConfig` vendored
 from the installed `@takazudo/zudo-doc/design-token-panel-config`. The exact
