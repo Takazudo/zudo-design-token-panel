@@ -66,6 +66,11 @@
       "import": "./dist/testing.js",
       "default": "./dist/testing.js"
     },
+    "./constants": {
+      "types": "./dist/constants.d.ts",
+      "import": "./dist/constants.js",
+      "default": "./dist/constants.js"
+    },
     "./styles": "./dist/zdtp.css",
     "./styles.css": "./dist/zdtp.css",
     "./package.json": "./package.json"
