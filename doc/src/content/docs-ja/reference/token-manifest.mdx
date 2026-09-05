@@ -5,7 +5,7 @@ description: TabConfig・TierConfig・TierItem・TierValueKind・PillSpec・Colo
 ---
 
 <Info title="コンセプト概要">
-このページは、ティアモデルを型ごとに正確に定義するリファレンスです。まず設計上の意図と、リテラルティアと参照ティアの関係を理解したい場合は、[アーキテクチャ](./architecture.mdx)を先にお読みください。
+このページは、ティアモデルを型ごとに正確に定義するリファレンスです。まず設計上の意図と、リテラルティアと参照ティアの関係を理解したい場合は、[抽象トークンティアモデル](./architecture.mdx)を先にお読みください。
 </Info>
 
 パネルは、`PanelConfig.tabs` として渡される `TabConfig` オブジェクトのフラットな配列からタブストリップをレンダリングします。各タブは、編集可能な行からなる 1 つ以上の*ティア*を保持します。ティアはリテラル値を保持することも、別のティアのアイテムへの参照を保持することもできます。このページでは、ティアモデルのすべての公開型を正確に定義します。
@@ -16,11 +16,11 @@ description: TabConfig・TierConfig・TierItem・TierValueKind・PillSpec・Colo
 
 ```ts
 export type TierValueKind =
-  | { kind: 'length'; step: number; unit: string }
-  | { kind: 'number'; step: number }
+  | { kind: 'length'; step: number; unit: string; units?: readonly string[] }
+  | { kind: 'number'; step: number; unit?: string }
   | { kind: 'select'; options: readonly string[] }
   | { kind: 'text' }
-  | { kind: 'color' }
+  | { kind: 'color'; format?: 'hex' | 'oklch' }
   | { kind: 'cursor' }
   | { kind: 'content' }
   | { kind: 'mask-image' };
@@ -66,7 +66,7 @@ export interface PillSpec {
 export interface TierItem {
   /** Stable id used as the key in persisted state. Rename = state loss. */
   id: string;
-  /** CSS custom property written to `:root` (must start with `--`). */
+  /** CSS custom property written to the default root or configured apply sink (must start with `--`). */
   cssVar: string;
   /** Human-visible label rendered in the panel row. */
   label: string;
@@ -82,7 +82,7 @@ export interface TierItem {
 ```
 
 <Note title="`group` フィールドなし">
-`TierItem.group`（ティア内のサブ見出しキー）は #148 で削除されました。パネルの[1 ティア 1 見出しポリシー](./architecture.mdx)により、各ティアはちょうど 1 つのセクション見出しをレンダリングする必要があります。概念的にサブグループ分けが必要なティアは、代わりに複数の `TierConfig` エントリに分割します。サンプルマニフェストで `group` を参照してはいけません。
+`TierItem.group`（ティア内のサブ見出しキー）は、現在の契約には含まれません。パネルの[1 ティア 1 見出しポリシー](./architecture.mdx)により、各ティアはちょうど 1 つのセクション見出しをレンダリングする必要があります。概念的にサブグループ分けが必要なティアは、代わりに複数の `TierConfig` エントリに分割します。サンプルマニフェストで `group` を参照してはいけません。
 </Note>
 
 ### フィールドリファレンス
@@ -90,7 +90,7 @@ export interface TierItem {
 | フィールド | 必須 | 備考 |
 | --- | --- | --- |
 | `id` | Yes | 永続化されたオーバーライドマップにおける安定したキー。名前を変更すると、`legacyIdRenameMap` を設定していない限り既存のユーザー状態が壊れます。 |
-| `cssVar` | Yes | `:root` に書き込まれる CSS カスタムプロパティ。`--` で始まり、プレフィックスの後が空でない必要があります。`assertValidPanelConfig` によって検証されます。 |
+| `cssVar` | Yes | デフォルトの root または設定済みの `applySink` に書き込まれる CSS カスタムプロパティ。`--` で始まり、プレフィックスの後が空でない必要があります。`assertValidPanelConfig` によって検証されます。 |
 | `label` | Yes | パネル行内の表示ラベル。 |
 | `default` | Yes | オーバーライドが有効でないときに出力されるフォールバックの CSS 文字列。 |
 | `type` | Yes | この行にどのエディターがレンダリングされるかを制御します。 |
@@ -124,7 +124,7 @@ export interface TierConfig {
    * `kind: 'color'`. A tier with `semantic: true` and no sibling palette
    * tier is a **lone semantic tier** — the Color tab renders it with no
    * palette grid at all. Additive: omitting `semantic` preserves the
-   * pre-#459 structural palette-detection behavior.
+   * earlier structural palette-detection behavior.
    */
   semantic?: true;
   /**
@@ -135,14 +135,34 @@ export interface TierConfig {
    * front by `assertValidPanelConfig` before any row renders.
    */
   referencesRamps?: readonly { tab?: string; tier: string }[];
+  /** Optional row previews for size/typography and compact value glyphs. */
+  preview?: 'size' | 'line-height' | 'family' | 'weight' | 'bar' | 'radius' | 'duration';
+  /** Font-size CSS variable used as a line-height preview base. */
+  previewBase?: string;
 }
 ```
 
 `referencesTier` を持つティアは**参照ティア**と呼ばれます。そのアイテムは直接の CSS 値を保持せず、別の（リテラル）ティア内の*ソース*アイテムの id を保持します。`referencesTier` の値は、同じ `TabConfig` 内に存在するティアの `id` でなければなりません。ティアの `kind` は一致している必要があります（例: 両方とも `'color'`、または両方とも `'length'`）。
 
 <Info title="semantic と referencesRamps はカラータブの概念">
-`semantic` はカラータブの概念です。`referencesRamps` を使用できるのは、id が正確に `'color'` または `'color-secondary'` である `TabConfig` 内のティアだけであり、それ以外の親タブ id は `assertValidPanelConfig` によって拒否されます。完全な動作契約 — `SemanticValue` ユニオン、単独セマンティックティアのレンダリング方法、タブ間の実例 — については、[カラークラスター](./color-cluster.mdx)を参照してください。
+`semantic` はカラータブの概念です。`referencesRamps` を使用できるのは、id が正確に `'color'` または `'color-secondary'` である `TabConfig` 内のティアだけであり、それ以外の親タブ id は `assertValidPanelConfig` によって拒否されます。完全な動作契約 — `SemanticValue` ユニオン、単独セマンティックティアのレンダリング方法、タブ間の実例 — については、[カラークラスターのセマンティック専用ティア](./color-cluster.mdx)を参照してください。
 </Info>
+
+### プレビューの対応表
+
+`preview` は任意です。通常のフラットなティアでは省略し、1 つのティアに複数のプレビューの意味を組み合わせないでください。
+
+| `preview` | 有効な値の kind | ランタイムでの表示 |
+| --- | --- | --- |
+| `size` | `length`、または length に解決される `referencesTier` | 解決後のピクセル値で行を並べ替え、各サイズで specimen テキストを表示します。 |
+| `line-height` | `number` | 繰り返した specimen テキストを leading ガイド付きで表示します。`previewBase` は CSS 変数を指定し、利用可能ならマニフェスト値（または document root の計算済み値）を使用します。それ以外は 16px に最も近いサイズ（またはフォールバックの 16px）を使用します。 |
+| `family` | `text` | 最初のアイテムが、すべての size と line-height サンプルへ `font-family` を提供します。 |
+| `weight` | `select` または `number` | 最初のアイテムが、すべてのサンプルへ `font-weight` を提供します。 |
+| `bar` | `length` | 現在のトークン値を使って幅を示すバーを描画します。 |
+| `radius` | `length` | 現在のトークン値を使って角丸の正方形グリフを描画します。 |
+| `duration` | `length`、または `ms`／`s` 単位の `number` | ホバー時の動きに現在の duration を使うトランジションドットを描画します。 |
+
+ページ内の Font タブ specimen も同じ size と line-height メタデータを使用しますが、パネル内のサンプルではなくホストページの portal をレンダリングします。portal については[アーキテクチャ](./architecture.mdx)を参照してください。
 
 ## `TabConfig`
 
@@ -159,13 +179,24 @@ export interface TabConfig {
   /**
    * Color-tab metadata. Required for the reserved `'color'` and
    * `'color-secondary'` ids — ignored (and unnecessary) for all other ids.
-   */
+  */
   colorExtras?: ColorClusterExtras;
+  /** Required on the reserved `notes` tab; forbidden on other tabs. */
+  notesExtras?: NotesExtras;
 }
 ```
 
+```ts
+export interface NotesExtras {
+  title: string;
+  html: string;
+}
+```
+
+予約済みの `notes` タブでは、空でない `notesExtras.title` と `notesExtras.html` を指定し、`tiers` 配列を空にする必要があります。HTML はホスト作成の notes コンテンツとしてレンダリングされる前にサニタイズされ、トークン状態や apply／export エントリには寄与しません。ほかのタブ id では `notesExtras` を設定してはいけません。
+
 <Note title="`advancedTiers` フィールドなし">
-`TabConfig.advancedTiers`（タブごとの「Advanced」`<details>` 開閉）は #148 で削除されました。パネルの[プログレッシブディスクロージャー禁止ポリシー](./architecture.mdx)により、すべてのティアは折りたたみセクションなしでフラットにレンダリングされる必要があります。タブに多数のトークンがある場合は、代わりにティアセクション順にフラットにレンダリングします。サンプルマニフェストで `advancedTiers` を参照してはいけません。
+`TabConfig.advancedTiers`（タブごとの「Advanced」`<details>` 開閉）は現在の契約には含まれません。パネルの[プログレッシブディスクロージャー禁止ポリシー](./architecture.mdx)により、すべてのティアは折りたたみセクションなしでフラットにレンダリングされる必要があります。タブに多数のトークンがある場合は、代わりにティアセクション順にフラットにレンダリングします。サンプルマニフェストで `advancedTiers` を参照してはいけません。
 </Note>
 
 ### 予約済みタブ id
@@ -173,11 +204,14 @@ export interface TabConfig {
 | `id` | ディスパッチ先 |
 | --- | --- |
 | `'color'` | プライマリカラータブ — パレット + ベースロール + セマンティックテーブル。`colorExtras` が必須。 |
-| `'color-secondary'` | セカンダリカラータブ。`colorExtras` が必須。 |
-| `'font'` | タイポグラフィタブ。 |
-| `'spacing'` | スペーシングタブ。 |
-| `'size'` | サイズタブ。 |
+| `'font'` | family／weight のプレビューとホストページ specimen オプションを備えた専用タイポグラフィタブ。 |
+| `'spacing'` | 数値の一括エディターを備えた専用スペーシングタブ。 |
+| `'size'` | 数値の一括エディターを備えた専用サイズタブ。 |
+| `'palette'` | 汎用パレットタブ向けの専用パレットエディター。 |
+| `'notes'` | 専用 notes タブ。トークン状態や apply／export のオーバーライドを持ちません。 |
 | その他の任意の文字列 | `GenericTab` — kind に応じたエディターを使ってタブの `tiers` をレンダリングします。 |
+
+パネルは要素調査用の合成 `Inspect` タブも先頭に追加します。これは `PanelConfig.tabs` では指定しません。設定された `color-secondary` エントリは、プライマリ Color タブが使用する付随カラークラスターのデータであり、`colorExtras` が必要です。
 
 ## `ColorClusterExtras`
 
@@ -199,6 +233,8 @@ export interface ColorClusterExtras {
   colorSchemes: Record<string, ColorScheme>;
   /** Panel-level scheme settings (seed scheme, optional light/dark mode). */
   panelSettings: ClusterPanelSettings;
+  /** Optional semantic-item-id → SemanticValue defaults override map. */
+  semanticDefaults?: Record<string, SemanticValue>;
 }
 
 export type BaseRoleKey = 'background' | 'foreground' | 'cursor' | 'selectionBg' | 'selectionFg';

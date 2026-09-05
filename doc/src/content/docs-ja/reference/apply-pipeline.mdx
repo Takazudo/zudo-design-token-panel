@@ -1,7 +1,303 @@
 ---
 title: アプライパイプライン
 sidebar_position: 5
-description: ティアリゾルバーが TabOverrides を CSS カスタムプロパティの書き込みに変換する方法、v2 エクスポートスキーマ、applyEndpoint + applyRouting、リクエスト/レスポンスエンベロープ、アトミック書き込みの保証。
+description: ティアリゾルバーが TabOverrides を CSS 変数の書き込みに変換する仕組み、dry-run プレビュー、ダイジェストで保護されたソース書き換え、applyEndpoint + applyRouting、アトミック性の保証。
 ---
 
-> このページは現在英語のみです。後ほど翻訳予定です。英語版を参照してください: [Apply pipeline](../../docs/reference/apply-pipeline.mdx)
+アプライパイプラインは、パネルのメモリ内オーバーライド状態を CSS への書き込みに変換し、ホストがエンドポイントを設定している場合はディスク上のソースファイル書き換えにも変換します。経路は 2 つに分かれます。
+
+1. **インラインスタイル** — ユーザーが調整するたびに、設定済みの `applySink`、またはデフォルトの `document.documentElement`（`:root`）へ、クライアント側ですぐに適用されます。
+2. **ディスクへの適用** — Apply ボタンで実行されます。diff をホストの開発用エンドポイントへ POST し、そこから bin サーバーへルーティングします。
+
+Apply モーダルは 2 段階のプロトコルを使います。最初に `dryRun: true` のプレビューを送信して、変更予定のファイルハンクを表示します。ユーザーが確定すると、同じトークンマップに、返されたファイルダイジェストを `expectDigests` として添えて送信します。サーバーはファイルを書き込む前にすべての対象を読み取り、結果を計算します。そのため、プレビュー後にファイルが変化していれば 409 を返し、バッチの一部だけを適用することはありません。
+
+## 状態 → ティアリゾルバー → CSS 出力
+
+### `TabOverrides` の形状
+
+各タブで永続化されるパネル状態は、2 レベルのネストされたマップです。
+
+```ts
+type TabOverrides = Readonly<Record<string, Readonly<Record<string, string>>>>;
+// tierId → itemId → overrideValue
+```
+
+例:
+
+```ts
+const overrides: TabOverrides = {
+  raw:      { 'ease-in': 'cubic-bezier(0.42, 0, 1, 1)' },
+  semantic: { 'tab-open': 'ease-in' }, // reference tier — value is a raw-tier item id
+};
+```
+
+### `resolveTierItemValue`
+
+コアリゾルバー（`resolveTierItemValue`）は、1 つの項目の有効な CSS 値を決定します。
+
+- **リテラルティア**（`referencesTier` なし）: オーバーライド文字列を返します。ピルが存在し、オーバーライドが有効でなければ `pill.customDefault`、最後のフォールバックとして `item.default` を返します。
+- **参照ティア**（`referencesTier` が設定されている）: オーバーライドを、指定されたティア内の項目 id として解釈します。その項目の `cssVar` を指す `{ kind: 'ref', targetCssVar }` を返します。
+
+### `emitTierItemCssValue`
+
+`ResolvedTierItem` を、CSS カスタムプロパティへ書き込む最終的な文字列に変換します。
+
+- リテラル → 値文字列をそのまま使用します（例: `1.25rem`）。
+- Ref → `var(--targetCssVar)`（例: `var(--myapp-easing-ease-in)`）。
+
+### ティア間参照の例
+
+raw と semantic の 2 ティアからなるイージングタブを例にします。
+
+```
+semantic.tab-open override = 'ease-in'
+  → looks up 'ease-in' in raw tier
+  → raw tier item ease-in has cssVar '--myapp-easing-ease-in'
+  → emits --myapp-transition-tab-open: var(--myapp-easing-ease-in)
+```
+
+ベースティアの `cssVar` には、アクティブな書き込み先でリテラル値が設定されます。参照ティアの項目も同じ書き込み先に自身の `cssVar` を設定しますが、その値は常に `var(...)` です。参照先の raw CSS 値を直接書き込むことはありません。
+
+### インラインスタイルの書き込み
+
+パネルはユーザーが変更するたびに、設定済みの `applySink` へオーバーライドを書き込みます。シンクが設定されていなければ、`document.documentElement.style.setProperty(cssVar, value)` へ書き込みます。項目のオーバーライドが有効でない場合は、アクティブなターゲットからそのプロパティを削除し、スタイルシートのデフォルトを優先させます。
+
+カラータブのライブ適用経路は、パレット項目を直接書き込み、宣言されたベースロールには選択中のパレットスロットを設定し、セマンティック項目には `var(--palette-cssVar)`（またはそのリテラル／参照形式）を設定します。ディスク適用ペイロードが含むのは意図的にパレットとセマンティックの CSS 変数だけです。ベースロールはランタイム上の配線なので、`buildApplyOverrides` からは出力されません。
+
+## エクスポートスキーマ（v2）
+
+パネルは、バージョン識別用の `$schema` フィールドを持つ JSON エンベロープとしてオーバーライドをエクスポート／インポートします。
+
+```json
+{
+  "$schema": "zudo-design-tokens/v2",
+  "--myapp-spacing-md": "1.5rem",
+  "--myapp-easing-ease-in": "cubic-bezier(0.42, 0, 1, 1)"
+}
+```
+
+`$schema` より後のトップレベルキーは、アクティブな各オーバーライドの CSS カスタムプロパティ名です。値は CSS 文字列です。インポート時、パネルは `$schema` フィールドを正規の `SCHEMA_V1`／`SCHEMA_V2`／`SCHEMA_V3` 定数と照合します。SerDe が読み取らない表示専用ラベルである `PanelConfig.schemaId` とは照合しません（[`configurePanel` リファレンス](./configure-panel.mdx#panelconfig-インターフェース)を参照）。3 つの正規定数のどれにも一致しない `$schema` 値は、`schema-mismatch` エラーとして拒否されます。
+
+<Note title="cssVar をキーにしたフラットな形状">
+v2 のエクスポート形式は、cssVar から CSS 文字列へのフラットなマップです。参照ティアの項目は、エクスポート時に出力後の `var(...)` 値へ展開されます。エクスポートファイルに含まれるのは、アクティブな CSS ターゲットでユーザーが目にする CSS 値だけで、中間の項目 id は含まれません。
+</Note>
+
+## ディスクへの適用
+
+### `applyEndpoint`
+
+`PanelConfig.applyEndpoint` と空でない `applyRouting` マップの両方が設定されていると、Apply ボタンを使用できます。クリックすると、アクティブなオーバーライドの diff がこの URL へ POST されます。
+
+`applyEndpoint` が `undefined` の場合、または `applyRouting` が空の場合、Apply ボタンはツールチップ付きで無効なままです。エクスポート／インポートだけを使うホストは、これらのフィールドを省略できます。
+
+### `applyRouting`
+
+```ts
+applyRouting: {
+  'myapp-spacing': 'src/styles/spacing.css',
+  'myapp-color':   'src/styles/color.css',
+}
+```
+
+CSS 変数のプレフィックスファミリー（先頭の `--` と末尾の `-` を除いたもの）から、bin サーバーが書き換えるリポジトリ相対のソースファイルへのマップです。POST diff 内の各トークンは、そのプレフィックスに基づいてファイルへルーティングされます。マップにないプレフィックスを持つトークンは、bin によって `"Unsupported cssVar prefix"` として拒否されます。
+
+Apply を使うには、`applyEndpoint` と空でない `applyRouting` マップの**両方**が必要です。どちらか一方がなければ、Apply モーダルは diff プレビュー用に引き続きマウントされますが、アクションボタンは無効なままです。
+
+### 書き換え対象となる CSS ブロック
+
+ルーティングされた各ファイルでは、厳密に 2 か所だけをスキャンして書き換えます。最初のトップレベル `:root { ... }` ブロックと、最初のトップレベル `@theme { ... }` ブロックです。後者は裸の `@theme` のほか、`@theme inline` のように 1 つの修飾子を持つ形式にも対応します。これは、テーマ値から別の変数を参照するときに Tailwind v4 が定める形式です。2 つ目以降の同種ブロックや、`@media`／`@layer`／`@supports` の内側にネストされたブロックはスキャンしません。
+
+各オーバーライド変数について、まず `:root` を試し、`@theme` をフォールバックにします。**両方**のブロックで宣言されている変数は、`:root` だけを書き換えます。そのため、Tailwind v4 のトークンファイルをそのまま対象にできます。
+
+```css
+:root {
+  --palette-cool-700: oklch(0.21 0.03 264);
+}
+
+@theme {
+  --spacing-md: 0.75rem;
+  --color-ink: light-dark(var(--palette-cool-700), var(--palette-cool-50));
+}
+```
+
+上記の 3 変数、すなわち `:root` 内の `--palette-cool-700` と、`@theme` 内の `--spacing-md` および `--color-ink` は、1 回のリクエストですべて問題なく適用されます。`:root` ブロックを持たず、すべてが `@theme` であるファイルもエラーなく適用できます。409 が返るのは、**どちらの**ブロックもないファイルだけです（後述）。
+
+<Note>
+Tailwind v4 ホストの `@theme` ファイルを `applyRouting` へ接続するルーティング JSON の手順は、[アプライパイプラインのセットアップ](../recipes/apply-pipeline-setup.mdx)を参照してください。
+</Note>
+
+### ティアごとの独立性
+
+bin サーバーは、各ティアのトークンを `applyRouting` マップに対して独立して処理します。参照ティアとセマンティック参照のオーバーライドは、解決後に diff ペイロードへ含まれます。これらは `var(--target-cssvar)` を出力します（たとえば `semantic.tab-open = 'ease-in'` は `--myapp-transition-tab-open: var(--myapp-easing-ease-in)` を出力します）。ペイロードが持つのは raw の項目 id ではなく、解決済みの CSS 値です。
+
+## リクエストとレスポンスのエンベロープ
+
+### リクエスト
+
+```
+POST <applyEndpoint>
+Content-Type: application/json
+
+{
+  "tokens": {
+    "--myapp-spacing-md": "1.5rem"
+  },
+  "dryRun": true
+}
+```
+
+確定時の書き込みでは、同じ `tokens` マップから `dryRun` を除き、プレビューで各ファイルについて返されたダイジェストを追加します。
+
+```json
+{
+  "tokens": {
+    "--myapp-spacing-md": "1.5rem"
+  },
+  "expectDigests": {
+    "src/styles/spacing.css": "<64 lowercase SHA-256 hex characters>"
+  }
+}
+```
+
+`tokens` は空でないフラットなオブジェクトです。CSS カスタムプロパティ名（`--` で始まる必要があります）から CSS 文字列値へ対応付けます。`dryRun` を指定する場合、その値は `true` でなければなりません。`expectDigests` は省略可能で、レスポンスの `file` パスを、以前のプレビューで得た 64 文字の SHA-256 16 進ダイジェストへ対応付けます。実際の書き込み時にだけ検査されます。
+
+### レスポンス 200 — dry-run プレビュー
+
+```json
+{
+  "ok": true,
+  "dryRun": true,
+  "files": [
+    {
+      "file": "src/styles/spacing.css",
+      "blockKind": "root",
+      "digest": "<64 lowercase SHA-256 hex characters>",
+      "changed": ["--myapp-spacing-md"],
+      "unchanged": [],
+      "unknown": [],
+      "unknownOutsideBlock": [],
+      "hunks": [
+        {
+          "cssVar": "--myapp-spacing-md",
+          "line": 12,
+          "before": "  --myapp-spacing-md: 1rem;",
+          "after": "  --myapp-spacing-md: 1.5rem;",
+          "context": {
+            "before": ["  --myapp-spacing-sm: 0.5rem;"],
+            "after": ["  --myapp-spacing-lg: 3rem;"]
+          }
+        }
+      ]
+    }
+  ],
+  "rejected": [],
+  "rejectedReasons": []
+}
+```
+
+`files[]` には、物理的な対象ファイルごとに 1 つのエントリーがあります。`blockKind` は `root` または `theme` で、要求された宣言が両方に存在する場合は `:root` が優先されます。ダイジェストは、読み取った正確なバイト列から計算されます。ハンクの行番号は 1 始まりです。変更される CSS 変数ごとに 1 つのハンクがあり、変更なしまたは不明な変数にはハンクがありません。dry run には、ルーティング対象外の変数を含められます。それらは `rejected`／`rejectedReasons` で報告されますが、ルーティング済みファイルのプレビューは引き続き成功します。ルーティングされた変数が 1 つもない dry run も成功し、空の `files` 配列を返します。
+
+### レスポンス 200 — 書き込み
+
+```json
+{
+  "ok": true,
+  "updated": [
+    {
+      "file": "src/styles/spacing.css",
+      "changed": ["--myapp-spacing-md"],
+      "unchanged": [],
+      "unknown": [],
+      "unknownOutsideBlock": []
+    }
+  ],
+  "unknownCssVars": [],
+  "unchangedCssVars": [],
+  "unknownOutsideBlockCssVars": []
+}
+```
+
+`changed` の宣言は書き換えられています。`unchanged` の宣言はスキャン対象ブロック内で見つかりましたが、要求された値がすでに設定されていました。`unknown` はどちらのスキャン対象ブロックにも見つからなかったものです。`unknownOutsideBlock` はそのうち、ファイル内の別の場所（ネストされたルール、グループ化セレクター、2 つ目以降のトップレベルブロックなど）で宣言されているものです。トップレベルの 3 配列は、パネル向けにファイルごとの診断をフラット化したものです。
+
+### レスポンス 400（不正なリクエスト）
+
+```json
+{ "ok": false, "error": "<message>", "rejected": ["--invalid-token"] }
+```
+
+不正な JSON、オブジェクトでないボディ、`tokens` の欠如または空、`true` でない `dryRun`、無効なトークン名、無効なダイジェストオブジェクト、実際の書き込み時に未対応のプレフィックスがある場合に返されます。パスエスケープの試みや、`writeRoot` 外を指すルーティングパスも拒否されます。
+
+### レスポンス 403（Forbidden）
+
+```json
+{ "ok": false, "error": "Origin not allowed" }
+```
+
+CLI ラッパーは、明示的な許可リストにないオリジンを拒否します。
+
+### レスポンス 409（競合）
+
+対象ファイルにトップレベルの `:root` ブロックも `@theme` ブロックもない場合:
+
+```json
+{ "ok": false, "error": "No top-level :root { ... } or @theme { ... } block in <file>" }
+```
+
+`@theme` だけ、または `:root` だけを含むファイルは有効です。実際の書き込み時に、現在のバイト列が指定されたプレビューダイジェストと異なる場合は、どのファイルにも書き込む前に stale-file の競合を返します。
+
+```json
+{ "ok": false, "reason": "stale-file", "files": ["src/styles/spacing.css"] }
+```
+
+クライアントはプレビューを更新し、新しいハンクを確認するようユーザーに求めます。`expectDigests` を省略すると、従来の書き込み動作が維持されます。
+
+### レスポンス 500（内部サーバーエラー）
+
+```json
+{
+  "ok": false,
+  "error": "<message>",
+  "failedFile": "<relativePath>",
+  "restoreFailures": ["<file1>"]
+}
+```
+
+ファイルの書き込みに失敗した場合に返されます。ロールバックにも失敗すると `restoreFailures` に値が入り、列挙されたファイルを手動で確認する必要があります。
+
+## Apply モーダルの動作
+
+パネルはプレビューリクエストをデバウンスします。最新の dry-run レスポンスを待ってから確定操作を有効にし、現在の `tokens` と、プレビューの `expectDigests` を送信します。409 stale-file レスポンスが届いた場合、書き込み成功として扱わずにプレビューを更新します。書き込みが成功すると、`changed` で報告された CSS 変数だけをメモリ内の状態で整合させます。ルーティング対象外のトークンと別ファイルの変数は、あとから適用できるよう残ります。`${storagePrefix}-last-applied` キーには、変更状態インジケーターが使うフラットな比較ベースラインが保存されます。書き込み成功後、現在の実装はそのベースラインを `{}` にリセットする一方で、`changed` が確認された変数だけを整合させるため、保持されたオーバーライドやルーティング対象外のオーバーライドは変更済みのまま表示されます。
+
+`applyEndpoint` または空でない `applyRouting` マップが設定されていない場合、モーダルはローカル diff を表示できますが、ディスクへの適用操作は無効なままです。
+
+## アトミック書き込み契約
+
+bin は、各ファイルの元の内容をメモリ内に保持します。いずれかの書き込みが失敗すると、それまでに書き込んだすべてのファイルを、メモリ内の元の内容から復元します。終端状態は 3 つあります。
+
+1. **完全成功。** ルーティングされたすべてのファイルを更新します。レスポンスは 200 です。
+2. **正常なロールバック。** 途中で書き込みに失敗し、それ以前に書き込んだすべてのファイルを復元します。`failedFile` を含むレスポンス 500 です。
+3. **ディスク状態の不整合。** 書き込みが失敗し、ロールバックにも失敗します。`failedFile` と `restoreFailures[]` を含むレスポンス 500 です。
+
+<Warning title="`restoreFailures` がある場合は確認が必要">
+`restoreFailures[]` 配列が空でなければ、少なくとも 1 つのファイルが書き換えられ、復元できなかったことを意味します。再試行する前に、列挙されたファイルを手動で確認してください。
+</Warning>
+
+## バリデーションルール
+
+### トークン名のルール
+
+- `--` で始まる必要があります。
+- スペース、スラッシュ、特殊文字は使用できません。
+- `applyRouting` のプレフィックスファミリーと一致する必要があります。
+
+### パスの安全性
+
+- 各ルーティング対象は絶対パスへ解決されます。
+- 解決後のパスは、bin の `writeRoot` 内になければなりません。
+- パスエスケープの試み（`../../etc/passwd`）は拒否されます。
+
+## 関連リファレンス
+
+- [`PanelConfig.applyEndpoint` と `applyRouting`](./configure-panel.mdx#panelconfig-インターフェース) — エンドポイントとルーティングの設定箇所。
+- [トークンティア](./token-manifest.mdx) — diff に現れる `cssVar` 名を持つ `TabConfig`／`TierConfig`／`TierItem` の形状。
+- [カラークラスター](./color-cluster.mdx) — diff に現れる可能性があるカラータブの CSS 変数名。
