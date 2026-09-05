@@ -12,6 +12,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
+import { useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import { TokenLabel } from '../controls/token-label';
 import { TooltipProvider, useTooltip } from '../controls/tooltip';
@@ -21,6 +22,7 @@ import { flushEffects } from './_test-helpers';
 const panelCssModule = import('../styles/panel.css?inline');
 
 const LONG_TOOLTIP_TEXT = '--tooltip-' + 'x'.repeat(4000);
+const TRUNCATED_TOKEN = '--zfb-radius-super-extraordinarily-long-token-name-for-truncated-label';
 
 let container: HTMLDivElement;
 let panelStyle: HTMLStyleElement;
@@ -28,6 +30,8 @@ let panelStyle: HTMLStyleElement;
 function TooltipFixture(): JSX.Element {
   const boxTooltip = useTooltip('box trigger tooltip');
   const longTooltip = useTooltip(LONG_TOOLTIP_TEXT);
+  const [reusedText, setReusedText] = useState('short tooltip near the right edge');
+  const reusedTooltip = useTooltip(reusedText);
 
   return (
     <>
@@ -44,6 +48,21 @@ function TooltipFixture(): JSX.Element {
       >
         <TokenLabel cssVar="--zfb-radius-md" />
         <span style={{ flex: '0 0 450px' }}>trailing content</span>
+      </div>
+
+      <div
+        data-testid="truncated-text-anchor-row"
+        className="tokenpanel-row"
+        style={{
+          position: 'fixed',
+          left: '300px',
+          top: '0px',
+          width: '500px',
+          height: '32px',
+        }}
+      >
+        <TokenLabel cssVar={TRUNCATED_TOKEN} label="Radius medium" />
+        <span style={{ flex: '0 0 180px' }}>trailing content</span>
       </div>
 
       <div
@@ -73,6 +92,21 @@ function TooltipFixture(): JSX.Element {
       >
         long trigger
       </div>
+
+      <div
+        data-testid="reused-trigger"
+        style={{
+          position: 'fixed',
+          left: '1120px',
+          top: '300px',
+          width: '100px',
+          height: '24px',
+        }}
+        onClick={() => setReusedText(LONG_TOOLTIP_TEXT)}
+        {...reusedTooltip}
+      >
+        reused trigger
+      </div>
     </>
   );
 }
@@ -89,7 +123,11 @@ function getTooltip(): HTMLElement {
   return tooltip;
 }
 
-function getVisibleTextExtent(label: HTMLElement): { left: number; right: number } {
+function getVisibleTextExtent(label: HTMLElement): {
+  left: number;
+  right: number;
+  rawRight: number;
+} {
   const textNode = Array.from(label.childNodes).find((node): node is Text => node.nodeType === 3);
   if (!textNode) throw new Error('TokenLabel text node not found');
 
@@ -102,6 +140,7 @@ function getVisibleTextExtent(label: HTMLElement): { left: number; right: number
   return {
     left: Math.max(textRect.left, clientLeft),
     right: Math.min(textRect.right, clientRight),
+    rawRight: textRect.right,
   };
 }
 
@@ -163,6 +202,31 @@ describe('tooltip geometry', () => {
     expect(Math.abs(tooltipCenter - textCenter)).toBeLessThanOrEqual(24);
   });
 
+  it('anchors a truncated TokenLabel to its visible text and keeps vertical placement on the full trigger', async () => {
+    const row = getTrigger('truncated-text-anchor-row');
+    const label = row.querySelector<HTMLElement>('.tokenpanel-row-label');
+    if (!label) throw new Error('.tokenpanel-row-label not found');
+
+    await hover(label);
+
+    const textExtent = getVisibleTextExtent(label);
+    const labelRect = label.getBoundingClientRect();
+    const tooltipRect = getTooltip().getBoundingClientRect();
+    const textCenter = (textExtent.left + textExtent.right) / 2;
+    const tooltipCenter = (tooltipRect.left + tooltipRect.right) / 2;
+
+    expect(textExtent.rawRight).toBeGreaterThan(labelRect.left + label.clientWidth);
+    expect(tooltipRect.left).toBeLessThan(textExtent.right);
+    expect(tooltipRect.right).toBeGreaterThan(textExtent.left);
+    expect(Math.abs(tooltipCenter - textCenter)).toBeLessThanOrEqual(24);
+
+    // The row starts at the viewport edge, so the tooltip must flip below.
+    // Use the label's full border box here: its sub-label makes this measurably
+    // taller than the first text node and catches accidental vertical anchoring
+    // to the Range as well.
+    expect(Math.abs(tooltipRect.top - labelRect.bottom - 6)).toBeLessThanOrEqual(3);
+  });
+
   it('keeps ordinary triggers centred on their border boxes', async () => {
     const trigger = getTrigger('box-trigger');
     await hover(trigger);
@@ -184,6 +248,33 @@ describe('tooltip geometry', () => {
     expect(tooltipRect.width).toBeLessThanOrEqual(window.innerWidth - viewportPadding * 2 + 1);
     expect(tooltipRect.height).toBeGreaterThan(25);
     expect(tooltipRect.bottom).toBeLessThanOrEqual(window.innerHeight - viewportPadding + 1);
+  });
+
+  it('re-measures a long tooltip after a short right-edge tooltip on the same trigger', async () => {
+    const trigger = getTrigger('reused-trigger');
+    await hover(trigger);
+    const shortTooltipRect = getTooltip().getBoundingClientRect();
+    expect(shortTooltipRect.left).toBeGreaterThan(window.innerWidth / 2);
+    expect(shortTooltipRect.right).toBeLessThanOrEqual(window.innerWidth - 6 + 1);
+
+    await leave(trigger);
+    act(() => {
+      trigger.click();
+    });
+    await flushEffects();
+    await hover(trigger);
+
+    const longTooltipRect = getTooltip().getBoundingClientRect();
+    const triggerRect = trigger.getBoundingClientRect();
+    expect(longTooltipRect.width).toBeGreaterThan(window.innerWidth - 24);
+    expect(longTooltipRect.left).toBeGreaterThanOrEqual(6 - 1);
+    expect(longTooltipRect.right).toBeLessThanOrEqual(window.innerWidth - 6 + 1);
+    expect(longTooltipRect.top).toBeGreaterThanOrEqual(6 - 1);
+    expect(longTooltipRect.bottom).toBeLessThanOrEqual(window.innerHeight - 6 + 1);
+
+    const isAboveTrigger = Math.abs(longTooltipRect.bottom - triggerRect.top) <= 10;
+    const isBelowTrigger = Math.abs(longTooltipRect.top - triggerRect.bottom) <= 10;
+    expect(isAboveTrigger || isBelowTrigger).toBe(true);
   });
 
   it('hides the shared tooltip when its current trigger leaves', async () => {
