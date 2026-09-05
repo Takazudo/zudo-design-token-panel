@@ -47,6 +47,15 @@ The `doc/` workspace intentionally consumes the pinned npm release of
 build representative of the published dependency and prevents unpublished
 panel changes from leaking into release documentation accidentally.
 
+This is a deliberate three-site split, kept separate because of the honesty
+problem tracked in [#593](https://github.com/Takazudo/zudo-design-token-panel/issues/593):
+`doc/` answers what can be installed from the pinned npm release,
+`examples/minimal/` runs the workspace build as the smallest wiring that works,
+and `playground/` runs the workspace build at full size, including the real
+vendored zudo-doc `PanelConfig` and prose pages. Do not make either workspace
+demo consume the pinned `doc/` dependency, or make `doc/` consume the
+workspace package, to make their versions appear consistent.
+
 Use the root `playground/` workspace to exercise unpublished panel changes in
 a real zfb consumer. Its default manifest covers the panel's control kinds,
 while `?manifest=zudo-doc` uses the real zudo-doc `PanelConfig` vendored by

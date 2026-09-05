@@ -92,8 +92,9 @@ jobs:
   cross-example:
     name: Cross-example (${{ matrix.example }})
     if: github.event_name == 'workflow_dispatch'
-    # The examples intentionally pin pre-local-panel API releases. Keep this
-    # matrix manual and informational until those consumers are updated.
+    # As of 2026-09-05, the five public examples still pin 0.2.x. Keep this
+    # matrix manual and informational until follow-up #733 refreshes them;
+    # that issue then tracks making this matrix scheduled and blocking.
     continue-on-error: true
     runs-on: ubuntu-latest
     timeout-minutes: 30
