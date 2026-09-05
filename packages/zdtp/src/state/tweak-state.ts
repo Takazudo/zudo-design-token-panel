@@ -231,7 +231,7 @@ export function loadDockSize(cfg?: PanelConfig, storage?: StorageLike): DockSize
       return {
         right:
           typeof value.right === 'number' && Number.isFinite(value.right) && value.right > 0
-            ? value.right
+            ? Math.max(MIN_PANEL_WIDTH, value.right)
             : DEFAULT_DOCK_SIZE.right,
         bottom:
           typeof value.bottom === 'number' && Number.isFinite(value.bottom) && value.bottom > 0

@@ -28,6 +28,9 @@ export function ShellHeader({
   const compactActions = items['header-actions'].flatMap((item) =>
     item.compactAction ? [item.compactAction] : [],
   );
+  const compactRegionItems = [...items['header-actions'], ...items['header-right']].filter(
+    (item) => item.renderInCompactMenu,
+  );
 
   return (
     <div className="tokenpanel-header" style={{ cursor: 'move' }} onMouseDown={onMouseDown}>
@@ -65,13 +68,11 @@ export function ShellHeader({
           actions={compactActions}
           onClose={closeCompactMenu}
         >
-          {items['header-actions']
-            .filter((item) => item.renderInCompactMenu)
-            .map((item) => (
-              <Fragment key={item.id}>
-                {item.render({ compact: true, closeCompactMenu })}
-              </Fragment>
-            ))}
+          {compactRegionItems.map((item) => (
+            <Fragment key={item.id}>
+              {item.render({ compact: true, closeCompactMenu })}
+            </Fragment>
+          ))}
         </ActionsMenuPopover>
       )}
       <div className="tokenpanel-spacer" />

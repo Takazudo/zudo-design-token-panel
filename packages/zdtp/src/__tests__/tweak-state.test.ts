@@ -136,6 +136,13 @@ describe('dock preference persistence', () => {
     });
     expect(loadDockSize(undefined, storage)).toEqual({ right: 440, bottom: 420 });
   });
+
+  it('clamps a persisted right dock size to the panel width floor', () => {
+    const storage = makeStorage({
+      [getDockSizeKey()]: JSON.stringify({ right: 120, bottom: 420 }),
+    });
+    expect(loadDockSize(undefined, storage)).toEqual({ right: 320, bottom: 420 });
+  });
 });
 
 describe('loadPersistedState — v1→v3 and v2→v3 migrations', () => {
