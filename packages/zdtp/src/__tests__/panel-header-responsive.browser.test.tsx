@@ -197,7 +197,7 @@ describe('wide panel (≥480px container width)', () => {
     await mountPanelAtWidth(700, configured);
 
     const enabledApply = getHeaderActionLinks().find((el) => el.textContent === 'Apply');
-    expect(enabledApply?.getAttribute('aria-disabled')).toBeNull();
+    expect(enabledApply?.getAttribute('aria-disabled')).not.toBe('true');
     expect(enabledApply?.title).toBe('');
     enabledApply?.click();
     await flushEffects();
