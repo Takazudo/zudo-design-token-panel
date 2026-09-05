@@ -102,6 +102,7 @@ export function ApplyModal(props: ApplyModalProps) {
   const requestId = useRef(0);
   const previewRef = useRef<ApiResponse | null>(null);
   const previewPromiseRef = useRef<Promise<ApiResponse | null> | null>(null);
+  const previewDirtyRef = useRef(false);
   const appliedFired = useRef(false);
 
   const overrides = useMemo(() => flattenApplyOverrides(state, colorDefaults, cfg), [state, colorDefaults, cfg]);
@@ -127,13 +128,19 @@ export function ApplyModal(props: ApplyModalProps) {
     setPhase({ kind: 'preview' }); setPreview(null); previewRef.current = null; setCatalog(null); setNotice(null); setSelected(new Set(routable));
     setSelectionVersion(0);
     setSelectedFile(null); setCopyLabel('Copy pre-apply state to clipboard');
-    requestId.current++; previewPromiseRef.current = null; appliedFired.current = false;
+    requestId.current++; previewPromiseRef.current = null; previewDirtyRef.current = false;
+    appliedFired.current = false;
     if (configured && Object.keys(overrides).length > 0) previewPromiseRef.current = loadPreview(overrides);
   }, [open, overrides, fallback]);
 
   async function loadPreview(tokens: Record<string, string>, nextNotice?: string): Promise<ApiResponse | null> {
     if (!endpoint || Object.keys(tokens).length === 0) return null;
-    const id = ++requestId.current; setLoading(true);
+    const id = ++requestId.current;
+    // This request represents the exact current selection. While it is in
+    // flight, Apply may safely await previewPromiseRef; only the debounce gap
+    // before this point is unsafe.
+    previewDirtyRef.current = false;
+    setLoading(true);
     try {
       const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tokens, dryRun: true }) });
       const data = await response.json() as ApiResponse;
@@ -147,7 +154,12 @@ export function ApplyModal(props: ApplyModalProps) {
       if (id !== requestId.current) return null;
       setPreview(null); setNotice('Live diff preview is unavailable; showing the routing-only preview.');
       return null;
-    } finally { if (id === requestId.current) setLoading(false); }
+    } finally {
+      if (id === requestId.current) {
+        previewDirtyRef.current = false;
+        setLoading(false);
+      }
+    }
   }
 
   useEffect(() => {
@@ -157,6 +169,7 @@ export function ApplyModal(props: ApplyModalProps) {
       requestId.current++;
       previewPromiseRef.current = null;
       previewRef.current = null;
+      previewDirtyRef.current = false;
       setPreview(null);
       setLoading(false);
       return;
@@ -179,7 +192,7 @@ export function ApplyModal(props: ApplyModalProps) {
   const backdrop = useDialogBackdropClose(dialogRef, close);
 
   async function apply() {
-    if (!endpoint) return;
+    if (!endpoint || loading || previewDirtyRef.current) return;
     const tokens = Object.fromEntries(Object.entries(overrides).filter(([cssVar]) => selected.has(cssVar)));
     setPhase({ kind: 'applying' });
     try {
@@ -207,8 +220,16 @@ export function ApplyModal(props: ApplyModalProps) {
   const rejectedReasons = catalog?.rejectedReasons ?? preview?.rejectedReasons ?? fallback.rejectedReasons;
   const activeFile = files.find((file) => file.file === selectedFile) ?? files[0];
   const selectedFiles = files.filter((file) => file.changed?.some((cssVar) => selected.has(cssVar))).length;
-  const disabled = !configured || selected.size === 0 || selectedFiles === 0;
+  const disabled = !configured || loading || selected.size === 0 || selectedFiles === 0;
   const toggle = (vars: readonly string[], checked: boolean) => {
+    // Invalidate the previous subset immediately, before the debounced request
+    // starts. Otherwise a rapid re-select + Write can submit a newly included
+    // file with the prior subset's (incomplete) digest map.
+    requestId.current++;
+    previewPromiseRef.current = null;
+    previewRef.current = null;
+    previewDirtyRef.current = configured;
+    if (configured) setLoading(true);
     setSelected((old) => {
       const next = new Set(old);
       for (const cssVar of vars) {

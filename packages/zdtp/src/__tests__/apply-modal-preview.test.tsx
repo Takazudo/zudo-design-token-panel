@@ -24,6 +24,16 @@ const preview = (after = '  --zd-spacing-hgap-md: 24px;') => ({ ok: true, dryRun
   file: 'src/tokens.css', blockKind: 'root', digest: 'a'.repeat(64), changed: ['--zd-spacing-hgap-md'],
   hunks: [{ cssVar: '--zd-spacing-hgap-md', line: 4, before: '  --zd-spacing-hgap-md: 16px;', after }],
 }], rejected: ['--unrouted'], rejectedReasons: ['no route'] });
+const twoFilePreview = (includeFont = true) => ({ ok: true, dryRun: true, files: [
+  {
+    file: 'src/spacing.css', blockKind: 'root', digest: 'a'.repeat(64),
+    changed: ['--zd-spacing-hgap-md'], hunks: [],
+  },
+  ...(includeFont ? [{
+    file: 'src/font.css', blockKind: 'root', digest: 'b'.repeat(64),
+    changed: ['--zd-font-base-size'], hunks: [],
+  }] : []),
+], rejected: [], rejectedReasons: [] });
 
 async function flush() { await act(async () => { vi.runAllTimers(); await Promise.resolve(); await Promise.resolve(); }); }
 function mount(nextState = state()) {
@@ -86,5 +96,66 @@ describe('ApplyModal dry-run preview', () => {
     expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ expectDigests: { 'src/tokens.css': 'a'.repeat(64) } });
     expect(container.textContent).toContain('Files changed on disk');
     expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('waits for the exact selected-file preview before writing', async () => {
+    installFixturePanelConfig({
+      applyEndpoint: '/apply',
+      applyRouting: {
+        'zd-spacing': 'src/spacing.css',
+        'zd-font': 'src/font.css',
+      },
+      tabs: FIXTURE_TABS,
+    });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(response(twoFilePreview()))
+      .mockResolvedValueOnce(response(twoFilePreview(false)))
+      .mockResolvedValueOnce(response(twoFilePreview()))
+      .mockResolvedValueOnce(response({
+        ok: true,
+        updated: [
+          { file: 'src/spacing.css', changed: ['--zd-spacing-hgap-md'] },
+          { file: 'src/font.css', changed: ['--zd-font-base-size'] },
+        ],
+      }));
+    globalThis.fetch = fetchMock;
+    mount({
+      ...state(),
+      typography: { 'text-base': '2rem' },
+    });
+    await flush();
+
+    const font = container.querySelector<HTMLInputElement>('input[aria-label="Include src/font.css"]')!;
+    act(() => {
+      font.checked = false;
+      font.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await flush();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    act(() => {
+      font.checked = true;
+      font.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    const write = Array.from(container.querySelectorAll<HTMLElement>('[role="button"]'))
+      .find((node) => node.textContent?.startsWith('Write'))!;
+    expect(write.getAttribute('aria-disabled')).toBe('true');
+    act(() => write.click());
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await flush();
+    expect(JSON.parse(fetchMock.mock.calls[2][1].body)).toMatchObject({ dryRun: true });
+    expect(write.getAttribute('aria-disabled')).toBeNull();
+    await act(async () => {
+      write.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(JSON.parse(fetchMock.mock.calls[3][1].body)).toMatchObject({
+      expectDigests: {
+        'src/spacing.css': 'a'.repeat(64),
+        'src/font.css': 'b'.repeat(64),
+      },
+    });
   });
 });
