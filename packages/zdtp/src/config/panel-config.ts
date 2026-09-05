@@ -48,7 +48,13 @@
 
 import type { ColorScheme } from './color-schemes';
 import type { TabConfig } from '../tokens/tier-model';
+import {
+  DEFAULT_STORAGE_PREFIX,
+  resolveToggleEventName,
+} from '../constants';
 import { structuralEqual } from '../utils/structural-equal';
+
+export { DEFAULT_STORAGE_PREFIX, DEFAULT_TOGGLE_EVENT } from '../constants';
 
 /**
  * Apply-routing map.
@@ -282,7 +288,7 @@ export interface PanelInstanceHandle {
  * with real values to see useful behaviour.
  */
 export const DEFAULT_PANEL_CONFIG: PanelConfig = {
-  storagePrefix: 'zudo-design-token-panel',
+  storagePrefix: DEFAULT_STORAGE_PREFIX,
   consoleNamespace: 'zudo',
   modalClassPrefix: 'zudo-design-token-panel-modal',
   schemaId: 'zudo-design-tokens/v1',
@@ -942,22 +948,6 @@ export function panelRootId(cfg: PanelConfig): string {
 }
 
 /**
- * The public `storagePrefix` of the default (single-panel) instance. An
- * instance whose prefix equals this keeps the historical public toggle-event
- * name; every other prefix gets a per-instance channel. Kept in lockstep with
- * `DEFAULT_PANEL_CONFIG.storagePrefix`.
- */
-const DEFAULT_STORAGE_PREFIX = DEFAULT_PANEL_CONFIG.storagePrefix;
-
-/**
- * Historical public toggle-event name. Hosts have shipped `window.dispatchEvent(
- * new CustomEvent('toggle-design-token-panel'))` since the single-panel era, so
- * the default instance MUST keep emitting/listening on this name regardless of
- * its derived `toggle-${storagePrefix}` form.
- */
-export const DEFAULT_TOGGLE_EVENT = 'toggle-design-token-panel';
-
-/**
  * Window-event name that toggles this instance's panel.
  *
  *  - Default instance (prefix === `DEFAULT_STORAGE_PREFIX`): the historical
@@ -968,8 +958,7 @@ export const DEFAULT_TOGGLE_EVENT = 'toggle-design-token-panel';
  *    not cross-talk.
  */
 export function toggleEventName(cfg: PanelConfig): string {
-  if (cfg.storagePrefix === DEFAULT_STORAGE_PREFIX) return DEFAULT_TOGGLE_EVENT;
-  return cfg.toggleEvent ?? `toggle-${cfg.storagePrefix}`;
+  return resolveToggleEventName(cfg);
 }
 
 /** Base name of the internal per-instance open-state sync event (see below). */

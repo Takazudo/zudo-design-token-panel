@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { page, userEvent } from 'vitest/browser';
 import {
   __resetPanelConfigForTests,
   configurePanel,
@@ -81,6 +82,108 @@ describe('dock modes', () => {
     __resetPanelConfigForTests();
     localStorage.clear();
     document.body.innerHTML = '';
+  });
+
+  function inlineMode(label: string): HTMLElement {
+    const control = shell().querySelector<HTMLElement>(
+      `.tokenpanel-header > .tokenpanel-dock-modes [aria-label^="${label} ("]`,
+    );
+    if (!control) throw new Error(`inline dock control not found: ${label}`);
+    return control;
+  }
+
+  function expectMenuClosed(): void {
+    expect(document.querySelector('.tokenpanel-actions-popover')).toBeNull();
+    const trigger = document.querySelector('.tokenpanel-actions-menu-btn');
+    if (trigger) expect(trigger.getAttribute('aria-expanded')).toBe('false');
+  }
+
+  async function pointerMode(label: string): Promise<void> {
+    expectMenuClosed();
+    await page.elementLocator(inlineMode(label)).click();
+    await settle();
+    expectMenuClosed();
+  }
+
+  async function mountFloating(): Promise<void> {
+    localStorage.setItem(storageKey_visible(CFG), '1');
+    localStorage.setItem(getOpenKey(CFG), '1');
+    localStorage.setItem(getPositionKey(CFG), JSON.stringify({ top: 31, left: 47 }));
+    localStorage.setItem(getSizeKey(CFG), JSON.stringify({ width: 700, height: 500 }));
+    localStorage.setItem(getDockSizeKey(CFG), JSON.stringify({ right: 440, bottom: 340 }));
+    document.dispatchEvent(new CustomEvent('astro:page-load'));
+    await settle();
+  }
+
+  for (const [mode, label] of [
+    ['float', 'Float panel'],
+    ['bottom', 'Dock panel bottom'],
+    ['mini', 'Mini panel'],
+  ] as const) {
+    it(`escapes right to ${mode} by real inline pointer input with the menu closed`, async () => {
+      document.body.style.setProperty('margin-right', '11px', 'important');
+      document.body.style.setProperty('margin-bottom', '13px', 'important');
+      document.documentElement.style.setProperty('--zdtp-dock-inset-right', '17px', 'important');
+      await mountFloating();
+      await pointerMode('Dock panel right');
+      expect(shell().classList.contains('is-docked-right')).toBe(true);
+      expect(shell().getBoundingClientRect().width).toBe(440);
+      expect(document.body.style.marginRight).toBe('440px');
+      expect(localStorage.getItem(getDockKey(CFG))).toBe('right');
+
+      // Exercise persisted right mode AND size through the actual lifecycle.
+      // This is remount coverage; the manager separately verifies page.reload().
+      document.dispatchEvent(new CustomEvent('astro:before-swap'));
+      await settle();
+      expect(document.getElementById(panelRootId(CFG))).toBeNull();
+      document.dispatchEvent(new CustomEvent('astro:page-load'));
+      await settle();
+      expect(shell().classList.contains('is-docked-right')).toBe(true);
+      expect(shell().getBoundingClientRect().width).toBe(440);
+      expect(JSON.parse(localStorage.getItem(getDockSizeKey(CFG))!)).toEqual({ right: 440, bottom: 340 });
+      expect(inlineMode('Dock panel right').getAttribute('aria-pressed')).toBe('true');
+
+      await pointerMode(label);
+      expect(localStorage.getItem(getDockKey(CFG))).toBe(mode);
+      expect(document.body.style.marginRight).toBe('11px');
+      expect(document.body.style.getPropertyPriority('margin-right')).toBe('important');
+      expect(document.documentElement.style.getPropertyValue('--zdtp-dock-inset-right')).toBe('17px');
+      expect(document.documentElement.style.getPropertyPriority('--zdtp-dock-inset-right')).toBe('important');
+      expect(document.body.style.marginBottom).toBe(mode === 'bottom' ? '340px' : '13px');
+      if (mode === 'mini') {
+        expect(document.querySelector('.tokenpanel-shell')).toBeNull();
+        expect(document.querySelector('.tokenpanel-mini-pill')).not.toBeNull();
+      } else {
+        expect(shell().classList.contains('is-docked-right')).toBe(false);
+        expect(shell().classList.contains('is-docked-bottom')).toBe(mode === 'bottom');
+        expect(inlineMode(label).getAttribute('aria-pressed')).toBe('true');
+        if (mode === 'bottom') {
+          expect(shell().getBoundingClientRect().height).toBe(340);
+          expect(shell().getBoundingClientRect().bottom).toBe(window.innerHeight);
+          await pointerMode('Float panel');
+        } else {
+          expect(shell().getBoundingClientRect().left).toBe(47);
+          expect(shell().getBoundingClientRect().width).toBe(700);
+        }
+      }
+      expect(document.body.style.marginBottom).toBe('13px');
+      expect(document.body.style.getPropertyPriority('margin-bottom')).toBe('important');
+    });
+  }
+
+  it('activates the visible inline switch with Enter and Space', async () => {
+    await mountFloating();
+    await pointerMode('Dock panel right');
+    for (const key of ['{Enter}', ' ']) {
+      const control = inlineMode('Float panel');
+      expect(control.getBoundingClientRect().width).toBeGreaterThanOrEqual(24);
+      control.focus();
+      await userEvent.keyboard(key);
+      await settle();
+      expect(localStorage.getItem(getDockKey(CFG))).toBe('float');
+      expectMenuClosed();
+      await pointerMode('Dock panel right');
+    }
   });
 
   it('renders and persists float/right/bottom geometry, reflows the host, and releases on Astro swap', async () => {
