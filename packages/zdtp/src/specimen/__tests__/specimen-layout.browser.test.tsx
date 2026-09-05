@@ -70,9 +70,13 @@ const CFG = {
 const changedContribution: RowContribution = {
   id: 'changed-fixture',
   className: ({ item }) => item.id === 'large' ? 'is-changed' : undefined,
-  trailing: ({ item }) => item.id === 'large' ? (
-    <RoleButton className="tokenpanel-changed-revert" onClick={() => undefined} aria-label="Revert large">↶</RoleButton>
-  ) : null,
+  trailing: ({ item }) => (
+    <>
+      {item.id === 'large' && <RoleButton className="tokenpanel-changed-revert" onClick={() => undefined} aria-label="Revert large">↶</RoleButton>}
+      <RoleButton className="tokenpanel-chain-button" onClick={() => undefined} aria-label={`Chain ${item.id}`}>+</RoleButton>
+      <RoleButton className="tokenpanel-highlight-toggle" onClick={() => undefined} aria-label={`Highlight ${item.id}`}>+</RoleButton>
+    </>
+  ),
   tail: ({ item }) => item.id === 'large' ? <span className="tokenpanel-changed-tail">default 2.5rem → 3rem</span> : null,
 };
 
