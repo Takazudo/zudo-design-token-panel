@@ -1,0 +1,71 @@
+name: Deploy playground (production)
+
+# Builds the full playground demo and deploys it to Cloudflare Workers (static
+# assets) on every push to main. The site is served at the custom domain
+# configured by `[[routes]] custom_domain = true` in playground/wrangler.toml.
+#
+# Go-live gate: the actual `wrangler deploy` runs only when the repository
+# variable CF_WORKERS_DEPLOY == 'true'. Until then the job builds + validates
+# the wrangler config (dry-run) so main stays green, but does NOT publish.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: playground-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  build-deploy:
+    name: Build & deploy playground (Cloudflare Workers)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build playground
+        run: pnpm --filter playground build:deploy
+
+      - name: Validate wrangler config (dry-run, no credentials needed)
+        run: pnpm --dir playground exec wrangler deploy --dry-run
+
+      - name: Deploy playground to Cloudflare Workers (production)
+        if: vars.CF_WORKERS_DEPLOY == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -o pipefail
+          n=0
+          until [ "$n" -ge 3 ]; do
+            pnpm --dir playground exec wrangler deploy 2>&1 | tee deploy.log && break
+            n=$((n + 1))
+            echo "wrangler deploy failed (attempt $n/3); retrying in 30s..."
+            sleep 30
+          done
+          [ "$n" -lt 3 ]
+
+      - name: Go-live gate notice
+        if: vars.CF_WORKERS_DEPLOY != 'true'
+        run: |
+          echo "::notice::Skipping playground production deploy — repository variable CF_WORKERS_DEPLOY is not 'true'. Build + wrangler dry-run ran (config validated); the site was NOT published. Set CF_WORKERS_DEPLOY=true and a Workers-scoped CLOUDFLARE_API_TOKEN to go live."
