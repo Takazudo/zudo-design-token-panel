@@ -10,8 +10,8 @@
 #   - Source maps (*.map) that embed an absolute build-host path
 #     (/home/..., /Users/..., /runner/..., …) or this repo's worktree root.
 #
-# Builds the doc workspace (plus the panel package as a precondition) and
-# greps the emitted bundle. Exits non-zero on any leak so it can gate
+# Builds both deployed workspaces (plus the panel package as a precondition)
+# and greps their emitted bundles. Exits non-zero on any leak so it can gate
 # CI / pre-push.
 
 # Note: `set -e` is intentionally OFF so audit failures don't bail out before
@@ -60,7 +60,7 @@ cd "$ROOT_DIR"
 START=$(date +%s)
 
 # Workspaces in print order.
-WORKSPACES=("doc")
+WORKSPACES=("doc" "playground")
 
 # Per-workspace pass/fail tracker.
 declare -A WS_FAILS=()
@@ -99,9 +99,10 @@ report_check() {
 build_one() {
   local label="$1"
   local filter="$2"
+  local script="${3:-build}"
   echo ""
-  echo "▶ Building $label"
-  if ! pnpm --filter "$filter" --fail-if-no-match build; then
+  echo "▶ Building $label ($script)"
+  if ! pnpm --filter "$filter" --fail-if-no-match "$script"; then
     echo "❌ Build failed: $label ($filter)"
     exit 2
   fi
@@ -146,7 +147,7 @@ audit_workspace() {
 }
 
 # ── Build phase ──────────────────────────────────
-section "Step 1/2: Build (panel package + doc workspace)"
+section "Step 1/2: Build (panel package + deployed workspaces)"
 
 # The doc workspace intentionally consumes the published @takazudo/zdtp package,
 # not the local workspace. Build the local panel anyway so this repository-level
@@ -155,10 +156,13 @@ build_one "@takazudo/zdtp" "@takazudo/zdtp"
 
 build_one "doc" "doc"
 
+build_one "playground" "playground" "build:deploy"
+
 # ── Audit phase ──────────────────────────────────
 section "Step 2/2: Audit each emitted bundle"
 
 audit_workspace "doc" "doc/dist"
+audit_workspace "playground" "playground/dist"
 
 # ── Summary ──────────────────────────────────────
 END=$(date +%s)
