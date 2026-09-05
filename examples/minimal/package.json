@@ -1,0 +1,30 @@
+{
+  "name": "minimal",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.12.0" },
+  "scripts": {
+    "generate:build-info": "node ../../scripts/generate-example-build-info.mjs --out src/build-info.generated.ts",
+    "generate:build-info:deploy": "node ../../scripts/generate-example-build-info.mjs --out src/build-info.generated.ts --deploy",
+    "prepare:panel": "pnpm run generate:build-info && pnpm --filter @takazudo/zdtp build",
+    "prepare:deploy": "pnpm run generate:build-info:deploy && pnpm --filter @takazudo/zdtp build",
+    "predev": "pnpm run prepare:panel",
+    "dev": "vite",
+    "prebuild": "pnpm run prepare:panel",
+    "build": "vite build",
+    "prebuild:deploy": "pnpm run prepare:deploy",
+    "build:deploy": "vite build",
+    "preview": "vite preview",
+    "pretypecheck": "pnpm run prepare:panel",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@takazudo/zdtp": "workspace:*",
+    "preact": "^10.29.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vite": "^7.3.5"
+  }
+}

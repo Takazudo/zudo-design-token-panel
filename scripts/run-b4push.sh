@@ -27,7 +27,7 @@ fail() {
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 # ── Step 1: Install dependencies ────────────────
-step "Step 1/5: Install dependencies (frozen lockfile)"
+step "Step 1/7: Install dependencies (frozen lockfile)"
 if (cd "$ROOT_DIR" && pnpm install --frozen-lockfile); then
   pass "Dependencies installed"
 else
@@ -35,31 +35,46 @@ else
 fi
 
 # ── Step 2: Build ───────────────────────────────
-step "Step 2/5: Build (pnpm -r build)"
+step "Step 2/7: Build (pnpm -r build)"
 if (cd "$ROOT_DIR" && pnpm build); then
   pass "Build passed"
 else
   fail "Build"
 fi
 
-# ── Step 3: Tests ───────────────────────────────
-step "Step 3/5: Tests (pnpm -r test)"
+# ── Steps 3–4: Public demo deploy builds ────────
+step "Step 3/7: Build playground deploy artifact"
+if (cd "$ROOT_DIR" && pnpm --filter playground build:deploy); then
+  pass "Playground deploy build passed"
+else
+  fail "Playground deploy build"
+fi
+
+step "Step 4/7: Build minimal deploy artifact"
+if (cd "$ROOT_DIR" && pnpm --filter minimal build:deploy); then
+  pass "Minimal deploy build passed"
+else
+  fail "Minimal deploy build"
+fi
+
+# ── Step 5: Tests ───────────────────────────────
+step "Step 5/7: Tests (pnpm -r test)"
 if (cd "$ROOT_DIR" && pnpm test); then
   pass "All tests passed"
 else
   fail "Tests"
 fi
 
-# ── Step 4: Typecheck ───────────────────────────
-step "Step 4/5: Typecheck (pnpm -r typecheck)"
+# ── Step 6: Typecheck ───────────────────────────
+step "Step 6/7: Typecheck (pnpm -r typecheck)"
 if (cd "$ROOT_DIR" && pnpm typecheck); then
   pass "Typecheck passed"
 else
   fail "Typecheck"
 fi
 
-# ── Step 5: Lint ────────────────────────────────
-step "Step 5/5: Lint (pnpm -r lint)"
+# ── Step 7: Lint ────────────────────────────────
+step "Step 7/7: Lint (pnpm -r lint)"
 if (cd "$ROOT_DIR" && pnpm lint); then
   pass "Lint passed"
 else
