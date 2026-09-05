@@ -222,12 +222,12 @@
   display: grid;
   grid-template-columns:
     13px
-    minmax(145px, 190px)
+    minmax(120px, 150px)
     minmax(0, 1fr)
     auto
     repeat(3, auto);
   align-items: center;
-  column-gap: var(--tokentweak-pad-sm);
+  column-gap: var(--tokentweak-pad-xs);
   row-gap: var(--tokentweak-pad-xs);
   min-width: 0;
   width: 100%;
@@ -264,6 +264,16 @@
 .tokenpanel-row.tokenpanel-row--specimen-size > .tokenpanel-row-select,
 .tokenpanel-row.tokenpanel-row--specimen-size > .tokenpanel-tier-ref-selector {
   grid-column: 4;
+}
+
+.tokenpanel-row--specimen-size .tokenpanel-row-number-input,
+.tokenpanel-row--specimen-line-height .tokenpanel-row-number-input {
+  width: 64px;
+}
+
+.tokenpanel-row--specimen-size .tokenpanel-row-unit,
+.tokenpanel-row--specimen-line-height .tokenpanel-row-unit {
+  width: 28px;
 }
 
 .tokenpanel-row--specimen-size .tokenpanel-changed-revert,
@@ -400,5 +410,16 @@
       minmax(0, 1fr)
       auto
       repeat(3, auto);
+    column-gap: var(--tokentweak-pad-sm);
+  }
+
+  .tokenpanel-row--specimen-size .tokenpanel-row-number-input,
+  .tokenpanel-row--specimen-line-height .tokenpanel-row-number-input {
+    width: 80px;
+  }
+
+  .tokenpanel-row--specimen-size .tokenpanel-row-unit,
+  .tokenpanel-row--specimen-line-height .tokenpanel-row-unit {
+    width: 32px;
   }
 }

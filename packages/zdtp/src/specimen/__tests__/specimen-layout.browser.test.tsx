@@ -165,6 +165,8 @@ describe('specimen density layout', () => {
         const samples = Array.from(shell.querySelectorAll<HTMLElement>('[data-testid^="specimen-size-"]'));
         if (width === 700) {
           expect(samples.every((sample) => sample.getBoundingClientRect().width > 120)).toBe(true);
+          expect(shell.querySelector<HTMLElement>('[data-testid="specimen-size-base"]')!
+            .getBoundingClientRect().width).toBeGreaterThan(300);
         }
 
         const scaleRows = Array.from(shell.querySelectorAll<HTMLElement>('[data-testid="font-tier-scale"] [data-address]'));
