@@ -4,7 +4,7 @@ import { buildApplyOverrides } from './apply/build-apply-overrides';
 import { writtenCssVarsFromResponse } from './apply/reconcile-applied';
 import { routeTokensToFiles } from './apply/route-tokens-to-files';
 import { getPanelConfig, modalClass, resolveApplyRouting, resolveSecondaryColorCluster, type PanelConfig } from './config/panel-config';
-import { getActivePrimaryCluster, type ColorTweakState, type TweakState } from './state/tweak-state';
+import { getActivePrimaryCluster, initSecondaryFromConfig, type ColorTweakState, type TweakState } from './state/tweak-state';
 import { serialize } from './utils/design-token-serde';
 import { useDialogBackdropClose } from './controls/use-dialog-backdrop-close';
 
@@ -77,7 +77,7 @@ export function flattenApplyOverrides(
   const secondaryCluster = resolveSecondaryColorCluster(cfg);
   const secondaryTab = cfg.tabs.find((tab) => tab.id === 'color-secondary');
   const secondary = secondaryCluster && state.secondary
-    ? buildApplyOverrides({ color: state.secondary, spacing: {}, typography: {}, size: {} }, undefined, secondaryCluster, cfg.tabs, secondaryTab)
+    ? buildApplyOverrides({ color: state.secondary, spacing: {}, typography: {}, size: {} }, initSecondaryFromConfig(cfg), secondaryCluster, cfg.tabs, secondaryTab)
     : {};
   return { ...primary, ...secondary };
 }

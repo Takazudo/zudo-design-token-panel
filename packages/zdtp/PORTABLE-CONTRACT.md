@@ -866,6 +866,13 @@ The **bin server** is the reference implementation for the apply contract.
 ### 5.1 Request & response envelopes
 
 The Apply button POSTs to `PanelConfig.applyEndpoint` with a flat JSON diff.
+The client sends only changed tokens. A token is changed exactly when the CSS
+value it would emit differs from the value its baseline would emit. Therefore
+an empty flat override or one equal to its manifest default is omitted;
+semantic role aliases and palette indices compare by their resolved palette
+slot, while literal and ref mappings compare structurally. Palette slots use
+the active color-identity baseline. The Apply payload may also contain a
+secondary color cluster, diffed against that cluster's configured defaults.
 
 **Request**
 
@@ -1558,7 +1565,14 @@ Key decisions:
 
 `serialize()` only emits tokens the user has changed relative to manifest
 defaults. Pass `includeDefaults: true` to dump the full state. A tab key is
-omitted entirely when nothing in it differs.
+omitted entirely when nothing in it differs. "Changed" uses the canonical
+emitted-value definition in §5.1. Export parity covers tokens representable by
+the current schema: flat tabs and the primary color cluster. The secondary
+color cluster is Apply-only and is not added to the export schema here.
+
+A sparse persisted override equal to today's manifest default remains stored
+but invisible to the UI, diff-only export, and Apply. It can intentionally
+resurface if a later manifest changes that default.
 
 ---
 

@@ -50,6 +50,31 @@ function flatOverrides(state: TweakState, tabId: string): Record<string, string>
   return undefined;
 }
 
+/** Canonical diff-only rule for sparse non-color overrides. */
+export function flatOverrideChanged(value: string | undefined, defaultValue: string): boolean {
+  return typeof value === 'string' && value.length > 0 && value !== defaultValue;
+}
+
+/**
+ * Compare semantic mappings by the CSS value they resolve to. Role aliases
+ * and numeric indices are equal when they select the same palette slot;
+ * literal and ref variants compare structurally.
+ */
+export function semanticMappingsEqual(
+  current: SemanticValue,
+  original: SemanticValue,
+  currentColor: ColorTweakState,
+  originalColor: ColorTweakState | undefined,
+): boolean {
+  if (isIndexMapping(current) && isIndexMapping(original)) {
+    const resolve = (value: number | 'bg' | 'fg', color: ColorTweakState | undefined): number =>
+      typeof value === 'number' ? value : value === 'bg' ? color?.background ?? 0 : color?.foreground ?? 1;
+    return resolve(current, currentColor) === resolve(original, originalColor);
+  }
+  if (isIndexMapping(current) !== isIndexMapping(original)) return false;
+  return structuralEqual(current, original);
+}
+
 export function currentTokenValue(
   entry: TokenIndexEntry,
   state: TweakState,
@@ -80,11 +105,19 @@ export function isChanged(
     return original === undefined ? current !== undefined && !structuralEqual(current, entry.default) : !structuralEqual(current, original);
   }
   if (entry.source === 'semantic') {
-    const current = colorSlice(state, entry.address.tabId)?.semanticMappings[entry.address.itemId] ?? entry.default;
-    const original = baselineSlice(baseline, entry.address.tabId)?.semanticMappings[entry.address.itemId] ?? entry.default;
-    return !structuralEqual(current, original);
+    const currentColor = colorSlice(state, entry.address.tabId);
+    const originalColor = baselineSlice(baseline, entry.address.tabId);
+    const current = currentColor?.semanticMappings[entry.address.itemId];
+    const original = originalColor?.semanticMappings[entry.address.itemId];
+    if (!currentColor || current === undefined) return false;
+    if (original === undefined) return true;
+    return !semanticMappingsEqual(current, original, currentColor, originalColor);
   }
-  return !structuralEqual(currentTokenValue(entry, state, cfg), entry.default);
+  const overrides = flatOverrides(state, entry.address.tabId);
+  const value = overrides
+    ? overrides[entry.address.itemId]
+    : state.tabs?.[entry.address.tabId]?.[entry.address.tierId]?.[entry.address.itemId];
+  return flatOverrideChanged(value, entry.default as string);
 }
 
 export function changedEntries(
