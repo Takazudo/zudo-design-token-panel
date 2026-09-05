@@ -1,6 +1,5 @@
 import { RoleButton } from '../controls/role-button';
 import type { DockMode } from '../state/tweak-state';
-import { useShortcut } from './shortcut-dispatcher';
 
 const MODES: readonly { mode: DockMode; label: string; shortcut: string }[] = [
   { mode: 'float', label: 'Float panel', shortcut: '1' },
@@ -46,18 +45,11 @@ export function DockModeSwitch({
   value,
   onChange,
   compact = false,
-  enableShortcuts = false,
 }: {
   value: DockMode;
   onChange: (mode: DockMode) => void;
   compact?: boolean;
-  enableShortcuts?: boolean;
 }) {
-  useShortcut({ key: '1', altKey: true }, () => onChange('float'), enableShortcuts);
-  useShortcut({ key: '2', altKey: true }, () => onChange('right'), enableShortcuts);
-  useShortcut({ key: '3', altKey: true }, () => onChange('bottom'), enableShortcuts);
-  useShortcut({ key: '4', altKey: true }, () => onChange('mini'), enableShortcuts);
-
   return (
     <div
       role="group"

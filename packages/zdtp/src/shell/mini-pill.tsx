@@ -1,9 +1,10 @@
-import type { ComponentChildren, JSX } from 'preact';
+import type { ComponentChildren, JSX, RefObject } from 'preact';
 import { RoleButton } from '../controls/role-button';
 
 /** Slots intentionally stay small so changed-state and history features can
  * add their own controls without making the dock-mode shell depend on them. */
 export interface MiniPillProps {
+  rootRef?: RefObject<HTMLDivElement>;
   onApply: () => void;
   onExpand: () => void;
   changedCount?: ComponentChildren;
@@ -19,13 +20,14 @@ export interface MiniPillProps {
  * on the foundation branch.
  */
 export function MiniPill({
+  rootRef,
   onApply,
   onExpand,
   changedCount,
   undo,
 }: MiniPillProps): JSX.Element {
   return (
-    <div className="tokenpanel-mini-pill" data-testid="tokenpanel-mini-pill">
+    <div ref={rootRef} className="tokenpanel-mini-pill" data-testid="tokenpanel-mini-pill">
       <span className="tokenpanel-mini-pill-brand">zdtp</span>
       <span
         className="tokenpanel-mini-pill-changed-count"

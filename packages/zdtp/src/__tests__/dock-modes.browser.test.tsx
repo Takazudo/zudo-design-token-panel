@@ -25,6 +25,13 @@ const CFG: PanelConfig = {
   exportFilenameBase: 'dock-mode-browser',
   tabs: FIXTURE_TABS,
 };
+const SECOND_CFG: PanelConfig = {
+  ...CFG,
+  storagePrefix: 'dock-mode-browser-second',
+  consoleNamespace: 'dockModeBrowserSecond',
+  modalClassPrefix: 'dock-mode-browser-second-modal',
+  schemaId: 'dock-mode-browser-second/v1',
+};
 
 async function settle(): Promise<void> {
   await new Promise<void>((resolve) =>
@@ -186,5 +193,40 @@ describe('dock modes', () => {
     expect(document.documentElement.style.getPropertyPriority('--zdtp-dock-inset-right')).toBe(
       'important',
     );
+  });
+
+  it('routes mini-mode shortcuts only to the pill that most recently claimed ownership', async () => {
+    const secondHandle = configurePanel(SECOND_CFG);
+    localStorage.setItem(storageKey_visible(CFG), '1');
+    localStorage.setItem(getOpenKey(CFG), '1');
+    localStorage.setItem(getDockKey(CFG), 'mini');
+    localStorage.setItem(storageKey_visible(SECOND_CFG), '1');
+    localStorage.setItem(getOpenKey(SECOND_CFG), '1');
+    localStorage.setItem(getDockKey(SECOND_CFG), 'mini');
+
+    document.dispatchEvent(new CustomEvent('astro:page-load'));
+    await settle();
+
+    const firstPill = document.querySelector<HTMLElement>(
+      `#${panelRootId(CFG)} .tokenpanel-mini-pill`,
+    );
+    const secondPill = document.querySelector<HTMLElement>(
+      `#${panelRootId(SECOND_CFG)} .tokenpanel-mini-pill`,
+    );
+    if (!firstPill || !secondPill) throw new Error('both mini pills must be mounted');
+
+    firstPill.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    useModeShortcut('1');
+    await settle();
+    expect(localStorage.getItem(getDockKey(CFG))).toBe('float');
+    expect(localStorage.getItem(getDockKey(SECOND_CFG))).toBe('mini');
+
+    secondPill.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    useModeShortcut('2');
+    await settle();
+    expect(localStorage.getItem(getDockKey(CFG))).toBe('float');
+    expect(localStorage.getItem(getDockKey(SECOND_CFG))).toBe('right');
+
+    secondHandle.destroy();
   });
 });
