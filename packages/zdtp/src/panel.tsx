@@ -210,6 +210,25 @@ function PanelEscapeShortcut({ onClose }: { onClose: () => void }) {
   return null;
 }
 
+function DockShortcuts({
+  value,
+  onChange,
+}: {
+  value: DockMode;
+  onChange: (mode: DockMode) => void;
+}) {
+  const selectMode = (mode: DockMode, event: KeyboardEvent) => {
+    if (mode === value) return;
+    event.preventDefault();
+    onChange(mode);
+  };
+  useShortcut({ key: '1', altKey: true }, (event) => selectMode('float', event));
+  useShortcut({ key: '2', altKey: true }, (event) => selectMode('right', event));
+  useShortcut({ key: '3', altKey: true }, (event) => selectMode('bottom', event));
+  useShortcut({ key: '4', altKey: true }, (event) => selectMode('mini', event));
+  return null;
+}
+
 function GhostIdleBehavior({
   enabled,
   targetRef,
@@ -328,6 +347,11 @@ export default function DesignTokenTweakPanel({
   const [ghostIdle, setGhostIdle] = useState(false);
   const previousInspectTabRef = useRef<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const shortcutRootRef = useRef<HTMLDivElement>(null);
+  const setPanelRef = useCallback((element: HTMLDivElement | null) => {
+    panelRef.current = element;
+    shortcutRootRef.current = element;
+  }, []);
   // tabRefs is now keyed by string to support host-supplied tab ids.
   const tabRefs = useRef<Record<string, HTMLDivElement | null>>({
     spacing: null,
@@ -1397,7 +1421,6 @@ export default function DesignTokenTweakPanel({
             <DockModeSwitch
               value={dockMode}
               onChange={handleDockModeChange}
-              enableShortcuts
             />
           ),
         },
@@ -1542,8 +1565,9 @@ export default function DesignTokenTweakPanel({
 
   return (
     <LayerActivityProvider>
-    <ShortcutProvider shellRef={panelRef} enabled={open}>
+    <ShortcutProvider shellRef={shortcutRootRef} enabled={open}>
     <ShellRegionsProvider initialItems={shellRegionItems}>
+    <DockShortcuts value={dockMode} onChange={handleDockModeChange} />
     <PanelLayerRegistrations
       exportOpen={showExport}
       importOpen={showImport}
@@ -1605,6 +1629,7 @@ export default function DesignTokenTweakPanel({
           <>
             {dockMode === 'mini' ? (
               <MiniPill
+                rootRef={shortcutRootRef}
                 onApply={() => setShowApply(true)}
                 onExpand={() => handleDockModeChange(lastFullDockModeRef.current)}
                 changedCount={changedTotal > 0 ? changedTotal : undefined}
@@ -1617,7 +1642,7 @@ export default function DesignTokenTweakPanel({
               />
             ) : (
         <div
-        ref={panelRef}
+        ref={setPanelRef}
         className={`tokenpanel-shell${effectiveDockMode === 'right' ? ' is-docked-right' : ''}${effectiveDockMode === 'bottom' ? ' is-docked-bottom' : ''}${historyRailOpen ? ' is-history-open' : ''}`}
         style={{
           ...panelPos,

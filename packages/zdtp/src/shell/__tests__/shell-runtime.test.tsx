@@ -39,6 +39,22 @@ function ShortcutRegistration({ onShortcut }: { onShortcut: () => void }) {
   return null;
 }
 
+function SwappableShortcutInstance({
+  root,
+  onShortcut,
+}: {
+  root: 'first' | 'second' | 'none';
+  onShortcut: () => void;
+}) {
+  const shellRef = useRef<HTMLDivElement>(null);
+  return (
+    <ShortcutProvider shellRef={shellRef} enabled>
+      <ShortcutRegistration onShortcut={onShortcut} />
+      {root !== 'none' && <div key={root} ref={shellRef} data-shell={root} />}
+    </ShortcutProvider>
+  );
+}
+
 function pressCommandK(target: EventTarget = document.body) {
   target.dispatchEvent(
     new KeyboardEvent('keydown', {
@@ -88,6 +104,25 @@ describe('per-instance shortcut dispatcher', () => {
     document.body.appendChild(input);
     act(() => pressCommandK(input));
     expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('keeps dispatching when the owner root swaps and stops with no connected root', () => {
+    const handler = vi.fn();
+    act(() =>
+      render(<SwappableShortcutInstance root="first" onShortcut={handler} />, container),
+    );
+    act(() => pressCommandK());
+    expect(handler).toHaveBeenCalledOnce();
+
+    act(() =>
+      render(<SwappableShortcutInstance root="second" onShortcut={handler} />, container),
+    );
+    act(() => pressCommandK());
+    expect(handler).toHaveBeenCalledTimes(2);
+
+    act(() => render(<SwappableShortcutInstance root="none" onShortcut={handler} />, container));
+    act(() => pressCommandK());
+    expect(handler).toHaveBeenCalledTimes(2);
   });
 });
 

@@ -8,7 +8,7 @@
  * represented by MiniPill's extension slots in later features.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
 import DesignTokenTweakPanel from '../panel';
@@ -66,6 +66,12 @@ function dispatchPointerMoveOutside(): void {
   document.body.dispatchEvent(new PointerEvent('pointermove', { bubbles: true }));
 }
 
+function useModeShortcut(key: string): void {
+  document.dispatchEvent(
+    new KeyboardEvent('keydown', { key, altKey: true, bubbles: true, cancelable: true }),
+  );
+}
+
 async function waitForGhost(): Promise<void> {
   await new Promise<void>((resolve) => setTimeout(resolve, 725));
 }
@@ -77,6 +83,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await flushEffects();
   if (container) {
     act(() => render(null, container));
@@ -113,6 +120,39 @@ describe('mini pill', () => {
 
     expect(localStorage.getItem(getDockKey(CFG))).toBe('right');
     expect(shell().classList.contains('is-docked-right')).toBe(true);
+  });
+
+  it('uses Alt+1 through Alt+3 to leave mini and persists each mode once', async () => {
+    await mountPanel({ dock: 'mini' });
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+
+    for (const [key, mode] of [
+      ['1', 'float'],
+      ['2', 'right'],
+      ['3', 'bottom'],
+    ] as const) {
+      setItem.mockClear();
+      useModeShortcut(key);
+      await flushEffects();
+
+      expect(localStorage.getItem(getDockKey(CFG))).toBe(mode);
+      expect(container.querySelector('.tokenpanel-mini-pill')).toBeNull();
+      expect(container.querySelector('.tokenpanel-shell')).not.toBeNull();
+      expect(
+        setItem.mock.calls.filter(([storageKey]) => storageKey === getDockKey(CFG)),
+      ).toHaveLength(1);
+
+      useModeShortcut('4');
+      await flushEffects();
+      expect(container.querySelector('.tokenpanel-mini-pill')).not.toBeNull();
+    }
+
+    setItem.mockClear();
+    useModeShortcut('4');
+    await flushEffects();
+    expect(
+      setItem.mock.calls.filter(([storageKey]) => storageKey === getDockKey(CFG)),
+    ).toHaveLength(0);
   });
 
   it('persists the ghost toggle in the tabbar and exposes it in the narrow kebab', async () => {
