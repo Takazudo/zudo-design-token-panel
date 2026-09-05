@@ -75,4 +75,23 @@ describe('reconcileApplied', () => {
     expect(remaining['--fixture-semantic-active']).toBe('#123456');
     expect(remaining['--zd-spacing-hgap-md']).toBe('24px');
   });
+
+  it('does not reset a role dependency for an explicit semantic mapping edit', () => {
+    const baseline = defaults();
+    baseline.semanticMappings.accent = 0;
+    const state = {
+      color: {
+        ...baseline,
+        background: 2,
+        semanticMappings: { ...baseline.semanticMappings, accent: 'bg' as const },
+      },
+      spacing: {}, typography: {}, size: {},
+    };
+
+    const reconciled = reconcileApplied(
+      state, ['--fixture-semantic-accent'], FIXTURE_PANEL_CONFIG, baseline,
+    );
+    expect(reconciled.color.background).toBe(2);
+    expect(reconciled.color.semanticMappings.accent).toBe(0);
+  });
 });
