@@ -4,15 +4,9 @@ import { ActionsMenuPopover } from '../controls/actions-menu-popover';
 import { useLayerRegistration } from './layer-activity';
 import { useShellRegions } from './regions';
 
-// Must match the 479px content-box container query in panel.css. The shell's
-// two border pixels make 482px the equivalent border-box threshold.
-const ACTIONS_MENU_BREAKPOINT_PX = 482;
-
 export function ShellHeader({
-  width,
   onMouseDown,
 }: {
-  width: number;
   onMouseDown: JSX.MouseEventHandler<HTMLDivElement>;
 }) {
   const { items } = useShellRegions();
@@ -20,9 +14,33 @@ export function ShellHeader({
   const actionsMenuBtnRef = useRef<HTMLDivElement>(null);
   useLayerRegistration('header-actions-menu', showActionsMenu);
 
+  const isActionsTriggerRendered = () => {
+    const trigger = actionsMenuBtnRef.current;
+    if (!trigger || getComputedStyle(trigger).display === 'none') return false;
+    const { width, height } = trigger.getBoundingClientRect();
+    return width > 0 && height > 0;
+  };
+
   useEffect(() => {
-    if (showActionsMenu && width >= ACTIONS_MENU_BREAKPOINT_PX) setShowActionsMenu(false);
-  }, [showActionsMenu, width]);
+    const trigger = actionsMenuBtnRef.current;
+    if (!trigger) return;
+    // CSS owns compactness, including the different borders in each dock mode.
+    // Observe actual layout so host/container changes need no panel state update.
+    const reconcile = () => {
+      if (!isActionsTriggerRendered()) setShowActionsMenu(false);
+    };
+    reconcile();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(reconcile);
+    observer.observe(trigger);
+    const shell = trigger.closest('.tokenpanel-shell');
+    if (shell) observer.observe(shell);
+    return () => observer.disconnect();
+  }, []);
+
+  const toggleActionsMenu = () => {
+    setShowActionsMenu((value) => !value && isActionsTriggerRendered());
+  };
 
   const closeCompactMenu = () => setShowActionsMenu(false);
   const compactActions = items['header-actions'].flatMap((item) =>
@@ -48,11 +66,11 @@ export function ShellHeader({
         aria-label="Panel actions"
         aria-expanded={showActionsMenu}
         aria-haspopup="dialog"
-        onClick={() => setShowActionsMenu((value) => !value)}
+        onClick={toggleActionsMenu}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
-            setShowActionsMenu((value) => !value);
+            toggleActionsMenu();
           }
         }}
       >
