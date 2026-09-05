@@ -588,7 +588,7 @@ default instance only.
 | `exportFilenameBase` | `string`                       | Default download filename base — exports save as `${exportFilenameBase}.json`.                                                                                         |
 | `toggleEvent`        | `string` (optional)            | Window-event name that toggles THIS instance. Defaults to `toggle-${storagePrefix}` for non-default instances; the default instance keeps `toggle-design-token-panel`. |
 | `tabs`               | `readonly TabConfig[]`         | **Required.** Tab strip data — each entry is a tab with one or more `TierConfig` objects. The color tab (id `'color'`) additionally requires `colorExtras`. See §6.    |
-| `colorPresets`       | `Record<string, ColorScheme>` (optional) | Optional named scheme presets surfaced in the Color tab "Scheme..." dropdown. Defaults to `{}`. See §7.5.                                              |
+| `colorPresets`       | `Record<string, ColorScheme>` (optional) | Optional named scheme presets surfaced in the Color tab "Scheme..." dropdown. Defaults to `{}`. See §7.4.                                              |
 | `applyEndpoint`      | `string` (optional)            | Browser POST target for apply previews and confirmed writes. See §3 and [Apply pipeline reference](/docs/reference/apply-pipeline).                                          |
 | `applyRouting`       | `Record<string, string>` (optional) | CSS-var prefix-family to repo-relative CSS-file routing map used by the apply endpoint.                                                                                   |
 | `applySink`          | `ApplySink` (optional)         | Optional sink that routes this instance's CSS-var writes off `:root`. See §5.4. Not JSON-serializable — do not include in Astro inline config.                        |
@@ -904,7 +904,7 @@ literal mapping, or `light-dark(light, dark)` for a per-mode literal.
 Roles absent from `colorExtras.baseRoles` are not written, so a minimalist
 cluster (just `background` + `foreground`) is fine.
 
-### 7.5 Host-supplied scheme presets — `colorPresets`
+### 7.4 Host-supplied scheme presets — `colorPresets`
 
 The Color tab's "Scheme..." dropdown surfaces named `ColorScheme` entries. Two sources feed it:
 
