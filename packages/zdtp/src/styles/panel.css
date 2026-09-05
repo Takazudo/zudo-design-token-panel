@@ -363,6 +363,7 @@
 
 .tokenpanel-header {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: var(--tokentweak-pad-md);
   padding-inline: var(--tokentweak-pad-xl);
@@ -1070,6 +1071,18 @@
   cursor: pointer;
 }
 
+.tokenpanel-density.is-compact,
+.tokenpanel-actions-popover .tokenpanel-changed-only-toggle {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--tokentweak-pad-sm) var(--tokentweak-pad-md);
+}
+
+.tokenpanel-density.is-compact .tokenpanel-density-slider {
+  min-width: 0;
+  flex: 1;
+}
+
 /* ===========================================================================
  * Container-query responsive breakpoints (#518)
  *
@@ -1082,7 +1095,23 @@
  * simply keep the wide layout above with no JS fallback (see package README).
  * ========================================================================= */
 @container tokenpanel (max-width: 479px) {
+  .tokenpanel-header {
+    gap: var(--tokentweak-pad-sm);
+  }
   .tokenpanel-header > .tokenpanel-action-link {
+    display: none;
+  }
+  .tokenpanel-header > .tokenpanel-history-controls,
+  .tokenpanel-header > .tokenpanel-apply-sync,
+  .tokenpanel-header > .tokenpanel-dock-modes,
+  .tokenpanel-header > .tokenpanel-elpath-toggle,
+  .tokenpanel-header > .tokenpanel-element-inspect-toggle,
+  .tokenpanel-header > .tokenpanel-tweaker-toggle {
+    display: none;
+  }
+  .tokenpanel-tabbar > .tokenpanel-density,
+  .tokenpanel-tabbar > .tokenpanel-ghost-idle-toggle,
+  .tokenpanel-tabbar > .tokenpanel-changed-only-toggle {
     display: none;
   }
   .tokenpanel-search-control {

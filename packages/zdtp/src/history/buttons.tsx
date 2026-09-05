@@ -108,16 +108,32 @@ export function HistoryButtons({
     () => ({
       id: 'history-controls',
       order: -3,
-      render: () => (
+      renderInCompactMenu: true,
+      render: ({ compact, closeCompactMenu }) => (
         <div className="tokenpanel-history-controls" role="group" aria-label="History controls">
-          <HistoryUndoButton canUndo={history.canUndo} onUndo={onUndo} />
-          <HistoryRedoButton canRedo={history.canRedo} onRedo={onRedo} />
+          <HistoryUndoButton
+            canUndo={history.canUndo}
+            onUndo={() => {
+              onUndo();
+              if (compact) closeCompactMenu();
+            }}
+          />
+          <HistoryRedoButton
+            canRedo={history.canRedo}
+            onRedo={() => {
+              onRedo();
+              if (compact) closeCompactMenu();
+            }}
+          />
           <span className="tokenpanel-history-count" aria-label="History position">
             {history.entries.length > 0 ? `${history.cursor}/${history.entries.length}` : '0/0'}
           </span>
           <RoleButton
             className={`tokenpanel-history-toggle${railOpen ? ' is-active' : ''}`}
-            onClick={() => onToggleRail()}
+            onClick={() => {
+              onToggleRail();
+              if (compact) closeCompactMenu();
+            }}
             aria-label="History rail"
             title="Toggle history rail"
             ariaProps={{ 'aria-expanded': railOpen }}

@@ -14,7 +14,10 @@
  *   - <480px: header action links hidden, kebab visible; kebab opens a
  *     popover with all 4 actions; an action both fires (opens its modal)
  *     and closes the popover; Escape and outside-click also close it.
- *   - <380px: the DENSITY label hides (slider stays functional).
+ *   - <480px: density, Ghost when idle, and Changed only move into the
+ *     compact menu so the tab strip retains usable width.
+ *   - 320px and 440px right docks: both chrome rows remain contained while
+ *     the resize grip and compact popover remain functional.
  *   - Tabs strip: `.has-overflow` (right-edge fade hint) appears only while
  *     the strip actually has scrollable overflow, and clears once scrolled
  *     to the end.
@@ -31,7 +34,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { render } from 'preact';
 import { act } from 'preact/test-utils';
 import DesignTokenTweakPanel from '../panel';
-import { getOpenKey, getPositionKey, getSizeKey } from '../state/tweak-state';
+import {
+  getDockKey,
+  getDockSizeKey,
+  getDensityKey,
+  getOpenKey,
+  getPositionKey,
+  getSizeKey,
+} from '../state/tweak-state';
 import { FIXTURE_PANEL_CONFIG, flushEffects } from './_test-helpers';
 import type { TabConfig } from '../tokens/tier-model';
 
@@ -104,6 +114,23 @@ async function mountPanelAtWidth(
 
   act(() => {
     render(<DesignTokenTweakPanel instanceConfig={cfg} />, container);
+  });
+  await flushEffects();
+}
+
+async function mountPanelDockedRight(width: number): Promise<void> {
+  localStorage.setItem(getOpenKey(CFG), '1');
+  localStorage.setItem(getDockKey(CFG), 'right');
+  localStorage.setItem(
+    getDockSizeKey(CFG),
+    JSON.stringify({ right: width, bottom: 340 }),
+  );
+
+  container = document.createElement('div');
+  document.body.appendChild(container);
+
+  act(() => {
+    render(<DesignTokenTweakPanel instanceConfig={CFG} />, container);
   });
   await flushEffects();
 }
@@ -310,19 +337,125 @@ describe('narrow panel (<480px container width)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Density label breakpoint (<380px)
+// Demoted tabbar controls (<480px)
 // ---------------------------------------------------------------------------
 
 describe('very narrow panel (<380px container width)', () => {
-  it('hides the DENSITY label but keeps the slider', async () => {
+  it('demotes density from the tabbar and keeps it in the compact menu', async () => {
     await mountPanelAtWidth(340);
 
-    const label = container.querySelector<HTMLElement>('.tokenpanel-density-label');
-    const slider = container.querySelector<HTMLInputElement>('.tokenpanel-density-slider');
-    expect(label).not.toBeNull();
-    expect(getComputedStyle(label!).display).toBe('none');
-    expect(slider).not.toBeNull();
-    expect(getComputedStyle(slider!).display).not.toBe('none');
+    const density = container.querySelector<HTMLElement>('.tokenpanel-tabbar > .tokenpanel-density');
+    expect(density).not.toBeNull();
+    expect(getComputedStyle(density!).display).toBe('none');
+
+    getKebabTrigger().click();
+    await flushEffects();
+    expect(
+      getPopover()?.querySelector<HTMLInputElement>('.tokenpanel-density-slider'),
+    ).not.toBeNull();
+  });
+});
+
+describe('320px right-docked panel', () => {
+  it('contains both chrome rows while preserving the resize grip and compact controls', async () => {
+    await mountPanelDockedRight(320);
+
+    const shell = getShell();
+    expect(shell.classList.contains('is-docked-right')).toBe(true);
+    expect(shell.getBoundingClientRect().width).toBe(320);
+
+    const shellRect = shell.getBoundingClientRect();
+    for (const rowSelector of ['.tokenpanel-header', '.tokenpanel-tabbar']) {
+      const row = container.querySelector<HTMLElement>(rowSelector);
+      if (!row) throw new Error(`${rowSelector} not found`);
+      for (const child of Array.from(row.children)) {
+        const rect = child.getBoundingClientRect();
+        if (rect.width === 0 && rect.height === 0) continue;
+        expect(rect.left, `${rowSelector} child ${child.className} left`).toBeGreaterThanOrEqual(
+          shellRect.left,
+        );
+        expect(rect.right, `${rowSelector} child ${child.className} right`).toBeLessThanOrEqual(
+          shellRect.right,
+        );
+      }
+    }
+
+    const strip = container.querySelector<HTMLElement>('.tokenpanel-tabbar-tabs');
+    if (!strip) throw new Error('.tokenpanel-tabbar-tabs not found');
+    expect(strip.clientWidth).toBeGreaterThanOrEqual(160);
+
+    const resizeHandle = container.querySelector<HTMLElement>(
+      '.tokenpanel-dock-resize-handle.is-right',
+    );
+    if (!resizeHandle) throw new Error('right dock resize handle not found');
+    expect(resizeHandle.getBoundingClientRect().width).toBe(6);
+    const resizeStart = resizeHandle.getBoundingClientRect().left;
+    resizeHandle.dispatchEvent(
+      new MouseEvent('mousedown', { clientX: resizeStart, bubbles: true, cancelable: true }),
+    );
+    document.dispatchEvent(
+      new MouseEvent('mousemove', {
+        clientX: resizeStart - 40,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    await flushEffects();
+    expect(shell.getBoundingClientRect().width).toBe(360);
+
+    getKebabTrigger().click();
+    await flushEffects();
+    const popover = getPopover();
+    if (!popover) throw new Error('compact actions popover did not open');
+    const popoverRect = popover.getBoundingClientRect();
+    const resizedShellRect = shell.getBoundingClientRect();
+    expect(popoverRect.left).toBeGreaterThanOrEqual(resizedShellRect.left);
+    expect(popoverRect.right).toBeLessThanOrEqual(resizedShellRect.right);
+    expect(popover.querySelector('.tokenpanel-history-controls')).not.toBeNull();
+    expect(popover.querySelector('.tokenpanel-apply-sync')).not.toBeNull();
+    expect(popover.querySelector('.tokenpanel-dock-modes.is-compact')).not.toBeNull();
+    expect(popover.querySelector('.tokenpanel-density.is-compact')).not.toBeNull();
+    expect(popover.querySelector('.tokenpanel-ghost-idle-toggle.is-compact')).not.toBeNull();
+    expect(popover.querySelector('.tokenpanel-changed-only-toggle')).not.toBeNull();
+    expect(popover.querySelector('.tokenpanel-elpath-toggle')).not.toBeNull();
+    expect(popover.querySelector('.tokenpanel-element-inspect-toggle')).not.toBeNull();
+
+    const compactDensity = popover.querySelector<HTMLInputElement>(
+      '.tokenpanel-density.is-compact .tokenpanel-density-slider',
+    );
+    if (!compactDensity) throw new Error('compact density slider not found');
+    compactDensity.value = '2';
+    compactDensity.dispatchEvent(new Event('input', { bubbles: true }));
+    await flushEffects();
+    expect(localStorage.getItem(getDensityKey(CFG))).toBe('2');
+  });
+});
+
+describe('440px right-docked panel', () => {
+  it('keeps the header and tab strip contained at the default dock width', async () => {
+    await mountPanelDockedRight(440);
+
+    const shellRect = getShell().getBoundingClientRect();
+    for (const selector of ['.tokenpanel-header', '.tokenpanel-tabbar']) {
+      const row = container.querySelector<HTMLElement>(selector);
+      if (!row) throw new Error(`${selector} not found`);
+      const visibleChildren = Array.from(row.children).filter((child) => {
+        const rect = child.getBoundingClientRect();
+        return rect.width > 0 || rect.height > 0;
+      });
+      expect(visibleChildren.length).toBeGreaterThan(0);
+      expect(
+        Math.min(...visibleChildren.map((child) => child.getBoundingClientRect().left)),
+      ).toBeGreaterThanOrEqual(shellRect.left);
+      expect(
+        Math.max(...visibleChildren.map((child) => child.getBoundingClientRect().right)),
+      ).toBeLessThanOrEqual(shellRect.right);
+    }
+
+    const strip = container.querySelector<HTMLElement>('.tokenpanel-tabbar-tabs');
+    if (!strip) throw new Error('.tokenpanel-tabbar-tabs not found');
+    expect(strip.clientWidth).toBeGreaterThanOrEqual(160);
   });
 });
 
