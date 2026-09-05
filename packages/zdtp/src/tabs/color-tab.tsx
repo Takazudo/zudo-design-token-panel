@@ -522,153 +522,157 @@ const PaletteSelector = memo(function PaletteSelector({
   }
 
   return (
-    <div
-      className={`tokenpanel-palette-selector${isChanged ? ' is-changed' : ''}`}
-      ref={containerRef}
-      {...(address ? { 'data-address': tokenAddressKey(address) } : {})}
-    >
+    <div className="tokenpanel-card">
       <div
-        ref={buttonRef}
-        role="button"
-        tabIndex={0}
-        onClick={handleToggle}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            handleToggle();
-          } else if (e.key === 'ArrowDown') {
-            // Open (never toggle shut) and let the open effect move focus into
-            // the listbox so arrow keys navigate options (F12).
-            e.preventDefault();
-            if (!isOpen) setIsOpen(true);
-          }
-        }}
-        className="tokenpanel-palette-trigger"
-        aria-label={`${label}: ${valueLabel}`}
-        aria-expanded={isOpen}
-        {...tooltipProps}
+        className={`tokenpanel-palette-selector${isChanged ? ' is-changed' : ''}`}
+        ref={containerRef}
+        {...(address ? { 'data-address': tokenAddressKey(address) } : {})}
       >
-        {isChanged && <span className="tokenpanel-changed-marker" aria-label="Changed">●</span>}
-        <span className="tokenpanel-palette-trigger-label">
-          {label}
-        </span>
-        <div
-          className="tokenpanel-palette-trigger-color"
-          style={{ backgroundColor: resolvedColor }}
-        />
-        <span className="tokenpanel-palette-trigger-value">{valueLabel}</span>
-        <svg
-          className="tokenpanel-palette-trigger-icon"
-          width="12"
-          height="12"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-        >
-          <path d="M6 9l6 6 6-6" />
-        </svg>
-      </div>
-
-      {cssVar && <HighlightToggleButton cssVar={cssVar} />}
-      {address && <TokenChainButton address={address} />}
-      {isChanged && onRevert && (
-        <RoleButton
-          className="tokenpanel-changed-revert"
-          aria-label={`Revert ${label}`}
-          title="Revert to default"
-          onClick={onRevert}
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
+        <div className="tokenpanel-card-editor">
+          <div
+            ref={buttonRef}
+            role="button"
+            tabIndex={0}
+            onClick={handleToggle}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleToggle();
+              } else if (e.key === 'ArrowDown') {
+                // Open (never toggle shut) and let the open effect move focus into
+                // the listbox so arrow keys navigate options (F12).
+                e.preventDefault();
+                if (!isOpen) setIsOpen(true);
+              }
+            }}
+            className="tokenpanel-palette-trigger"
+            aria-label={`${label}: ${valueLabel}`}
+            aria-expanded={isOpen}
+            {...tooltipProps}
           >
-            <path d="M3 12a9 9 0 1 0 3-6.7" />
-            <path d="M3 4v6h6" />
-          </svg>
-        </RoleButton>
-      )}
-
-      {isOpen && (
-        <div
-          ref={listboxRef}
-          role="listbox"
-          tabIndex={0}
-          aria-label={`${label} color options`}
-          aria-activedescendant={activeValue !== undefined ? optionId(activeValue) : undefined}
-          onKeyDown={handleListboxKeyDown}
-          className="tokenpanel-palette-options"
-          style={getFixedPopoverStyle(buttonRef.current, 440, extraOptions ? 160 : 120)}
-        >
-          {/* Extra options (bg/fg) */}
-          {extraOptions && extraOptions.length > 0 && (
-            <div className="tokenpanel-palette-options-extras">
-              {extraOptions.map((opt, extraIdx) => {
-                const optColor =
-                  opt === 'bg' ? (background ?? '#000000') : (foreground ?? '#ffffff');
-                const isSelected = value === opt;
-                const isActive = activeIndex === extraIdx;
+            {isChanged && <span className="tokenpanel-changed-marker" aria-label="Changed">●</span>}
+            <span className="tokenpanel-card-label">
+              <span className="tokenpanel-palette-trigger-label">{label}</span>
+            </span>
+            <div
+              className="tokenpanel-palette-trigger-color"
+              style={{ backgroundColor: resolvedColor }}
+            />
+            <span className="tokenpanel-palette-trigger-value">{valueLabel}</span>
+            <svg
+              className="tokenpanel-palette-trigger-icon"
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </div>
+        </div>
+        <div className="tokenpanel-card-actions">
+          {cssVar && <HighlightToggleButton cssVar={cssVar} />}
+          {address && <TokenChainButton address={address} />}
+          {isChanged && onRevert && (
+            <RoleButton
+              className="tokenpanel-changed-revert"
+              aria-label={`Revert ${label}`}
+              title="Revert to default"
+              onClick={onRevert}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M3 12a9 9 0 1 0 3-6.7" />
+                <path d="M3 4v6h6" />
+              </svg>
+            </RoleButton>
+          )}
+        </div>
+        {isOpen && (
+          <div
+            ref={listboxRef}
+            role="listbox"
+            tabIndex={0}
+            aria-label={`${label} color options`}
+            aria-activedescendant={activeValue !== undefined ? optionId(activeValue) : undefined}
+            onKeyDown={handleListboxKeyDown}
+            className="tokenpanel-palette-options"
+            style={getFixedPopoverStyle(buttonRef.current, 440, extraOptions ? 160 : 120)}
+          >
+            {/* Extra options (bg/fg) */}
+            {extraOptions && extraOptions.length > 0 && (
+              <div className="tokenpanel-palette-options-extras">
+                {extraOptions.map((opt, extraIdx) => {
+                  const optColor =
+                    opt === 'bg' ? (background ?? '#000000') : (foreground ?? '#ffffff');
+                  const isSelected = value === opt;
+                  const isActive = activeIndex === extraIdx;
+                  return (
+                    <div
+                      key={opt}
+                      id={optionId(opt)}
+                      role="option"
+                      aria-selected={isSelected}
+                      onClick={() => select(opt)}
+                      className={[
+                        'tokenpanel-palette-extra-option',
+                        isSelected ? 'is-selected' : '',
+                        isActive ? 'is-active' : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                    >
+                      <div
+                        className="tokenpanel-palette-extra-color"
+                        style={{ backgroundColor: optColor }}
+                      />
+                      <span className="tokenpanel-palette-extra-label">{opt}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {/* Palette grid */}
+            <div className="tokenpanel-palette-options-grid">
+              {palette.map((color, i) => {
+                const isSelected = value === i;
+                const isActive = activeIndex === extrasCount + i;
+                const cssVar = resolvePaletteCssVar(i);
                 return (
                   <div
-                    key={opt}
-                    id={optionId(opt)}
+                    key={i}
+                    id={optionId(i)}
                     role="option"
                     aria-selected={isSelected}
-                    onClick={() => select(opt)}
+                    aria-label={`${cssVar}: ${color}`}
+                    onClick={() => select(i)}
+                    title={`${cssVar}: ${color}`}
                     className={[
-                      'tokenpanel-palette-extra-option',
+                      'tokenpanel-palette-option-button',
                       isSelected ? 'is-selected' : '',
                       isActive ? 'is-active' : '',
                     ]
                       .filter(Boolean)
                       .join(' ')}
-                  >
-                    <div
-                      className="tokenpanel-palette-extra-color"
-                      style={{ backgroundColor: optColor }}
-                    />
-                    <span className="tokenpanel-palette-extra-label">{opt}</span>
-                  </div>
+                    style={{ backgroundColor: color }}
+                  />
                 );
               })}
             </div>
-          )}
-          {/* Palette grid */}
-          <div className="tokenpanel-palette-options-grid">
-            {palette.map((color, i) => {
-              const isSelected = value === i;
-              const isActive = activeIndex === extrasCount + i;
-              const cssVar = resolvePaletteCssVar(i);
-              return (
-                <div
-                  key={i}
-                  id={optionId(i)}
-                  role="option"
-                  aria-selected={isSelected}
-                  aria-label={`${cssVar}: ${color}`}
-                  onClick={() => select(i)}
-                  title={`${cssVar}: ${color}`}
-                  className={[
-                    'tokenpanel-palette-option-button',
-                    isSelected ? 'is-selected' : '',
-                    isActive ? 'is-active' : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  style={{ backgroundColor: color }}
-                />
-              );
-            })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 });
@@ -764,85 +768,93 @@ const SemanticLiteralRow = memo(function SemanticLiteralRow({
   );
 
   return (
-    <div
-      className={`tokenpanel-row${isChanged ? ' is-changed' : ''}`}
-      data-testid={`tokenpanel-semantic-literal-${idKey}`}
-      {...(address ? { 'data-address': tokenAddressKey(address) } : {})}
-    >
-      {isChanged && <span className="tokenpanel-changed-marker" aria-label="Changed">●</span>}
-      <TokenLabel cssVar={cssVar ?? idKey} label={label} />
+    <div className="tokenpanel-card">
       <div
-        className="tokenpanel-semantic-resolved-chip"
-        aria-hidden="true"
-        title={resolvedPreview}
-        style={{ backgroundColor: resolvedPreview }}
-      />
-      <label className="tokenpanel-per-mode-toggle">
-        <input
-          type="checkbox"
-          checked={isPerMode}
-          onChange={handleTogglePerMode}
-          aria-label={`${label} per-mode (light/dark)`}
-        />
-        Per-mode
-      </label>
-      {typeof value.literal === 'object' && value.literal !== null ? (
-        <div className="tokenpanel-per-mode-fields">
-          <div className="tokenpanel-per-mode-field">
-            <span className="tokenpanel-per-mode-label">Light</span>
-            <ColorField
-              value={value.literal.light}
-              onChange={handleLightChange}
-              valueFormat="oklch"
-              label={`${label} (Light)`}
-              cssVar={cssVar}
-            />
-          </div>
-          <div className="tokenpanel-per-mode-field">
-            <span className="tokenpanel-per-mode-label">Dark</span>
-            <ColorField
-              value={value.literal.dark}
-              onChange={handleDarkChange}
-              valueFormat="oklch"
-              label={`${label} (Dark)`}
-              cssVar={cssVar}
-            />
-          </div>
+        className={`tokenpanel-row${isChanged ? ' is-changed' : ''}`}
+        data-testid={`tokenpanel-semantic-literal-${idKey}`}
+        {...(address ? { 'data-address': tokenAddressKey(address) } : {})}
+      >
+        {isChanged && <span className="tokenpanel-changed-marker" aria-label="Changed">●</span>}
+        <div className="tokenpanel-card-label">
+          <TokenLabel cssVar={cssVar ?? idKey} label={label} />
         </div>
-      ) : (
-        <ColorField
-          value={value.literal}
-          onChange={handleSingleChange}
-          valueFormat="oklch"
-          label={label}
-          cssVar={cssVar}
-        />
-      )}
-      {cssVar && <HighlightToggleButton cssVar={cssVar} />}
-      {address && <TokenChainButton address={address} />}
-      {isChanged && onRevert && (
-        <RoleButton
-          className="tokenpanel-changed-revert"
-          aria-label={`Revert ${label}`}
-          title="Revert to default"
-          onClick={onRevert}
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+        <div className="tokenpanel-card-editor">
+          <div
+            className="tokenpanel-semantic-resolved-chip"
             aria-hidden="true"
-          >
-            <path d="M3 12a9 9 0 1 0 3-6.7" />
-            <path d="M3 4v6h6" />
-          </svg>
-        </RoleButton>
-      )}
+            title={resolvedPreview}
+            style={{ backgroundColor: resolvedPreview }}
+          />
+          <label className="tokenpanel-per-mode-toggle">
+            <input
+              type="checkbox"
+              checked={isPerMode}
+              onChange={handleTogglePerMode}
+              aria-label={`${label} per-mode (light/dark)`}
+            />
+            Per-mode
+          </label>
+          {typeof value.literal === 'object' && value.literal !== null ? (
+            <div className="tokenpanel-per-mode-fields">
+              <div className="tokenpanel-per-mode-field">
+                <span className="tokenpanel-per-mode-label">Light</span>
+                <ColorField
+                  value={value.literal.light}
+                  onChange={handleLightChange}
+                  valueFormat="oklch"
+                  label={`${label} (Light)`}
+                  cssVar={cssVar}
+                />
+              </div>
+              <div className="tokenpanel-per-mode-field">
+                <span className="tokenpanel-per-mode-label">Dark</span>
+                <ColorField
+                  value={value.literal.dark}
+                  onChange={handleDarkChange}
+                  valueFormat="oklch"
+                  label={`${label} (Dark)`}
+                  cssVar={cssVar}
+                />
+              </div>
+            </div>
+          ) : (
+            <ColorField
+              value={value.literal}
+              onChange={handleSingleChange}
+              valueFormat="oklch"
+              label={label}
+              cssVar={cssVar}
+            />
+          )}
+        </div>
+        <div className="tokenpanel-card-actions">
+          {cssVar && <HighlightToggleButton cssVar={cssVar} />}
+          {address && <TokenChainButton address={address} />}
+          {isChanged && onRevert && (
+            <RoleButton
+              className="tokenpanel-changed-revert"
+              aria-label={`Revert ${label}`}
+              title="Revert to default"
+              onClick={onRevert}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M3 12a9 9 0 1 0 3-6.7" />
+                <path d="M3 4v6h6" />
+              </svg>
+            </RoleButton>
+          )}
+        </div>
+      </div>
     </div>
   );
 });
@@ -891,50 +903,58 @@ const SemanticRefOrLiteralRow = memo(function SemanticRefOrLiteralRow({
   onRevert?: () => void;
 }) {
   return (
-    <div
-      className={`tokenpanel-row${isChanged ? ' is-changed' : ''}`}
-      data-testid={`tokenpanel-semantic-ref-${idKey}`}
-      {...(address ? { 'data-address': tokenAddressKey(address) } : {})}
-    >
-      {isChanged && <span className="tokenpanel-changed-marker" aria-label="Changed">●</span>}
-      <TokenLabel cssVar={cssVar ?? idKey} label={label} />
-      <TierRefSelector
-        tab={tab}
-        tabs={tabs}
-        tierId={tierId}
-        itemId={idKey}
-        value={value}
-        onChange={onChange}
-        previewValueFor={previewValueFor}
-        label={label}
-        cssVar={cssVar}
-        defaultMode={defaultMode}
-      />
-      {cssVar && <HighlightToggleButton cssVar={cssVar} />}
-      {address && <TokenChainButton address={address} />}
-      {isChanged && onRevert && (
-        <RoleButton
-          className="tokenpanel-changed-revert"
-          aria-label={`Revert ${label}`}
-          title="Revert to default"
-          onClick={onRevert}
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M3 12a9 9 0 1 0 3-6.7" />
-            <path d="M3 4v6h6" />
-          </svg>
-        </RoleButton>
-      )}
+    <div className="tokenpanel-card">
+      <div
+        className={`tokenpanel-row${isChanged ? ' is-changed' : ''}`}
+        data-testid={`tokenpanel-semantic-ref-${idKey}`}
+        {...(address ? { 'data-address': tokenAddressKey(address) } : {})}
+      >
+        {isChanged && <span className="tokenpanel-changed-marker" aria-label="Changed">●</span>}
+        <div className="tokenpanel-card-label">
+          <TokenLabel cssVar={cssVar ?? idKey} label={label} />
+        </div>
+        <div className="tokenpanel-card-editor">
+          <TierRefSelector
+            tab={tab}
+            tabs={tabs}
+            tierId={tierId}
+            itemId={idKey}
+            value={value}
+            onChange={onChange}
+            previewValueFor={previewValueFor}
+            label={label}
+            cssVar={cssVar}
+            defaultMode={defaultMode}
+          />
+        </div>
+        <div className="tokenpanel-card-actions">
+          {cssVar && <HighlightToggleButton cssVar={cssVar} />}
+          {address && <TokenChainButton address={address} />}
+          {isChanged && onRevert && (
+            <RoleButton
+              className="tokenpanel-changed-revert"
+              aria-label={`Revert ${label}`}
+              title="Revert to default"
+              onClick={onRevert}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M3 12a9 9 0 1 0 3-6.7" />
+                <path d="M3 4v6h6" />
+              </svg>
+            </RoleButton>
+          )}
+        </div>
+      </div>
     </div>
   );
 });
