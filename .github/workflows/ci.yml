@@ -57,7 +57,7 @@ jobs:
         # linux-keyed so they match this ubuntu-latest runner exactly.
         # Update flow: pnpm --filter @takazudo/zdtp test:vrt:update locally,
         # review PNG diff in the PR, then commit the updated baselines.
-        run: pnpm --filter @takazudo/zdtp test:vrt -- --output=test-results/vrt
+        run: pnpm --filter @takazudo/zdtp test:vrt --output=test-results/vrt
 
       - name: Playground walking-skeleton E2E
         run: pnpm --filter @takazudo/zdtp test:e2e
@@ -73,7 +73,10 @@ jobs:
           path: |
             packages/zdtp/test-results/e2e/**/trace.zip
             packages/zdtp/test-results/pack/trace.zip
-          if-no-files-found: error
+          # A build/unit/VRT failure can happen before either browser harness
+          # creates a trace. Preserve the original failure instead of replacing
+          # it with a second artifact-upload error.
+          if-no-files-found: warn
 
       - name: Typecheck
         run: pnpm typecheck
@@ -252,6 +255,11 @@ jobs:
             });
             const trigger = page.locator('#design-token-trigger');
             await trigger.waitFor({ state: 'visible', timeout: 15_000 });
+            // zudo-doc deliberately imports zdtp lazily on the first trigger
+            // event. Its inline shim preserves clicks that arrive before the
+            // bootstrap island hydrates, so click first and then assert the
+            // installed API and mounted shell.
+            await trigger.click();
             await page.waitForFunction(() => {
               const api = window.zdtp;
               return Boolean(
@@ -261,7 +269,6 @@ jobs:
                 typeof api.toggle === 'function',
               );
             });
-            await trigger.click();
             await page.locator('.tokenpanel-shell').waitFor({ state: 'visible' });
 
             const title = (await page.locator('.tokenpanel-title').textContent())?.trim();
