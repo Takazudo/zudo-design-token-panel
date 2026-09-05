@@ -15,6 +15,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act } from 'preact/test-utils';
 import { __resetInstanceBindingsForTests } from '../index';
 import {
   __resetPanelConfigForTests,
@@ -42,11 +43,73 @@ function makeConfig(prefix: string, overrides: Partial<PanelConfig> = {}): Panel
 
 const OPEN_PANEL_HEADER_TEXT = 'zdtp';
 
-async function waitForEffectFlush(): Promise<void> {
-  await new Promise<void>((resolve) =>
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-  );
-  await new Promise<void>((resolve) => setTimeout(resolve, 50));
+async function dispatchAndFlush(dispatch: () => void): Promise<void> {
+  await act(() => {
+    dispatch();
+  });
+}
+
+interface ListenerRegistration {
+  target: EventTarget;
+  type: string;
+  listener: EventListenerOrEventListenerObject;
+  capture: boolean;
+}
+
+function captureOption(options?: boolean | AddEventListenerOptions | EventListenerOptions): boolean {
+  return typeof options === 'boolean' ? options : (options?.capture ?? false);
+}
+
+/**
+ * Track listeners installed after this helper starts. The DOM deduplicates
+ * registrations by target, type, callback, and capture flag, so the tracker
+ * mirrors that identity instead of comparing timing-sensitive call totals.
+ */
+function trackActiveListeners(...targets: EventTarget[]) {
+  const active: ListenerRegistration[] = [];
+  const spies = targets.flatMap((target) => {
+    const originalAdd = target.addEventListener;
+    const originalRemove = target.removeEventListener;
+    const addSpy = vi.spyOn(target, 'addEventListener').mockImplementation(
+      (type, listener, options) => {
+        const capture = captureOption(options);
+        if (listener !== null) {
+          const alreadyActive = active.some(
+            (entry) =>
+              entry.target === target &&
+              entry.type === type &&
+              entry.listener === listener &&
+              entry.capture === capture,
+          );
+          if (!alreadyActive) active.push({ target, type, listener, capture });
+        }
+        originalAdd.call(target, type, listener, options);
+      },
+    );
+    const removeSpy = vi.spyOn(target, 'removeEventListener').mockImplementation(
+      (type, listener, options) => {
+        const capture = captureOption(options);
+        const index = listener === null
+          ? -1
+          : active.findIndex(
+              (entry) =>
+                entry.target === target &&
+                entry.type === type &&
+                entry.listener === listener &&
+                entry.capture === capture,
+            );
+        if (index !== -1) active.splice(index, 1);
+        originalRemove.call(target, type, listener, options);
+      },
+    );
+    return [addSpy, removeSpy];
+  });
+
+  return {
+    activeCount: (target?: EventTarget) =>
+      target ? active.filter((entry) => entry.target === target).length : active.length,
+    restore: () => spies.forEach((spy) => spy.mockRestore()),
+  };
 }
 
 function rootFor(cfg: PanelConfig): HTMLElement | null {
@@ -115,8 +178,7 @@ describe('Astro multi-instance soft-nav lifecycle (#449)', () => {
     setVisible(cfgB, false);
 
     // Page-load: A should mount and open; B should not mount (no overrides/autoload).
-    dispatchPageLoad();
-    await waitForEffectFlush();
+    await dispatchAndFlush(dispatchPageLoad);
 
     expect(isMounted(cfgA), 'A mounts on page-load when visible').toBe(true);
     expect(isOpen(cfgA), 'A opens on page-load when visible').toBe(true);
@@ -124,15 +186,13 @@ describe('Astro multi-instance soft-nav lifecycle (#449)', () => {
 
     // Before-swap: A must be cleanly unmounted (render(null) fires its useEffect
     // cleanups). B was not mounted so there is nothing to unmount.
-    dispatchBeforeSwap();
-    await waitForEffectFlush();
+    await dispatchAndFlush(dispatchBeforeSwap);
 
     expect(isMounted(cfgA), 'A unmounted on before-swap').toBe(false);
     expect(isMounted(cfgB), 'B stays unmounted after before-swap').toBe(false);
 
     // Page-load again: A is visible → re-materialises; B is not → stays down.
-    dispatchPageLoad();
-    await waitForEffectFlush();
+    await dispatchAndFlush(dispatchPageLoad);
 
     expect(isMounted(cfgA), 'A re-materialises on second page-load').toBe(true);
     expect(isOpen(cfgA), 'A opens on second page-load').toBe(true);
@@ -151,8 +211,7 @@ describe('Astro multi-instance soft-nav lifecycle (#449)', () => {
     setVisible(cfgA, true);
     setVisible(cfgB, true);
 
-    dispatchPageLoad();
-    await waitForEffectFlush();
+    await dispatchAndFlush(dispatchPageLoad);
 
     expect(isMounted(cfgA), 'A mounts on page-load').toBe(true);
     expect(isMounted(cfgB), 'B mounts on page-load').toBe(true);
@@ -160,15 +219,13 @@ describe('Astro multi-instance soft-nav lifecycle (#449)', () => {
     expect(isOpen(cfgB), 'B is open').toBe(true);
 
     // Before-swap: BOTH must be unmounted.
-    dispatchBeforeSwap();
-    await waitForEffectFlush();
+    await dispatchAndFlush(dispatchBeforeSwap);
 
     expect(isMounted(cfgA), 'A unmounted on before-swap').toBe(false);
     expect(isMounted(cfgB), 'B unmounted on before-swap').toBe(false);
 
     // Page-load: both visible → both remount.
-    dispatchPageLoad();
-    await waitForEffectFlush();
+    await dispatchAndFlush(dispatchPageLoad);
 
     expect(isMounted(cfgA), 'A remounts on page-load').toBe(true);
     expect(isMounted(cfgB), 'B remounts on page-load').toBe(true);
@@ -180,50 +237,48 @@ describe('Astro multi-instance soft-nav lifecycle (#449)', () => {
   // With the bug: each soft nav accumulates an extra set of listeners for
   // the non-default panel because render(null) was never called for it, so
   // its useEffect cleanups never fired and the panel re-mounted without
-  // removing the previous listeners. The expected call count should be
-  // roughly constant between cycles (±small tolerance for internal bookkeeping).
+  // removing the previous listeners. Track listener identity across each
+  // unmount/remount so stale callbacks increase the active count immediately.
   // -----------------------------------------------------------------------
-  it('window.addEventListener call count does not grow across repeated soft navigations', async () => {
+  it('active window/document listeners do not grow across repeated soft navigations', async () => {
     await import('../index');
 
-    const cfgA = makeConfig('alpha');
-    const cfgB = makeConfig('beta');
-    configurePanel(cfgA);
-    configurePanel(cfgB);
+    const listeners = trackActiveListeners(window, document);
+    try {
+      const cfgA = makeConfig('alpha');
+      const cfgB = makeConfig('beta');
+      configurePanel(cfgA);
+      configurePanel(cfgB);
 
-    setVisible(cfgA, true);
-    setVisible(cfgB, true);
+      setVisible(cfgA, true);
+      setVisible(cfgB, true);
 
-    // First page-load: mount both.
-    dispatchPageLoad();
-    await waitForEffectFlush();
+      // First page-load: mount both.
+      await dispatchAndFlush(dispatchPageLoad);
+      const mountedListenerCount = listeners.activeCount();
+      const mountedWindowListenerCount = listeners.activeCount(window);
+      const mountedDocumentListenerCount = listeners.activeCount(document);
+      expect(mountedListenerCount, 'mounted panels install tracked listeners').toBeGreaterThan(0);
 
-    // Start counting window.addEventListener calls from this point.
-    // Each full cycle (before-swap + page-load) should add the same number
-    // of listeners as the previous one — constant, not growing.
-    const addEventListenerSpy = vi.spyOn(window, 'addEventListener');
+      for (let cycle = 0; cycle < 3; cycle++) {
+        await dispatchAndFlush(dispatchBeforeSwap);
+        expect(
+          listeners.activeCount(),
+          `cycle ${cycle + 1} before-swap removes mounted-panel listeners`,
+        ).toBeLessThan(mountedListenerCount);
 
-    const callCountsPerCycle: number[] = [];
-
-    for (let cycle = 0; cycle < 3; cycle++) {
-      addEventListenerSpy.mockClear();
-
-      dispatchBeforeSwap();
-      await waitForEffectFlush();
-      dispatchPageLoad();
-      await waitForEffectFlush();
-
-      callCountsPerCycle.push(addEventListenerSpy.mock.calls.length);
-    }
-
-    addEventListenerSpy.mockRestore();
-
-    // Each cycle must have the same addEventListener call count. A growing
-    // count means listeners are leaking (old ones not cleaned up, new ones
-    // accumulating).
-    const [first, ...rest] = callCountsPerCycle;
-    for (const count of rest) {
-      expect(count, `listener count grew from ${first} to ${count} — leak detected`).toBe(first);
+        await dispatchAndFlush(dispatchPageLoad);
+        expect(
+          listeners.activeCount(window),
+          `cycle ${cycle + 1} page-load restores stable window listeners`,
+        ).toBe(mountedWindowListenerCount);
+        expect(
+          listeners.activeCount(document),
+          `cycle ${cycle + 1} page-load restores stable document listeners`,
+        ).toBe(mountedDocumentListenerCount);
+      }
+    } finally {
+      listeners.restore();
     }
   });
 });
