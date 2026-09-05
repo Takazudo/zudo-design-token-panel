@@ -142,6 +142,25 @@ describe('header token filter', () => {
 });
 
 describe('command palette token navigation', () => {
+  it('shows unconfigured Apply as unavailable and does not select it', async () => {
+    dispatchKey(document, 'k', { ctrlKey: true });
+    await flushEffects();
+    setInputValue(commandInput(), 'apply');
+    await flushEffects();
+
+    const apply = Array.from(
+      container.querySelectorAll<HTMLElement>('.tokenpanel-command-palette-item'),
+    ).find((candidate) => candidate.textContent?.includes('Apply'));
+    expect(apply?.getAttribute('aria-disabled')).toBe('true');
+    expect(apply?.title).toContain('configure an apply endpoint');
+    expect(apply?.textContent).toContain('unavailable');
+
+    dispatchKey(commandInput(), 'Enter');
+    await flushEffects();
+    expect(container.querySelector('[role="dialog"][aria-label="Command palette"]')).not.toBeNull();
+    expect(container.querySelector('[data-design-token-panel-modal-variant="apply"]')).toBeNull();
+  });
+
   it('opens with Ctrl+K and jumps to a flat-tab token on Enter', async () => {
     dispatchKey(document, 'k', { ctrlKey: true });
     await flushEffects();

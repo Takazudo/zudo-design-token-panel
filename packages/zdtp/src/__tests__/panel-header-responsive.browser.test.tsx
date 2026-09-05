@@ -177,6 +177,32 @@ describe('wide panel (≥480px container width)', () => {
 
     expect(getComputedStyle(getKebabTrigger()).display).toBe('none');
   });
+
+  it('disables Apply when disk-rewrite wiring is absent and enables it when configured', async () => {
+    await mountPanelAtWidth(700);
+
+    const disabledApply = getHeaderActionLinks().find((el) => el.textContent === 'Apply');
+    expect(disabledApply?.getAttribute('aria-disabled')).toBe('true');
+    expect(disabledApply?.title).toContain('configure an apply endpoint');
+    disabledApply?.click();
+    expect(container.querySelector('[data-design-token-panel-modal-variant="apply"]')).toBeNull();
+
+    act(() => render(null, container));
+    container.remove();
+    const configured = {
+      ...CFG,
+      applyEndpoint: '/api/dev/apply',
+      applyRouting: { fixture: 'styles/tokens.css' },
+    };
+    await mountPanelAtWidth(700, configured);
+
+    const enabledApply = getHeaderActionLinks().find((el) => el.textContent === 'Apply');
+    expect(enabledApply?.getAttribute('aria-disabled')).toBeNull();
+    expect(enabledApply?.title).toBe('');
+    enabledApply?.click();
+    await flushEffects();
+    expect(container.querySelector('[data-design-token-panel-modal-variant="apply"]')).not.toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -225,6 +251,21 @@ describe('narrow panel (<480px container width)', () => {
     expect(
       container.querySelector('[data-design-token-panel-modal-variant="export"]'),
     ).not.toBeNull();
+  });
+
+  it('keeps unconfigured Apply disabled and inert in the compact menu', async () => {
+    await mountPanelAtWidth(400);
+    getKebabTrigger().click();
+    await flushEffects();
+
+    const apply = getPopoverActionByLabel('Apply');
+    expect(apply.getAttribute('aria-disabled')).toBe('true');
+    expect(apply.title).toContain('configure an apply endpoint');
+    apply.click();
+    await flushEffects();
+
+    expect(getPopover()).not.toBeNull();
+    expect(container.querySelector('[data-design-token-panel-modal-variant="apply"]')).toBeNull();
   });
 
   it('Escape closes the popover without closing the panel', async () => {

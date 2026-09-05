@@ -6,6 +6,7 @@ import {
   configurePanel,
   exportFilename,
   getPanelConfig,
+  isApplyConfigured,
   modalClass,
   panelRootId,
   storageKey_open,
@@ -46,6 +47,24 @@ beforeEach(() => {
 
 afterEach(() => {
   __resetPanelConfigForTests();
+});
+
+describe('isApplyConfigured', () => {
+  const config = (overrides: Partial<PanelConfig>): PanelConfig => ({
+    ...DEFAULT_PANEL_CONFIG,
+    ...overrides,
+  });
+
+  it('requires both an endpoint and a non-empty routing map', () => {
+    expect(isApplyConfigured(config({}))).toBe(false);
+    expect(isApplyConfigured(config({ applyEndpoint: '/apply' }))).toBe(false);
+    expect(isApplyConfigured(config({ applyRouting: { app: 'src/app.css' } }))).toBe(false);
+    expect(isApplyConfigured(config({ applyEndpoint: '/apply', applyRouting: {} }))).toBe(false);
+    expect(isApplyConfigured(config({
+      applyEndpoint: '/apply',
+      applyRouting: { app: 'src/app.css' },
+    }))).toBe(true);
+  });
 });
 
 describe('panel-config — default config literal-equality', () => {

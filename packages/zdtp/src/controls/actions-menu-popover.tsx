@@ -18,6 +18,8 @@ import { usePopoverClose } from '../components/color-picker/index';
 export interface ActionsMenuAction {
   label: string;
   onSelect: () => void;
+  disabled?: boolean;
+  disabledReason?: string;
 }
 
 interface ActionsMenuPopoverProps {
@@ -50,6 +52,8 @@ export function ActionsMenuPopover({
       {actions.map((action) => (
         <RoleButton
           key={action.label}
+          aria-disabled={action.disabled}
+          title={action.disabledReason}
           onClick={() => {
             action.onSelect();
             onClose();
