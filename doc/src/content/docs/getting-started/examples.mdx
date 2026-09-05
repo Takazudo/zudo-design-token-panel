@@ -3,36 +3,55 @@ title: Examples
 sidebar_position: 90
 ---
 
-Reference integrations for `zudo-design-token-panel` across five popular
-stacks. Each example wires the panel against a host-supplied `tabs: TabConfig[]`
-array, plus the companion bin server for applying tweaks back to source.
-Every example ships a `/prose` page that exercises the full range of
-markdown-generated HTML elements against the demo's token namespace.
+Start with one of the first-party demos below. Both run the current in-repo
+build of `zudo-design-token-panel`, which may be ahead of the published release.
+Each page shows the exact version it is running. Apply is disabled on these
+public sites because writing changes back to source requires a local development
+sidecar.
 
-## Try it
+## First-party demos
 
-- **Astro** —
+- **[Minimal setup](https://zdtp-minimal.takazudomodular.com/)** — The smallest
+  wiring that works: one HTML file, one entry module, one token stylesheet, and
+  one `PanelConfig`. **Start here.**
+  [View the source in `examples/minimal/`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples/minimal/).
+- **[Full playground](https://zdtp-playground.takazudomodular.com/)** — Explore
+  every control kind, prose pages, and
+  [`?manifest=zudo-doc`](https://zdtp-playground.takazudomodular.com/?manifest=zudo-doc),
+  which runs the real vendored zudo-doc `PanelConfig`.
+  [View the source in `playground/`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/playground/).
+
+## Framework integration references
+
+The following examples predate the current feature set and are kept as wiring
+references for their respective stacks. Each wires the panel against a
+host-supplied `tabs: TabConfig[]` array, plus the companion bin server for
+applying tweaks back to source. Every example also ships a `/prose` page that
+exercises the full range of markdown-generated HTML elements against the demo's
+token namespace.
+
+- **Astro** — pins `@takazudo/zdtp` `0.2.0-next.2`.
   [Live demo](https://zudo-design-token-panel-example-astro.pages.dev/)
   · [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-astro)
   — Drop the panel into an Astro site. Demonstrates host-config wiring with
   an Astro dev server and the bin apply pipeline.
   [Prose page](https://zudo-design-token-panel-example-astro.pages.dev/prose/)
   exercises all prose elements against the `--astro-*` token namespace.
-- **Vite + React** —
+- **Vite + React** — pins `@takazudo/zdtp` `0.2.2`.
   [Live demo](https://zudo-design-token-panel-example-vite-react.pages.dev/)
   · [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-vite-react)
   — Use the panel from a Vite + React app. Shows how the Preact runtime
   coexists with React via the compat shim.
   [Prose page](https://zudo-design-token-panel-example-vite-react.pages.dev/prose)
   exercises all prose elements against the `--vr-*` token namespace.
-- **Next.js** —
+- **Next.js** — pins `@takazudo/zdtp` `0.2.2`.
   [Live demo](https://zudo-design-token-panel-example-nextjs.pages.dev/)
   · [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-nextjs)
   — Wire the panel into a Next.js app router project, including the bin
   server side-by-side with the Next dev server.
   [Prose page](https://zudo-design-token-panel-example-nextjs.pages.dev/prose/)
   exercises all prose elements against the `--nx-*` token namespace.
-- **zfb** —
+- **zfb** — pins `@takazudo/zdtp` `0.2.2`.
   [Live demo](https://zudo-design-token-panel-example-zfb.pages.dev/)
   · [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-zfb)
   — Integrate the panel into a [zfb](https://github.com/Takazudo/zudo-front-builder) project.
@@ -42,7 +61,7 @@ markdown-generated HTML elements against the demo's token namespace.
   for context.
   [Prose page](https://zudo-design-token-panel-example-zfb.pages.dev/prose/)
   exercises all prose elements against the `--zfb-*` token namespace.
-- **zfb + Tailwind v4** —
+- **zfb + Tailwind v4** — pins `@takazudo/zdtp` `0.2.2`.
   [Live demo](https://zudo-design-token-panel-example-zfb-tailwind.pages.dev/)
   · [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-zfb-tailwind)
   — Extends the zfb example with Tailwind v4. Tokens are registered via an
