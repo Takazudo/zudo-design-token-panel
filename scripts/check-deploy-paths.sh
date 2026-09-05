@@ -10,7 +10,7 @@
 #   - Source maps (*.map) that embed an absolute build-host path
 #     (/home/..., /Users/..., /runner/..., …) or this repo's worktree root.
 #
-# Builds both deployed workspaces (plus the panel package as a precondition)
+# Builds all deployed workspaces (plus the panel package as a precondition)
 # and greps their emitted bundles. Exits non-zero on any leak so it can gate
 # CI / pre-push.
 
@@ -60,7 +60,7 @@ cd "$ROOT_DIR"
 START=$(date +%s)
 
 # Workspaces in print order.
-WORKSPACES=("doc" "playground")
+WORKSPACES=("doc" "playground" "minimal")
 
 # Per-workspace pass/fail tracker.
 declare -A WS_FAILS=()
@@ -158,11 +158,14 @@ build_one "doc" "doc"
 
 build_one "playground" "playground" "build:deploy"
 
+build_one "minimal" "minimal" "build:deploy"
+
 # ── Audit phase ──────────────────────────────────
 section "Step 2/2: Audit each emitted bundle"
 
 audit_workspace "doc" "doc/dist"
 audit_workspace "playground" "playground/dist"
+audit_workspace "minimal" "examples/minimal/dist"
 
 # ── Summary ──────────────────────────────────────
 END=$(date +%s)
