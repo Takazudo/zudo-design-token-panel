@@ -51,9 +51,11 @@ report — when ALL of these hold (the common case):
 **Block and wait** for explicit confirmation when *any* signal makes the version
 strategy genuinely uncertain:
 
-- a **breaking change** (`feat!:` or `BREAKING CHANGE` in the commit range) is
-  detected but the computed bump is only a **patch** — the user should decide patch
-  vs. minor (on 0.x a breaking change is a minor bump);
+- a **breaking change** is detected but the computed bump is only a **patch** — the
+  user should decide patch vs. minor (on 0.x a breaking change is a minor bump).
+  This covers both ways Step 3 can detect one: a `feat!:` / `BREAKING CHANGE` commit
+  in the range, **or** a candidate its public-surface check labeled
+  `consumer-observable breaking change`;
 - the current version is a `-next.N` prerelease **and no explicit `stable`/`next`
   arg was given** — finalizing the prerelease vs. continuing the run-up is ambiguous;
 - the trigger was a **loose, model-inferred phrase** rather than an explicit
@@ -184,6 +186,11 @@ Therefore:
 
 - **Breaking change → minor bump** (`0.2.0` → `0.3.0`). On 0.x the major-zero is
   itself SemVer's "anything may change" signal, so breaking changes are minor bumps.
+  **"Breaking change" is whatever Step 3 detects** — a `feat!:` / `BREAKING CHANGE`
+  commit, *or* a candidate its public-surface check labeled
+  `consumer-observable breaking change`. That check widens what reaches this rule; it
+  does not add a second rule, and there is no separate policy for a narrowing found
+  without a commit marker.
 - **Everything else → patch bump** (`0.2.0` → `0.2.1`).
 - A `-next` **prerelease is an opt-in side channel only** (the `next` argument, plus
   the `1.0.0` run-up via `major`) — reserved for previewing a *specific* upcoming
@@ -262,6 +269,127 @@ Categorize each commit by its conventional-commit prefix:
 - **Other Changes**: everything else (`docs:`, `chore:`, `refactor:`, `ci:`,
   `test:`, `style:`, `perf:`, etc.)
 
+### Public-surface check — the prefix categorizer alone is blind
+
+Prefixes only report what a commit message *claims*. A commit that narrows a public
+API while carrying neither `!` nor a `BREAKING CHANGE` footer lands in "Other
+Changes", so Step 2's breaking-change rule never fires. That is exactly how `0.5.1`
+shipped a narrowed `EAGER_LOAD_GATE_STATE_FAMILY.matchesKey` as a patch with no
+callout ([#814](https://github.com/Takazudo/zudo-design-token-panel/issues/814),
+[#815](https://github.com/Takazudo/zudo-design-token-panel/issues/815)). Run **both**
+halves below on every release — they are read-only and take a minute.
+
+#### (a) Full textual diff of the published declaration files
+
+Diff the emitted `.d.ts` of the last published release against the candidate. This
+reads the artifact consumers actually install, and one glob covers every typed
+export subpath (`.`, `./astro`, `./astro/host-adapter`, `./server`, `./testing`,
+`./constants`) because they all resolve into `dist/`. The untyped subpaths —
+`./astro/DesignTokenPanelHost.astro`, `./styles`, `./styles.css` — and the CLI
+emit no `.d.ts`, so (b) source 2 is the only pass that covers them. No new tooling.
+
+```bash
+LAST=${LAST_TAG#v}                       # the published version behind $LAST_TAG
+pnpm --filter @takazudo/zdtp build       # the candidate is not published yet, so
+                                         # diff the local package folder against it
+npm diff --diff="@takazudo/zdtp@$LAST" --diff=./packages/zdtp -- 'dist/**/*.d.ts'
+```
+
+Auditing an **already-published** release instead (as the worked example below
+does), both operands are versions:
+
+```bash
+npm diff --diff=@takazudo/zdtp@<old> --diff=@takazudo/zdtp@<new> -- 'dist/**/*.d.ts'
+```
+
+Either form fetches the published side from the registry — expected. If `npm diff`
+refuses the folder operand, fall back to `npm pack @takazudo/zdtp@$LAST`, unpack it,
+and `diff -ru` the two `dist/` trees; do not skip the check.
+
+**Read the full text, not just the signatures.** TSDoc is emitted into the `.d.ts`,
+so a comment that *describes* a contract shows its rewrite here even when the
+declaration beside it is byte-identical — and a signature-only comparison is
+precisely the failure mode this check exists to fix. Treat each of these as a signal
+to **investigate**, never as an automatic verdict:
+
+- an added or removed export;
+- a changed member set on an existing export;
+- a narrowed literal or union type;
+- a materially reworded contract-describing TSDoc comment.
+
+#### (b) A compatibility disposition per candidate
+
+(a) cannot see a runtime narrowing whose types *and* doc comments both happen to be
+unchanged — a tightened regex the TSDoc never described. This half is the backstop.
+
+Do **not** reduce it to a single "did anything narrow?" question: that is too weak
+to fire reliably, and phrasing it as "exported functions and consts" under-covers
+nested object members, classes, types, the Astro component, CSS exports, and the
+CLI. Enumerate candidates from **four sources**:
+
+1. declaration / export changes surfaced by (a);
+2. implementation changes to any exported symbol or subpath entrypoint — including
+   nested object members, classes, types, the Astro component
+   (`./astro/DesignTokenPanelHost.astro`), the CSS exports (`./styles`,
+   `./styles.css`), and the CLI;
+3. changes to public contract docs — `packages/zdtp/PORTABLE-CONTRACT.md`,
+   `packages/zdtp/README.md`, and the doc-site reference and recipe pages;
+4. **changed or added tests that flip a previously accepted input to rejected**, or
+   a previously expected output to a different one.
+
+Source 4 is what makes this reliable rather than aspirational — it is mechanical and
+greppable, independent of anyone's judgment about the prose. A commit that narrows a
+contract almost always ships the assertion that proves it:
+
+```bash
+# assertions added, removed, or flipped in the package's own test suite
+# (`expect(` occurs only in tests, so the plain `packages/zdtp/src` pathspec is
+#  enough — no `**/__tests__/**` pathspec, whose wildcards git interprets
+#  differently with and without `:(glob)` magic, is needed)
+git diff "$LAST_TAG"..HEAD -- packages/zdtp/src | grep -E '^[-+].*expect\('
+```
+
+Read that output for a value that moved from an accepted list to a rejected one, a
+`toBe(true)` that became `toBe(false)` for the same input, or a literal input string
+deleted from an "accepted" fixture array.
+
+Then label **every** candidate exactly one of:
+
+| label | meaning |
+| --- | --- |
+| `additive` | new surface only; every previously valid use still behaves identically |
+| `compatible behavioral fix` | behavior changed, but only where the old behavior was a bug no consumer could reasonably depend on |
+| `consumer-observable breaking change` | a consumer doing something previously supported gets a different result |
+| `internal` | not reachable through any export subpath, published type, CSS, or CLI |
+
+Give **one line of evidence** per label — a diff hunk, a test assertion, a doc line.
+Apply these prompts to each candidate: accepted inputs, returned outputs, thrown
+errors, defaults, side effects, storage/schema/DOM/CSS behavior, and ordering or
+timing.
+
+Any candidate labeled `consumer-observable breaking change` is a **Breaking Change**
+for Step 2's versioning rule and for the Step 4b changelog, regardless of what
+prefix its commit carried.
+
+#### Worked example — 0.5.0 → 0.5.1, the release this check was written for
+
+Calibrate against the verified facts of #814:
+
+- `matchesKey` kept its **exact** signature
+  `(storagePrefix: string, key: string) => boolean` across both versions, so a
+  signature-level check finds nothing — yet its accepted-input set narrowed from
+  "`-state` / `-state-v<N>` for every numeric N" to four exact suffixes.
+- The full textual `.d.ts` diff flags it **three times over**: the new
+  `READABLE_STATE_KEY_SUFFIXES` export, the new `keySuffixes` member on
+  `EAGER_LOAD_GATE_STATE_FAMILY`, and the TSDoc going from "exact -state /
+  -state-vN keys, for every numeric version" to "exact readable state keys".
+- Source 4 catches it independently: the commit added
+  `expect(matchesKey('literal.[prefix]+', 'literal.[prefix]+-state-v9')).toBe(false)`
+  — its own test suite asserting a previously-accepted input is now rejected.
+- Correct disposition: **`consumer-observable breaking change`**, which under
+  Step 2's rule makes the bump a **minor** on 0.x, and requires its own Breaking
+  Changes entry with a `**Migration**:` line (Step 4b).
+
 Present the proposal to the user:
 
 ```
@@ -278,9 +406,14 @@ Bug Fixes:
 
 Other Changes:
 - description (hash)
+
+Public-surface findings:
+- {candidate} — {label}: {one line of evidence}
 ```
 
-Only show sections that have entries. Then apply the **auto-proceed vs. block**
+Only show sections that have entries; always show **Public-surface findings**, even
+if every candidate came back `internal` — "nothing narrowed" is a result the user
+should see, not an omission. Then apply the **auto-proceed vs. block**
 decision from the "Invocation & confirmation" section above:
 
 - **Routine, unambiguous bump** (deliberate invocation, cold start, no strategy
@@ -327,7 +460,7 @@ Released: YYYY-MM-DD
 
 ### Breaking Changes
 
-- description (hash)
+- description. **Migration**: the concrete adoption path a consumer switches to (hash)
 
 ### Features
 
@@ -355,7 +488,7 @@ Released: YYYY-MM-DD
 
 ### 破壊的変更
 
-- 説明 (hash)
+- 説明。**移行方法**: 利用者が乗り換える具体的な手段 (hash)
 
 ### 機能
 
@@ -377,6 +510,18 @@ issues/PRs where the reference is obvious from the commit subject (e.g.
 `([#310](https://github.com/Takazudo/zudo-design-token-panel/pull/310))`). Keep the
 literal `Released:` field name in both locales because the changelog generator
 parses that marker.
+
+**Every Breaking Changes entry — in both locales — must carry a `**Migration**:`
+line** naming the new adoption path: the concrete thing a consumer switches *to*,
+not merely a restatement that something changed. The precedent is
+`doc/src/content/docs/changelog/0.2.0.mdx` — its `min` / `max` removal entry ends with
+`**Migration**: remove every min: ... and max: ... field from your token manifests.`
+Use `**Migration**:` in the EN page and `**移行方法**:` in the JA page, as
+`doc/src/content/docs-ja/changelog/0.5.1.mdx` does. (The JA 0.2.0 mirror shows the
+label untranslated only because that page's body was never translated at all — it is
+a formatting precedent, not a translation one.) An entry that arrived through Step 3's public-surface check needs
+this most: the consumer has no `feat!:` marker to follow, so the migration line is
+the only pointer they get.
 
 ### 4c. Refresh the lockfile
 
