@@ -12,7 +12,7 @@ strictPeerDependencies: false
 preferFrozenLockfile: true
 engineStrict: true
 
-# doc/ consumes @takazudo/zdtp from the npm registry (pinned 0.5.0), NOT the local
+# doc/ consumes @takazudo/zdtp from the npm registry (pinned 0.5.1), NOT the local
 # workspace package — the docs site must build against the published artifact. Pinned
 # explicitly so a future pnpm default flip to `true` can't silently re-link it.
 linkWorkspacePackages: false
