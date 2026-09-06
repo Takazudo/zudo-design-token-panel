@@ -2922,6 +2922,11 @@ export function clearPersistedState(
   storage: StorageLike = localStorage,
   cfg: PanelConfig = getPanelConfig(),
 ) {
+  // Deliberately retain `${storagePrefix}-spawn-ordinal`: reset clears the
+  // user's tweak state, whereas the ordinal is stable instance identity used
+  // to prevent fresh-position swaps across Astro navigation. A departed shell
+  // still releases its LIVE map claim in `unmountInstance`; a stored identity
+  // reserves nothing by itself, so retaining it cannot starve another panel.
   for (const key of [
     getStorageKeyV4(cfg),
     getStorageKeyV3(cfg),
