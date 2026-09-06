@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_STORAGE_PREFIX,
   DEFAULT_TOGGLE_EVENT,
+  EAGER_LOAD_GATE_STATE_FAMILY,
+  READABLE_STATE_KEY_SUFFIXES,
   resolveToggleEventName,
 } from '../constants';
 
@@ -31,6 +33,21 @@ describe('constants', () => {
       resolveToggleEventName({ storagePrefix: 'custom-panel', toggleEvent: 'host:toggle' }),
     ).toBe('host:toggle');
     expect(resolveToggleEventName({ storagePrefix: 'custom-panel', toggleEvent: '' })).toBe('');
+  });
+
+  it('publishes exactly the state-key suffixes the loader can read', () => {
+    expect(READABLE_STATE_KEY_SUFFIXES).toEqual({
+      v1: '-state',
+      v2: '-state-v2',
+      v3: '-state-v3',
+      v4: '-state-v4',
+    });
+    const { matchesKey } = EAGER_LOAD_GATE_STATE_FAMILY;
+    for (const suffix of Object.values(READABLE_STATE_KEY_SUFFIXES)) {
+      expect(matchesKey('literal.[prefix]+', 'literal.[prefix]+' + suffix)).toBe(true);
+    }
+    expect(matchesKey('literal.[prefix]+', 'literal.[prefix]+-state-v9')).toBe(false);
+    expect(matchesKey('literal.[prefix]+', 'literalXprefixY-state-v4')).toBe(false);
   });
 
   it('has no imports so it remains a leaf module', () => {

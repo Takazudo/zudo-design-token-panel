@@ -269,8 +269,8 @@ describe('host-adapter owner-autoload wiring (S2 #419)', () => {
       // A naive `startsWith(prefix + '-state')` scan for the 'myapp'
       // instance would match this ('myapp-state-state'.startsWith(
       // 'myapp-state') === true) even though it belongs to the OTHER
-      // instance (epic #575 decision 6). The exact family regex
-      // `^myapp-state(-v\d+)?$` anchors the end, so it must NOT match
+      // instance (epic #575 decision 6). The bounded probe constructs
+      // `myapp`'s complete readable keys literally, so it never requests
       // 'myapp-state-state'.
       localStorage.setItem('myapp-state-state', '{"--x":"1"}');
       const myappCfg: PanelConfig = { ...CFG, storagePrefix: 'myapp', consoleNamespace: 'myappNs' };
@@ -305,23 +305,32 @@ describe('host-adapter owner-autoload wiring (S2 #419)', () => {
       expect(adapterStateFor('myapp-state')?.modulePromise ?? null).toBeNull();
     });
 
-    it('returns false (does not fire, does not throw) when localStorage enumeration throws', async () => {
+    it('uses bounded getItem probes without reading localStorage length or key()', async () => {
       localStorage.setItem(STATEV4_KEY, '{"--x":"1"}');
-      vi.spyOn(Storage.prototype, 'key').mockImplementation(() => {
+      const lengthSpy = vi.spyOn(Storage.prototype, 'length', 'get').mockImplementation(() => {
+        throw new Error('length enumeration is forbidden');
+      });
+      const keySpy = vi.spyOn(Storage.prototype, 'key').mockImplementation(() => {
         throw new Error('SecurityError');
       });
-      await bootstrapAdapter();
-      expect(adapterState()?.modulePromise).toBeNull();
+      try {
+        await bootstrapAdapter();
+        expect(adapterState()?.modulePromise).not.toBeNull();
+        expect(lengthSpy).not.toHaveBeenCalled();
+        expect(keySpy).not.toHaveBeenCalled();
+      } finally {
+        lengthSpy.mockRestore();
+        keySpy.mockRestore();
+      }
     });
 
     // epic #575 confirm-gate (#581) — the CORRECTED sibling-collision form.
     // `myapp-state-state-v4` is the 'myapp-state' instance's OWN v4 key
     // (storageKey_stateV4({storagePrefix:'myapp-state'})), not 'myapp's. The
-    // v1-form pair above already proves the family regex anchors the end
-    // (`^myapp-state(-v\d+)?$` does not match 'myapp-state-state'), and the
-    // same regex governs every `-vN` suffix — this pair confirms the -v4
-    // suffix specifically, since #581 corrects an earlier draft that named
-    // the wrong key ('myapp-state-v4', which is actually 'myapp's own key).
+    // v1-form pair above already proves literal complete-key construction
+    // excludes the sibling. This pair confirms the readable -v4 suffix
+    // specifically, since #581 corrects an earlier draft that named the wrong
+    // key ('myapp-state-v4', which is actually 'myapp's own key).
     it("sibling-prefix collision (v4 form): 'myapp-state' instance's own v4 key does not trigger the 'myapp' instance", async () => {
       localStorage.setItem('myapp-state-state-v4', '{"--x":"1"}');
       const myappCfg: PanelConfig = { ...CFG, storagePrefix: 'myapp', consoleNamespace: 'myappNs' };

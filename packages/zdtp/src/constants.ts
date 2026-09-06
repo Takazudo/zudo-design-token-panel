@@ -37,19 +37,37 @@ export const EAGER_LOAD_GATE_KEY_SUFFIXES = {
 } as const;
 
 /**
- * The sixth eager-load signal: exact -state / -state-vN keys, for every numeric
- * version, with a content check. Missing keys and raw empty strings are blank;
+ * The single registry of state-key suffixes the current loader can read.
+ *
+ * EVERY storage-format version bump must update this registry in the same
+ * change that teaches the loader to read that version. The synchronous eager
+ * gate intentionally probes only these bounded, readable versions; speculative
+ * future versions would promise recovery that the loader cannot perform.
+ */
+export const READABLE_STATE_KEY_SUFFIXES = {
+  v1: '-state',
+  v2: '-state-v2',
+  v3: '-state-v3',
+  v4: '-state-v4',
+} as const;
+
+/**
+ * The sixth eager-load signal: exact readable state keys, with a content
+ * check. Missing keys and raw empty strings are blank;
  * JSON null and empty objects/arrays do not activate. Non-empty collections and
  * all other parsed primitives (even false, 0, or JSON "") activate. Malformed
  * JSON fails open so the panel can migrate or reject the stored payload.
  *
- * matchesKey compares the prefix literally before matching the suffix, so regex
- * metacharacters in a prefix are safe and sibling-instance keys are excluded.
+ * matchesKey compares complete strings constructed from the literal prefix, so
+ * regex metacharacters are safe and sibling-instance keys are excluded.
  * These are storage signal descriptions, not a storage reader or panel bootstrap.
  */
 export const EAGER_LOAD_GATE_STATE_FAMILY = {
+  keySuffixes: READABLE_STATE_KEY_SUFFIXES,
   matchesKey(storagePrefix: string, key: string): boolean {
-    return key.startsWith(storagePrefix) && /^-state(-v\d+)?$/.test(key.slice(storagePrefix.length));
+    return Object.values(READABLE_STATE_KEY_SUFFIXES).some(
+      (suffix) => key === storagePrefix + suffix,
+    );
   },
   valueRules: {
     blank: false,

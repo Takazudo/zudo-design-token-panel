@@ -50,6 +50,7 @@ import type { ColorScheme } from './color-schemes';
 import type { TabConfig } from '../tokens/tier-model';
 import {
   DEFAULT_STORAGE_PREFIX,
+  READABLE_STATE_KEY_SUFFIXES,
   resolveToggleEventName,
 } from '../constants';
 import { structuralEqual } from '../utils/structural-equal';
@@ -832,7 +833,7 @@ export function resolveSecondaryColorCluster(
 
 /** Storage key for the v2 unified envelope (color + spacing + typography + size + position + secondary cluster). */
 export function storageKey_stateV2(cfg: PanelConfig): string {
-  return `${cfg.storagePrefix}-state-v2`;
+  return cfg.storagePrefix + READABLE_STATE_KEY_SUFFIXES.v2;
 }
 
 /**
@@ -842,7 +843,7 @@ export function storageKey_stateV2(cfg: PanelConfig): string {
  * this key, then deletes the v2 key.
  */
 export function storageKey_stateV3(cfg: PanelConfig): string {
-  return `${cfg.storagePrefix}-state-v3`;
+  return cfg.storagePrefix + READABLE_STATE_KEY_SUFFIXES.v3;
 }
 
 /**
@@ -857,12 +858,12 @@ export function storageKey_stateV3(cfg: PanelConfig): string {
  * load; v4 takes precedence on every subsequent load.
  */
 export function storageKey_stateV4(cfg: PanelConfig): string {
-  return `${cfg.storagePrefix}-state-v4`;
+  return cfg.storagePrefix + READABLE_STATE_KEY_SUFFIXES.v4;
 }
 
 /** Legacy v1 key (Color-only flat state). Migrated into v2 on first load, then deleted. */
 export function storageKey_stateV1(cfg: PanelConfig): string {
-  return `${cfg.storagePrefix}-state`;
+  return cfg.storagePrefix + READABLE_STATE_KEY_SUFFIXES.v1;
 }
 
 /**
