@@ -1,0 +1,47 @@
+---
+title: "0.5.1"
+description: "0.5.1 のリリースノート。"
+sidebar_position: 102
+---
+
+Released: 2026-09-06
+
+パネルの最小幅において、トークングリッド、カード操作、ヘッダー操作がはみ出さずに収まるようになりました。複数パネルの表示位置も安定します。生成順の番号を保存するようにし、Astro のクライアントサイド遷移をまたいでも維持されます。先行読み込みはパネルが実際に読み取れる状態キーだけに限定し、スペシメンのスタイルシートにはドキュメント側の採用チェックが要求する境界指定を追加しました。
+
+### バグ修正
+
+- fix: 最小幅でトークングリッドとカード操作が収まるように調整 (8db4235)
+- fix(panel): フローティングパネルのはみ出しより先にヘッダー操作を折りたたむ (06cbb0e)
+- fix: ドキュメント採用時の境界指定を検証 (a11fd6a)
+
+### その他の変更
+
+- プルリクエストをマージ: [#801](https://github.com/Takazudo/zudo-design-token-panel/pull/801) from Takazudo/base/sweep-260906-2 (2631545)
+- プルリクエストをマージ: [#813](https://github.com/Takazudo/zudo-design-token-panel/pull/813) from Takazudo/base/sweep-260906-2-doc-zdtp-050 (406fb79)
+- ブランチをマージ: 'topic/795-doc-adoption-confirm' → base/sweep-260906-2-doc-zdtp-050 (1f5abd9)
+- ブランチをマージ: 'topic/795-doc-pin-manifest' → base/sweep-260906-2-doc-zdtp-050 (2fe626b)
+- ドキュメントで zdtp 0.5.0 を採用 (8026c66)
+- プルリクエストをマージ: [#810](https://github.com/Takazudo/zudo-design-token-panel/pull/810) from Takazudo/base/sweep-260906-2-storage-bootstrap (e8edd31)
+- ブランチをマージ: 'topic/790-storage-bootstrap-confirm' → base/sweep-260906-2-storage-bootstrap (aca17d0)
+- ストレージ初期化まわりのリグレッションをテストで確認 (1fdb75e)
+- ブランチをマージ: 'topic/790-readable-gate-probe' → base/sweep-260906-2-storage-bootstrap (be49753)
+- 先行読み込みを読み取り可能な状態キーに限定 (bcc55fd)
+- ブランチをマージ: 'topic/790-astro-ordinal-lifecycle' → base/sweep-260906-2-storage-bootstrap (48a76ab)
+- Astro のページ遷移をまたいでも生成位置を維持 (2a6672b)
+- ブランチをマージ: 'topic/790-persisted-spawn-ordinal' → base/sweep-260906-2-storage-bootstrap (03deeaa)
+- パネルの生成順の番号を保存 (3f1caa3)
+- プルリクエストをマージ: [#805](https://github.com/Takazudo/zudo-design-token-panel/pull/805) from Takazudo/base/sweep-260906-2-panel-width-layout (b62b94d)
+- test: ウォーキングスケルトンをコンパクト表示時の操作に追従 (de19350)
+- ブランチをマージ: 'topic/783-containment-confirm' → base/sweep-260906-2-panel-width-layout (1cdbb29)
+- test: 幅レイアウトの VRT 基準画像を更新 (f54695a)
+- test: コンパクト表示のラベル収まり判定を修正 (777ac84)
+- ブランチをマージ: 'topic/783-grid-implementation' → base/sweep-260906-2-panel-width-layout (5283cfc)
+- test: ハイライト切り替えの保存状態を分離して検証 (373239c)
+- test: カードの収まり判定用フィクスチャをマニフェストとクエリの仕様に合わせる (6345370)
+- ブランチをマージ: 'topic/783-header-implementation' → base/sweep-260906-2-panel-width-layout (eacf1ef)
+- test(panel): ヘッダーのポータルと端のヒット判定のアサーションを修正 (8fafedd)
+- プルリクエストをマージ: [#800](https://github.com/Takazudo/zudo-design-token-panel/pull/800) from Takazudo/base/sweep-260906-2-docs-consistency (82073a5)
+- ブランチをマージ: 'topic/780-docs-version-skew-note' → base/sweep-260906-2-docs-consistency (d838cc2)
+- ブランチをマージ: 'topic/780-readme-section-renumber' → base/sweep-260906-2-docs-consistency (22dd16d)
+- docs: はじめにのページでリリース間のバージョン差を説明 (b62ffb9)
+- docs: README のカラープリセット節の番号を振り直し (fb19bed)

@@ -1,0 +1,47 @@
+---
+title: "0.5.1"
+description: Release notes for 0.5.1.
+sidebar_position: 102
+---
+
+Released: 2026-09-06
+
+The panel now fits its token grids, card controls, and header controls at the minimum panel width instead of overflowing. Multiple panels keep stable spawn positions: spawn ordinals are persisted and survive Astro client-side navigation. Eager loading is bounded to state keys the panel can actually read, and the specimen stylesheet gained the boundaries the docs-adoption check required.
+
+### Fixed
+
+- fix: fit token grids and card controls at minimum panel width (8db4235)
+- fix(panel): yield header controls before floating panel overflow (06cbb0e)
+- fix: validate doc adoption boundaries (a11fd6a)
+
+### Other Changes
+
+- Merge pull request [#801](https://github.com/Takazudo/zudo-design-token-panel/pull/801) from Takazudo/base/sweep-260906-2 (2631545)
+- Merge pull request [#813](https://github.com/Takazudo/zudo-design-token-panel/pull/813) from Takazudo/base/sweep-260906-2-doc-zdtp-050 (406fb79)
+- Merge branch 'topic/795-doc-adoption-confirm' into base/sweep-260906-2-doc-zdtp-050 (1f5abd9)
+- Merge branch 'topic/795-doc-pin-manifest' into base/sweep-260906-2-doc-zdtp-050 (2fe626b)
+- Adopt zdtp 0.5.0 in docs (8026c66)
+- Merge pull request [#810](https://github.com/Takazudo/zudo-design-token-panel/pull/810) from Takazudo/base/sweep-260906-2-storage-bootstrap (e8edd31)
+- Merge branch 'topic/790-storage-bootstrap-confirm' into base/sweep-260906-2-storage-bootstrap (aca17d0)
+- Confirm storage bootstrap regressions (1fdb75e)
+- Merge branch 'topic/790-readable-gate-probe' into base/sweep-260906-2-storage-bootstrap (be49753)
+- Bound eager loading to readable state keys (bcc55fd)
+- Merge branch 'topic/790-astro-ordinal-lifecycle' into base/sweep-260906-2-storage-bootstrap (48a76ab)
+- Keep spawn positions stable across Astro navigation (2a6672b)
+- Merge branch 'topic/790-persisted-spawn-ordinal' into base/sweep-260906-2-storage-bootstrap (03deeaa)
+- Persist panel spawn ordinals (3f1caa3)
+- Merge pull request [#805](https://github.com/Takazudo/zudo-design-token-panel/pull/805) from Takazudo/base/sweep-260906-2-panel-width-layout (b62b94d)
+- test: follow compact panel actions in walking skeleton (de19350)
+- Merge branch 'topic/783-containment-confirm' into base/sweep-260906-2-panel-width-layout (1cdbb29)
+- test: update width-layout VRT baselines (f54695a)
+- test: reconcile compact label containment assertion (777ac84)
+- Merge branch 'topic/783-grid-implementation' into base/sweep-260906-2-panel-width-layout (5283cfc)
+- test: isolate and verify persisted highlight toggle state (373239c)
+- test: reconcile card fit fixtures with manifest and query contracts (6345370)
+- Merge branch 'topic/783-header-implementation' into base/sweep-260906-2-panel-width-layout (eacf1ef)
+- test(panel): correct header portal and edge-hit assertions (8fafedd)
+- Merge pull request [#800](https://github.com/Takazudo/zudo-design-token-panel/pull/800) from Takazudo/base/sweep-260906-2-docs-consistency (82073a5)
+- Merge branch 'topic/780-docs-version-skew-note' into base/sweep-260906-2-docs-consistency (d838cc2)
+- Merge branch 'topic/780-readme-section-renumber' into base/sweep-260906-2-docs-consistency (22dd16d)
+- docs: explain release skew in getting-started notes (b62ffb9)
+- docs: renumber README color presets section (fb19bed)
