@@ -485,7 +485,7 @@ Released: YYYY-MM-DD
 
 ### 破壊的変更
 
-- 説明。**Migration**: 利用者が乗り換える具体的な手段 (hash)
+- 説明。**移行方法**: 利用者が乗り換える具体的な手段 (hash)
 
 ### 機能
 
@@ -513,8 +513,10 @@ line** naming the new adoption path: the concrete thing a consumer switches *to*
 not merely a restatement that something changed. The precedent is
 `doc/src/content/docs/changelog/0.2.0.mdx` — its `min` / `max` removal entry ends with
 `**Migration**: remove every min: ... and max: ... field from your token manifests.`
-— and its JA mirror carries the same literal `**Migration**:` label, so keep the
-label untranslated. An entry that arrived through Step 3's public-surface check needs
+Use `**Migration**:` in the EN page and `**移行方法**:` in the JA page, as
+`doc/src/content/docs-ja/changelog/0.5.1.mdx` does. (The JA 0.2.0 mirror shows the
+label untranslated only because that page's body was never translated at all — it is
+a formatting precedent, not a translation one.) An entry that arrived through Step 3's public-surface check needs
 this most: the consumer has no `feat!:` marker to follow, so the migration line is
 the only pointer they get.
 

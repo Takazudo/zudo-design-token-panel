@@ -1668,8 +1668,8 @@ on across a release bump.
 - **The versioning promise.** On 0.x, patch releases preserve documented
   public contracts and accepted consumer inputs. Consumer-breaking contract
   changes, including input narrowing, require a minor release. Patches remain
-  free to fix bugs — and a bug fix can change observable behavior — this
-  promise only bounds what a patch is allowed to take away from a consumer.
+  free to fix bugs, and a bug fix can change observable behavior; the promise
+  only bounds what a patch may take *away* from a consumer.
 - **How breaking changes are signalled.** A consumer-breaking contract change
   gets its own heading in the release notes, with a migration pointer naming
   the new adoption path.
