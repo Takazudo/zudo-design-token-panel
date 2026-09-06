@@ -276,6 +276,7 @@ derives the keys at runtime from this single base.
 | `state-v1`  | `${storagePrefix}-state`    | tweak-state (legacy) | Pre-v2 flat-state format (Color-only). When selected, it is written to `state-v3` and the v1 key is deleted, then the result is copied into v4. |
 | `open`      | `${storagePrefix}-open`     | panel                | Mirror of the panel's `open` boolean state (so the next mount opens directly into the user's last state without a post-render toggle dispatch).              |
 | `position`  | `${storagePrefix}-position` | panel                | Drag position (`{ top, left }`) so the panel reappears where the user left it.                                                                              |
+| `spawn-ordinal` | `${storagePrefix}-spawn-ordinal` | mount registry | Instance cascade identity: a JSON integer from 0 through 31, retained by Reset and restored across Astro body swaps. Invalid values fall back to lowest-free allocation. |
 | `size`      | `${storagePrefix}-size`     | panel                | Floating shell dimensions (`{ width, height }`) in pixels.                                                                                                  |
 | `dock`      | `${storagePrefix}-dock`     | panel                | Presentation mode: `'float'`, `'right'`, `'bottom'`, or `'mini'`.                                                                                          |
 | `dock-size` | `${storagePrefix}-dock-size` | panel               | Right/bottom dock dimensions (`{ right, bottom }`), defaulting to `{ right: 440, bottom: 340 }`.                                                           |
@@ -316,6 +317,7 @@ myapp-design-token-panel-state-v2
 myapp-design-token-panel-state
 myapp-design-token-panel-open
 myapp-design-token-panel-position
+myapp-design-token-panel-spawn-ordinal
 myapp-design-token-panel-size
 myapp-design-token-panel-dock
 myapp-design-token-panel-dock-size
@@ -389,11 +391,20 @@ computed at open time as one coherent rectangle:
   against the persisted size, not against the default one.
 - **The fallback is instance-aware.** Each additional panel instance
   concurrently mounted on the page offsets its own fallback position by 24px
-  on both axes, keyed to mount order with lowest-free-slot reuse (a released
-  slot — e.g. from `destroy()` — is reused by the next instance that mounts,
-  rather than the ordinal growing forever). This exists only to keep
-  simultaneously-opened instances from landing exactly on top of one
-  another; it has no effect once a `position` value is persisted.
+  on both axes. Its `storagePrefix` persists the allocated ordinal, so an Astro
+  body swap restores the same cascade position even when remount order differs
+  from original open order. An absent, malformed, negative, fractional, or
+  out-of-range stored value uses mount order with lowest-free-slot reuse and
+  records the result. The stored format is a JSON integer from 0 through 31;
+  31 is the cap because 32 identities span at most 744px at the 24px step,
+  already the useful cascade range on ordinary desktop viewports. A released
+  live slot — e.g. from `destroy()` or a shell that does not re-materialise
+  after navigation — can be reused immediately; a retained stored identity
+  reserves nothing by itself and Reset does not delete it. If two prefixes
+  contain the same ordinal, the already-live holder keeps it and the later
+  claimant takes and persists the lowest free slot. This exists only to keep
+  simultaneously-opened instances from landing exactly on top of one another;
+  it has no effect once a `position` value is persisted.
 - **A persisted `position` value always wins over the cascade.** The 24px
   offset applies only to the computed fallback, never to a stored value —
   once `position` is written, that instance reopens at the exact stored
@@ -1650,7 +1661,7 @@ Cross-reference table — what each section pins down.
 | ------------------------------------------------------------------------------------------- | ------------- |
 | `configurePanel({...})` signature, multi-instance, `PanelInstanceHandle`, per-instance toggle events | §1     |
 | Storage-key derivation                                                                      | §2, §8        |
-| Default first-open geometry (coherent size+position, viewport containment, cascade, persisted-position precedence) | §2.1 |
+| Default first-open geometry (coherent size+position, viewport containment, persisted cascade identity, persisted-position precedence) | §2.1 |
 | `PanelDockConfig`, dock modes, body-margin reflow, edge claims, and dock storage | §1, §2, §7 |
 | `TabConfig` / `TierConfig` / `TierItem` / `TierValueKind` interfaces and apply behaviour   | §3            |
 | `TierConfig.preview` / `previewBase` matrix and host-page specimen lifecycle | §3.2 |
