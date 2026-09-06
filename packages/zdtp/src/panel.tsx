@@ -1486,13 +1486,13 @@ export default function DesignTokenTweakPanel({
           id: 'element-path',
           order: 0,
           renderInCompactMenu: true,
-          render: () => <ElementPathToggleButton />,
+          render: ({ compact }) => <ElementPathToggleButton compact={compact} />,
         },
         {
           id: 'element-inspect',
           order: 1,
           renderInCompactMenu: true,
-          render: () => <ElementInspectToggleButton />,
+          render: ({ compact }) => <ElementInspectToggleButton compact={compact} />,
         },
         ...(instanceConfig.domTweaker !== undefined
           ? [
@@ -1500,7 +1500,7 @@ export default function DesignTokenTweakPanel({
                 id: 'dom-tweaker',
                 order: 2,
                 renderInCompactMenu: true,
-                render: () => <DomTweakerToggleButton />,
+                render: ({ compact }) => <DomTweakerToggleButton compact={compact} />,
               } satisfies ShellRegionItem,
             ]
           : []),
