@@ -38,15 +38,25 @@ sidebar_position: 8
 |--------|------|
 | `${storagePrefix}:visible` | 前回の訪問時にパネルが開いていた |
 | `${storagePrefix}-open` | 同じ開閉状態を、パネル自身の開閉状態キーで表したもの |
-| `${storagePrefix}-state`（v1）と `${storagePrefix}-state-v2` … `-vN` | ユーザーがトークンのオーバーライドを保存している |
+| `${storagePrefix}-state`（v1）、`-state-v2`、`-state-v3`、`-state-v4`——読み取り可能な state フォーマット | ユーザーがトークンのオーバーライドを保存している |
 | `${storagePrefix}:autoload` | owner-autoload フラグ——**自分**がオーナーモードである |
 | `${storagePrefix}-elpath-enabled` | 要素パスインスペクターが有効になっている |
 | `${storagePrefix}-domtweaker-enabled` | DOM Tweaker が有効になっている（ホストが `domTweaker` を設定しているときだけ調べられる） |
 
-`-state` ファミリーは**完全一致**で照合されます（`${storagePrefix}-state` と、
-任意のバージョンの `${storagePrefix}-state-v<N>`）。そのため、自分のプレフィックスで
-始まる名前を持つ別インスタンスのキーが、自分のゲートを誤って発火させることは
-ありません。さらに一致したキーは中身まで検査され、空のエンベロープ（`{}`、`[]`、
+`-state` ファミリーは**完全一致**で、しかもローダーが読み取れる state
+フォーマットの集合（`${storagePrefix}-state`（v1）、
+`${storagePrefix}-state-v2`、`${storagePrefix}-state-v3`、
+`${storagePrefix}-state-v4`）に対してのみ照合されます。照合が完全一致であるため、
+自分のプレフィックスで始まる名前を持つ別インスタンスのキーが、自分のゲートを
+誤って発火させることはありません。また集合が限定されているため、このリリースの
+ローダーが読み取れないストレージフォーマットのキー（たとえば将来の
+`-state-v5`）もゲートを発火させません。サフィックスの一覧はハードコードせず、
+エクスポートされている `READABLE_STATE_KEY_SUFFIXES` から導出してください。
+完全な契約は
+[PORTABLE-CONTRACT.md §6.2](https://github.com/Takazudo/zudo-design-token-panel/blob/main/packages/zdtp/PORTABLE-CONTRACT.md)
+を参照してください。
+
+さらに一致したキーは中身まで検査され、空のエンベロープ（`{}`、`[]`、
 `null`、空文字列）はシグナルとみなされません。なおパネルのリセットは `-state` キー
 自体を削除するため空のエンベロープを残しません。この検査が効くのは、手作業や別の
 ツールが書き込んだエンベロープに限られます。
