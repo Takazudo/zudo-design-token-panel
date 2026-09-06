@@ -1660,6 +1660,28 @@ Items this contract deliberately does NOT pin down:
 
 ---
 
+## 11. Versioning & compatibility
+
+The package is pre-1.0 (`0.x`). This section states what a consumer may rely
+on across a release bump.
+
+- **The versioning promise.** On 0.x, patch releases preserve documented
+  public contracts and accepted consumer inputs. Consumer-breaking contract
+  changes, including input narrowing, require a minor release. Patches remain
+  free to fix bugs — and a bug fix can change observable behavior — this
+  promise only bounds what a patch is allowed to take away from a consumer.
+- **How breaking changes are signalled.** A consumer-breaking contract change
+  gets its own heading in the release notes, with a migration pointer naming
+  the new adoption path.
+- **What consumers should do.** A host mirroring the eager-load gate should
+  derive its checks from the exported registries
+  (`READABLE_STATE_KEY_SUFFIXES`, `EAGER_LOAD_GATE_KEY_SUFFIXES`) documented
+  in §6.2, rather than matching a pattern of its own — that way the host's
+  assertions self-update on the next storage-format bump instead of silently
+  drifting from the package's actual behavior.
+
+---
+
 ## Appendix A — section index
 
 Cross-reference table — what each section pins down.
@@ -1691,4 +1713,5 @@ Cross-reference table — what each section pins down.
 | v4 envelope precedence, v1/v2/v3 storage migration, and typography-id rename map             | §2, §8.3, §8.4 |
 | JSON export/import schemas v1/v2/v3 (serde)                                                  | §9            |
 | Out-of-scope / deferred concerns                                                            | §10           |
+| Versioning promise, breaking-change signalling, and consumer guidance for mirroring the eager-load gate registries | §11 |
 | Feature walkthrough and shortcut table                                                     | [Panel UX tour](/docs/recipes/panel-ux-tour) |
