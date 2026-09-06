@@ -826,10 +826,11 @@ function unmountForSwap(): void {
     const root = findRoot(cfg);
     if (!root) continue;
     const shouldRestore = wasVisible(cfg);
-    // Route the teardown through `unmountInstance` so the shell's spawn slot
-    // (#584) is released here too: a body swap destroys the shell exactly as
-    // `destroy()` does, and an instance that does NOT re-materialise on the
-    // next page load would otherwise hold its slot for the rest of the session.
+    // Route the teardown through `unmountInstance` so the shell's LIVE spawn
+    // slot (#584) is released here too. Its persisted ordinal identity remains
+    // available for a soft-nav remount; if the instance does NOT re-materialise
+    // on page-load, that stored preference reserves nothing and another live
+    // instance can reuse the slot immediately.
     unmountInstance(cfg);
     if (shouldRestore) setStoredVisibility(cfg, true);
   }
