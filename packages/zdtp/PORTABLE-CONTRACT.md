@@ -338,8 +338,9 @@ myapp-design-token-panel-highlight-active  # sessionStorage
 
 Unit tests in the package verify these derivations with literal-equality
 checks. The v4 precedence and legacy v1/v2/v3 migration paths at first load
-are part of the test matrix; the version-agnostic `${storagePrefix}-state`
-family probe in §6.2 continues to cover this key and future versions.
+are part of the test matrix. The bounded probe in §6.2 covers exactly the
+state versions the loader can read; every future format bump must update the
+shared readable-suffix registry in the same change.
 
 ### Current `state-v4` envelope
 
@@ -1141,9 +1142,10 @@ if (
   is applied a second time to the `${storagePrefix}-open` mirror (dash-form,
   §2) that `panel.tsx` writes alongside it. Either key holding `'1'` means the
   panel was open before the last navigation.
-- `hasPersistedOverrides()` — scans every `localStorage` key matching the
-  `${storagePrefix}-state` family (dash-form, §2: `-state` (v1) through every
-  `-state-vN`) and returns `true` when at least one holds a non-empty envelope
+- `hasPersistedOverrides()` — performs bounded `getItem` probes for the
+  `${storagePrefix}-state` keys the loader can read (dash-form, §2: `-state`
+  (v1), `-state-v2`, `-state-v3`, and `-state-v4`) and returns `true` when at
+  least one holds a non-empty envelope
   (malformed JSON also counts as `true` — fail open, so the panel loads and
   can migrate or reject the payload rather than stranding the user with data
   it can never see). This is a **content check**, not a presence check on a
@@ -1154,13 +1156,18 @@ if (
   sink (or default `:root`) even when the panel stays hidden, otherwise
   hard-nav produces a FOUT.
 
-  `EAGER_LOAD_GATE_STATE_FAMILY.matchesKey(storagePrefix, key)` only recognizes
-  the exact `${storagePrefix}-state` / `${storagePrefix}-state-vN` key shape. It
-  does not read storage or perform the content check. The consumer must apply
-  the accompanying `valueRules`: raw empty strings, JSON `null`, and empty
+  `READABLE_STATE_KEY_SUFFIXES` is the dependency-free registry of those four
+  readable suffixes. Every storage-format bump MUST update it in the same
+  change as the loader. `EAGER_LOAD_GATE_STATE_FAMILY.matchesKey(storagePrefix,
+  key)` recognizes only exact keys constructed from that registry; unreadable
+  future versions and `${storagePrefix}-spawn-ordinal` do not activate. It does
+  not read storage or perform the content check. The consumer must apply the
+  accompanying `valueRules`: raw empty strings, JSON `null`, and empty
   objects/arrays do not activate; non-empty collections, every other parsed
   primitive (including `false`, `0`, and JSON `""`), and malformed JSON do
-  activate.
+  activate. The top-level emptiness check is defensive-only: zdtp-written v4
+  envelopes always contain their top-level buckets, and Reset removes state
+  keys rather than writing empty envelopes.
 - `shouldAutoload()` — reads `${storagePrefix}:autoload` (colon-form, §2).
   Returns `true` when the flag is `'1'` (explicit, written by `enableAutoload()`)
   OR `'auto'` (auto-remembered, written by opening the panel — see "Auto-remember
@@ -1190,7 +1197,7 @@ that decision.
 | Signal | Key derivation | Owner |
 |--------|---------------|-------|
 | `wasVisible` | `${storagePrefix}:visible`, OR its `${storagePrefix}-open` mirror | adapter |
-| `hasPersistedOverrides` | Content check across the `${storagePrefix}-state` family (`-state`, `-state-v2`, `-state-v3`, `-state-v4`, ... — every version, not a fixed list) | tweak-state |
+| `hasPersistedOverrides` | Bounded content checks for the readable suffix registry (`-state`, `-state-v2`, `-state-v3`, `-state-v4`) | tweak-state |
 | `shouldAutoload` | `${storagePrefix}:autoload`, matching `'1'` or `'auto'` | autoload-state |
 | `loadElementPathEnabled` | `${storagePrefix}-elpath-enabled` | element-path-state |
 | `loadDomTweakerEnabled` | `${storagePrefix}-domtweaker-enabled` | dom-tweaker-state |

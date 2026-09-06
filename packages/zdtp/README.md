@@ -646,7 +646,7 @@ const handle = configurePanel({
 The Astro entry point (`<DesignTokenPanelHost>`) handles mounting for you. Internally:
 
 - The console API (`showDesignPanel` etc.) is **always installed eagerly**, even when the panel module has not loaded — calling them is what triggers the lazy import for cold-start users.
-- The panel module is **dynamically imported on first need**: when the user calls a console helper, OR when first-paint detects any of these gate signals in `localStorage` — `${storagePrefix}:visible` set to `1` or its `${storagePrefix}-open` mirror set to `1`, persisted overrides (a content check across the `${storagePrefix}-state` family — `-state` (v1) through every `-state-vN` — rather than a presence check on a specific version key; see §9), the owner-autoload flag (`${storagePrefix}:autoload` set to `'1'` or `'auto'`), or the element-path inspector enabled. `${storagePrefix}-domtweaker-enabled` is also a gate signal when `domTweaker` is configured.
+- The panel module is **dynamically imported on first need**: when the user calls a console helper, OR when first-paint detects any of these gate signals in `localStorage` — `${storagePrefix}:visible` set to `1` or its `${storagePrefix}-open` mirror set to `1`, persisted overrides (bounded content checks for the state formats the loader can read: `-state` (v1), `-state-v2`, `-state-v3`, and `-state-v4`; see §9), the owner-autoload flag (`${storagePrefix}:autoload` set to `'1'` or `'auto'`), or the element-path inspector enabled. `${storagePrefix}-domtweaker-enabled` is also a gate signal when `domTweaker` is configured.
 - This gating keeps the panel bundle out of the initial JS payload for first-time visitors while still re-applying overrides on hard reload for users who have tweaked things. **General visitors** (none of these signals set) pay no panel-bundle cost; the small host adapter/config bootstrap still runs.
 
 For a Vite-only / non-Astro host, mount it yourself by importing the adapter module after `configurePanel(...)`. See §8.5.
@@ -1412,7 +1412,7 @@ For the regression-guard tests that pin this contract, see `package-exports.test
 
 **Symptom:** on first paint after a hard reload, the page renders with the consumer's default token values for a beat before snapping to the user's saved overrides.
 
-**Resolution:** the host adapter eagerly re-applies persisted overrides during the lazy-load gate (it content-checks the exact `${storagePrefix}-state` / `${storagePrefix}-state-vN` family and the visibility, autoload, and enabled-feature signals synchronously from `localStorage`). If you still see a flash, your `<DesignTokenPanelHost>` is being rendered too late in the document (e.g. inside a deferred island) — move it to the layout's `<body>` and verify the inline `<script type="application/json" id="tokenpanel-config">` is in the initial HTML.
+**Resolution:** the host adapter eagerly re-applies persisted overrides during the lazy-load gate (it performs bounded content checks for the readable `${storagePrefix}-state`, `-state-v2`, `-state-v3`, and `-state-v4` keys, plus the visibility, autoload, and enabled-feature signals synchronously from `localStorage`). If you still see a flash, your `<DesignTokenPanelHost>` is being rendered too late in the document (e.g. inside a deferred island) — move it to the layout's `<body>` and verify the inline `<script type="application/json" id="tokenpanel-config">` is in the initial HTML.
 
 ### 13.2 Auto-mount race on first reload
 

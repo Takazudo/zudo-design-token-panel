@@ -26,8 +26,9 @@ function predictsActivation(cfg: PanelConfig): boolean {
     const value = localStorage.getItem(cfg.storagePrefix + suffix);
     if (signal.acceptedValues.some((accepted) => accepted === value)) return true;
   }
-  const { matchesKey, valueRules } = EAGER_LOAD_GATE_STATE_FAMILY;
-  return Object.keys(localStorage).some((key) => {
+  const { keySuffixes, matchesKey, valueRules } = EAGER_LOAD_GATE_STATE_FAMILY;
+  return Object.values(keySuffixes).some((suffix) => {
+    const key = cfg.storagePrefix + suffix;
     if (!matchesKey(cfg.storagePrefix, key)) return false;
     const raw = localStorage.getItem(key);
     if (raw === null || raw === '') return valueRules.blank;
@@ -101,7 +102,7 @@ describe('exported eager-load signals predict the actual host-adapter gate', () 
     await assertGate(false, { ...CFG, domTweaker: undefined });
   });
 
-  for (const suffix of ['-state', '-state-v2', '-state-v3', '-state-v9']) {
+  for (const suffix of Object.values(EAGER_LOAD_GATE_STATE_FAMILY.keySuffixes)) {
     it.each([
       ['{}', false], ['[]', false], ['null', false], ['', false],
       ['{"x":1}', true], ['[0]', true], ['{broken', true],
@@ -112,10 +113,15 @@ describe('exported eager-load signals predict the actual host-adapter gate', () 
     });
   }
 
-  it('scans beyond an empty older envelope to an active future version', async () => {
+  it('probes beyond an empty older envelope to an active readable version', async () => {
     localStorage.setItem(CFG.storagePrefix + '-state', '{}');
-    localStorage.setItem(CFG.storagePrefix + '-state-v9', '{"x":1}');
+    localStorage.setItem(CFG.storagePrefix + '-state-v4', '{"x":1}');
     await assertGate(true);
+  });
+
+  it('does not activate for an unreadable future state version', async () => {
+    localStorage.setItem(CFG.storagePrefix + '-state-v9', '{"x":1}');
+    await assertGate(false);
   });
 
   it.each(['-state-state', '-state-state-v9', '-state-v', '-state-v9-extra', '-state-vx', '-stateful'])(
@@ -127,13 +133,18 @@ describe('exported eager-load signals predict the actual host-adapter gate', () 
 
   it('matches a prefix containing regex metacharacters literally', async () => {
     const cfg = { ...CFG, storagePrefix: 'gate.[x]+(a)?^$|{}\\' };
-    localStorage.setItem(cfg.storagePrefix + '-state-v9', '{"x":1}');
+    localStorage.setItem(cfg.storagePrefix + '-state-v4', '{"x":1}');
     await assertGate(true, cfg);
   });
 
   it('does not treat regex prefix punctuation as wildcards', async () => {
-    localStorage.setItem('gateXtest-state-v9', '{"x":1}');
+    localStorage.setItem('gateXtest-state-v4', '{"x":1}');
     await assertGate(false, { ...CFG, storagePrefix: 'gate.test' });
+  });
+
+  it('does not treat the persisted spawn ordinal as an overrides envelope', async () => {
+    localStorage.setItem(CFG.storagePrefix + '-spawn-ordinal', '3');
+    await assertGate(false);
   });
 
   it.each([
