@@ -8,6 +8,10 @@ Released: 2026-09-06
 
 The panel now fits its token grids, card controls, and header controls at the minimum panel width instead of overflowing. Multiple panels keep stable spawn positions: spawn ordinals are persisted and survive Astro client-side navigation. Eager loading is bounded to state keys the panel can actually read, and the specimen stylesheet gained the boundaries the docs-adoption check required.
 
+### Breaking Changes
+
+- **Narrowed the accepted-key set of `EAGER_LOAD_GATE_STATE_FAMILY.matchesKey`, a public exported API.** 0.5.0 accepted `${storagePrefix}-state` optionally followed by `-v` and one or more digits. 0.5.1 accepts only exact matches against the new `READABLE_STATE_KEY_SUFFIXES` registry — `-state`, `-state-v2`, `-state-v3`, `-state-v4`. So `${storagePrefix}-state` and `${storagePrefix}-state-v2` still match, while `${storagePrefix}-state-v1`, `${storagePrefix}-state-v0`, `${storagePrefix}-state-v01`, and `${storagePrefix}-state-v123` matched in 0.5.0 and do not in 0.5.1. The narrowing is deliberate — the synchronous eager gate must probe only the key versions the loader can actually read — but it is consumer-observable, the TypeScript signature is unchanged so a type check will not surface it, and it should have ridden a minor release rather than this patch. **Migration**: hosts asserting on `-state-vN` keys should derive them from the new `READABLE_STATE_KEY_SUFFIXES` export instead of matching a numeric pattern, so their assertions self-update at the next storage-format bump. (bcc55fd, [#790](https://github.com/Takazudo/zudo-design-token-panel/issues/790), [#793](https://github.com/Takazudo/zudo-design-token-panel/issues/793), [#814](https://github.com/Takazudo/zudo-design-token-panel/issues/814))
+
 ### Fixed
 
 - fix: fit token grids and card controls at minimum panel width (8db4235)
@@ -25,7 +29,6 @@ The panel now fits its token grids, card controls, and header controls at the mi
 - Merge branch 'topic/790-storage-bootstrap-confirm' into base/sweep-260906-2-storage-bootstrap (aca17d0)
 - Confirm storage bootstrap regressions (1fdb75e)
 - Merge branch 'topic/790-readable-gate-probe' into base/sweep-260906-2-storage-bootstrap (be49753)
-- Bound eager loading to readable state keys (bcc55fd)
 - Merge branch 'topic/790-astro-ordinal-lifecycle' into base/sweep-260906-2-storage-bootstrap (48a76ab)
 - Keep spawn positions stable across Astro navigation (2a6672b)
 - Merge branch 'topic/790-persisted-spawn-ordinal' into base/sweep-260906-2-storage-bootstrap (03deeaa)
