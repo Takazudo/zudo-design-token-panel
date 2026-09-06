@@ -43,9 +43,14 @@ Everything else — layout, header, sidebar, footer, doc chrome, islands, and th
 ## zdtp ↔ zudo-doc relationship
 
 The `doc/` workspace intentionally consumes the pinned npm release of
-`@takazudo/zdtp`; never force-link it to `packages/zdtp`. That keeps the docs
-build representative of the published dependency and prevents unpublished
-panel changes from leaking into release documentation accidentally.
+`@takazudo/zdtp`; never force-link it to `packages/zdtp`. The pin governs
+which panel *build* the site runs — the embedded panel widget and the
+three-site demo split below — not what the documentation prose may describe.
+Doc content is free to document `main`-branch panel behavior ahead of the
+pinned release; that split is stated publicly in the note at the top of
+`getting-started/index.mdx`, which this section cross-references rather than
+restates: read the two together as one rule, not two that can be read as
+contradicting each other.
 
 This is a deliberate three-site split, kept separate because of the honesty
 problem tracked in [#593](https://github.com/Takazudo/zudo-design-token-panel/issues/593):
