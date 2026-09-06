@@ -276,6 +276,7 @@ derives the keys at runtime from this single base.
 | `state-v1`  | `${storagePrefix}-state`    | tweak-state (legacy) | Pre-v2 flat-state format (Color-only). When selected, it is written to `state-v3` and the v1 key is deleted, then the result is copied into v4. |
 | `open`      | `${storagePrefix}-open`     | panel                | Mirror of the panel's `open` boolean state (so the next mount opens directly into the user's last state without a post-render toggle dispatch).              |
 | `position`  | `${storagePrefix}-position` | panel                | Drag position (`{ top, left }`) so the panel reappears where the user left it.                                                                              |
+| `spawn-ordinal` | `${storagePrefix}-spawn-ordinal` | mount registry | Instance cascade identity: a JSON integer from 0 through 31, retained by Reset and restored across Astro body swaps. Invalid values fall back to lowest-free allocation. |
 | `size`      | `${storagePrefix}-size`     | panel                | Floating shell dimensions (`{ width, height }`) in pixels.                                                                                                  |
 | `dock`      | `${storagePrefix}-dock`     | panel                | Presentation mode: `'float'`, `'right'`, `'bottom'`, or `'mini'`.                                                                                          |
 | `dock-size` | `${storagePrefix}-dock-size` | panel               | Right/bottom dock dimensions (`{ right, bottom }`), defaulting to `{ right: 440, bottom: 340 }`.                                                           |
@@ -316,6 +317,7 @@ myapp-design-token-panel-state-v2
 myapp-design-token-panel-state
 myapp-design-token-panel-open
 myapp-design-token-panel-position
+myapp-design-token-panel-spawn-ordinal
 myapp-design-token-panel-size
 myapp-design-token-panel-dock
 myapp-design-token-panel-dock-size
@@ -336,8 +338,9 @@ myapp-design-token-panel-highlight-active  # sessionStorage
 
 Unit tests in the package verify these derivations with literal-equality
 checks. The v4 precedence and legacy v1/v2/v3 migration paths at first load
-are part of the test matrix; the version-agnostic `${storagePrefix}-state`
-family probe in §6.2 continues to cover this key and future versions.
+are part of the test matrix. The bounded probe in §6.2 covers exactly the
+state versions the loader can read; every future format bump must update the
+shared readable-suffix registry in the same change.
 
 ### Current `state-v4` envelope
 
@@ -389,11 +392,20 @@ computed at open time as one coherent rectangle:
   against the persisted size, not against the default one.
 - **The fallback is instance-aware.** Each additional panel instance
   concurrently mounted on the page offsets its own fallback position by 24px
-  on both axes, keyed to mount order with lowest-free-slot reuse (a released
-  slot — e.g. from `destroy()` — is reused by the next instance that mounts,
-  rather than the ordinal growing forever). This exists only to keep
-  simultaneously-opened instances from landing exactly on top of one
-  another; it has no effect once a `position` value is persisted.
+  on both axes. Its `storagePrefix` persists the allocated ordinal, so an Astro
+  body swap restores the same cascade position even when remount order differs
+  from original open order. An absent, malformed, negative, fractional, or
+  out-of-range stored value uses mount order with lowest-free-slot reuse and
+  records the result. The stored format is a JSON integer from 0 through 31;
+  31 is the cap because 32 identities span at most 744px at the 24px step,
+  already the useful cascade range on ordinary desktop viewports. A released
+  live slot — e.g. from `destroy()` or a shell that does not re-materialise
+  after navigation — can be reused immediately; a retained stored identity
+  reserves nothing by itself and Reset does not delete it. If two prefixes
+  contain the same ordinal, the already-live holder keeps it and the later
+  claimant takes and persists the lowest free slot. This exists only to keep
+  simultaneously-opened instances from landing exactly on top of one another;
+  it has no effect once a `position` value is persisted.
 - **A persisted `position` value always wins over the cascade.** The 24px
   offset applies only to the computed fallback, never to a stored value —
   once `position` is written, that instance reopens at the exact stored
@@ -1130,9 +1142,10 @@ if (
   is applied a second time to the `${storagePrefix}-open` mirror (dash-form,
   §2) that `panel.tsx` writes alongside it. Either key holding `'1'` means the
   panel was open before the last navigation.
-- `hasPersistedOverrides()` — scans every `localStorage` key matching the
-  `${storagePrefix}-state` family (dash-form, §2: `-state` (v1) through every
-  `-state-vN`) and returns `true` when at least one holds a non-empty envelope
+- `hasPersistedOverrides()` — performs bounded `getItem` probes for the
+  `${storagePrefix}-state` keys the loader can read (dash-form, §2: `-state`
+  (v1), `-state-v2`, `-state-v3`, and `-state-v4`) and returns `true` when at
+  least one holds a non-empty envelope
   (malformed JSON also counts as `true` — fail open, so the panel loads and
   can migrate or reject the payload rather than stranding the user with data
   it can never see). This is a **content check**, not a presence check on a
@@ -1143,13 +1156,18 @@ if (
   sink (or default `:root`) even when the panel stays hidden, otherwise
   hard-nav produces a FOUT.
 
-  `EAGER_LOAD_GATE_STATE_FAMILY.matchesKey(storagePrefix, key)` only recognizes
-  the exact `${storagePrefix}-state` / `${storagePrefix}-state-vN` key shape. It
-  does not read storage or perform the content check. The consumer must apply
-  the accompanying `valueRules`: raw empty strings, JSON `null`, and empty
+  `READABLE_STATE_KEY_SUFFIXES` is the dependency-free registry of those four
+  readable suffixes. Every storage-format bump MUST update it in the same
+  change as the loader. `EAGER_LOAD_GATE_STATE_FAMILY.matchesKey(storagePrefix,
+  key)` recognizes only exact keys constructed from that registry; unreadable
+  future versions and `${storagePrefix}-spawn-ordinal` do not activate. It does
+  not read storage or perform the content check. The consumer must apply the
+  accompanying `valueRules`: raw empty strings, JSON `null`, and empty
   objects/arrays do not activate; non-empty collections, every other parsed
   primitive (including `false`, `0`, and JSON `""`), and malformed JSON do
-  activate.
+  activate. The top-level emptiness check is defensive-only: zdtp-written v4
+  envelopes always contain their top-level buckets, and Reset removes state
+  keys rather than writing empty envelopes.
 - `shouldAutoload()` — reads `${storagePrefix}:autoload` (colon-form, §2).
   Returns `true` when the flag is `'1'` (explicit, written by `enableAutoload()`)
   OR `'auto'` (auto-remembered, written by opening the panel — see "Auto-remember
@@ -1179,7 +1197,7 @@ that decision.
 | Signal | Key derivation | Owner |
 |--------|---------------|-------|
 | `wasVisible` | `${storagePrefix}:visible`, OR its `${storagePrefix}-open` mirror | adapter |
-| `hasPersistedOverrides` | Content check across the `${storagePrefix}-state` family (`-state`, `-state-v2`, `-state-v3`, `-state-v4`, ... — every version, not a fixed list) | tweak-state |
+| `hasPersistedOverrides` | Bounded content checks for the readable suffix registry (`-state`, `-state-v2`, `-state-v3`, `-state-v4`) | tweak-state |
 | `shouldAutoload` | `${storagePrefix}:autoload`, matching `'1'` or `'auto'` | autoload-state |
 | `loadElementPathEnabled` | `${storagePrefix}-elpath-enabled` | element-path-state |
 | `loadDomTweakerEnabled` | `${storagePrefix}-domtweaker-enabled` | dom-tweaker-state |
@@ -1650,7 +1668,7 @@ Cross-reference table — what each section pins down.
 | ------------------------------------------------------------------------------------------- | ------------- |
 | `configurePanel({...})` signature, multi-instance, `PanelInstanceHandle`, per-instance toggle events | §1     |
 | Storage-key derivation                                                                      | §2, §8        |
-| Default first-open geometry (coherent size+position, viewport containment, cascade, persisted-position precedence) | §2.1 |
+| Default first-open geometry (coherent size+position, viewport containment, persisted cascade identity, persisted-position precedence) | §2.1 |
 | `PanelDockConfig`, dock modes, body-margin reflow, edge claims, and dock storage | §1, §2, §7 |
 | `TabConfig` / `TierConfig` / `TierItem` / `TierValueKind` interfaces and apply behaviour   | §3            |
 | `TierConfig.preview` / `previewBase` matrix and host-page specimen lifecycle | §3.2 |

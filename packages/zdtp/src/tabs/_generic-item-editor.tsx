@@ -119,32 +119,38 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
       const numberRow = (
         <div className="tokenpanel-row--stacked" data-testid={`tier-item-${item.id}`}>
           <div className="tokenpanel-row-head">
-            <TokenLabel cssVar={item.cssVar} label={item.label} />
-            <div className="tokenpanel-row-input-group">
-              <input
-                type="text"
-                inputMode="decimal"
-                value={numDraft}
-                onChange={handleNumber}
-                onBlur={handleNumberBlur}
-                disabled={effectiveReadonly}
-                className="tokenpanel-row-number-input"
-                aria-label={`${item.cssVar} value`}
-              />
-              {isCyclableUnit ? (
-                <RoleButton
-                  onClick={handleCycleUnit}
-                  className="tokenpanel-row-unit tokenpanel-row-unit--interactive"
-                  aria-disabled={effectiveReadonly}
-                  aria-label={`${item.cssVar} unit`}
-                >
-                  {effectiveUnit}
-                </RoleButton>
-              ) : (
-                unit && <span className="tokenpanel-row-unit">{unit}</span>
-              )}
+            <div className="tokenpanel-card-label">
+              <TokenLabel cssVar={item.cssVar} label={item.label} />
             </div>
-            <HighlightToggleButton cssVar={item.cssVar} />
+            <div className="tokenpanel-card-editor">
+              <div className="tokenpanel-row-input-group">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={numDraft}
+                  onChange={handleNumber}
+                  onBlur={handleNumberBlur}
+                  disabled={effectiveReadonly}
+                  className="tokenpanel-row-number-input"
+                  aria-label={`${item.cssVar} value`}
+                />
+                {isCyclableUnit ? (
+                  <RoleButton
+                    onClick={handleCycleUnit}
+                    className="tokenpanel-row-unit tokenpanel-row-unit--interactive"
+                    aria-disabled={effectiveReadonly}
+                    aria-label={`${item.cssVar} unit`}
+                  >
+                    {effectiveUnit}
+                  </RoleButton>
+                ) : (
+                  unit && <span className="tokenpanel-row-unit">{unit}</span>
+                )}
+              </div>
+            </div>
+            <div className="tokenpanel-card-actions">
+              <HighlightToggleButton cssVar={item.cssVar} />
+            </div>
           </div>
         </div>
       );
@@ -179,21 +185,27 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
       };
       return (
         <div className="tokenpanel-row" data-testid={`tier-item-${item.id}`}>
-          <TokenLabel cssVar={item.cssVar} label={item.label} />
-          <select
-            value={selectDraft}
-            onChange={handleChange}
-            disabled={isReadonly}
-            className="tokenpanel-row-select"
-            aria-label={`${item.cssVar} value`}
-          >
-            {options.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
-          <HighlightToggleButton cssVar={item.cssVar} />
+          <div className="tokenpanel-card-label">
+            <TokenLabel cssVar={item.cssVar} label={item.label} />
+          </div>
+          <div className="tokenpanel-card-editor">
+            <select
+              value={selectDraft}
+              onChange={handleChange}
+              disabled={isReadonly}
+              className="tokenpanel-row-select"
+              aria-label={`${item.cssVar} value`}
+            >
+              {options.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="tokenpanel-card-actions">
+            <HighlightToggleButton cssVar={item.cssVar} />
+          </div>
         </div>
       );
     }
@@ -207,20 +219,26 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
       };
       return (
         <div className="tokenpanel-row" data-testid={`tier-item-${item.id}`}>
-          <TokenLabel cssVar={item.cssVar} label={item.label} />
-          <input
-            type="text"
-            value={value}
-            onChange={handleChange}
-            disabled={isReadonly}
-            className="tokenpanel-row-text-input"
-            aria-label={`${item.cssVar} value`}
-            spellcheck={false}
-            autoCapitalize="off"
-            autoCorrect="off"
-            autoComplete="off"
-          />
-          <HighlightToggleButton cssVar={item.cssVar} />
+          <div className="tokenpanel-card-label">
+            <TokenLabel cssVar={item.cssVar} label={item.label} />
+          </div>
+          <div className="tokenpanel-card-editor">
+            <input
+              type="text"
+              value={value}
+              onChange={handleChange}
+              disabled={isReadonly}
+              className="tokenpanel-row-text-input"
+              aria-label={`${item.cssVar} value`}
+              spellcheck={false}
+              autoCapitalize="off"
+              autoCorrect="off"
+              autoComplete="off"
+            />
+          </div>
+          <div className="tokenpanel-card-actions">
+            <HighlightToggleButton cssVar={item.cssVar} />
+          </div>
         </div>
       );
     }
@@ -232,16 +250,22 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
         };
         return (
           <div className="tokenpanel-row" data-testid={`tier-item-${item.id}`}>
-            <TokenLabel cssVar={item.cssVar} label={item.label} />
-            <ColorField
-              value={value}
-              onChange={handleColorFieldChange}
-              valueFormat="oklch"
-              label={item.label}
-              cssVar={item.cssVar}
-              readonly={isReadonly}
-            />
-            <HighlightToggleButton cssVar={item.cssVar} />
+            <div className="tokenpanel-card-label">
+              <TokenLabel cssVar={item.cssVar} label={item.label} />
+            </div>
+            <div className="tokenpanel-card-editor">
+              <ColorField
+                value={value}
+                onChange={handleColorFieldChange}
+                valueFormat="oklch"
+                label={item.label}
+                cssVar={item.cssVar}
+                readonly={isReadonly}
+              />
+            </div>
+            <div className="tokenpanel-card-actions">
+              <HighlightToggleButton cssVar={item.cssVar} />
+            </div>
           </div>
         );
       }
@@ -250,16 +274,22 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
       };
       return (
         <div className="tokenpanel-row" data-testid={`tier-item-${item.id}`}>
-          <TokenLabel cssVar={item.cssVar} label={item.label} />
-          <input
-            type="color"
-            value={value}
-            onChange={handleChange}
-            disabled={isReadonly}
-            className="tokenpanel-row-color-input"
-            aria-label={`${item.cssVar} value`}
-          />
-          <HighlightToggleButton cssVar={item.cssVar} />
+          <div className="tokenpanel-card-label">
+            <TokenLabel cssVar={item.cssVar} label={item.label} />
+          </div>
+          <div className="tokenpanel-card-editor">
+            <input
+              type="color"
+              value={value}
+              onChange={handleChange}
+              disabled={isReadonly}
+              className="tokenpanel-row-color-input"
+              aria-label={`${item.cssVar} value`}
+            />
+          </div>
+          <div className="tokenpanel-card-actions">
+            <HighlightToggleButton cssVar={item.cssVar} />
+          </div>
         </div>
       );
     }
@@ -271,4 +301,8 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
   }
 }
 
-export default memo(GenericItemEditorInner);
+function GenericItemEditor(props: GenericItemEditorProps) {
+  return <div className="tokenpanel-card"><GenericItemEditorInner {...props} /></div>;
+}
+
+export default memo(GenericItemEditor);

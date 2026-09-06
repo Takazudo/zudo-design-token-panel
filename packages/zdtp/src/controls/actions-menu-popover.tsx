@@ -1,7 +1,7 @@
 /**
  * ActionsMenuPopover — narrow-panel replacement for the header action links
  * (Export / Load from JSON… / Apply / Reset), collapsed behind the kebab
- * trigger below the panel's <480px container-query breakpoint (#518).
+ * trigger when the header yields through its CSS container query (#787).
  *
  * A PLAIN popover of ordinary action RoleButtons, NOT an ARIA menu:
  * role="menu"/menuitem demands arrow-key navigation and focus management,

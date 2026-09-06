@@ -69,6 +69,7 @@ import {
   openStateChangedEventName,
   panelRootId,
   registerPostConfigureHook,
+  storageKey_spawnOrdinal,
   storageKey_visible,
   toggleEventName,
   type PanelConfig,
@@ -268,21 +269,20 @@ function ensurePanelStyles(): void {
 // feeds that ordinal into the initial-geometry helper so a second live panel
 // spawns offset from the first instead of exactly covering it.
 //
-// ALLOCATION RULE — mount order with lowest-free-slot reuse:
+// ALLOCATION RULE — persisted identity, then lowest-free-slot fallback:
 //
-//   - a fresh registration takes the lowest ordinal not currently held, so a
-//     close-then-reopen reclaims 0 instead of drifting upward forever;
+//   - a valid stored ordinal is restored when no live shell holds it;
+//   - with no valid stored ordinal, a fresh registration takes the lowest
+//     ordinal not currently held, exactly as it did before persistence;
 //   - re-registering an already-registered prefix is idempotent and keeps its
 //     existing ordinal (`ensureMounted` runs on every show, and again on every
 //     `astro:page-load` re-materialisation).
 //
-// That concrete rule IS the contract. The stronger "an instance always gets
-// the same ordinal regardless of mount timing" guarantee is NOT achievable
-// here: this module never learns the full set of instances up front — hosts
-// call `configurePanel()` at arbitrary times and the shell mounts lazily on
-// first open — so there is no complete set to derive a timing-independent
-// order from. Recorded here because a future reader cannot recover "why this
-// rule and not a stronger one" from the code alone.
+// Stored identities do not reserve slots: only entries in this live map do.
+// Thus a genuinely departed instance frees its ordinal immediately even
+// though its preference remains stored for a future, collision-checked mount.
+// The duplicate-key winner and repair rule is documented at the collision
+// branch below because it depends on the holder already being rendered.
 //
 // NOT the same registry as `getInstanceBindings()` further down: that one
 // tracks window-event listener bindings, whose default entry is installed
@@ -294,6 +294,15 @@ function ensurePanelStyles(): void {
 type MountedSlotsWindow = Window & {
   __zudoDesignTokenPanelMountedSlots?: Map<string, number>;
 };
+
+/**
+ * Stored ordinals are capped at 31: together with the 24px cascade step this
+ * provides 32 distinct identities spanning at most 744px, already the useful
+ * limit on ordinary desktop viewports. The live allocator itself stays
+ * unbounded so 33+ simultaneous panels retain the pre-persistence behaviour;
+ * ordinals above this cap simply are not persisted.
+ */
+const MAX_PERSISTED_SPAWN_ORDINAL = 31;
 
 /**
  * Hang the registry off `window`, mirroring `getInstanceBindings()`: a host
@@ -310,6 +319,41 @@ function getMountedSlots(): Map<string, number> {
 }
 
 /**
+ * Read the persisted JSON number without allowing hostile/unavailable storage
+ * to block mounting. Strings, negative/fractional numbers, unsafe integers,
+ * values above the useful cascade cap, and malformed JSON are all absent for
+ * allocation purposes.
+ */
+function readPersistedSpawnOrdinal(cfg: PanelConfig): number | undefined {
+  try {
+    const raw = window.localStorage.getItem(storageKey_spawnOrdinal(cfg));
+    if (raw === null) return undefined;
+    const value: unknown = JSON.parse(raw);
+    if (
+      typeof value === 'number' &&
+      Number.isSafeInteger(value) &&
+      value >= 0 &&
+      value <= MAX_PERSISTED_SPAWN_ORDINAL
+    ) {
+      return value;
+    }
+  } catch {
+    // Storage access and parsing are best-effort; mounting must never depend
+    // on either succeeding.
+  }
+  return undefined;
+}
+
+function persistSpawnOrdinal(cfg: PanelConfig, ordinal: number): void {
+  if (ordinal > MAX_PERSISTED_SPAWN_ORDINAL) return;
+  try {
+    window.localStorage.setItem(storageKey_spawnOrdinal(cfg), JSON.stringify(ordinal));
+  } catch {
+    // Persistence is an enhancement over the in-memory allocation contract.
+  }
+}
+
+/**
  * Register a mounting shell and return its spawn ordinal. Idempotent: an
  * already-registered prefix keeps the ordinal it holds and no new slot is
  * consumed.
@@ -322,9 +366,27 @@ function claimSpawnSlot(cfg: PanelConfig): number {
   const existing = slots.get(cfg.storagePrefix);
   if (existing !== undefined) return existing;
   const taken = new Set(slots.values());
+
+  const persisted = readPersistedSpawnOrdinal(cfg);
+  if (persisted !== undefined && !taken.has(persisted)) {
+    slots.set(cfg.storagePrefix, persisted);
+    return persisted;
+  }
+
+  // Collision rule: the prefix already live in the window keeps the disputed
+  // persisted ordinal; the later claimant takes the lowest free slot and
+  // persists that repair. We never move a mounted holder because its initial
+  // geometry has already been rendered. With successful storage the duplicate
+  // heals after this claim, so subsequent reloads converge on the same pair of
+  // identities. If storage cannot be written, live claim order is the explicit
+  // deterministic tie-breaker for that load.
+  // An absent/invalid key reaches this exact pre-persistence allocator with no
+  // migration or alternate ordering step; only after selection do we record
+  // the result for a future mount.
   let slot = 0;
   while (taken.has(slot)) slot += 1;
   slots.set(cfg.storagePrefix, slot);
+  persistSpawnOrdinal(cfg, slot);
   return slot;
 }
 
@@ -344,6 +406,11 @@ function releaseSpawnSlot(cfg: PanelConfig): void {
 export function __mountedSpawnSlotsForTests(): ReadonlyMap<string, number> {
   if (typeof window === 'undefined') return new Map<string, number>();
   return new Map(getMountedSlots());
+}
+
+/** Test-only entry point for focused persistence/allocation contract tests. */
+export function __claimSpawnSlotForTests(cfg: PanelConfig): number {
+  return claimSpawnSlot(cfg);
 }
 
 /**
@@ -759,10 +826,11 @@ function unmountForSwap(): void {
     const root = findRoot(cfg);
     if (!root) continue;
     const shouldRestore = wasVisible(cfg);
-    // Route the teardown through `unmountInstance` so the shell's spawn slot
-    // (#584) is released here too: a body swap destroys the shell exactly as
-    // `destroy()` does, and an instance that does NOT re-materialise on the
-    // next page load would otherwise hold its slot for the rest of the session.
+    // Route the teardown through `unmountInstance` so the shell's LIVE spawn
+    // slot (#584) is released here too. Its persisted ordinal identity remains
+    // available for a soft-nav remount; if the instance does NOT re-materialise
+    // on page-load, that stored preference reserves nothing and another live
+    // instance can reuse the slot immediately.
     unmountInstance(cfg);
     if (shouldRestore) setStoredVisibility(cfg, true);
   }

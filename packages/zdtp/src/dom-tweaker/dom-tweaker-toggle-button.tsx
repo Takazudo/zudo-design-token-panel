@@ -11,7 +11,7 @@ import type { JSX } from 'preact';
 import { DomTweakerContext } from './dom-tweaker-context';
 import { RoleButton } from '../controls/role-button';
 
-export function DomTweakerToggleButton(): JSX.Element | null {
+export function DomTweakerToggleButton({ compact = false }: { compact?: boolean } = {}): JSX.Element | null {
   const ctx = useContext(DomTweakerContext);
   if (ctx === null) return null;
 
@@ -44,6 +44,7 @@ export function DomTweakerToggleButton(): JSX.Element | null {
         title={title}
         onClick={toggle}
       >
+        <>
         <svg
           width="14"
           height="14"
@@ -63,19 +64,21 @@ export function DomTweakerToggleButton(): JSX.Element | null {
           <path d="M14 11v6" />
           <path d="M9 20h6" />
         </svg>
+        {compact && <span>DOM Tweaker</span>}
         <span
           className={`tokenpanel-domtweaker-toggle__status is-${runtimeStatus}`}
           aria-hidden="true"
         />
+        </>
       </RoleButton>
-      <RoleButton
-        className="tokenpanel-domtweaker-diff-button"
+      {!compact && <RoleButton
+        className="tokenpanel-tweaker-diff-button tokenpanel-domtweaker-diff-button"
         aria-label="Open DOM Tweaker diff export"
         title="Open DOM Tweaker diff export"
         onClick={openDiffExport}
       >
         <span aria-hidden="true">±</span>
-      </RoleButton>
+      </RoleButton>}
     </>
   );
 }

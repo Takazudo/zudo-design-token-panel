@@ -62,6 +62,7 @@ import { shouldAutoload, rememberAutoload, clearAutoload } from '../state/autolo
 import { loadElementPathEnabled, saveElementPathEnabled } from '../element-path/element-path-state';
 import { loadDomTweakerEnabled } from '../dom-tweaker/dom-tweaker-state';
 import { captureDocument, isSameUsableDocument } from '../utils/document-liveness';
+import { READABLE_STATE_KEY_SUFFIXES } from '../constants';
 
 interface DesignTokenPanelAdapterState {
   /** Per-`storagePrefix` bind flag — re-runs of the script are no-ops. */
@@ -157,16 +158,16 @@ function wasVisible(visibleKey: string): boolean {
   }
 }
 
-/** Escape regex metacharacters so a host-supplied `storagePrefix` is matched literally. */
-function escapeRegExpLiteral(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 /**
  * A parsed envelope counts as "has overrides" only when it is provably
  * non-empty. Malformed JSON returns `true` (epic #575 decision 3) — a parse
  * failure means the panel must still load so it can migrate or reject the
  * payload, rather than stranding the user with corrupt state it can never see.
+ *
+ * This top-level check is defensive-only for foreign or hand-written values:
+ * zdtp-written v4 envelopes always contain the color, spacing, typography, and
+ * size buckets, while `clearPersistedState()` removes keys instead of writing
+ * `{}`. Keep this deliberately schema-agnostic; it is not an override detector.
  */
 function hasNonEmptyOverridesEnvelope(raw: string | null): boolean {
   // An empty string is a blank slot, not malformed data — treat it like
@@ -187,22 +188,16 @@ function hasNonEmptyOverridesEnvelope(raw: string | null): boolean {
 
 function hasPersistedOverrides(cfg: PanelConfig): boolean {
   try {
-    // Exact `-state` family match (v1 `${prefix}-state` through every future
-    // `${prefix}-state-vN`), NOT a `startsWith(prefix + '-state')` scan. A
-    // page running sibling prefixes like `myapp` and `myapp-state` would
-    // otherwise have the SIBLING's own keys (`myapp-state-state`,
-    // `myapp-state-state-v4`) satisfy instance `myapp`'s scan, so one
-    // instance would eager-load because of another's state (epic #575
-    // decision 6). Note `myapp-state-v4` is `myapp`'s OWN v4 key, not the
-    // sibling's. Scanning keys directly (rather than
-    // deriving one key per known version) also picks up v1 — which the old
-    // per-version key list omitted — and any future version, with no schema
-    // knowledge required.
-    const familyRe = new RegExp(`^${escapeRegExpLiteral(cfg.storagePrefix)}-state(-v\\d+)?$`);
+    // Probe the dependency-free registry of versions the loader can actually
+    // read, including v1's unsuffixed `${prefix}-state`. Constructing each
+    // complete key from the literal prefix excludes sibling prefixes such as
+    // `myapp-state` and keeps host-supplied regex characters inert. It also
+    // excludes `${prefix}-spawn-ordinal` by construction. This bounded loop is
+    // on the synchronous bootstrap path: never replace it with storage
+    // `length` / `key()` enumeration.
     const ls = window.localStorage;
-    for (let i = 0; i < ls.length; i++) {
-      const key = ls.key(i);
-      if (key !== null && familyRe.test(key) && hasNonEmptyOverridesEnvelope(ls.getItem(key))) {
+    for (const suffix of Object.values(READABLE_STATE_KEY_SUFFIXES)) {
+      if (hasNonEmptyOverridesEnvelope(ls.getItem(cfg.storagePrefix + suffix))) {
         return true;
       }
     }

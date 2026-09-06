@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const repositoryRoot = resolve(packageRoot, '../..');
@@ -37,6 +37,19 @@ async function stopSidecar(process: ChildProcess): Promise<void> {
     new Promise<void>((resolveWait) => setTimeout(resolveWait, 2_000)),
   ]);
   if (process.exitCode === null) process.kill('SIGKILL');
+}
+
+async function clickPanelAction(page: Page, label: string): Promise<void> {
+  const inlineAction = page.locator('.tokenpanel-header > .tokenpanel-action-link').getByText(label, {
+    exact: true,
+  });
+  if (await inlineAction.isVisible()) {
+    await inlineAction.click();
+    return;
+  }
+
+  await page.getByRole('button', { name: 'Panel actions' }).click();
+  await page.locator('.tokenpanel-actions-popover').getByText(label, { exact: true }).click();
 }
 
 test('spacing tweak survives export, reload, import, and real-bin apply', async ({ page, baseURL }) => {
@@ -79,7 +92,7 @@ test('spacing tweak survives export, reload, import, and real-bin apply', async 
     await input.dispatchEvent('input');
     await expect(hostElement).toHaveCSS('padding-left', '20px');
 
-    await page.getByText('Export', { exact: true }).first().click();
+    await clickPanelAction(page, 'Export');
     const exportDialog = page.locator('[data-design-token-panel-modal-variant="export"]');
     await expect(exportDialog).toBeVisible();
     const exportedJson = await exportDialog.locator('[role="none"]').textContent();
@@ -96,14 +109,14 @@ test('spacing tweak survives export, reload, import, and real-bin apply', async 
     await expect(hostElement).toHaveCSS('padding-left', '20px');
     await expect(page.getByLabel('--zfb-hsp-md value')).toHaveValue('1.25');
 
-    await page.getByText('Load from JSON…', { exact: true }).first().click();
+    await clickPanelAction(page, 'Load from JSON…');
     const importDialog = page.locator('[data-design-token-panel-modal-variant="import"]');
     await importDialog.locator('textarea').fill(exportedJson ?? '');
     await importDialog.getByText('Load', { exact: true }).click();
     await expect(importDialog.getByRole('status')).toContainText('Loaded.');
     await importDialog.getByText('Close', { exact: true }).click();
 
-    await page.getByText('Apply', { exact: true }).first().click();
+    await clickPanelAction(page, 'Apply');
     const applyDialog = page.locator('[data-design-token-panel-modal-variant="apply"]');
     await expect(applyDialog).toBeVisible();
     // Exercise the modal's primary write action. The routed basename is shown
