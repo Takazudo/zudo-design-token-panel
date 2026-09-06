@@ -865,6 +865,16 @@ export function storageKey_stateV1(cfg: PanelConfig): string {
   return `${cfg.storagePrefix}-state`;
 }
 
+/**
+ * Persisted identity used to keep a fresh panel's cascade position stable
+ * across an Astro body swap. This is deliberately separate from the unified
+ * tweak-state envelopes: it identifies an instance; it is not user-authored
+ * token state and does not participate in state-schema migration.
+ */
+export function storageKey_spawnOrdinal(cfg: PanelConfig): string {
+  return `${cfg.storagePrefix}-spawn-ordinal`;
+}
+
 /** Mirror of the panel's `open` boolean (synchronous mount-time read). */
 export function storageKey_open(cfg: PanelConfig): string {
   return `${cfg.storagePrefix}-open`;

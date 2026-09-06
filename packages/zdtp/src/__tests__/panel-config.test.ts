@@ -16,6 +16,7 @@ import {
   storageKey_stateV1,
   storageKey_stateV2,
   storageKey_stateV3,
+  storageKey_spawnOrdinal,
   storageKey_visible,
   type PanelConfig,
 } from '../config/panel-config';
@@ -88,6 +89,7 @@ describe('panel-config — default config literal-equality', () => {
     expect(storageKey_stateV1(cfg)).toBe('zudo-design-token-panel-state');
     expect(storageKey_stateV2(cfg)).toBe('zudo-design-token-panel-state-v2');
     expect(storageKey_stateV3(cfg)).toBe('zudo-design-token-panel-state-v3');
+    expect(storageKey_spawnOrdinal(cfg)).toBe('zudo-design-token-panel-spawn-ordinal');
     expect(storageKey_open(cfg)).toBe('zudo-design-token-panel-open');
     expect(storageKey_position(cfg)).toBe('zudo-design-token-panel-position');
     expect(storageKey_dock(cfg)).toBe('zudo-design-token-panel-dock');
@@ -156,6 +158,7 @@ describe('panel-config — derivation flips with a non-default config', () => {
   it('every derivation flips with the new prefix', () => {
     expect(storageKey_stateV1(ALT_CONFIG)).toBe('foo-bar-state');
     expect(storageKey_stateV2(ALT_CONFIG)).toBe('foo-bar-state-v2');
+    expect(storageKey_spawnOrdinal(ALT_CONFIG)).toBe('foo-bar-spawn-ordinal');
     expect(storageKey_open(ALT_CONFIG)).toBe('foo-bar-open');
     expect(storageKey_position(ALT_CONFIG)).toBe('foo-bar-position');
     expect(storageKey_visible(ALT_CONFIG)).toBe('foo-bar:visible');
