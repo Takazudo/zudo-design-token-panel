@@ -147,7 +147,7 @@ async function mount(width: number, density: 0 | 1 | 2): Promise<void> {
 }
 
 describe('specimen density layout', () => {
-  for (const width of [700, 440]) {
+  for (const width of [700, 440, 380, 320]) {
     for (const density of [0, 1, 2] as const) {
       it(`keeps specimen rows contained at ${width}px and density ${density}`, async () => {
         await mount(width, density);
@@ -157,12 +157,17 @@ describe('specimen density layout', () => {
         for (const grid of specimenGrids) {
           expect(getComputedStyle(grid).gridTemplateColumns.trim().split(/\s+/)).toHaveLength(1);
           expect(grid.scrollWidth).toBe(grid.clientWidth);
+          for (const card of grid.querySelectorAll<HTMLElement>('.tokenpanel-card')) {
+            // Roomy rows permit the trailing icon's 4px pseudo-hit target;
+            // compact rows reserve it inside the card so it cannot escape.
+            expect(card.scrollWidth - card.clientWidth).toBe(width <= 380 ? 0 : 4);
+          }
         }
         const tabBody = shell.querySelector<HTMLElement>('.tokenpanel-tab-content')!;
         expect(tabBody.scrollWidth).toBe(tabBody.clientWidth);
 
         const familyGrid = shell.querySelector<HTMLElement>('[data-testid="font-tier-family"] .tokenpanel-tab-grid')!;
-        if (density === 0) {
+        if (density === 0 && width >= 440) {
           expect(getComputedStyle(familyGrid).gridTemplateColumns.trim().split(/\s+/).length).toBeGreaterThanOrEqual(2);
         }
 

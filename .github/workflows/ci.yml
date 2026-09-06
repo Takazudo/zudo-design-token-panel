@@ -139,7 +139,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          scratch_doc="$RUNNER_TEMP/zdtp-doc"
+          scratch_doc="$RUNNER_TEMP/doc"
           mkdir -p "$scratch_doc"
 
           rsync -a \
@@ -218,7 +218,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          scratch_doc="$RUNNER_TEMP/zdtp-doc"
+          scratch_doc="$RUNNER_TEMP/doc"
           python3 -m http.server 4321 \
             --bind 127.0.0.1 \
             --directory "$scratch_doc/dist" \
