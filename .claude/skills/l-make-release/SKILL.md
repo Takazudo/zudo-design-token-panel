@@ -282,9 +282,11 @@ halves below on every release — they are read-only and take a minute.
 #### (a) Full textual diff of the published declaration files
 
 Diff the emitted `.d.ts` of the last published release against the candidate. This
-reads the artifact consumers actually install, and one glob covers every export
-subpath (`.`, `./astro`, `./astro/host-adapter`, `./server`, `./testing`,
-`./constants`) because they all resolve into `dist/`. No new tooling.
+reads the artifact consumers actually install, and one glob covers every typed
+export subpath (`.`, `./astro`, `./astro/host-adapter`, `./server`, `./testing`,
+`./constants`) because they all resolve into `dist/`. The untyped subpaths —
+`./astro/DesignTokenPanelHost.astro`, `./styles`, `./styles.css` — and the CLI
+emit no `.d.ts`, so (b) source 2 is the only pass that covers them. No new tooling.
 
 ```bash
 LAST=${LAST_TAG#v}                       # the published version behind $LAST_TAG
@@ -341,8 +343,9 @@ contract almost always ships the assertion that proves it:
 
 ```bash
 # assertions added, removed, or flipped in the package's own test suite
-# (`expect(` occurs only in tests, so no test-directory pathspec is needed —
-#  git pathspecs treat a bare `**` literally without `:(glob)` magic)
+# (`expect(` occurs only in tests, so the plain `packages/zdtp/src` pathspec is
+#  enough — no `**/__tests__/**` pathspec, whose wildcards git interprets
+#  differently with and without `:(glob)` magic, is needed)
 git diff "$LAST_TAG"..HEAD -- packages/zdtp/src | grep -E '^[-+].*expect\('
 ```
 
