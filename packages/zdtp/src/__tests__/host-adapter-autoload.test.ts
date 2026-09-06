@@ -158,6 +158,24 @@ describe('host-adapter owner-autoload wiring (S2 #419)', () => {
       expect(adapterState()?.modulePromise).toBeNull();
     });
 
+    it('cold visitor neither enumerates storage nor fetches the panel bundle', async () => {
+      const lengthSpy = vi.spyOn(Storage.prototype, 'length', 'get').mockImplementation(() => {
+        throw new Error('cold path must not read localStorage.length');
+      });
+      const keySpy = vi.spyOn(Storage.prototype, 'key').mockImplementation(() => {
+        throw new Error('cold path must not call localStorage.key()');
+      });
+      try {
+        await bootstrapAdapter();
+        expect(adapterState()?.modulePromise, 'no dynamic panel import').toBeNull();
+        expect(lengthSpy).not.toHaveBeenCalled();
+        expect(keySpy).not.toHaveBeenCalled();
+      } finally {
+        lengthSpy.mockRestore();
+        keySpy.mockRestore();
+      }
+    });
+
     it('fires on wasVisible signal (:visible = "1")', async () => {
       localStorage.setItem(VISIBLE_KEY, '1');
       await bootstrapAdapter();
