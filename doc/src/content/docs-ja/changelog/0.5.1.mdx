@@ -8,6 +8,10 @@ Released: 2026-09-06
 
 パネルの最小幅において、トークングリッド、カード操作、ヘッダー操作がはみ出さずに収まるようになりました。複数パネルの表示位置も安定します。生成順の番号を保存するようにし、Astro のクライアントサイド遷移をまたいでも維持されます。先行読み込みはパネルが実際に読み取れる状態キーだけに限定し、スペシメンのスタイルシートにはドキュメント側の採用チェックが要求する境界指定を追加しました。
 
+### 破壊的変更
+
+- **公開エクスポートである `EAGER_LOAD_GATE_STATE_FAMILY.matchesKey` が受け付けるキーの範囲を狭めました。** 0.5.0 では `${storagePrefix}-state` に `-v` と 1 桁以上の数字が続くキーをすべて受け付けていましたが、0.5.1 では新しい `READABLE_STATE_KEY_SUFFIXES` レジストリ（`-state`、`-state-v2`、`-state-v3`、`-state-v4`）との完全一致だけを受け付けます。そのため `${storagePrefix}-state` と `${storagePrefix}-state-v2` は引き続き一致しますが、`${storagePrefix}-state-v1`、`${storagePrefix}-state-v0`、`${storagePrefix}-state-v01`、`${storagePrefix}-state-v123` は 0.5.0 では一致していたのに 0.5.1 では一致しません。同期的な先行読み込みゲートはローダーが実際に読めるバージョンだけを調べるべきなので、この絞り込み自体は意図的なものです。ただし利用側から観測できる変更であり、TypeScript の型シグネチャは変わっていないため型チェックでは検出できません。本来はパッチではなくマイナーリリースに含めるべき変更でした。**移行方法**: `-state-vN` 形式のキーを前提にしているホストは、数値パターンでマッチするのではなく、新しい `READABLE_STATE_KEY_SUFFIXES` エクスポートからキーを導出してください。次にストレージ形式が更新されたときに、そのアサーションが自動で追従します。(bcc55fd, [#790](https://github.com/Takazudo/zudo-design-token-panel/issues/790), [#793](https://github.com/Takazudo/zudo-design-token-panel/issues/793), [#814](https://github.com/Takazudo/zudo-design-token-panel/issues/814))
+
 ### バグ修正
 
 - fix: 最小幅でトークングリッドとカード操作が収まるように調整 (8db4235)
@@ -25,7 +29,6 @@ Released: 2026-09-06
 - ブランチをマージ: 'topic/790-storage-bootstrap-confirm' → base/sweep-260906-2-storage-bootstrap (aca17d0)
 - ストレージ初期化まわりのリグレッションをテストで確認 (1fdb75e)
 - ブランチをマージ: 'topic/790-readable-gate-probe' → base/sweep-260906-2-storage-bootstrap (be49753)
-- 先行読み込みを読み取り可能な状態キーに限定 (bcc55fd)
 - ブランチをマージ: 'topic/790-astro-ordinal-lifecycle' → base/sweep-260906-2-storage-bootstrap (48a76ab)
 - Astro のページ遷移をまたいでも生成位置を維持 (2a6672b)
 - ブランチをマージ: 'topic/790-persisted-spawn-ordinal' → base/sweep-260906-2-storage-bootstrap (03deeaa)
