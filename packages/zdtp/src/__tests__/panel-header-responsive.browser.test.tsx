@@ -268,6 +268,11 @@ function getHeaderActionLinks(): HTMLElement[] {
   return Array.from(container.querySelectorAll<HTMLElement>('.tokenpanel-header > .tokenpanel-action-link'));
 }
 
+/** Every element carrying the stable per-action hook, in DOM order (#840). */
+function getActionHookElements(id: string): HTMLElement[] {
+  return Array.from(container.querySelectorAll<HTMLElement>(`[data-zdtp-action="${id}"]`));
+}
+
 function getPopoverActionByLabel(label: string): HTMLElement {
   const popover = getPopover();
   if (!popover) throw new Error('popover is not open');
@@ -644,6 +649,118 @@ describe('wide panel (>1135px container width)', () => {
     enabledApply?.click();
     await flushEffects();
     expect(container.querySelector('[data-design-token-panel-modal-variant="apply"]')).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// data-zdtp-action — stable per-action DOM hook (#840, PORTABLE-CONTRACT §7.6)
+// ---------------------------------------------------------------------------
+
+/** Ordered to match the four header actions as rendered. */
+const ACTION_HOOK_IDS = ['export', 'import', 'apply', 'reset'] as const;
+const ACTION_HOOK_LABELS = ['Export', 'Load from JSON…', 'Apply', 'Reset'] as const;
+
+describe('data-zdtp-action stable hook', () => {
+  it('emits one element per id above the 1135px boundary — the visible header link', async () => {
+    // 1152px shell − 2px borders = 1150px content box, i.e. above 1135.
+    await mountPanelAtWidth(1152);
+    expect(getComputedStyle(getKebabTrigger()).display).toBe('none');
+    expect(getPopover()).toBeNull();
+
+    for (const [index, id] of ACTION_HOOK_IDS.entries()) {
+      const matches = getActionHookElements(id);
+      expect(matches).toHaveLength(1);
+      const [only] = matches;
+      expect(only!.textContent).toBe(ACTION_HOOK_LABELS[index]);
+      expect(only!.closest('.tokenpanel-header')).not.toBeNull();
+      expect(only!.closest('.tokenpanel-actions-popover')).toBeNull();
+      expect(visible(only!)).toBe(true);
+    }
+
+    // The hook rides the same elements the label-based query already finds,
+    // in the same order — it is additive, not a second control set.
+    expect(getHeaderActionLinks().map((el) => el.getAttribute('data-zdtp-action'))).toEqual([
+      ...ACTION_HOOK_IDS,
+    ]);
+  });
+
+  it('matches TWO elements per id at 1024px with the popover open, and exactly one once qualified by visibility', async () => {
+    // ShellHeader ALWAYS renders the header action row; the container query
+    // only hides it with display:none. So the popover item does not replace
+    // the header link in the DOM — it joins it. A bare
+    // [data-zdtp-action="reset"] locator is therefore ambiguous here, and the
+    // consumer recipe must qualify it by visibility.
+    await mountPanelAtWidth(1024);
+    for (const link of getHeaderActionLinks()) {
+      expect(getComputedStyle(link).display).toBe('none');
+    }
+
+    getKebabTrigger().click();
+    await flushEffects();
+    const popover = getPopover();
+    expect(popover).not.toBeNull();
+
+    for (const [index, id] of ACTION_HOOK_IDS.entries()) {
+      const matches = getActionHookElements(id);
+      expect(matches).toHaveLength(2);
+
+      const headerMatch = matches.find((el) => !el.closest('.tokenpanel-actions-popover'));
+      const popoverMatch = matches.find((el) => el.closest('.tokenpanel-actions-popover'));
+      expect(headerMatch).toBeDefined();
+      expect(popoverMatch).toBeDefined();
+      // Identical id across both affordances, on the same labelled action.
+      expect(headerMatch!.getAttribute('data-zdtp-action')).toBe(id);
+      expect(popoverMatch!.getAttribute('data-zdtp-action')).toBe(id);
+      expect(headerMatch!.textContent).toBe(ACTION_HOOK_LABELS[index]);
+      expect(popoverMatch!.textContent).toBe(ACTION_HOOK_LABELS[index]);
+
+      // Visibility qualification — the DOM equivalent of Playwright's
+      // `:visible` / `.filter({ visible: true })` — narrows it to exactly one.
+      const visibleMatches = matches.filter((el) => visible(el));
+      expect(visibleMatches).toHaveLength(1);
+      expect(visibleMatches[0]).toBe(popoverMatch);
+    }
+
+    // Both affordances emit the full id set, in the same order.
+    expect(
+      Array.from(popover!.querySelectorAll<HTMLElement>('.tokenpanel-action-link'))
+        .map((el) => el.getAttribute('data-zdtp-action'))
+        .filter((value): value is string => value !== null),
+    ).toEqual([...ACTION_HOOK_IDS]);
+    expect(getHeaderActionLinks().map((el) => el.getAttribute('data-zdtp-action'))).toEqual([
+      ...ACTION_HOOK_IDS,
+    ]);
+  });
+
+  it('leaves Apply\'s aria-disabled and title untouched on both affordances', async () => {
+    await mountPanelAtWidth(1024);
+    getKebabTrigger().click();
+    await flushEffects();
+
+    for (const el of getActionHookElements('apply')) {
+      expect(el.getAttribute('aria-disabled')).toBe('true');
+      expect(el.title).toContain('configure an apply endpoint');
+    }
+    for (const el of getActionHookElements('export')) {
+      expect(el.getAttribute('aria-disabled')).not.toBe('true');
+      expect(el.title).toBe('');
+    }
+  });
+
+  it('selects the action by id and fires it without matching the label', async () => {
+    await mountPanelAtWidth(1024);
+    getKebabTrigger().click();
+    await flushEffects();
+
+    const target = getActionHookElements('export').find((el) => visible(el));
+    expect(target).toBeDefined();
+    target!.click();
+    await flushEffects();
+
+    expect(getPopover()).toBeNull();
+    expect(
+      container.querySelector('[data-design-token-panel-modal-variant="export"]'),
+    ).not.toBeNull();
   });
 });
 

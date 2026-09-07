@@ -30,6 +30,9 @@ export interface RoleButtonProps {
   title?: string;
   'aria-label'?: string;
   'data-testid'?: string;
+  /** Stable per-action DOM hook for consumer tests (see PORTABLE-CONTRACT §7.6).
+   *  Keyed on an action id, never on the display label. */
+  'data-zdtp-action'?: string;
 }
 
 export function RoleButton({
@@ -44,6 +47,7 @@ export function RoleButton({
   title,
   'aria-label': ariaLabel,
   'data-testid': testId,
+  'data-zdtp-action': zdtpAction,
 }: RoleButtonProps): JSX.Element {
   function handleKeyDown(e: KeyboardEvent) {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -69,6 +73,7 @@ export function RoleButton({
       title={title}
       aria-label={ariaLabel}
       data-testid={testId}
+      data-zdtp-action={zdtpAction}
       {...ariaProps}
     >
       {children}

@@ -16,6 +16,10 @@ import { RoleButton } from './role-button';
 import { usePopoverClose } from '../components/color-picker/index';
 
 export interface ActionsMenuAction {
+  /** Stable action id, emitted as `data-zdtp-action` on the rendered item.
+   *  Required so the DOM hook can never silently go missing; labels are
+   *  display strings and must not be used as the key (PORTABLE-CONTRACT §7.6). */
+  id: string;
   label: string;
   onSelect: () => void;
   disabled?: boolean;
@@ -51,9 +55,10 @@ export function ActionsMenuPopover({
     >
       {actions.map((action) => (
         <RoleButton
-          key={action.label}
+          key={action.id}
           aria-disabled={action.disabled}
           title={action.disabledReason}
+          data-zdtp-action={action.id}
           onClick={() => {
             action.onSelect();
             onClose();
