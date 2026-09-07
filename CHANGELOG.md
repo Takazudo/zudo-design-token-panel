@@ -14,7 +14,7 @@ Dates and versions may be absent for unreleased entries.
   1135px and below — measured on the shell's content box, not the viewport — so selectors that
   reached them through 0.4.14 stop resolving. It is now written up as a Breaking Change in the
   package release notes; see the `[0.5.1]` section of `packages/zdtp/CHANGELOG.md` and the
-  [0.5.1 changelog page](https://zdtp-doc.zudolab.dev/docs/changelog/0.5.1/).
+  [0.5.1 changelog page](https://zdtp.zudolab.dev/docs/changelog/0.5.1/).
   ([#831](https://github.com/Takazudo/zudo-design-token-panel/issues/831))
 
 ### Panel Singleton & First-Toggle Bugfixes ([epic #108](https://github.com/Takazudo/zudo-design-token-panel/issues/108), root PR [#113](https://github.com/Takazudo/zudo-design-token-panel/pull/113))

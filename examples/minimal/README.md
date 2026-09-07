@@ -20,5 +20,5 @@ This builds the static bundle for the `zdtp-minimal` Worker configured in
 local `zdtp-server` sidecar, and this minimal example has no sidecar in any mode.
 Browser edits still work and persist locally, while writing changes back to
 source files remains unavailable. See the [apply pipeline
-setup](https://zdtp-doc.zudolab.dev/docs/recipes/apply-pipeline-setup/)
+setup](https://zdtp.zudolab.dev/docs/recipes/apply-pipeline-setup/)
 to add that local round trip to a project.
