@@ -12,6 +12,14 @@ Released: 2026-09-06
 
 - **公開エクスポートである `EAGER_LOAD_GATE_STATE_FAMILY.matchesKey` が受け付けるキーの範囲を狭めました。** 0.5.0 では `${storagePrefix}-state` に `-v` と 1 桁以上の数字が続くキーをすべて受け付けていましたが、0.5.1 では新しい `READABLE_STATE_KEY_SUFFIXES` レジストリ（`-state`、`-state-v2`、`-state-v3`、`-state-v4`）との完全一致だけを受け付けます。そのため `${storagePrefix}-state` と `${storagePrefix}-state-v2` は引き続き一致しますが、`${storagePrefix}-state-v1`、`${storagePrefix}-state-v0`、`${storagePrefix}-state-v01`、`${storagePrefix}-state-v123` は 0.5.0 では一致していたのに 0.5.1 では一致しません。同期的な先行読み込みゲートはローダーが実際に読めるバージョンだけを調べるべきなので、この絞り込み自体は意図的なものです。ただし利用側から観測できる変更であり、TypeScript の型シグネチャは変わっていないため型チェックでは検出できません。本来はパッチではなくマイナーリリースに含めるべき変更でした。**移行方法**: `-state-vN` 形式のキーを前提にしているホストは、数値パターンでマッチするのではなく、新しい `READABLE_STATE_KEY_SUFFIXES` エクスポートからキーを導出してください。次にストレージ形式が更新されたときに、そのアサーションが自動で追従します。(bcc55fd, [#790](https://github.com/Takazudo/zudo-design-token-panel/issues/790), [#793](https://github.com/Takazudo/zudo-design-token-panel/issues/793), [#814](https://github.com/Takazudo/zudo-design-token-panel/issues/814))
 
+- **パネルのコンテンツ幅が 1135px 以下になると、ヘッダーのアクションリンクがケバブメニューの中に折りたたまれるようになりました。それまでクリックできていた操作が、従来のセレクタでは掴めなくなります。** _(2026-09-08 に追記した、リリース済みバージョンへの遡及的な訂正です。この挙動は 0.5.1 で出荷されていましたが、当時は **バグ修正** の `fix(panel): yield header controls before floating panel overflow` としてしか記載しておらず、本来はこちらに書くべきものでした。)_ ヘッダーのアクションリンク（Export、Load from JSON…、Apply、Reset）は非表示になり、代わりにケバブメニューのトリガー `.tokenpanel-actions-menu-btn`（`aria-label="Panel actions"`）から開く `.tokenpanel-actions-popover` の中に置かれます。これを制御しているのは `.tokenpanel-shell`（`container: tokenpanel / inline-size`）に対する `@container tokenpanel (max-width: 1135px)` です。このしきい値には注意すべき点が 2 つあります。ひとつは **1135px 以下** で折りたたまれること、つまりちょうど 1135px は折りたたまれ、1136px は折りたたまれないこと。もうひとつは、判定に使われるのが **ビューポートではなくシェル自身のコンテンツボックスのインラインサイズ** であり、パネル自身のボーダーの分だけ測定される幅が変わることです。1135px は、ふつうのデスクトップ表示のパネルであればすでに下回っている程度の幅です。シェル幅 1024px は、狭い表示でもモバイルでもありません。意外なのはレスポンシブな折りたたみが存在すること自体ではなく、多くの人が「デスクトップ」と呼ぶ幅でそれが起きることです。折りたたまれたリンクは `display: none` になってアクセシビリティツリーからも外れるため、0.5.0 まで動いていた次のようなクエリは 0.5.1 ではタイムアウトします。
+
+  ```js
+  await page.getByRole('button', { name: 'Reset', exact: true }).click();
+  ```
+
+  上の `matchesKey` の絞り込みと同じく、これは利用側から観測できる変更でありながら、TypeScript の型シグネチャは変わっていないため型チェックでは検出できません。本来はパッチではなくマイナーリリースに含めるべき変更でした。**移行方法**: アクションを操作する前にケバブメニューを開くか、しきい値より広いコンテンツ幅でパネルを動かしてください。どちらの手順も、境界値の計算とあわせてレシピ [ヘッダーのアクションに到達する](https://zdtp-doc.zudolab.dev/ja/docs/recipes/reaching-header-actions/) で解説しています。これらの操作を指す安定した `data-zdtp-action` 属性は今後のリリースで追加される予定ですが、0.5.1 には存在しません。(06cbb0e, [#787](https://github.com/Takazudo/zudo-design-token-panel/issues/787), [#831](https://github.com/Takazudo/zudo-design-token-panel/issues/831))
+
 ### バグ修正
 
 - fix: 最小幅でトークングリッドとカード操作が収まるように調整 (8db4235)

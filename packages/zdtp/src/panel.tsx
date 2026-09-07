@@ -1121,15 +1121,16 @@ export default function DesignTokenTweakPanel({
   const applyConfigured = isApplyConfigured(instanceConfig);
   const panelActions = useMemo(
     () => [
-      { label: 'Export', onSelect: () => setShowExport(true) },
-      { label: 'Load from JSON…', onSelect: () => setShowImport(true) },
+      { id: 'export', label: 'Export', onSelect: () => setShowExport(true) },
+      { id: 'import', label: 'Load from JSON…', onSelect: () => setShowImport(true) },
       {
+        id: 'apply',
         label: 'Apply',
         onSelect: () => setShowApply(true),
         disabled: !applyConfigured,
         disabledReason: !applyConfigured ? APPLY_DISABLED_REASON : undefined,
       },
-      { label: 'Reset', onSelect: handleResetAll },
+      { id: 'reset', label: 'Reset', onSelect: handleResetAll },
     ],
     [applyConfigured, handleResetAll],
   );
@@ -1368,7 +1369,7 @@ export default function DesignTokenTweakPanel({
         },
         ...panelActions.map(
           (action, index): ShellRegionItem => ({
-            id: `panel-action-${action.label}`,
+            id: `panel-action-${action.id}`,
             order: index,
             compactAction: action,
             render: () => (
@@ -1377,6 +1378,7 @@ export default function DesignTokenTweakPanel({
                 className="tokenpanel-action-link"
                 aria-disabled={action.disabled}
                 title={action.disabledReason}
+                data-zdtp-action={action.id}
               >
                 {action.label}
               </RoleButton>

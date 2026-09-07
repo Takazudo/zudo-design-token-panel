@@ -515,7 +515,7 @@ export interface TierConfig {
 }
 
 For the full `SemanticValue` mapping and emission behavior, see the maintained
-[Color-cluster reference](https://zudo-design-token-panel.takazudomodular.com/docs/reference/color-cluster/).
+[Color-cluster reference](https://zdtp-doc.zudolab.dev/docs/reference/color-cluster/).
 
 /**
  * Color-cluster extras — the non-tier fields required for the color tab.
@@ -1515,6 +1515,47 @@ pipeline:
 </script>
 ```
 
+### 7.6 `data-zdtp-action` — stable header-action DOM hook
+
+The four header actions carry a stable per-action attribute so a consumer test
+can select one without matching its display label:
+
+```html
+<div role="button" class="tokenpanel-action-link" data-zdtp-action="export">Export</div>
+```
+
+| Action label      | `data-zdtp-action` |
+| ----------------- | ------------------ |
+| `Export`          | `export`           |
+| `Load from JSON…` | `import`           |
+| `Apply`           | `apply`            |
+| `Reset`           | `reset`            |
+
+**The ids are stable; the labels are not.** Labels are display strings and may
+change at any minor version (note the ellipsis in `Load from JSON…`, which is
+`…` U+2026, not three periods). Select on the attribute, never on the text.
+
+Both affordances emit it with identical values: the header row and the compact
+kebab popover that takes over visually below the header's container-query
+threshold.
+
+**The hook does not remove the visibility branch.** `ShellHeader` *always*
+renders the header action row; the container query only hides it with
+`display: none`. So while the compact popover is open, `[data-zdtp-action="reset"]`
+matches **two** elements — the hidden header control and the popover item. A
+bare attribute selector is therefore not unambiguous at narrow widths; qualify
+it by visibility (Playwright's `:visible` / `.filter({ visible: true })`, or a
+non-zero bounding box) to land on exactly one.
+
+Scope — this hook covers the header actions and their compact popover only,
+which means every layout sharing `ShellHeader`: floating, right-docked, and
+bottom-docked. Deliberately **not** covered:
+
+- The **command palette**, which renders its own Export / Import / Apply entries
+  and whose reset entries are per-tab (`Reset {tab.label}`), not the header's
+  reset-all.
+- **Mini mode**, which renders Apply and has no header.
+
 ---
 
 ## 8. Storage-key continuity & migration paths
@@ -1710,6 +1751,7 @@ Cross-reference table — what each section pins down.
 | Modal class prefix and `data-design-token-panel-modal` selector contract                    | §7.3          |
 | Self-contained panel chrome palette (no host theme reads)                                  | §7.4          |
 | Host-adapter side-effect import (paired-unit obligation)                                    | §7.5          |
+| `data-zdtp-action` stable header-action hook (ids stable, labels not; two matches while the compact popover is open) | §7.6 |
 | v4 envelope precedence, v1/v2/v3 storage migration, and typography-id rename map             | §2, §8.3, §8.4 |
 | JSON export/import schemas v1/v2/v3 (serde)                                                  | §9            |
 | Out-of-scope / deferred concerns                                                            | §10           |

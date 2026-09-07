@@ -1,0 +1,198 @@
+---
+title: レイアウトを問わずヘッダーアクションへ到達する
+description: "ヘッダーがアクションリンクをインライン表示していても、ケバブメニューへ折りたたんでいても、テストから Export / Load from JSON… / Apply / Reset をクリックする方法。"
+sidebar_position: 10
+---
+
+パネルのヘッダーは **Export**、**Load from JSON…**、**Apply**、**Reset** の
+4 つのアクションを持ちます。パネルに十分な幅があるときはヘッダー行にインライン
+リンクとして並びますが、幅が足りないときはケバブ（⋮）ボタンの下へ折りたたまれ、
+小さなポップオーバーの中に表示されます。
+
+そのためインラインリンクをクリックするテストは、幅の広いパネルでは通り、狭い
+パネルでは——コードを一行も変えていないのに——失敗します。このレシピでは、
+レイアウトに依存せずアクションへ到達する 2 つの方法を示します。**パターン A**
+は今インストールできるバージョンで動作し、**パターン B** は今後のリリースで
+追加される安定した DOM フックを使います。
+
+どちらのパターンも「1 つのセレクター」ではありません。折りたたみはレイアウト上の
+実際の分岐であり、両パターンともその分岐を残します。取り除けるのは、ロケーターを
+書く前に**どちらの分岐にいるかを知っておく必要**のほうです。
+
+## パネルがこの挙動を取る理由
+
+ヘッダーが折りたたまれる条件は、メディアクエリではなく CSS コンテナクエリです。
+
+```css
+.tokenpanel-shell {
+  container: tokenpanel / inline-size;
+}
+
+@container tokenpanel (max-width: 1135px) {
+  /* ヘッダーのアクションリンクを隠し、ケバブトリガーを表示する */
+}
+```
+
+テストの観点では、次の 2 点が重要です。
+
+- **1135px 以下で折りたたまれます。** ちょうど 1135px の時点ですでに折りたたみ側です。
+- **測っているのはビューポートではなくシェルです。** クエリが読むのはパネル自身の
+  **コンテンツボックスのインラインサイズ**なので、シェルのボーダーの分だけ差し引か
+  れます。幅 1152px のシェルはコンテンツボックスが 1150px なので展開されたまま
+  ですが、幅 1024px のシェルは 4K モニターであっても折りたたまれています。
+  ブラウザーのビューポートを広く設定しても、ヘッダーが展開される保証はありません。
+
+:::note[ヘッダー行は「隠される」だけで、削除はされません]
+`ShellHeader` はヘッダーのアクションリンクを**常にレンダリングします**。コンテナ
+クエリはそれを `display: none` で隠しているだけです。したがってケバブのポップ
+オーバーを開いている間、パネルには各アクションのコントロールが **2 つ**——隠れた
+ヘッダーリンクと、表示されているポップオーバー項目——存在します。書くロケーターは
+必ずこの 2 つを区別できる必要があります。
+:::
+
+## パターン A — アクセシブルネームで指定する
+
+表示ラベルとケバブの `aria-label` だけに依存するため、`0.5.1` を含む現在
+リリース済みのバージョンで動作します。
+
+まず表示されているインラインリンクを探し、見つからなければヘッダーが
+折りたたまれているということなので、ケバブを開いてポップオーバーから
+アクションを実行します。
+
+```ts
+import type { Page } from '@playwright/test';
+
+type HeaderActionLabel = 'Export' | 'Load from JSON…' | 'Apply' | 'Reset';
+
+export async function clickHeaderAction(page: Page, label: HeaderActionLabel) {
+  const panel = page.locator('.tokenpanel-shell');
+
+  const inline = panel
+    .getByRole('button', { name: label, exact: true })
+    .filter({ visible: true });
+
+  if ((await inline.count()) > 0) {
+    await inline.first().click();
+    return;
+  }
+
+  // ヘッダーが折りたたまれている場合、アクションはケバブの下にある
+  await panel.getByRole('button', { name: 'Panel actions', exact: true }).click();
+  await panel
+    .locator('.tokenpanel-actions-popover')
+    .getByRole('button', { name: label, exact: true })
+    .click();
+}
+```
+
+間違えやすい点が 3 つあります。
+
+- **`.tokenpanel-shell` でスコープを切ること。** パネルはホストアプリの中に
+  埋め込まれています。スコープなしの
+  `getByRole('button', { name: 'Reset' })` は、ホストページ自身のコントロールと
+  衝突する可能性があります。
+- **ケバブはラベルだけでなくロールで特定すること。** トリガーと、それが開く
+  ポップオーバーは、どちらも `aria-label="Panel actions"` を持ちます。トリガーが
+  `role="button"`、ポップオーバーが `role="dialog"` なので、両者を分けているのは
+  ロールセレクターです。
+- **可視性の絞り込みを外さないこと。** 隠れたヘッダー行が探索にヒットしないのは、
+  この絞り込みがあるからです。`.filter({ visible: true })` には Playwright 1.51
+  以降が必要で、それより古いバージョンでは `:visible` 疑似クラスを使ってください。
+
+このパターンの弱点はラベルそのものです。ラベルは表示用の文字列であり、マイナー
+バージョンで変わりえます。`Load from JSON…` の末尾がピリオド 3 つではなく `…`
+（U+2026）である点にも注意してください。ラベルが変わると、それを頼りに書かれた
+コンシューマー側のテストは静かに壊れます。
+[#831](https://github.com/Takazudo/zudo-design-token-panel/issues/831) で実際に
+起きたのがこれです。
+
+## パターン B — 安定した action id で指定する
+
+今後のリリースでは、両方の表示形態に安定した属性 `data-zdtp-action` が
+付与されます。
+
+```html
+<div role="button" class="tokenpanel-action-link" data-zdtp-action="export">Export</div>
+```
+
+| アクションのラベル | `data-zdtp-action` |
+| ----------------- | ------------------ |
+| `Export`          | `export`           |
+| `Load from JSON…` | `import`           |
+| `Apply`           | `apply`            |
+| `Reset`           | `reset`            |
+
+id は安定していますが、ラベルは安定していません。属性で指定すれば、#831 で
+壊れたラベルへの依存はなくなります。
+
+:::note[0.5.1 には入っていません]
+`data-zdtp-action` フックは `0.5.1` には**含まれていません**。今後のリリースで
+提供されますが、バージョン番号はまだ確定していません——実際にリリースされた時点で
+ここに正しいバージョンを記入してください。それまではパターン A を使ってください。
+:::
+
+このフックがなくすのはラベルへの依存だけです。**可視性の分岐はなくなりません。**
+そのためロケーターは可視性で絞り込み、パネルにスコープを切ったままにし、表示されて
+いなければケバブを開くステップもそのまま残します。
+
+```ts
+import type { Page } from '@playwright/test';
+
+type HeaderActionId = 'export' | 'import' | 'apply' | 'reset';
+
+export async function clickHeaderAction(page: Page, id: HeaderActionId) {
+  const panel = page.locator('.tokenpanel-shell');
+  const action = panel.locator(`[data-zdtp-action="${id}"]:visible`);
+
+  if ((await action.count()) === 0) {
+    // ヘッダーが折りたたまれている場合、ケバブを開いてポップオーバー側を表示させる
+    await panel.getByRole('button', { name: 'Panel actions', exact: true }).click();
+  }
+
+  await action.click();
+}
+```
+
+ロケーターは使うたびに解決し直されるため、`await action.click()` は 1 か所でも、
+ヘッダーが展開されていればインラインリンクを、折りたたまれていればポップオーバー
+項目をクリックします。
+
+:::warning[属性セレクター単体では狭い幅で曖昧になります]
+`panel.locator('[data-zdtp-action="reset"]')` は、ヘッダーが展開されているときは
+**1 つ**にマッチしますが、ポップオーバーを開いている間は隠れたヘッダーリンクと
+ポップオーバー項目の **2 つ**にマッチし、Playwright の strict モードで失敗します。
+`:visible` による絞り込みも `.tokenpanel-shell` のスコープもどちらも必須です。
+どちらか一方でも外すと、このレシピが対象としているまさにその幅で壊れます。
+:::
+
+id が安定でラベルは安定でない、という規定を含む完全な契約は
+[PORTABLE-CONTRACT.md §7.6](https://github.com/Takazudo/zudo-design-token-panel/blob/main/packages/zdtp/PORTABLE-CONTRACT.md)
+を参照してください。
+
+## 適用範囲
+
+どちらのパターンも、**展開状態**のパネルにおける 4 つのヘッダーアクションと、その
+コンパクト表示のポップオーバーを対象とします。フローティング、右ドック、下ドックの
+各レイアウトはいずれも `ShellHeader` を共有しているため、3 つとも対象に含まれます。
+
+意図的に対象外としているものは次のとおりです。
+
+- **コマンドパレット。** Export / Import / Apply の項目を独自に持ち、リセットの
+  項目はヘッダーの全体リセットではなく**タブ単位**（`Reset {tab.label}`）です。
+  `data-zdtp-action` も付与されていません。
+- **ミニモード。** Apply のコントロールだけを表示し、ヘッダー自体がありません。
+  ヘッダーのアクション行も、フォールバック先のケバブも存在しません。
+
+どちらのヘルパーも、パネルを展開状態にしてから呼び出してください。
+
+## やってはいけないこと
+
+- **片方のレイアウトを前提に書かないこと。** 「インラインリンクがある」ことを
+  前提にすると、パネルが将来維持するとは限らない幅と、ビューポート設定では
+  制御できない測定値（シェルのコンテンツボックス）にテストが縛られます。
+- **折りたたみを避けるためにパネルを広げないこと。** ヘッダーが展開されたままに
+  なるようシェルをリサイズすれば、本来検証したかったレイアウトを回避してテストを
+  通すことになり、しきい値やヘッダーの内容が変わればまた壊れます。この 2 つの
+  近道はいずれも
+  [#831](https://github.com/Takazudo/zudo-design-token-panel/issues/831) で検討
+  され、レイアウトに依存しないパターンをドキュメント化する方針が選ばれました。

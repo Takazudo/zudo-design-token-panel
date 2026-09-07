@@ -25,11 +25,15 @@ function FeatureChrome({ onOpen }: { onOpen: () => void }) {
     // header-actions are visible in the wide header; compactAction supplies
     // the same command to the narrow-panel actions popover.
     render: () => (
-      <RoleButton className="tokenpanel-feature-action" onClick={onOpen}>
+      <RoleButton
+        className="tokenpanel-feature-action"
+        onClick={onOpen}
+        data-zdtp-action="feature-open"
+      >
         Feature
       </RoleButton>
     ),
-    compactAction: { label: 'Feature', onSelect: onOpen },
+    compactAction: { id: 'feature-open', label: 'Feature', onSelect: onOpen },
   }), [onOpen]);
 
   useRegisterRegionItem('header-actions', item);
@@ -44,6 +48,15 @@ and re-register on every render. `render` may inspect `{ compact,
 closeCompactMenu }` when a feature needs different compact markup. Use the
 `RoleButton` primitive for every button-like control so the panel's DOM and
 keyboard contract stays intact.
+
+`compactAction.id` is **required**. It is a stable action id — never a slug of
+the display label — and the popover emits it as `data-zdtp-action="<id>"` so
+consumer tests can select the action without depending on its label. Pass the
+same id to the `render` side's `RoleButton` via `data-zdtp-action` so both
+affordances carry an identical hook. Note that `ShellHeader` always renders the
+header-actions row and the container query only hides it with `display: none`,
+so while the compact popover is open **two** elements share the id — the hidden
+header control and the popover item. See `PORTABLE-CONTRACT.md` §7.6.
 
 Register shortcuts with `useShortcut` from the same subtree. The dispatcher
 routes a shortcut to the last-interacted open shell, ignores editable targets
