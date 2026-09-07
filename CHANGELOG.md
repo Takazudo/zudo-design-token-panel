@@ -6,6 +6,17 @@ Dates and versions may be absent for unreleased entries.
 
 ## [Unreleased]
 
+### Changelog Corrections
+
+- **2026-09-08 — retroactive correction to the shipped 0.5.1 release notes.** 0.5.1 recorded the
+  header-action collapse only under **Fixed**. It is consumer-affecting: the header action links
+  (Export, Load from JSON…, Apply, Reset) move behind the kebab menu at a panel content width of
+  1135px and below — measured on the shell's content box, not the viewport — so selectors that
+  reached them through 0.4.14 stop resolving. It is now written up as a Breaking Change in the
+  package release notes; see the `[0.5.1]` section of `packages/zdtp/CHANGELOG.md` and the
+  [0.5.1 changelog page](https://zdtp-doc.zudolab.dev/docs/changelog/0.5.1/).
+  ([#831](https://github.com/Takazudo/zudo-design-token-panel/issues/831))
+
 ### Panel Singleton & First-Toggle Bugfixes ([epic #108](https://github.com/Takazudo/zudo-design-token-panel/issues/108), root PR [#113](https://github.com/Takazudo/zudo-design-token-panel/pull/113))
 
 #### Fixed
