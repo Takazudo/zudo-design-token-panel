@@ -1,0 +1,196 @@
+---
+title: Reaching a header action in any layout
+description: "Click Export, Load from JSON…, Apply, or Reset from a test whether the panel header shows the action links inline or collapses them behind the kebab."
+sidebar_position: 10
+---
+
+The panel header carries four actions — **Export**, **Load from JSON…**,
+**Apply**, and **Reset**. When the panel is wide enough they render as inline
+links in the header row. When it is not, they collapse behind the kebab (⋮)
+button and open in a small popover instead.
+
+A test that clicks the inline link therefore passes on a wide panel and fails
+on a narrow one, with no code change in between. This recipe gives two
+layout-agnostic ways to reach an action: **Pattern A** works on the versions
+you can install today, and **Pattern B** uses the stable DOM hook added in an
+upcoming release.
+
+Neither pattern is a single selector. The collapse is a real branch in the
+layout, and both patterns keep it — what they remove is the need to know
+*which* branch you are on before you write the locator.
+
+## Why the panel does this
+
+The header yields through a CSS container query, not a media query:
+
+```css
+.tokenpanel-shell {
+  container: tokenpanel / inline-size;
+}
+
+@container tokenpanel (max-width: 1135px) {
+  /* header action links hidden; kebab trigger shown */
+}
+```
+
+Two consequences matter for tests:
+
+- **It engages at 1135px and below.** Exactly 1135px is already collapsed.
+- **It measures the shell, not the viewport.** The query reads the panel's own
+  **content-box inline size**, so the shell's borders count against it: a
+  1152px-wide shell has a 1150px content box and stays expanded, while a
+  1024px-wide shell is collapsed even on a 4K monitor. Setting a wide browser
+  viewport does not guarantee the expanded header.
+
+:::note[The header row is hidden, not removed]
+`ShellHeader` **always renders** the header action links. The container query
+only hides them with `display: none`. So while the kebab popover is open, the
+panel contains **two** controls for every action — the hidden header link and
+the visible popover item. Any locator you write has to disambiguate them.
+:::
+
+## Pattern A — match the accessible name
+
+This works on the currently released versions, `0.5.1` included, because it
+relies only on the rendered labels and on the kebab's `aria-label`.
+
+Probe for a visible inline link first; if there is none, the header has
+collapsed, so open the kebab and take the action from the popover.
+
+```ts
+import type { Page } from '@playwright/test';
+
+type HeaderActionLabel = 'Export' | 'Load from JSON…' | 'Apply' | 'Reset';
+
+export async function clickHeaderAction(page: Page, label: HeaderActionLabel) {
+  const panel = page.locator('.tokenpanel-shell');
+
+  const inline = panel
+    .getByRole('button', { name: label, exact: true })
+    .filter({ visible: true });
+
+  if ((await inline.count()) > 0) {
+    await inline.first().click();
+    return;
+  }
+
+  // Header collapsed — the action lives behind the kebab.
+  await panel.getByRole('button', { name: 'Panel actions', exact: true }).click();
+  await panel
+    .locator('.tokenpanel-actions-popover')
+    .getByRole('button', { name: label, exact: true })
+    .click();
+}
+```
+
+Three details that are easy to get wrong:
+
+- **Scope to `.tokenpanel-shell`.** The panel is embedded in your app; an
+  unscoped `getByRole('button', { name: 'Reset' })` can collide with the host
+  page's own controls.
+- **Match the kebab by role, not by label alone.** The trigger and the popover
+  it opens both carry `aria-label="Panel actions"`; the trigger is
+  `role="button"` and the popover is `role="dialog"`, so the role selector is
+  what separates them.
+- **Keep the visibility qualifier.** It is what makes the hidden header row
+  unable to satisfy the probe. `.filter({ visible: true })` needs Playwright
+  1.51 or newer; on older versions use the `:visible` pseudo-class instead.
+
+The weakness of this pattern is the labels themselves. They are display
+strings and can change at any minor version — note that `Load from JSON…`
+ends in `…` (U+2026), not three periods. A label change silently breaks every
+consumer test that matches on it, which is exactly what happened in
+[#831](https://github.com/Takazudo/zudo-design-token-panel/issues/831).
+
+## Pattern B — match the stable action id
+
+An upcoming release emits a stable per-action attribute, `data-zdtp-action`,
+on both affordances:
+
+```html
+<div role="button" class="tokenpanel-action-link" data-zdtp-action="export">Export</div>
+```
+
+| Action label      | `data-zdtp-action` |
+| ----------------- | ------------------ |
+| `Export`          | `export`           |
+| `Load from JSON…` | `import`           |
+| `Apply`           | `apply`            |
+| `Reset`           | `reset`            |
+
+The ids are stable; the labels are not. Selecting on the attribute removes the
+label dependence that broke in #831.
+
+:::note[Not available in 0.5.1]
+The `data-zdtp-action` hook is **not** in `0.5.1`. It ships in an upcoming
+release for which no version number has been assigned yet — fill the real
+version in here once it ships. Until then, use Pattern A.
+:::
+
+The hook removes the label dependence. It does **not** remove the visibility
+branch, so the locator stays visibility-qualified and panel-scoped, and the
+open-the-kebab-if-not-visible step stays:
+
+```ts
+import type { Page } from '@playwright/test';
+
+type HeaderActionId = 'export' | 'import' | 'apply' | 'reset';
+
+export async function clickHeaderAction(page: Page, id: HeaderActionId) {
+  const panel = page.locator('.tokenpanel-shell');
+  const action = panel.locator(`[data-zdtp-action="${id}"]:visible`);
+
+  if ((await action.count()) === 0) {
+    // Header collapsed — open the kebab so the popover copy becomes visible.
+    await panel.getByRole('button', { name: 'Panel actions', exact: true }).click();
+  }
+
+  await action.click();
+}
+```
+
+The locator re-resolves on every use, so the single `await action.click()`
+lands on the inline header link when the header is expanded and on the popover
+item when it is not.
+
+:::warning[A bare attribute selector is ambiguous at narrow widths]
+`panel.locator('[data-zdtp-action="reset"]')` matches **one** element on an
+expanded header and **two** while the popover is open — the hidden header link
+and the popover item — so Playwright fails it in strict mode. Both the
+`:visible` qualifier and the `.tokenpanel-shell` scope are load-bearing; drop
+either and the helper breaks at exactly the width this recipe exists to
+address.
+:::
+
+For the full contract, including the stable-ids-versus-unstable-labels rule,
+see
+[PORTABLE-CONTRACT.md §7.6](https://github.com/Takazudo/zudo-design-token-panel/blob/main/packages/zdtp/PORTABLE-CONTRACT.md).
+
+## Scope
+
+Both patterns cover the four header actions and their compact popover on an
+**expanded** panel. The floating, right-docked, and bottom-docked layouts all
+share `ShellHeader`, so all three are covered.
+
+Deliberately not covered:
+
+- **The command palette.** It renders its own Export / Import / Apply entries,
+  and its reset entries are **per-tab** (`Reset {tab.label}`) rather than the
+  header's reset-all. It does not carry `data-zdtp-action`.
+- **Mini mode.** It renders an Apply control and has no header at all, so
+  there is no header action row and no kebab to fall back to.
+
+Open the panel to its expanded state before calling either helper.
+
+## What not to do
+
+- **Do not hard-code one layout.** Asserting "the inline links are there"
+  ties the test to a width the panel is free to stop honouring, and to a
+  measurement — the shell's content box — that your viewport setting does not
+  control.
+- **Do not widen the panel to dodge the collapse.** Resizing the shell so the
+  header stays expanded makes the test pass by avoiding the layout it was
+  meant to exercise, and it breaks again the moment the threshold or the
+  header's contents change. Both shortcuts were weighed in
+  [#831](https://github.com/Takazudo/zudo-design-token-panel/issues/831) and
+  rejected in favour of a documented layout-agnostic pattern.
