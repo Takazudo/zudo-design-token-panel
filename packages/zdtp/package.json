@@ -25,7 +25,7 @@
     "url": "git+https://github.com/Takazudo/zudo-design-token-panel.git",
     "directory": "packages/zdtp"
   },
-  "homepage": "https://zudo-design-token-panel.takazudomodular.com/",
+  "homepage": "https://zdtp-doc.zudolab.dev/",
   "bugs": {
     "url": "https://github.com/Takazudo/zudo-design-token-panel/issues"
   },

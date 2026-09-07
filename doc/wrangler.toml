@@ -40,10 +40,10 @@ run_worker_first = false
 # ---------------------------------------------------------------------------
 # Production custom domain. custom_domain = true makes wrangler provision the
 # Workers custom domain + DNS (CNAME) record + TLS cert automatically on
-# `wrangler deploy`. Preconditions: takazudomodular.com is a zone on the SAME
+# `wrangler deploy`. Preconditions: zudolab.dev is a zone on the SAME
 # Cloudflare account as CLOUDFLARE_ACCOUNT_ID, and the hostname has no
 # pre-existing CNAME. Keep in sync with siteUrl in zfb.config.ts.
 # ---------------------------------------------------------------------------
 [[routes]]
-pattern = "zudo-design-token-panel.takazudomodular.com"
+pattern = "zdtp-doc.zudolab.dev"
 custom_domain = true
