@@ -6,7 +6,7 @@ export default defineConfig(
     siteName: "Zudo Token Panel",
     siteDescription:
       "A Preact-based live design-token tweak panel and companion Node bin server for CSS custom properties.",
-    siteUrl: "https://zudo-design-token-panel.takazudomodular.com",
+    siteUrl: "https://zdtp-doc.zudolab.dev",
     logo: "/img/logo.svg",
     githubUrl: "https://github.com/Takazudo/zudo-design-token-panel",
     favicon: {

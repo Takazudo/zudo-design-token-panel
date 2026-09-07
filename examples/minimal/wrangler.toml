@@ -14,5 +14,5 @@ workers_dev = false
 directory = "./dist"
 
 [[routes]]
-pattern = "zdtp-minimal.takazudomodular.com"
+pattern = "zdtp-minimal.zudolab.dev"
 custom_domain = true
