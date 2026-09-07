@@ -45,5 +45,5 @@ run_worker_first = false
 # pre-existing CNAME. Keep in sync with siteUrl in zfb.config.ts.
 # ---------------------------------------------------------------------------
 [[routes]]
-pattern = "zdtp-doc.zudolab.dev"
+pattern = "zdtp.zudolab.dev"
 custom_domain = true

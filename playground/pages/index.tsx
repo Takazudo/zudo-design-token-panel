@@ -55,7 +55,7 @@ export default function HomePage() {
             static host has no sidecar or writable source tree, so this deployed demo disables the
             action. Clone the repository and run <code>pnpm play</code> to try the complete write-to-disk
             workflow. The{' '}
-            <a href="https://zdtp-doc.zudolab.dev/docs/recipes/apply-pipeline-setup/">
+            <a href="https://zdtp.zudolab.dev/docs/recipes/apply-pipeline-setup/">
               Apply pipeline setup guide
             </a>{' '}
             explains how it works.
@@ -77,7 +77,7 @@ export default function HomePage() {
           <p class="zfb-eyebrow">KEEP EXPLORING</p>
           <h2 class="zfb-section-title">Documentation and source</h2>
           <p>
-            Read the <a href="https://zdtp-doc.zudolab.dev/">zdtp documentation</a>{' '}
+            Read the <a href="https://zdtp.zudolab.dev/">zdtp documentation</a>{' '}
             for installation and API guidance, or browse the{' '}
             <a href="https://github.com/Takazudo/zudo-design-token-panel">GitHub repository</a> behind
             this demo.

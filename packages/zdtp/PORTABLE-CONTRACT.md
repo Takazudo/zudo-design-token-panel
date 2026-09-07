@@ -515,7 +515,7 @@ export interface TierConfig {
 }
 
 For the full `SemanticValue` mapping and emission behavior, see the maintained
-[Color-cluster reference](https://zdtp-doc.zudolab.dev/docs/reference/color-cluster/).
+[Color-cluster reference](https://zdtp.zudolab.dev/docs/reference/color-cluster/).
 
 /**
  * Color-cluster extras — the non-tier fields required for the color tab.
