@@ -1,0 +1,23 @@
+---
+title: "0.5.2"
+description: "0.5.2 のリリースノート。"
+sidebar_position: 103
+---
+
+Released: 2026-09-08
+
+### 機能
+
+- ヘッダーのアクションに、安定した属性 `data-zdtp-action` が付与されるようになりました。インラインのヘッダーリンクと、折りたたみ時のケバブポップオーバーの両方に出力され、id は `export` / `import` / `apply` / `reset` です。id はリリースをまたいで安定していますが、表示ラベルは安定していません。これにより、ラベル変更で壊れないセレクターをテストから使えます（[#831](https://github.com/Takazudo/zudo-design-token-panel/issues/831) で壊れたのがまさにこの依存でした）。このフックがなくすのはラベルへの依存だけで、レスポンシブな折りたたみ自体はなくなりません。ロケーターは引き続き可視性で絞り込み、パネルにスコープを切る必要があります。詳しくはレシピ [ヘッダーのアクションに到達する](https://zdtp.zudolab.dev/ja/docs/recipes/reaching-header-actions/) と `PORTABLE-CONTRACT.md` §7.6 を参照してください。(91916b4, [#840](https://github.com/Takazudo/zudo-design-token-panel/issues/840))
+
+### バグ修正
+
+- ポップオーバーのアクション項目とヘッダーのリージョン項目を、表示ラベルではなく安定した action id でキーイングするようにしました。同じラベルを持つアクションが 2 つあるとキーが重複し、差分適用で別のノードが再利用されて、ハンドラーや `aria-disabled` の状態が古いまま残る可能性がありました。(c3384ae)
+- 0.5.1 のリリースノートに、以前のヘッダーアクション用セレクターが「0.4.14 まで動作していた」と記載していました。正しくは **0.5.0** までです。折りたたみが入る前に `v0.4.15` と `v0.5.0` がリリースされています。(c3384ae)
+
+### その他の変更
+
+- ドキュメントサイトを `https://zdtp.zudolab.dev/` へ、プレイグラウンドと minimal サンプルをそれぞれ `https://zdtp-playground.zudolab.dev/`、`https://zdtp-minimal.zudolab.dev/` へ移設しました。パッケージの `homepage` フィールドもこれに追随します。(0b9e596, ef41bf2, [#835](https://github.com/Takazudo/zudo-design-token-panel/issues/835))
+- 0.5.1 のリリースノートで、ヘッダーアクションの折りたたみを利用側に影響する変更として明記しました。コンテナクエリのしきい値 `1135px` と、それがビューポートではなくシェルのコンテンツボックス幅を基準にすることも記載しています。(6215888, [#841](https://github.com/Takazudo/zudo-design-token-panel/issues/841))
+- レシピ [ヘッダーのアクションに到達する](https://zdtp.zudolab.dev/ja/docs/recipes/reaching-header-actions/) を新規追加しました。既存リリース向けのラベルベースの方法と、本リリースの id ベースの方法の両方を扱います。(c701369, [#842](https://github.com/Takazudo/zudo-design-token-panel/issues/842))
+- Examples ページで切れていた 20 本の `*.pages.dev` デモリンクを、稼働中の `zudolab.dev` ホストへ張り替えました。(c83ffa3, [#836](https://github.com/Takazudo/zudo-design-token-panel/issues/836))

@@ -12,8 +12,8 @@ button and open in a small popover instead.
 A test that clicks the inline link therefore passes on a wide panel and fails
 on a narrow one, with no code change in between. This recipe gives two
 layout-agnostic ways to reach an action: **Pattern A** works on the versions
-you can install today, and **Pattern B** uses the stable DOM hook added in an
-upcoming release.
+you can install today, and **Pattern B** uses the stable DOM hook added in
+`0.5.2`.
 
 Neither pattern is a single selector. The collapse is a real branch in the
 layout, and both patterns keep it — what they remove is the need to know
@@ -104,7 +104,7 @@ consumer test that matches on it, which is exactly what happened in
 
 ## Pattern B — match the stable action id
 
-An upcoming release emits a stable per-action attribute, `data-zdtp-action`,
+`0.5.2` and later emit a stable per-action attribute, `data-zdtp-action`,
 on both affordances:
 
 ```html
@@ -121,10 +121,9 @@ on both affordances:
 The ids are stable; the labels are not. Selecting on the attribute removes the
 label dependence that broke in #831.
 
-:::note[Not available in 0.5.1]
-The `data-zdtp-action` hook is **not** in `0.5.1`. It ships in an upcoming
-release for which no version number has been assigned yet — fill the real
-version in here once it ships. Until then, use Pattern A.
+:::note[Requires 0.5.2 or later]
+The `data-zdtp-action` hook is **not** in `0.5.1` — it ships in `0.5.2`. On
+`0.5.1` and earlier, use Pattern A.
 :::
 
 The hook removes the label dependence. It does **not** remove the visibility

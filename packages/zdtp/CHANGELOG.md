@@ -4,6 +4,24 @@ All notable changes to `@takazudo/zdtp` are documented in this file.
 
 The format is based on Keep a Changelog, and release notes are generated from the changelog MDX pages.
 
+## [0.5.2] - 2026-09-08
+
+### Features
+
+- Header actions now carry a stable `data-zdtp-action` attribute on both affordances — the inline header link and the compact kebab popover — with the ids `export`, `import`, `apply`, and `reset`. The ids are stable across releases; the display labels are not. This gives consumer tests a selector that survives a label change, which is what broke in [#831](https://github.com/Takazudo/zudo-design-token-panel/issues/831). The hook removes the dependence on the label; it does **not** remove the responsive collapse, so a locator still needs to be visibility-qualified and panel-scoped — see the recipe [Reaching header actions](https://zdtp.zudolab.dev/docs/recipes/reaching-header-actions/) and `PORTABLE-CONTRACT.md` §7.6. (91916b4, [#840](https://github.com/Takazudo/zudo-design-token-panel/issues/840))
+
+### Fixed
+
+- The popover action items and the header region items are now keyed by their stable action id rather than by their display label. Two actions sharing a label previously produced duplicate keys, so reconciliation could reuse the wrong node and leave an item with a stale handler or `aria-disabled` state. (c3384ae)
+- The 0.5.1 changelog said the old header-action selector "worked through 0.4.14". It worked through **0.5.0** — `v0.4.15` and `v0.5.0` both shipped before the collapse landed. (c3384ae)
+
+### Other Changes
+
+- The documentation site moved to `https://zdtp.zudolab.dev/`, and the playground and minimal example to `https://zdtp-playground.zudolab.dev/` and `https://zdtp-minimal.zudolab.dev/`. The package `homepage` field follows. (0b9e596, ef41bf2, [#835](https://github.com/Takazudo/zudo-design-token-panel/issues/835))
+- The 0.5.1 release notes now flag the header-action collapse as consumer-affecting, with the exact `1135px` container-query threshold and the fact that it measures the shell's content-box inline size rather than the viewport. (6215888, [#841](https://github.com/Takazudo/zudo-design-token-panel/issues/841))
+- New bilingual recipe, [Reaching header actions](https://zdtp.zudolab.dev/docs/recipes/reaching-header-actions/), covering both a label-based pattern for existing releases and the id-based pattern from this one. (c701369, [#842](https://github.com/Takazudo/zudo-design-token-panel/issues/842))
+- Twenty dead `*.pages.dev` example-demo links on the Examples page were repointed to their live `zudolab.dev` hosts. (c83ffa3, [#836](https://github.com/Takazudo/zudo-design-token-panel/issues/836))
+
 ## [0.5.1] - 2026-09-06
 
 The panel now fits its token grids, card controls, and header controls at the minimum panel width instead of overflowing. Multiple panels keep stable spawn positions: spawn ordinals are persisted and survive Astro client-side navigation. Eager loading is bounded to state keys the panel can actually read, and the specimen stylesheet gained the boundaries the docs-adoption check required.
@@ -18,7 +36,7 @@ The panel now fits its token grids, card controls, and header controls at the mi
   await page.getByRole('button', { name: 'Reset', exact: true }).click();
   ```
 
-  Like the `matchesKey` narrowing above, this is consumer-observable, the TypeScript signature is unchanged so a type check will not surface it, and it should have ridden a minor release rather than this patch. **Migration**: open the kebab menu before reaching for an action, or drive the panel at a content width above the threshold — the recipe [Reaching header actions](https://zdtp.zudolab.dev/docs/recipes/reaching-header-actions/) covers both, with the boundary arithmetic. A stable `data-zdtp-action` attribute for these controls is landing in an upcoming release; it does not exist in 0.5.1. (06cbb0e, [#787](https://github.com/Takazudo/zudo-design-token-panel/issues/787), [#831](https://github.com/Takazudo/zudo-design-token-panel/issues/831))
+  Like the `matchesKey` narrowing above, this is consumer-observable, the TypeScript signature is unchanged so a type check will not surface it, and it should have ridden a minor release rather than this patch. **Migration**: open the kebab menu before reaching for an action, or drive the panel at a content width above the threshold — the recipe [Reaching header actions](https://zdtp.zudolab.dev/docs/recipes/reaching-header-actions/) covers both, with the boundary arithmetic. A stable `data-zdtp-action` attribute for these controls landed in 0.5.2; it does not exist in 0.5.1. (06cbb0e, [#787](https://github.com/Takazudo/zudo-design-token-panel/issues/787), [#831](https://github.com/Takazudo/zudo-design-token-panel/issues/831))
 
 ### Fixed
 

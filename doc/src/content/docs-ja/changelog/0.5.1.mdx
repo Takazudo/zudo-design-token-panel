@@ -18,7 +18,7 @@ Released: 2026-09-06
   await page.getByRole('button', { name: 'Reset', exact: true }).click();
   ```
 
-  上の `matchesKey` の絞り込みと同じく、これは利用側から観測できる変更でありながら、TypeScript の型シグネチャは変わっていないため型チェックでは検出できません。本来はパッチではなくマイナーリリースに含めるべき変更でした。**移行方法**: アクションを操作する前にケバブメニューを開くか、しきい値より広いコンテンツ幅でパネルを動かしてください。どちらの手順も、境界値の計算とあわせてレシピ [ヘッダーのアクションに到達する](https://zdtp.zudolab.dev/ja/docs/recipes/reaching-header-actions/) で解説しています。これらの操作を指す安定した `data-zdtp-action` 属性は今後のリリースで追加される予定ですが、0.5.1 には存在しません。(06cbb0e, [#787](https://github.com/Takazudo/zudo-design-token-panel/issues/787), [#831](https://github.com/Takazudo/zudo-design-token-panel/issues/831))
+  上の `matchesKey` の絞り込みと同じく、これは利用側から観測できる変更でありながら、TypeScript の型シグネチャは変わっていないため型チェックでは検出できません。本来はパッチではなくマイナーリリースに含めるべき変更でした。**移行方法**: アクションを操作する前にケバブメニューを開くか、しきい値より広いコンテンツ幅でパネルを動かしてください。どちらの手順も、境界値の計算とあわせてレシピ [ヘッダーのアクションに到達する](https://zdtp.zudolab.dev/ja/docs/recipes/reaching-header-actions/) で解説しています。これらの操作を指す安定した `data-zdtp-action` 属性は 0.5.2 で追加されましたが、0.5.1 には存在しません。(06cbb0e, [#787](https://github.com/Takazudo/zudo-design-token-panel/issues/787), [#831](https://github.com/Takazudo/zudo-design-token-panel/issues/831))
 
 ### バグ修正
 
