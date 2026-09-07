@@ -12,9 +12,9 @@ The public surfaces have a deliberate three-site split: `doc/` runs the pinned
 npm release, while `examples/minimal/` and `playground/` run the workspace build
 and therefore lead it. The two first-party demo hostnames are:
 
-- `https://zdtp-minimal.takazudomodular.com/` (`examples/minimal/`) — minimal =
+- `https://zdtp-minimal.zudolab.dev/` (`examples/minimal/`) — minimal =
   "the smallest wiring that works".
-- `https://zdtp-playground.takazudomodular.com/` (`playground/`) — playground =
+- `https://zdtp-playground.zudolab.dev/` (`playground/`) — playground =
   "full size, plus the real vendored zudo-doc `PanelConfig` and prose pages".
 
 The provenance badge on each demo is a load-bearing honesty mechanism. Removing
