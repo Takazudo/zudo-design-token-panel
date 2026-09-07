@@ -1369,7 +1369,7 @@ export default function DesignTokenTweakPanel({
         },
         ...panelActions.map(
           (action, index): ShellRegionItem => ({
-            id: `panel-action-${action.label}`,
+            id: `panel-action-${action.id}`,
             order: index,
             compactAction: action,
             render: () => (

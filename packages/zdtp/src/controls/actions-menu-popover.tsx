@@ -55,7 +55,7 @@ export function ActionsMenuPopover({
     >
       {actions.map((action) => (
         <RoleButton
-          key={action.label}
+          key={action.id}
           aria-disabled={action.disabled}
           title={action.disabledReason}
           data-zdtp-action={action.id}
