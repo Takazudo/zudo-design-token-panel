@@ -38,7 +38,7 @@ export function resolveCssColorInHost(
   value: string,
   mode?: 'light' | 'dark',
 ): string | null {
-  if (typeof document === 'undefined' || !document.body || !document.defaultView) return null;
+  if (typeof document === 'undefined' || !document.body || !document.defaultView || !value.trim()) return null;
 
   if (!wrapper || !probe || wrapper.ownerDocument !== document) {
     wrapper = createHiddenDiv();
@@ -51,9 +51,10 @@ export function resolveCssColorInHost(
 
   wrapper.style.setProperty('color', SENTINEL, 'important');
   probe.style.setProperty('color-scheme', mode ?? 'inherit', 'important');
-  probe.style.color = '';
+  // Invalid syntax leaves this explicit inheritance in place. Removing color
+  // instead would expose `all: initial` and incorrectly report black as valid.
+  probe.style.setProperty('color', 'inherit', 'important');
   probe.style.setProperty('color', value, 'important');
-  if (probe.style.color === '') return null;
 
   const computed = document.defaultView.getComputedStyle(probe).color;
   if (computed !== SENTINEL) return computed || null;
