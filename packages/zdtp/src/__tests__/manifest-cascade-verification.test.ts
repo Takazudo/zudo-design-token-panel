@@ -21,7 +21,8 @@
  *      export and the self-injected `<style>` string) cannot diverge: all
  *      eager component CSS flows through a single `panel.css` `@import`
  *      aggregate. DOM Tweaker's explicitly lazy stylesheet is delivered by
- *      its lazy JS boundary instead (guards #413 and #537).
+ *      its lazy JS boundary instead (guards #413 and #537). The static
+ *      dashboard has a separate public CSS export and no panel delivery path.
  *   H. The ramp-native Tier-2 color editor's example manifest
  *      (`_example-ramp-native-tier2.ts`, #459/#475) is a real, valid
  *      `PanelConfig` — `semantic: true`, `referencesRamps`, and every
@@ -235,7 +236,9 @@ describe('Invariant F — panel CSS does not read host theme vars', () => {
 //
 //    DOM Tweaker is the deliberate lazy exception: style-injection.ts imports
 //    dom-tweaker.css?inline from inside the lazy boundary, and dist/zdtp.css
-//    must not contain those selectors. Two static guards keep the eager paths
+//    must not contain those selectors. The standalone dashboard CSS is also
+//    separate, emitted as an asset without a JS import; package-exports.test.ts
+//    verifies it is absent from dist/zdtp.css. Two static guards keep the eager paths
 //    in sync while preserving that boundary:
 //      G1 — no source file except index.tsx and the named lazy injector may
 //           import a `.css` (side-effect or `?inline`).
@@ -246,6 +249,7 @@ describe('Invariant G — CSS self-inject and ./styles paths stay in sync', () =
   const SRC_DIR = path.resolve(__dirname, '..');
   const STYLES_DIR = path.resolve(SRC_DIR, 'styles');
   const PANEL_CSS = path.join(STYLES_DIR, 'panel.css');
+  const DASHBOARD_STATIC_CSS = path.join(SRC_DIR, 'dashboard', 'styles.css');
   const DOM_TWEAKER_LAZY_CSS = path.join(
     SRC_DIR,
     'dom-tweaker',
@@ -296,7 +300,7 @@ describe('Invariant G — CSS self-inject and ./styles paths stay in sync', () =
       path.resolve(STYLES_DIR, m[1]),
     );
     const everyOtherCss = walk(SRC_DIR, (name) => name.endsWith('.css')).filter(
-      (file) => file !== PANEL_CSS && file !== DOM_TWEAKER_LAZY_CSS,
+      (file) => file !== PANEL_CSS && file !== DOM_TWEAKER_LAZY_CSS && file !== DASHBOARD_STATIC_CSS,
     );
     const missing = everyOtherCss
       .filter((file) => !importTargets.includes(file))
