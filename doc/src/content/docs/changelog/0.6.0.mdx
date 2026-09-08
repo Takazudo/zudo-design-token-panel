@@ -1,0 +1,30 @@
+---
+title: "0.6.0"
+description: "Release notes for 0.6.0."
+sidebar_position: 104
+---
+
+Released: 2026-09-08
+
+### Breaking Changes
+
+- fix: validate reserved palette tab configuration (73e70f9). The reserved `palette` tab now rejects `colorExtras`, empty or non-color tiers, and inconsistent CSS-variable families. This also affects Astro host configuration validation. **Migration**: remove `colorExtras` from the `palette` tab; give each tier non-empty color items using either consecutive numbered CSS variables with one prefix or unique named variables with one prefix. Move mixed-kind generic tiers to a differently named tab and update any `referencesRamps` tab references.
+
+### Features
+
+- feat(minimal): teach grouped palette and semantic colors (5dcbe12)
+- feat(playground): use grouped OKLCH palette and semantic colors (42c7c86)
+
+### Fixed
+
+- fix: preserve host color-scheme on per-mode apply (90c30c6)
+- fix: render specimen fonts from instance values (7d18952)
+- fix: normalize emitted declaration module specifiers (8f858c0)
+- fix: expose panel config validator through public entrypoints (5335713)
+
+### Other Changes
+
+- docs: explain grouped palettes and per-mode semantic colors (3d1d114)
+- Restructure playground colors into grouped semantic ramps (2076abe)
+- test: verify specimen instance isolation in Chromium (6ff7ed6)
+- test: guard packed declarations across TypeScript resolution modes (f1e5e21)
