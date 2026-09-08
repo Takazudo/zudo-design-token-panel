@@ -6,6 +6,7 @@
 
 :root {
   color-scheme: light;
+  /* Existing editable spacing, typography, shape and motion tokens. */
   --zfb-hsp-xs: 0.25rem;
   --zfb-hsp-sm: 0.5rem;
   --zfb-hsp-md: 1rem;
@@ -45,50 +46,53 @@
   --zfb-transition-normal: 220ms;
   --zfb-easing-standard: cubic-bezier(0.2, 0, 0, 1);
   --zfb-easing-linear: linear;
-  --zfb-palette-0: #f8fafc;
-  --zfb-palette-1: #2563eb;
-  --zfb-palette-2: #16a34a;
-  --zfb-palette-3: #d97706;
-  --zfb-palette-4: #7c3aed;
-  --zfb-palette-5: #dc2626;
-  --zfb-palette-6: #0f172a;
-  --zfb-palette-7: #0891b2;
-  --zfb-palette-8: #64748b;
-  --zfb-palette-9: #94a3b8;
-  --zfb-palette-10: #cbd5e1;
-  --zfb-palette-11: #e2e8f0;
-  --zfb-palette-12: #f1f5f9;
-  --zfb-palette-13: #fef3c7;
-  --zfb-palette-14: #bbf7d0;
-  --zfb-palette-15: #ffffff;
-  --zfb-bg: var(--zfb-palette-0);
-  --zfb-fg: var(--zfb-palette-6);
-  --zfb-color-primary: var(--zfb-palette-1);
-  --zfb-color-accent: var(--zfb-palette-3);
-  --zfb-color-surface: var(--zfb-palette-15);
-  --zfb-color-muted: var(--zfb-palette-8);
-  --zfb-color-success: var(--zfb-palette-2);
-  --zfb-color-danger: var(--zfb-palette-5);
+  /* Tier 1: mode-invariant palette, grouped by ramp. */
+  --zfb-palette-base-0: oklch(98.5% .003 264);
+  --zfb-palette-base-1: oklch(95% .004 264);
+  --zfb-palette-base-2: oklch(88% .006 264);
+  --zfb-palette-base-3: oklch(62% .010 264);
+  --zfb-palette-base-4: oklch(38% .012 264);
+  --zfb-palette-base-5: oklch(22% .014 264);
+  --zfb-palette-base-6: oklch(13% .012 264);
+  --zfb-palette-brand-0: oklch(95% .03 250);
+  --zfb-palette-brand-1: oklch(80% .10 250);
+  --zfb-palette-brand-2: oklch(58% .19 250);
+  --zfb-palette-brand-3: oklch(45% .16 250);
+  --zfb-palette-brand-4: oklch(32% .11 250);
+  --zfb-palette-accent-0: oklch(95% .035 50);
+  --zfb-palette-accent-1: oklch(78% .12 50);
+  --zfb-palette-accent-2: oklch(62% .15 50);
+  --zfb-palette-accent-3: oklch(45% .12 50);
+  --zfb-palette-state-0: oklch(64% .15 150);
+  --zfb-palette-state-1: oklch(62% .19 25);
+  --zfb-palette-state-2: oklch(76% .14 82);
+  --zfb-palette-state-3: oklch(64% .14 245);
+
+  /* Tier 2: semantic roles. Only these mappings choose a mode. */
+  --zfb-bg: light-dark(var(--zfb-palette-base-0), var(--zfb-palette-base-6));
+  --zfb-fg: light-dark(var(--zfb-palette-base-6), var(--zfb-palette-base-0));
+  --zfb-color-surface: light-dark(var(--zfb-palette-base-1), var(--zfb-palette-base-5));
+  --zfb-color-border: light-dark(var(--zfb-palette-base-2), var(--zfb-palette-base-4));
+  --zfb-color-muted: light-dark(var(--zfb-palette-base-4), var(--zfb-palette-base-2));
+  --zfb-color-code-bg: light-dark(var(--zfb-palette-base-6), var(--zfb-palette-base-1));
+  --zfb-color-code-fg: light-dark(var(--zfb-palette-base-0), var(--zfb-palette-base-6));
+  --zfb-color-primary: light-dark(var(--zfb-palette-brand-3), var(--zfb-palette-brand-1));
+  --zfb-color-primary-hover: light-dark(var(--zfb-palette-brand-4), var(--zfb-palette-brand-0));
+  --zfb-color-primary-subtle: light-dark(var(--zfb-palette-brand-0), var(--zfb-palette-brand-4));
+  --zfb-color-accent: light-dark(var(--zfb-palette-accent-3), var(--zfb-palette-accent-1));
+  --zfb-color-success: var(--zfb-palette-state-0);
+  --zfb-color-danger: var(--zfb-palette-state-1);
+  --zfb-color-warning: var(--zfb-palette-state-2);
+  --zfb-color-info: var(--zfb-palette-state-3);
+}
+
+/* Keep host mode authoritative over the panel’s inline color-scheme write. */
+:root[data-theme="light"] {
+  color-scheme: light !important;
 }
 
 :root[data-theme="dark"] {
-  color-scheme: dark;
-  --zfb-palette-0: #0f172a;
-  --zfb-palette-1: #60a5fa;
-  --zfb-palette-2: #4ade80;
-  --zfb-palette-3: #fbbf24;
-  --zfb-palette-4: #a78bfa;
-  --zfb-palette-5: #f87171;
-  --zfb-palette-6: #f8fafc;
-  --zfb-palette-7: #22d3ee;
-  --zfb-palette-8: #94a3b8;
-  --zfb-palette-9: #64748b;
-  --zfb-palette-10: #475569;
-  --zfb-palette-11: #334155;
-  --zfb-palette-12: #1e293b;
-  --zfb-palette-13: #78350f;
-  --zfb-palette-14: #14532d;
-  --zfb-palette-15: #020617;
+  color-scheme: dark !important;
 }
 
 html {
@@ -117,6 +121,10 @@ a {
   color: var(--zfb-color-primary);
 }
 
+a:hover {
+  color: var(--zfb-color-primary-hover);
+}
+
 code,
 pre {
   font-family: var(--zfb-font-mono);
@@ -130,7 +138,7 @@ pre {
   min-height: calc(var(--zfb-vsp-xl) + var(--zfb-vsp-md));
   padding: var(--zfb-vsp-sm) var(--zfb-hsp-xl);
   background: var(--zfb-color-surface);
-  border-bottom: 1px solid var(--zfb-color-muted);
+  border-bottom: 1px solid var(--zfb-color-border);
 }
 
 .zfb-brand {
@@ -159,7 +167,7 @@ pre {
   gap: var(--zfb-vsp-xs);
   padding: var(--zfb-vsp-lg) var(--zfb-hsp-md);
   background: var(--zfb-color-surface);
-  border-right: 1px solid var(--zfb-color-muted);
+  border-right: 1px solid var(--zfb-color-border);
 }
 
 .zfb-nav__link {
@@ -173,7 +181,7 @@ pre {
 .zfb-nav__link:hover,
 .zfb-nav__link.is-active {
   color: var(--zfb-fg);
-  background: var(--zfb-bg);
+  background: var(--zfb-color-primary-subtle);
 }
 
 .zfb-nav__manifest {
@@ -182,7 +190,7 @@ pre {
   gap: var(--zfb-vsp-xs);
   margin-top: var(--zfb-vsp-md);
   padding-top: var(--zfb-vsp-md);
-  border-top: 1px solid var(--zfb-color-muted);
+  border-top: 1px solid var(--zfb-color-border);
 }
 
 .zfb-nav__note {
@@ -210,7 +218,7 @@ pre {
 .zfb-card {
   padding: var(--zfb-vsp-lg) var(--zfb-hsp-lg);
   background: var(--zfb-color-surface);
-  border: 1px solid var(--zfb-color-muted);
+  border: 1px solid var(--zfb-color-border);
   border-radius: var(--zfb-radius-lg);
 }
 
@@ -266,31 +274,65 @@ pre {
 }
 
 .zfb-button:hover {
+  color: var(--zfb-bg);
+  background: var(--zfb-color-primary-hover);
+  border-color: var(--zfb-color-primary-hover);
   transform: translateY(calc(var(--zfb-vsp-2xs) * -0.5));
 }
 
 .zfb-button--quiet {
   color: var(--zfb-fg);
   background: var(--zfb-color-surface);
-  border-color: var(--zfb-color-muted);
+  border-color: var(--zfb-color-border);
+}
+
+.zfb-button--quiet:hover {
+  color: var(--zfb-fg);
+  background: var(--zfb-color-primary-subtle);
+  border-color: var(--zfb-color-border);
+}
+
+.zfb-palette {
+  display: grid;
+  gap: var(--zfb-vsp-lg);
+  margin-top: var(--zfb-vsp-lg);
+  overflow-x: auto;
+}
+
+.zfb-palette__row {
+  display: grid;
+  grid-template-columns: 5rem minmax(28rem, 1fr);
+  align-items: start;
+  gap: var(--zfb-hsp-md);
+}
+
+.zfb-palette__label {
+  margin: 0;
+  font-size: var(--zfb-text-helper);
+  font-weight: var(--zfb-weight-heading);
 }
 
 .zfb-swatches {
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: var(--zfb-hsp-sm);
-  margin-top: var(--zfb-vsp-md);
 }
 
 .zfb-swatch {
   display: grid;
-  place-items: center;
-  aspect-ratio: 1;
+  gap: var(--zfb-vsp-2xs);
   color: var(--zfb-fg);
-  background: var(--swatch-color);
-  border: 1px solid var(--zfb-color-muted);
-  border-radius: var(--zfb-radius-md);
   font-size: var(--zfb-text-annotation);
+  text-align: center;
+}
+
+/* Teaching chips alone intentionally display raw Tier 1 values. */
+.zfb-swatch__chip {
+  display: block;
+  aspect-ratio: 1;
+  background: var(--swatch-color);
+  border: 1px solid var(--zfb-color-border);
+  border-radius: var(--zfb-radius-md);
 }
 
 .zfb-prose {
@@ -315,6 +357,7 @@ pre {
 .zfb-prose :where(h2) { margin-top: var(--zfb-vsp-xl); font-size: var(--zfb-text-section-title); }
 .zfb-prose :where(h3) { margin-top: var(--zfb-vsp-lg); font-size: var(--zfb-text-subsection-title); }
 .zfb-prose :where(a) { color: var(--zfb-color-primary); }
+.zfb-prose :where(a:hover) { color: var(--zfb-color-primary-hover); }
 .zfb-prose :where(blockquote) {
   margin-inline: 0;
   padding-left: var(--zfb-hsp-md);
@@ -324,8 +367,8 @@ pre {
 .zfb-prose :where(pre) {
   overflow-x: auto;
   padding: var(--zfb-vsp-sm) var(--zfb-hsp-md);
-  color: var(--zfb-palette-0);
-  background: var(--zfb-palette-6);
+  color: var(--zfb-color-code-fg);
+  background: var(--zfb-color-code-bg);
   border-radius: var(--zfb-radius-md);
 }
 
@@ -343,10 +386,6 @@ pre {
 
   .zfb-nav {
     border-right: 0;
-    border-bottom: 1px solid var(--zfb-color-muted);
-  }
-
-  .zfb-swatches {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-bottom: 1px solid var(--zfb-color-border);
   }
 }
