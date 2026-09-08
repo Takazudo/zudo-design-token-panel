@@ -10,6 +10,7 @@ export default {
   name: 'workspace-zdtp-alias',
   setup(ctx) {
     ctx.addAlias('@takazudo/zdtp', '../packages/zdtp/dist/index.js');
+    ctx.addAlias('@takazudo/zdtp/dashboard', '../packages/zdtp/dist/dashboard/index.js');
     ctx.addAlias('@takazudo/zdtp/package.json', '../packages/zdtp/package.json');
   },
 };

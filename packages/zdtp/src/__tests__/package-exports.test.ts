@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { spawnSync } from 'node:child_process';
 
 /**
  * Package-exports pin test.
@@ -48,6 +49,38 @@ describe('package.json — name and exports map shape', () => {
     expect(exportsMap['./astro/DesignTokenPanelHost.astro']).toBeDefined();
     expect(exportsMap['./styles']).toBeDefined();
     expect(exportsMap['./styles.css']).toBeDefined();
+    expect(exportsMap['./dashboard']).toBeDefined();
+    expect(exportsMap['./dashboard/styles.css']).toBeDefined();
+  });
+});
+
+describe('dashboard package boundary', () => {
+  it('publishes independent runtime, declarations, and CSS exports', () => {
+    const pkg = readPackageJson();
+    expect(pkg.exports?.['./dashboard']).toEqual({
+      types: './dist/dashboard/index.d.ts',
+      import: './dist/dashboard/index.js',
+      default: './dist/dashboard/index.js',
+    });
+    expect(pkg.exports?.['./dashboard/styles.css']).toBe('./dist/dashboard/styles.css');
+    if (!existsSync(`${packageRoot}/dist`)) return;
+    expect(readFileSync(`${packageRoot}/dist/dashboard/styles.css`, 'utf8')).toContain('.zdtp-dashboard');
+    expect(readFileSync(`${packageRoot}/dist/zdtp.css`, 'utf8')).not.toContain('.zdtp-dashboard');
+    expect(readFileSync(`${packageRoot}/dist/dashboard/index.d.ts`, 'utf8')).not.toContain('.css');
+  });
+
+  it('imports and server-renders the built dashboard in plain Node without browser globals', () => {
+    if (!existsSync(`${packageRoot}/dist`)) return;
+    const result = spawnSync(process.execPath, ['--input-type=module', '-e', `
+      import { h } from 'preact';
+      import { renderToString } from 'preact-render-to-string';
+      import { TokenDashboard } from '@takazudo/zdtp/dashboard';
+      if (typeof window !== 'undefined' || typeof document !== 'undefined') throw new Error('Expected Node');
+      const html = renderToString(h(TokenDashboard, { tabs: [] }));
+      if (!html.includes('No tokens declared.')) throw new Error('Missing static HTML');
+    `], { cwd: packageRoot, encoding: 'utf8' });
+    expect(result.error).toBeUndefined();
+    expect(result.status, result.stdout + result.stderr).toBe(0);
   });
 });
 

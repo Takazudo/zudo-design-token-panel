@@ -2,12 +2,8 @@
 
 import { useEffect, useState } from 'preact/hooks';
 import * as zdtp from '@takazudo/zdtp';
-import {
-  COMMIT_SHA,
-  NPM_LATEST,
-  PANEL_VERSION,
-  PROVENANCE,
-} from '../config/build-info.generated';
+import { PANEL_VERSION } from '../config/build-info.generated';
+import { buildProvenanceLabel } from '../config/build-provenance';
 import { panelConfig } from '../config/panel-config';
 import { ZUDO_DOC_SOURCE_VERSION, zudoDocConfigs } from '../config/zudo-doc-manifest.generated';
 
@@ -37,15 +33,6 @@ function requestedManifest(): ManifestName {
   return new URLSearchParams(window.location.search).get('manifest') === 'zudo-doc'
     ? 'zudo-doc'
     : 'playground';
-}
-
-function buildProvenanceLabel(): string {
-  const build = `zdtp ${PANEL_VERSION}+${COMMIT_SHA}`;
-  if (PROVENANCE === 'unknown') return `${build} · provenance unknown`;
-  if (PROVENANCE === 'released') {
-    return `${build} · released · npm latest ${NPM_LATEST}`;
-  }
-  return `${build} · ahead of v${PANEL_VERSION} · npm latest ${NPM_LATEST}`;
 }
 
 export default function PlaygroundControls() {

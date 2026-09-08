@@ -12,6 +12,7 @@ interface AppShellProps {
 
 const navItems = [
   ['Home', '/'],
+  ['Token dashboard', '/dashboard/'],
   ['English prose', '/prose/en/'],
   ['日本語の文章', '/prose/ja-sample/'],
 ];

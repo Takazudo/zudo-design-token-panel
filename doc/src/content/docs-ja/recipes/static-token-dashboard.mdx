@@ -1,0 +1,155 @@
+---
+title: 静的なトークンダッシュボード
+sidebar_position: 95
+description: 共有する tabs を Preact の TokenDashboard に渡して、通常のページにトークン一覧を表示します。
+---
+
+Preact の名前付きエクスポート `TokenDashboard` を使うと、ドキュメントのページ内に
+トークン一覧を表示できます。同じ `tabs` データをパネルと読み取り専用ページで共有します。
+静的サイトではビルド時にレンダリングし、ダッシュボードを hydrate せずに HTML と CSS を配信できます。
+
+:::note[リポジトリのビルドで利用可能]
+ダッシュボードは現在のリポジトリのビルドと
+[ワークスペースのデモ](https://zdtp-playground.zudolab.dev/dashboard/)で利用できます。
+公開済みの npm v0.6.0 には、この機能のサブパスは含まれていません。
+対応するリリースまでは、ワークスペースまたはローカルで pack したビルドを使用してください。
+このドキュメントサイトのパネルは、引き続き別途固定された npm 依存を使います。
+:::
+
+## ビルド時にも読めるトークン定義にする
+
+タブ定義を、型だけを import するデータモジュールに切り出します。
+ダッシュボードのページからは、このモジュールを直接 import します。
+`configurePanel()`、ブラウザーのグローバル変数、ストレージへのアクセス、
+ホストアダプターの import は、パネル用のブラウザーエントリーに置いてください。
+
+```ts
+// token-tabs.ts — data only; safe to import during a site build.
+import type { TabConfig } from '@takazudo/zdtp/dashboard';
+
+export const tokenTabs: readonly TabConfig[] = [{
+  id: 'space',
+  label: 'Spacing',
+  tiers: [{
+    id: 'scale',
+    label: 'Scale',
+    preview: 'bar',
+    items: [{
+      id: 'space-md',
+      cssVar: '--site-space-md',
+      label: 'Medium',
+      default: '1rem',
+      type: { kind: 'length', step: 0.25, unit: 'rem' },
+    }],
+  }],
+}];
+```
+
+既存の `PanelConfig` の `tabs` にも `tokenTabs` を渡します。
+共有するのはソースの定義であり、パネルの実行中の状態との接続ではありません。
+
+## Preact のページとしてレンダリングする
+
+Preact をレンダリングできるホストを使い、必要に応じて TSX の
+`jsxImportSource` を `"preact"` に設定します。Preact は peer dependency です。
+ダッシュボードの import はパネルを初期化せず、パネル用のスタイルシートも必要としません。
+
+```tsx
+// TokenPage.tsx — ordinary Preact TSX, rendered by your static host.
+import { TokenDashboard } from '@takazudo/zdtp/dashboard';
+import { tokenTabs } from './token-tabs';
+
+export default function TokenPage() {
+  return <TokenDashboard tabs={tokenTabs} mode="light" title="Site tokens" />;
+}
+```
+
+静的なページにクライアントアイランドは不要です。Preact のサーバーレンダラーを
+直接使うホストなら、通常のビルド処理の中で `preact-render-to-string` により
+このコンポーネントをレンダリングできます。このパッケージが提供するのはコンポーネントで、
+HTML 書き出し用の API や CLI ではありません。React アダプターは今回の対象外です。
+
+## 独立したスタイルシートを読み込む
+
+コンポーネントの JavaScript は CSS を import しません。
+`@takazudo/zdtp/dashboard/styles.css` を、ホストの CSS 処理を通じて一度読み込みます。
+静的ホストでも利用しやすい方法は、ビルド時に**パッケージの公開エクスポート**を
+公開アセットのディレクトリへコピーし、ページの head からリンクすることです。
+
+```js
+// scripts/copy-dashboard-css.mjs — run before your site build.
+import { copyFile, mkdir } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+
+await mkdir('public/vendor', { recursive: true });
+await copyFile(
+  fileURLToPath(import.meta.resolve('@takazudo/zdtp/dashboard/styles.css')),
+  'public/vendor/zdtp-dashboard.css',
+);
+```
+
+```html
+<link rel="stylesheet" href="/vendor/zdtp-dashboard.css" />
+```
+
+コピー用スクリプトはホストプロジェクトのルートで実行します。
+`public/` と URL は、フレームワークやデプロイ先のベースパスに合わせてください。
+プレイグラウンドでは、ビルドフックで静的ビルド時と開発サーバー起動時にコピーします。
+ページは通常のスタイルシートリンクを使うため、JavaScript を無効にしてもスタイルが適用されます。
+
+JavaScript の import から CSS を出力するバンドラーでは、代わりにレイアウトや
+スタイル用エントリーで次のように読み込めます。
+
+```ts
+import '@takazudo/zdtp/dashboard/styles.css';
+```
+
+すべての静的ホストがこの副作用 import に対応するとは限りません。
+グローバル CSS だけを処理するホストでは、その処理系が解決できる CSS の `@import`、
+または上記の明示的なコピーとリンクを使い、出力された HTML と CSS を確認してください。
+
+## 両モードを表示する・一部を埋め込む
+
+`mode="light"` と `mode="dark"` のインスタンスを並べてレンダリングできます。
+各プレビューのスコープは独自の `color-scheme` と CSS 変数の宣言を持ち、
+`:root` を書き換えません。省略時のモードは `light` です。
+任意の `id` を指定する場合は、呼び出し元で重複しない値を管理します。ID の自動生成はありません。
+
+小さな一覧を埋め込む場合は、タブデータの一部を渡してホスト側の幅を制限します。
+参照トークンが依存するティアも含めてください。参照先がなければ、サンプルの代わりに
+診断メッセージが表示されます。[デモ](https://zdtp-playground.zudolab.dev/dashboard/)には
+両モードの全一覧と、幅を絞ったスペーシング一覧があります。
+
+既存のプレビュー情報には `TierConfig.preview` を使います。
+テキストエディターで編集する色や影には、`previewOverrides` で CSS 変数ごとに
+表示方法を指定できます。別のマニフェストを作る必要はありません。
+
+```tsx
+<TokenDashboard
+  tabs={tokenTabs}
+  previewOverrides={{
+    // These keys must match variables in your tabs.
+    '--site-accent': 'color',
+    '--site-card-shadow': 'shadow',
+  }}
+/>
+```
+
+## このページで確認できるもの
+
+一覧が表示するのは、アイテムの既定値、モード別の `colorExtras.semanticDefaults`、
+明示的な `baseDefaults` による宣言済みの既定値です。
+参照行には宣言元の値と、対応する CSS や参照先のテキストを表示します。
+名前付きカラースキームのプリセット、パネルの初期化処理、保存済みの編集は適用しないため、
+パネルの初期値や現在値とは異なる場合があります。ピル付きの行も `customDefault` へ置き換えず、
+`auto` などの特別値を含めて `item.default` を保持します。
+
+`calc()`、`var()`、`light-dark()` などは式のまま表示します。
+サンプルはブラウザーの実際の CSS コンテキストを使うため、すべてのホストで同じピクセル寸法、
+インストール済みフォント、解決済みの色になるという保証ではありません。
+外部変数の不足など、コンテキストに依存する値も診断とともに読める形で残します。
+曖昧な参照、循環、参照先の欠落、安全に扱えない宣言には、誤解を招くサンプルを表示しません。
+任意の Notes HTML や URL・マスク用のアセットは表示・読み込みしません。
+
+公開 props とプレビューの挙動は[ダッシュボードのリファレンス](../reference/token-dashboard.mdx)、
+共有するデータ型は[トークンマニフェストのリファレンス](../reference/token-manifest.mdx)をご覧ください。
