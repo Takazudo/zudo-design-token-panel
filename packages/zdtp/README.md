@@ -33,19 +33,17 @@ The authoritative API spec is [`PORTABLE-CONTRACT.md`](./PORTABLE-CONTRACT.md). 
   configured.
 - Owner autoload for developer-only loading across page visits.
 - A separate Preact `TokenDashboard` for a static, read-only token inventory
-  (repository build; not included in npm v0.6.0).
+  (available from v0.6.1).
 
 See the [Panel UX tour](/docs/recipes/panel-ux-tour) for a feature-by-feature
 walkthrough and the shortcut table.
 
 ---
 
-## Static token dashboard (repository build)
+## Static token dashboard
 
 Import `TokenDashboard` from `@takazudo/zdtp/dashboard` to render the same tab
-manifest on a plain page. This entry is available in the repository build and
-is not included in npm v0.6.0; use the workspace or a locally packed build until it ships
-in a release. The [live workspace demo](https://zdtp-playground.zudolab.dev/dashboard/)
+manifest on a plain page. This entry is available from v0.6.1. The [live workspace demo](https://zdtp-playground.zudolab.dev/dashboard/)
 shows both modes and a compact embedded instance.
 
 ```tsx

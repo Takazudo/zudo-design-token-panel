@@ -1743,7 +1743,7 @@ on across a release bump.
 
 ## 12. Static token dashboard
 
-This entry is available in the repository build and is not included in npm v0.6.0. It does
+This entry is available from v0.6.1. It does
 not change the `configurePanel` or persistence contracts above.
 
 `@takazudo/zdtp/dashboard` exports the Preact `TokenDashboard` component and

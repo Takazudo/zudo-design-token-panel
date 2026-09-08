@@ -4,6 +4,31 @@ All notable changes to `@takazudo/zdtp` are documented in this file.
 
 The format is based on Keep a Changelog, and release notes are generated from the changelog MDX pages.
 
+## [0.6.1] - 2026-09-08
+
+### Features
+
+- feat: model declared token defaults for static dashboards (422643b)
+- feat: expose a static Preact token dashboard (5b6c0f8)
+- feat(playground): add static token dashboard demo and docs (2edd98b)
+- feat(dashboard): render rulers, palette strips and wide type specimens (7cdf01f)
+
+### Fixed
+
+- fix: preserve semantic literals alongside legacy palette references (b813c8a)
+
+### Other Changes
+
+- test: account for standalone dashboard stylesheet delivery (a00541a)
+- test: verify packed dashboard SSR and public stylesheet consumption (6cd8157)
+- test: cover static dashboard list-view geometry in browser (e07d69e)
+- chore: normalize dashboard browser test file mode (0ec8217)
+- docs: demonstrate dashboard rulers ramps and reading specimens (859d3a4)
+- test: verify packed dashboard list views and preview text (7ebf4cf)
+- test: prove isolated dashboard package consumption (fdb3906)
+- fix(test): compare Preact package identity across module conditions (bb280ee)
+- Fix static browser harness loading and polling (3fe6203)
+
 ## [0.6.0] - 2026-09-08
 
 ### Breaking Changes

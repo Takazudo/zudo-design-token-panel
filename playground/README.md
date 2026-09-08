@@ -54,8 +54,7 @@ preset. `?manifest=zudo-doc` applies only to the interactive pages.
 `pages/dashboard.tsx` owns a static shell and imports no controls island,
 `configurePanel`, host adapter, or theme/storage script. Both shells share
 `config/build-provenance.ts`, so the static page retains the generated,
-git-derived release provenance. This feature is in the workspace build and
-is not included in npm v0.6.0.
+git-derived release provenance. This feature is available from npm v0.6.1; this demo uses the workspace build.
 
 `plugins/dashboard-styles.mjs` resolves the public
 `@takazudo/zdtp/dashboard/styles.css` export and copies it to the ignored
