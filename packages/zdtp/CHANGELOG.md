@@ -12,7 +12,7 @@ The format is based on Keep a Changelog, and release notes are generated from th
 
 ### Fixed
 
-- Resolve CSS color expressions such as `var(...)` and `light-dark(...)` in the host context for color-picker previews. The picker keeps the source reference unchanged until the user explicitly selects **Edit as literal** and then edits the color, preserving the other light/dark reference when only one mode changes. ([#918](https://github.com/Takazudo/zudo-design-token-panel/issues/918))
+- CSS color expressions such as `var(...)` and `light-dark(...)` now resolve in the host context for color-picker previews. The picker keeps the source reference unchanged until the user explicitly selects **Edit as literal** and then edits the color, preserving the other light/dark reference when only one mode changes. ([#918](https://github.com/Takazudo/zudo-design-token-panel/issues/918))
 
 ## [0.6.1] - 2026-09-08
 
