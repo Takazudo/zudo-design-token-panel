@@ -103,7 +103,7 @@ try {
   assert.equal(evidence.resolutions.dashboardPreactPackage, evidence.resolutions.preactPackage, 'Dashboard and app share Preact');
   evidence.cssSha256 = hash(await readFile(evidence.resolutions.styles));
   const require = createRequire(join(panel, 'package.json'));
-  const { chromium } = await import(require.resolve('playwright'));
+  const { chromium } = require('playwright');
   let missingCss = false;
   server = createServer(async (request, response) => {
     const paths = { '/': 'index.html', '/dashboard.css': 'dashboard.css', '/host.css': 'host.css' };
@@ -120,9 +120,9 @@ try {
   browser = await chromium.launch({ headless: true });
   async function visit(width, mutation = false) {
     const page = await browser.newPage({ javaScriptEnabled: false, viewport: { width, height: 900 } });
-    const problems = [], missing = [];
+    const problems = [], missing = [], failedRequests = [];
     page.on('pageerror', (error) => problems.push(error.message));
-    page.on('requestfailed', (request) => problems.push(`Failed: ${request.url()}`));
+    page.on('requestfailed', (request) => failedRequests.push(request.url()));
     page.on('request', (request) => { if (![url, `${url}host.css`, `${url}dashboard.css`].includes(request.url())) problems.push(`Unexpected request: ${request.url()}`); });
     page.on('response', (response) => {
       if (mutation && response.url() === `${url}dashboard.css` && response.status() === 404) missing.push(response.url());
@@ -130,8 +130,11 @@ try {
     });
     try {
       await page.goto(url, { waitUntil: 'networkidle', timeout: 15000 });
-      assert.deepEqual(problems, [], 'Resource/page errors');
       assert.equal(missing.length, mutation ? 1 : 0);
+      // Chromium can also emit requestfailed for the deliberately rejected CSS.
+      // Exempt only that URL after confirming its expected 404 response above.
+      problems.push(...failedRequests.filter((failed) => !(mutation && missing.includes(failed))).map((failed) => `Failed: ${failed}`));
+      assert.deepEqual(problems, [], 'Resource/page errors');
       return page;
     } catch (error) { await page.close(); throw error; }
   }
@@ -173,7 +176,13 @@ try {
       await scroll.focus();
       assert.equal(await scroll.evaluate((e) => e === document.activeElement && getComputedStyle(e).outlineStyle !== 'none'), true, 'Visible keyboard focus');
       await page.keyboard.press('ArrowRight');
-      await page.waitForFunction(() => document.querySelector('#compact [data-css-var="--consumer-large"] .zdtp-dashboard__ruler-scroll').scrollLeft > 0);
+      // Poll from Node: page-side animation-frame polling does not run reliably
+      // when browser JavaScript is disabled.
+      const deadline = Date.now() + 3000;
+      while (await scroll.evaluate((e) => e.scrollLeft) <= 0 && Date.now() < deadline) {
+        await new Promise((accept) => setTimeout(accept, 50));
+      }
+      assert.ok(await scroll.evaluate((e) => e.scrollLeft > 0), 'ArrowRight scrolls the focused ruler');
       if (output) { await mkdir(output, { recursive: true }); await page.screenshot({ path: join(output, `dashboard-${width}.png`), fullPage: true }); }
       evidence.checks.push(`JavaScript-disabled ${width}px and compact: PASS`);
     } finally { await page.close(); }
