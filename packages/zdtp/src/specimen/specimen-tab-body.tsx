@@ -4,7 +4,7 @@ import type { TabConfig, TierConfig, TierItem } from '../tokens/tier-model';
 import type { SharedRowRenderer } from '../tabs/flat/tier-section';
 import type { RowContribution } from '../tabs/flat/types';
 import type { SpecimenState } from './specimen-state';
-import { findLineHeightBasePx, resolvePreviewLength } from './specimen-values';
+import { findLineHeightBasePx, resolvePreviewLength, resolvePreviewValue } from './specimen-values';
 
 interface SpecimenRendererOptions {
   tab: TabConfig;
@@ -18,16 +18,18 @@ function displayPx(px: number | null): string {
   return px === null ? 'unresolved' : `${Number(px.toFixed(2))}px`;
 }
 
-/** Resolve the font family/weight applied to every type specimen sample. */
+/** Use instance values: host CSS variables may belong to a different panel. */
 export function specimenFontStyle(
   tab: TabConfig,
   valueFor: (item: TierItem) => string,
 ): CSSProperties {
-  const family = tab.tiers.find((tier) => tier.preview === 'family')?.items[0];
-  const weight = tab.tiers.find((tier) => tier.preview === 'weight')?.items[0];
+  const familyTier = tab.tiers.find((tier) => tier.preview === 'family');
+  const family = familyTier?.items[0];
+  const weightTier = tab.tiers.find((tier) => tier.preview === 'weight');
+  const weight = weightTier?.items[0];
   return {
-    ...(family ? { fontFamily: `var(${family.cssVar}, ${valueFor(family)})` } : {}),
-    ...(weight ? { fontWeight: `var(${weight.cssVar}, ${valueFor(weight)})` } : {}),
+    ...(familyTier && family ? { fontFamily: resolvePreviewValue(tab, familyTier, family, valueFor) } : {}),
+    ...(weightTier && weight ? { fontWeight: resolvePreviewValue(tab, weightTier, weight, valueFor) } : {}),
   };
 }
 
@@ -56,7 +58,7 @@ export function createSpecimenContribution({ tab, state, valueFor, onPage = fals
             <span
               className="tokenpanel-specimen-size-text"
               data-testid={`specimen-size-${item.id}`}
-              style={{ ...fontStyle, fontSize: `var(${item.cssVar}, ${resolved.value})` }}
+              style={{ ...fontStyle, fontSize: resolved.value }}
               title={displayPx(resolved.px)}
             >
               {state.text || '…'}
