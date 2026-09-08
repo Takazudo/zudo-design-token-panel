@@ -52,6 +52,8 @@ describe('resolveCssColorInHost in a browser', () => {
     expect(resolveCssColorInHost('var(--nope)')).toBeNull();
     expect(resolveCssColorInHost('var(--probe-invalid)')).toBeNull();
     expect(resolveCssColorInHost('not-a-color')).toBeNull();
+    expect(resolveCssColorInHost('')).toBeNull();
+    expect(resolveCssColorInHost('   ')).toBeNull();
   });
 
   it('preserves transparent tokens and fallbacks', () => {
