@@ -41,7 +41,10 @@ import {
   oklchaToCss,
   oklchaToHex,
   oklchaToHsla,
+  staticCssColorToOklcha,
 } from '../../utils/color-oklch';
+import { isCssExpression, resolveCssColorInHost } from '../../utils/resolve-css-color';
+import { RoleButton } from '../../controls/role-button';
 import { CustomSlider, type SliderConfig } from './custom-slider';
 import { pushDismissLayer } from '../../controls/dismiss-layer';
 
@@ -79,6 +82,8 @@ export interface ColorPickerProps {
    * with existing callers that pass no value).
    */
   valueFormat?: ColorPickerValueFormat;
+  /** Host color scheme used to resolve CSS expressions. */
+  resolveMode?: 'light' | 'dark';
   /** Optional label rendered in the picker header. */
   label?: string;
   /**
@@ -269,13 +274,13 @@ function parseOklchColor(css: string): Oklcha {
  * survive because it is never round-tripped through hex.
  */
 function useSyncedOklch(
-  externalColor: string,
+  externalColor: Oklcha,
   isDraggingRef: React.RefObject<boolean>,
 ): [Oklcha, (next: Oklcha) => void] {
-  const [oklch, setOklch] = useState<Oklcha>(() => parseOklchColor(externalColor));
+  const [oklch, setOklch] = useState<Oklcha>(externalColor);
   useEffect(() => {
     if (isDraggingRef.current) return;
-    setOklch(parseOklchColor(externalColor));
+    setOklch(externalColor);
   }, [externalColor, isDraggingRef]);
   return [oklch, setOklch];
 }
@@ -392,6 +397,7 @@ export function ColorPicker({
   color,
   onChange,
   valueFormat = 'hex',
+  resolveMode,
   label,
   defaultMode = 'oklch',
   anchorRef,
@@ -407,9 +413,30 @@ export function ColorPicker({
   // string is canonical (byte-for-byte unchanged from the legacy behavior). In
   // oklch mode the canonical Oklcha is the source of truth so wide-gamut chroma
   // & precision survive without round-tripping through sRGB hex.
-  const [hexState, setHexState] = useSyncedHex(color, isDraggingRef);
+  const seed = useMemo(() => {
+    if (!isCssExpression(color)) {
+      return { hex: color, oklch: parseOklchColor(color), expression: null };
+    }
+    const computed = resolveCssColorInHost(color, resolveMode);
+    const resolved = computed ? staticCssColorToOklcha(computed) : null;
+    const oklch = resolved ?? hexToOklcha('#000000');
+    return {
+      hex: oklchaToHex(oklch),
+      oklch,
+      expression: { source: color, resolved: resolved !== null },
+    };
+  }, [color, resolveMode]);
+  const { expression } = seed;
+  // Consent belongs to this exact source/mode session and resets on remount.
+  const [convertedSeed, setConvertedSeed] = useState<typeof seed | null>(null);
+  const converted = convertedSeed === seed;
+  const gated = expression !== null && !converted;
+  const emit = useCallback((value: string) => {
+    if (!gated) onChange(value);
+  }, [gated, onChange]);
+  const [hexState, setHexState] = useSyncedHex(seed.hex, isDraggingRef);
   const [canonicalOklch, setCanonicalOklch] = useSyncedOklch(
-    color,
+    seed.oklch,
     isDraggingRef,
   );
 
@@ -442,6 +469,14 @@ export function ColorPicker({
   const [shell, setShell] = useState<'mini' | 'expanded'>('mini');
 
   const [hexInput, setHexInput] = useState(hex);
+  useLayoutEffect(() => {
+    if (!seed.expression) return;
+    // A newly gated source takes precedence over an in-flight literal edit.
+    isDraggingRef.current = false;
+    setHexState(seed.hex);
+    setCanonicalOklch(seed.oklch);
+    setHexInput(seed.hex);
+  }, [seed, setHexState, setCanonicalOklch]);
   useEffect(() => {
     // Only clobber hexInput when it holds a fully-committed valid hex. If the
     // user has started typing a partial string (e.g. "#33"), leave it alone so
@@ -489,6 +524,7 @@ export function ColorPicker({
   // so the input box keeps showing the sRGB projection for reference.
   const commit = useCallback(
     (next: string) => {
+      if (gated) return;
       const normalized = next.toLowerCase();
       setHexState(normalized);
       setHexInput(normalized);
@@ -497,12 +533,12 @@ export function ColorPicker({
         // the oklch() of that hex (hex → Oklcha → oklch string), never raw hex.
         const asOklch = parseOklchColor(normalized);
         setCanonicalOklch(asOklch);
-        onChange(oklchaToCss(asOklch));
+        emit(oklchaToCss(asOklch));
       } else {
-        onChange(normalized);
+        emit(normalized);
       }
     },
-    [setHexState, setCanonicalOklch, isOklchFormat, onChange],
+    [setHexState, setCanonicalOklch, isOklchFormat, emit, gated],
   );
 
   // Commit a canonical Oklcha directly without any sRGB clamp — used by the
@@ -510,18 +546,20 @@ export function ColorPicker({
   // precision survive. Emits the normalized oklch() string.
   const commitCanonicalOklch = useCallback(
     (next: Oklcha) => {
+      if (gated) return;
       setCanonicalOklch(next);
       // Keep the hex-input box / hex state in sync with the sRGB projection.
       const projHex = oklchaToHex(next).toLowerCase();
       setHexState(projHex);
       setHexInput(projHex);
-      onChange(oklchaToCss(next));
+      emit(oklchaToCss(next));
     },
-    [setCanonicalOklch, setHexState, onChange],
+    [setCanonicalOklch, setHexState, emit, gated],
   );
 
   const commitOklch = useCallback(
     (partial: Partial<Oklcha>) => {
+      if (gated) return;
       const next: Oklcha = {
         l: partial.l ?? oklch.l,
         c: partial.c ?? oklch.c,
@@ -534,11 +572,12 @@ export function ColorPicker({
         commit(oklchaToHex(next));
       }
     },
-    [oklch, isOklchFormat, commitCanonicalOklch, commit],
+    [oklch, isOklchFormat, commitCanonicalOklch, commit, gated],
   );
 
   const commitHsl = useCallback(
     (partial: { h?: number; s?: number; l?: number; a?: number }) => {
+      if (gated) return;
       const next = {
         h: partial.h ?? hsla.h,
         s: partial.s ?? hsla.s,
@@ -559,10 +598,11 @@ export function ColorPicker({
         commit(hslaToHex(next.h, next.s, next.l, next.a));
       }
     },
-    [hsla, isOklchFormat, commitCanonicalOklch, commit],
+    [hsla, isOklchFormat, commitCanonicalOklch, commit, gated],
   );
 
   const handleHexChange = (value: string) => {
+    if (gated) return;
     setHexInput(value);
     if (
       /^#[0-9a-fA-F]{6}$/.test(value) ||
@@ -578,6 +618,7 @@ export function ColorPicker({
 
   const handlePresetClick = useCallback(
     (rowIdx: number, colIdx: number) => {
+      if (gated) return;
       const preset = presetOklchForCell(rowIdx, colIdx, oklch.a, presetHCols);
       if (isOklchFormat) {
         // Commit the cell's UNCLAMPED Oklcha so wide-gamut presets survive.
@@ -588,7 +629,7 @@ export function ColorPicker({
         commit(oklchaToHex(safe));
       }
     },
-    [oklch.a, presetHCols, isOklchFormat, commitCanonicalOklch, commit],
+    [oklch.a, presetHCols, isOklchFormat, commitCanonicalOklch, commit, gated],
   );
 
   const handleGridKeyDown = useCallback(
@@ -597,6 +638,7 @@ export function ColorPicker({
       rowIdx: number,
       colIdx: number,
     ) => {
+      if (gated) return;
       let nextRow = rowIdx;
       let nextCol = colIdx;
       if (e.key === 'ArrowRight')
@@ -616,7 +658,7 @@ export function ColorPicker({
       );
       next?.focus();
     },
-    [presetHCols, handlePresetClick],
+    [presetHCols, handlePresetClick, gated],
   );
 
   const handleModeToggle = (next: ColorPickerMode) => {
@@ -658,14 +700,20 @@ export function ColorPicker({
       setAutoStyle({ position: 'fixed', visibility: 'hidden' });
       return;
     }
+    const estimatedHeight = shell === 'mini' ? MINI_POPOVER_H : EXPANDED_POPOVER_H;
+    // Expressions can wrap across several lines; include their actual height
+    // when clamping the popover, leaving literal positioning unchanged.
+    const height = gated
+      ? Math.max(estimatedHeight, containerRef.current?.scrollHeight ?? 0)
+      : estimatedHeight;
     setAutoStyle(
       getFixedPopoverStyle(
         anchor,
         shell === 'mini' ? MINI_POPOVER_W : EXPANDED_POPOVER_W,
-        shell === 'mini' ? MINI_POPOVER_H : EXPANDED_POPOVER_H,
+        height,
       ),
     );
-  }, [anchorRef, shell]);
+  }, [anchorRef, shell, gated, expression?.source]);
 
   // ── Drag-handle pointer handlers ─────────────────────────────────────────
   // Mirrors pgen's color-picker-oklch drag implementation. Wired via
@@ -880,6 +928,22 @@ export function ColorPicker({
         </div>
       </div>
 
+      {expression && gated && (
+        <div className="tokenpanel-color-picker__disclosure">
+          <div>
+            {expression.resolved
+              ? `Value is an expression: ${expression.source}. Editing replaces it with a literal color.`
+              : `Reference ${expression.source} could not be resolved in the host.`}
+          </div>
+          <RoleButton
+            className="tokenpanel-color-picker__convert"
+            onClick={() => setConvertedSeed(seed)}
+          >
+            Edit as literal
+          </RoleButton>
+        </div>
+      )}
+
       {/* Top row: preview swatch + hex input ───────────────────────────── */}
       <div className="tokenpanel-color-picker-top-row">
         <div className="tokenpanel-color-picker-preview">
@@ -892,6 +956,7 @@ export function ColorPicker({
           />
         </div>
         <input
+          disabled={gated}
           type="text"
           className="tokenpanel-color-picker-hex-input"
           value={hexInput}
@@ -928,11 +993,12 @@ export function ColorPicker({
                   data-grid-row={rowIdx}
                   data-grid-col={colIdx}
                   data-oog={inGamut ? 'false' : 'true'}
+                  aria-disabled={gated || undefined}
                   aria-selected={isSelected}
                   aria-label={`Preset L ${cell.l}% H ${cell.h}°`}
                   className="tokenpanel-color-picker-grid-cell"
                   style={{ background: safeCss }}
-                  tabIndex={rowIdx === 0 && colIdx === 0 ? 0 : -1}
+                  tabIndex={!gated && rowIdx === 0 && colIdx === 0 ? 0 : -1}
                   onClick={() => handlePresetClick(rowIdx, colIdx)}
                   onKeyDown={(e: KeyboardEvent) =>
                     handleGridKeyDown(e, rowIdx, colIdx)
@@ -950,6 +1016,7 @@ export function ColorPicker({
           ? oklchConfigs.map((cfg) => (
               <CustomSlider
                 key={cfg.key}
+                disabled={gated}
                 config={cfg}
                 value={
                   (oklch as unknown as Record<string, number>)[cfg.key] ?? 0
@@ -967,6 +1034,7 @@ export function ColorPicker({
           : hslConfigs.map((cfg) => (
               <CustomSlider
                 key={cfg.key}
+                disabled={gated}
                 config={cfg}
                 value={
                   (hsla as unknown as Record<string, number>)[cfg.key] ?? 0
