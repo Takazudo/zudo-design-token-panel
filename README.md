@@ -133,3 +133,12 @@ to see what is in flight before starting non-trivial work.
 ## License
 
 MIT — see [LICENSE](./LICENSE).
+
+## Try the dashboard as an external package
+
+Run `pnpm check:dashboard-consumer --keep` to build and install the current tarball
+in an isolated temporary Preact app, compile TSX, render static HTML and verify it
+in Chromium with JavaScript disabled. The retained app is editable and rebuilds
+with `npm run build`; no npm publication is needed. See the
+[consumer fixture guide](scripts/fixtures/dashboard-consumer/README.md) for CSS
+copying, evidence output, cleanup and the boundary this test proves.
