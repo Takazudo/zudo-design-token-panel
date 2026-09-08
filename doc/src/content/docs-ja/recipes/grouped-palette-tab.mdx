@@ -11,15 +11,15 @@ Palette タブは複数グループの OKLCH カラートークンを保持し�
 - **Edit モード** — 各グループのステップ全体にわたって Lightness / Chroma / Hue を調整する X-Y カーブエディター。
 - **Check モード** — 選択したパレットカラーを背景として、すべてのパレットカラーを前景にした場合の WCAG コントラストを一覧で評価するビュー。
 
-カラースキームテーブルを必要としない独立した名前付きカラーステップ（グレースケール・ブランド・アクセントなど）が欲しいときに使用してください。
+ベース・ブランド・アクセントなどの色をグループごとにまとめるための構成です。別の Color タブから参照し、意味に応じた色の役割を割り当てることもできます。
 
 ## データモデルの規約
 
-`TabConfig` を書く前に、Palette タブが適用する 3 つのルールを確認してください。
+`TabConfig` を書く前に、Palette タブの構成上の規約を確認してください。
 
 1. **`colorExtras` は省略必須。** 省略することで `resolveColorClusterFromTab` が実行されなくなり、複数の `kind: 'color'` 階層を 1 つのタブに安全に共存させることができます。
 2. **1 階層 = 1 グループ。** 各 `TierConfig` は名前付きカラーグループを表します。`label` が UI のグループ見出しになります。
-3. **CSS 変数名の規約:** `--palette-{group}-{n}`。`{group}` は階層の `id`、`{n}` は 1 始まりのステップ番号です。
+3. **CSS 変数名の規約:** `--palette-{group}-{n}`。`{group}` は階層の `id`、`{n}` は `0` 始まりの安定した識別子です。
 
 ## ステップ 1: Palette タブを宣言する
 
@@ -36,34 +36,34 @@ export const paletteTab: TabConfig = {
   // to be safe in one tab. The Palette tab relies on this absence.
   tiers: [
     {
-      id: 'grayscale',
-      label: 'Grayscale',
+      id: 'base',
+      label: 'Base',
       items: [
         {
-          id: 'grayscale-1',
-          cssVar: '--palette-grayscale-1',
-          label: 'Grayscale 1',
+          id: 'base-0',
+          cssVar: '--palette-base-0',
+          label: 'Base 0',
           default: 'oklch(95% 0.005 240)',
           type: { kind: 'color', format: 'oklch' },
         },
         {
-          id: 'grayscale-2',
-          cssVar: '--palette-grayscale-2',
-          label: 'Grayscale 2',
+          id: 'base-1',
+          cssVar: '--palette-base-1',
+          label: 'Base 1',
           default: 'oklch(80% 0.008 240)',
           type: { kind: 'color', format: 'oklch' },
         },
         {
-          id: 'grayscale-3',
-          cssVar: '--palette-grayscale-3',
-          label: 'Grayscale 3',
+          id: 'base-2',
+          cssVar: '--palette-base-2',
+          label: 'Base 2',
           default: 'oklch(55% 0.010 240)',
           type: { kind: 'color', format: 'oklch' },
         },
         {
-          id: 'grayscale-4',
-          cssVar: '--palette-grayscale-4',
-          label: 'Grayscale 4',
+          id: 'base-3',
+          cssVar: '--palette-base-3',
+          label: 'Base 3',
           default: 'oklch(30% 0.012 240)',
           type: { kind: 'color', format: 'oklch' },
         },
@@ -74,30 +74,30 @@ export const paletteTab: TabConfig = {
       label: 'Brand',
       items: [
         {
+          id: 'brand-0',
+          cssVar: '--palette-brand-0',
+          label: 'Brand 0',
+          default: 'oklch(90% 0.08 250)',
+          type: { kind: 'color', format: 'oklch' },
+        },
+        {
           id: 'brand-1',
           cssVar: '--palette-brand-1',
           label: 'Brand 1',
-          default: 'oklch(90% 0.08 250)',
+          default: 'oklch(70% 0.16 250)',
           type: { kind: 'color', format: 'oklch' },
         },
         {
           id: 'brand-2',
           cssVar: '--palette-brand-2',
           label: 'Brand 2',
-          default: 'oklch(70% 0.16 250)',
+          default: 'oklch(50% 0.20 250)',
           type: { kind: 'color', format: 'oklch' },
         },
         {
           id: 'brand-3',
           cssVar: '--palette-brand-3',
           label: 'Brand 3',
-          default: 'oklch(50% 0.20 250)',
-          type: { kind: 'color', format: 'oklch' },
-        },
-        {
-          id: 'brand-4',
-          cssVar: '--palette-brand-4',
-          label: 'Brand 4',
           default: 'oklch(30% 0.18 250)',
           type: { kind: 'color', format: 'oklch' },
         },
@@ -108,30 +108,30 @@ export const paletteTab: TabConfig = {
       label: 'Accent',
       items: [
         {
+          id: 'accent-0',
+          cssVar: '--palette-accent-0',
+          label: 'Accent 0',
+          default: 'oklch(88% 0.10 55)',
+          type: { kind: 'color', format: 'oklch' },
+        },
+        {
           id: 'accent-1',
           cssVar: '--palette-accent-1',
           label: 'Accent 1',
-          default: 'oklch(88% 0.10 55)',
+          default: 'oklch(68% 0.18 50)',
           type: { kind: 'color', format: 'oklch' },
         },
         {
           id: 'accent-2',
           cssVar: '--palette-accent-2',
           label: 'Accent 2',
-          default: 'oklch(68% 0.18 50)',
+          default: 'oklch(48% 0.22 45)',
           type: { kind: 'color', format: 'oklch' },
         },
         {
           id: 'accent-3',
           cssVar: '--palette-accent-3',
           label: 'Accent 3',
-          default: 'oklch(48% 0.22 45)',
-          type: { kind: 'color', format: 'oklch' },
-        },
-        {
-          id: 'accent-4',
-          cssVar: '--palette-accent-4',
-          label: 'Accent 4',
           default: 'oklch(30% 0.16 42)',
           type: { kind: 'color', format: 'oklch' },
         },
@@ -156,12 +156,12 @@ export const myPanelConfig: PanelConfig = {
   exportFilenameBase: 'myapp-design-tokens',
   tabs: [
     paletteTab,
-    // …他のタブ…
+    // …other tabs…
   ],
   applyEndpoint: 'http://127.0.0.1:24681/apply',
   applyRouting: {
-    // 'palette' は --palette-* で始くすべての CSS 変数にマッチし、
-    // このファイルへルーティングします。Apply 時に bin が :root ブロックをアトミックに書き換えます。
+    // 'palette' matches every --palette-* variable and routes them to
+    // this file. The bin rewrites the :root block atomically on Apply.
     palette: 'src/styles/palette.css',
   },
 };
@@ -174,53 +174,47 @@ export const myPanelConfig: PanelConfig = {
 
 ## ステップ 2: ホストスタイルシートに CSS 宣言を追加する
 
-`:root` 内にすべてのパレット変数を宣言します。**Apply to source files** をクリックすると、apply パイプラインがこのブロックを書き換えます。
+書き込み先のスタイルシートでは、編集対象の変数をすべて**最初の、トップレベルにある単独の `:root` ブロック**にまとめます。パレット・セマンティックカラー・その他のトークンを別々の `:root` に分けたり、このブロックを `@layer` で囲んだりしないでください。**Apply to source files** が書き換えるのは最初のブロックだけです。
 
 ```css
 /* src/styles/palette.css */
 :root {
-  /* Grayscale */
-  --palette-grayscale-1: oklch(95% 0.005 240);
-  --palette-grayscale-2: oklch(80% 0.008 240);
-  --palette-grayscale-3: oklch(55% 0.010 240);
-  --palette-grayscale-4: oklch(30% 0.012 240);
+  /* Base */
+  --palette-base-0: oklch(95% 0.005 240);
+  --palette-base-1: oklch(80% 0.008 240);
+  --palette-base-2: oklch(55% 0.010 240);
+  --palette-base-3: oklch(30% 0.012 240);
 
   /* Brand */
-  --palette-brand-1: oklch(90% 0.08 250);
-  --palette-brand-2: oklch(70% 0.16 250);
-  --palette-brand-3: oklch(50% 0.20 250);
-  --palette-brand-4: oklch(30% 0.18 250);
+  --palette-brand-0: oklch(90% 0.08 250);
+  --palette-brand-1: oklch(70% 0.16 250);
+  --palette-brand-2: oklch(50% 0.20 250);
+  --palette-brand-3: oklch(30% 0.18 250);
 
   /* Accent */
-  --palette-accent-1: oklch(88% 0.10 55);
-  --palette-accent-2: oklch(68% 0.18 50);
-  --palette-accent-3: oklch(48% 0.22 45);
-  --palette-accent-4: oklch(30% 0.16 42);
+  --palette-accent-0: oklch(88% 0.10 55);
+  --palette-accent-1: oklch(68% 0.18 50);
+  --palette-accent-2: oklch(48% 0.22 45);
+  --palette-accent-3: oklch(30% 0.16 42);
 }
 ```
 
 ## ステップ 3: CSS でパレット変数を使う
 
-スタイルシート内の任意の場所でパレットトークンを参照します。パネルはキーストロークごとに `:root` をインメモリで上書きするため、変更は即座に反映されます。
+パレットの色を直接参照するのは、色を見せるための装飾用チップにとどめ、ラベルはチップの外に置きます。パネルは `<html>` に上書きを適用し、変更を即座に反映します。実際のコンポーネントの文字色・背景色には後述のセマンティックカラーを使い、組み合わせごとにコントラストを確認してください。
 
 ```css
-.myapp-hero {
-  background-color: var(--palette-brand-2);
-  color: var(--palette-grayscale-1);
-}
-
-.myapp-badge {
-  background-color: var(--palette-accent-2);
-}
-
-.myapp-text-muted {
-  color: var(--palette-grayscale-3);
+/* Decorative teaching chips only; keep labels outside on the host surface. */
+.myapp-palette-chip {
+  inline-size: 3rem;
+  block-size: 3rem;
+  background-color: var(--palette-brand-1);
 }
 ```
 
 ## ステップ 4: 2 つのパネルモードを活用する
 
-パネルを開き（デフォルト: `Alt+Shift+P`、または `window.myapp.showDesignPanel()`）、**Palette** タブに移動します。
+パネルを開き（デフォルト: `Alt+Shift+P`、または `window.zdtp.show()`）、**Palette** タブに移動します。
 
 ### Edit モード（デフォルト）
 
@@ -247,7 +241,7 @@ bin を開発サーバーと並行して起動します。
 ```sh
 pnpm exec zdtp-server \
   --routing ./panel-routing.json \
-  --write-root ./src/styles \
+  --write-root . \
   --allow-origin http://localhost:5173
 ```
 
@@ -276,13 +270,129 @@ export const myPanelConfig: PanelConfig = {
 
 この規約により、`applyRouting` が短いキー 1 つですべてのパレット変数をルーティングできます。新しいグループを追加する場合も同じパターンに従ってください。
 
-| グループ階層 `id` | ステップ 1 の `cssVar` | ステップ 2 の `cssVar` | … |
+| グループ階層 `id` | ステップ 0 の `cssVar` | ステップ 1 の `cssVar` | … |
 | --- | --- | --- | --- |
-| `grayscale` | `--palette-grayscale-1` | `--palette-grayscale-2` | … |
-| `brand` | `--palette-brand-1` | `--palette-brand-2` | … |
-| `accent` | `--palette-accent-1` | `--palette-accent-2` | … |
+| `base` | `--palette-base-0` | `--palette-base-1` | … |
+| `brand` | `--palette-brand-0` | `--palette-brand-1` | … |
+| `accent` | `--palette-accent-0` | `--palette-accent-1` | … |
 
-アイテムの `id` も同じ `{group}-{n}` パターン（例: `grayscale-1`）に従い、タブ全体で一意である必要があります。永続化されたオーバーライドマップはアイテム id をキーとして使用するためです。
+アイテムの `id` も同じ `{group}-{n}` パターン（例: `base-0`）に従い、タブ全体で一意である必要があります。永続化されたオーバーライドマップはアイテム id をキーとして使用するためです。
+
+## Palette → Semantic → Component の 3 層構成
+
+グループ分けは**Tier 1 の内側**で名前を整理するための規約です。4 番目の層ではありません。
+`palette` タブには元の色のランプを置きます。グレースケール（この例では `base`）も、
+ばらばらの灰色ではなく、彩度をほぼゼロに保って明度を変えるランプです。
+Tier 2 は `color` タブ内の `semantic: true` な階層で、背景や文字色などの役割を割り当てます。
+参照できる Tier 1 のグループは `referencesRamps` で指定します。
+コンポーネントはその役割を参照し、必要なら Tier 3 のローカルトークンを介して使います。
+
+`0` 始まりの `{n}` は安定した識別子であり、色の濃さを表す尺度ではありません。
+`500` が特定の中間色を指す Tailwind の `100`–`900` とは異なります。
+保存済みの編集値はアイテム ID をキーにするため、ID は維持してください。
+
+## パネルで編集した後も切り替わるダークモード
+
+以下は、このドキュメントサイトが固定している `@takazudo/zdtp` 0.5.1 で使える構成です。
+Tier 1 は両モードで同じ値に保ち、Tier 2 の割り当てを切り替えます。
+パネルの上書き先は **`<html>` のインラインスタイル**です。
+1 つの `{ ref }` は両モードで同じランプのステップを参照するため、ライト用とダーク用の
+2 通りの割り当ては表現できません。通常のダークテーマ用 CSS で割り当てを変えても、
+パネルで編集するとインラインの値が優先されます。参照先のランプの編集自体は引き続き反映されます。
+
+モード別の初期値には `colorExtras.semanticDefaults` の `{ literal: { light, dark } }`
+を使います。パネルはこれを `light-dark(…)` として出力します。
+各文字列に `var()` を含めれば、ライト・ダークのどちらもパレットとのつながりを保てます。
+`TierItem.default` の文字列は、参照として認識される場合を除き、単一モードのリテラルになります。
+モード別のオブジェクトは渡せません。`semanticDefaults` のキーにはアイテム ID を使います。
+
+```ts
+// Add this export to src/lib/my-tabs.ts, then add colorTab to PanelConfig.tabs.
+export const colorTab: TabConfig = {
+  id: 'color',
+  label: 'Color',
+  tiers: [{
+    id: 'semantic',
+    label: 'Semantic',
+    semantic: true,
+    referencesRamps: [
+      { tab: 'palette', tier: 'base' },
+      { tab: 'palette', tier: 'brand' },
+    ],
+    items: [
+      { id: 'bg', cssVar: '--palette-color-bg', label: 'Background',
+        default: 'base:base-0', type: { kind: 'color', format: 'oklch' } },
+      { id: 'fg', cssVar: '--palette-color-fg', label: 'Foreground',
+        default: 'base:base-3', type: { kind: 'color', format: 'oklch' } },
+      { id: 'decoration', cssVar: '--palette-color-decoration', label: 'Decoration',
+        default: 'brand:brand-1', type: { kind: 'color', format: 'oklch' } },
+    ],
+  }],
+  colorExtras: {
+    id: 'myapp-colors', label: 'My app colors',
+    baseRoles: {}, baseDefaults: {}, colorSchemes: {},
+    defaultShikiTheme: 'github-light',
+    panelSettings: { colorScheme: 'default', colorMode: false },
+    semanticDefaults: {
+      bg: { literal: {
+        light: 'var(--palette-base-0)', dark: 'var(--palette-base-3)',
+      } },
+      fg: { literal: {
+        light: 'var(--palette-base-3)', dark: 'var(--palette-base-0)',
+      } },
+    },
+  },
+};
+```
+
+`decoration` は `brand:brand-1` から直接の `{ ref }` になります。
+グループ別のランプ選択メニューで参照先を変更できます。一方、`bg` と `fg` は
+モード別リテラルのエディターを使います。こちらはライト・ダーク用のランプ選択メニューではありません。
+この例のセマンティック変数も `--palette-` で始めているため、既存のルーティング設定で書き込めます。
+
+**`color-scheme` はホスト側で管理します。** 0.5.1 のパネルはモード別リテラルを適用するとき、
+インラインに `color-scheme: light dark` を書き、ホストが通常のインラインスタイルで指定した
+`light` や `dark` を上書きします。ホスト側で初期値を `data-theme="light"` に設定し、
+テーマ切り替え時にこの属性を更新してください。以下の `!important` 付きの CSS なら、
+パネルで編集した後もホストの指定が優先されます。この挙動は
+[#879](https://github.com/Takazudo/zudo-design-token-panel/issues/879) で追跡しています。
+
+```css
+/* Merge these declarations into the FIRST :root from Step 2. */
+:root {
+  --palette-color-bg: light-dark(var(--palette-base-0), var(--palette-base-3));
+  --palette-color-fg: light-dark(var(--palette-base-3), var(--palette-base-0));
+  --palette-color-decoration: var(--palette-brand-1);
+}
+
+:root[data-theme="light"] { color-scheme: light !important; }
+:root[data-theme="dark"] { color-scheme: dark !important; }
+
+.myapp-card {
+  --_card-bg: var(--palette-color-bg);
+  background: var(--_card-bg);
+  color: var(--palette-color-fg);
+  border-inline-start: 3px solid var(--palette-color-decoration);
+}
+```
+
+この断片を追加するときは、2 つ目の `:root` を作らず、3 つのトークン宣言をステップ 2 の
+既存ブロックにまとめてください。実際に使う文字色と背景色の組み合わせは両モードで確認します。
+装飾用のブランドカラーを、文字色や文字を載せる背景色としてそのまま使わないでください。
+
+:::warning[カラーピッカーの制限]
+カラーピッカーは `var()` の値を解析できず、現在の計算済みの色ではなく黒で開きます。
+開くだけでは値は変わりません。編集すると、そのモードの参照が具体的な色に置き換わり、
+ランプとのつながりが切れます。設定の初期値にリセットすれば参照を復元できます。
+参照先の色を使ったピッカーの初期化は
+[#878](https://github.com/Takazudo/zudo-design-token-panel/issues/878) で追跡しています。
+:::
+
+小さな 2 つのランプを使う例は [minimal デモ](https://zdtp-minimal.zudolab.dev/)、
+Base・Brand・Accent・State の各グループとセマンティックカラーを組み合わせた例は
+[playground](https://zdtp-playground.zudolab.dev/) を参照してください。
+どちらもワークスペースのビルドを使います。ビルドの由来を示すバッジで、
+このドキュメントサイトの固定リリースとの違いを確認できます。
 
 ## 関連ページ
 
