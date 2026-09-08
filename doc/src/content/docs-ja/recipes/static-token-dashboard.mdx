@@ -11,6 +11,7 @@ Preact の名前付きエクスポート `TokenDashboard` を使うと、ドキ�
 :::note[利用可能なバージョン]
 ダッシュボードは npm v0.6.1 以降と
 [ワークスペースのデモ](https://zdtp-playground.zudolab.dev/dashboard/)で利用できます。
+`chrome` prop は**未リリース（次回リリース予定）**で、v0.6.1 では使えません。
 このドキュメントサイトのパネルは、引き続き別途固定された npm 依存を使います。
 :::
 
@@ -105,6 +106,33 @@ import '@takazudo/zdtp/dashboard/styles.css';
 すべての静的ホストがこの副作用 import に対応するとは限りません。
 グローバル CSS だけを処理するホストでは、その処理系が解決できる CSS の `@import`、
 または上記の明示的なコピーとリンクを使い、出力された HTML と CSS を確認してください。
+
+## ホストのテーマに外観を合わせる
+
+`chrome="host"` は**未リリース（次回リリース予定）**の機能です。
+ホスト側で祖先要素に `color-scheme` を設定すると、枠・背景・ラベルなどがその設定に
+従います。たとえば、アプリのテーマ切り替えで `html` の `data-theme` を更新します。
+
+```css
+html { color-scheme: light; }
+html[data-theme='dark'] { color-scheme: dark; }
+```
+
+```tsx
+<TokenDashboard tabs={tokenTabs} chrome="host" mode="light" title="Light inventory" />
+<TokenDashboard tabs={tokenTabs} chrome="host" mode="dark" title="Dark inventory" />
+```
+
+ダッシュボードはメディアクエリーを使わないため、アプリで明示的に選んだテーマが
+OS の設定より優先されます。枠やラベルは専用の CSS カスタムプロパティを使い、
+一覧のトークンを参照しません。省略時の `chrome="light"` はライト表示に固定され、
+`chrome="dark"` はホストの設定にかかわらずダーク表示になります。
+
+`mode` は引き続き、宣言されたモード別の既定値と見本内の `color-scheme` を選びます。
+ホストと一覧のモードは独立しているため、ホスト light × 一覧 light、ホスト light ×
+一覧 dark、ホスト dark × 一覧 light、ホスト dark × 一覧 dark の4通りを表示できます。
+[デモ](https://zdtp-playground.zudolab.dev/dashboard/#host-light-inventory)の「Dark host」を
+切り替えると、2つの一覧で4通りを確認できます。この切り替えは CSS だけで動作します。
 
 ## 両モードを表示する・一部を埋め込む
 
