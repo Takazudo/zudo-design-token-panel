@@ -10,6 +10,7 @@ panel setup, storage access, or hydration requirements.
 
 :::note[Availability]
 These subpaths are available from npm v0.6.1.
+The `chrome` prop is **unreleased (next release)** and is not supported in v0.6.1.
 See the [static dashboard recipe](../recipes/static-token-dashboard.mdx) for
 build-safe data sharing, stylesheet inclusion, and the live workspace demo.
 :::
@@ -34,6 +35,7 @@ import type {
 | --- | --- | --- |
 | `tabs` | `readonly TabConfig[]`, required | Shared manifest data, in display order. An empty array renders an empty inventory. |
 | `mode` | `'light' \| 'dark'`, default `'light'` | Selects declared per-mode defaults and the local preview color scheme. |
+| `chrome` | `'light' \| 'dark' \| 'host'`, default `'light'` | Selects shell, background, and label appearance independently of `mode`. **Unreleased (next release)**. |
 | `title` | `string`, default `'Token dashboard'` | Visible heading and accessible region name. |
 | `id` | Optional `string` | Root element ID; caller owns uniqueness. Omitted IDs are not generated. |
 | `previewText` | Optional `string`; default English/Japanese prose | Static typography passage; explicit empty strings are preserved. |
@@ -68,10 +70,17 @@ color sample for color-editor rows or text for other rows. `duration` and `text`
 keep the readable value without an animated or visual sample. `previewBase`
 can supply the font-size token for line-height samples when present and resolved.
 
-Each instance declares known variables inside its preview inventory and sets
-its own `color-scheme`. It does not write host variables to `:root`, use the
-host's selected theme, or subscribe to panel changes. Component chrome uses its
-own styles independently of the inventory variables.
+Chrome appearance follows `chrome`: `'light'` (the default) and `'dark'` fix
+its appearance, while `'host'` inherits the host's effective `color-scheme`.
+For `'host'`, the host must set `color-scheme` on an ancestor. The dashboard
+uses no media query, so an explicit application theme switch takes precedence
+over the OS preference.
+
+Inventory specimens still own their `color-scheme` from `mode`, with known
+variables declared inside the preview inventory. Changing `chrome` does not
+change per-mode defaults or specimen schemes. Dashboard chrome uses its own
+CSS custom properties and never reads inventory tokens. Instances do not write
+host variables to `:root` or subscribe to panel changes.
 
 CSS expressions are preserved, not universally computed or validated as every
 possible CSS property grammar. The browser supplies units, fonts, viewport,

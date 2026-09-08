@@ -1,9 +1,17 @@
+/* An explicit host choice wins over OS preference; no script is needed. */
+html:has(> body.dashboard-page) {
+  color-scheme: light;
+}
+
+html:has(#dashboard-dark-host:checked) {
+  color-scheme: dark;
+}
+
 /* Page chrome intentionally uses its own literals, independent of demo tokens. */
 .dashboard-page {
   margin: 0;
-  background: #f3f5f8;
-  color: #202b3a;
-  color-scheme: light;
+  background: light-dark(#f3f5f8, #141b25);
+  color: light-dark(#202b3a, #e5edf8);
   font: 16px/1.65 system-ui, sans-serif;
 }
 
@@ -21,8 +29,8 @@
   justify-content: space-between;
   gap: 12px 24px;
   padding: 20px clamp(16px, 4vw, 48px);
-  background: #fff;
-  border-block-end: 1px solid #d6dee8;
+  background: light-dark(#fff, #1c2634);
+  border-block-end: 1px solid light-dark(#d6dee8, #43536a);
 }
 
 .dashboard-page__brand {
@@ -31,7 +39,7 @@
 
 .dashboard-page__provenance,
 .dashboard-page__footer {
-  color: #46566c;
+  color: light-dark(#46566c, #b6c5d9);
   font-size: 13px;
   overflow-wrap: anywhere;
 }
@@ -50,7 +58,7 @@
 
 .dashboard-page__eyebrow {
   margin: 0 0 12px;
-  color: #46566c;
+  color: light-dark(#46566c, #b6c5d9);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -69,12 +77,13 @@
 }
 
 .dashboard-page a {
-  color: #244f94;
+  color: light-dark(#244f94, #93c5fd);
   text-underline-offset: 3px;
 }
 
-.dashboard-page a:focus-visible {
-  outline: 2px solid #244f94;
+.dashboard-page a:focus-visible,
+.dashboard-page__theme-toggle input:focus-visible {
+  outline: 2px solid light-dark(#244f94, #93c5fd);
   outline-offset: 4px;
 }
 
@@ -91,8 +100,8 @@
   align-items: start;
   gap: 32px;
   padding: clamp(16px, 3vw, 32px);
-  background: #e7edf5;
-  border: 1px solid #c5d2e3;
+  background: light-dark(#e7edf5, #222f41);
+  border: 1px solid light-dark(#c5d2e3, #526783);
   border-radius: 12px;
 }
 
@@ -103,6 +112,18 @@
 }
 
 .dashboard-page__footer {
-  border-block-start: 1px solid #d6dee8;
+  border-block-start: 1px solid light-dark(#d6dee8, #43536a);
   border-block-end: 0;
+}
+
+.dashboard-page__theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-block: 8px;
+  cursor: pointer;
+}
+
+.dashboard-page__theme-toggle input {
+  accent-color: light-dark(#244f94, #93c5fd);
 }

@@ -4,6 +4,12 @@ All notable changes to `@takazudo/zdtp` are documented in this file.
 
 The format is based on Keep a Changelog, and release notes are generated from the changelog MDX pages.
 
+## [Unreleased]
+
+### Features
+
+- Add independent light, dark, and host-following chrome to `TokenDashboard`, while inventory specimens retain their selected mode.
+
 ## [0.6.1] - 2026-09-08
 
 ### Features
