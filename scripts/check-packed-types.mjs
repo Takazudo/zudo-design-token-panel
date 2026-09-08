@@ -15,10 +15,10 @@ function run(command, args, cwd = root, allowFailure = false) {
   }
   return result;
 }
-const assets = new Set(['./styles', './styles.css', './astro/DesignTokenPanelHost.astro']);
+const assets = new Set(['./styles', './styles.css', './dashboard/styles.css', './astro/DesignTokenPanelHost.astro']);
 function unexpectedProblems(report) {
   assert.ok(report.analysis?.types, 'ATTW must analyze a typed package');
-  for (const entrypoint of ['.', './astro', './server', './testing']) {
+  for (const entrypoint of ['.', './astro', './server', './testing', './dashboard']) {
     assert.ok(report.analysis.entrypoints?.[entrypoint], `ATTW must analyze ${entrypoint}`);
   }
   assert.ok(report.problems && typeof report.problems === 'object');
@@ -75,10 +75,19 @@ try {
   const index = join(installed, 'dist/index.d.ts');
   const original = readFileSync(index, 'utf8');
   assert.equal(cssImports(original).length, 0, 'Packed index.d.ts must not import CSS');
-  writeFileSync(join(scratch, 'consumer.ts'), `import * as panel from '@takazudo/zdtp';
+  assert.equal(cssImports(readFileSync(join(installed, 'dist/dashboard/index.d.ts'), 'utf8')).length, 0,
+    'Packed dashboard declarations must not import CSS');
+  writeFileSync(join(scratch, 'consumer.tsx'), `import * as panel from '@takazudo/zdtp';
 import * as astro from '@takazudo/zdtp/astro';
 import * as server from '@takazudo/zdtp/server';
 import * as testing from '@takazudo/zdtp/testing';
+import { TokenDashboard, type TokenDashboardProps, type TabConfig } from '@takazudo/zdtp/dashboard';
+const tabs: readonly TabConfig[] = [{ id: 'colors', label: 'Colors', tiers: [{
+  id: 'palette', label: 'Palette', items: [{ id: 'blue', label: 'Blue', cssVar: '--blue',
+    default: '#2563eb', type: { kind: 'color' } }],
+}] }];
+const props: TokenDashboardProps = { tabs, mode: 'dark', previewOverrides: { '--blue': 'color' } };
+export const dashboard = <TokenDashboard {...props} title="Declared tokens" id="tokens" />;
 export { panel, astro, server, testing };
 `);
   function typecheck(mode, allowFailure = false) {
@@ -86,7 +95,8 @@ export { panel, astro, server, testing };
       target: 'ES2022', module: mode === 'bundler' ? 'ESNext' : mode,
       moduleResolution: mode, strict: true, skipLibCheck: false, noEmit: true,
       noUncheckedSideEffectImports: true, types: [], lib: ['ES2022', 'DOM', 'DOM.Iterable'],
-    }, files: ['consumer.ts'] }));
+      jsx: 'react-jsx', jsxImportSource: 'preact',
+    }, files: ['consumer.tsx'] }));
     return run('node', [join(panel, 'node_modules/typescript/bin/tsc'), '-p', join(scratch, 'tsconfig.json')], scratch, allowFailure);
   }
   for (const mode of ['bundler', 'node16', 'nodenext']) {

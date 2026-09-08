@@ -1,7 +1,10 @@
 import { defineConfig, type Plugin } from 'vite';
 import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
 
 const constantsSource = fileURLToPath(new URL('./src/constants.ts', import.meta.url));
+const dashboardDirectory = fileURLToPath(new URL('./src/dashboard/', import.meta.url));
+const dashboardStyles = fileURLToPath(new URL('./src/dashboard/styles.css', import.meta.url));
 
 function normalizeModuleId(id: string): string {
   return id.split('?')[0];
@@ -67,6 +70,57 @@ function assertConstantsEntryIsolation(): Plugin {
   };
 }
 
+/** Ship static CSS separately and fail if the dashboard acquires panel code. */
+function staticDashboard(): Plugin {
+  return {
+    name: 'zdtp-static-dashboard',
+    apply: 'build',
+    buildStart() {
+      this.addWatchFile(dashboardStyles);
+      // A Rollup asset avoids Vite merging this into the existing zdtp.css.
+      this.emitFile({ type: 'asset', fileName: 'dashboard/styles.css', source: readFileSync(dashboardStyles, 'utf8') });
+    },
+    moduleParsed(moduleInfo) {
+      if (!normalizeModuleId(moduleInfo.id).startsWith(dashboardDirectory)) return;
+      for (const id of [...moduleInfo.importedIds, ...moduleInfo.dynamicallyImportedIds]) {
+        const source = normalizeModuleId(id);
+        if (source === 'preact' || source.startsWith('preact/')) continue;
+        if (source.startsWith(dashboardDirectory) && /\.(?:ts|tsx)$/.test(source)) continue;
+        // Check before extraction/tree-shaking too: an imported stylesheet can
+        // disappear from chunk.modules while still polluting legacy panel CSS.
+        this.error(`Unexpected dashboard source dependency: ${id}.`);
+      }
+    },
+    generateBundle(_options, bundle) {
+      const entry = Object.values(bundle).find((output) => output.type === 'chunk' && output.isEntry && output.name === 'dashboard/index');
+      if (!entry || entry.type !== 'chunk') {
+        this.error('Could not find the dashboard entry during the package build.');
+        return;
+      }
+      const visited = new Set<string>();
+      const pending = [entry];
+      while (pending.length > 0) {
+        const chunk = pending.pop()!;
+        if (visited.has(chunk.fileName)) continue;
+        visited.add(chunk.fileName);
+        for (const id of Object.keys(chunk.modules)) {
+          const source = normalizeModuleId(id);
+          if (!source.startsWith(dashboardDirectory) || /\.css$/.test(source)) {
+            this.error(`Dashboard must only contain dashboard source and external Preact; found ${id}.`);
+          }
+        }
+        for (const imported of [...chunk.imports, ...chunk.dynamicImports]) {
+          const dependency = bundle[imported];
+          if (dependency?.type === 'chunk') pending.push(dependency);
+          else if (imported !== 'preact' && !imported.startsWith('preact/')) {
+            this.error(`Unexpected dashboard dependency: ${imported}.`);
+          }
+        }
+      }
+    },
+  };
+}
+
 /**
  * Vite config for `@takazudo/zdtp`.
  *
@@ -102,7 +156,7 @@ function assertConstantsEntryIsolation(): Plugin {
  *    explicitly here.
  */
 export default defineConfig({
-  plugins: [assertConstantsEntryIsolation()],
+  plugins: [assertConstantsEntryIsolation(), staticDashboard()],
   resolve: {
     alias: {
       react: 'preact/compat',
@@ -140,6 +194,8 @@ export default defineConfig({
         // runtime so consumers can use storage/event contracts without
         // pulling in Preact, panel config, or CSS.
         constants: 'src/constants.ts',
+        // Static Preact renderer. CSS is an independent asset, never imported here.
+        'dashboard/index': 'src/dashboard/index.ts',
       },
       formats: ['es'],
       // Explicit cssFileName so the exports map contract ("./styles": "./dist/zdtp.css")
