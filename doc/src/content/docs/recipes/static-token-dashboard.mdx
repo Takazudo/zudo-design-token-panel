@@ -12,7 +12,8 @@ plus CSS with no dashboard hydration.
 :::note[Availability]
 The dashboard is available from npm v0.6.1 and in the
 [workspace demo](https://zdtp-playground.zudolab.dev/dashboard/). This documentation site's panel still uses its
-separate pinned npm dependency.
+separate pinned npm dependency. The `chrome` prop is **unreleased (next release)**
+and is not supported in v0.6.1.
 :::
 
 ## Keep token definitions build-safe
@@ -105,6 +106,35 @@ import '@takazudo/zdtp/dashboard/styles.css';
 Do not assume every static host handles that side-effect import. A host that
 only processes global CSS needs a resolvable CSS `@import` in that pipeline or
 the explicit asset copy and link above. Verify the emitted HTML and CSS.
+
+## Follow the host theme
+
+`chrome="host"` is **unreleased (next release)**. Set `color-scheme` on a host
+ancestor to make the dashboard shell, backgrounds, and labels follow it.
+For example, let your application's theme switch update `data-theme` on `html`:
+
+```css
+html { color-scheme: light; }
+html[data-theme='dark'] { color-scheme: dark; }
+```
+
+```tsx
+<TokenDashboard tabs={tokenTabs} chrome="host" mode="light" title="Light inventory" />
+<TokenDashboard tabs={tokenTabs} chrome="host" mode="dark" title="Dark inventory" />
+```
+
+The dashboard uses no media query, so an explicit application selection wins
+over the OS preference. Its chrome uses dedicated CSS custom properties and
+never reads inventory tokens. Omitting `chrome` keeps the default fixed light
+appearance; `chrome="dark"` fixes a dark appearance regardless of the host.
+
+`mode` still selects declared per-mode defaults and the specimens' own
+`color-scheme`. Host and inventory modes are independent: host light × inventory
+light, host light × inventory dark, host dark × inventory light, and host dark ×
+inventory dark all work. In the
+[demo](https://zdtp-playground.zudolab.dev/dashboard/#host-light-inventory), switch
+“Dark host” to check all four combinations across the two inventories. That
+switch works entirely through CSS.
 
 ## Show both modes or embed a subset
 

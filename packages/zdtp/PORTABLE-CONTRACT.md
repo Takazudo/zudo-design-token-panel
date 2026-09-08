@@ -1743,15 +1743,18 @@ on across a release bump.
 
 ## 12. Static token dashboard
 
-This entry is available from v0.6.1. It does
-not change the `configurePanel` or persistence contracts above.
+This entry is available from v0.6.1. The `chrome` prop is **unreleased (next
+release)** and is not supported in v0.6.1. It does not change the
+`configurePanel` or persistence contracts above.
 
 `@takazudo/zdtp/dashboard` exports the Preact `TokenDashboard` component and
-`TokenDashboardProps`, `DashboardMode`, `DashboardPreviewKind`, `TabConfig`,
-`TierConfig`, and `TierItem` types. The internal value model is not a public API.
+`TokenDashboardProps`, `DashboardMode`, `DashboardChrome`,
+`DashboardPreviewKind`, `TabConfig`, `TierConfig`, and `TierItem` types. The
+internal value model is not a public API.
 
 ```ts
 export type DashboardMode = 'light' | 'dark';
+export type DashboardChrome = 'light' | 'dark' | 'host';
 export type DashboardPreviewKind =
   | 'bar' | 'size' | 'line-height' | 'family' | 'weight' | 'radius' | 'duration'
   | 'color' | 'shadow' | 'text';
@@ -1759,6 +1762,7 @@ export type DashboardPreviewKind =
 export interface TokenDashboardProps {
   tabs: readonly TabConfig[];
   mode?: DashboardMode; // default: light
+  chrome?: DashboardChrome; // default: light; unreleased (next release)
   title?: string; // default: Token dashboard
   previewText?: string; // static typography passage; default English/Japanese prose
   id?: string; // optional root ID; caller owns uniqueness
@@ -1775,9 +1779,15 @@ export interface TokenDashboardProps {
   JavaScript has no CSS side-effect import; the host must include this asset
   through its CSS build or a static stylesheet link. It is not appended to the
   existing panel stylesheet, which is unnecessary for a dashboard-only page.
-- Each instance declares known token variables inside its inventory and sets
-  `color-scheme` to its explicit `mode`. It never writes to `:root` or host
-  state. Dashboard chrome styles are independent of inventory variables.
+- The dashboard root's chrome appearance follows `chrome`: `light` and `dark`
+  fix the shell scheme, while `host` inherits the host's effective
+  `color-scheme` and requires the host to set it on an ancestor. The dashboard
+  uses no media query, so an explicit application theme takes precedence over
+  the OS preference. Inventory specimens retain their own `color-scheme` from
+  `mode`, which also selects declared per-mode defaults. Chrome and specimens
+  are independent; chrome uses package-owned CSS custom properties and never
+  reads inventory variables. The component never writes to `:root` or host
+  state.
 - Tabs, tiers, and rows render in input order. All token rows remain visible;
   no collapsed sections or automatic IDs are introduced. Empty input is valid.
   Notes-only tabs are omitted, and arbitrary notes HTML is never injected.

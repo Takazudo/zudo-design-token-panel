@@ -43,3 +43,20 @@ export const dashboardFixtureTabs: readonly TabConfig[] = [{
     })),
   }],
 }];
+
+// The light-dark() sample keeps its inventory scheme as host chrome changes.
+export const dashboardHostFixtureTabs: readonly TabConfig[] = [{
+  id: 'host-theme', label: 'Inventory stays in its own mode', tiers: [{
+    id: 'scheme-color', label: 'Mode-scoped color', items: [{
+      id: 'scheme-ink', label: 'Light/dark inventory ink', cssVar: '--dashboard-example-scheme-ink',
+      default: 'light-dark(#244f94, #93c5fd)', type: { kind: 'text' },
+    }],
+  }, {
+    id: 'scheme-type', label: 'Typography specimen', preview: 'size',
+    items: [length('host-body-size', 'Body text', '18px')],
+  }],
+}];
+
+export const dashboardHostPreviewOverrides = {
+  '--dashboard-example-scheme-ink': 'color',
+} as const;
