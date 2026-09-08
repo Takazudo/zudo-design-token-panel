@@ -87,11 +87,11 @@
     "pnpm": ">=10.0.0"
   },
   "scripts": {
-    "build": "vite build && tsc -p tsconfig.build.json && node scripts/copy-astro-assets.mjs && chmod +x dist/bin/server.js && node scripts/check-exports.mjs",
+    "build": "vite build && tsc -p tsconfig.build.json && node scripts/normalize-declarations.mjs && node scripts/copy-astro-assets.mjs && chmod +x dist/bin/server.js && node scripts/check-exports.mjs",
     "// prepublishOnly": "build-only gate. The full test suite needs Playwright Chromium (browser tests) and is run upstream in ci.yml on every PR and main push, not at publish time.",
     "prepublishOnly": "pnpm build",
-    "test": "vitest run",
-    "test:unit": "vitest run --project node",
+    "test": "node --test scripts/normalize-declarations.test.mjs && vitest run",
+    "test:unit": "node --test scripts/normalize-declarations.test.mjs && vitest run --project node",
     "test:browser": "vitest run --project browser",
     "test:unit:watch": "vitest --project node",
     "test:watch": "vitest",
