@@ -1,5 +1,5 @@
 /**
- * /testing sub-export — test-utility symbols for storage-key continuity tests
+ * /testing sub-export — config validation, storage-key continuity tests
  * and Playwright panel-interaction helpers.
  *
  * Re-exports symbols that consumers need to write storage-key continuity and
@@ -18,6 +18,7 @@
 // From src/config/panel-config.ts
 // ---------------------------------------------------------------------------
 export {
+  assertValidPanelConfig,
   configurePanel,
   storageKey_open,
   storageKey_position,
