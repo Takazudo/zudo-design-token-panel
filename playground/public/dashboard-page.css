@@ -1,0 +1,108 @@
+/* Page chrome intentionally uses its own literals, independent of demo tokens. */
+.dashboard-page {
+  margin: 0;
+  background: #f3f5f8;
+  color: #202b3a;
+  color-scheme: light;
+  font: 16px/1.65 system-ui, sans-serif;
+}
+
+.dashboard-page *,
+.dashboard-page *::before,
+.dashboard-page *::after {
+  box-sizing: border-box;
+}
+
+.dashboard-page__header,
+.dashboard-page__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding: 20px clamp(16px, 4vw, 48px);
+  background: #fff;
+  border-block-end: 1px solid #d6dee8;
+}
+
+.dashboard-page__brand {
+  font-weight: 700;
+}
+
+.dashboard-page__provenance,
+.dashboard-page__footer {
+  color: #46566c;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-page__main {
+  display: grid;
+  gap: 40px;
+  max-inline-size: 1440px;
+  margin-inline: auto;
+  padding: 40px clamp(16px, 4vw, 48px) 64px;
+}
+
+.dashboard-page__intro {
+  max-inline-size: 76ch;
+}
+
+.dashboard-page__eyebrow {
+  margin: 0 0 12px;
+  color: #46566c;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.dashboard-page__title {
+  margin: 0 0 24px;
+  font-size: clamp(30px, 5vw, 48px);
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+}
+
+.dashboard-page__intro p,
+.dashboard-page__embed-copy p {
+  margin-block: 0 16px;
+}
+
+.dashboard-page a {
+  color: #244f94;
+  text-underline-offset: 3px;
+}
+
+.dashboard-page a:focus-visible {
+  outline: 2px solid #244f94;
+  outline-offset: 4px;
+}
+
+.dashboard-page__nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin-block-start: 24px;
+}
+
+.dashboard-page__embed {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  align-items: start;
+  gap: 32px;
+  padding: clamp(16px, 3vw, 32px);
+  background: #e7edf5;
+  border: 1px solid #c5d2e3;
+  border-radius: 12px;
+}
+
+.dashboard-page__compact {
+  inline-size: 100%;
+  max-inline-size: 28rem;
+  min-inline-size: 0;
+}
+
+.dashboard-page__footer {
+  border-block-start: 1px solid #d6dee8;
+  border-block-end: 0;
+}

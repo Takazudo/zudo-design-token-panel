@@ -32,9 +32,84 @@ The authoritative API spec is [`PORTABLE-CONTRACT.md`](./PORTABLE-CONTRACT.md). 
   partial reconciliation, and JSON export/import when disk apply is not
   configured.
 - Owner autoload for developer-only loading across page visits.
+- A separate Preact `TokenDashboard` for a static, read-only token inventory
+  (repository build; not included in npm v0.6.0).
 
 See the [Panel UX tour](/docs/recipes/panel-ux-tour) for a feature-by-feature
 walkthrough and the shortcut table.
+
+---
+
+## Static token dashboard (repository build)
+
+Import `TokenDashboard` from `@takazudo/zdtp/dashboard` to render the same tab
+manifest on a plain page. This entry is available in the repository build and
+is not included in npm v0.6.0; use the workspace or a locally packed build until it ships
+in a release. The [live workspace demo](https://zdtp-playground.zudolab.dev/dashboard/)
+shows both modes and a compact embedded instance.
+
+```tsx
+import { TokenDashboard } from '@takazudo/zdtp/dashboard';
+import { tokenTabs } from './token-tabs'; // Shared data module; type-only imports.
+
+export default function TokenPage() {
+  return <TokenDashboard tabs={tokenTabs} mode="light" title="Site tokens" />;
+}
+```
+
+For example, keep the definitions in a module that is safe to import at build time:
+
+```ts
+// token-tabs.ts — data only; safe to import during a site build.
+import type { TabConfig } from '@takazudo/zdtp/dashboard';
+
+export const tokenTabs: readonly TabConfig[] = [{
+  id: 'space',
+  label: 'Spacing',
+  tiers: [{
+    id: 'scale',
+    label: 'Scale',
+    preview: 'bar',
+    items: [{
+      id: 'space-md',
+      cssVar: '--site-space-md',
+      label: 'Medium',
+      default: '1rem',
+      type: { kind: 'length', step: 0.25, unit: 'rem' },
+    }],
+  }],
+}];
+```
+
+Also pass `tokenTabs` as `tabs` in your panel's config. Keep panel initialization
+and browser/storage code out of this data module.
+The component requires Preact and can render during the host's static build
+without hydration; no panel initialization is needed.
+
+Include **`@takazudo/zdtp/dashboard/styles.css`** separately. The dashboard JS
+does not import CSS and does not need the panel stylesheet. A CSS-emitting
+bundler can import this asset from its layout; strict static hosts should use
+a supported global CSS `@import` or copy the resolved public export to their
+public assets directory and add a stylesheet link. The
+[static dashboard recipe](https://zdtp.zudolab.dev/docs/recipes/static-token-dashboard/)
+provides complete data and CSS-copy examples.
+
+Optional props are `mode` (`light` by default), `title`, caller-owned unique
+`id`, and `previewOverrides` keyed by CSS variable (for example, a text-editor
+shadow can use `'shadow'`). Existing `TierConfig.preview` metadata is reused.
+
+The inventory uses **declared defaults**: item defaults, per-mode
+`semanticDefaults`, and explicit base-role `baseDefaults`. It does not apply
+named color presets, panel initialization, or persisted edits. CSS expressions
+remain expressions; samples depend on browser layout and available fonts.
+Missing/context-dependent references and invalid declarations remain readable
+with diagnostics rather than misleading samples. Preview variables and
+`color-scheme` are local to each instance; the component never writes to
+`:root`. Arbitrary notes HTML and URL/mask assets are not rendered or loaded.
+
+This checkpoint provides a Preact component. An HTML-export API/CLI, React
+adapter, and automatic panel-state synchronization are outside its scope.
+See [`PORTABLE-CONTRACT.md` §12](./PORTABLE-CONTRACT.md#12-static-token-dashboard).
 
 ---
 
