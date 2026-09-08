@@ -55,6 +55,7 @@ export function resolveCssColorInHost(
   // instead would expose `all: initial` and incorrectly report black as valid.
   probe.style.setProperty('color', 'inherit', 'important');
   probe.style.setProperty('color', value, 'important');
+  if (probe.style.color === 'inherit') return null;
 
   const computed = document.defaultView.getComputedStyle(probe).color;
   if (computed !== SENTINEL) return computed || null;
