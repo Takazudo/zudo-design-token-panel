@@ -1,4 +1,5 @@
 import { TokenDashboard } from '@takazudo/zdtp/dashboard';
+import { dashboardFixtureTabs, dashboardPreviewText } from '../config/dashboard-fixtures';
 import { defaultTabs } from '../config/default-manifest';
 import { buildProvenanceLabel } from '../config/build-provenance';
 
@@ -40,9 +41,26 @@ export default function DashboardPage() {
               <a href="#light-defaults">Light defaults</a>
               <a href="#dark-defaults">Dark defaults</a>
               <a href="#compact-defaults">Compact example</a>
+              <a href="#layout-examples">Rulers, ramps, and reading</a>
               <a href="https://zdtp.zudolab.dev/docs/recipes/static-token-dashboard/">Integration recipe</a>
             </nav>
           </div>
+
+          <div class="dashboard-page__intro">
+            <h2>Rulers, ramps, and reading</h2>
+            <p>
+              Spacing keeps its actual size: scroll a ruler without shrinking the value.
+              Color stops share their declared ramp. Typography gets a full reading passage.
+              The examples below include an intentional missing variable and an unsupported
+              ruler expression, so you can see how unavailable samples stay readable.
+            </p>
+            <p>
+              The custom English/Japanese passage is supplied with <code>previewText</code>
+              during the build. It is static text, not an editable control.
+            </p>
+          </div>
+          <TokenDashboard tabs={dashboardFixtureTabs} previewText={dashboardPreviewText}
+            title="Rulers, ramps, and reading" id="layout-examples" />
 
           <TokenDashboard tabs={defaultTabs} mode="light" title="Light defaults" id="light-defaults" />
           <TokenDashboard tabs={defaultTabs} mode="dark" title="Dark defaults" id="dark-defaults" />

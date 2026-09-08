@@ -167,7 +167,7 @@ describe('static TokenDashboard', () => {
     const container = document.createElement('div');
     container.innerHTML = html!;
     expect([...container.querySelectorAll('*')].every((element) => ['DIV', 'SPAN'].includes(element.tagName))).toBe(true);
-    expect(container.querySelector('[tabindex], [role="button"], a, script, style, img, input')).toBeNull();
+    expect(container.querySelector('[role="button"], a, script, style, img, input')).toBeNull();
   });
 
   it('uses a known safe line-height base and ignores unknown or malformed bases', () => {
@@ -187,5 +187,51 @@ describe('static TokenDashboard', () => {
     expect(render({ tabs: [] }).container.textContent).toContain('No tokens declared.');
     const notes = { id: 'notes', label: 'Notes', tiers: [] } as TabConfig;
     expect(render({ tabs: [notes] }).container.textContent).not.toContain('Notes');
+  });
+});
+
+describe('token-specific list layouts', () => {
+  it('keeps exact ruler lengths, including large lengths, zero, and direct local aliases', () => {
+    const values = [item('zero', '0'), item('large', '1536px'), item('root', '2rem'), item('alias', 'var(--large)'), item('chain', 'var(--alias)')];
+    const { container } = render({ tabs: inventory(values, { preview: 'bar' }) });
+    expect([...container.querySelectorAll('.zdtp-dashboard__sample--bar')].map((node) => node.getAttribute('style')))
+      .toEqual(['inline-size:0;', 'inline-size:1536px;', 'inline-size:2rem;', 'inline-size:1536px;', 'inline-size:1536px;']);
+    expect(container.querySelectorAll('.zdtp-dashboard__ruler-scroll[tabindex="0"][aria-label]')).toHaveLength(5);
+    expect(container.querySelector('[data-css-var="--chain"]')?.textContent).toContain('var(--alias)');
+  });
+
+  it('does not invent ruler geometry for negative, contextual or compound declarations', () => {
+    const values = ['-1px', '10%', '2em', 'calc(8px + 8px)', 'var(--missing)', 'auto'];
+    const { container } = render({ tabs: inventory(values.map((value, i) => item(`value-${i}`, value)), { preview: 'bar' }) });
+    expect(container.querySelector('.zdtp-dashboard__sample--bar')).toBeNull();
+    expect(container.querySelectorAll('.zdtp-dashboard__preview-unavailable')).toHaveLength(values.length);
+    expect(container.querySelectorAll('[role="listitem"]')).toHaveLength(values.length);
+  });
+
+  it('groups structural palette stops without reordering overridden or invalid entries', () => {
+    const color = (id: string, value: string) => item(id, value, { type: { kind: 'color' } });
+    const { container } = render({ tabs: tabs([
+      { id: 'ramp', label: 'Ramp', items: [color('first', '#fff'), color('invalid', 'var(--missing)'), color('last', '#123')] },
+      { id: 'semantic', label: 'Semantic', semantic: true, items: [color('semantic', '#eee')] },
+      { id: 'ref', label: 'Ref', referencesTier: 'ramp', items: [color('reference', 'first')] },
+    ]), previewOverrides: { '--first': 'text' } });
+    expect(container.querySelectorAll('.zdtp-dashboard__palette')).toHaveLength(1);
+    expect([...container.querySelectorAll('.zdtp-dashboard__palette [data-css-var]')].map((node) => node.getAttribute('data-css-var'))).toEqual(['--first', '--invalid', '--last']);
+    expect(container.querySelector('[data-css-var="--first"] .zdtp-dashboard__sample')).toBeNull();
+    expect(container.querySelector('[data-css-var="--invalid"] [data-diagnostic]')).not.toBeNull();
+    expect(container.querySelectorAll('[role="listitem"]')).toHaveLength(5);
+  });
+
+  it('uses wide multiline typography with escaped custom and explicitly empty text', () => {
+    const data = inventory([item('size', '24px')], { preview: 'size' });
+    const defaults = render({ tabs: data }).container;
+    expect(defaults.querySelector('.zdtp-dashboard__token--wide')).not.toBeNull();
+    expect(defaults.querySelector('.zdtp-dashboard__sample--size')?.textContent).toContain('\n\n読みやすさ');
+    const text = '<script>alert(1)</script>\n\n長い文章   preserved spaces';
+    const custom = render({ tabs: data, previewText: text }).container;
+    expect(custom.querySelector('script')).toBeNull();
+    expect(custom.querySelector('.zdtp-dashboard__sample--size')?.textContent).toBe(text);
+    expect(custom.querySelector('.zdtp-dashboard__preview--typography[tabindex="0"][aria-label]')).not.toBeNull();
+    expect(render({ tabs: data, previewText: '' }).container.querySelector('.zdtp-dashboard__sample--size')?.textContent).toBe('');
   });
 });

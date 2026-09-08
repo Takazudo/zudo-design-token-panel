@@ -45,6 +45,8 @@ export interface DashboardTier {
   key: string;
   id: string;
   label: string;
+  /** Nonsemantic, non-reference, color-only source tier. */
+  palette?: boolean;
   preview?: TierConfig['preview'];
   previewBase?: string;
   rows: DashboardRow[];

@@ -37,6 +37,7 @@ import type {
 | `mode` | `'light' \| 'dark'`, default `'light'` | Selects declared per-mode defaults and the local preview color scheme. |
 | `title` | `string`, default `'Token dashboard'` | Visible heading and accessible region name. |
 | `id` | Optional `string` | Root element ID; caller owns uniqueness. Omitted IDs are not generated. |
+| `previewText` | Optional `string`; default English/Japanese prose | Static typography passage; explicit empty strings are preserved. |
 | `previewOverrides` | `Readonly<Record<string, DashboardPreviewKind>>` | Per-CSS-variable sample choice. Overrides the tier's preview metadata. |
 
 Load `@takazudo/zdtp/dashboard/styles.css` once through the host's static CSS
@@ -81,3 +82,33 @@ previewed, and URL/mask assets are not loaded. Text is escaped by Preact.
 
 Include referenced tiers when embedding a subset. Use an ordinary static Preact
 render for no-client-JavaScript output; hydration remains the host's choice.
+
+## Layouts for spacing, color, and typography
+
+Spacing (`bar`) uses wide rows with aligned ruler origins. Nonnegative `px` or
+`rem` lengths, unitless zero, and resolved direct local aliases get an actual-size
+sample. Ticks mark 8 CSS px, with major ticks every 64 CSS px. The browser sizes
+`rem` against the host root font size; the dashboard does not assume a conversion.
+Large lengths scroll inside the focusable ruler instead of shrinking or clamping.
+Zero has zero width. Negative lengths, `em`, percentages, `calc()` and other
+unsupported expressions retain their declaration with a ruler-unavailable
+explanation. Missing references also retain their diagnostics.
+
+A nonsemantic, non-reference tier whose source items are all colors becomes a
+discrete palette strip. Stops stay in declared order, with every label and value
+visible; narrow containers scroll horizontally. Grouping uses tier structure,
+not name matching or generated intermediate colors. Semantic and reference tiers
+keep independent color samples. Per-variable preview overrides remain authoritative
+and retain each token's slot and order, including mixed overrides within a strip.
+
+`size`, `family`, `weight`, and `line-height` use wide, multiline specimens with
+auto height outside palette strips. Overrides inside a palette retain their stop slot. The baseline is 18px text with 1.6 line height; each sample changes
+only its intended property. A resolved `previewBase` can supply the font size of
+a line-height sample. Font families use locally available fonts and their CSS
+fallbacks; the dashboard does not download fonts.
+
+`previewText` supplies one static passage for all typography samples in an
+instance. Its default is longer English/Japanese prose. Newlines and white space
+are preserved, text is escaped, and an explicit empty string stays empty.
+Long text wraps; unusually large glyphs can scroll locally without scaling.
+There is no built-in editable text workbench or connection to panel state.

@@ -143,6 +143,7 @@ export function buildDashboardModel(
     tab.tiers.forEach((tier, tierIndex) => {
       const outputTier: DashboardTier = {
         key: `${outputTab.key}-tier-${tierIndex}`, id: tier.id, label: tier.label,
+        palette: !tier.semantic && !tier.referencesTier && !tier.referencesRamps?.length && tier.items.length > 0 && tier.items.every((item) => item.type.kind === 'color'),
         preview: tier.preview, previewBase: tier.previewBase, rows: [],
       };
       outputTab.tiers.push(outputTier);

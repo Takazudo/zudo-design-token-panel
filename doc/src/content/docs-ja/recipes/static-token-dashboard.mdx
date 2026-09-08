@@ -135,6 +135,34 @@ import '@takazudo/zdtp/dashboard/styles.css';
 />
 ```
 
+## 好きな文章を見本にする
+
+余白は実寸の定規、パレットのティアは色見本をまとめた表示になります。
+文字の見本は横長の行なので、折り返しや行間を比較できます。
+好きな文章をビルド時に渡してください。
+
+```tsx
+<TokenDashboard
+  tabs={[...tokenTabs, {
+    id: 'type', label: 'Typography', tiers: [{
+      id: 'body-size', label: 'Body size', preview: 'size', items: [{
+        id: 'body', label: 'Body', cssVar: '--site-body-size', default: '18px',
+        type: { kind: 'length', step: 1, unit: 'px' },
+      }],
+    }],
+  }]}
+  previewText={'A quiet page gives each sentence room to breathe.\n\n好きな文章で、文字の大きさと行間を確かめましょう。'}
+/>
+```
+
+編集欄ではなく静的な prop です。省略すると長めの英語・日本語の文章を使い、
+`previewText=""` なら空の見本を保ちます。フォントはローカルの利用可能なものと
+CSS のフォールバックを使います。定規は非負の px/rem、ゼロ、解決できる直接の
+エイリアスに対応し、未対応の長さは推測した図を出さず値を残します。
+大きな定規やパレットは内部でスクロールし、キーボードでフォーカスできます。
+グループ化、文字見本の基準、プレビューの制約は
+[リファレンス](../reference/token-dashboard.mdx)をご覧ください。
+
 ## このページで確認できるもの
 
 一覧が表示するのは、アイテムの既定値、モード別の `colorExtras.semanticDefaults`、

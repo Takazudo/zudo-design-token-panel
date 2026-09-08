@@ -136,6 +136,34 @@ a second manifest:
 />
 ```
 
+## Supply your own reading passage
+
+Spacing uses actual-size rulers and palette tiers use grouped discrete stops.
+Typography uses wide rows so line wrapping and line height can be compared.
+Supply a favorite passage at build time:
+
+```tsx
+<TokenDashboard
+  tabs={[...tokenTabs, {
+    id: 'type', label: 'Typography', tiers: [{
+      id: 'body-size', label: 'Body size', preview: 'size', items: [{
+        id: 'body', label: 'Body', cssVar: '--site-body-size', default: '18px',
+        type: { kind: 'length', step: 1, unit: 'px' },
+      }],
+    }],
+  }]}
+  previewText={'A quiet page gives each sentence room to breathe.\n\n好きな文章で、文字の大きさと行間を確かめましょう。'}
+/>
+```
+
+This is a static prop, not an editable field. Omitting it uses longer
+English/Japanese prose; `previewText=""` keeps specimens empty. Fonts use local
+availability and CSS fallbacks. Rulers support nonnegative px/rem, zero, and
+resolved direct aliases; unsupported lengths remain readable without guessed
+geometry. Large rulers and palette strips scroll locally and accept keyboard
+focus. See the [reference](../reference/token-dashboard.mdx) for grouping rules,
+specimen baselines, and preview limits.
+
 ## What the page confirms
 
 The inventory shows declared defaults: item defaults, per-mode

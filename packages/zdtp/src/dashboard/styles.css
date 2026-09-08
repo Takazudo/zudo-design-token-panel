@@ -216,3 +216,79 @@
 .zdtp-dashboard__empty {
   color: #536174;
 }
+
+/* Wide rows use their embedding width, including narrow documentation columns. */
+.zdtp-dashboard { container: zdtp-dashboard / inline-size; }
+.zdtp-dashboard__token--wide {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  border-radius: 0;
+}
+.zdtp-dashboard__token--wide > .zdtp-dashboard__token-content { order: -1; }
+.zdtp-dashboard__scroll {
+  max-inline-size: 100%;
+  overflow: auto;
+  overscroll-behavior-inline: contain;
+}
+.zdtp-dashboard__scroll:focus-visible {
+  outline: 2px solid #245caa;
+  outline-offset: -2px;
+}
+.zdtp-dashboard__ruler-wrap { padding: 12px; }
+.zdtp-dashboard__ruler-caption,
+.zdtp-dashboard__preview-unavailable {
+  color: #536174;
+  font-size: 12px;
+  padding: 12px;
+}
+.zdtp-dashboard__ruler-caption { padding: 0 0 8px; }
+.zdtp-dashboard__ruler {
+  position: relative;
+  block-size: 64px;
+  padding-block-start: 36px;
+  background:
+    repeating-linear-gradient(to right, #8290a3 0 1px, transparent 1px 64px) left 24px / 100% 12px no-repeat,
+    repeating-linear-gradient(to right, #c4ccd7 0 1px, transparent 1px 8px) left 30px / 100% 6px no-repeat;
+}
+.zdtp-dashboard__ruler-origin { position: absolute; inset-block-start: 0; inset-inline-start: 0; font-size: 12px; }
+.zdtp-dashboard__sample--bar {
+  max-inline-size: none;
+  min-inline-size: 0;
+  border: 0;
+  padding: 0;
+  background: #526c92;
+}
+.zdtp-dashboard__palette {
+  display: flex;
+  gap: 0;
+  inline-size: max-content;
+  min-inline-size: 100%;
+}
+.zdtp-dashboard__palette > .zdtp-dashboard__token {
+  display: grid;
+  grid-template-rows: minmax(88px, auto) 1fr;
+  align-content: start;
+  flex: 1 0 156px;
+  inline-size: 156px;
+  border-radius: 0;
+}
+.zdtp-dashboard__palette > .zdtp-dashboard__token > .zdtp-dashboard__token-content { grid-row: 2; }
+.zdtp-dashboard__palette .zdtp-dashboard__preview { border-radius: 0; }
+.zdtp-dashboard__preview--typography {
+  display: block;
+  block-size: auto;
+  padding: 20px;
+  border: 0;
+  border-radius: 0;
+}
+.zdtp-dashboard__preview--typography > .zdtp-dashboard__sample {
+  font: 400 18px/1.6 system-ui, sans-serif;
+  letter-spacing: normal;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-inline-size: 100%;
+}
+@container zdtp-dashboard (min-width: 640px) {
+  .zdtp-dashboard__token--wide { grid-template-columns: 220px minmax(0, 1fr); }
+}
