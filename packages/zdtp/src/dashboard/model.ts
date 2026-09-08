@@ -44,6 +44,10 @@ const COLOR_KEYWORDS = new Set((
   'yellowgreen transparent currentcolor inherit initial unset revert revert-layer'
 ).split(' '));
 
+function looksLikeColorLiteral(value: string): boolean {
+  return value.startsWith('#') || value.includes('(') || COLOR_KEYWORDS.has(value.toLowerCase());
+}
+
 const BASE_ROLES: readonly BaseRoleKey[] = [
   'background', 'foreground', 'cursor', 'selectionBg', 'selectionFg',
 ];
@@ -278,11 +282,15 @@ export function buildDashboardModel(
       }
     } else if (isSemantic && (item.default === 'bg' || item.default === 'fg')) {
       baseReference(node, item.default === 'bg' ? 'background' : 'foreground');
-    } else if (tier.referencesTier !== undefined) {
+    } else if (tier.referencesTier !== undefined &&
+      !(isSemantic && tier.referencesRamps?.length) &&
+      !(tier.semantic && looksLikeColorLiteral(item.default))) {
+      // A retained legacy palette pointer must not override modern semantic
+      // literals or ramp mappings. Generic aliases still require their explicit tier.
       const target = findTarget(node, node.tab.id, tier.referencesTier, item.default);
       if (target) reference(node, target);
     } else if (isSemantic) {
-      if (tier.referencesRamps?.length && !item.default.startsWith('#') && !item.default.includes('(') && !COLOR_KEYWORDS.has(item.default.toLowerCase())) {
+      if (tier.referencesRamps?.length && !looksLikeColorLiteral(item.default)) {
         const separator = item.default.indexOf(':');
         const sources = separator === -1 ? [tier.referencesRamps[0]] : tier.referencesRamps.filter((source) => source.tier === item.default.slice(0, separator));
         if (sources.length !== 1) {

@@ -144,6 +144,32 @@ describe('declared dashboard defaults', () => {
     expect(model.rows.find((row) => row.itemId === 'surface')).toMatchObject({ cssValue: null, diagnostics: [{ code: 'missing-reference' }] });
   });
 
+  it('preserves modern semantic literals when a legacy palette pointer remains', () => {
+    const model = buildDashboardModel([tab([
+      palette,
+      tier('semantic', [item('hex', '#abcdef'), item('named', 'red'),
+        item('expression', 'color-mix(in oklab, red, blue)'), item('alias', 'paper')], {
+        semantic: true, referencesTier: 'palette',
+      }),
+    ])]);
+    expect(model.declarations).toMatchObject({
+      '--hex': '#abcdef', '--named': 'red',
+      '--expression': 'color-mix(in oklab, red, blue)', '--alias': 'var(--custom-paper)',
+    });
+    expect(model.diagnostics).toEqual([]);
+  });
+
+  it('resolves declared ramps alongside a retained legacy palette pointer', () => {
+    const model = buildDashboardModel([
+      tab([tier('brand', [item('brand-600', '#123abc', { cssVar: '--brand-blue', type: { kind: 'color' } })])], { id: 'ramps' }),
+      tab([palette, tier('semantic', [item('accent', 'brand:brand-600'), item('bare', 'brand-600')], {
+        semantic: true, referencesTier: 'palette', referencesRamps: [{ tab: 'ramps', tier: 'brand' }],
+      })]),
+    ]);
+    expect(model.declarations).toMatchObject({ '--accent': 'var(--brand-blue)', '--bare': 'var(--brand-blue)' });
+    expect(model.diagnostics).toEqual([]);
+  });
+
   it('does not read named presets or panel initialization defaults', () => {
     const metadata = extras({ baseRoles: { background: '--background' } });
     Object.defineProperties(metadata, {
