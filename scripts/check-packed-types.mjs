@@ -70,7 +70,7 @@ try {
   writeFileSync(join(scratch, 'package.json'), JSON.stringify({ private: true, type: 'module' }));
   const version = (name) => JSON.parse(readFileSync(join(panel, 'node_modules', name, 'package.json'), 'utf8')).version;
   run('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--package-lock=false', tarball,
-    `preact@${version('preact')}`], scratch);
+    `preact@${version('preact')}`, `preact-render-to-string@${version('preact-render-to-string')}`], scratch);
   const installed = join(scratch, 'node_modules/@takazudo/zdtp');
   const index = join(installed, 'dist/index.d.ts');
   const original = readFileSync(index, 'utf8');
@@ -103,6 +103,40 @@ export { panel, astro, server, testing };
     typecheck(mode);
     console.log(`Packed consumer: ${mode}, strict, skipLibCheck=false: PASS`);
   }
+  // Run from the isolated consumer so both runtime and asset resolution use
+  // the installed tarball, without workspace aliases or browser globals.
+  writeFileSync(join(scratch, 'dashboard-ssr.mjs'), `import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { h } from 'preact';
+import { renderToString } from 'preact-render-to-string';
+import { TokenDashboard } from '@takazudo/zdtp/dashboard';
+assert.equal(typeof window, 'undefined');
+assert.equal(typeof document, 'undefined');
+const tabs = [{ id: 'colors', label: 'Colors', tiers: [
+  { id: 'palette', label: 'Palette', items: [{ id: 'blue', label: '<Blue & ink>',
+    cssVar: '--blue', default: '#2563eb', type: { kind: 'color' } }] },
+  { id: 'aliases', label: 'Aliases', referencesTier: 'palette', items: [{ id: 'accent',
+    label: 'Accent', cssVar: '--accent', default: 'blue', type: { kind: 'color' } }] },
+] }];
+for (const mode of ['light', 'dark']) {
+  const html = renderToString(h(TokenDashboard, { tabs, mode }));
+  assert.equal((html.match(/role="listitem"/g) ?? []).length, 2);
+  assert.ok(html.includes('color-scheme:' + mode));
+  assert.ok(html.includes('--blue:#2563eb'));
+  assert.ok(html.includes('--accent:var(--blue)'));
+  assert.ok(html.includes('&lt;Blue &amp; ink'));
+  assert.ok(!html.includes('<Blue'));
+  assert.ok(!html.includes('<script') && !html.includes('tokenpanel-shell'));
+}
+assert.ok(renderToString(h(TokenDashboard, { tabs: [] })).includes('No tokens declared.'));
+const dashboardCss = readFileSync(new URL(import.meta.resolve('@takazudo/zdtp/dashboard/styles.css')), 'utf8');
+const panelCss = readFileSync(new URL(import.meta.resolve('@takazudo/zdtp/styles.css')), 'utf8');
+assert.ok(dashboardCss.includes('.zdtp-dashboard'));
+assert.ok(!dashboardCss.includes('.tokenpanel-shell'));
+assert.ok(!panelCss.includes('.zdtp-dashboard'));
+`);
+  run(process.execPath, ['dashboard-ssr.mjs'], scratch);
+  console.log('Packed dashboard: plain Node SSR, both modes, aliases, escaping, separate public CSS: PASS');
   // Mutate only the unpacked tarball copy; repository dist stays untouched.
   for (const [name, mutated, signature] of [
     ['CSS import', `import './panel.css';\n${original}`, /TS2307/],
