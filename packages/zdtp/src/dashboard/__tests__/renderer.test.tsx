@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { renderToString } from 'preact-render-to-string';
-import { TokenDashboard, type DashboardPreviewKind, type TokenDashboardProps } from '../index';
+import { TokenDashboard, type DashboardChrome, type DashboardPreviewKind, type TokenDashboardProps } from '../index';
 import type { TabConfig, TierConfig, TierItem } from '../../tokens/tier-model';
 
 function item(id: string, value: string, extra: Partial<TierItem> = {}): TierItem {
@@ -44,6 +44,33 @@ describe('static TokenDashboard', () => {
     expect(container.querySelectorAll('.zdtp-dashboard__preview')).toHaveLength(1);
   });
 
+  it.each<DashboardChrome | undefined>([undefined, 'light', 'dark', 'host'])('keeps chrome %s independent of token mode', (chrome) => {
+    const data = tabs([
+      { id: 'palette', label: 'Palette', items: [item('color', 'light-dark(#fff, #111)', { type: { kind: 'color' } })] },
+      { id: 'size', label: 'Size', preview: 'size', items: [item('size', '24px')] },
+      { id: 'spacing', label: 'Spacing', preview: 'bar', items: [item('space', '32px')] },
+      { id: 'radius', label: 'Radius', preview: 'radius', items: [item('radius', '8px')] },
+    ]);
+    for (const mode of ['light', 'dark'] as const) {
+      const { container } = render({ tabs: data, chrome, mode });
+      expect(container.firstElementChild?.getAttribute('data-chrome')).toBe(chrome ?? 'light');
+      expect(container.firstElementChild?.getAttribute('data-mode')).toBe(mode);
+      const inventory = container.querySelector<HTMLElement>('.zdtp-dashboard__inventory')!;
+      expect(inventory.style.colorScheme).toBe('');
+      expect(inventory.style.getPropertyValue('--color')).toBe('light-dark(#fff, #111)');
+      const specimens = container.querySelectorAll<HTMLElement>('.zdtp-dashboard__specimen');
+      expect(specimens).toHaveLength(4);
+      for (const specimen of specimens) expect(specimen.style.colorScheme).toBe(mode);
+      for (const wrapper of container.querySelectorAll<HTMLElement>('.zdtp-dashboard__preview, .zdtp-dashboard__scroll')) {
+        expect(wrapper.style.colorScheme).toBe('');
+        expect(wrapper.closest('.zdtp-dashboard__specimen')).toBeNull();
+      }
+      for (const sample of container.querySelectorAll('.zdtp-dashboard__sample')) {
+        expect(sample.closest('.zdtp-dashboard__specimen')).not.toBeNull();
+      }
+    }
+  });
+
   it('uses explicit tier previews and per-variable overrides without label heuristics', () => {
     const samples: [DashboardPreviewKind, string, string][] = [
       ['color', '#123456', 'background-color'], ['bar', '2rem', 'inline-size'],
@@ -73,7 +100,10 @@ describe('static TokenDashboard', () => {
     const scope = container.querySelector('.zdtp-dashboard__inventory') as HTMLElement;
     expect(scope.style.getPropertyValue('--base')).toBe('#123');
     expect(scope.style.getPropertyValue('--alias')).toBe('var(--base)');
-    expect(scope.style.colorScheme).toBe('dark');
+    expect(scope.style.colorScheme).toBe('');
+    for (const specimen of container.querySelectorAll<HTMLElement>('.zdtp-dashboard__specimen')) {
+      expect(specimen.style.colorScheme).toBe('dark');
+    }
     const root = container.firstElementChild!;
     expect(root.hasAttribute('style')).toBe(false);
     expect(container.querySelectorAll('[style*="--base:"]')).toHaveLength(1);

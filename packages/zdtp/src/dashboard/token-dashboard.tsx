@@ -1,7 +1,7 @@
 import type { JSX } from 'preact';
 import type { TabConfig, TierConfig } from '../tokens/tier-model';
 import { buildDashboardModel } from './model';
-import type { DashboardMode, DashboardModel, DashboardRow, DashboardTier } from './types';
+import type { DashboardChrome, DashboardMode, DashboardModel, DashboardRow, DashboardTier } from './types';
 
 /** Visual samples are independent from the panel's editor kind. */
 export type DashboardPreviewKind = NonNullable<TierConfig['preview']> | 'color' | 'shadow' | 'text';
@@ -10,6 +10,10 @@ export interface TokenDashboardProps {
   tabs: readonly TabConfig[];
   /** Selects declared per-mode defaults. Does not read the host or panel mode. */
   mode?: DashboardMode;
+  /** Selects chrome appearance (shell, cards, labels, borders, diagnostics and
+   * focus/scroll affordances), independently of mode's declared defaults.
+   * 'host' inherits the host's effective color-scheme. Defaults to 'light'. */
+  chrome?: DashboardChrome;
   title?: string;
   /** Static multiline typography specimen. Empty strings are preserved. */
   previewText?: string;
@@ -65,7 +69,9 @@ function Preview({ row, tier, kind, model, previewText }: {
       <div className="zdtp-dashboard__scroll zdtp-dashboard__ruler-scroll" role="region" tabIndex={0} aria-label={`${row.label} (${row.cssVar}) actual-size ruler`}>
         <div className="zdtp-dashboard__ruler" style={{ inlineSize: `max(100%, ${length})` }}>
           <div className="zdtp-dashboard__ruler-origin">0</div>
-          <span className="zdtp-dashboard__sample zdtp-dashboard__sample--bar" style={{ inlineSize: length }} aria-hidden="true" />
+          <div className="zdtp-dashboard__specimen" style={{ colorScheme: model.mode }}>
+            <span className="zdtp-dashboard__sample zdtp-dashboard__sample--bar" style={{ inlineSize: length }} aria-hidden="true" />
+          </div>
         </div>
       </div>
     </div>;
@@ -98,9 +104,11 @@ function Preview({ row, tier, kind, model, previewText }: {
     <div className={`zdtp-dashboard__preview zdtp-dashboard__preview--${kind}${typography ? ' zdtp-dashboard__preview--typography zdtp-dashboard__scroll' : ''}`}
       aria-hidden={typography ? undefined : 'true'} role={typography ? 'region' : undefined}
       tabIndex={typography ? 0 : undefined} aria-label={typography ? `${row.label} (${row.cssVar}) typography specimen` : undefined}>
-      <span className={`zdtp-dashboard__sample zdtp-dashboard__sample--${kind}`} style={style}>
-        {typography ? previewText : ''}
-      </span>
+      <div className="zdtp-dashboard__specimen" style={{ colorScheme: model.mode }}>
+        <span className={`zdtp-dashboard__sample zdtp-dashboard__sample--${kind}`} style={style}>
+          {typography ? previewText : ''}
+        </span>
+      </div>
     </div>
   );
 }
@@ -113,6 +121,7 @@ function Preview({ row, tier, kind, model, previewText }: {
 export function TokenDashboard({
   tabs,
   mode = 'light',
+  chrome = 'light',
   title = 'Token dashboard',
   id,
   previewOverrides,
@@ -122,7 +131,7 @@ export function TokenDashboard({
   const diagnosticRows = model.rows.filter((row) => row.diagnostics.length > 0).length;
 
   return (
-    <div id={id} className="zdtp-dashboard" role="region" aria-label={title} data-mode={mode}>
+    <div id={id} className="zdtp-dashboard" role="region" aria-label={title} data-mode={mode} data-chrome={chrome}>
       <div className="zdtp-dashboard__header">
         <div role="heading" aria-level={2} className="zdtp-dashboard__title">{title}</div>
         <div className="zdtp-dashboard__summary">
@@ -133,7 +142,7 @@ export function TokenDashboard({
       </div>
       {/* One local graph per instance keeps expressions intact without repeating
           every declaration per row. Chrome never reads inventory variables. */}
-      <div className="zdtp-dashboard__inventory" style={{ ...model.declarations, colorScheme: mode }}>
+      <div className="zdtp-dashboard__inventory" style={model.declarations}>
         {model.rows.length === 0 && <div className="zdtp-dashboard__empty">No tokens declared.</div>}
         {model.tabs.map((tab) => (
           <div key={tab.key} className="zdtp-dashboard__tab" role="group" aria-label={tab.label}>

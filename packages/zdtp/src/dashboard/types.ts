@@ -3,6 +3,9 @@ import type { TierConfig, TierValueKind } from '../tokens/tier-model';
 /** Internal, render-independent description of declared token defaults. */
 export type DashboardMode = 'light' | 'dark';
 
+/** Appearance of the dashboard chrome, independent of declared token mode. */
+export type DashboardChrome = 'light' | 'dark' | 'host';
+
 export interface DashboardDiagnostic {
   code: string;
   severity: 'warning' | 'error';
