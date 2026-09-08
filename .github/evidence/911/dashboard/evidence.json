@@ -1,0 +1,354 @@
+[
+  {
+    "width": 1280,
+    "theme": "light",
+    "host": "light",
+    "overflow": false,
+    "items": [
+      {
+        "id": "host-light-inventory",
+        "bg": "rgb(248, 250, 252)",
+        "specimens": [
+          {
+            "mode": "light",
+            "bg": "rgba(0, 0, 0, 0)",
+            "geometry": [
+              216.796875,
+              87
+            ]
+          },
+          {
+            "mode": "light",
+            "bg": "rgb(238, 241, 245)",
+            "geometry": [
+              920,
+              212.78125
+            ]
+          }
+        ],
+        "samples": [
+          {
+            "bg": "rgb(36, 79, 148)",
+            "color": "rgb(24, 33, 49)",
+            "geometry": [
+              216.796875,
+              87
+            ]
+          },
+          {
+            "bg": "rgba(0, 0, 0, 0)",
+            "color": "rgb(24, 33, 49)",
+            "geometry": [
+              880,
+              172.78125
+            ]
+          }
+        ]
+      },
+      {
+        "id": "host-dark-inventory",
+        "bg": "rgb(248, 250, 252)",
+        "specimens": [
+          {
+            "mode": "dark",
+            "bg": "rgba(0, 0, 0, 0)",
+            "geometry": [
+              216.796875,
+              87
+            ]
+          },
+          {
+            "mode": "dark",
+            "bg": "rgb(34, 41, 54)",
+            "geometry": [
+              920,
+              212.78125
+            ]
+          }
+        ],
+        "samples": [
+          {
+            "bg": "rgb(147, 197, 253)",
+            "color": "rgb(241, 245, 249)",
+            "geometry": [
+              216.796875,
+              87
+            ]
+          },
+          {
+            "bg": "rgba(0, 0, 0, 0)",
+            "color": "rgb(241, 245, 249)",
+            "geometry": [
+              880,
+              172.78125
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "width": 1280,
+    "theme": "dark",
+    "host": "dark",
+    "overflow": false,
+    "items": [
+      {
+        "id": "host-light-inventory",
+        "bg": "rgb(21, 27, 36)",
+        "specimens": [
+          {
+            "mode": "light",
+            "bg": "rgba(0, 0, 0, 0)",
+            "geometry": [
+              216.796875,
+              87
+            ]
+          },
+          {
+            "mode": "light",
+            "bg": "rgb(238, 241, 245)",
+            "geometry": [
+              920,
+              212.78125
+            ]
+          }
+        ],
+        "samples": [
+          {
+            "bg": "rgb(36, 79, 148)",
+            "color": "rgb(24, 33, 49)",
+            "geometry": [
+              216.796875,
+              87
+            ]
+          },
+          {
+            "bg": "rgba(0, 0, 0, 0)",
+            "color": "rgb(24, 33, 49)",
+            "geometry": [
+              880,
+              172.78125
+            ]
+          }
+        ]
+      },
+      {
+        "id": "host-dark-inventory",
+        "bg": "rgb(21, 27, 36)",
+        "specimens": [
+          {
+            "mode": "dark",
+            "bg": "rgba(0, 0, 0, 0)",
+            "geometry": [
+              216.796875,
+              87
+            ]
+          },
+          {
+            "mode": "dark",
+            "bg": "rgb(34, 41, 54)",
+            "geometry": [
+              920,
+              212.78125
+            ]
+          }
+        ],
+        "samples": [
+          {
+            "bg": "rgb(147, 197, 253)",
+            "color": "rgb(241, 245, 249)",
+            "geometry": [
+              216.796875,
+              87
+            ]
+          },
+          {
+            "bg": "rgba(0, 0, 0, 0)",
+            "color": "rgb(241, 245, 249)",
+            "geometry": [
+              880,
+              172.78125
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "width": 360,
+    "theme": "light",
+    "host": "light",
+    "overflow": false,
+    "items": [
+      {
+        "id": "host-light-inventory",
+        "bg": "rgb(248, 250, 252)",
+        "specimens": [
+          {
+            "mode": "light",
+            "bg": "rgba(0, 0, 0, 0)",
+            "geometry": [
+              284,
+              87
+            ]
+          },
+          {
+            "mode": "light",
+            "bg": "rgb(238, 241, 245)",
+            "geometry": [
+              284,
+              471.953125
+            ]
+          }
+        ],
+        "samples": [
+          {
+            "bg": "rgb(36, 79, 148)",
+            "color": "rgb(24, 33, 49)",
+            "geometry": [
+              284,
+              87
+            ]
+          },
+          {
+            "bg": "rgba(0, 0, 0, 0)",
+            "color": "rgb(24, 33, 49)",
+            "geometry": [
+              244,
+              431.953125
+            ]
+          }
+        ]
+      },
+      {
+        "id": "host-dark-inventory",
+        "bg": "rgb(248, 250, 252)",
+        "specimens": [
+          {
+            "mode": "dark",
+            "bg": "rgba(0, 0, 0, 0)",
+            "geometry": [
+              284,
+              87
+            ]
+          },
+          {
+            "mode": "dark",
+            "bg": "rgb(34, 41, 54)",
+            "geometry": [
+              284,
+              471.953125
+            ]
+          }
+        ],
+        "samples": [
+          {
+            "bg": "rgb(147, 197, 253)",
+            "color": "rgb(241, 245, 249)",
+            "geometry": [
+              284,
+              87
+            ]
+          },
+          {
+            "bg": "rgba(0, 0, 0, 0)",
+            "color": "rgb(241, 245, 249)",
+            "geometry": [
+              244,
+              431.953125
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "width": 360,
+    "theme": "dark",
+    "host": "dark",
+    "overflow": false,
+    "items": [
+      {
+        "id": "host-light-inventory",
+        "bg": "rgb(21, 27, 36)",
+        "specimens": [
+          {
+            "mode": "light",
+            "bg": "rgba(0, 0, 0, 0)",
+            "geometry": [
+              284,
+              87
+            ]
+          },
+          {
+            "mode": "light",
+            "bg": "rgb(238, 241, 245)",
+            "geometry": [
+              284,
+              471.953125
+            ]
+          }
+        ],
+        "samples": [
+          {
+            "bg": "rgb(36, 79, 148)",
+            "color": "rgb(24, 33, 49)",
+            "geometry": [
+              284,
+              87
+            ]
+          },
+          {
+            "bg": "rgba(0, 0, 0, 0)",
+            "color": "rgb(24, 33, 49)",
+            "geometry": [
+              244,
+              431.953125
+            ]
+          }
+        ]
+      },
+      {
+        "id": "host-dark-inventory",
+        "bg": "rgb(21, 27, 36)",
+        "specimens": [
+          {
+            "mode": "dark",
+            "bg": "rgba(0, 0, 0, 0)",
+            "geometry": [
+              284,
+              87
+            ]
+          },
+          {
+            "mode": "dark",
+            "bg": "rgb(34, 41, 54)",
+            "geometry": [
+              284,
+              471.953125
+            ]
+          }
+        ],
+        "samples": [
+          {
+            "bg": "rgb(147, 197, 253)",
+            "color": "rgb(241, 245, 249)",
+            "geometry": [
+              284,
+              87
+            ]
+          },
+          {
+            "bg": "rgba(0, 0, 0, 0)",
+            "color": "rgb(241, 245, 249)",
+            "geometry": [
+              244,
+              431.953125
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]
