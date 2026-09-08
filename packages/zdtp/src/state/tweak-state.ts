@@ -1599,16 +1599,21 @@ export function applyColorState(
     // default, matching the disk emitter.
     if (value !== null) setCssVar(cssName, value);
   }
-  // #472 — set `color-scheme: light dark` on the applied root so any emitted
-  // `light-dark()` semantic value resolves. `setCssVar` writes to
-  // `document.documentElement` (the default, no-sink path's root). This is a
-  // plain CSS property, not a custom property, but `setProperty` handles both.
+  // #879 — an existing host inline scheme selects the intended light-dark()
+  // arm, including manual modes opposite the OS preference. Only establish
+  // the panel fallback when the host has not provided an inline declaration.
+  // A retained panel sentinel needs no rewrite; another instance must not
+  // claim it merely because it also has per-mode literals.
   if (hasPerModeLiteralSemantic(state, cluster)) {
-    setCssVar(COLOR_SCHEME_PROP, COLOR_SCHEME_LIGHT_DARK);
-    // #501 — record that THIS instance wrote `color-scheme` to
-    // document.documentElement so the clear paths can scope removal to
-    // panel-written values (never the host-owned `<html style="color-scheme">`).
-    if (ownerPrefix) markColorSchemeWritten(ownerPrefix);
+    const style = document.documentElement.style;
+    const value = style.getPropertyValue(COLOR_SCHEME_PROP);
+    const isPanelValue =
+      value === COLOR_SCHEME_LIGHT_DARK && style.getPropertyPriority(COLOR_SCHEME_PROP) === '';
+    if (ownerPrefix && !isPanelValue) clearColorSchemeOwnership(ownerPrefix);
+    if (value === '') {
+      setCssVar(COLOR_SCHEME_PROP, COLOR_SCHEME_LIGHT_DARK);
+      if (ownerPrefix) markColorSchemeWritten(ownerPrefix);
+    }
   }
 }
 
@@ -1958,7 +1963,8 @@ function nonColorTabVarNames(cfg: PanelConfig): string[] {
 /**
  * #501 — remove a panel-written `color-scheme` from `document.documentElement`,
  * but ONLY when the instance keyed by `prefix` is its recorded writer AND the
- * current inline value is still the panel-written `light dark` sentinel.
+ * current inline value and priority still match the panel-written
+ * `light dark` sentinel.
  *
  * Three cases:
  *  - We don't own it (host owns `<html style="color-scheme">`, or the panel
@@ -1968,7 +1974,7 @@ function nonColorTabVarNames(cfg: PanelConfig): string[] {
  *  - We own it but the value was overwritten by the host after we wrote it (the
  *    stale-ownership case — e.g. the host re-asserted `color-scheme` between a
  *    `destroy()` and a remount): leave the host's value, but drop the now-stale
- *    ownership claim so the next apply re-establishes it cleanly.
+ *    ownership claim so later applies continue to respect the host.
  *
  * Palette / base-role / semantic var removals are always panel-written, so they
  * stay unconditional at the call sites; only the standard `color-scheme`
@@ -1977,7 +1983,10 @@ function nonColorTabVarNames(cfg: PanelConfig): string[] {
 function clearOwnedColorSchemeFromDocument(prefix: string): void {
   if (!ownsColorScheme(prefix)) return;
   const root = document.documentElement;
-  if (root.style.getPropertyValue(COLOR_SCHEME_PROP) === COLOR_SCHEME_LIGHT_DARK) {
+  if (
+    root.style.getPropertyValue(COLOR_SCHEME_PROP) === COLOR_SCHEME_LIGHT_DARK &&
+    root.style.getPropertyPriority(COLOR_SCHEME_PROP) === ''
+  ) {
     root.style.removeProperty(COLOR_SCHEME_PROP);
   }
   clearColorSchemeOwnership(prefix);
