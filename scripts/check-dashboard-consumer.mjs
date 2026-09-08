@@ -98,7 +98,9 @@ try {
   evidence.resolutions.compiler = compiler;
   for (const [name, path] of Object.entries(evidence.resolutions)) assert.ok(path.startsWith(join(scratch, 'node_modules') + sep), `${name} escaped isolated installation`);
   assert.deepEqual(await readFile(join(scratch, 'dist/dashboard.css')), await readFile(evidence.resolutions.styles), 'Copied public CSS bytes');
-  assert.equal(evidence.resolutions.dashboardPreact, evidence.resolutions.preact, 'Dashboard and app share Preact');
+  // require/import conditions legitimately select different files in Preact.
+  // Compare package identity while retaining both entry paths as evidence.
+  assert.equal(evidence.resolutions.dashboardPreactPackage, evidence.resolutions.preactPackage, 'Dashboard and app share Preact');
   evidence.cssSha256 = hash(await readFile(evidence.resolutions.styles));
   const require = createRequire(join(panel, 'package.json'));
   const { chromium } = await import(require.resolve('playwright'));

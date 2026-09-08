@@ -12,6 +12,8 @@ await copyFile('host.css', 'dist/host.css');
 const dashboardRequire = createRequire(import.meta.resolve('@takazudo/zdtp/dashboard'));
 await writeFile('resolution.json', JSON.stringify({
   dashboardPreact: await realpath(dashboardRequire.resolve('preact')),
+  dashboardPreactPackage: await realpath(dashboardRequire.resolve('preact/package.json')),
+  preactPackage: await realpath(fileURLToPath(import.meta.resolve('preact/package.json'))),
   jsxRuntime: await realpath(fileURLToPath(import.meta.resolve('preact/jsx-runtime'))),
   dashboard: await realpath(fileURLToPath(import.meta.resolve('@takazudo/zdtp/dashboard'))),
   preact: await realpath(fileURLToPath(import.meta.resolve('preact'))),
