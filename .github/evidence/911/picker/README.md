@@ -3,7 +3,7 @@
 This directory records the manager-owned integration evidence for issue #922 on
 `topic/922-picker-confirm`. The verified implementation tip was
 `27fbc70ac70910d9e91eccf67624fa299142ac36`. The comparison baseline was
-`a9e14adb907407312cce512e321c9f780ebc9cd3` (`base/sweep-260908-3`), which had
+`a9e14adb907407312cce512e321c9f780ecb9cd3` (`base/sweep-260908-3`), which had
 189 package test files and 3049 passing tests.
 
 ## Visual artifacts
@@ -31,7 +31,8 @@ Manager logs:
   first edit, and dark reference preservation passed.
 
 The manager also recorded an independent guarded browser session exiting 0 and
-visually inspected the disclosure screenshot. The initial node run exposed an
-invalid CSS declaration fallback; the resolver guard and empty/whitespace
-regression cases were fixed in the verified implementation tip before the
-passing rerun.
+visually inspected the disclosure screenshot. The initial integration run
+exposed an invalid CSS declaration fallback in the browser resolver; the
+follow-up jsdom run exposed the inherited invalid-syntax variant. The resolver
+guard and empty/whitespace regression cases were fixed in the verified
+implementation tip before the passing rerun.
