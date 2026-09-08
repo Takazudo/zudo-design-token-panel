@@ -95,8 +95,17 @@ public assets directory and add a stylesheet link. The
 provides complete data and CSS-copy examples.
 
 Optional props are `mode` (`light` by default), `title`, caller-owned unique
-`id`, and `previewOverrides` keyed by CSS variable (for example, a text-editor
-shadow can use `'shadow'`). Existing `TierConfig.preview` metadata is reused.
+`id`, `previewText`, and `previewOverrides` keyed by CSS variable (for example,
+a text-editor shadow can use `'shadow'`). Existing `TierConfig.preview` metadata is reused.
+
+Spacing uses actual-size rulers with local scrolling. Nonnegative px/rem, zero,
+and resolved direct aliases are supported; other lengths keep a readable fallback.
+Color-only nonsemantic, non-reference tiers form discrete strips in source order.
+Typography uses wide multiline specimens; `previewText` supplies your static
+passage (default: English/Japanese prose; an explicit empty string stays empty).
+The baseline is 18px/1.6, with only the intended property changed and resolved
+`previewBase` honored for line-height. Fonts use local availability and CSS
+fallbacks. There is no editable text workbench.
 
 The inventory uses **declared defaults**: item defaults, per-mode
 `semanticDefaults`, and explicit base-role `baseDefaults`. It does not apply
