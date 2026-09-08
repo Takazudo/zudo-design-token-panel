@@ -50,6 +50,9 @@ jobs:
       - name: Build panel
         run: pnpm --filter @takazudo/zdtp build
 
+      - name: Check packed declaration consumers
+        run: pnpm check:packed-types --skip-build
+
       - name: Build playground deploy bundle
         run: pnpm --filter playground build:deploy
 

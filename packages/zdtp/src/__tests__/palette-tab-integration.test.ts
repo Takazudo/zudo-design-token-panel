@@ -18,6 +18,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { act } from 'preact/test-utils';
 
 import {
+  assertValidPanelConfig,
   __resetPanelConfigForTests,
   configurePanel,
   type PanelConfig,
@@ -420,5 +421,12 @@ describe('palette-tab integration — serde RESERVED_TAB_IDS check', () => {
     // If palette were in RESERVED_TAB_IDS, this override would be missing
     expect(unknownTokens).toHaveLength(0);
     expect(restored.tabs?.['palette']?.['warm']?.['warm-1']).toBe('oklch(0.8 0.1 55)');
+  });
+});
+
+// The existing one-based grouped fixture remains a valid host configuration.
+describe('palette-tab config conformance', () => {
+  it('accepts the existing grouped palette fixture', () => {
+    expect(() => assertValidPanelConfig(PALETTE_PANEL_CONFIG)).not.toThrow();
   });
 });

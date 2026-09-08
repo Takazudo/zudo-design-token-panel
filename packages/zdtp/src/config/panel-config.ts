@@ -1735,6 +1735,66 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>, allTabs: un
     }
   }
 
+  // Grouped palette tiers use their own item cssVars, without the cluster
+  // resolver's zero-based slot indexing. Preserve each tier's starting number.
+  if (tabId === 'palette') {
+    if (tab.colorExtras !== undefined) {
+      throw new Error(
+        '[design-token-panel] PanelConfig.tabs["palette"].colorExtras must be absent' +
+          ' — multiple kind:"color" tiers are only safe when resolveColorClusterFromTab is not invoked',
+      );
+    }
+    for (const tier of tab.tiers as Array<Record<string, unknown>>) {
+      const items = tier.items as Array<Record<string, unknown>>;
+      const path = `[design-token-panel] PanelConfig.tabs["palette"].tiers["${tier.id}"]`;
+      if (items.length === 0) {
+        throw new Error(`${path}.items must be non-empty`);
+      }
+      for (const [i, item] of items.entries()) {
+        if ((item.type as Record<string, unknown>).kind !== 'color') {
+          throw new Error(`${path}.items[${i}].type.kind must be "color"`);
+        }
+      }
+      const firstCssVar = items[0].cssVar as string;
+      const derivedTemplate = firstCssVar.replace(/\d+$/, '{n}');
+      if (!derivedTemplate.includes('{n}')) {
+        // Real grouped palettes also contain named state colors (danger,
+        // warning, etc.). Unlike cluster slots these are addressed directly.
+        // Keep a common family and unique names; never mix names and numbers.
+        const prefix = firstCssVar.slice(0, firstCssVar.lastIndexOf('-') + 1);
+        const seen = new Set<string>();
+        for (const [i, item] of items.entries()) {
+          const cssVar = item.cssVar as string;
+          if (
+            (items.length > 1 && prefix === '--') ||
+            !cssVar.startsWith(prefix) ||
+            cssVar.length === prefix.length ||
+            /\d+$/.test(cssVar) ||
+            seen.has(cssVar)
+          ) {
+            throw new Error(
+              `${path}.items[${i}].cssVar ${JSON.stringify(cssVar)}` +
+                ' — named palette item cssVars must share one prefix and have unique non-numbered suffixes',
+            );
+          }
+          seen.add(cssVar);
+        }
+      } else {
+        const start = Number(firstCssVar.match(/\d+$/)![0]);
+        for (const [i, item] of items.entries()) {
+          const expectedCssVar = derivedTemplate.replace('{n}', String(start + i));
+          if (!Number.isSafeInteger(start + i) || item.cssVar !== expectedCssVar) {
+            throw new Error(
+              `${path}.items[${i}].cssVar is ${JSON.stringify(item.cssVar)}` +
+                ` but expected ${JSON.stringify(expectedCssVar)}` +
+                ' — palette item cssVars must share one prefix and be numbered consecutively in tier order',
+            );
+          }
+        }
+      }
+    }
+  }
+
   // colorExtras validation block (covers F8 deep validation + F4 palette
   // cssVar contiguity check). Both checks only apply when colorExtras is
   // present; a single guard is clearer than two separate if-blocks.
