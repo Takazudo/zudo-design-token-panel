@@ -1,0 +1,13 @@
+---
+title: "Unreleased"
+description: "次回リリースに向けた変更。まだ npm には公開されていません。"
+sidebar_position: 104
+---
+
+### 機能
+
+- `TokenDashboard` の枠・背景・ラベルなどに、ライト表示・ダーク表示・ホストのテーマに従う表示を追加。一覧の見本は、選択されたモードを維持します。
+
+### 修正
+
+- `var(...)` や `light-dark(...)` などの CSS 色式をホスト側のコンテキストで解決してカラーピッカーに表示するよう修正。ユーザーが **Edit as literal** を明示的に選択してから色を編集するまで元の参照を保持し、片方のモードだけを編集した場合も、もう一方のライト／ダーク参照を維持します。([#918](https://github.com/Takazudo/zudo-design-token-panel/issues/918))

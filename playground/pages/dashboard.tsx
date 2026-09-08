@@ -1,5 +1,10 @@
 import { TokenDashboard } from '@takazudo/zdtp/dashboard';
-import { dashboardFixtureTabs, dashboardPreviewText } from '../config/dashboard-fixtures';
+import {
+  dashboardFixtureTabs,
+  dashboardPreviewText,
+  dashboardHostFixtureTabs,
+  dashboardHostPreviewOverrides,
+} from '../config/dashboard-fixtures';
 import { defaultTabs } from '../config/default-manifest';
 import { buildProvenanceLabel } from '../config/build-provenance';
 
@@ -37,7 +42,16 @@ export default function DashboardPage() {
               selected presets do not change it. Expressions stay readable as CSS; samples
               use the browser’s available fonts and layout context.
             </p>
+            <label class="dashboard-page__theme-toggle">
+              <input type="checkbox" id="dashboard-dark-host" /> Dark host
+            </label>
+            <p>
+              Switch the host theme to compare light and dark inventories below. The two
+              host-following dashboards change their chrome while specimens keep their mode.
+              This switch works with JavaScript disabled.
+            </p>
             <nav class="dashboard-page__nav" aria-label="Dashboard examples">
+              <a href="#host-light-inventory">Host-following chrome</a>
               <a href="#light-defaults">Light defaults</a>
               <a href="#dark-defaults">Dark defaults</a>
               <a href="#compact-defaults">Compact example</a>
@@ -45,6 +59,13 @@ export default function DashboardPage() {
               <a href="https://zdtp.zudolab.dev/docs/recipes/static-token-dashboard/">Integration recipe</a>
             </nav>
           </div>
+
+          <TokenDashboard tabs={dashboardHostFixtureTabs} chrome="host" mode="light"
+            previewOverrides={dashboardHostPreviewOverrides}
+            title="Host chrome · light inventory" id="host-light-inventory" />
+          <TokenDashboard tabs={dashboardHostFixtureTabs} chrome="host" mode="dark"
+            previewOverrides={dashboardHostPreviewOverrides}
+            title="Host chrome · dark inventory" id="host-dark-inventory" />
 
           <div class="dashboard-page__intro">
             <h2>Rulers, ramps, and reading</h2>

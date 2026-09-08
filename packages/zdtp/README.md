@@ -43,7 +43,8 @@ walkthrough and the shortcut table.
 ## Static token dashboard
 
 Import `TokenDashboard` from `@takazudo/zdtp/dashboard` to render the same tab
-manifest on a plain page. This entry is available from v0.6.1. The [live workspace demo](https://zdtp-playground.zudolab.dev/dashboard/)
+manifest on a plain page. This entry is available from v0.6.1. The `chrome`
+prop is **unreleased (next release)** and is not supported in v0.6.1. The [live workspace demo](https://zdtp-playground.zudolab.dev/dashboard/)
 shows both modes and a compact embedded instance.
 
 ```tsx
@@ -92,9 +93,18 @@ public assets directory and add a stylesheet link. The
 [static dashboard recipe](https://zdtp.zudolab.dev/docs/recipes/static-token-dashboard/)
 provides complete data and CSS-copy examples.
 
-Optional props are `mode` (`light` by default), `title`, caller-owned unique
-`id`, `previewText`, and `previewOverrides` keyed by CSS variable (for example,
-a text-editor shadow can use `'shadow'`). Existing `TierConfig.preview` metadata is reused.
+Optional props are `mode` (`light` by default), `chrome` (`light` by default;
+**unreleased for the next release**), `title`, caller-owned unique `id`,
+`previewText`, and `previewOverrides` keyed by CSS variable (for example, a
+text-editor shadow can use `'shadow'`). Existing `TierConfig.preview` metadata is reused.
+
+`chrome="light"` and `chrome="dark"` fix the dashboard shell appearance;
+`chrome="host"` inherits the host's effective `color-scheme` and requires the
+host to set it on an ancestor. Chrome is independent of `mode`: `mode` selects
+declared per-mode defaults and each specimen's own `color-scheme`, while chrome
+uses package-owned CSS custom properties and never reads inventory variables.
+The dashboard uses no media query, so an explicit application theme wins over
+the OS preference.
 
 Spacing uses actual-size rulers with local scrolling. Nonnegative px/rem, zero,
 and resolved direct aliases are supported; other lengths keep a readable fallback.
@@ -110,9 +120,10 @@ The inventory uses **declared defaults**: item defaults, per-mode
 named color presets, panel initialization, or persisted edits. CSS expressions
 remain expressions; samples depend on browser layout and available fonts.
 Missing/context-dependent references and invalid declarations remain readable
-with diagnostics rather than misleading samples. Preview variables and
-`color-scheme` are local to each instance; the component never writes to
-`:root`. Arbitrary notes HTML and URL/mask assets are not rendered or loaded.
+with diagnostics rather than misleading samples. The dashboard root's chrome
+scheme follows `chrome`, while each specimen's `color-scheme` follows `mode`;
+both are local to the instance, and the component never writes to `:root`.
+Arbitrary notes HTML and URL/mask assets are not rendered or loaded.
 
 This checkpoint provides a Preact component. An HTML-export API/CLI, React
 adapter, and automatic panel-state synchronization are outside its scope.

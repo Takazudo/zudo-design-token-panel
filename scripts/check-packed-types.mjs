@@ -81,12 +81,13 @@ try {
 import * as astro from '@takazudo/zdtp/astro';
 import * as server from '@takazudo/zdtp/server';
 import * as testing from '@takazudo/zdtp/testing';
-import { TokenDashboard, type TokenDashboardProps, type TabConfig } from '@takazudo/zdtp/dashboard';
+import { TokenDashboard, type DashboardChrome, type TokenDashboardProps, type TabConfig } from '@takazudo/zdtp/dashboard';
 const tabs: readonly TabConfig[] = [{ id: 'colors', label: 'Colors', tiers: [{
   id: 'palette', label: 'Palette', items: [{ id: 'blue', label: 'Blue', cssVar: '--blue',
     default: '#2563eb', type: { kind: 'color' } }],
 }] }];
-const props: TokenDashboardProps = { tabs, mode: 'dark', previewText: 'Custom specimen 日本語', previewOverrides: { '--blue': 'color' } };
+const chrome: DashboardChrome = 'host';
+const props: TokenDashboardProps = { tabs, mode: 'dark', chrome, previewText: 'Custom specimen 日本語', previewOverrides: { '--blue': 'color' } };
 export const dashboard = <TokenDashboard {...props} title="Declared tokens" id="tokens" />;
 export { panel, astro, server, testing };
 `);
@@ -120,7 +121,8 @@ const tabs = [{ id: 'colors', label: 'Colors', tiers: [
     label: 'Accent', cssVar: '--accent', default: 'blue', type: { kind: 'color' } }] },
 ] }];
 for (const mode of ['light', 'dark']) {
-  const html = renderToString(h(TokenDashboard, { tabs, mode }));
+  const html = renderToString(h(TokenDashboard, { tabs, mode, chrome: 'host' }));
+  assert.equal((html.match(/data-chrome="host"/g) ?? []).length, 1);
   assert.equal((html.match(/role="listitem"/g) ?? []).length, 3);
   assert.ok(html.includes('color-scheme:' + mode));
   assert.ok(html.includes('--blue:#2563eb'));

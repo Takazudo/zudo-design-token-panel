@@ -104,6 +104,12 @@ import { TooltipProvider } from '../controls/tooltip';
 import type { TabConfig } from '../tokens/tier-model';
 import type { PersistColor, PersistSecondary } from '../state/persist';
 import { FIXTURE_TABS, FIXTURE_PANEL_CONFIG, flushEffects } from './_test-helpers';
+import { resolveCssColorInHost } from '../utils/resolve-css-color';
+
+vi.mock('../utils/resolve-css-color', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../utils/resolve-css-color')>(),
+  resolveCssColorInHost: vi.fn(),
+}));
 
 // ---------------------------------------------------------------------------
 // FIXTURE — a grouped Palette tab (ramp source) + a Color tab whose lone
@@ -197,6 +203,16 @@ const COLOR_TAB: TabConfig = {
 
 const ALL_TABS: readonly TabConfig[] = [PALETTE_TAB, COLOR_TAB];
 
+/** Same grouped semantic fixture, with one plain literal replaced by a var(). */
+const VAR_COLOR_TAB: TabConfig = {
+  ...COLOR_TAB,
+  colorExtras: {
+    ...COLOR_TAB.colorExtras!,
+    semanticDefaults: { info: { literal: 'var(--zd-info)' } },
+  },
+};
+const VAR_TABS: readonly TabConfig[] = [PALETTE_TAB, VAR_COLOR_TAB];
+
 const PER_MODE_PANEL_CONFIG: PanelConfig = {
   storagePrefix: 'issue-459-per-mode-e2e',
   consoleNamespace: 'issue-459-per-mode-e2e',
@@ -228,6 +244,8 @@ let container: HTMLDivElement;
 beforeEach(() => {
   __resetPanelConfigForTests();
   configurePanel(PER_MODE_PANEL_CONFIG);
+  vi.mocked(resolveCssColorInHost).mockReset();
+  vi.mocked(resolveCssColorInHost).mockReturnValue(null);
   container = document.createElement('div');
   document.body.appendChild(container);
   document.documentElement.removeAttribute('style');
@@ -643,6 +661,46 @@ describe('6. rendering: the per-mode row shows a checked "Per-mode" toggle and t
     const infoCheckbox = infoRow.querySelector('input[type="checkbox"]') as HTMLInputElement;
     expect(infoCheckbox.checked).toBe(false);
     expect(infoRow.querySelectorAll('[data-testid="color-field-swatch"]').length).toBe(1);
+  });
+
+  it('a var() row renders the expression disclosure before conversion', () => {
+    const varConfig: PanelConfig = { ...PER_MODE_PANEL_CONFIG, tabs: VAR_TABS };
+    __resetPanelConfigForTests();
+    configurePanel(varConfig);
+    vi.mocked(resolveCssColorInHost).mockReturnValue('oklch(0.55 0.1 250)');
+
+    const cluster = resolveColorClusterFromTab(VAR_COLOR_TAB, VAR_TABS)!;
+    renderColorTab(VAR_COLOR_TAB, initColorFromScheme(cluster));
+
+    const row = container.querySelector('[data-testid="tokenpanel-semantic-ref-info"]')!;
+    const swatch = row.querySelector<HTMLElement>('[data-testid="color-field-swatch"]');
+    expect(swatch).not.toBeNull();
+    act(() => swatch!.click());
+
+    expect(resolveCssColorInHost).toHaveBeenLastCalledWith('var(--zd-info)', undefined);
+    expect(container.querySelector('.tokenpanel-color-picker__disclosure')).not.toBeNull();
+    expect(container.textContent).toContain(
+      'Value is an expression: var(--zd-info). Editing replaces it with a literal color.',
+    );
+  });
+
+  it('a plain literal row keeps its existing editable picker behavior', () => {
+    const persistColor = vi.fn();
+    renderColorTab(COLOR_TAB, makeBaseState(), { persistColor });
+
+    const row = container.querySelector('[data-testid="tokenpanel-semantic-ref-info"]')!;
+    const swatch = row.querySelector<HTMLElement>('[data-testid="color-field-swatch"]');
+    expect(swatch).not.toBeNull();
+    act(() => swatch!.click());
+    expect(container.querySelector('.tokenpanel-color-picker__disclosure')).toBeNull();
+
+    fireFirstPickerSliderArrow();
+    expect(persistColor).toHaveBeenCalled();
+    const updater = persistColor.mock.calls.at(-1)![0] as (
+      prev: ColorTweakState,
+    ) => ColorTweakState;
+    const result = updater(makeBaseState());
+    expect(result.semanticMappings.info).toEqual({ literal: expect.stringMatching(/^oklch\(/) });
   });
 });
 
