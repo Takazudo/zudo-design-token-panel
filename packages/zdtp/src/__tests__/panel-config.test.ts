@@ -1566,9 +1566,9 @@ describe('panel-config — referencesRamps cross-tab source validation (S8, #469
     };
   }
 
-  /** The Palette tab: a plain color-kind ramp tier, no semantic/referencesTier. */
-  const PALETTE_TAB: TabConfig = {
-    id: 'palette',
+  /** A generic source tab with color and length tiers for reference-kind checks. */
+  const RAMP_SOURCE_TAB: TabConfig = {
+    id: 'ramp-source',
     label: 'Palette',
     tiers: [
       {
@@ -1638,20 +1638,20 @@ describe('panel-config — referencesRamps cross-tab source validation (S8, #469
   }
 
   it('accepts a valid referencesRamps declaration naming an existing tab + tier', () => {
-    const colorTab = makeSemanticColorTab([{ tab: 'palette', tier: 'base' }]);
+    const colorTab = makeSemanticColorTab([{ tab: 'ramp-source', tier: 'base' }]);
     expect(() =>
-      assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab, PALETTE_TAB] })),
+      assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab, RAMP_SOURCE_TAB] })),
     ).not.toThrow();
   });
 
   it('rejects referencesRamps on a generic tab with the supported Color tab ids', () => {
     const genericTab = makeSemanticColorTab(
-      [{ tab: 'palette', tier: 'base' }],
+      [{ tab: 'ramp-source', tier: 'base' }],
       {},
       'custom',
     );
     expect(() =>
-      assertValidPanelConfig(makeBaseConfig({ tabs: [genericTab, PALETTE_TAB] })),
+      assertValidPanelConfig(makeBaseConfig({ tabs: [genericTab, RAMP_SOURCE_TAB] })),
     ).toThrow(
       /PanelConfig\.tabs\["custom"\]\.tiers\["semantic"\]\.referencesRamps is only supported on tabs with id "color" or "color-secondary" \(got "custom"\)/,
     );
@@ -1661,12 +1661,12 @@ describe('panel-config — referencesRamps cross-tab source validation (S8, #469
     'accepts referencesRamps on the supported %s tab id',
     (tabId) => {
       const colorTab = makeSemanticColorTab(
-        [{ tab: 'palette', tier: 'base' }],
+        [{ tab: 'ramp-source', tier: 'base' }],
         {},
         tabId,
       );
       expect(() =>
-        assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab, PALETTE_TAB] })),
+        assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab, RAMP_SOURCE_TAB] })),
       ).not.toThrow();
     },
   );
@@ -1713,23 +1713,23 @@ describe('panel-config — referencesRamps cross-tab source validation (S8, #469
   it('rejects a referencesRamps entry naming a missing tab, listing available tabs', () => {
     const colorTab = makeSemanticColorTab([{ tab: 'no-such-tab', tier: 'base' }]);
     expect(() =>
-      assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab, PALETTE_TAB] })),
-    ).toThrow(/tab "no-such-tab" does not exist. Available tabs: color, palette/);
+      assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab, RAMP_SOURCE_TAB] })),
+    ).toThrow(/tab "no-such-tab" does not exist. Available tabs: color, ramp-source/);
   });
 
   it('rejects a referencesRamps entry naming a missing tier in an existing tab, listing available tiers', () => {
-    const colorTab = makeSemanticColorTab([{ tab: 'palette', tier: 'no-such-tier' }]);
+    const colorTab = makeSemanticColorTab([{ tab: 'ramp-source', tier: 'no-such-tier' }]);
     expect(() =>
-      assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab, PALETTE_TAB] })),
-    ).toThrow(/tier "no-such-tier" does not exist in tab "palette". Available tiers: base, length-tier/);
+      assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab, RAMP_SOURCE_TAB] })),
+    ).toThrow(/tier "no-such-tier" does not exist in tab "ramp-source". Available tiers: base, length-tier/);
   });
 
   it('rejects a cross-kind referencesRamps source (color semantic tier -> length ramp tier)', () => {
-    const colorTab = makeSemanticColorTab([{ tab: 'palette', tier: 'length-tier' }]);
+    const colorTab = makeSemanticColorTab([{ tab: 'ramp-source', tier: 'length-tier' }]);
     expect(() =>
-      assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab, PALETTE_TAB] })),
+      assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab, RAMP_SOURCE_TAB] })),
     ).toThrow(
-      /referencing semantic tier has kind "color" but target tier "length-tier" in tab "palette" has kind "length"/,
+      /referencing semantic tier has kind "color" but target tier "length-tier" in tab "ramp-source" has kind "length"/,
     );
   });
 
@@ -1762,16 +1762,16 @@ describe('panel-config — referencesRamps cross-tab source validation (S8, #469
   });
 
   it('rejects a referencesRamps entry missing the required `tier` field', () => {
-    const colorTab = makeSemanticColorTab([{ tab: 'palette' }]);
+    const colorTab = makeSemanticColorTab([{ tab: 'ramp-source' }]);
     expect(() =>
-      assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab, PALETTE_TAB] })),
+      assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab, RAMP_SOURCE_TAB] })),
     ).toThrow(/referencesRamps\[0\]\.tier must be a non-empty string/);
   });
 
   it('rejects a referencesRamps field that is not an array', () => {
-    const colorTab = makeSemanticColorTab({ tab: 'palette', tier: 'base' });
+    const colorTab = makeSemanticColorTab({ tab: 'ramp-source', tier: 'base' });
     expect(() =>
-      assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab, PALETTE_TAB] })),
+      assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab, RAMP_SOURCE_TAB] })),
     ).toThrow(/referencesRamps must be an array/);
   });
 
@@ -1812,9 +1812,9 @@ describe('panel-config — referencesRamps cross-tab source validation (S8, #469
         },
       ],
     };
-    const colorTab = makeSemanticColorTab([{ tab: 'palette', tier: 'base' }]);
+    const colorTab = makeSemanticColorTab([{ tab: 'ramp-source', tier: 'base' }]);
     expect(() =>
-      assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab, PALETTE_TAB, spacingTab] })),
+      assertValidPanelConfig(makeBaseConfig({ tabs: [colorTab, RAMP_SOURCE_TAB, spacingTab] })),
     ).not.toThrow();
   });
 });
