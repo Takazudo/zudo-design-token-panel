@@ -69,7 +69,7 @@ async function run(command, argv, cwd = root) {
 async function saveEvidence() {
   if (!output) return;
   await mkdir(output, { recursive: true });
-  for (const name of ['index.html', 'dashboard.css', 'host.css']) {
+  for (const name of ['index.html', 'dark.html', 'dashboard.css', 'host.css']) {
     const source = join(scratch, 'dist', name);
     if (existsSync(source)) await cp(source, join(output, name));
   }
@@ -106,7 +106,7 @@ try {
   const { chromium } = require('playwright');
   let missingCss = false;
   server = createServer(async (request, response) => {
-    const paths = { '/': 'index.html', '/dashboard.css': 'dashboard.css', '/host.css': 'host.css' };
+    const paths = { '/': 'index.html', '/dark.html': 'dark.html', '/dashboard.css': 'dashboard.css', '/host.css': 'host.css' };
     const name = paths[request.url];
     if (!name || (missingCss && name === 'dashboard.css')) { response.writeHead(404); response.end('Not found'); return; }
     try {
@@ -116,20 +116,23 @@ try {
   });
   await new Promise((accept, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', accept); });
   const url = `http://127.0.0.1:${server.address().port}/`;
+  const darkUrl = `${url}dark.html`;
+  const assetUrls = [`${url}host.css`, `${url}dashboard.css`];
   assert.ok(!interrupted, 'Consumer check interrupted');
   browser = await chromium.launch({ headless: true });
-  async function visit(width, mutation = false) {
+  async function visit(width, theme = 'light', mutation = false) {
+    const pageUrl = theme === 'dark' ? darkUrl : url;
     const page = await browser.newPage({ javaScriptEnabled: false, viewport: { width, height: 900 } });
     const problems = [], missing = [], failedRequests = [];
     page.on('pageerror', (error) => problems.push(error.message));
     page.on('requestfailed', (request) => failedRequests.push(request.url()));
-    page.on('request', (request) => { if (![url, `${url}host.css`, `${url}dashboard.css`].includes(request.url())) problems.push(`Unexpected request: ${request.url()}`); });
+    page.on('request', (request) => { if (![pageUrl, ...assetUrls].includes(request.url())) problems.push(`Unexpected request: ${request.url()}`); });
     page.on('response', (response) => {
       if (mutation && response.url() === `${url}dashboard.css` && response.status() === 404) missing.push(response.url());
       else if (response.status() !== 200) problems.push(`HTTP ${response.status()}: ${response.url()}`);
     });
     try {
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 15000 });
+      await page.goto(pageUrl, { waitUntil: 'networkidle', timeout: 15000 });
       assert.equal(missing.length, mutation ? 1 : 0);
       // Chromium can also emit requestfailed for the deliberately rejected CSS.
       // Exempt only that URL after confirming its expected 404 response above.
@@ -145,14 +148,77 @@ try {
     });
     assert.deepEqual(actual, { fontSize: '24px', margin: '0px', padding: '0px', display: 'block' }, 'PUBLIC_CSS_APPLIED');
   }
+  const expectedChrome = {
+    light: {
+      shellBackground: 'rgb(248, 250, 252)', shellColor: 'rgb(24, 33, 49)',
+      cardBackground: 'rgb(255, 255, 255)', cardColor: 'rgb(24, 33, 49)', labelColor: 'rgb(24, 33, 49)',
+    },
+    dark: {
+      shellBackground: 'rgb(21, 27, 36)', shellColor: 'rgb(237, 242, 247)',
+      cardBackground: 'rgb(32, 41, 54)', cardColor: 'rgb(237, 242, 247)', labelColor: 'rgb(237, 242, 247)',
+    },
+  };
+  async function chromeColors(page, id) {
+    return page.locator(`#${id}`).evaluate((element) => {
+      const shell = getComputedStyle(element);
+      const card = getComputedStyle(element.querySelector('.zdtp-dashboard__token'));
+      const label = getComputedStyle(element.querySelector('.zdtp-dashboard__name'));
+      return {
+        shellBackground: shell.backgroundColor,
+        shellColor: shell.color,
+        cardBackground: card.backgroundColor,
+        cardColor: card.color,
+        labelColor: label.color,
+      };
+    });
+  }
+  async function specimenSnapshot(page, id) {
+    return page.locator(`#${id} .zdtp-dashboard__preview > .zdtp-dashboard__specimen`).evaluateAll((elements) => elements.map((element) => {
+      const dashboard = element.closest('.zdtp-dashboard');
+      const preview = element.closest('.zdtp-dashboard__preview');
+      const sample = element.querySelector('.zdtp-dashboard__sample');
+      const specimenCss = getComputedStyle(element);
+      const sampleCss = getComputedStyle(sample);
+      const bounds = sample.getBoundingClientRect();
+      const typography = preview.classList.contains('zdtp-dashboard__preview--typography');
+      return {
+        mode: dashboard.getAttribute('data-mode'),
+        specimenBackgroundColor: specimenCss.backgroundColor,
+        specimenBackgroundImage: specimenCss.backgroundImage,
+        sampleBackgroundColor: sampleCss.backgroundColor,
+        sampleBackgroundImage: sampleCss.backgroundImage,
+        sampleColor: typography ? sampleCss.color : null,
+        sampleWidth: bounds.width,
+        sampleHeight: bounds.height,
+      };
+    }));
+  }
+  async function verifyChrome(page, theme) {
+    for (const id of ['host-light-inv', 'host-dark-inv']) {
+      assert.deepEqual(await chromeColors(page, id), expectedChrome[theme], `${id} follows ${theme} host scheme`);
+    }
+    assert.deepEqual(await chromeColors(page, 'light'), expectedChrome.light, '#light keeps fixed light chrome');
+    assert.deepEqual(await chromeColors(page, 'dark'), expectedChrome.light, '#dark keeps fixed light chrome');
+    for (const [id, mode] of [['host-light-inv', 'light'], ['host-dark-inv', 'dark']]) {
+      const snapshots = await specimenSnapshot(page, id);
+      assert.ok(snapshots.length > 0 && snapshots.every((snapshot) => snapshot.mode === mode), `${id} keeps its declared specimen mode`);
+      assert.ok(snapshots.every((snapshot) => snapshot.sampleHeight > 0), `${id} painted samples have positive height`);
+    }
+    assert.deepEqual(await specimenSnapshot(page, 'host-light-inv'), await specimenSnapshot(page, 'light'), 'Light specimens stay mode-scoped');
+    assert.deepEqual(await specimenSnapshot(page, 'host-dark-inv'), await specimenSnapshot(page, 'dark'), 'Dark specimens stay mode-scoped');
+  }
   const order = ['pale', 'deep', 'surface', 'zero', 'space', 'alias', 'large', 'missing', 'size', 'family', 'weight', 'leading'].map((name) => `--consumer-${name}`);
-  for (const width of [1280, 360]) {
-    const page = await visit(width);
+  const pageSpecimens = {};
+  for (const theme of ['light', 'dark']) {
+    for (const width of [1280, 360]) {
+      const page = await visit(width, theme);
     try {
       await verifyStyles(page);
+      assert.equal(await page.locator('html').getAttribute('data-theme'), theme);
+      await verifyChrome(page, theme);
       assert.equal(await page.locator('script, img, .tokenpanel-shell').count(), 0);
-      assert.equal(await page.locator('[role="listitem"]').count(), 36);
-      for (const id of ['light', 'dark', 'compact']) {
+      assert.equal(await page.locator('[role="listitem"]').count(), 60);
+      for (const id of ['light', 'dark', 'host-light-inv', 'host-dark-inv', 'compact']) {
         assert.deepEqual(await page.locator(`#${id} [data-css-var]`).evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-css-var'))), order);
         assert.equal(await page.locator(`#${id} [data-css-var="--consumer-missing"] [data-diagnostic]`).count(), 1);
         assert.equal(await page.locator(`#${id} [data-css-var="--consumer-missing"] .zdtp-dashboard__sample`).count(), 0);
@@ -162,13 +228,26 @@ try {
           assert.ok(Math.abs(size - expected) < 0.1, `${id}/${name} exact ruler: ${size}`);
         }
         const sample = (name) => page.locator(`#${id} [data-css-var="--consumer-${name}"] .zdtp-dashboard__sample`);
-        assert.equal(await sample('surface').evaluate((e) => getComputedStyle(e).backgroundColor), id === 'dark' ? 'rgb(24, 36, 58)' : 'rgb(238, 244, 255)');
+        assert.equal(await sample('surface').evaluate((e) => getComputedStyle(e).backgroundColor), ['dark', 'host-dark-inv'].includes(id) ? 'rgb(24, 36, 58)' : 'rgb(238, 244, 255)');
         assert.equal(await sample('leading').evaluate((e) => getComputedStyle(e).lineHeight), '43.2px');
         assert.equal(await sample('family').evaluate((e) => getComputedStyle(e).fontFamily), 'serif');
         assert.equal(await sample('weight').evaluate((e) => getComputedStyle(e).fontWeight), '700');
         const passage = await sample('size').textContent();
         assert.ok(passage.includes('\n\n好きな文章で行間を確認します。\n<img src=x onerror=alert(1)> & plain text'));
         assert.ok((await sample('size').boundingBox()).height > 72, 'Long text wraps');
+      }
+      if (width === 1280) {
+        const current = {
+          light: await specimenSnapshot(page, 'host-light-inv'),
+          dark: await specimenSnapshot(page, 'host-dark-inv'),
+        };
+        if (pageSpecimens.light) {
+          assert.deepEqual(current.light, pageSpecimens.light, 'Light host specimens are identical on both pages');
+          assert.deepEqual(current.dark, pageSpecimens.dark, 'Dark host specimens are identical on both pages');
+        } else {
+          pageSpecimens.light = current.light;
+          pageSpecimens.dark = current.dark;
+        }
       }
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'No page overflow');
       const scroll = page.locator('#compact [data-css-var="--consumer-large"] .zdtp-dashboard__ruler-scroll');
@@ -183,17 +262,24 @@ try {
         await new Promise((accept) => setTimeout(accept, 50));
       }
       assert.ok(await scroll.evaluate((e) => e.scrollLeft > 0), 'ArrowRight scrolls the focused ruler');
-      if (output) { await mkdir(output, { recursive: true }); await page.screenshot({ path: join(output, `dashboard-${width}.png`), fullPage: true }); }
-      evidence.checks.push(`JavaScript-disabled ${width}px and compact: PASS`);
+      if (output && width === 1280) { await mkdir(output, { recursive: true }); await page.screenshot({ path: join(output, `host-${theme}.png`), fullPage: true }); }
+      evidence.checks.push(`JavaScript-disabled ${theme} ${width}px and compact: PASS`);
     } finally { await page.close(); }
+    }
   }
+  const osOverride = await visit(1280, 'light');
+  try {
+    await osOverride.emulateMedia({ colorScheme: 'dark' });
+    await verifyChrome(osOverride, 'light');
+    evidence.checks.push('OS dark preference cannot override explicit-light host chrome: PASS');
+  } finally { await osOverride.close(); }
   missingCss = true;
-  const broken = await visit(360, true);
+  const broken = await visit(360, 'light', true);
   try {
     await assert.rejects(() => verifyStyles(broken), (error) => error.code === 'ERR_ASSERTION' && error.message.includes('PUBLIC_CSS_APPLIED'));
     evidence.checks.push('Missing public CSS rejected by shared style verifier: PASS');
   } finally { await broken.close(); missingCss = false; }
-  const recovered = await visit(360);
+  const recovered = await visit(360, 'light');
   try { await verifyStyles(recovered); evidence.checks.push('Fresh-page CSS recovery: PASS'); } finally { await recovered.close(); }
   assert.ok(!interrupted, 'Consumer check interrupted');
   evidence.status = 'passed';
