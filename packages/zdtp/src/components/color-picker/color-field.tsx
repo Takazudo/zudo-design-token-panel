@@ -22,6 +22,8 @@ export interface ColorFieldProps {
    * with the native <input type="color"> path).
    */
   valueFormat?: ColorPickerValueFormat;
+  /** Host color scheme used to resolve CSS expressions. */
+  resolveMode?: 'light' | 'dark';
   /** Display label shown in the picker header and aria-label. */
   label: string;
   /** Optional CSS custom property name (e.g. `--my-color`). Used for aria-label. */
@@ -42,6 +44,7 @@ export function ColorField({
   value,
   onChange,
   valueFormat = 'hex',
+  resolveMode,
   label,
   cssVar,
   readonly: isReadonly = false,
@@ -83,6 +86,7 @@ export function ColorField({
           color={value}
           onChange={onChange}
           valueFormat={valueFormat}
+          resolveMode={resolveMode}
           label={label}
           anchorRef={buttonRef}
           onClose={handleClose}

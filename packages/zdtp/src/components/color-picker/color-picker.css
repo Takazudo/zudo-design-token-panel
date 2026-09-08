@@ -402,3 +402,34 @@
 .tokenpanel-color-picker[data-mode-shell='expanded'] .tokenpanel-color-picker-readout {
   display: block;
 }
+
+/* Expression conversion requires an explicit local acknowledgement. */
+.tokenpanel-color-picker__disclosure {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--tokentweak-gap-2xs);
+  padding: var(--tokentweak-pad-sm);
+  border: 1px solid var(--tokentweak-color-border);
+  border-radius: var(--radius-tokentweak);
+  overflow-wrap: anywhere;
+}
+
+.tokenpanel-color-picker__convert {
+  padding: var(--tokentweak-pad-2xs) var(--tokentweak-pad-sm);
+  border: 1px solid var(--tokentweak-color-border);
+  border-radius: var(--radius-tokentweak);
+  cursor: pointer;
+}
+
+.tokenpanel-color-picker__convert:focus-visible {
+  outline: 2px solid var(--tokentweak-color-fg);
+  outline-offset: 2px;
+}
+
+.tokenpanel-color-picker-slider[aria-disabled='true'],
+.tokenpanel-color-picker-grid-cell[aria-disabled='true'],
+.tokenpanel-color-picker-hex-input:disabled {
+  cursor: default;
+  opacity: 0.5;
+}

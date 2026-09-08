@@ -35,6 +35,14 @@ import { render } from 'preact';
 import { act } from 'preact/test-utils';
 import { useRef } from 'preact/compat';
 import type { JSX } from 'preact';
+import { ColorField } from '../color-field';
+import { resolveCssColorInHost } from '../../../utils/resolve-css-color';
+
+vi.mock('../../../utils/resolve-css-color', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../../utils/resolve-css-color')>(),
+  resolveCssColorInHost: vi.fn(),
+}));
+
 import { ColorPicker, LOCAL_STORAGE_KEY } from '../color-picker';
 import type { ColorPickerProps } from '../color-picker';
 import { cssToOklcha, oklchaToHex } from '../../../utils/color-oklch';
@@ -90,6 +98,7 @@ function renderPicker(
         color={partial.color ?? '#ff0000'}
         onChange={partial.onChange ?? vi.fn()}
         valueFormat={partial.valueFormat}
+        resolveMode={partial.resolveMode}
         label={partial.label}
         defaultMode={partial.defaultMode}
         onClose={partial.onClose ?? (() => {})}
@@ -1488,4 +1497,142 @@ describe('ColorPicker — S3b preset unclamped commit in both shells', () => {
     // Preset commit carries the live alpha (≈40 on the 0–100 scale).
     expect(parsed.a).toBeCloseTo(40, 0);
   });
+});
+
+
+describe('ColorPicker — expression conversion', () => {
+  const source = 'var(--brand)';
+  const resolved = 'oklch(62% 0.17 231 / 0.4)';
+  const slider = () => container.querySelector<HTMLElement>('[role="slider"][aria-label="Lightness"]')!;
+  const convert = () => container.querySelector<HTMLElement>('.tokenpanel-color-picker__convert')!;
+  const hexInput = () => container.querySelector<HTMLInputElement>('input')!;
+  beforeEach(() => vi.mocked(resolveCssColorInHost).mockReturnValue(resolved));
+
+  it('seeds resolved channels and alpha without emitting on mount or Escape', () => {
+    const onChange = vi.fn();
+    const onClose = vi.fn();
+    renderPicker({ color: source, valueFormat: 'oklch', onChange, onClose });
+    expect(slider().getAttribute('aria-valuenow')).toBe('62');
+    expect(container.querySelector('[aria-label="Chroma"]')?.getAttribute('aria-valuenow')).toBe('0.17');
+    expect(container.querySelector('[aria-label="Alpha"]')?.getAttribute('aria-valuenow')).toBe('40');
+    fireKey(getDialog(), 'Escape');
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it.each(['oklch', 'hsl'] as const)('blocks every interaction in %s view before conversion', (defaultMode) => {
+    const onChange = vi.fn();
+    renderPicker({ color: source, valueFormat: 'oklch', defaultMode, onChange });
+    const before = slider().getAttribute('aria-valuenow');
+    expect(hexInput().disabled).toBe(true);
+    for (const el of container.querySelectorAll<HTMLElement>('[role="slider"]')) {
+      expect(el.getAttribute('aria-disabled')).toBe('true');
+      for (const key of ['ArrowUp', 'ArrowDown', 'Home', 'End']) fireKey(el, key);
+      firePointerDownInside(el);
+    }
+    const preset = container.querySelector<HTMLElement>('[role="gridcell"]')!;
+    fireClick(preset);
+    fireKey(preset, 'Enter');
+    fireKey(preset, 'ArrowRight');
+    act(() => {
+      hexInput().value = '#ffffff';
+      hexInput().dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(slider().getAttribute('aria-valuenow')).toBe(before);
+    expect(onChange).not.toHaveBeenCalled();
+    fireClick(convert());
+    expect(onChange).not.toHaveBeenCalled();
+    fireKey(slider(), 'ArrowUp');
+    expect(onChange).toHaveBeenCalledOnce();
+    expect(onChange.mock.calls[0][0]).toMatch(/^oklch\(/);
+  });
+
+  it.each([
+    ['hex', 'slider'], ['hex', 'hex'], ['hex', 'preset'],
+    ['oklch', 'hex'], ['oklch', 'preset'],
+  ] as const)('emits one %s literal via %s after conversion', (valueFormat, path) => {
+    const onChange = vi.fn();
+    renderPicker({ color: source, valueFormat, onChange });
+    expect(hexInput().value).toBe(oklchaToHex(cssToOklcha(resolved)!));
+    fireKey(convert(), 'Enter');
+    if (path === 'slider') fireKey(slider(), 'ArrowUp');
+    if (path === 'preset') fireClick(container.querySelector('[role="gridcell"]')!);
+    if (path === 'hex') act(() => {
+      hexInput().value = '#abcdef';
+      hexInput().dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(onChange).toHaveBeenCalledOnce();
+    expect(onChange.mock.calls[0][0]).toMatch(valueFormat === 'hex' ? /^#[0-9a-f]{6}([0-9a-f]{2})?$/ : /^oklch\(/);
+  });
+
+  it('shows unresolved sources with a convertible black fallback', () => {
+    vi.mocked(resolveCssColorInHost).mockReturnValue(null);
+    const onChange = vi.fn();
+    renderPicker({ color: source, valueFormat: 'oklch', onChange });
+    expect(container.textContent).toContain(`Reference ${source} could not be resolved in the host.`);
+    expect(slider().getAttribute('aria-valuenow')).toBe('0');
+    fireClick(convert());
+    fireKey(slider(), 'ArrowUp');
+    expect(onChange).toHaveBeenCalledOnce();
+  });
+
+  it('re-arms after convert without editing, close and reopen through ColorField', () => {
+    const onChange = vi.fn();
+    act(() => render(<ColorField value={source} resolveMode="dark" valueFormat="oklch" label="Brand" onChange={onChange} />, container));
+    const swatch = container.querySelector('[data-testid="color-field-swatch"]')!;
+    fireClick(swatch);
+    expect(resolveCssColorInHost).toHaveBeenLastCalledWith(source, 'dark');
+    fireClick(convert());
+    fireKey(getDialog(), 'Escape');
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    fireClick(swatch);
+    expect(convert()).not.toBeNull();
+    expect(slider().getAttribute('aria-disabled')).toBe('true');
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('re-resolves mode changes, re-arms new expressions and clears on literals', () => {
+    const onChange = vi.fn();
+    renderPicker({ color: source, valueFormat: 'oklch', resolveMode: 'light', onChange });
+    fireClick(convert());
+    vi.mocked(resolveCssColorInHost).mockReturnValue('oklch(30% 0.1 120 / 0.7)');
+    renderPicker({ color: source, valueFormat: 'oklch', resolveMode: 'dark', onChange });
+    expect(resolveCssColorInHost).toHaveBeenLastCalledWith(source, 'dark');
+    expect(slider().getAttribute('aria-valuenow')).toBe('30');
+    expect(onChange).not.toHaveBeenCalled();
+    fireClick(convert());
+    renderPicker({ color: 'var(--other)', valueFormat: 'oklch', onChange });
+    expect(convert()).not.toBeNull();
+    renderPicker({ color: '#ff0000', valueFormat: 'oklch', onChange });
+    expect(convert()).toBeNull();
+    expect(hexInput().disabled).toBe(false);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+  it('replaces a partial local input and active drag when a new expression arrives', () => {
+    const onChange = vi.fn();
+    renderPicker({ color: source, valueFormat: 'oklch', onChange });
+    fireClick(convert());
+    act(() => {
+      hexInput().value = '#ab';
+      hexInput().dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    firePointerDownInside(slider());
+    vi.mocked(resolveCssColorInHost).mockReturnValue('rgb(0, 255, 0)');
+    renderPicker({ color: 'var(--fresh)', valueFormat: 'oklch', onChange });
+    expect(hexInput().value).toBe('#00ff00');
+    expect(slider().getAttribute('aria-disabled')).toBe('true');
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('allows the format toggle while gated without replacing the expression', () => {
+    const onChange = vi.fn();
+    renderPicker({ color: source, valueFormat: 'oklch', onChange });
+    const hsl = [...container.querySelectorAll('[role="button"]')].find((el) => el.textContent === 'HSL')!;
+    fireClick(hsl);
+    expect(container.querySelector('[aria-label="Saturation"]')).not.toBeNull();
+    expect(slider().getAttribute('aria-disabled')).toBe('true');
+    expect(convert()).not.toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
 });

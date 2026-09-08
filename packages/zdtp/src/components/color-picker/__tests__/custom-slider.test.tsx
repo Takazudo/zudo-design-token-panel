@@ -78,6 +78,7 @@ function renderSlider(
   config: SliderConfig,
   value: number,
   callbacks: {
+    disabled?: boolean;
     onChange?: (v: number) => void;
     onDragStart?: () => void;
     onDragEnd?: () => void;
@@ -90,6 +91,7 @@ function renderSlider(
   act(() => {
     render(
       <CustomSlider
+        disabled={callbacks.disabled}
         config={config}
         value={value}
         gradient={GRADIENT}
@@ -479,4 +481,38 @@ describe('CustomSlider — aria-valuetext', () => {
     const host = getSliderHost();
     expect(host.getAttribute('aria-valuetext')).toBe('0.42');
   });
+});
+
+
+it('disabled blocks pointer and keyboard edits and drag callbacks', () => {
+  const callbacks = renderSlider(INTEGER_CONFIG, 50, { disabled: true });
+  const slider = getSliderHost();
+  expect(slider.getAttribute('aria-disabled')).toBe('true');
+  expect(slider.tabIndex).toBe(-1);
+  vi.spyOn(slider, 'getBoundingClientRect').mockReturnValue({ left: 0, width: 100 } as DOMRect);
+  for (const key of ['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown', 'Home', 'End']) fireKey(slider, key);
+  act(() => {
+    for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) {
+      slider.dispatchEvent(new PointerEvent(type, { clientX: 80, pointerId: 1, bubbles: true }));
+    }
+  });
+  expect(callbacks.onChange).not.toHaveBeenCalled();
+  expect(callbacks.onDragStart).not.toHaveBeenCalled();
+  expect(callbacks.onDragEnd).not.toHaveBeenCalled();
+});
+
+
+it('ends an active drag when disabled and does not resume it on re-enable', () => {
+  const onChange = vi.fn();
+  const onDragEnd = vi.fn();
+  renderSlider(INTEGER_CONFIG, 50, { onChange, onDragEnd });
+  const slider = getSliderHost();
+  vi.spyOn(slider, 'getBoundingClientRect').mockReturnValue({ left: 0, width: 100 } as DOMRect);
+  act(() => { slider.dispatchEvent(new PointerEvent('pointerdown', { clientX: 50, pointerId: 1 })); });
+  onChange.mockClear();
+  renderSlider(INTEGER_CONFIG, 50, { disabled: true, onChange, onDragEnd });
+  expect(onDragEnd).toHaveBeenCalledOnce();
+  renderSlider(INTEGER_CONFIG, 50, { onChange, onDragEnd });
+  act(() => { slider.dispatchEvent(new PointerEvent('pointermove', { clientX: 80, pointerId: 1 })); });
+  expect(onChange).not.toHaveBeenCalled();
 });
