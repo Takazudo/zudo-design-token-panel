@@ -1,0 +1,28 @@
+{
+  "before": {
+    "$schema": "zudo-design-tokens/v2"
+  },
+  "after": {
+    "$schema": "zudo-design-tokens/v3",
+    "tabs": {
+      "color": {
+        "semantic": {
+          "--zfb-bg": {
+            "literal": {
+              "light": "oklch(0.9500 0.1800 0.00)",
+              "dark": "var(--zfb-palette-base-6)"
+            }
+          }
+        }
+      }
+    }
+  },
+  "checks": [
+    "resolved host expression disclosed",
+    "editing controls gated",
+    "open/close no emission",
+    "conversion alone no emission",
+    "reopen re-arms gate",
+    "first edit emits OKLCH and preserves dark var"
+  ]
+}

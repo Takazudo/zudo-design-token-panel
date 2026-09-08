@@ -24,6 +24,7 @@ export interface SliderConfig {
 }
 
 export interface CustomSliderProps {
+  disabled?: boolean;
   config: SliderConfig;
   value: number;
   /** CSS gradient string applied to the track div's background. */
@@ -68,6 +69,7 @@ function snapToStep(value: number, min: number, step: number): number {
 // ---------------------------------------------------------------------------
 
 export function CustomSlider({
+  disabled = false,
   config,
   value,
   gradient,
@@ -76,6 +78,8 @@ export function CustomSlider({
   onDragEnd,
 }: CustomSliderProps): JSX.Element {
   const { label, ariaLabel, min, max, step, format } = config;
+  const disabledRef = useRef(disabled);
+  disabledRef.current = disabled;
   const stepRef = useRef(step);
   stepRef.current = step;
 
@@ -92,6 +96,13 @@ export function CustomSlider({
   onDragStartRef.current = onDragStart;
   const onDragEndRef = useRef(onDragEnd);
   onDragEndRef.current = onDragEnd;
+
+  useEffect(() => {
+    if (disabled && isDragging.current) {
+      isDragging.current = false;
+      onDragEndRef.current();
+    }
+  }, [disabled]);
 
   // Keep min/max in refs as well so pointer handlers close over stable refs.
   const minRef = useRef(min);
@@ -127,6 +138,7 @@ export function CustomSlider({
     if (!el) return;
 
     function handlePointerDown(e: PointerEvent) {
+      if (disabledRef.current) return;
       isDragging.current = true;
       onDragStartRef.current();
 
@@ -143,7 +155,7 @@ export function CustomSlider({
     }
 
     function handlePointerMove(e: PointerEvent) {
-      if (!isDragging.current) return;
+      if (disabledRef.current || !isDragging.current) return;
       const next = valueFromPointerX(e.clientX);
       if (next !== null) onChangeRef.current(next);
     }
@@ -197,6 +209,7 @@ export function CustomSlider({
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      if (disabled) return;
       const coarse = step * 10;
       let delta = 0;
 
@@ -224,7 +237,7 @@ export function CustomSlider({
       e.preventDefault();
       onChange(clamp(value + delta, min, max));
     },
-    [value, min, max, step, onChange],
+    [value, min, max, step, onChange, disabled],
   );
 
   // ---- Render ---------------------------------------------------------------
@@ -238,7 +251,8 @@ export function CustomSlider({
       <div
         ref={trackRef}
         role="slider"
-        tabIndex={0}
+        tabIndex={disabled ? -1 : 0}
+        aria-disabled={disabled || undefined}
         className="tokenpanel-color-picker-slider"
         aria-label={ariaLabel}
         aria-valuemin={min}

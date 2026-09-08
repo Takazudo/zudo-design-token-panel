@@ -802,6 +802,7 @@ const SemanticLiteralRow = memo(function SemanticLiteralRow({
                   value={value.literal.light}
                   onChange={handleLightChange}
                   valueFormat="oklch"
+                  resolveMode="light"
                   label={`${label} (Light)`}
                   cssVar={cssVar}
                 />
@@ -812,6 +813,7 @@ const SemanticLiteralRow = memo(function SemanticLiteralRow({
                   value={value.literal.dark}
                   onChange={handleDarkChange}
                   valueFormat="oklch"
+                  resolveMode="dark"
                   label={`${label} (Dark)`}
                   cssVar={cssVar}
                 />
