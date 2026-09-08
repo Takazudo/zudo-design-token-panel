@@ -98,7 +98,7 @@ function OnPageSpecimenContent({ tab, state, valueFor }: Omit<OnPageSpecimenProp
                 className="tokenpanel-on-page-specimen-size-text"
                 style={{
                   ...fontStyle,
-                  fontSize: `var(${item.cssVar}, ${value})`,
+                  fontSize: value,
                 }}
               >
                 {state.text || '…'}

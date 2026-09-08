@@ -8,6 +8,8 @@ const icon = (className: string, label: string) => `
     </svg>
   </div>`;
 
+// Samples use resolved token values directly, matching the real renderer.
+// No family/weight tiers are configured in this density fixture.
 const numericRow = (
   id: string,
   cssVar: string,
@@ -51,9 +53,9 @@ const FIXTURE = `
       <div class="tokenpanel-tab-section">
         <div role="heading" aria-level="3" class="tokenpanel-tab-section-heading">Font scale</div>
         <div class="tokenpanel-tab-grid tokenpanel-tab-grid--specimen">
-          ${numericRow('xs', '--spec-xs', '0.75', '12px', '12px')}
-          ${numericRow('base', '--spec-base', '1', '16px', '16px')}
-          ${numericRow('xl', '--spec-xl', '2.5', '40px', '40px')}
+          ${numericRow('xs', '--spec-xs', '0.75', '12px', '0.75rem')}
+          ${numericRow('base', '--spec-base', '1', '16px', '1rem')}
+          ${numericRow('xl', '--spec-xl', '2.5', '40px', '2.5rem')}
         </div>
       </div>
       <div class="tokenpanel-tab-section">
