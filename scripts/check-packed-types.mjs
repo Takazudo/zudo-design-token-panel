@@ -86,7 +86,7 @@ const tabs: readonly TabConfig[] = [{ id: 'colors', label: 'Colors', tiers: [{
   id: 'palette', label: 'Palette', items: [{ id: 'blue', label: 'Blue', cssVar: '--blue',
     default: '#2563eb', type: { kind: 'color' } }],
 }] }];
-const props: TokenDashboardProps = { tabs, mode: 'dark', previewOverrides: { '--blue': 'color' } };
+const props: TokenDashboardProps = { tabs, mode: 'dark', previewText: 'Custom specimen 日本語', previewOverrides: { '--blue': 'color' } };
 export const dashboard = <TokenDashboard {...props} title="Declared tokens" id="tokens" />;
 export { panel, astro, server, testing };
 `);
@@ -114,13 +114,14 @@ assert.equal(typeof window, 'undefined');
 assert.equal(typeof document, 'undefined');
 const tabs = [{ id: 'colors', label: 'Colors', tiers: [
   { id: 'palette', label: 'Palette', items: [{ id: 'blue', label: '<Blue & ink>',
-    cssVar: '--blue', default: '#2563eb', type: { kind: 'color' } }] },
+    cssVar: '--blue', default: '#2563eb', type: { kind: 'color' } },
+    { id: 'navy', label: 'Navy', cssVar: '--navy', default: '#172554', type: { kind: 'color' } }] },
   { id: 'aliases', label: 'Aliases', referencesTier: 'palette', items: [{ id: 'accent',
     label: 'Accent', cssVar: '--accent', default: 'blue', type: { kind: 'color' } }] },
 ] }];
 for (const mode of ['light', 'dark']) {
   const html = renderToString(h(TokenDashboard, { tabs, mode }));
-  assert.equal((html.match(/role="listitem"/g) ?? []).length, 2);
+  assert.equal((html.match(/role="listitem"/g) ?? []).length, 3);
   assert.ok(html.includes('color-scheme:' + mode));
   assert.ok(html.includes('--blue:#2563eb'));
   assert.ok(html.includes('--accent:var(--blue)'));
@@ -128,6 +129,35 @@ for (const mode of ['light', 'dark']) {
   assert.ok(!html.includes('<Blue'));
   assert.ok(!html.includes('<script') && !html.includes('tokenpanel-shell'));
 }
+const specimen = '<img src=x onerror=alert(1)> & 日本語' + String.fromCharCode(10) + 'Second line';
+const listTabs = [{ id: 'specimens', label: 'Specimens', tiers: [
+  { id: 'spacing', label: 'Spacing', preview: 'bar', items: [
+    { id: 'zero', label: 'Zero', cssVar: '--zero', default: '0px', type: { kind: 'text' } },
+    { id: 'large', label: 'Large', cssVar: '--large', default: '2048px', type: { kind: 'text' } },
+    { id: 'negative', label: 'Negative', cssVar: '--negative', default: '-16px', type: { kind: 'text' } },
+  ] },
+  { id: 'type', label: 'Type', preview: 'size', items: [
+    { id: 'body', label: 'Body', cssVar: '--body', default: '18px', type: { kind: 'text' } },
+  ] },
+] }];
+const listHtml = renderToString(h(TokenDashboard, { tabs: listTabs, previewText: specimen }));
+assert.equal((listHtml.match(/role="listitem"/g) ?? []).length, 4);
+assert.equal((listHtml.match(/actual-size ruler/g) ?? []).length, 2);
+assert.ok(listHtml.includes('inline-size:0px'));
+assert.ok(listHtml.includes('inline-size:2048px'));
+assert.ok(listHtml.includes('Ruler unavailable:'));
+assert.ok(listHtml.includes('typography specimen'));
+assert.match(listHtml, /&lt;img src=x onerror=alert[(]1[)](?:>|&gt;) &amp; 日本語/);
+assert.ok(listHtml.includes('日本語' + String.fromCharCode(10) + 'Second line'));
+assert.ok(!listHtml.includes('<img') && !listHtml.includes('<script'));
+const emptySpecimen = renderToString(h(TokenDashboard, { tabs: listTabs, previewText: '' }));
+assert.ok(!emptySpecimen.includes('Good typography'));
+assert.ok(!emptySpecimen.includes('Second line'));
+assert.match(emptySpecimen, /class="zdtp-dashboard__sample zdtp-dashboard__sample--size"[^>]*><\\/span>/);
+const paletteHtml = renderToString(h(TokenDashboard, { tabs }));
+assert.equal((paletteHtml.match(/palette stops/g) ?? []).length, 1);
+const orderedVars = [...paletteHtml.matchAll(/data-css-var="([^"]+)"/g)].map((match) => match[1]);
+assert.deepEqual(orderedVars, ['--blue', '--navy', '--accent']);
 assert.ok(renderToString(h(TokenDashboard, { tabs: [] })).includes('No tokens declared.'));
 const dashboardCss = readFileSync(new URL(import.meta.resolve('@takazudo/zdtp/dashboard/styles.css')), 'utf8');
 const panelCss = readFileSync(new URL(import.meta.resolve('@takazudo/zdtp/styles.css')), 'utf8');
@@ -136,7 +166,7 @@ assert.ok(!dashboardCss.includes('.tokenpanel-shell'));
 assert.ok(!panelCss.includes('.zdtp-dashboard'));
 `);
   run(process.execPath, ['dashboard-ssr.mjs'], scratch);
-  console.log('Packed dashboard: plain Node SSR, both modes, aliases, escaping, separate public CSS: PASS');
+  console.log('Packed dashboard: plain Node SSR, both modes, aliases, ruler/palette/type layouts, custom multiline text, escaping, separate public CSS: PASS');
   // Mutate only the unpacked tarball copy; repository dist stays untouched.
   for (const [name, mutated, signature] of [
     ['CSS import', `import './panel.css';\n${original}`, /TS2307/],
