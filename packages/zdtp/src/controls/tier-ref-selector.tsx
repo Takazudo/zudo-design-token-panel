@@ -425,6 +425,7 @@ function TierRefSelector({
                   value={value.literal.light}
                   onChange={handleLightChange}
                   valueFormat="oklch"
+                  resolveMode="light"
                   label={`${rowLabel} (Light)`}
                   cssVar={cssVar}
                 />
@@ -435,6 +436,7 @@ function TierRefSelector({
                   value={value.literal.dark}
                   onChange={handleDarkChange}
                   valueFormat="oklch"
+                  resolveMode="dark"
                   label={`${rowLabel} (Dark)`}
                   cssVar={cssVar}
                 />
