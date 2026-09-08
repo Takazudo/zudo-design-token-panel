@@ -1,6 +1,11 @@
 import { AppShell } from '../components/app-shell';
 
-const palette = Array.from({ length: 16 }, (_, index) => index);
+const paletteGroups = [
+  { id: 'base', label: 'Base', steps: ['0', '1', '2', '3', '4', '5', '6'] },
+  { id: 'brand', label: 'Brand', steps: ['0', '1', '2', '3', '4'] },
+  { id: 'accent', label: 'Accent', steps: ['0', '1', '2', '3'] },
+  { id: 'state', label: 'State', steps: ['0 · Success', '1 · Danger', '2 · Warning', '3 · Info'] },
+];
 
 export default function HomePage() {
   return (
@@ -20,8 +25,8 @@ export default function HomePage() {
           <p class="zfb-eyebrow">TRY THE PANEL</p>
           <h2 class="zfb-section-title">Change a token and watch the page respond</h2>
           <p>
-            Press <strong>Open token panel</strong>, then experiment with the color cluster and
-            palette or adjust the typography roles. Every component here uses the{' '}
+            Press <strong>Open token panel</strong>, then experiment with the Color and
+            Palette tabs or adjust the typography roles. Every component here uses the{' '}
             <code>--zfb-*</code> tokens that the panel controls. The English and Japanese prose
             pages are useful for seeing those choices across longer content.
           </p>
@@ -63,11 +68,39 @@ export default function HomePage() {
         </section>
 
         <section class="zfb-card">
-          <h2 class="zfb-section-title">Color cluster</h2>
-          <div class="zfb-swatches">
-            {palette.map((index) => (
-              <div class="zfb-swatch" style={`--swatch-color: var(--zfb-palette-${index})`}>
-                {index}
+          <p class="zfb-eyebrow">PALETTE → SEMANTIC ROLES → COMPONENTS</p>
+          <h2 class="zfb-section-title">Four groups, one palette</h2>
+          <p>
+            Each row is a group; each column is a stable, zero-based step. The raw palette stays
+            identical in light and dark mode. Components use semantic roles from the Color tab:
+            backgrounds, text and primary colors pick a different ramp step for each mode through{' '}
+            <code>light-dark()</code>. State colors are decorative, with labels outside the chips.
+          </p>
+          <p>
+            Try editing a ramp in the Palette tab, then switch the page theme to see its semantic
+            roles respond. In the Color tab, per-mode <code>var()</code> defaults currently open the
+            picker at black. Opening changes nothing; editing replaces that mode with a concrete
+            color and detaches it from the ramp. Reset restores the configured defaults.{' '}
+            <a href="https://github.com/Takazudo/zudo-design-token-panel/issues/878">
+              Reference-aware picker tracking
+            </a>.
+          </p>
+          <div class="zfb-palette">
+            {paletteGroups.map((group) => (
+              <div class="zfb-palette__row" key={group.id}>
+                <h3 class="zfb-palette__label">{group.label}</h3>
+                <div class="zfb-swatches">
+                  {group.steps.map((label, index) => (
+                    <div class="zfb-swatch" key={index}>
+                      <span
+                        class="zfb-swatch__chip"
+                        style={`--swatch-color: var(--zfb-palette-${group.id}-${index})`}
+                        aria-hidden="true"
+                      />
+                      <span>{label}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
