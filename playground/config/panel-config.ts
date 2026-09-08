@@ -3,7 +3,7 @@ import { defaultTabs } from './default-manifest';
 import { DEPLOY_MODE } from './build-info.generated';
 
 export const panelConfig: PanelConfig = {
-  storagePrefix: 'zfb-playground-tokens',
+  storagePrefix: 'zfb-playground-tokens-v2',
   consoleNamespace: 'zfb',
   modalClassPrefix: 'zfb-playground-design-token-panel-modal',
   schemaId: 'zfb-playground-design-tokens/v1',

@@ -191,6 +191,24 @@ export function setPanelColorPresets(presets: Record<string, ColorScheme>): void
 export function assertValidPanelConfig(value: unknown): asserts value is PanelConfig;
 ```
 
+`assertValidPanelConfig` and its `PanelConfig` type are public exports from both
+`@takazudo/zdtp` and `@takazudo/zdtp/testing`; no deep import is needed.
+Run the assertion against your host config in a CI test, for example:
+
+```ts
+import { assertValidPanelConfig } from '@takazudo/zdtp/testing';
+import { panelConfig } from './panel-config';
+
+// An invalid manifest throws and fails the test/CI run.
+assertValidPanelConfig(panelConfig);
+```
+
+The assertion accepts `unknown` and narrows it to `PanelConfig` on success.
+Validation is explicit: `configurePanel` does not call this assertion. A host
+that wants configure-time validation can import both functions from
+`@takazudo/zdtp` and call `assertValidPanelConfig(config)` before
+`configurePanel(config)`.
+
 Required behaviours:
 
 - **Multi-instance.** Calling `configurePanel` with a **distinct**

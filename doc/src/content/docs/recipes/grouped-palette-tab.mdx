@@ -15,12 +15,11 @@ colour tokens and exposes two interaction modes:
   as foreground against a selected palette colour as the background.
 
 Use this recipe when you want a free-standing set of named colour steps (e.g.
-grayscale, brand, accent) that do not feed a semantic colour-scheme table.
+base, brand, accent). These can also supply semantic roles in a separate Color tab.
 
 ## Data-model conventions
 
-Before writing the `TabConfig`, understand the three rules the palette tab
-enforces:
+Before writing the `TabConfig`, use these conventions for the palette tab:
 
 1. **`colorExtras` must be absent.** Omitting it prevents `resolveColorClusterFromTab`
    from running, which is the only way multiple `kind: 'color'` tiers can safely
@@ -28,7 +27,7 @@ enforces:
 2. **One tier = one group.** Each `TierConfig` represents a named colour group.
    Its `label` becomes the group heading in the UI.
 3. **CSS variable name convention:** `--palette-{group}-{n}`, where `{group}`
-   matches the tier `id` and `{n}` is the one-based step number.
+   matches the tier `id` and `{n}` is the zero-based stable identifier (starting at `0`).
 
 ## Step 1: Declare the palette tab
 
@@ -45,34 +44,34 @@ export const paletteTab: TabConfig = {
   // to be safe in one tab. The Palette tab relies on this absence.
   tiers: [
     {
-      id: 'grayscale',
-      label: 'Grayscale',
+      id: 'base',
+      label: 'Base',
       items: [
         {
-          id: 'grayscale-1',
-          cssVar: '--palette-grayscale-1',
-          label: 'Grayscale 1',
+          id: 'base-0',
+          cssVar: '--palette-base-0',
+          label: 'Base 0',
           default: 'oklch(95% 0.005 240)',
           type: { kind: 'color', format: 'oklch' },
         },
         {
-          id: 'grayscale-2',
-          cssVar: '--palette-grayscale-2',
-          label: 'Grayscale 2',
+          id: 'base-1',
+          cssVar: '--palette-base-1',
+          label: 'Base 1',
           default: 'oklch(80% 0.008 240)',
           type: { kind: 'color', format: 'oklch' },
         },
         {
-          id: 'grayscale-3',
-          cssVar: '--palette-grayscale-3',
-          label: 'Grayscale 3',
+          id: 'base-2',
+          cssVar: '--palette-base-2',
+          label: 'Base 2',
           default: 'oklch(55% 0.010 240)',
           type: { kind: 'color', format: 'oklch' },
         },
         {
-          id: 'grayscale-4',
-          cssVar: '--palette-grayscale-4',
-          label: 'Grayscale 4',
+          id: 'base-3',
+          cssVar: '--palette-base-3',
+          label: 'Base 3',
           default: 'oklch(30% 0.012 240)',
           type: { kind: 'color', format: 'oklch' },
         },
@@ -83,30 +82,30 @@ export const paletteTab: TabConfig = {
       label: 'Brand',
       items: [
         {
+          id: 'brand-0',
+          cssVar: '--palette-brand-0',
+          label: 'Brand 0',
+          default: 'oklch(90% 0.08 250)',
+          type: { kind: 'color', format: 'oklch' },
+        },
+        {
           id: 'brand-1',
           cssVar: '--palette-brand-1',
           label: 'Brand 1',
-          default: 'oklch(90% 0.08 250)',
+          default: 'oklch(70% 0.16 250)',
           type: { kind: 'color', format: 'oklch' },
         },
         {
           id: 'brand-2',
           cssVar: '--palette-brand-2',
           label: 'Brand 2',
-          default: 'oklch(70% 0.16 250)',
+          default: 'oklch(50% 0.20 250)',
           type: { kind: 'color', format: 'oklch' },
         },
         {
           id: 'brand-3',
           cssVar: '--palette-brand-3',
           label: 'Brand 3',
-          default: 'oklch(50% 0.20 250)',
-          type: { kind: 'color', format: 'oklch' },
-        },
-        {
-          id: 'brand-4',
-          cssVar: '--palette-brand-4',
-          label: 'Brand 4',
           default: 'oklch(30% 0.18 250)',
           type: { kind: 'color', format: 'oklch' },
         },
@@ -117,30 +116,30 @@ export const paletteTab: TabConfig = {
       label: 'Accent',
       items: [
         {
+          id: 'accent-0',
+          cssVar: '--palette-accent-0',
+          label: 'Accent 0',
+          default: 'oklch(88% 0.10 55)',
+          type: { kind: 'color', format: 'oklch' },
+        },
+        {
           id: 'accent-1',
           cssVar: '--palette-accent-1',
           label: 'Accent 1',
-          default: 'oklch(88% 0.10 55)',
+          default: 'oklch(68% 0.18 50)',
           type: { kind: 'color', format: 'oklch' },
         },
         {
           id: 'accent-2',
           cssVar: '--palette-accent-2',
           label: 'Accent 2',
-          default: 'oklch(68% 0.18 50)',
+          default: 'oklch(48% 0.22 45)',
           type: { kind: 'color', format: 'oklch' },
         },
         {
           id: 'accent-3',
           cssVar: '--palette-accent-3',
           label: 'Accent 3',
-          default: 'oklch(48% 0.22 45)',
-          type: { kind: 'color', format: 'oklch' },
-        },
-        {
-          id: 'accent-4',
-          cssVar: '--palette-accent-4',
-          label: 'Accent 4',
           default: 'oklch(30% 0.16 42)',
           type: { kind: 'color', format: 'oklch' },
         },
@@ -184,55 +183,49 @@ routing key to match and change all `cssVar` strings accordingly.
 
 ## Step 2: Add matching CSS declarations in the host stylesheet
 
-Declare every palette variable inside `:root`. The apply pipeline rewrites this
-block when the user clicks **Apply to source files**.
+Declare every editable variable in the **first bare, top-level `:root` block** of the routed stylesheet. Keep palette, semantic, and other editable tokens together; do not split them across roots or wrap that root in `@layer`. **Apply to source files** rewrites only that first block.
 
 ```css
 /* src/styles/palette.css */
 :root {
-  /* Grayscale */
-  --palette-grayscale-1: oklch(95% 0.005 240);
-  --palette-grayscale-2: oklch(80% 0.008 240);
-  --palette-grayscale-3: oklch(55% 0.010 240);
-  --palette-grayscale-4: oklch(30% 0.012 240);
+  /* Base */
+  --palette-base-0: oklch(95% 0.005 240);
+  --palette-base-1: oklch(80% 0.008 240);
+  --palette-base-2: oklch(55% 0.010 240);
+  --palette-base-3: oklch(30% 0.012 240);
 
   /* Brand */
-  --palette-brand-1: oklch(90% 0.08 250);
-  --palette-brand-2: oklch(70% 0.16 250);
-  --palette-brand-3: oklch(50% 0.20 250);
-  --palette-brand-4: oklch(30% 0.18 250);
+  --palette-brand-0: oklch(90% 0.08 250);
+  --palette-brand-1: oklch(70% 0.16 250);
+  --palette-brand-2: oklch(50% 0.20 250);
+  --palette-brand-3: oklch(30% 0.18 250);
 
   /* Accent */
-  --palette-accent-1: oklch(88% 0.10 55);
-  --palette-accent-2: oklch(68% 0.18 50);
-  --palette-accent-3: oklch(48% 0.22 45);
-  --palette-accent-4: oklch(30% 0.16 42);
+  --palette-accent-0: oklch(88% 0.10 55);
+  --palette-accent-1: oklch(68% 0.18 50);
+  --palette-accent-2: oklch(48% 0.22 45);
+  --palette-accent-3: oklch(30% 0.16 42);
 }
 ```
 
 ## Step 3: Use palette variables in your CSS
 
-Reference the palette tokens anywhere in your stylesheets. The panel overrides
-`:root` in-memory on every keystroke, so changes appear immediately.
+Use raw palette tokens for decorative teaching chips, with labels outside the
+chips. The panel applies live overrides to `<html>`. For actual component text
+and backgrounds, use the semantic extension below and verify each colour pair.
 
 ```css
-.myapp-hero {
-  background-color: var(--palette-brand-2);
-  color: var(--palette-grayscale-1);
-}
-
-.myapp-badge {
-  background-color: var(--palette-accent-2);
-}
-
-.myapp-text-muted {
-  color: var(--palette-grayscale-3);
+/* Decorative teaching chips only; keep labels outside on the host surface. */
+.myapp-palette-chip {
+  inline-size: 3rem;
+  block-size: 3rem;
+  background-color: var(--palette-brand-1);
 }
 ```
 
 ## Step 4: Explore the two panel modes
 
-Open the panel (`Alt+Shift+P` by default, or `window.myapp.showDesignPanel()`)
+Open the panel (`Alt+Shift+P` by default, or `window.zdtp.show()`)
 and navigate to the **Palette** tab.
 
 ### Edit mode (default)
@@ -276,7 +269,7 @@ Start the bin alongside your dev server:
 ```sh
 pnpm exec zdtp-server \
   --routing ./panel-routing.json \
-  --write-root ./src/styles \
+  --write-root . \
   --allow-origin http://localhost:5173
 ```
 
@@ -307,15 +300,133 @@ export const myPanelConfig: PanelConfig = {
 The convention exists so `applyRouting` can route all palette vars with a single
 short key. If you add a new group, follow the same pattern:
 
-| Group tier `id` | Step 1 `cssVar` | Step 2 `cssVar` | … |
+| Group tier `id` | Step 0 `cssVar` | Step 1 `cssVar` | … |
 | --- | --- | --- | --- |
-| `grayscale` | `--palette-grayscale-1` | `--palette-grayscale-2` | … |
-| `brand` | `--palette-brand-1` | `--palette-brand-2` | … |
-| `accent` | `--palette-accent-1` | `--palette-accent-2` | … |
+| `base` | `--palette-base-0` | `--palette-base-1` | … |
+| `brand` | `--palette-brand-0` | `--palette-brand-1` | … |
+| `accent` | `--palette-accent-0` | `--palette-accent-1` | … |
 
-Item `id`s follow the same `{group}-{n}` pattern (e.g. `grayscale-1`) and must
+Item `id`s follow the same `{group}-{n}` pattern (e.g. `base-0`) and must
 be unique across the entire tab — the persisted override map is keyed by item
 id.
+
+## Palette → Semantic → Component
+
+Grouping lives **inside Tier 1**, as a naming convention, not a fourth tier.
+The `palette` tab holds raw ramps; a grayscale group (`base` here) is a lightness
+ramp at near-zero chroma, not a handful of unrelated greys. Tier 2 assigns roles
+such as background and foreground in a `semantic: true` tier in the `color` tab.
+Its `referencesRamps` lists the Tier 1 groups it can use. Components consume
+those roles, optionally through local Tier 3 tokens.
+
+The zero-based `{n}` is a stable identifier, not a meaningful colour scale.
+It is explicitly not Tailwind's `100`–`900` convention, where `500` denotes a
+particular mid-tone. Keep item IDs stable because saved edits use them as keys.
+
+## Dark mode that survives panel edits
+
+The following behaviour is available in the docs site's pinned `@takazudo/zdtp`
+0.5.1 release. Keep Tier 1 identical in both modes and change the Tier 2 mapping.
+The panel applies overrides as **inline styles on `<html>`**. A single `{ ref }`
+mapping selects one ramp item for both modes; it cannot encode separate light
+and dark choices. A normal dark-theme stylesheet remap loses to that inline
+value after a panel edit, although edits to the selected ramp still propagate.
+
+Use `colorExtras.semanticDefaults` for `{ literal: { light, dark } }` defaults.
+The panel emits `light-dark(…)`, and the strings can contain `var()` references
+so both branches remain connected to the palette. A plain `TierItem.default`
+string becomes a single-mode literal unless it is recognised as a reference;
+it cannot supply the per-mode object. Keys in `semanticDefaults` are item IDs.
+
+```ts
+// Add this export to src/lib/my-tabs.ts, then add colorTab to PanelConfig.tabs.
+export const colorTab: TabConfig = {
+  id: 'color',
+  label: 'Color',
+  tiers: [{
+    id: 'semantic',
+    label: 'Semantic',
+    semantic: true,
+    referencesRamps: [
+      { tab: 'palette', tier: 'base' },
+      { tab: 'palette', tier: 'brand' },
+    ],
+    items: [
+      { id: 'bg', cssVar: '--palette-color-bg', label: 'Background',
+        default: 'base:base-0', type: { kind: 'color', format: 'oklch' } },
+      { id: 'fg', cssVar: '--palette-color-fg', label: 'Foreground',
+        default: 'base:base-3', type: { kind: 'color', format: 'oklch' } },
+      { id: 'decoration', cssVar: '--palette-color-decoration', label: 'Decoration',
+        default: 'brand:brand-1', type: { kind: 'color', format: 'oklch' } },
+    ],
+  }],
+  colorExtras: {
+    id: 'myapp-colors', label: 'My app colors',
+    baseRoles: {}, baseDefaults: {}, colorSchemes: {},
+    defaultShikiTheme: 'github-light',
+    panelSettings: { colorScheme: 'default', colorMode: false },
+    semanticDefaults: {
+      bg: { literal: {
+        light: 'var(--palette-base-0)', dark: 'var(--palette-base-3)',
+      } },
+      fg: { literal: {
+        light: 'var(--palette-base-3)', dark: 'var(--palette-base-0)',
+      } },
+    },
+  },
+};
+```
+
+Here `decoration` derives a direct `{ ref }` from `brand:brand-1`. Its grouped
+ramp selector can switch the referenced step. The `bg` and `fg` overrides instead
+use the per-mode literal editor; that editor is not a pair of ramp selectors.
+These example role names share the `--palette-` prefix so the existing routing
+entry covers them too.
+
+The **host owns `color-scheme`**. In 0.5.1 the panel writes `color-scheme: light dark`
+inline when it applies per-mode literals, overriding a host's normal inline
+`light` or `dark` setting. Have the host set `data-theme="light"` initially and
+change it on theme toggles; the stylesheet's `!important` rules below retain
+control even after an edit. This panel behaviour is tracked in
+[#879](https://github.com/Takazudo/zudo-design-token-panel/issues/879).
+
+```css
+/* Merge these declarations into the FIRST :root from Step 2. */
+:root {
+  --palette-color-bg: light-dark(var(--palette-base-0), var(--palette-base-3));
+  --palette-color-fg: light-dark(var(--palette-base-3), var(--palette-base-0));
+  --palette-color-decoration: var(--palette-brand-1);
+}
+
+:root[data-theme="light"] { color-scheme: light !important; }
+:root[data-theme="dark"] { color-scheme: dark !important; }
+
+.myapp-card {
+  --_card-bg: var(--palette-color-bg);
+  background: var(--_card-bg);
+  color: var(--palette-color-fg);
+  border-inline-start: 3px solid var(--palette-color-decoration);
+}
+```
+
+Do not add a second root block when copying this fragment: merge the three token
+declarations into Step 2's existing root. Check actual foreground/background
+pairs in both modes; the decorative brand colour is not approved as text or as
+a text-bearing fill.
+
+:::warning[Picker limitation]
+The colour picker cannot parse a `var()` value: it opens at black, not the current
+computed colour. Opening it does not mutate the token. Editing replaces that
+mode's reference with a concrete colour and detaches it from the ramp. Reset to
+the configured defaults to restore the connection. Reference-aware picker
+initialisation is tracked in
+[#878](https://github.com/Takazudo/zudo-design-token-panel/issues/878).
+:::
+
+See the [minimal demo](https://zdtp-minimal.zudolab.dev/) for two small ramps and
+the [playground](https://zdtp-playground.zudolab.dev/) for Base, Brand, Accent,
+and State groups with semantic roles. Both run the workspace build; their
+provenance badges distinguish that build from this docs site's pinned release.
 
 ## Related
 

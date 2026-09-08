@@ -17,7 +17,12 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { __resetPanelConfigForTests, configurePanel, type PanelConfig } from '../config/panel-config';
+import {
+  __resetPanelConfigForTests,
+  configurePanel,
+  ownsColorScheme,
+  type PanelConfig,
+} from '../config/panel-config';
 import { FIXTURE_CLUSTER, FIXTURE_PANEL_CONFIG } from './_test-helpers';
 import {
   applyFullState,
@@ -91,6 +96,100 @@ describe('#501 — color-scheme ownership (host-owned value is never wiped)', ()
     // Nor the full-reset path.
     clearAppliedStyles(undefined, cfg);
     expect(readColorScheme()).toBe('dark');
+  });
+
+  describe('#879 — preserve host ownership on per-mode apply', () => {
+    it.each(['light', 'dark', 'light dark'])(
+      'preserves host %s through repeated edits and clears',
+      (scheme) => {
+        const cfg = cfgWithPrefix('wt-host-per-mode');
+        configurePanel(cfg);
+        const root = document.documentElement;
+        root.style.setProperty('color-scheme', scheme);
+
+        for (let edit = 0; edit < 2; edit++) {
+          const color = perModeColorState();
+          color.palette[0] = edit === 0 ? '#123456' : '#654321';
+          applyFullState(fullState(color), cfg);
+          expect(readColorScheme()).toBe(scheme);
+          expect(ownsColorScheme(cfg.storagePrefix)).toBe(false);
+        }
+        clearAppliedColorStyles(undefined, undefined, cfg);
+        expect(readColorScheme()).toBe(scheme);
+        clearAppliedStyles(undefined, cfg);
+        expect(readColorScheme()).toBe(scheme);
+      },
+    );
+
+    it.each(['light', 'dark', 'light dark'])(
+      'preserves host %s !important through apply and clear',
+      (scheme) => {
+        const cfg = cfgWithPrefix('wt-host-important');
+        configurePanel(cfg);
+        const root = document.documentElement;
+        root.style.setProperty('color-scheme', scheme, 'important');
+        applyFullState(fullState(perModeColorState()), cfg);
+        expect(readColorScheme()).toBe(scheme);
+        expect(root.style.getPropertyPriority('color-scheme')).toBe('important');
+        expect(ownsColorScheme(cfg.storagePrefix)).toBe(false);
+        clearAppliedStyles(undefined, cfg);
+        expect(readColorScheme()).toBe(scheme);
+        expect(root.style.getPropertyPriority('color-scheme')).toBe('important');
+      },
+    );
+
+    it.each([
+      ['dark', ''],
+      ['light', ''],
+      ['light dark', 'important'],
+    ])(
+      'drops stale ownership when the host replaces the value with %s %s before apply',
+      (scheme, priority) => {
+        const cfg = cfgWithPrefix('wt-host-replacement');
+        configurePanel(cfg);
+        applyFullState(fullState(perModeColorState()), cfg);
+        expect(readColorScheme()).toBe('light dark');
+        expect(ownsColorScheme(cfg.storagePrefix)).toBe(true);
+        const root = document.documentElement;
+        root.style.setProperty('color-scheme', scheme, priority);
+        applyFullState(fullState(perModeColorState()), cfg);
+        applyFullState(fullState(perModeColorState()), cfg);
+        expect(readColorScheme()).toBe(scheme);
+        expect(root.style.getPropertyPriority('color-scheme')).toBe(priority);
+        expect(ownsColorScheme(cfg.storagePrefix)).toBe(false);
+        clearAppliedStyles(undefined, cfg);
+        expect(readColorScheme()).toBe(scheme);
+        expect(root.style.getPropertyPriority('color-scheme')).toBe(priority);
+      },
+    );
+
+    it('does not clear a panel value that the host has promoted to !important', () => {
+      const cfg = cfgWithPrefix('wt-host-priority-clear');
+      configurePanel(cfg);
+      applyFullState(fullState(perModeColorState()), cfg);
+      document.documentElement.style.setProperty('color-scheme', 'light dark', 'important');
+      clearAppliedColorStyles(undefined, undefined, cfg);
+      expect(readColorScheme()).toBe('light dark');
+      expect(document.documentElement.style.getPropertyPriority('color-scheme')).toBe('important');
+      expect(ownsColorScheme(cfg.storagePrefix)).toBe(false);
+    });
+
+    it('keeps the original instance as owner through repeated edits from both instances', () => {
+      const cfgA = cfgWithPrefix('wt-owner-a');
+      const cfgB = cfgWithPrefix('wt-owner-b');
+      configurePanel(cfgA);
+      configurePanel(cfgB);
+      applyFullState(fullState(perModeColorState()), cfgA);
+      applyFullState(fullState(perModeColorState()), cfgA);
+      applyFullState(fullState(perModeColorState()), cfgB);
+      expect(readColorScheme()).toBe('light dark');
+      expect(ownsColorScheme(cfgA.storagePrefix)).toBe(true);
+      expect(ownsColorScheme(cfgB.storagePrefix)).toBe(false);
+      clearAppliedStyles(undefined, cfgB);
+      expect(readColorScheme()).toBe('light dark');
+      clearAppliedStyles(undefined, cfgA);
+      expect(readColorScheme()).toBe('');
+    });
   });
 
   it('a panel-written color-scheme is still cleared correctly on the reset/clear paths', () => {

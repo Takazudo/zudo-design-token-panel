@@ -504,7 +504,7 @@ function unmountInstance(cfg: PanelConfig): void {
 // Re-exports for non-Astro consumers documented in README §4. The Astro
 // adapter calls configurePanel internally, but a Vite-only host needs to
 // reach it from the package root per PORTABLE-CONTRACT.md §1.
-export { configurePanel, setPanelColorPresets } from './config/panel-config';
+export { assertValidPanelConfig, configurePanel, setPanelColorPresets } from './config/panel-config';
 export type { PanelConfig, PanelInstanceHandle, ApplySink } from './config/panel-config';
 
 /**
