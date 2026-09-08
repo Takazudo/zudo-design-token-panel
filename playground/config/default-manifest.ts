@@ -1,4 +1,4 @@
-import type { ColorScheme, TabConfig, TierItem } from '@takazudo/zdtp';
+import type { TabConfig, TierItem } from '@takazudo/zdtp';
 
 const length = (
   id: string,
@@ -23,43 +23,28 @@ const text = (id: string, cssVar: string, label: string, defaultValue: string): 
   type: { kind: 'text' },
 });
 
-const color = (index: number, value: string): TierItem => ({
-  id: `zfb-palette-${index}`,
-  cssVar: `--zfb-palette-${index}`,
-  label: `Palette ${index}`,
+const color = (id: string, cssVar: string, label: string, value: string): TierItem => ({
+  id,
+  cssVar,
+  label,
   default: value,
-  type: { kind: 'color' },
+  type: { kind: 'color', format: 'oklch' },
 });
 
-const palette: ColorScheme['palette'] = [
-  '#f8fafc', '#2563eb', '#16a34a', '#d97706', '#7c3aed', '#dc2626', '#0f172a', '#0891b2',
-  '#64748b', '#94a3b8', '#cbd5e1', '#e2e8f0', '#f1f5f9', '#fef3c7', '#bbf7d0', '#ffffff',
-];
+const ramp = (group: string, label: string, values: readonly string[], labels?: readonly string[]) => ({
+  id: group,
+  label,
+  items: values.map((value, index) =>
+    color(`${group}-${index}`, `--zfb-palette-${group}-${index}`, labels?.[index] ?? `${label} ${index}`, value)),
+});
 
-const lightColorScheme = {
-  background: 0,
-  foreground: 6,
-  cursor: 4,
-  selectionBg: 1,
-  selectionFg: 15,
-  palette,
-  shikiTheme: 'github-light',
-};
+const semantic = (id: string, label: string, ref: string, cssVar = `--zfb-color-${id}`) =>
+  color(id, cssVar, label, ref);
 
-const darkPalette: ColorScheme['palette'] = [
-  '#0f172a', '#60a5fa', '#4ade80', '#fbbf24', '#a78bfa', '#f87171', '#f8fafc', '#22d3ee',
-  '#94a3b8', '#64748b', '#475569', '#334155', '#1e293b', '#78350f', '#14532d', '#020617',
-];
-
-const darkColorScheme = {
-  background: 0,
-  foreground: 6,
-  cursor: 4,
-  selectionBg: 1,
-  selectionFg: 15,
-  palette: darkPalette,
-  shikiTheme: 'github-dark',
-};
+// Per-mode var() literals keep both modes connected to the immutable Tier-1 ramps.
+const perMode = (light: string, dark: string) => ({
+  literal: { light: `var(--zfb-palette-${light})`, dark: `var(--zfb-palette-${dark})` },
+});
 
 export const defaultTabs: readonly TabConfig[] = [
   {
@@ -183,37 +168,79 @@ export const defaultTabs: readonly TabConfig[] = [
     ],
   },
   {
+    id: 'palette',
+    label: 'Palette',
+    tiers: [
+      ramp('base', 'Base', [
+        'oklch(98.5% .003 264)', 'oklch(95% .004 264)', 'oklch(88% .006 264)',
+        'oklch(62% .010 264)', 'oklch(38% .012 264)', 'oklch(22% .014 264)',
+        'oklch(13% .012 264)',
+      ]),
+      ramp('brand', 'Brand', [
+        'oklch(95% .03 250)', 'oklch(80% .10 250)', 'oklch(58% .19 250)',
+        'oklch(45% .16 250)', 'oklch(32% .11 250)',
+      ]),
+      ramp('accent', 'Accent', [
+        'oklch(95% .035 50)', 'oklch(78% .12 50)', 'oklch(62% .15 50)', 'oklch(45% .12 50)',
+      ]),
+      ramp('state', 'State', [
+        'oklch(64% .15 150)', 'oklch(62% .19 25)', 'oklch(76% .14 82)', 'oklch(64% .14 245)',
+      ], ['Success', 'Danger', 'Warning', 'Info']),
+    ],
+  },
+  {
     id: 'color',
     label: 'Color',
     colorExtras: {
       id: 'zfb-playground',
       label: 'zfb playground',
-      baseRoles: { background: '--zfb-bg', foreground: '--zfb-fg' },
-      baseDefaults: { background: 0, foreground: 6 },
+      baseRoles: {},
+      baseDefaults: {},
       defaultShikiTheme: 'github-light',
-      colorSchemes: { Light: lightColorScheme, Dark: darkColorScheme },
-      panelSettings: {
-        colorScheme: 'Light',
-        colorMode: { defaultMode: 'light', lightScheme: 'Light', darkScheme: 'Dark' },
+      colorSchemes: {},
+      panelSettings: { colorScheme: 'default', colorMode: false },
+      semanticDefaults: {
+        bg: perMode('base-0', 'base-6'),
+        fg: perMode('base-6', 'base-0'),
+        surface: perMode('base-1', 'base-5'),
+        border: perMode('base-2', 'base-4'),
+        muted: perMode('base-4', 'base-2'),
+        'code-bg': perMode('base-6', 'base-1'),
+        'code-fg': perMode('base-0', 'base-6'),
+        primary: perMode('brand-3', 'brand-1'),
+        'primary-hover': perMode('brand-4', 'brand-0'),
+        'primary-subtle': perMode('brand-0', 'brand-4'),
+        accent: perMode('accent-3', 'accent-1'),
       },
     },
     tiers: [
       {
-        id: 'palette',
-        label: 'Palette',
-        items: palette.map((value, index) => color(index, value)),
-      },
-      {
         id: 'semantic',
         label: 'Semantic',
-        referencesTier: 'palette',
+        semantic: true,
+        referencesRamps: [
+          { tab: 'palette', tier: 'base' },
+          { tab: 'palette', tier: 'brand' },
+          { tab: 'palette', tier: 'accent' },
+          { tab: 'palette', tier: 'state' },
+        ],
         items: [
-          { ...color(1, palette[1]), id: 'primary', cssVar: '--zfb-color-primary', label: 'Primary', default: 'zfb-palette-1' },
-          { ...color(3, palette[3]), id: 'accent', cssVar: '--zfb-color-accent', label: 'Accent', default: 'zfb-palette-3' },
-          { ...color(15, palette[15]), id: 'surface', cssVar: '--zfb-color-surface', label: 'Surface', default: 'zfb-palette-15' },
-          { ...color(8, palette[8]), id: 'muted', cssVar: '--zfb-color-muted', label: 'Muted', default: 'zfb-palette-8' },
-          { ...color(2, palette[2]), id: 'success', cssVar: '--zfb-color-success', label: 'Success', default: 'zfb-palette-2' },
-          { ...color(5, palette[5]), id: 'danger', cssVar: '--zfb-color-danger', label: 'Danger', default: 'zfb-palette-5' },
+          semantic('bg', 'Background', 'base:base-0', '--zfb-bg'),
+          semantic('fg', 'Foreground', 'base:base-6', '--zfb-fg'),
+          semantic('surface', 'Surface', 'base:base-1'),
+          semantic('border', 'Border', 'base:base-2'),
+          semantic('muted', 'Muted', 'base:base-4'),
+          semantic('code-bg', 'Code background', 'base:base-6'),
+          semantic('code-fg', 'Code foreground', 'base:base-0'),
+          semantic('primary', 'Primary', 'brand:brand-3'),
+          semantic('primary-hover', 'Primary hover', 'brand:brand-4'),
+          semantic('primary-subtle', 'Primary subtle', 'brand:brand-0'),
+          semantic('accent', 'Accent', 'accent:accent-3'),
+          // State colors are decorative swatches, never text or text-bearing fills.
+          semantic('success', 'Success', 'state:state-0'),
+          semantic('danger', 'Danger', 'state:state-1'),
+          semantic('warning', 'Warning', 'state:state-2'),
+          semantic('info', 'Info', 'state:state-3'),
         ],
       },
     ],
