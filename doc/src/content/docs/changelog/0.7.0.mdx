@@ -1,0 +1,35 @@
+---
+title: "0.7.0"
+description: Release notes for 0.7.0.
+sidebar_position: 106
+---
+
+Released: 2026-09-09
+
+### Breaking Changes
+
+- feat(dashboard): separate chrome theme from specimen mode (84d4d8a). `TokenDashboard` no longer derives its chrome appearance from `mode`: with `mode="dark"` the inventory scope previously carried `color-scheme: dark`, and now only `.zdtp-dashboard__specimen` does, with chrome defaulting to light. **Migration**: pass the new `chrome="dark"` prop alongside `mode="dark"` to restore the previous dark chrome, or `chrome="host"` to inherit the host's effective color scheme.
+
+### Features
+
+- feat: resolve CSS color expressions in host context ([#919](https://github.com/Takazudo/zudo-design-token-panel/issues/919)) (30dbabc)
+- feat: require explicit conversion before editing color expressions (ffad163)
+
+### Fixed
+
+- Fix invalid CSS color probe fallback (a1d468f)
+- Reject unchanged invalid color declarations before measurement (27fbc70)
+
+### Other Changes
+
+- docs(dashboard): document host chrome and add static theme examples (1b8e26d)
+- docs(dashboard): document chrome contract (83778e8)
+- test: cover dashboard chrome themes in browser (5682c72)
+- test: strengthen dashboard specimen isolation assertions (cc62be6)
+- test: prove dashboard host chrome from packed consumer (7a251f0)
+- test(evidence): record dashboard chrome integration proof (690af1f)
+- test: wire semantic expression picker modes (90af515)
+- Cover empty CSS color resolution (18f45ba)
+- docs: record reference-aware color picker fix (b1bb048)
+- test: record reference-aware picker confirmation (045603b)
+- docs: correct picker evidence provenance (89e0322)
