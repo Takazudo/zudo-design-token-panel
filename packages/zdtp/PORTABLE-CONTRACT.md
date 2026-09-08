@@ -1760,6 +1760,7 @@ export interface TokenDashboardProps {
   tabs: readonly TabConfig[];
   mode?: DashboardMode; // default: light
   title?: string; // default: Token dashboard
+  previewText?: string; // static typography passage; default English/Japanese prose
   id?: string; // optional root ID; caller owns uniqueness
   previewOverrides?: Readonly<Record<string, DashboardPreviewKind>>;
 }
@@ -1780,6 +1781,36 @@ export interface TokenDashboardProps {
 - Tabs, tiers, and rows render in input order. All token rows remain visible;
   no collapsed sections or automatic IDs are introduced. Empty input is valid.
   Notes-only tabs are omitted, and arbitrary notes HTML is never injected.
+
+### Layouts for spacing, color, and typography
+
+Spacing (`bar`) uses wide rows with aligned ruler origins. Nonnegative `px` or
+`rem` lengths, unitless zero, and resolved direct local aliases get an actual-size
+sample. Ticks mark 8 CSS px, with major ticks every 64 CSS px. The browser sizes
+`rem` against the host root font size; the dashboard does not assume a conversion.
+Large lengths scroll inside the focusable ruler instead of shrinking or clamping.
+Zero has zero width. Negative lengths, `em`, percentages, `calc()` and other
+unsupported expressions retain their declaration with a ruler-unavailable
+explanation. Missing references also retain their diagnostics.
+
+A nonsemantic, non-reference tier whose source items are all colors becomes a
+discrete palette strip. Stops stay in declared order, with every label and value
+visible; narrow containers scroll horizontally. Grouping uses tier structure,
+not name matching or generated intermediate colors. Semantic and reference tiers
+keep independent color samples. Per-variable preview overrides remain authoritative
+and retain each token's slot and order, including mixed overrides within a strip.
+
+`size`, `family`, `weight`, and `line-height` use wide, multiline specimens with
+auto height outside palette strips. Overrides inside a palette retain their stop slot. The baseline is 18px text with 1.6 line height; each sample changes
+only its intended property. A resolved `previewBase` can supply the font size of
+a line-height sample. Font families use locally available fonts and their CSS
+fallbacks; the dashboard does not download fonts.
+
+`previewText` supplies one static passage for all typography samples in an
+instance. Its default is longer English/Japanese prose. Newlines and white space
+are preserved, text is escaped, and an explicit empty string stays empty.
+Long text wraps; unusually large glyphs can scroll locally without scaling.
+There is no built-in editable text workbench or connection to panel state.
 
 ### Values and previews
 

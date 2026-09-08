@@ -42,7 +42,12 @@ Validate with `pnpm --filter playground typecheck` and
 Open [`/dashboard/`](https://zdtp-playground.zudolab.dev/dashboard/) for a plain
 Preact page using the built `@takazudo/zdtp/dashboard` export. It renders the
 existing `defaultTabs` twice (74 tokens in each mode) plus a narrow five-token
-spacing instance. The same build-safe data feeds the interactive panel; the
+spacing instance, plus 16 dashboard-only examples in `config/dashboard-fixtures.ts`.
+These show zero, a 1536px ruler, a local alias, an intentional missing variable,
+an unsupported expression, a six-stop ramp, and custom English/Japanese reading
+text. The custom `previewText` is static; there is no text editor. Rulers and
+palette strips scroll locally, while typography uses wide multiline rows.
+The same build-safe data feeds the interactive panel; the
 page shows declared defaults, not current edits, saved state, or a selected
 preset. `?manifest=zudo-doc` applies only to the interactive pages.
 
