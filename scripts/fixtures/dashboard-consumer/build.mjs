@@ -6,7 +6,9 @@ import { renderToString } from 'preact-render-to-string';
 import Page from './compiled/page.js';
 
 await mkdir('dist', { recursive: true });
-await writeFile('dist/index.html', '<!doctype html>' + renderToString(h(Page)));
+const renderPage = (theme) => '<!doctype html>' + renderToString(h(Page, { theme }));
+await writeFile('dist/index.html', renderPage('light'));
+await writeFile('dist/dark.html', renderPage('dark'));
 await copyFile(fileURLToPath(import.meta.resolve('@takazudo/zdtp/dashboard/styles.css')), 'dist/dashboard.css');
 await copyFile('host.css', 'dist/host.css');
 const dashboardRequire = createRequire(import.meta.resolve('@takazudo/zdtp/dashboard'));

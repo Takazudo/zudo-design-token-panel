@@ -14,24 +14,29 @@ through `@takazudo/zdtp/dashboard/styles.css`. No source aliases, panel bootstra
 workspace runtime dependencies or browser JavaScript are involved.
 
 The printed retained directory is an editable small app. Open `dist/index.html`
-directly, or use the printed loopback static-server command. Edit `token-data.ts`
-or `page.tsx` and run `npm run build` there. Remove that temporary directory when
-done. Without `--keep`, it is removed on success and failure. `--skip-build` is
-only for callers such as CI that just built the package; it does not check freshness.
-Unknown/incomplete options fail. Each subprocess has a five-minute timeout.
+for the light host page or `dist/dark.html` for the dark host page directly, or
+use the printed loopback static-server command. The page sets `data-theme` on
+`<html>` and contains both host-inherited chrome instances alongside the
+existing fixed chrome instances. Edit `token-data.ts` or `page.tsx` and run
+`npm run build` there.
+Remove that temporary directory when done. Without `--keep`, it is removed on
+success and failure. `--skip-build` is only for callers such as CI that just built
+the package; it does not check freshness. Unknown/incomplete options fail. Each
+subprocess has a five-minute timeout.
 
-`--output-dir` writes only generated HTML, two CSS assets, two screenshots and a
-bounded evidence JSON (including tarball/CSS hashes, installed resolutions,
+`--output-dir` writes only generated HTML, two CSS assets, light/dark screenshots
+and a bounded evidence JSON (including tarball/CSS hashes, installed resolutions,
 subprocess tails and cleanup status). It never copies the installed node_modules.
 Do not use a directory containing unrelated artifacts for CI uploads.
 
 This is one walking skeleton: real tarball → isolated install → strict TSX compile
-→ Node SSR → public CSS delivery → JavaScript-disabled browser. Desktop, mobile
-and compact embeds check actual ruler lengths and keyboard scrolling, grouped
-palette order, light/dark aliases, long escaped CJK specimens and computed font
-styles. A fresh page with the public stylesheet deliberately missing must fail
-the same style assertion, then a restored fresh page must pass. Network failures
-are checked separately, so a random browser error cannot satisfy that control.
+→ Node SSR → public CSS delivery → JavaScript-disabled browser. Light and dark
+host pages check inherited chrome colors, fixed chrome colors, mode-scoped
+specimens, actual ruler lengths and keyboard scrolling, grouped palette order,
+light/dark aliases, long escaped CJK specimens and computed font styles. A fresh
+page with the public stylesheet deliberately missing must fail the same style
+assertion, then a restored fresh page must pass. Network failures are checked
+separately, so a random browser error cannot satisfy that control.
 Local launches honor the existing machine-wide Playwright guard when available.
 
 This proves the generic Preact/static HTML boundary, not a particular host
