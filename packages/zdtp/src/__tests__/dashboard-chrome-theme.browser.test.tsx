@@ -217,6 +217,9 @@ function expectChrome(root: HTMLElement, scheme: Scheme): void {
   expect(computed(diagnostic).backgroundColor).toBe(expected.diagnosticBackground);
   expect(computed(diagnostic).color).toBe(expected.diagnosticForeground);
   expect(computed(diagnostic).borderInlineStartColor).toBe(expected.diagnosticAccent);
+  for (const swatch of all<HTMLElement>(root, '.zdtp-dashboard__sample--color')) {
+    expect(swatch.getBoundingClientRect().height).toBeGreaterThan(0);
+  }
 
   for (const scroll of all<HTMLElement>(root, '.zdtp-dashboard__scroll')) {
     scroll.focus();
@@ -233,9 +236,10 @@ function specimenSnapshot(root: HTMLElement): string {
     values: properties.map((property) => computed(el).getPropertyValue(property)),
   }));
   return JSON.stringify({
-    specimens: snapshot('.zdtp-dashboard__specimen', ['background-color', 'color-scheme']),
+    specimens: snapshot('.zdtp-dashboard__specimen', ['background-color', 'background-image', 'color-scheme']),
     samples: snapshot('.zdtp-dashboard__sample', ['background-color', 'box-shadow']),
     sampleBorders: snapshot('.zdtp-dashboard__sample--radius, .zdtp-dashboard__sample--shadow', ['border-top-color']),
+    typographyColors: snapshot('.zdtp-dashboard__sample--size, .zdtp-dashboard__sample--family, .zdtp-dashboard__sample--weight, .zdtp-dashboard__sample--line-height', ['color']),
     palette: snapshot('.zdtp-dashboard__palette', ['background-color']),
     rulers: snapshot('.zdtp-dashboard__ruler', ['width', 'background-color']),
   });
