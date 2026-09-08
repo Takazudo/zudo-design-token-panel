@@ -1741,6 +1741,76 @@ on across a release bump.
 
 ---
 
+## 12. Static token dashboard
+
+This entry is available in the repository build and is not included in npm v0.6.0. It does
+not change the `configurePanel` or persistence contracts above.
+
+`@takazudo/zdtp/dashboard` exports the Preact `TokenDashboard` component and
+`TokenDashboardProps`, `DashboardMode`, `DashboardPreviewKind`, `TabConfig`,
+`TierConfig`, and `TierItem` types. The internal value model is not a public API.
+
+```ts
+export type DashboardMode = 'light' | 'dark';
+export type DashboardPreviewKind =
+  | 'bar' | 'size' | 'line-height' | 'family' | 'weight' | 'radius' | 'duration'
+  | 'color' | 'shadow' | 'text';
+
+export interface TokenDashboardProps {
+  tabs: readonly TabConfig[];
+  mode?: DashboardMode; // default: light
+  title?: string; // default: Token dashboard
+  id?: string; // optional root ID; caller owns uniqueness
+  previewOverrides?: Readonly<Record<string, DashboardPreviewKind>>;
+}
+```
+
+### Rendering and package boundary
+
+- Ordinary Preact rendering and server rendering are supported. The component
+  has no browser-global, panel-runtime, persistence, host-adapter, bin-server,
+  or browser Tailwind compiler dependency. No hydration is required.
+- `@takazudo/zdtp/dashboard/styles.css` is a separate public asset. Dashboard
+  JavaScript has no CSS side-effect import; the host must include this asset
+  through its CSS build or a static stylesheet link. It is not appended to the
+  existing panel stylesheet, which is unnecessary for a dashboard-only page.
+- Each instance declares known token variables inside its inventory and sets
+  `color-scheme` to its explicit `mode`. It never writes to `:root` or host
+  state. Dashboard chrome styles are independent of inventory variables.
+- Tabs, tiers, and rows render in input order. All token rows remain visible;
+  no collapsed sections or automatic IDs are introduced. Empty input is valid.
+  Notes-only tabs are omitted, and arbitrary notes HTML is never injected.
+
+### Values and previews
+
+- Inputs describe **declared defaults**: item defaults, selected-mode
+  `colorExtras.semanticDefaults`, and explicit `colorExtras.baseDefaults` for
+  base-role rows. Named presets, panel initialization, and saved/current panel
+  state are not applied. Pill rows preserve `item.default`, not `customDefault`.
+- Reference tiers, cross-tab ramps, aliases, and legacy palette indices resolve
+  against actual declared IDs and `cssVar` names. Rows retain declared values
+  and display CSS/reference text. Missing/ambiguous mappings, duplicate
+  variables, cycles, and unsafe declarations remain visible with diagnostics
+  and no misleading sample.
+- CSS expressions remain expressions. Resolution is not universal CSS grammar
+  validation or browser computed-style inspection. External dependencies may
+  be context-dependent; unresolved dependencies suppress samples and expose
+  diagnostics. Browser layout, units, and available fonts affect previews.
+- Preview choice is `previewOverrides[cssVar]`, then `TierConfig.preview`, then
+  color for color-editor rows or text for other rows. `duration` and `text`
+  display values without animated/visual samples. A resolved `previewBase`
+  token can supply font size for a line-height sample. Subsets must include
+  referenced tiers to retain resolved samples.
+- Preact escapes text. URL/mask assets and unsafe resource-bearing expressions
+  are not automatically loaded through samples.
+
+Keep shared token definitions in a build-safe data module using type-only
+imports. Pass the same tabs to `PanelConfig` and `TokenDashboard`; no automatic
+state synchronization follows from sharing them. A React adapter and an
+HTML-export function or CLI are outside this checkpoint.
+
+---
+
 ## Appendix A — section index
 
 Cross-reference table — what each section pins down.
@@ -1772,6 +1842,7 @@ Cross-reference table — what each section pins down.
 | `data-zdtp-action` stable header-action hook (ids stable, labels not; two matches while the compact popover is open) | §7.6 |
 | v4 envelope precedence, v1/v2/v3 storage migration, and typography-id rename map             | §2, §8.3, §8.4 |
 | JSON export/import schemas v1/v2/v3 (serde)                                                  | §9            |
+| Static Preact dashboard props, defaults, previews, isolation, and CSS export | §12 |
 | Out-of-scope / deferred concerns                                                            | §10           |
 | Versioning promise, breaking-change signalling, and consumer guidance for mirroring the eager-load gate registries | §11 |
 | Feature walkthrough and shortcut table                                                     | [Panel UX tour](/docs/recipes/panel-ux-tour) |

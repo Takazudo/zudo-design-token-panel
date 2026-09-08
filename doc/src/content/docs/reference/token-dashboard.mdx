@@ -1,0 +1,83 @@
+---
+title: TokenDashboard
+sidebar_position: 4
+description: Public Preact props, stylesheet entry, defaults semantics, and preview limits for the static token dashboard.
+---
+
+`TokenDashboard` is a Preact component exported from `@takazudo/zdtp/dashboard`.
+It accepts tab data and renders a read-only inventory without browser globals,
+panel setup, storage access, or hydration requirements.
+
+:::note[Availability]
+These subpaths are available in the repository build and are not included in
+npm v0.6.0.
+See the [static dashboard recipe](../recipes/static-token-dashboard.mdx) for
+build-safe data sharing, stylesheet inclusion, and the live workspace demo.
+:::
+
+## Exports and props
+
+The named runtime export is `TokenDashboard`. Public types are available from
+the same subpath:
+
+```ts
+import type {
+  TokenDashboardProps,
+  DashboardMode,
+  DashboardPreviewKind,
+  TabConfig,
+  TierConfig,
+  TierItem,
+} from '@takazudo/zdtp/dashboard';
+```
+
+| Prop | Type / default | Meaning |
+| --- | --- | --- |
+| `tabs` | `readonly TabConfig[]`, required | Shared manifest data, in display order. An empty array renders an empty inventory. |
+| `mode` | `'light' \| 'dark'`, default `'light'` | Selects declared per-mode defaults and the local preview color scheme. |
+| `title` | `string`, default `'Token dashboard'` | Visible heading and accessible region name. |
+| `id` | Optional `string` | Root element ID; caller owns uniqueness. Omitted IDs are not generated. |
+| `previewOverrides` | `Readonly<Record<string, DashboardPreviewKind>>` | Per-CSS-variable sample choice. Overrides the tier's preview metadata. |
+
+Load `@takazudo/zdtp/dashboard/styles.css` once through the host's static CSS
+pipeline. Dashboard JavaScript has no stylesheet side-effect import. This CSS
+is separate from `@takazudo/zdtp/styles.css`; the panel stylesheet is unnecessary
+for a dashboard-only page. Preact is required; no React adapter or HTML-export
+function/CLI is provided.
+
+## Declared values
+
+The input contract is **declared defaults**, not live or persisted panel state.
+It uses item defaults, `colorExtras.semanticDefaults` for the selected mode,
+and explicit `colorExtras.baseDefaults` for base-role rows. Named scheme presets
+and editor initialization are not applied. Pill defaults preserve `item.default`.
+
+References resolve against declared item IDs and actual `cssVar` names,
+including reference tiers and cross-tab color ramps. Rows keep their declared
+value and expose CSS/reference text. Missing or ambiguous references, duplicate
+variables, cycles, and unsafe values remain visible with diagnostics instead
+of a misleading preview. Notes-only tabs are omitted; notes HTML is never
+injected. Ordering follows the input tabs, tiers, and items.
+
+## Preview choices and context
+
+`DashboardPreviewKind` is `'bar' | 'size' | 'line-height' | 'family' | 'weight' |
+'radius' | 'duration' | 'color' | 'shadow' | 'text'`.
+Selection uses `previewOverrides[cssVar]`, then `TierConfig.preview`, then a
+color sample for color-editor rows or text for other rows. `duration` and `text`
+keep the readable value without an animated or visual sample. `previewBase`
+can supply the font-size token for line-height samples when present and resolved.
+
+Each instance declares known variables inside its preview inventory and sets
+its own `color-scheme`. It does not write host variables to `:root`, use the
+host's selected theme, or subscribe to panel changes. Component chrome uses its
+own styles independently of the inventory variables.
+
+CSS expressions are preserved, not universally computed or validated as every
+possible CSS property grammar. The browser supplies units, fonts, viewport,
+and other layout context. Missing external variable dependencies suppress the
+sample and display a diagnostic. Unsafe resource-bearing expressions are not
+previewed, and URL/mask assets are not loaded. Text is escaped by Preact.
+
+Include referenced tiers when embedding a subset. Use an ordinary static Preact
+render for no-client-JavaScript output; hydration remains the host's choice.

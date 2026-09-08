@@ -12,6 +12,11 @@ sidebar_position: 90
 - **[フルプレイグラウンド](https://zdtp-playground.zudolab.dev/)** — すべてのコントロール種別と prose ページをまとめて確認できます。[`?manifest=zudo-doc`](https://zdtp-playground.zudolab.dev/?manifest=zudo-doc) では、実際の zudo-doc から取り込んだ `PanelConfig` が動作します。
   [`playground/` のソースを見る](https://github.com/Takazudo/zudo-design-token-panel/tree/main/playground/)
 
+- **[静的トークンダッシュボード](https://zdtp-playground.zudolab.dev/dashboard/)** —
+  共有マニフェストのライト・ダーク両モードの一覧と、小さな埋め込み例を表示する通常の Preact ページです。
+  パネルの編集状態とは独立した宣言済みの既定値を確認できます。
+  [組み込みレシピ](../recipes/static-token-dashboard.mdx)。
+
 ## フレームワーク別の組み込み例
 
 以下のサンプルは現在の機能セットより前に作られたもので、各スタックへ組み込む際の配線を確認するためのリファレンスとして残しています。ホストが提供する `tabs: TabConfig[]` 配列への接続と、変更をソースへ反映する bin サーバーの併用方法を示しています。また、各デモには、そのデモ固有のトークン名前空間で Markdown 由来の HTML 要素を一通り確認できる `/prose` ページがあります。

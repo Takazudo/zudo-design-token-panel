@@ -7,6 +7,7 @@ export default defineConfig({
   markdown: { gfm: true },
   plugins: [
     { name: './plugins/workspace-zdtp-alias.mjs' },
+    { name: './plugins/dashboard-styles.mjs' },
     { name: './plugins/dev-apply-proxy.mjs' },
   ],
 });

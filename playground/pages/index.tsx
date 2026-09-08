@@ -32,6 +32,16 @@ export default function HomePage() {
           </p>
         </section>
 
+        <section class="zfb-card">
+          <p class="zfb-eyebrow">STATIC TOKEN REFERENCE</p>
+          <h2 class="zfb-section-title">Read the defaults on a plain page</h2>
+          <p>
+            The <a href="/dashboard/">token dashboard</a> lists the same manifest as a
+            static Preact page, with light and dark inventories and a compact embedded example.
+            It shows declared defaults and references, independently of saved panel edits.
+          </p>
+        </section>
+
         <section class="zfb-grid">
           <article class="zfb-card">
             <p class="zfb-eyebrow">DEFAULT MANIFEST</p>
