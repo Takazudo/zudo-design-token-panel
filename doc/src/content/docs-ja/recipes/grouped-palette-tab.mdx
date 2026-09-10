@@ -293,7 +293,7 @@ Tier 2 は `color` タブ内の `semantic: true` な階層で、背景や文字�
 
 ## パネルで編集した後も切り替わるダークモード
 
-以下は、このドキュメントサイトが固定している `@takazudo/zdtp` 0.5.1 で使える構成です。
+以下は、このドキュメントサイトが固定している `@takazudo/zdtp` 0.7.0 で使える構成です。
 Tier 1 は両モードで同じ値に保ち、Tier 2 の割り当てを切り替えます。
 パネルの上書き先は **`<html>` のインラインスタイル**です。
 1 つの `{ ref }` は両モードで同じランプのステップを参照するため、ライト用とダーク用の
@@ -350,12 +350,14 @@ export const colorTab: TabConfig = {
 モード別リテラルのエディターを使います。こちらはライト・ダーク用のランプ選択メニューではありません。
 この例のセマンティック変数も `--palette-` で始めているため、既存のルーティング設定で書き込めます。
 
-**`color-scheme` はホスト側で管理します。** 0.5.1 のパネルはモード別リテラルを適用するとき、
-インラインに `color-scheme: light dark` を書き、ホストが通常のインラインスタイルで指定した
-`light` や `dark` を上書きします。ホスト側で初期値を `data-theme="light"` に設定し、
-テーマ切り替え時にこの属性を更新してください。以下の `!important` 付きの CSS なら、
-パネルで編集した後もホストの指定が優先されます。この挙動は
-[#879](https://github.com/Takazudo/zudo-design-token-panel/issues/879) で追跡しています。
+**`color-scheme` はホスト側で管理します。** パネルはモード別リテラルを適用するとき、
+ホストがまだ `<html>` にインラインで `color-scheme` を指定していない場合に限り、
+フォールバックとしてインラインに `color-scheme: light dark` を書きます
+([#879](https://github.com/Takazudo/zudo-design-token-panel/issues/879)、0.6.0 で修正済み)。
+このレシピではインラインではなくスタイルシートのルールで `color-scheme` を指定しているため、
+以下の `!important` は引き続き必要です — 編集の順序に関わらず、パネルのインラインフォールバック
+よりホストの指定を優先させる役割を持ちます。ホスト側で初期値を `data-theme="light"` に設定し、
+テーマ切り替え時にこの属性を更新してください。
 
 ```css
 /* Merge these declarations into the FIRST :root from Step 2. */

@@ -326,7 +326,7 @@ particular mid-tone. Keep item IDs stable because saved edits use them as keys.
 ## Dark mode that survives panel edits
 
 The following behaviour is available in the docs site's pinned `@takazudo/zdtp`
-0.5.1 release. Keep Tier 1 identical in both modes and change the Tier 2 mapping.
+0.7.0 release. Keep Tier 1 identical in both modes and change the Tier 2 mapping.
 The panel applies overrides as **inline styles on `<html>`**. A single `{ ref }`
 mapping selects one ramp item for both modes; it cannot encode separate light
 and dark choices. A normal dark-theme stylesheet remap loses to that inline
@@ -383,12 +383,15 @@ use the per-mode literal editor; that editor is not a pair of ramp selectors.
 These example role names share the `--palette-` prefix so the existing routing
 entry covers them too.
 
-The **host owns `color-scheme`**. In 0.5.1 the panel writes `color-scheme: light dark`
-inline when it applies per-mode literals, overriding a host's normal inline
-`light` or `dark` setting. Have the host set `data-theme="light"` initially and
-change it on theme toggles; the stylesheet's `!important` rules below retain
-control even after an edit. This panel behaviour is tracked in
-[#879](https://github.com/Takazudo/zudo-design-token-panel/issues/879).
+The **host owns `color-scheme`**. The panel writes an inline
+`color-scheme: light dark` fallback when it applies per-mode literals, but only
+when the host has not already set `color-scheme` inline on `<html>`
+([#879](https://github.com/Takazudo/zudo-design-token-panel/issues/879), fixed
+in 0.6.0). This recipe declares `color-scheme` through a stylesheet rule rather
+than inline, so keep the `!important` below — it is what keeps the host's
+declaration authoritative over the panel's inline fallback regardless of edit
+order. Have the host set `data-theme="light"` initially and change it on theme
+toggles.
 
 ```css
 /* Merge these declarations into the FIRST :root from Step 2. */
