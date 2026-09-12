@@ -114,6 +114,15 @@ export function resolveTierItemValue(
   const tierOverrides = overrides[tierId];
   const overrideValue = tierOverrides?.[itemId];
 
+  // An explicit manifest pair is a literal even on a reference tier. Stored
+  // overrides keep their existing literal / reference semantics and win.
+  if (overrideValue === undefined && item.modes !== undefined) {
+    return {
+      kind: 'literal',
+      value: `light-dark(${item.modes.light}, ${item.modes.dark})`,
+    };
+  }
+
   // -------------------------------------------------------------------------
   // Reference tier
   // -------------------------------------------------------------------------

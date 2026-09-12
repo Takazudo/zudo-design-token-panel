@@ -95,6 +95,7 @@ import {
   DEFAULT_POSITION,
   applyColorSlices,
   applyFullState,
+  applyManifestModeDefaults,
   applyNonColorSlices,
   clampPosition,
   clampSize,
@@ -653,6 +654,7 @@ export default function DesignTokenTweakPanel({
       } else {
         nextColor = initColorFromScheme(cluster, instanceConfig);
         nextSecondary = initSecondaryFromConfig(instanceConfig);
+        applyManifestModeDefaults(instanceConfig, true);
       }
       if (state) {
         commitTweakState(
@@ -699,8 +701,8 @@ export default function DesignTokenTweakPanel({
       commitTweakState('initialize', persisted, { record: false, apply: false, save: false });
       return;
     }
-    // No saved state — page already has correct colors from ColorSchemeProvider.
-    // Just read scheme data for panel display; don't apply (avoids overwriting host CSS with redundant defaults).
+    // Keep stylesheet colors while establishing explicit manifest mode pairs.
+    applyManifestModeDefaults(instanceConfig);
     // The `secondary` slice is always seeded — every fresh-state path
     // includes it so the persisted envelope shape stays stable regardless
     // of the user's path.
@@ -1027,7 +1029,10 @@ export default function DesignTokenTweakPanel({
     // Always seed the secondary slice — every fresh-state path emits a
     // uniform envelope shape so persistence stays consistent.
     commitTweakState('reset-all', freshTweakState(instanceConfig), {
-      apply: () => clearAppliedStyles(undefined, instanceConfig),
+      apply: () => {
+        clearAppliedStyles(undefined, instanceConfig);
+        applyManifestModeDefaults(instanceConfig);
+      },
       save: () => clearPersistedState(undefined, instanceConfig),
     });
   }, [instanceConfig, commitTweakState]);

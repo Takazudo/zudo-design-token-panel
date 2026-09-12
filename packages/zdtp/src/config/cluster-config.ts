@@ -72,6 +72,8 @@ export interface ColorClusterDataConfig {
   label?: string;
   /** Expected palette size. Used for init + v1 validation. */
   paletteSize: number;
+  /** Manifest mode pairs keyed by palette slot; used to seed dense state. */
+  paletteModes?: Record<number, { light: string; dark: string }>;
   /** Map of base-role name → CSS custom-property name. Partial: a cluster
    *  declares only the roles it actually has. */
   baseRoles: Partial<Record<BaseRoleKey, string>>;
@@ -282,8 +284,9 @@ function deriveSemanticValue(
 /**
  * Derive a `ColorClusterDataConfig` from a color `TabConfig`.
  *
- * - Palette items: the first tier whose items all have `kind: 'color'` and
- *   are not `semantic: true`. Each item's `cssVar` becomes a palette slot;
+ * - Palette items: the first non-reference, non-semantic tier beginning with
+ *   a color-kind item or an explicit `modes` pair. Each item's `cssVar`
+ *   becomes a palette slot;
  *   `paletteCssVarTemplate` is synthesised as `"{item.cssVar}"` with `{n}`
  *   replaced by the slot index. Because item cssVars are explicit (e.g.
  *   `--zfb-palette-0`) rather than template-based, we derive the template
@@ -301,6 +304,8 @@ function deriveSemanticValue(
  *   render) but `semanticDefaults`/`semanticCssNames` are populated from the
  *   semantic tier so the Semantic Tokens section isn't left empty (#463).
  *
+ * - Explicit mode pairs in additional tiers become literal semantic defaults
+ *   so they participate in the cluster's apply and clear paths as well.
  * - Metadata comes from `tab.colorExtras` (required on a color tab).
  *
  * `tabs` is the panel config's full tabs array, used to resolve a semantic
@@ -326,7 +331,7 @@ export function resolveColorClusterFromTab(
       !t.referencesTier &&
       !t.semantic &&
       t.items.length > 0 &&
-      t.items[0].type.kind === 'color',
+      (t.items[0].type.kind === 'color' || t.items[0].modes !== undefined),
   );
 
   // Find the semantic tier: either the first tier with referencesTier pointing
@@ -337,25 +342,13 @@ export function resolveColorClusterFromTab(
     (t) => (paletteTier && t.referencesTier === paletteTier.id) || t.semantic === true,
   );
 
-  if (!paletteTier && !semanticTier) {
-    // Genuinely no palette AND no semantic tier — return stub cluster.
-    return {
-      id: extras.id,
-      label: extras.label,
-      paletteSize: 0,
-      baseRoles: extras.baseRoles,
-      paletteCssVarTemplate: '--zudo-stub-p{n}',
-      semanticDefaults: {},
-      semanticCssNames: {},
-      baseDefaults: extras.baseDefaults,
-      defaultShikiTheme: extras.defaultShikiTheme,
-      colorSchemes: extras.colorSchemes,
-      panelSettings: extras.panelSettings,
-    };
-  }
-
   const paletteItems = paletteTier?.items ?? [];
   const paletteSize = paletteItems.length;
+  const paletteModes: NonNullable<ColorClusterDataConfig['paletteModes']> = {};
+  for (let i = 0; i < paletteItems.length; i++) {
+    const modes = paletteItems[i].modes;
+    if (modes) paletteModes[i] = { ...modes };
+  }
 
   // Derive the palette CSS-var template from the first item's cssVar.
   // e.g. "--zfb-palette-0" → "--zfb-palette-{n}"
@@ -380,11 +373,12 @@ export function resolveColorClusterFromTab(
     const overrides = extras.semanticDefaults;
     for (const item of semanticTier.items) {
       semanticCssNames[item.id] = item.cssVar;
-      // A config-time override (#499) wins verbatim over the derived value —
-      // it's the only way a host can ship a `{ literal: { light, dark } }` /
-      // `{ ref }` default, since `item.default` itself stays a plain string.
-      semanticDefaults[item.id] =
-        overrides && item.id in overrides
+      // A row's explicit modes take precedence over other manifest defaults.
+      // Runtime semantic overrides can still replace this seed.
+      if (item.modes) {
+        semanticDefaults[item.id] = { literal: { ...item.modes } };
+      } else {
+        semanticDefaults[item.id] = overrides && item.id in overrides
           ? overrides[item.id]
           : deriveSemanticValue(
               item,
@@ -394,6 +388,18 @@ export function resolveColorClusterFromTab(
               tabs,
               isLegacyTier,
             );
+      }
+    }
+  }
+
+  // The legacy bridge selects one palette and one semantic tier. Explicit
+  // modes in any additional tier still need a seed, apply entry, and wipe
+  // entry, so register them as literal semantic values too.
+  for (const tier of tab.tiers) {
+    for (const item of tier.items) {
+      if (!item.modes || paletteIdToIndex.has(item.id) || item.id in semanticDefaults) continue;
+      semanticDefaults[item.id] = { literal: { ...item.modes } };
+      semanticCssNames[item.id] = item.cssVar;
     }
   }
 
@@ -401,6 +407,7 @@ export function resolveColorClusterFromTab(
     id: extras.id,
     label: extras.label,
     paletteSize,
+    ...(Object.keys(paletteModes).length > 0 ? { paletteModes } : {}),
     baseRoles: extras.baseRoles,
     paletteCssVarTemplate,
     semanticDefaults,
