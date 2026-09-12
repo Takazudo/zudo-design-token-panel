@@ -1947,6 +1947,7 @@ export default function DesignTokenTweakPanel({
           onClose={() => setShowImport(false)}
           onLoad={handleLoadFromJson}
           colorDefaults={initColorFromScheme(getActivePrimaryCluster(instanceConfig), instanceConfig)}
+          current={state}
           instanceConfig={instanceConfig}
         />
       )}
