@@ -1,0 +1,91 @@
+/* Display-only light/dark pair rows for manifest `modes` items. */
+
+.tokenpanel-row--modes {
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.tokenpanel-row--modes .tokenpanel-row-label {
+  flex: 0 1 220px;
+  align-self: center;
+}
+
+.tokenpanel-modes-values {
+  display: flex;
+  align-items: center;
+  gap: var(--tokentweak-pad-sm);
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.tokenpanel-modes-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  flex: 1 1 170px;
+  color: var(--tokentweak-color-fg);
+  font-family: var(--tokentweak-font-mono);
+  font-size: 11px;
+}
+
+.tokenpanel-modes-side {
+  flex: 0 0 auto;
+  min-width: 32px;
+  color: var(--tokentweak-color-muted);
+  font-size: 10px;
+  text-transform: capitalize;
+}
+
+.tokenpanel-modes-chip {
+  display: inline-block;
+  width: 26px;
+  height: 22px;
+  flex: 0 0 auto;
+  border: 1px solid var(--tokentweak-color-border);
+  border-radius: var(--radius-tokentweak);
+  background-color: var(--tokentweak-color-surface);
+}
+
+.tokenpanel-modes-value-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tokenpanel-row--editor-disabled .tokenpanel-modes-chip {
+  cursor: default;
+}
+
+.tokenpanel-palette-edit-modes-row {
+  width: 100%;
+  padding-block: 3px;
+}
+
+.tokenpanel-color-modes-card {
+  grid-column: 1 / -1;
+}
+
+.tokenpanel-palette-check-row--modes .tokenpanel-modes-values {
+  flex: 0 1 auto;
+}
+
+.tokenpanel-palette-check-row--modes .tokenpanel-modes-value {
+  flex: 0 1 auto;
+}
+
+@container tokenpanel-card (max-width: 319px) {
+  .tokenpanel-row--modes .tokenpanel-card-editor {
+    flex: 1 0 100%;
+  }
+
+  .tokenpanel-row--modes .tokenpanel-modes-values {
+    flex: 1 0 100%;
+  }
+
+  .tokenpanel-row--modes .tokenpanel-modes-value {
+    flex-basis: 100%;
+  }
+}

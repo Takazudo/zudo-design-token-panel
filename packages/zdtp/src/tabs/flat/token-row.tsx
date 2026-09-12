@@ -8,6 +8,7 @@ import TierRefSelector, { type TierRefSelectorValue } from '../../controls/tier-
 import TokenLabel from '../../controls/token-label';
 import { HighlightToggleButton } from '../../highlight/highlight-toggle-button';
 import { deriveCyclableUnit, nextCyclableUnit } from '../../utils/unit-cycle';
+import { ModesRow, resolveModeRowSides } from '../modes-row';
 import type { FlatTabEntry, RowContribution, TokenAddress } from './types';
 import { tokenAddressKey } from './types';
 
@@ -77,6 +78,30 @@ function TokenRowInner({
     'data-css-var': item.cssVar,
     'data-address': address,
   };
+
+  // A manifest mode pair is intentionally display-only. Keep this branch
+  // ahead of reference-tier dispatch because an item's explicit pair has
+  // precedence over whatever value its tier would otherwise select.
+  if (item.modes !== undefined) {
+    const override = overrides[tier.id]?.[item.id];
+    return (
+      <ModesRow
+        item={item}
+        sides={resolveModeRowSides(item, override, override !== undefined)}
+        className={rowClass('')}
+        dataTestId={`tier-item-${item.id}`}
+        address={entry.address}
+        leading={region('leading')}
+        trailing={
+          <>
+            {region('trailing')}
+            <HighlightToggleButton cssVar={item.cssVar} />
+          </>
+        }
+        tail={region('tail')}
+      />
+    );
+  }
 
   if (tier.referencesTier !== undefined) {
     const refTierId = tier.referencesTier;

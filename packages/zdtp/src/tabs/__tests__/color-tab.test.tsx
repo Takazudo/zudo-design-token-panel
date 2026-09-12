@@ -125,6 +125,22 @@ const PRIMARY_COLOR_TAB: TabConfig = {
   ],
 };
 
+const MODES_PRIMARY_COLOR_TAB: TabConfig = {
+  ...PRIMARY_COLOR_TAB,
+  tiers: PRIMARY_COLOR_TAB.tiers.map((tier) => tier.id === 'palette'
+    ? {
+        ...tier,
+        items: tier.items.map((item, index) => index === 0
+          ? {
+              ...item,
+              type: { kind: 'text' as const },
+              modes: { light: '#f8f8f8', dark: '#181818' },
+            }
+          : item),
+      }
+    : tier),
+};
+
 /** Minimal color state for PALETTE_SIZE=3 */
 function makeColorState(): ColorTweakState {
   return {
@@ -235,6 +251,29 @@ describe('ColorTab palette swatches — eye toggle present', () => {
     act(() => firstToggle.click());
 
     expect(toggle).toHaveBeenCalledWith('--fixture-p0');
+  });
+});
+
+describe('ColorTab mode palette rows (#949)', () => {
+  it('renders a dense palette override as two display-only mode chips', () => {
+    const ctx = makeCtx(makeHighlightState(), vi.fn());
+    renderColorTab(ctx, {
+      tab: MODES_PRIMARY_COLOR_TAB,
+      colorState: {
+        ...makeColorState(),
+        palette: ['light-dark(#abcdef, #123456)', '#222222', '#333333'],
+      },
+    });
+
+    const grid = container.querySelector<HTMLElement>('.tokenpanel-color-palette-grid')!;
+    const row = grid.querySelector<HTMLElement>('[data-testid="tokenpanel-color-modes-fixture-p0"]');
+    expect(row).not.toBeNull();
+    expect(row?.classList.contains('tokenpanel-row--modes')).toBe(true);
+    expect(row?.classList.contains('tokenpanel-row--editor-disabled')).toBe(true);
+    expect(row?.querySelector('[data-mode="light"]')?.getAttribute('data-value')).toBe('#abcdef');
+    expect(row?.querySelector('[data-mode="dark"]')?.getAttribute('data-value')).toBe('#123456');
+    expect(row?.querySelectorAll('.tokenpanel-modes-chip')).toHaveLength(2);
+    expect(row?.querySelector('input, select')).toBeNull();
   });
 });
 

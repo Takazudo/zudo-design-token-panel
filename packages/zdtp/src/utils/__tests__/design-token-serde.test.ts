@@ -607,9 +607,68 @@ const GENERIC_TAB: TabConfig = {
   ],
 };
 
+const GENERIC_MODES_TAB: TabConfig = {
+  id: 'ui-modes',
+  label: 'UI Modes',
+  tiers: [{
+    id: 'brand',
+    label: 'Brand',
+    items: [{
+      id: 'mode-brand',
+      cssVar: '--ui-mode-brand',
+      label: 'Mode brand',
+      default: '#222222',
+      type: { kind: 'text' },
+      modes: { light: '#ffffff', dark: '#111111' },
+    }, {
+      id: 'mode-same',
+      cssVar: '--ui-mode-same',
+      label: 'Mode same',
+      default: 'light-dark(#eeeeee, #121212)',
+      type: { kind: 'color' },
+      modes: { light: '#eeeeee', dark: '#121212' },
+    }],
+  }],
+};
+
+const COLOR_MODES_TAB: TabConfig = {
+  id: 'color',
+  label: 'Color',
+  colorExtras: {
+    id: 'mode-color',
+    baseRoles: {},
+    baseDefaults: { background: 0, foreground: 1 },
+    defaultShikiTheme: 'dracula',
+    colorSchemes: {},
+    panelSettings: { colorScheme: '', colorMode: false },
+  },
+  tiers: [{
+    id: 'palette',
+    label: 'Palette',
+    items: [{
+      id: 'mode-p0',
+      cssVar: '--mode-p0',
+      label: 'Mode palette 0',
+      default: '#222222',
+      type: { kind: 'text' },
+      modes: { light: '#ffffff', dark: '#111111' },
+    }, {
+      id: 'mode-p1',
+      cssVar: '--mode-p1',
+      label: 'Mode palette 1',
+      default: '#333333',
+      type: { kind: 'color' },
+    }],
+  }],
+};
+
 /** Install the fixture config WITH the generic `ui-color` tab appended. */
 function installWithGenericTab(): void {
   installFixturePanelConfig({ tabs: [...FIXTURE_TABS, GENERIC_TAB] });
+}
+
+function installWithGenericModesTab(): void {
+  installFixturePanelConfig({ tabs: [...FIXTURE_TABS, GENERIC_MODES_TAB] });
 }
 
 describe('serialize/deserialize — generic (custom-id) tabs', () => {
@@ -703,6 +762,83 @@ describe('serialize/deserialize — generic (custom-id) tabs', () => {
 
     const { state } = deserialize(JSON.parse(JSON.stringify(json)), { colorDefaults: COLOR_BASELINE });
     expect(state.tabs).toBeUndefined();
+  });
+});
+
+describe('serialize/deserialize — manifest mode rows (#949)', () => {
+  beforeEach(() => {
+    installWithGenericModesTab();
+  });
+
+  it('diff-only emits the resolved light-dark pair when it differs from item.default', () => {
+    const json = serialize(makeState(), { colorDefaults: COLOR_BASELINE });
+    expect(json.tabs?.['ui-modes']?.raw).toEqual({
+      '--ui-mode-brand': 'light-dark(#ffffff, #111111)',
+    });
+    expect(json.tabs?.['ui-modes']?.raw?.['--ui-mode-same']).toBeUndefined();
+  });
+
+  it('includeDefaults always emits every mode pair, including one equal to its default', () => {
+    const json = serialize(makeState(), {
+      colorDefaults: COLOR_BASELINE,
+      includeDefaults: true,
+    });
+    expect(json.tabs?.['ui-modes']?.raw).toEqual({
+      '--ui-mode-brand': 'light-dark(#ffffff, #111111)',
+      '--ui-mode-same': 'light-dark(#eeeeee, #121212)',
+    });
+  });
+
+  it('round-trips a mode pair as a plain string override for the generic tier', () => {
+    const original = makeState({
+      tabs: {
+        'ui-modes': {
+          brand: { 'mode-brand': 'light-dark(#abcdef, #123456)' },
+        },
+      },
+    });
+    const json = serialize(original, { colorDefaults: COLOR_BASELINE });
+    expect(json.tabs?.['ui-modes']?.raw).toEqual({
+      '--ui-mode-brand': 'light-dark(#abcdef, #123456)',
+    });
+    const result = deserialize(JSON.parse(JSON.stringify(json)), {
+      colorDefaults: COLOR_BASELINE,
+    });
+    expect(result.unknownTokens).toEqual([]);
+    expect(result.state.tabs).toEqual({
+      'ui-modes': {
+        brand: { 'mode-brand': 'light-dark(#abcdef, #123456)' },
+      },
+    });
+  });
+
+  it('serializes an explicit mode pair in a color palette whose first item is text-kind', () => {
+    installFixturePanelConfig({ tabs: [COLOR_MODES_TAB, ...FIXTURE_TABS.filter((tab) => tab.id !== 'color')] });
+    const baseline: ColorTweakState = {
+      palette: ['#222222', '#333333'],
+      background: 0,
+      foreground: 1,
+      cursor: 0,
+      selectionBg: 0,
+      selectionFg: 1,
+      semanticMappings: {},
+      shikiTheme: 'dracula',
+    };
+    const state = makeState({
+      color: { ...baseline, palette: ['light-dark(#ffffff, #111111)', '#333333'] },
+    });
+    const json = serialize(state, { colorDefaults: baseline });
+    expect(json.tabs?.color?.palette).toEqual({
+      '--mode-p0': 'light-dark(#ffffff, #111111)',
+    });
+    const result = deserialize(JSON.parse(JSON.stringify(json)), {
+      colorDefaults: baseline,
+    }, {
+      ...FIXTURE_PANEL_CONFIG,
+      tabs: [COLOR_MODES_TAB, ...FIXTURE_TABS.filter((tab) => tab.id !== 'color')],
+    });
+    expect(result.state.color.palette[0]).toBe('light-dark(#ffffff, #111111)');
+    expect(result.unknownTokens).toEqual([]);
   });
 });
 
