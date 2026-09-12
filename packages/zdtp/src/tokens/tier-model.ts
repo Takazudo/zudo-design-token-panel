@@ -114,6 +114,12 @@ export interface TierItem {
   label: string;
   default: string;
   type: TierValueKind;
+  /**
+   * Optional light/dark color pair for a mode-dependent row. Both sides are
+   * CSS colors because downstream emission uses `light-dark()`. The ordinary
+   * `default` remains the fallback value used by non-mode consumers.
+   */
+  modes?: { light: string; dark: string };
   pill?: PillSpec;
   readonly?: true;
 }
