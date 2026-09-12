@@ -124,7 +124,9 @@ for (const mode of ['light', 'dark']) {
   const html = renderToString(h(TokenDashboard, { tabs, mode, chrome: 'host' }));
   assert.equal((html.match(/data-chrome="host"/g) ?? []).length, 1);
   assert.equal((html.match(/role="listitem"/g) ?? []).length, 3);
-  assert.ok(html.includes('color-scheme:' + mode));
+  // This fixture is entirely mode-independent: specimens follow host chrome.
+  assert.ok(html.includes('data-scheme="host"'));
+  assert.ok(html.includes('color-scheme:inherit'));
   assert.ok(html.includes('--blue:#2563eb'));
   assert.ok(html.includes('--accent:var(--blue)'));
   assert.ok(html.includes('&lt;Blue &amp; ink'));
