@@ -1,35 +1,29 @@
 /**
- * Import modal — accepts a pasted design-tokens JSON document and lifts it
- * into a `TweakState` via `deserialize()`. `deserialize()` validates the
- * `$schema` key against the fixed `SCHEMA_V1`/`SCHEMA_V2`/`SCHEMA_V3`
- * constants exported by the serde — `panelConfig.schemaId` plays no part in
- * that validation; it is a UI-label-only field (#498). This component does
- * not read `schemaId` at all; the hint/placeholder/error copy below names
- * the actual accepted constants directly.
+ * Import modal — accepts a pasted design-tokens JSON document and guides the
+ * user through paste → analyze → scope → load.
  *
- * Ported verbatim from zudo-doc's
- * `src/components/design-token-tweak/import-modal.tsx`. Intentional deltas:
- *  - `deserialize` / `DesignTokenSchemaError` come from this package's serde
- *    (`./utils/design-token-serde`).
- *  - State types import from this package's state envelope.
- *  - Modal class names are derived from `panelConfig.modalClassPrefix` via
- *    `modalClass(...)` so a single config swap re-themes every dialog.
+ * `analyzeDesignTokenJson()` is deliberately state-free, so the first step
+ * can inspect a document without applying values or touching storage. The
+ * selected tabs and mode/merge choices are passed to `deserialize()` only
+ * after the user explicitly chooses Load.
  *
  * Modal lifecycle uses the native `<dialog>` element via `showModal()` /
- * `close()`. Every dismissal path (× button, backdrop click, Escape key, the
- * programmatic "Close" button) routes through `dialog.close()` so the native
- * `close` event — and thus `onClose` — fires exactly once per dismissal.
+ * `close()`. Every dismissal path routes through `dialog.close()` so the
+ * native `close` event — and thus `onClose` — fires exactly once per
+ * dismissal.
  */
 
-import { useEffect, useRef, useState, useId } from 'preact/compat';
+import { useEffect, useId, useRef, useState } from 'preact/compat';
 import { useDialogBackdropClose } from './controls/use-dialog-backdrop-close';
 import {
+  analyzeDesignTokenJson,
   DesignTokenSchemaError,
   deserialize,
   SCHEMA_V1,
   SCHEMA_V2,
   SCHEMA_V3,
 } from './utils/design-token-serde';
+import type { DeserializeOptions, ImportAnalysis } from './utils/design-token-serde';
 import type { ColorTweakState, TweakState } from './state/tweak-state';
 import { getPanelConfig, modalClass, type PanelConfig } from './config/panel-config';
 import { structuralEqual } from './utils/structural-equal';
@@ -37,15 +31,22 @@ import { structuralEqual } from './utils/structural-equal';
 export interface ImportModalProps {
   onClose: () => void;
   /** Called with the parsed state when the user hits "Load". The caller is
-   *  responsible for applying it to the panel + persisting it. */
+   * responsible for applying it to the panel + persisting it. */
   onLoad: (state: TweakState) => void;
   /** Color baseline filled in for fields absent from the payload. */
   colorDefaults: ColorTweakState;
   /**
+   * The mounted panel instance's live state. It is used by scoped merge and
+   * one-side imports to preserve values from the instance being edited.
+   * Omitted for backwards-compatible direct renders; serde then falls back to
+   * manifest/default values for those options.
+   */
+  current?: TweakState;
+  /**
    * The mounted panel instance's config (multi-instance, #357). When supplied,
-   * the modal derives its modal classes + title id from THIS instance rather
-   * than the active default instance. Omitted (e.g. a direct test render) →
-   * `getPanelConfig()`, preserving the single-panel path.
+   * the modal derives its modal classes + title id and serde lookups from THIS
+   * instance rather than the active default instance. Omitted (e.g. a direct
+   * test render) → `getPanelConfig()`, preserving the single-panel path.
    */
   instanceConfig?: PanelConfig;
 }
@@ -55,11 +56,44 @@ interface InlineNote {
   text: string;
 }
 
-export function ImportModal({ onClose, onLoad, colorDefaults, instanceConfig }: ImportModalProps) {
+interface AnalysisState {
+  parsed: unknown;
+  analysis: ImportAnalysis;
+}
+
+type ModeSides = NonNullable<DeserializeOptions['modeSides']>;
+type ImportStrategy = NonNullable<DeserializeOptions['strategy']>;
+
+const ANALYSIS_DEBOUNCE_MS = 300;
+
+function schemaErrorText(error: DesignTokenSchemaError): string {
+  if (error.reason === 'schema-mismatch') {
+    return `Schema mismatch: expected "${SCHEMA_V3}", "${SCHEMA_V2}", or "${SCHEMA_V1}".`;
+  }
+  if (error.reason === 'schema-missing') {
+    return `Missing "$schema" key. Expected "${SCHEMA_V3}", "${SCHEMA_V2}", or "${SCHEMA_V1}".`;
+  }
+  return 'Input is not a JSON object.';
+}
+
+export function ImportModal({
+  onClose,
+  onLoad,
+  colorDefaults,
+  current,
+  instanceConfig,
+}: ImportModalProps) {
   const [text, setText] = useState('');
   const [note, setNote] = useState<InlineNote | null>(null);
+  const [analysisState, setAnalysisState] = useState<AnalysisState | null>(null);
+  const [analysisPending, setAnalysisPending] = useState(false);
+  const [selectedTabs, setSelectedTabs] = useState<string[]>([]);
+  const [modeSides, setModeSides] = useState<ModeSides>('as-is');
+  const [strategy, setStrategy] = useState<ImportStrategy>('replace');
   const dialogRef = useRef<HTMLDialogElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const analysisTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const analysisRevisionRef = useRef(0);
   // Resolve THIS instance's config (multi-instance, #357); a prop-less test
   // render falls back to the active default instance.
   const cfg = instanceConfig ?? getPanelConfig();
@@ -73,6 +107,8 @@ export function ImportModal({ onClose, onLoad, colorDefaults, instanceConfig }: 
       textareaRef.current?.focus();
     });
     return () => {
+      if (analysisTimerRef.current !== null) clearTimeout(analysisTimerRef.current);
+      analysisRevisionRef.current += 1;
       if (dialog.open) dialog.close();
     };
   }, []);
@@ -87,17 +123,26 @@ export function ImportModal({ onClose, onLoad, colorDefaults, instanceConfig }: 
     return () => dialog.removeEventListener('close', handleClose);
   }, [onClose]);
 
-  // Gesture-aware backdrop close (F14): a selection drag that starts inside the
-  // dialog (e.g. over the textarea) and ends on the backdrop must NOT dismiss —
-  // otherwise the user's unsaved pasted JSON is destroyed with the unmount.
+  // Gesture-aware backdrop close (F14): a selection drag that starts inside
+  // the dialog (e.g. over the textarea) and ends on the backdrop must NOT
+  // dismiss — otherwise the user's unsaved pasted JSON is destroyed.
   const backdropHandlers = useDialogBackdropClose(dialogRef, () => {
     dialogRef.current?.close();
   });
 
-  function handleLoad() {
-    setNote(null);
-    const trimmed = text.trim();
+  function resetScope() {
+    setAnalysisState(null);
+    setSelectedTabs([]);
+    setModeSides('as-is');
+    setStrategy('replace');
+  }
+
+  function runAnalysis(source: string, revision: number): void {
+    if (revision !== analysisRevisionRef.current) return;
+
+    const trimmed = source.trim();
     if (trimmed.length === 0) {
+      setAnalysisPending(false);
       setNote({ kind: 'error', text: 'Paste a JSON blob first.' });
       return;
     }
@@ -105,20 +150,100 @@ export function ImportModal({ onClose, onLoad, colorDefaults, instanceConfig }: 
     let parsed: unknown;
     try {
       parsed = JSON.parse(trimmed);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+    } catch (error) {
+      if (revision !== analysisRevisionRef.current) return;
+      const message = error instanceof Error ? error.message : String(error);
+      setAnalysisPending(false);
       setNote({ kind: 'error', text: `JSON parse error: ${message}` });
       return;
     }
 
     try {
-      // Thread THIS instance's config (multi-instance, #361) so the
-      // schema-check + cssVar→id mapping validate against the mounted panel's
-      // OWN tab manifest + color cluster, not the active default instance's.
+      const analysis = analyzeDesignTokenJson(parsed, cfg);
+      if (revision !== analysisRevisionRef.current) return;
+      setAnalysisState({ parsed, analysis });
+      // Foreign tabs are shown for transparency but cannot be selected. Every
+      // configured tab in the document starts checked, matching the old
+      // all-in import behaviour.
+      setSelectedTabs(analysis.tabs.filter((tab) => tab.known).map((tab) => tab.id));
+      setModeSides('as-is');
+      setStrategy('replace');
+      setAnalysisPending(false);
+      setNote(null);
+    } catch (error) {
+      if (revision !== analysisRevisionRef.current) return;
+      setAnalysisPending(false);
+      if (error instanceof DesignTokenSchemaError) {
+        setNote({ kind: 'error', text: schemaErrorText(error) });
+      } else {
+        const message = error instanceof Error ? error.message : String(error);
+        setNote({ kind: 'error', text: `Analysis failed: ${message}` });
+      }
+    }
+  }
+
+  function scheduleAnalysis(source: string): void {
+    if (analysisTimerRef.current !== null) clearTimeout(analysisTimerRef.current);
+    const revision = ++analysisRevisionRef.current;
+    resetScope();
+    setNote(null);
+
+    if (source.trim().length === 0) {
+      setAnalysisPending(false);
+      return;
+    }
+
+    setAnalysisPending(true);
+    analysisTimerRef.current = setTimeout(() => {
+      analysisTimerRef.current = null;
+      runAnalysis(source, revision);
+    }, ANALYSIS_DEBOUNCE_MS);
+  }
+
+  function handleTextInput(source: string): void {
+    setText(source);
+    scheduleAnalysis(source);
+  }
+
+  function handleAnalyze(): void {
+    if (analysisTimerRef.current !== null) {
+      clearTimeout(analysisTimerRef.current);
+      analysisTimerRef.current = null;
+    }
+    const revision = ++analysisRevisionRef.current;
+    setAnalysisPending(true);
+    resetScope();
+    setNote(null);
+    // Reading the element as well as state keeps the explicit control useful
+    // when a host/test updates textarea.value before dispatching its event.
+    const source = textareaRef.current?.value ?? text;
+    runAnalysis(source, revision);
+  }
+
+  function handleTabChange(tabId: string, checked: boolean): void {
+    setSelectedTabs((previous) => checked
+      ? previous.includes(tabId) ? previous : [...previous, tabId]
+      : previous.filter((id) => id !== tabId));
+  }
+
+  function handleLoad(): void {
+    setNote(null);
+    if (!analysisState) {
+      setNote({ kind: 'error', text: 'Analyze the JSON before loading.' });
+      return;
+    }
+
+    try {
+      // Thread the mounted instance's config + live state so scoped loading,
+      // merge, and one-side mode options all operate on this panel instance.
       const { state, unknownTokens, warnings } = deserialize(
-        parsed,
+        analysisState.parsed,
         {
           colorDefaults,
+          current,
+          tabs: selectedTabs,
+          modeSides,
+          strategy,
         },
         cfg,
       );
@@ -151,15 +276,6 @@ export function ImportModal({ onClose, onLoad, colorDefaults, instanceConfig }: 
       // unknownTokens (so the payload had data but nothing mapped), AND the
       // color block effectively matches the baseline. Surface a stronger
       // warning so the user isn't left thinking the import silently succeeded.
-      //
-      // The pre-fix check only verified whether the input HAD a `color` key
-      // (presence-based). That suppressed the warning even when an imported
-      // color block matched the baseline values exactly — i.e. the import
-      // was a no-op the user couldn't see. The fix compares the deserialized
-      // `state.color` against `colorDefaults` via structural deep-equal
-      // (JSON.stringify is property-order sensitive and would miss
-      // equal-but-reordered objects on V8 minor version drift; structural
-      // compare is order-independent).
       const appliedCount =
         Object.keys(state.spacing).length +
         Object.keys(state.typography).length +
@@ -184,32 +300,24 @@ export function ImportModal({ onClose, onLoad, colorDefaults, instanceConfig }: 
       } else {
         setNote({ kind: 'info', text: 'Loaded.' });
       }
-    } catch (err) {
-      if (err instanceof DesignTokenSchemaError) {
-        if (err.reason === 'schema-mismatch') {
-          setNote({
-            kind: 'error',
-            text: `Schema mismatch: expected "${SCHEMA_V3}", "${SCHEMA_V2}", or "${SCHEMA_V1}".`,
-          });
-        } else if (err.reason === 'schema-missing') {
-          setNote({
-            kind: 'error',
-            text: `Missing "$schema" key. Expected "${SCHEMA_V3}", "${SCHEMA_V2}", or "${SCHEMA_V1}".`,
-          });
-        } else {
-          setNote({ kind: 'error', text: 'Input is not a JSON object.' });
-        }
+    } catch (error) {
+      if (error instanceof DesignTokenSchemaError) {
+        setNote({ kind: 'error', text: schemaErrorText(error) });
         return;
       }
-      const message = err instanceof Error ? err.message : String(err);
+      const message = error instanceof Error ? error.message : String(error);
       setNote({ kind: 'error', text: `Load failed: ${message}` });
     }
   }
 
-  // Instance-scoped id for aria-labelledby. useId() ensures uniqueness when
-  // two panels are mounted in the same document.
+  // Instance-scoped id for aria-labelledby. Using useId() ensures uniqueness
+  // when two panels are mounted in the same document.
   const _uid = useId();
   const titleId = `${cfg.modalClassPrefix}-import-title-${_uid}`;
+  const selectedTabSet = new Set(selectedTabs);
+  const analysis = analysisState?.analysis;
+  const perModeEntries = analysis?.tabs.reduce((total, tab) => total + tab.perModeEntries, 0) ?? 0;
+  const modeSidesText = analysis && analysis.sides.length > 0 ? analysis.sides.join(', ') : 'none';
 
   return (
     <dialog
@@ -226,21 +334,42 @@ export function ImportModal({ onClose, onLoad, colorDefaults, instanceConfig }: 
       </div>
 
       <div className={modalClass(cfg, '__hint')}>
-        Paste a design-tokens JSON blob. Accepts{' '}
-        <span className="tokenpanel-code">{SCHEMA_V3}</span> or{' '}
-        <span className="tokenpanel-code">{SCHEMA_V2}</span> (current export format), plus the
-        legacy <span className="tokenpanel-code">{SCHEMA_V1}</span>. Unknown tokens are ignored;
-        schema mismatch aborts the load.
+        Paste a design-tokens JSON blob. Analysis runs automatically while you type, or use
+        Analyze to inspect the document before loading it.
       </div>
 
       <textarea
         ref={textareaRef}
         value={text}
-        onChange={(e) => setText(e.currentTarget.value)}
+        onInput={(event) => handleTextInput(event.currentTarget.value)}
         spellcheck={false}
         className={modalClass(cfg, '__textarea')}
         placeholder={`{ "$schema": "${SCHEMA_V2}", ... }`}
+        aria-label="Design tokens JSON"
       />
+
+      <div className={modalClass(cfg, '__actions')}>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={handleAnalyze}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              handleAnalyze();
+            }
+          }}
+          className={modalClass(cfg, '__button')}
+        >
+          Analyze
+        </div>
+      </div>
+
+      {analysisPending && (
+        <div role="status" className={`${modalClass(cfg, '__status')} ${modalClass(cfg, '__status--info')}`}>
+          Analyzing…
+        </div>
+      )}
 
       {note && (
         <div
@@ -251,28 +380,171 @@ export function ImportModal({ onClose, onLoad, colorDefaults, instanceConfig }: 
         </div>
       )}
 
-      <div className={modalClass(cfg, '__actions')}>
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={handleLoad}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              handleLoad();
-            }
-          }}
-          className={`${modalClass(cfg, '__button')} ${modalClass(cfg, '__button--primary')}`}
-        >
-          Load
+      {analysis && !analysisPending && (
+        <div className={modalClass(cfg, '__analysis')}>
+          <div role="heading" aria-level={3} className={modalClass(cfg, '__section-heading')}>
+            Import scope
+          </div>
+
+          <div className={modalClass(cfg, '__analysis-schema')}>
+            Schema: <span className="tokenpanel-code">{analysis.schema}</span>
+          </div>
+
+          <fieldset className={modalClass(cfg, '__fieldset')}>
+            <legend>Tabs</legend>
+            <div className={modalClass(cfg, '__tab-list')}>
+              {analysis.tabs.map((tab) => {
+                const tabLabel = cfg.tabs.find((configured) => configured.id === tab.id)?.label ?? tab.id;
+                return (
+                  <label key={tab.id} className={modalClass(cfg, '__tab-option')}>
+                    <input
+                      type="checkbox"
+                      checked={tab.known && selectedTabSet.has(tab.id)}
+                      disabled={!tab.known}
+                      onChange={(event) => handleTabChange(tab.id, event.currentTarget.checked)}
+                    />
+                    <span className={modalClass(cfg, '__tab-name')}>{tabLabel}</span>
+                    <span className={modalClass(cfg, '__tab-meta')}>
+                      {tab.entries} {tab.entries === 1 ? 'entry' : 'entries'}
+                    </span>
+                    {!tab.known && (
+                      <span className={modalClass(cfg, '__tab-disabled')}>not in this panel</span>
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+
+          <div className={modalClass(cfg, '__mode-summary')}>
+            Mode sides found: <span className="tokenpanel-code">{modeSidesText}</span>
+          </div>
+
+          {perModeEntries > 0 && (
+            <fieldset className={modalClass(cfg, '__fieldset')}>
+              <legend>Mode sides</legend>
+              <div className={modalClass(cfg, '__radio-list')}>
+                <label className={modalClass(cfg, '__radio-option')}>
+                  <input
+                    type="radio"
+                    name={`${titleId}-mode-sides`}
+                    value="as-is"
+                    checked={modeSides === 'as-is'}
+                    onChange={() => setModeSides('as-is')}
+                  />
+                  As-is
+                </label>
+                <label className={modalClass(cfg, '__radio-option')}>
+                  <input
+                    type="radio"
+                    name={`${titleId}-mode-sides`}
+                    value="swap"
+                    checked={modeSides === 'swap'}
+                    onChange={() => setModeSides('swap')}
+                  />
+                  Swap light / dark
+                </label>
+                <label className={modalClass(cfg, '__radio-option')}>
+                  <input
+                    type="radio"
+                    name={`${titleId}-mode-sides`}
+                    value="light-only"
+                    checked={modeSides === 'light-only'}
+                    onChange={() => setModeSides('light-only')}
+                  />
+                  Light only (preserve dark)
+                </label>
+                <label className={modalClass(cfg, '__radio-option')}>
+                  <input
+                    type="radio"
+                    name={`${titleId}-mode-sides`}
+                    value="dark-only"
+                    checked={modeSides === 'dark-only'}
+                    onChange={() => setModeSides('dark-only')}
+                  />
+                  Dark only (preserve light)
+                </label>
+                <label className={modalClass(cfg, '__radio-option')}>
+                  <input
+                    type="radio"
+                    name={`${titleId}-mode-sides`}
+                    value="light-to-both"
+                    checked={modeSides === 'light-to-both'}
+                    onChange={() => setModeSides('light-to-both')}
+                  />
+                  Light to both
+                </label>
+              </div>
+            </fieldset>
+          )}
+
+          <fieldset className={modalClass(cfg, '__fieldset')}>
+            <legend>Import strategy</legend>
+            <div className={modalClass(cfg, '__radio-list')}>
+              <label className={modalClass(cfg, '__radio-option')}>
+                <input
+                  type="radio"
+                  name={`${titleId}-strategy`}
+                  value="replace"
+                  checked={strategy === 'replace'}
+                  onChange={() => setStrategy('replace')}
+                />
+                Replace selected tabs
+              </label>
+              <label className={modalClass(cfg, '__radio-option')}>
+                <input
+                  type="radio"
+                  name={`${titleId}-strategy`}
+                  value="merge"
+                  checked={strategy === 'merge'}
+                  onChange={() => setStrategy('merge')}
+                />
+                Merge into selected tabs
+              </label>
+            </div>
+          </fieldset>
+
+          {analysis.unknownTokens.length > 0 && (
+            <div className={modalClass(cfg, '__unknown')}>
+              <div role="heading" aria-level={3} className={modalClass(cfg, '__section-heading')}>
+                Unknown tokens (will be skipped)
+              </div>
+              <div className={modalClass(cfg, '__unknown-list')}>
+                {analysis.unknownTokens.map((token) => (
+                  <div key={token} className={`${modalClass(cfg, '__list-item')} ${modalClass(cfg, '__unknown-item')}`}>
+                    <span className="tokenpanel-code">{token}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
+      )}
+
+      <div className={modalClass(cfg, '__actions')}>
+        {analysis && !analysisPending && (
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={handleLoad}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                handleLoad();
+              }
+            }}
+            className={`${modalClass(cfg, '__button')} ${modalClass(cfg, '__button--primary')}`}
+          >
+            Load
+          </div>
+        )}
         <div
           role="button"
           tabIndex={0}
           onClick={() => dialogRef.current?.close()}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
               dialogRef.current?.close();
             }
           }}

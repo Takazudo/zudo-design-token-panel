@@ -1192,6 +1192,15 @@ describe('10. handleLoadFromJson-style import clears color cluster vars before a
         textarea.dispatchEvent(new Event('input', { bubbles: true }));
       });
 
+      // The import modal analyzes pasted JSON before exposing the scoped Load
+      // action. Use the explicit control here so this lifecycle test does not
+      // depend on the debounce interval.
+      const analyzeBtn = Array.from(dialog!.querySelectorAll('[role="button"]')).find(
+        (el) => el.textContent?.trim() === 'Analyze',
+      ) as HTMLElement | undefined;
+      expect(analyzeBtn).toBeTruthy();
+      act(() => analyzeBtn!.click());
+
       const loadBtn = Array.from(dialog!.querySelectorAll('[role="button"]')).find(
         (el) => el.textContent?.trim() === 'Load',
       ) as HTMLElement | undefined;
