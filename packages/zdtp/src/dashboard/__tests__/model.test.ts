@@ -39,7 +39,8 @@ describe('declared dashboard defaults', () => {
     const snapshot = JSON.stringify(tabs);
     const model = buildDashboardModel(tabs);
     expect(model.mode).toBe('light');
-    expect(model.tabs.map((entry) => entry.id)).toEqual(['tokens', 'empty']);
+    expect(model.include).toBe('all');
+    expect(model.tabs.map((entry) => entry.id)).toEqual(['tokens']);
     expect(model.rows.map((row) => row.itemId)).toEqual(['medium', 'future', 'content']);
     expect(model.tabs[0].label).toBe('<Tokens & examples>');
     expect(model.tabs[0].tiers[0]).toMatchObject({ preview: 'size', previewBase: '--medium' });
@@ -232,7 +233,7 @@ describe('declared dashboard defaults', () => {
     ])])]);
     expect(model.rows.find((row) => row.itemId === 'calc')).toMatchObject({ cssValue: 'calc(var(--base) * 2)', resolvedValue: 'calc(var(--base) * 2)' });
     expect(model.rows.find((row) => row.itemId === 'nested-known')).toMatchObject({ cssValue: 'calc(var(--calc, var(--base)) * 2)', resolvedValue: 'calc(var(--calc, var(--base)) * 2)', references: [{ cssVar: '--calc' }, { cssVar: '--base' }] });
-    expect(model.rows.find((row) => row.itemId === 'mode-expression')).toMatchObject({ cssValue: 'light-dark(#fff, #123)', resolvedValue: 'light-dark(#fff, #123)' });
+    expect(model.rows.find((row) => row.itemId === 'mode-expression')).toMatchObject({ cssValue: '#fff', resolvedValue: '#fff' });
     expect(model.rows.find((row) => row.itemId === 'known-keyword-name')?.diagnostics).toEqual([]);
     for (const id of ['external', 'nested', 'current', 'environment']) expect(model.rows.find((row) => row.itemId === id)?.resolvedValue).toBeNull();
     expect(model.rows.find((row) => row.itemId === 'external')?.diagnostics[0].code).toBe('external-reference');
@@ -281,5 +282,256 @@ describe('declared dashboard defaults', () => {
       }
       vi.doUnmock('../../config/panel-config');
     }
+  });
+});
+
+describe('mode-aware dashboard rows', () => {
+  const modes = ['light', 'dark', 'host'] as const;
+  const includes = ['all', 'mode-dependent', 'mode-independent'] as const;
+  const sides = { light: '#eee', dark: '#111' };
+  const mixedTabs = [
+    tab([
+      tier('mixed', [
+        item('fixed', '#abc', { cssVar: '--fixed-color', type: { kind: 'color' } }),
+        item('themed', '#777', { modes: sides, type: { kind: 'color' } }),
+      ]),
+      tier('aliases', [item('themed-alias', 'themed'), item('fixed-alias', 'fixed')], { referencesTier: 'mixed' }),
+      tier('expressions', [item('mix', 'color-mix(in oklab, var(--themed-alias), var(--fixed-color))')]),
+      tier('empty', []),
+    ]),
+    tab([tier('only-fixed', [item('fixed-only', '2rem')])], { id: 'static' }),
+    tab([tier('only-paired', [item('changing-only', 'light-dark(#fff, #222)')])], { id: 'changing' }),
+    tab([], { id: 'empty' }),
+  ];
+
+  it.each(modes.flatMap((mode) => includes.map((include) => ({ mode, include }))))(
+    'selects $mode values and filters $include rows after building the whole graph',
+    ({ mode, include }) => {
+      const snapshot = JSON.stringify(mixedTabs);
+      const model = buildDashboardModel(mixedTabs, { mode, include });
+      const visible = model.tabs.map((entry) => ({
+        id: entry.id,
+        tiers: entry.tiers.map((entry) => ({ id: entry.id, rows: entry.rows.map((row) => row.itemId) })),
+      }));
+      const expected = {
+        all: [
+          { id: 'tokens', tiers: [
+            { id: 'mixed', rows: ['fixed', 'themed'] },
+            { id: 'aliases', rows: ['themed-alias', 'fixed-alias'] },
+            { id: 'expressions', rows: ['mix'] },
+          ] },
+          { id: 'static', tiers: [{ id: 'only-fixed', rows: ['fixed-only'] }] },
+          { id: 'changing', tiers: [{ id: 'only-paired', rows: ['changing-only'] }] },
+        ],
+        'mode-dependent': [
+          { id: 'tokens', tiers: [
+            { id: 'mixed', rows: ['themed'] },
+            { id: 'aliases', rows: ['themed-alias'] },
+            { id: 'expressions', rows: ['mix'] },
+          ] },
+          { id: 'changing', tiers: [{ id: 'only-paired', rows: ['changing-only'] }] },
+        ],
+        'mode-independent': [
+          { id: 'tokens', tiers: [
+            { id: 'mixed', rows: ['fixed'] },
+            { id: 'aliases', rows: ['fixed-alias'] },
+          ] },
+          { id: 'static', tiers: [{ id: 'only-fixed', rows: ['fixed-only'] }] },
+        ],
+      };
+      expect(model).toMatchObject({ mode, include });
+      expect(visible).toEqual(expected[include]);
+      expect(model.rows.map((row) => row.itemId)).toEqual([
+        'fixed', 'themed', 'themed-alias', 'fixed-alias', 'mix', 'fixed-only', 'changing-only',
+      ]);
+      const selected = mode === 'host' ? 'light-dark(#eee, #111)' : sides[mode];
+      expect(model.declarations).toEqual({
+        '--fixed-color': '#abc', '--themed': selected,
+        '--themed-alias': 'var(--themed)', '--fixed-alias': 'var(--fixed-color)',
+        '--mix': 'color-mix(in oklab, var(--themed-alias), var(--fixed-color))',
+        '--fixed-only': '2rem',
+        '--changing-only': mode === 'host' ? 'light-dark(#fff, #222)' : mode === 'light' ? '#fff' : '#222',
+      });
+      expect(model.rows.find((row) => row.itemId === 'themed')).toMatchObject({
+        modeDependent: true, sides, origin: 'modes', defaultValue: '#777',
+        declaredValue: selected, cssValue: selected, resolvedValue: mode === 'host' ? null : selected,
+      });
+      expect(model.rows.find((row) => row.itemId === 'themed-alias')).toMatchObject({
+        modeDependent: true, sides: null, origin: 'reference', cssValue: 'var(--themed)',
+        resolvedValue: mode === 'host' ? null : selected, references: [{ cssVar: '--themed' }],
+      });
+      expect(model.rows.find((row) => row.itemId === 'mix')).toMatchObject({
+        modeDependent: true, sides: null, origin: 'reference',
+        resolvedValue: mode === 'host' ? null : model.declarations['--mix'],
+        references: [{ cssVar: '--themed-alias' }, { cssVar: '--fixed-color' }],
+      });
+      for (const id of ['fixed', 'fixed-alias', 'fixed-only']) {
+        expect(model.rows.find((row) => row.itemId === id)).toMatchObject({ modeDependent: false, sides: null, origin: null });
+      }
+      expect(model.rows.find((row) => row.itemId === 'fixed-alias')?.resolvedValue).toBe('#abc');
+      expect(model.diagnostics).toEqual([]);
+      expect(JSON.stringify(mixedTabs)).toBe(snapshot);
+    },
+  );
+
+  it.each(modes)('uses direct-pair precedence, semantic overrides and the shared parser in %s mode', (mode) => {
+    const tabs = [tab([
+      tier('semantic', [
+        item('modes-first', 'light-dark(#333, #444)', { modes: sides }),
+        item('modes-over-ref', 'missing', { modes: sides }),
+        item('default-over-ref', 'light-dark(#333, #444)'),
+        item('semantic-first', 'light-dark(#333, #444)'),
+        item('string-pair', '#555'),
+        item('string-fixed', 'light-dark(#333, #444)'),
+        item('parsed', '  LiGhT-DaRk( rgb(1, 2, 3), color-mix(in oklab, red, blue) )  '),
+      ], { semantic: true, referencesTier: 'missing' }),
+      tier('raw', [
+        item('nonsemantic', '#678'),
+        item('same-sides', '#777', { modes: { light: '#abc', dark: '#abc' } }),
+        item('nested', 'light-dark(light-dark(red, blue), green)'),
+        item('multiple', 'light-dark(red, blue) green'),
+      ]),
+    ], { colorExtras: extras({ semanticDefaults: {
+      'modes-first': { literal: { light: '#aaa', dark: '#bbb' } },
+      'modes-over-ref': { ref: { tab: 'absent', tier: 'absent', item: 'absent' } },
+      'default-over-ref': { ref: { tab: 'absent', tier: 'absent', item: 'absent' } },
+      'semantic-first': { literal: { light: '#aaa', dark: '#bbb' } },
+      'string-pair': { literal: 'light-dark(#ccc, #ddd)' },
+      'string-fixed': { literal: '#999' },
+      nonsemantic: { literal: { light: '#aaa', dark: '#bbb' } },
+    } }) })];
+    const model = buildDashboardModel(tabs, { mode });
+    const expected = [
+      { itemId: 'modes-first', origin: 'modes', sides },
+      { itemId: 'modes-over-ref', origin: 'modes', sides },
+      { itemId: 'default-over-ref', origin: 'default', sides: { light: '#333', dark: '#444' } },
+      { itemId: 'semantic-first', origin: 'semantic', sides: { light: '#aaa', dark: '#bbb' } },
+      { itemId: 'string-pair', origin: 'default', sides: { light: '#ccc', dark: '#ddd' } },
+      { itemId: 'parsed', origin: 'default', sides: { light: 'rgb(1, 2, 3)', dark: 'color-mix(in oklab, red, blue)' } },
+      { itemId: 'same-sides', origin: 'modes', sides: { light: '#abc', dark: '#abc' } },
+    ];
+    for (const pair of expected) {
+      const value = mode === 'host' ? `light-dark(${pair.sides.light}, ${pair.sides.dark})` : pair.sides[mode];
+      expect(model.rows.find((row) => row.itemId === pair.itemId)).toMatchObject({
+        ...pair, modeDependent: true, cssValue: value, declaredValue: value,
+        resolvedValue: mode === 'host' ? null : value, references: [],
+      });
+    }
+    expect(model.declarations['--string-fixed']).toBe('#999');
+    expect(model.declarations['--nonsemantic']).toBe('#678');
+    for (const id of ['string-fixed', 'nonsemantic', 'nested', 'multiple']) {
+      expect(model.rows.find((row) => row.itemId === id)).toMatchObject({ modeDependent: false, sides: null, origin: null });
+    }
+    expect(model.diagnostics).toEqual([]);
+  });
+
+  it.each(modes)('propagates through base roles, cross-tab ramps, palette indices and CSS references in %s mode', (mode) => {
+    const model = buildDashboardModel([
+      tab([tier('semantic', [item('cross-ref', '#fff'), item('cross-ramp', 'themed')], {
+        semantic: true, referencesRamps: [{ tab: 'tokens', tier: 'palette' }],
+      })], { id: 'color', colorExtras: extras({ semanticDefaults: {
+        'cross-ref': { ref: { tab: 'tokens', tier: 'palette', item: 'themed' } },
+      } }) }),
+      tab([
+        tier('css', [item('downstream', 'var(--css-role)'), item('css-role', 'var(--background)')]),
+        tier('aliases', [item('background-alias', 'bg'), item('index-alias', 'ink'), item('role-alias', 'ink')], { referencesTier: 'palette' }),
+        tier('palette', [
+          item('themed', '#777', { modes: sides, type: { kind: 'color' } }),
+          item('ink', '#123', { type: { kind: 'color' } }),
+        ]),
+      ], { colorExtras: extras({
+        baseRoles: { background: '--background', foreground: '--foreground' },
+        baseDefaults: { background: 0, foreground: 1 },
+        semanticDefaults: { 'index-alias': 0, 'role-alias': 'bg' },
+      }) }),
+    ], { mode });
+    for (const id of ['cross-ref', 'cross-ramp', 'downstream', 'css-role', 'background-alias', 'index-alias', 'role-alias', 'background']) {
+      const row = model.rows.find((row) => row.itemId === id)!;
+      expect(row).toMatchObject({ modeDependent: true, origin: 'reference', sides: null });
+      expect(row.cssValue).not.toBeNull();
+      if (mode === 'host') expect(row.resolvedValue).toBeNull();
+      else if (!['downstream', 'css-role'].includes(id)) expect(row.resolvedValue).toBe(sides[mode]);
+    }
+    expect(model.rows.find((row) => row.itemId === 'foreground')).toMatchObject({
+      modeDependent: false, origin: null, sides: null, resolvedValue: '#123',
+    });
+    expect(model.declarations).toMatchObject({
+      '--cross-ref': 'var(--themed)', '--cross-ramp': 'var(--themed)',
+      '--downstream': 'var(--css-role)', '--css-role': 'var(--background)',
+      '--background': 'var(--themed)', '--foreground': 'var(--ink)',
+    });
+    expect(model.diagnostics).toEqual([]);
+  });
+
+  it.each(modes)('terminates propagation across cycles and retains diagnostics under every filter in %s mode', (mode) => {
+    const tabs = [tab([tier('values', [
+      item('child', 'var(--left)'),
+      item('left', 'color-mix(in oklab, var(--right), var(--themed))'),
+      item('right', 'var(--left)'),
+      item('themed', '#777', { modes: sides }),
+      item('self-cycle', 'var(--self-cycle)'),
+      item('external', 'var(--host, #fff)'),
+    ])])];
+    const complete = buildDashboardModel(tabs, { mode });
+    for (const include of includes) {
+      const model = buildDashboardModel(tabs, { mode, include });
+      expect(model.diagnostics).toEqual(complete.diagnostics);
+      expect(model.declarations).toEqual(complete.declarations);
+      for (const id of ['child', 'left', 'right']) {
+        expect(model.rows.find((row) => row.itemId === id)).toMatchObject({
+          modeDependent: true, origin: 'reference', sides: null, cssValue: null, resolvedValue: null,
+        });
+      }
+      for (const id of ['left', 'right', 'self-cycle']) {
+        expect(model.rows.find((row) => row.itemId === id)?.diagnostics.some((entry) => entry.code === 'cyclic-reference')).toBe(true);
+      }
+      expect(model.rows.find((row) => row.itemId === 'child')?.diagnostics.some((entry) => entry.code === 'invalid-reference')).toBe(true);
+      expect(model.rows.find((row) => row.itemId === 'self-cycle')?.modeDependent).toBe(false);
+      expect(model.rows.find((row) => row.itemId === 'external')).toMatchObject({
+        modeDependent: false, cssValue: 'var(--host, #fff)', resolvedValue: null,
+        diagnostics: [{ code: 'external-reference' }],
+      });
+    }
+  });
+
+  it.each(modes)('applies existing CSS safety and context diagnostics to the active %s values', (mode) => {
+    const model = buildDashboardModel([tab([
+      tier('raw', [
+        item('unsafe', '#777', { modes: { light: 'red; position: fixed', dark: '#123' } }),
+        item('context', '#777', { modes: { light: '#eee', dark: 'var(--host-background)' } }),
+      ]),
+      tier('aliases', [item('unsafe-alias', 'unsafe'), item('context-alias', 'context')], { referencesTier: 'raw' }),
+    ])], { mode });
+    for (const id of ['unsafe', 'unsafe-alias']) {
+      const row = model.rows.find((row) => row.itemId === id)!;
+      expect(row.modeDependent).toBe(true);
+      if (mode === 'dark') expect(row.resolvedValue).toBe('#123');
+      else {
+        expect(row.cssValue).toBeNull();
+        expect(row.resolvedValue).toBeNull();
+        expect(model.declarations).not.toHaveProperty(row.cssVar);
+        expect(row.diagnostics.some((entry) => entry.code === (id === 'unsafe' ? 'unsafe-css' : 'invalid-reference'))).toBe(true);
+      }
+    }
+    for (const id of ['context', 'context-alias']) {
+      const row = model.rows.find((row) => row.itemId === id)!;
+      expect(row.modeDependent).toBe(true);
+      expect(row.cssValue).not.toBeNull();
+      expect(row.resolvedValue).toBe(mode === 'light' ? '#eee' : null);
+      if (mode !== 'light') expect(row.diagnostics.some((entry) => entry.code === (id === 'context' ? 'external-reference' : 'context-dependent'))).toBe(true);
+    }
+    if (mode === 'host') expect(model.declarations['--context']).toBe('light-dark(#eee, var(--host-background))');
+  });
+
+  it('keeps the positional mode compatible and defaults options independently', () => {
+    function legacyModel(mode?: 'light' | 'dark') {
+      return buildDashboardModel(mixedTabs, mode);
+    }
+    expect(legacyModel()).toEqual(buildDashboardModel(mixedTabs));
+    expect(legacyModel('dark')).toEqual(buildDashboardModel(mixedTabs, { mode: 'dark' }));
+    expect(buildDashboardModel(mixedTabs, 'dark')).toEqual(buildDashboardModel(mixedTabs, { mode: 'dark' }));
+    expect(buildDashboardModel(mixedTabs, 'host')).toEqual(buildDashboardModel(mixedTabs, { mode: 'host' }));
+    expect(buildDashboardModel(mixedTabs, {})).toEqual(buildDashboardModel(mixedTabs));
+    expect(buildDashboardModel(mixedTabs, { include: 'mode-dependent' })).toMatchObject({ mode: 'light', include: 'mode-dependent' });
   });
 });
