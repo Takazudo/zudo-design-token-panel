@@ -74,6 +74,8 @@ export interface TierItem {
   default: string;
   /** Discriminated union controlling the edit widget. */
   type: TierValueKind;
+  /** Optional light/dark CSS color pair; makes the row mode-dependent. */
+  modes?: { light: string; dark: string };
   /** Opt-in sentinel-value toggle. */
   pill?: PillSpec;
   /** Display-only flag — the row is rendered but not editable. */
@@ -98,8 +100,44 @@ Example manifests must not reference `group`.
 | `label` | yes | Display label inside the panel row. |
 | `default` | yes | Fallback CSS string emitted when no override is active. |
 | `type` | yes | Controls which editor renders for this row. |
+| `modes` | no | A light/dark color pair for a mode-dependent row. Valid only for `type.kind: 'color'` or `'text'`; both sides must be non-empty strings. |
 | `pill` | no | Adds an opt-in sentinel toggle alongside the main editor. |
 | `readonly` | no | When `true`, the row is shown but not editable and is skipped by the apply pipeline. |
+
+### `modes` and mode-aware rows
+
+`modes` is a pair of CSS colors:
+
+```ts
+{
+  id: 'surface',
+  cssVar: '--site-surface',
+  label: 'Surface',
+  default: '#f8fafc',
+  type: { kind: 'color' },
+  modes: { light: '#f8fafc', dark: '#172033' },
+}
+```
+
+Both `light` and `dark` must be non-empty strings, and both sides are
+documented as CSS colors because the runtime emits the pair as
+`light-dark(light, dark)`. `modes` is accepted only when the item kind is
+`color` or `text`; it is rejected for length, number, select, cursor, content,
+and mask-image rows. The ordinary `default` remains the fallback value used by
+consumers that do not select a mode.
+
+Mode rows are display-only in the editor: the panel shows both sides without
+turning the pair into an ordinary single-value input. This editor-disabled state
+is separate from `readonly: true`. A mode row with `readonly` omitted remains in
+the normal apply and serde contract, while `readonly` rows stay visible but are
+excluded from apply and import/export state.
+
+`assertValidPanelConfig` checks this shape at the configuration boundary. It
+reports a path-specific error when `modes` is not a plain object, when the item
+kind is not `color` or `text`, or when either side is not a non-empty string.
+For example, a length item reports that `modes` is only valid for the color or
+text kinds, and `{ light: '', dark: '#000' }` reports that `modes.light` must be
+a non-empty string. A malformed manifest is rejected before the panel mounts.
 
 ## `TierConfig`
 

@@ -24,6 +24,7 @@ hydration を必要とせず、読み取り専用の一覧をレンダリング�
 import type {
   TokenDashboardProps,
   DashboardMode,
+  DashboardInclude,
   DashboardChrome,
   DashboardPreviewKind,
   TabConfig,
@@ -35,7 +36,8 @@ import type {
 | Prop | 型 / 既定値 | 意味 |
 | --- | --- | --- |
 | `tabs` | `readonly TabConfig[]`、必須 | 表示順に並べた共有マニフェスト。空配列では空の一覧を表示します。 |
-| `mode` | `'light' \| 'dark'`、既定値 `'light'` | 宣言されたモード別の既定値と、プレビュー内のカラースキームを選びます。 |
+| `mode` | `'light' \| 'dark' \| 'host'`、既定値 `'light'` | 宣言されたモード別の既定値と、プレビュー内のカラースキームを選びます。`host` は `light-dark()` の値を出力し、依存リージョンをページのスキームに従わせます。 |
+| `include` | `'all' \| 'mode-dependent' \| 'mode-independent'`、既定値 `'all'` | 参照を通じてモード依存性を伝播させた後、表示する行を絞り込みます。参照に必要な宣言グラフ全体はインスタンス内に保持されます。 |
 | `chrome` | `'light' \| 'dark' \| 'host'`、既定値 `'light'` | 枠・背景・ラベルなどの外観を選びます。`mode` とは独立しています。**未リリース（次回リリース予定）**。 |
 | `title` | `string`、既定値 `'Token dashboard'` | 表示する見出しと、リージョンのアクセシブル名。 |
 | `id` | 省略可能な `string` | ルート要素の ID。一意性は呼び出し元が管理します。省略時は生成しません。 |
@@ -47,6 +49,49 @@ import type {
 この CSS は `@takazudo/zdtp/styles.css` と独立しており、ダッシュボードだけのページに
 パネル用スタイルシートは不要です。Preact が必要です。React アダプターや
 HTML 書き出し関数・CLI は提供しません。
+
+### Chrome の入力と派生値
+
+スタイルシートは、継承される 4 つの色入力を公開しています。ページ全体とは異なる
+ダッシュボードの外観にする場合は、ラッパーまたは個別のダッシュボードへ設定します。
+
+| 変数 | 既定値 | 用途 |
+| --- | --- | --- |
+| `--zdtp-dashboard-light-bg` | `#f8fafc` | ライトのページ・シェル背景 |
+| `--zdtp-dashboard-light-fg` | `#182131` | ライトの主要テキスト・前景色 |
+| `--zdtp-dashboard-dark-bg` | `#151b24` | ダークのページ・シェル背景 |
+| `--zdtp-dashboard-dark-fg` | `#edf2f7` | ダークの主要テキスト・前景色 |
+
+ダッシュボードはこの 4 つの名前を継承値として宣言するため、祖先からの上書きが
+コンポーネントの既定値に隠れません。`--zdtp-dashboard-bg` と
+`--zdtp-dashboard-fg` は `light-dark()` でライト／ダークの組を選びます。ミュート色と
+ボーダーはその組の `color-mix()` から派生し、ミュートの前景混合率は 58%、ボーダーは
+ライト 16%／ダーク 22% です。カード背景はライト背景へ白を 20%、ダーク背景へ黒を 8%
+混ぜます。診断、フォーカス、定規、バー、サンプル、チェッカーボードの色も
+`light-dark()` とこれらの Chrome 入力からスタイルシート内で派生します。
+ダッシュボードのルートは透明なので、周囲の面はホストページが決めます。
+
+## モード依存性と行リージョン
+
+モード依存性は個々の行に属し、宣言された参照を通じてすべての参照先へ伝播します。
+ダッシュボードはトップレベルの `light-dark(light, dark)` 値に対して
+`splitLightDark()` という 1 つのパーサーだけを使います。検出の優先順位は次のとおりです。
+
+1. `item.modes` があれば、それを使います。
+2. 次にセマンティックな `{ literal: { light, dark } }` 上書きを使います。
+3. 次に `item.default` のトップレベル `light-dark(a, b)` を解析します。
+4. モード依存の行を参照する行もモード依存になります。
+
+指定した `mode` に対応する側を表示します。`mode="host"` ではペアを
+`light-dark(light, dark)` のまま保持し、継承したスキームからブラウザーに側を選ばせます。
+不正な式やネストした式はモードペアとして扱わず、宣言された値を保持してどちらの側も推測しません。
+
+依存性の判定は行ごとなので、1 つのティアに両方の種類を置けます。空でない各タブと
+ティアは行単位で分割され、モード依存リージョンが先に置かれ、`mode` を見本へ使います。
+モード非依存リージョンは後ろに置かれ、`chrome` を使います。各リージョン内では、元の
+タブ・ティア・行の順序を保持します。`include="mode-dependent"` または
+`include="mode-independent"` は、この表示分割の片方だけを選びます。絞り込み後も参照に
+必要な非表示の宣言は削除されず、件数と診断は表示中の行を示します。
 
 ## 宣言された値
 
@@ -92,6 +137,47 @@ CSS の式は保持し、あらゆる CSS プロパティの文法として計�
 一部のデータを埋め込む場合は、参照先のティアも含めてください。
 通常の静的 Preact レンダリングを使えば、クライアント JavaScript を必要としない出力を作れます。
 hydration するかどうかはホスト側で選択できます。
+
+## 組み合わせのレシピ
+
+1 つの一覧を周囲のページに従わせるには、`chrome` と `mode` の両方を `host` にします。
+ホストは祖先要素に `color-scheme` を設定する必要があります。
+
+```tsx
+<TokenDashboard
+  tabs={tokenTabs}
+  chrome="host"
+  mode="host"
+  title="ページに従うトークン"
+  id="page-following"
+/>
+```
+
+3 インスタンスのリファレンスでは、依存行を固定モードごとに 1 回ずつ、独立行を全体で
+1 回レンダリングします。これにより各モードのスナップショットでモード依存行を確認しながら、
+独立した一覧の重複を避けられます。
+
+```tsx
+<TokenDashboard tabs={tokenTabs} include="mode-dependent" mode="light" title="ライト依存トークン" id="tokens-light" />
+<TokenDashboard tabs={tokenTabs} include="mode-dependent" mode="dark" title="ダーク依存トークン" id="tokens-dark" />
+<TokenDashboard tabs={tokenTabs} include="mode-independent" chrome="host" title="共有トークン" id="tokens-shared" />
+```
+
+各インスタンスは 1 つのローカルな宣言スコープを持ちます。ページ内リンクが必要な場合は
+インスタンスごとに異なる `id` を指定してください。ID は自動生成されません。4 つの
+Chrome 入力を、ラッパーによって 1 つのインスタンスだけへ上書きすることもできます。
+
+```tsx
+<div style="--zdtp-dashboard-light-bg: #fff7ed; --zdtp-dashboard-light-fg: #7c2d12; --zdtp-dashboard-dark-bg: #1c1917; --zdtp-dashboard-dark-fg: #fed7aa">
+  <TokenDashboard tabs={tokenTabs} chrome="host" mode="host" title="暖色の Chrome" />
+</div>
+```
+
+ダッシュボード内部の `buildDashboardModel` ヘルパーで両方の設定を扱う場合は、現在オプション
+オブジェクトを使えます。`buildDashboardModel(tabs, { mode: 'dark', include: 'mode-dependent' })`
+の形式です。互換性のため、位置引数の `buildDashboardModel(tabs, 'dark')` オーバーロードも
+残っています。内部統合の新しいコードでは `include` を明示できるオプション形式を使ってください。
+これはパッケージの独立した dashboard export ではありません。
 
 ## 余白・色・タイポグラフィのレイアウト
 

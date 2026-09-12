@@ -74,6 +74,8 @@ export interface TierItem {
   default: string;
   /** Discriminated union controlling the edit widget. */
   type: TierValueKind;
+  /** Optional light/dark CSS color pair; makes the row mode-dependent. */
+  modes?: { light: string; dark: string };
   /** Opt-in sentinel-value toggle. */
   pill?: PillSpec;
   /** Display-only flag — the row is rendered but not editable. */
@@ -94,8 +96,42 @@ export interface TierItem {
 | `label` | Yes | パネル行内の表示ラベル。 |
 | `default` | Yes | オーバーライドが有効でないときに出力されるフォールバックの CSS 文字列。 |
 | `type` | Yes | この行にどのエディターがレンダリングされるかを制御します。 |
+| `modes` | No | モード依存行にする light／dark の色ペア。`type.kind` が `'color'` または `'text'` の場合だけ有効で、両側に空でない文字列が必要です。 |
 | `pill` | No | メインエディターと並べて、オプトインのセンチネルトグルを追加します。 |
 | `readonly` | No | `true` の場合、行は表示されますが編集不可となり、apply パイプラインからスキップされます。 |
+
+### `modes` とモード対応行
+
+`modes` は CSS の色ペアです。
+
+```ts
+{
+  id: 'surface',
+  cssVar: '--site-surface',
+  label: 'Surface',
+  default: '#f8fafc',
+  type: { kind: 'color' },
+  modes: { light: '#f8fafc', dark: '#172033' },
+}
+```
+
+`light` と `dark` はどちらも空でない文字列でなければならず、出力時に
+`light-dark(light, dark)` へ変換されるため、両側は CSS の色として定義します。
+`modes` を指定できるのは item の kind が `color` または `text` の場合だけです。
+length、number、select、cursor、content、mask-image の行では拒否されます。
+通常の `default` は、モードを選択しない利用側で使われるフォールバックとして残ります。
+
+モード行はエディター上で表示専用となり、通常の単一値入力には変換されません。
+このエディター無効状態は `readonly: true` とは別のものです。`readonly` を省略した
+モード行は通常の apply と serde の契約に残ります。一方、`readonly` 行は表示されますが、
+apply と import／export の state から除外されます。
+
+`assertValidPanelConfig` は設定境界でこの形を検証します。`modes` がプレーンオブジェクト
+でない場合、item の kind が `color` または `text` でない場合、どちらかの側が空でない文字列
+でない場合は、フィールドへのパスを含むエラーを返します。たとえば length item では
+`modes` が color または text kind でのみ有効だと報告し、`{ light: '', dark: '#000' }` では
+`modes.light` が空でない文字列でなければならないと報告します。不正なマニフェストは
+パネルがマウントする前に拒否されます。
 
 ## `TierConfig`
 

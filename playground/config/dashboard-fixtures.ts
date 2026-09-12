@@ -29,7 +29,16 @@ export const dashboardFixtureTabs: readonly TabConfig[] = [{
     ].map(([stop, value]): TierItem => ({
       id: `ocean-${stop}`, label: `Ocean ${stop}`, cssVar: `--dashboard-example-ocean-${stop}`,
       default: value, type: { kind: 'color', format: 'hex' },
-    })),
+    })).concat([{
+      id: 'ocean-paired', label: 'Ocean paired stop', cssVar: '--dashboard-example-ocean-paired',
+      default: '#dbeafe', type: { kind: 'color', format: 'hex' },
+      modes: { light: '#dbeafe', dark: '#1e3a8a' },
+    }]),
+  }, {
+    id: 'ocean-aliases', label: 'Aliases to the ramp', referencesTier: 'ocean-ramp', items: [{
+      id: 'ocean-paired-alias', label: 'Alias to paired stop', cssVar: '--dashboard-example-ocean-paired-alias',
+      default: 'ocean-paired', type: { kind: 'color', format: 'hex' },
+    }],
   }],
 }, {
   id: 'type-examples', label: 'Your own reading passage', tiers: [{
@@ -41,8 +50,23 @@ export const dashboardFixtureTabs: readonly TabConfig[] = [{
       id: `leading-${value}`, label: `Line height ${value}`, cssVar: `--dashboard-example-leading-${value.replace('.', '-')}`,
       default: value, type: { kind: 'text' },
     })),
+  }, {
+    id: 'mixed-mode', label: 'Mixed mode dependence', items: [
+      {
+        id: 'mode-text', label: 'Top-level light-dark text', cssVar: '--dashboard-example-mode-text',
+        default: 'light-dark(#1d4ed8, #bfdbfe)', type: { kind: 'text' },
+      },
+      {
+        id: 'independent-text', label: 'Independent text', cssVar: '--dashboard-example-independent-text',
+        default: 'serif', type: { kind: 'text' },
+      },
+    ],
   }],
 }];
+
+export const dashboardPreviewOverrides = {
+  '--dashboard-example-mode-text': 'color',
+} as const;
 
 // The light-dark() sample keeps its inventory scheme as host chrome changes.
 export const dashboardHostFixtureTabs: readonly TabConfig[] = [{

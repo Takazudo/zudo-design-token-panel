@@ -1,0 +1,64 @@
+---
+title: Import scope and mode options
+sidebar_position: 9
+description: How the Import modal analyzes design-token JSON, scopes tabs, transforms mode pairs, and merges or replaces state.
+---
+
+The panel's **Load Design Tokens** modal uses an analyze step before it changes
+state. Paste a `SCHEMA_V1`, `SCHEMA_V2`, or `SCHEMA_V3` document and the modal
+parses it, validates the schema, counts entries, identifies explicit light/dark
+pairs, and lists unknown token keys. Analysis is state-free: it does not write
+storage or construct a new tweak state. It runs automatically after typing, and
+the **Analyze** action runs the same step immediately.
+
+## Choose the import scope
+
+The analysis lists the document's `tabs`. Each entry shows its tab id, known or
+foreign status, and token-entry count. Configured tabs start selected. A tab
+that is not present in the mounted panel is shown for transparency but cannot be
+selected. Unknown token keys inside a selected known tab are reported and
+skipped by the loader.
+
+The loader scopes the document before deserializing it. Unselected tabs do not
+produce warnings and keep their current state. This makes it safe to load one
+tab from a document exported by a larger panel.
+
+## Transform explicit mode pairs
+
+When analysis finds explicit mode pairs, the modal displays the `modeSides`
+options. The option changes only leaves that are already explicit pairs. Plain
+values and mode-independent tabs keep their values; a mode-independent tab does
+not become mode-dependent because a mode option was selected.
+
+| `modeSides` | Meaning |
+| --- | --- |
+| `as-is` | Keep each imported light and dark side unchanged. |
+| `swap` | Exchange the imported light side and dark side. |
+| `light-only` | Import the light side and preserve the existing or declared dark side. |
+| `dark-only` | Import the dark side and preserve the existing or declared light side. |
+| `light-to-both` | Copy the imported light side to both light and dark. |
+
+For `light-only` and `dark-only`, the mounted instance's current value wins when
+it supplies the preserved side, followed by configured defaults and then the
+other imported side. The loader keeps the original leaf shape: a string pair
+stays a `light-dark(...)` string, while a semantic object keeps its object form.
+The shared `splitLightDark()` parser recognizes the complete top-level pair.
+
+## Replace or merge selected tabs
+
+`strategy` controls how the selected tabs combine with the mounted instance:
+
+| `strategy` | Meaning |
+| --- | --- |
+| `replace` | Replace the selected tab slices. Missing values fall back to their defaults. |
+| `merge` | Overlay imported values onto the selected tab slices and retain current values that the document does not mention. |
+
+Unselected tabs always retain their current state. The Import modal passes the
+mounted instance's current state and configuration to `deserialize()`, so tab
+scope, one-side preservation, and merge behavior apply to the panel the user is
+operating. After the user chooses the scope and options, **Load** performs the
+deserialization and commits the resulting state.
+
+The export/import schema and diff rules are described in the
+[Apply pipeline reference](./apply-pipeline.mdx). The manifest shape for direct
+mode pairs is documented in the [token manifest reference](./token-manifest.mdx).

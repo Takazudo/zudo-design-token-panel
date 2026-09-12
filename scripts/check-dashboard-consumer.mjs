@@ -148,33 +148,123 @@ try {
     });
     assert.deepEqual(actual, { fontSize: '24px', margin: '0px', padding: '0px', display: 'block' }, 'PUBLIC_CSS_APPLIED');
   }
-  const expectedChrome = {
-    light: {
-      shellBackground: 'rgb(248, 250, 252)', shellColor: 'rgb(24, 33, 49)',
-      cardBackground: 'rgb(255, 255, 255)', cardColor: 'rgb(24, 33, 49)', labelColor: 'rgb(24, 33, 49)',
-    },
-    dark: {
-      shellBackground: 'rgb(21, 27, 36)', shellColor: 'rgb(237, 242, 247)',
-      cardBackground: 'rgb(32, 41, 54)', cardColor: 'rgb(237, 242, 247)', labelColor: 'rgb(237, 242, 247)',
-    },
-  };
-  async function chromeColors(page, id) {
+  function rgbChannels(value) {
+    const match = /^rgba?\(\s*([\d.]+)[, ]+\s*([\d.]+)[, ]+\s*([\d.]+)(?:[, /]+\s*([\d.]+))?\s*\)$/i.exec(value);
+    if (match) return [Number(match[1]), Number(match[2]), Number(match[3]), match[4] === undefined ? 1 : Number(match[4])];
+    // Chromium may preserve the oklab color space when reporting color-mix().
+    // Convert it to sRGB before computing WCAG contrast.
+    const oklab = /^oklab\(\s*([\d.+-]+%?)\s+([\d.+-]+%?)\s+([\d.+-]+%?)(?:\s*\/\s*([\d.]+%?))?\s*\)$/i.exec(value);
+    assert.ok(oklab, `Expected an sRGB or oklab computed color, got ${value}`);
+    const component = (raw) => raw.endsWith('%') ? Number.parseFloat(raw) / 100 : Number.parseFloat(raw);
+    const L = component(oklab[1]);
+    const a = component(oklab[2]);
+    const b = component(oklab[3]);
+    const alpha = oklab[4] === undefined ? 1 : component(oklab[4]);
+    const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+    const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+    const s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3;
+    const toSrgb = (linear) => {
+      const encoded = linear <= 0.0031308
+        ? 12.92 * linear
+        : 1.055 * Math.max(linear, 0) ** (1 / 2.4) - 0.055;
+      return Math.max(0, Math.min(1, encoded)) * 255;
+    };
+    return [
+      toSrgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
+      toSrgb(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s),
+      toSrgb(-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s),
+      alpha,
+    ];
+  }
+  function relativeLuminance(value) {
+    const [red, green, blue] = rgbChannels(value).map((channel) => channel / 255).slice(0, 3);
+    const linear = (channel) => channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+    return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue);
+  }
+  function contrastRatio(foreground, background) {
+    const foregroundAlpha = rgbChannels(foreground)[3];
+    const backgroundAlpha = rgbChannels(background)[3];
+    assert.equal(foregroundAlpha, 1, `Foreground must be opaque: ${foreground}`);
+    assert.equal(backgroundAlpha, 1, `Background must be opaque: ${background}`);
+    const foregroundLuminance = relativeLuminance(foreground);
+    const backgroundLuminance = relativeLuminance(background);
+    return (Math.max(foregroundLuminance, backgroundLuminance) + 0.05) /
+      (Math.min(foregroundLuminance, backgroundLuminance) + 0.05);
+  }
+  function assertContrast(foreground, background, label) {
+    assert.ok(contrastRatio(foreground, background) >= 4.5, `${label} has insufficient computed contrast`);
+  }
+  function hexRgb(value) {
+    const hex = value.slice(1);
+    const channels = hex.length === 3 ? [...hex].map((channel) => Number.parseInt(channel + channel, 16))
+      : [0, 2, 4].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16));
+    return `rgb(${channels.join(', ')})`;
+  }
+  async function chromeSnapshot(page, id) {
     return page.locator(`#${id}`).evaluate((element) => {
-      const shell = getComputedStyle(element);
-      const card = getComputedStyle(element.querySelector('.zdtp-dashboard__token'));
-      const label = getComputedStyle(element.querySelector('.zdtp-dashboard__name'));
+      const root = getComputedStyle(element);
+      const headerElement = element.querySelector('.zdtp-dashboard__header');
+      const header = getComputedStyle(headerElement);
+      const regions = [...element.querySelectorAll('.zdtp-dashboard__region')].map((region) => {
+        const regionStyle = getComputedStyle(region);
+        const card = region.querySelector('.zdtp-dashboard__token');
+        const cardStyle = getComputedStyle(card);
+        const label = getComputedStyle(region.querySelector('.zdtp-dashboard__name'));
+        return {
+          scheme: region.getAttribute('data-scheme'),
+          background: regionStyle.backgroundColor,
+          color: regionStyle.color,
+          cardBackground: cardStyle.backgroundColor,
+          cardColor: cardStyle.color,
+          labelColor: label.color,
+        };
+      });
       return {
-        shellBackground: shell.backgroundColor,
-        shellColor: shell.color,
-        cardBackground: card.backgroundColor,
-        cardColor: card.color,
-        labelColor: label.color,
+        rootBackground: root.backgroundColor,
+        rootColor: root.color,
+        header: {
+          background: header.backgroundColor,
+          color: header.color,
+        },
+        regions,
       };
     });
+  }
+  function chromePaint(snapshot) {
+    const independent = snapshot.regions[1];
+    return {
+      header: snapshot.header,
+      independent: independent && {
+        background: independent.background,
+        color: independent.color,
+        cardBackground: independent.cardBackground,
+        cardColor: independent.cardColor,
+        labelColor: independent.labelColor,
+      },
+    };
+  }
+  function assertChromeContract(snapshot, id, schemes) {
+    assert.equal(snapshot.rootBackground, 'rgba(0, 0, 0, 0)', `${id} keeps a transparent shell`);
+    assert.equal(snapshot.regions.length, 2, `${id} exposes dependent and independent regions`);
+    assert.deepEqual(snapshot.regions.map((region) => region.scheme), schemes, `${id} region schemes`);
+    const independent = snapshot.regions[1];
+    assert.deepEqual(snapshot.header, {
+      background: independent.background,
+      color: independent.color,
+    }, `${id} header and independent-region chrome agree`);
+    assertContrast(snapshot.header.color, snapshot.header.background, `${id} header`);
+    for (const [index, region] of snapshot.regions.entries()) {
+      assertContrast(region.color, region.background, `${id} region ${index}`);
+      assertContrast(region.cardColor, region.cardBackground, `${id} region ${index} card`);
+      assertContrast(region.labelColor, region.cardBackground, `${id} region ${index} label`);
+      assert.notEqual(region.cardBackground, 'rgba(0, 0, 0, 0)', `${id} region ${index} cards are painted`);
+    }
   }
   async function specimenSnapshot(page, id) {
     return page.locator(`#${id} .zdtp-dashboard__preview > .zdtp-dashboard__specimen`).evaluateAll((elements) => elements.map((element) => {
       const dashboard = element.closest('.zdtp-dashboard');
+      const region = element.closest('.zdtp-dashboard__region');
+      const regions = [...dashboard.querySelectorAll('.zdtp-dashboard__region')];
       const preview = element.closest('.zdtp-dashboard__preview');
       const sample = element.querySelector('.zdtp-dashboard__sample');
       const specimenCss = getComputedStyle(element);
@@ -183,6 +273,10 @@ try {
       const typography = preview.classList.contains('zdtp-dashboard__preview--typography');
       return {
         mode: dashboard.getAttribute('data-mode'),
+        regionIndex: regions.indexOf(region),
+        regionScheme: region.getAttribute('data-scheme'),
+        inlineColorScheme: element.style.colorScheme,
+        computedColorScheme: specimenCss.colorScheme,
         specimenBackgroundColor: specimenCss.backgroundColor,
         specimenBackgroundImage: specimenCss.backgroundImage,
         sampleBackgroundColor: sampleCss.backgroundColor,
@@ -193,21 +287,60 @@ try {
       };
     }));
   }
-  async function verifyChrome(page, theme) {
-    for (const id of ['host-light-inv', 'host-dark-inv']) {
-      assert.deepEqual(await chromeColors(page, id), expectedChrome[theme], `${id} follows ${theme} host scheme`);
-    }
-    assert.deepEqual(await chromeColors(page, 'light'), expectedChrome.light, '#light keeps fixed light chrome');
-    assert.deepEqual(await chromeColors(page, 'dark'), expectedChrome.light, '#dark keeps fixed light chrome');
-    for (const [id, mode] of [['host-light-inv', 'light'], ['host-dark-inv', 'dark']]) {
-      const snapshots = await specimenSnapshot(page, id);
-      assert.ok(snapshots.length > 0 && snapshots.every((snapshot) => snapshot.mode === mode), `${id} keeps its declared specimen mode`);
-      assert.ok(snapshots.every((snapshot) => snapshot.sampleHeight > 0), `${id} painted samples have positive height`);
-    }
-    assert.deepEqual(await specimenSnapshot(page, 'host-light-inv'), await specimenSnapshot(page, 'light'), 'Light specimens stay mode-scoped');
-    assert.deepEqual(await specimenSnapshot(page, 'host-dark-inv'), await specimenSnapshot(page, 'dark'), 'Dark specimens stay mode-scoped');
+  function specimenPaint(snapshots) {
+    return snapshots.map(({ regionIndex: _regionIndex, regionScheme: _regionScheme, inlineColorScheme: _inlineColorScheme, computedColorScheme: _computedColorScheme, ...paint }) => paint);
   }
-  const order = ['pale', 'deep', 'surface', 'zero', 'space', 'alias', 'large', 'missing', 'size', 'family', 'weight', 'leading'].map((name) => `--consumer-${name}`);
+  async function verifyChrome(page, theme) {
+    const modes = { light: 'light', dark: 'dark', 'host-light-inv': 'light', 'host-dark-inv': 'dark', compact: 'light' };
+    const chrome = { light: 'light', dark: 'light', 'host-light-inv': 'host', 'host-dark-inv': 'host', compact: 'light' };
+    const ids = ['light', 'dark', 'host-light-inv', 'host-dark-inv', 'compact'];
+    const snapshots = Object.fromEntries(await Promise.all(ids.map(async (id) => [id, await chromeSnapshot(page, id)])));
+    for (const id of ids) assertChromeContract(snapshots[id], id, [modes[id], chrome[id]]);
+    assert.deepEqual(chromePaint(snapshots.light), chromePaint(snapshots.dark), 'Fixed-light chrome is independent of inventory mode');
+    assert.deepEqual(chromePaint(snapshots['host-light-inv']), chromePaint(snapshots['host-dark-inv']), 'Host chrome is shared by both host-following instances');
+    if (theme === 'light') assert.deepEqual(chromePaint(snapshots['host-light-inv']), chromePaint(snapshots.light), 'Host chrome follows the light page scheme');
+    else assert.notDeepEqual(chromePaint(snapshots['host-light-inv']), chromePaint(snapshots.light), 'Host chrome follows the dark page scheme');
+
+    for (const [id, mode] of [['light', 'light'], ['dark', 'dark'], ['host-light-inv', 'light'], ['host-dark-inv', 'dark'], ['compact', 'light']]) {
+      const expectedSchemes = [mode, chrome[id]];
+      const specimen = await specimenSnapshot(page, id);
+      assert.ok(specimen.length > 0, `${id} has specimens`);
+      assert.ok(specimen.every((snapshot) => snapshot.mode === mode), `${id} keeps its declared dashboard mode`);
+      assert.ok(specimen.every((snapshot) => expectedSchemes.includes(snapshot.regionScheme)), `${id} scopes specimens to their region`);
+      const dependent = specimen.filter((snapshot) => snapshot.regionIndex === 0);
+      const independent = specimen.filter((snapshot) => snapshot.regionIndex === 1);
+      assert.ok(dependent.length > 0 && dependent.every((snapshot) => snapshot.regionScheme === mode), `${id} has mode-scoped dependent specimens`);
+      assert.ok(independent.length > 0 && independent.every((snapshot) => snapshot.regionScheme === chrome[id]), `${id} has chrome-scoped independent specimens`);
+      assert.ok(specimen.every((snapshot) => snapshot.inlineColorScheme === (snapshot.regionScheme === 'host' ? 'inherit' : snapshot.regionScheme)), `${id} gives each specimen its region scheme`);
+      assert.ok(specimen.every((snapshot) => snapshot.computedColorScheme === (snapshot.regionScheme === 'host' ? theme : snapshot.regionScheme)), `${id} resolves each specimen against its effective scheme`);
+      if (chrome[id] === 'host') assert.ok(independent.every((snapshot) => snapshot.computedColorScheme === theme), `${id} independent specimens inherit the ${theme} host scheme`);
+      assert.ok(specimen.every((snapshot) => snapshot.sampleHeight > 0), `${id} painted samples have positive height`);
+    }
+    const dependentPaint = async (id) => specimenPaint((await specimenSnapshot(page, id)).filter((snapshot) => snapshot.regionIndex === 0));
+    assert.deepEqual(await dependentPaint('host-light-inv'), await dependentPaint('light'), 'Light host specimens keep their mode-scoped paint');
+    assert.deepEqual(await dependentPaint('host-dark-inv'), await dependentPaint('dark'), 'Dark host specimens keep their mode-scoped paint');
+  }
+  async function verifyIsolation(page) {
+    const snapshot = await page.evaluate(() => {
+      const names = ['--consumer-pale', '--consumer-paired', '--consumer-surface'];
+      const dashboards = [...document.querySelectorAll('.zdtp-dashboard')];
+      return {
+        documentValues: names.map((name) => document.documentElement.style.getPropertyValue(name)),
+        dashboards: dashboards.map((dashboard) => ({
+          style: dashboard.getAttribute('style') ?? '',
+          inventoryValues: names.map((name) => dashboard.querySelector('.zdtp-dashboard__inventory').style.getPropertyValue(name)),
+        })),
+      };
+    });
+    assert.deepEqual(snapshot.documentValues, ['', '', ''], 'Dashboard declarations do not write to document root');
+    assert.ok(snapshot.dashboards.every(({ style }) => !style.includes('--consumer-')), 'Dashboard roots do not own token declarations');
+    assert.ok(snapshot.dashboards.every(({ inventoryValues }) => inventoryValues.every((value) => value.length > 0)), 'Each dashboard owns one complete declaration scope');
+  }
+  const expectedRegionRows = {
+    dependent: ['--consumer-paired', '--consumer-surface'],
+    independent: ['--consumer-pale', '--consumer-deep', '--consumer-zero', '--consumer-space', '--consumer-alias', '--consumer-large', '--consumer-missing', '--consumer-size', '--consumer-family', '--consumer-weight', '--consumer-leading'],
+  };
+  const order = [...expectedRegionRows.dependent, ...expectedRegionRows.independent];
   const pageSpecimens = {};
   for (const theme of ['light', 'dark']) {
     for (const width of [1280, 360]) {
@@ -216,13 +349,25 @@ try {
       await verifyStyles(page);
       assert.equal(await page.locator('html').getAttribute('data-theme'), theme);
       await verifyChrome(page, theme);
+      await verifyIsolation(page);
       assert.equal(await page.locator('script, img, .tokenpanel-shell').count(), 0);
-      assert.equal(await page.locator('[role="listitem"]').count(), 60);
+      assert.equal(await page.locator('[role="listitem"]').count(), order.length * 5);
       for (const id of ['light', 'dark', 'host-light-inv', 'host-dark-inv', 'compact']) {
-        assert.deepEqual(await page.locator(`#${id} [data-css-var]`).evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-css-var'))), order);
+        assert.equal(await page.locator(`#${id} > .zdtp-dashboard__header > [role="heading"]`).count(), 1, `${id} has one dashboard heading`);
+        assert.equal(await page.locator(`#${id} > .zdtp-dashboard__inventory > .zdtp-dashboard__region`).count(), 2, `${id} has two inventory regions`);
+        const rowsByRegion = await page.locator(`#${id} .zdtp-dashboard__region`).evaluateAll((regions) => regions.map((region) => ({
+          scheme: region.getAttribute('data-scheme'),
+          rows: [...region.querySelectorAll('[data-css-var]')].map((node) => node.getAttribute('data-css-var')),
+        })));
+        assert.deepEqual(rowsByRegion.map((region) => region.rows), [expectedRegionRows.dependent, expectedRegionRows.independent], `${id} keeps region row order and partition`);
+        assert.deepEqual(rowsByRegion.flatMap((region) => region.rows), order, `${id} keeps dependent rows before independent rows`);
         assert.equal(await page.locator(`#${id} [data-css-var="--consumer-missing"] [data-diagnostic]`).count(), 1);
         assert.equal(await page.locator(`#${id} [data-css-var="--consumer-missing"] .zdtp-dashboard__sample`).count(), 0);
-        assert.equal(await page.locator(`#${id} .zdtp-dashboard__palette [role="listitem"]`).count(), 2);
+        assert.equal(await page.locator(`#${id} .zdtp-dashboard__palette [role="listitem"]`).count(), 3);
+        const dashboardMode = await page.locator(`#${id}`).getAttribute('data-mode');
+        const pair = dashboardMode === 'dark' ? '#1e3a8a' : '#dbeafe';
+        assert.equal(await page.locator(`#${id} [data-css-var="--consumer-paired"] .zdtp-dashboard__value`).textContent(), pair, `${id} selects the ${dashboardMode} mode pair`);
+        assert.equal(await page.locator(`#${id} [data-css-var="--consumer-paired"] .zdtp-dashboard__sample`).evaluate((element) => getComputedStyle(element).backgroundColor), hexRgb(pair), `${id} paints the selected mode pair`);
         for (const [name, expected] of [['zero', 0], ['space', 32], ['alias', 32], ['large', 1536]]) {
           const size = await page.locator(`#${id} [data-css-var="--consumer-${name}"] .zdtp-dashboard__sample`).evaluate((element) => element.getBoundingClientRect().width);
           assert.ok(Math.abs(size - expected) < 0.1, `${id}/${name} exact ruler: ${size}`);
@@ -238,8 +383,8 @@ try {
       }
       if (width === 1280) {
         const current = {
-          light: await specimenSnapshot(page, 'host-light-inv'),
-          dark: await specimenSnapshot(page, 'host-dark-inv'),
+          light: (await specimenSnapshot(page, 'host-light-inv')).filter((snapshot) => snapshot.regionIndex === 0),
+          dark: (await specimenSnapshot(page, 'host-dark-inv')).filter((snapshot) => snapshot.regionIndex === 0),
         };
         if (pageSpecimens.light) {
           assert.deepEqual(current.light, pageSpecimens.light, 'Light host specimens are identical on both pages');
