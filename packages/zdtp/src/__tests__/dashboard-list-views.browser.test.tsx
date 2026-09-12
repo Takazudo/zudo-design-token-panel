@@ -22,6 +22,26 @@ const tabs: TabConfig[] = [{ id: 'specimens', label: 'Specimens', tiers: [
 ] }];
 const text = 'Read several lines and compare the room between them. '.repeat(4)
   + '\n\n好きな文章で行間を確認します。\n<img src=x onerror=alert(1)> ' + 'UnbrokenWord'.repeat(25);
+const modeTabs: TabConfig[] = [
+  { id: 'colors', label: 'Colors', tiers: [
+    { id: 'mixed', label: 'Mixed colors', items: [
+      item('fixed', '#3a6b9c', true),
+      { ...item('themed', '#777', true), modes: { light: 'var(--view-fixed)', dark: '#202938' } },
+      item('parsed', 'light-dark(#f4f4f4, #1f1f1f)', true),
+    ] },
+    { id: 'aliases', label: 'Aliases', referencesTier: 'mixed', items: [item('themed-alias', 'themed', true)] },
+    { id: 'semantic', label: 'Semantic', semantic: true, items: [item('semantic', '#777', true)] },
+  ], colorExtras: {
+    id: 'colors', baseRoles: {}, baseDefaults: {}, colorSchemes: {}, defaultShikiTheme: 'none',
+    panelSettings: { colorMode: false, colorScheme: 'none' },
+    semanticDefaults: { semantic: { literal: { light: '#fff', dark: '#111' } } },
+  } },
+  { id: 'layout', label: 'Layout', tiers: [
+    { id: 'size', label: 'Size', preview: 'size', items: [item('size', '24px')] },
+    { id: 'space', label: 'Spacing', preview: 'bar', items: [item('space', '32px')] },
+    { id: 'radius', label: 'Radius', preview: 'radius', items: [item('radius', '8px')] },
+  ] },
+];
 let host: HTMLDivElement;
 let style: HTMLStyleElement;
 let rootFontSize: string;
@@ -42,6 +62,25 @@ afterEach(() => {
 });
 function sample(id: string, kind: string): HTMLElement {
   return host.querySelector(`[data-css-var="--view-${id}"] .zdtp-dashboard__sample--${kind}`)!;
+}
+function required(root: ParentNode, selector: string): HTMLElement {
+  const element = root.querySelector<HTMLElement>(selector);
+  if (!element) throw new Error(`Expected ${selector}`);
+  return element;
+}
+function regionFor(root: ParentNode, id: string): HTMLElement {
+  return required(root, `[data-css-var="--view-${id}"]`).closest<HTMLElement>('.zdtp-dashboard__region')!;
+}
+function colorPaint(root: ParentNode, id: string) {
+  const region = getComputedStyle(regionFor(root, id));
+  const card = required(root, `[data-css-var="--view-${id}"]`);
+  const specimen = getComputedStyle(required(card, '.zdtp-dashboard__specimen'));
+  return {
+    surface: region.backgroundColor,
+    foreground: region.color,
+    checkerboard: specimen.backgroundImage,
+    sample: getComputedStyle(required(card, '.zdtp-dashboard__sample--color')).backgroundColor,
+  };
 }
 
 describe('static dashboard list-view geometry', () => {
@@ -90,5 +129,127 @@ describe('static dashboard list-view geometry', () => {
     expect(new Set(stops.map(el => el.getBoundingClientRect().top)).size).toBe(1);
     expect(stops[1].textContent).toContain('#888');
     expect(stops[1].querySelector('.zdtp-dashboard__sample--color')).toBeNull();
+  });
+});
+
+describe('dashboard mode regions', () => {
+  it('keeps empty and fully filtered inventories in the shell scheme on a dark host', () => {
+    host.style.colorScheme = 'dark';
+    host.style.backgroundColor = '#111';
+    for (const [data, message] of [[[], 'No tokens declared.'], [tabs, 'No tokens match this view.']] as const) {
+      host.innerHTML = renderToString(<TokenDashboard tabs={data} mode="host" chrome="light" include="mode-dependent" />);
+      const header = required(host, '.zdtp-dashboard__header');
+      const empty = required(host, '.zdtp-dashboard__empty');
+      expect(empty.textContent).toBe(message);
+      expect(getComputedStyle(empty).colorScheme).toBe('light');
+      expect(getComputedStyle(empty).backgroundColor).toBe(getComputedStyle(header).backgroundColor);
+      expect(required(host, '.zdtp-dashboard__count').textContent).toBe('0 tokens');
+      expect(host.querySelector('.zdtp-dashboard__region')).toBeNull();
+    }
+  });
+
+  it('paints dark dependent rows beside a light shell and independent specimens', () => {
+    host.style.colorScheme = 'light';
+    host.innerHTML = renderToString(<>
+      <TokenDashboard id="mixed" tabs={modeTabs} mode="dark" chrome="light" />
+      <TokenDashboard id="dark-chrome" tabs={modeTabs} chrome="dark" include="mode-independent" />
+    </>);
+    const root = required(host, '#mixed');
+    const header = required(root, '.zdtp-dashboard__header');
+    const dependent = regionFor(root, 'themed');
+    const independent = regionFor(root, 'fixed');
+    const darkHeader = required(host, '#dark-chrome .zdtp-dashboard__header');
+    expect([...root.querySelectorAll('.zdtp-dashboard__region')]).toEqual([dependent, independent]);
+    expect(getComputedStyle(root).backgroundColor).toBe('rgba(0, 0, 0, 0)');
+    expect(getComputedStyle(header).colorScheme).toBe('light');
+    expect(getComputedStyle(dependent).colorScheme).toBe('dark');
+    expect(getComputedStyle(dependent).backgroundColor).toBe(getComputedStyle(darkHeader).backgroundColor);
+    expect(getComputedStyle(independent).backgroundColor).toBe(getComputedStyle(header).backgroundColor);
+    expect(getComputedStyle(dependent).backgroundColor).not.toBe(getComputedStyle(header).backgroundColor);
+    expect(colorPaint(root, 'themed').sample).toBe('rgb(32, 41, 56)');
+    expect(colorPaint(root, 'fixed').sample).toBe('rgb(58, 107, 156)');
+    expect(colorPaint(root, 'themed').checkerboard).toContain('repeating-conic-gradient');
+    expect(colorPaint(root, 'themed').checkerboard).not.toBe(colorPaint(root, 'fixed').checkerboard);
+
+    for (const id of ['size', 'radius']) {
+      const specimen = required(root, `[data-css-var="--view-${id}"] .zdtp-dashboard__specimen`);
+      expect(specimen.style.colorScheme).toBe('light');
+      expect(getComputedStyle(specimen).backgroundColor).toBe('rgb(238, 241, 245)');
+      expect(getComputedStyle(specimen).color).toBe('rgb(24, 33, 49)');
+    }
+    const tabBlocks = [...independent.querySelectorAll<HTMLElement>('.zdtp-dashboard__tab')];
+    expect(tabBlocks).toHaveLength(2);
+    expect(tabBlocks[1].getBoundingClientRect().top - tabBlocks[0].getBoundingClientRect().bottom).toBeCloseTo(32, 1);
+    expect(host.scrollWidth).toBe(host.clientWidth);
+  });
+
+  it('inherits host mode through a light shell and updates surfaces, checkerboards and aliases after mount', () => {
+    host.style.colorScheme = 'dark';
+    host.innerHTML = renderToString(<>
+      <TokenDashboard id="host-mode" tabs={modeTabs} mode="host" chrome="light" />
+      <TokenDashboard id="light-mode" tabs={modeTabs} mode="light" include="mode-dependent" />
+      <TokenDashboard id="dark-mode" tabs={modeTabs} mode="dark" include="mode-dependent" />
+    </>);
+    const root = required(host, '#host-mode');
+    const light = required(host, '#light-mode');
+    const dark = required(host, '#dark-mode');
+    const inventory = required(root, '.zdtp-dashboard__inventory');
+    const header = required(root, '.zdtp-dashboard__header');
+    const dependent = regionFor(root, 'themed');
+    const independent = regionFor(root, 'fixed');
+    const specimen = required(dependent, '[data-css-var="--view-themed"] .zdtp-dashboard__specimen');
+    expect(dependent.dataset.scheme).toBe('host');
+    expect(specimen.style.colorScheme).toBe('inherit');
+    for (const element of [root, inventory, dependent, specimen]) expect(getComputedStyle(element).colorScheme).toBe('dark');
+    expect(getComputedStyle(header).colorScheme).toBe('light');
+    expect(getComputedStyle(independent).colorScheme).toBe('light');
+    const shellBackground = getComputedStyle(header).backgroundColor;
+    const independentPaint = colorPaint(root, 'fixed');
+    const darkPaint = colorPaint(root, 'themed');
+    expect(darkPaint.checkerboard).not.toBe('none');
+    for (const id of ['themed', 'themed-alias', 'parsed', 'semantic']) {
+      expect(colorPaint(root, id)).toEqual(colorPaint(dark, id));
+    }
+
+    host.style.colorScheme = 'light';
+
+    expect(required(root, '[data-css-var="--view-themed"] .zdtp-dashboard__specimen')).toBe(specimen);
+    for (const element of [root, inventory, dependent, specimen]) expect(getComputedStyle(element).colorScheme).toBe('light');
+    for (const id of ['themed', 'themed-alias', 'parsed', 'semantic']) {
+      expect(colorPaint(root, id)).toEqual(colorPaint(light, id));
+    }
+    const lightPaint = colorPaint(root, 'themed');
+    expect(lightPaint.surface).not.toBe(darkPaint.surface);
+    expect(lightPaint.checkerboard).not.toBe(darkPaint.checkerboard);
+    expect(lightPaint.sample).toBe('rgb(58, 107, 156)');
+    expect(getComputedStyle(header).backgroundColor).toBe(shellBackground);
+    expect(colorPaint(root, 'fixed')).toEqual(independentPaint);
+  });
+
+  it('composes one copy of dependent rows per mode and one total copy of independent rows', () => {
+    host.innerHTML = renderToString(<>
+      <TokenDashboard id="light-only" tabs={modeTabs} mode="light" include="mode-dependent" />
+      <TokenDashboard id="dark-only" tabs={modeTabs} mode="dark" include="mode-dependent" />
+      <TokenDashboard id="independent-only" tabs={modeTabs} include="mode-independent" />
+    </>);
+    const dependentVars = ['--view-themed', '--view-parsed', '--view-themed-alias', '--view-semantic'];
+    const independentVars = ['--view-fixed', '--view-size', '--view-space', '--view-radius'];
+    for (const [id, expected] of [['light-only', dependentVars], ['dark-only', dependentVars], ['independent-only', independentVars]] as const) {
+      const root = required(host, `#${id}`);
+      expect([...root.querySelectorAll('[data-css-var]')].map((row) => row.getAttribute('data-css-var'))).toEqual(expected);
+      expect(root.querySelectorAll('.zdtp-dashboard__region')).toHaveLength(1);
+      expect(required(root, '.zdtp-dashboard__count').textContent).toBe(`${expected.length} tokens`);
+      expect(required(root, '.zdtp-dashboard__inventory').style.getPropertyValue('--view-fixed')).toBe('#3a6b9c');
+    }
+    const fixtureVars = modeTabs.flatMap((tab) => tab.tiers.flatMap((tier) => tier.items.map((entry) => entry.cssVar)));
+    expect(new Set([...dependentVars, ...independentVars])).toEqual(new Set(fixtureVars));
+    for (const cssVar of fixtureVars) {
+      const cards = [...host.querySelectorAll(`[data-css-var="${cssVar}"]`)];
+      expect(cards).toHaveLength(dependentVars.includes(cssVar) ? 2 : 1);
+      expect(cards.map((card) => card.closest('.zdtp-dashboard')!.id))
+        .toEqual(dependentVars.includes(cssVar) ? ['light-only', 'dark-only'] : ['independent-only']);
+    }
+    expect(colorPaint(required(host, '#light-only'), 'themed-alias').sample).toBe('rgb(58, 107, 156)');
+    expect(colorPaint(required(host, '#dark-only'), 'themed-alias').sample).toBe('rgb(32, 41, 56)');
   });
 });
