@@ -145,6 +145,30 @@ const MIXED_KINDS_TAB: TabConfig = {
   ],
 };
 
+const MODES_TAB: TabConfig = {
+  id: 'modes',
+  label: 'Modes',
+  tiers: [{
+    id: 'values',
+    label: 'Mode values',
+    items: [{
+      id: 'mode-color',
+      cssVar: '--test-mode-color',
+      label: 'Mode color',
+      default: '#222222',
+      type: { kind: 'color' },
+      modes: { light: '#ffffff', dark: '#111111' },
+    }, {
+      id: 'mode-text',
+      cssVar: '--test-mode-text',
+      label: 'Mode text',
+      default: 'transparent',
+      type: { kind: 'text' },
+      modes: { light: '#111111', dark: '#eeeeee' },
+    }],
+  }],
+};
+
 /** A tab exercising the click-to-cycle unit suffix (#519). */
 const CYCLABLE_UNIT_TAB: TabConfig = {
   id: 'cyclable',
@@ -368,6 +392,35 @@ describe('GenericTab — item editors by kind', () => {
     const input = item?.querySelector('input[type="text"]');
     expect(input).not.toBeNull();
     expect(input?.getAttribute('aria-label')).toBe('--test-mask-image value');
+  });
+});
+
+describe('GenericTab — manifest mode rows', () => {
+  it('renders both mode values with swatches and no editor control', async () => {
+    await renderGenericTab(MODES_TAB);
+
+    for (const [id, light, dark] of [
+      ['mode-color', '#ffffff', '#111111'],
+      ['mode-text', '#111111', '#eeeeee'],
+    ] as const) {
+      const row = container.querySelector<HTMLElement>(`[data-testid="tier-item-${id}"]`);
+      expect(row).not.toBeNull();
+      expect(row?.classList.contains('tokenpanel-row--modes')).toBe(true);
+      expect(row?.classList.contains('tokenpanel-row--editor-disabled')).toBe(true);
+      expect(row?.classList.contains('is-readonly')).toBe(false);
+      expect(row?.querySelector('[data-mode="light"]')?.getAttribute('data-value')).toBe(light);
+      expect(row?.querySelector('[data-mode="dark"]')?.getAttribute('data-value')).toBe(dark);
+      expect(row?.querySelectorAll('.tokenpanel-modes-chip')).toHaveLength(2);
+      expect(row?.querySelector('input, select')).toBeNull();
+    }
+  });
+
+  it('uses a stored override for both mode chips while keeping the row display-only', async () => {
+    await renderGenericTab(MODES_TAB, { values: { 'mode-color': 'light-dark(#abcdef, #123456)' } });
+    const row = container.querySelector<HTMLElement>('[data-testid="tier-item-mode-color"]')!;
+    expect(row.querySelector('[data-mode="light"]')?.getAttribute('data-value')).toBe('#abcdef');
+    expect(row.querySelector('[data-mode="dark"]')?.getAttribute('data-value')).toBe('#123456');
+    expect(row.querySelector('input, select')).toBeNull();
   });
 });
 

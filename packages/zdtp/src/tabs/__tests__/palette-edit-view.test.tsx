@@ -163,6 +163,29 @@ const READONLY_TAB: TabConfig = {
   ],
 };
 
+const MODES_PALETTE_TAB: TabConfig = {
+  id: 'palette-modes',
+  label: 'Palette modes',
+  tiers: [{
+    id: 'brand',
+    label: 'Brand',
+    items: [{
+      id: 'brand-light-dark',
+      cssVar: '--palette-brand-light-dark',
+      label: 'Brand light/dark',
+      default: '#777777',
+      type: { kind: 'text' },
+      modes: { light: '#f8f8f8', dark: '#181818' },
+    }, {
+      id: 'brand-static',
+      cssVar: '--palette-brand-static',
+      label: 'Brand static',
+      default: 'oklch(50% 0.01 250)',
+      type: { kind: 'color', format: 'oklch' },
+    }],
+  }],
+};
+
 // ---------------------------------------------------------------------------
 // Harness
 // ---------------------------------------------------------------------------
@@ -427,6 +450,25 @@ describe('PaletteEditView — grouped grid', () => {
     // Readout reflects brand-0, confirming the clamp landed on a real step.
     const token = container.querySelector('[data-testid="palette-readout-token"]');
     expect(token?.textContent).toContain('--palette-brand-0');
+  });
+});
+
+describe('PaletteEditView — manifest mode rows', () => {
+  it('shows both mode swatches without adding a palette editor for the row', () => {
+    renderView({ tab: MODES_PALETTE_TAB });
+    openGroup('brand');
+
+    const row = container.querySelector<HTMLElement>('[data-testid="palette-edit-modes-brand-light-dark"]');
+    expect(row).not.toBeNull();
+    expect(row?.classList.contains('tokenpanel-row--modes')).toBe(true);
+    expect(row?.classList.contains('tokenpanel-row--editor-disabled')).toBe(true);
+    expect(row?.querySelector('[data-mode="light"]')?.getAttribute('data-value')).toBe('#f8f8f8');
+    expect(row?.querySelector('[data-mode="dark"]')?.getAttribute('data-value')).toBe('#181818');
+    expect(row?.querySelectorAll('.tokenpanel-modes-chip')).toHaveLength(2);
+    expect(row?.querySelector('input, select')).toBeNull();
+    expect(row?.classList.contains('is-readonly')).toBe(false);
+    expect(container.querySelector('[data-node-index="0"]')).toBeNull();
+    expect(container.querySelector('[data-node-index="1"]')).not.toBeNull();
   });
 });
 

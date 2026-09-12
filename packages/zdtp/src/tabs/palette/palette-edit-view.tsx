@@ -53,6 +53,7 @@ import PaletteReadout from './palette-readout';
 import type { TokenAddress } from '../flat/types';
 import { tokenAddressKey } from '../flat/types';
 import { matchesSearchFields } from '../../search/token-search';
+import { ModesRow, resolveModeRowSides } from '../modes-row';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -114,7 +115,10 @@ function initialSelectionIndex(tier: TierConfig, overrides: TabOverrides): numbe
 /** Resolve a dense item slot without inventing a color for unsupported CSS. */
 function resolveItemSlot(item: TierItem, tierId: string, overrides: TabOverrides): ColorSlot {
   const value = resolveItemValue(item, tierId, overrides);
-  return { value, color: staticCssColorToOklcha(value) };
+  // Explicit mode pairs are display-only rows. Do not let the ordinary
+  // fallback/default color turn them into writable chart nodes or a direct
+  // ColorField target; their two authored sides are rendered below the strip.
+  return { value, color: item.modes ? null : staticCssColorToOklcha(value) };
 }
 
 type VisibleChannels = { l: boolean; c: boolean; h: boolean };
@@ -565,6 +569,7 @@ export default function PaletteEditView({
                   {tier.items.map((item, index) => {
                     const address = { tabId: tab.id, tierId: tier.id, itemId: item.id };
                     if (changedOnly && !changedFor(address)) return null;
+                    if (item.modes !== undefined) return null;
                     return (
                       <Swatch
                         key={item.id}
@@ -578,6 +583,23 @@ export default function PaletteEditView({
                     );
                   })}
                 </div>
+
+                {tier.items.map((item) => {
+                  if (item.modes === undefined) return null;
+                  const address = { tabId: tab.id, tierId: tier.id, itemId: item.id };
+                  if (changedOnly && !changedFor(address)) return null;
+                  const override = overrides[tier.id]?.[item.id];
+                  return (
+                    <ModesRow
+                      key={`modes-${item.id}`}
+                      item={item}
+                      sides={resolveModeRowSides(item, override, override !== undefined)}
+                      className="tokenpanel-palette-edit-modes-row"
+                      dataTestId={`palette-edit-modes-${item.id}`}
+                      address={address}
+                    />
+                  );
+                })}
 
                 <ActiveGroupEditor
                   tier={tier}

@@ -39,6 +39,7 @@
 @import '../components/palette-chart/palette-chart.css';
 @import '../tabs/palette/palette-edit-view.css';
 @import '../tabs/palette/palette-check-view.css';
+@import '../tabs/modes-row.css';
 @import '../specimen/specimen.css';
 @import '../element-inspect/element-inspect.css';
 

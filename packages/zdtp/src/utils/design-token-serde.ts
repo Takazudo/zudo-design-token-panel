@@ -107,7 +107,15 @@ import type { TierItem } from '../tokens/tier-model';
 import { splitLightDark } from '../tokens/mode-dependence';
 
 /** Minimal token-like interface extracted from TierItem for serde lookups. */
-type SerdeItem = Pick<TierItem, 'id' | 'cssVar' | 'default' | 'readonly'>;
+type SerdeItem = Pick<TierItem, 'id' | 'cssVar' | 'default' | 'readonly' | 'modes'>;
+
+/** The manifest-resolved value for an explicit mode pair. */
+function serializedModesValue(item: SerdeItem, override: string | undefined): string {
+  if (item.modes === undefined) return override ?? item.default;
+  return typeof override === 'string' && override.length > 0
+    ? override
+    : `light-dark(${item.modes.light}, ${item.modes.dark})`;
+}
 
 /**
  * Collect all items (across all tiers) from the tab identified by `tabId` in
@@ -543,11 +551,31 @@ function serializeColorTab(
   // Palette tier — cssVar-keyed.
   const palette: Record<string, string> = {};
   let palettWrote = false;
+  const paletteItemsByCssVar = new Map(
+    getTabItems('color', cfg).map((item) => [item.cssVar, item]),
+  );
   for (let i = 0; i < color.palette.length; i++) {
-    if (readonlyVars.has(resolvePaletteCssVar(cluster, i))) continue;
+    const cssVar = resolvePaletteCssVar(cluster, i);
+    if (readonlyVars.has(cssVar)) continue;
+    const paletteItem = paletteItemsByCssVar.get(cssVar);
+    const modePair = paletteItem?.modes ?? cluster.paletteModes?.[i];
+    if (modePair) {
+      // Explicit modes rows are manifest values even when no persisted
+      // override exists. A persisted value still wins and is emitted
+      // verbatim, preserving imported plain or light-dark overrides.
+      const resolved = color.palette[i] || `light-dark(${modePair.light}, ${modePair.dark})`;
+      const differsFromDefault = paletteItem
+        ? resolved !== paletteItem.default
+        : baseline?.palette[i] === undefined || resolved !== baseline.palette[i];
+      if (full || differsFromDefault) {
+        palette[cssVar] = resolved;
+        palettWrote = true;
+      }
+      continue;
+    }
     const baselineColor = baseline?.palette[i];
     if (full || baselineColor === undefined || color.palette[i] !== baselineColor) {
-      palette[resolvePaletteCssVar(cluster, i)] = color.palette[i];
+      palette[cssVar] = color.palette[i];
       palettWrote = true;
     }
   }
@@ -638,6 +666,11 @@ function serializeOverridesV2(
     // Dump every editable item: override if set, else item default.
     for (const t of items) {
       if (t.readonly) continue;
+      if (t.modes !== undefined) {
+        raw[t.cssVar] = serializedModesValue(t, overrides[t.id]);
+        wrote = true;
+        continue;
+      }
       const v = overrides[t.id];
       raw[t.cssVar] = typeof v === 'string' && v.length > 0 ? v : t.default;
       wrote = true;
@@ -646,6 +679,14 @@ function serializeOverridesV2(
     // Diff-only: emit only user-modified items.
     for (const t of items) {
       if (t.readonly) continue;
+      if (t.modes !== undefined) {
+        const resolved = serializedModesValue(t, overrides[t.id]);
+        if (resolved !== t.default) {
+          raw[t.cssVar] = resolved;
+          wrote = true;
+        }
+        continue;
+      }
       const v = overrides[t.id];
       if (flatOverrideChanged(v, t.default)) {
         raw[t.cssVar] = v;

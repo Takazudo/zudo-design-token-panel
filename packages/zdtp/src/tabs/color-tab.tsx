@@ -57,7 +57,7 @@ import {
 import type { TabOverrides } from '../apply/tier-resolver';
 import { getPanelConfig, type PanelConfig } from '../config/panel-config';
 import { resolveColorClusterFromTab } from '../config/cluster-config';
-import type { TabConfig, TierConfig } from '../tokens/tier-model';
+import type { TabConfig, TierConfig, TierItem } from '../tokens/tier-model';
 import type { PersistColor, PersistSecondary } from '../state/persist';
 import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
 import { RoleButton } from '../controls/role-button';
@@ -71,6 +71,7 @@ import TierRefSelector, {
 import { TokenChainButton } from '../chain';
 import { tokenAddressKey, type TokenAddress } from './flat/types';
 import { matchesSearchFields, stringifySearchValue } from '../search/token-search';
+import { ModesRow, resolveModeRowSides } from './modes-row';
 
 // The bundled scheme registry now lives on
 // `panelConfig.colorCluster.colorSchemes`, not on a global import. Read it
@@ -234,7 +235,8 @@ function getFixedPopoverStyle(
 
 /**
  * Find the palette tier in a color tab: the first non-reference, non-semantic
- * tier whose items are color-kind. Mirrors the palette-tier detection in
+ * tier whose items are color-kind or whose first row declares a mode pair.
+ * Mirrors the palette-tier detection in
  * `resolveColorClusterFromTab`, so the format lookup keys off the SAME tier the
  * cluster was flattened from. `resolveColorClusterFromTab` drops the per-item
  * `type.format`, so the swatch grid must recover it from the tier here. A tier
@@ -246,7 +248,7 @@ function findPaletteTier(tab: TabConfig): TierConfig | undefined {
       !t.referencesTier &&
       !t.semantic &&
       t.items.length > 0 &&
-      t.items[0].type.kind === 'color',
+      (t.items[0].type.kind === 'color' || t.items[0].modes !== undefined),
   );
 }
 
@@ -381,6 +383,69 @@ const ColorSwatch = memo(function ColorSwatch({
           </RoleButton>
         )}
       </div>
+    </div>
+  );
+});
+
+/**
+ * A palette slot declared with `modes` is display-only. Keep it in the color
+ * tab's palette grid so text-kind mode slots are discoverable, while exposing
+ * both authored values instead of opening the single-value color picker.
+ */
+const ColorModesRow = memo(function ColorModesRow({
+  item,
+  value,
+  address,
+  isChanged = false,
+  onRevert,
+}: {
+  item: TierItem;
+  value: string;
+  address?: TokenAddress;
+  isChanged?: boolean;
+  onRevert?: () => void;
+}) {
+  return (
+    <div className="tokenpanel-card tokenpanel-color-modes-card">
+      <ModesRow
+        item={item}
+        // Color palette state is dense and already contains the effective
+        // value, so always prefer it. This preserves a persisted plain or
+        // light-dark override even when it happens to equal item.default.
+        sides={resolveModeRowSides(item, value, true)}
+        className={isChanged ? 'is-changed' : ''}
+        dataTestId={`tokenpanel-color-modes-${item.id}`}
+        address={address}
+        trailing={
+          <>
+            <HighlightToggleButton cssVar={item.cssVar} />
+            {address && <TokenChainButton address={address} />}
+            {isChanged && onRevert && (
+              <RoleButton
+                className="tokenpanel-changed-revert"
+                aria-label={`Revert ${item.label}`}
+                title="Revert to default"
+                onClick={onRevert}
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M3 12a9 9 0 1 0 3-6.7" />
+                  <path d="M3 4v6h6" />
+                </svg>
+              </RoleButton>
+            )}
+          </>
+        }
+      />
     </div>
   );
 });
@@ -1488,6 +1553,18 @@ export default function ColorTab({
               const address = item
                 ? { tabId: tab.id, tierId: paletteTier?.id ?? 'palette', itemId: item.id }
                 : undefined;
+              if (item?.modes) {
+                return (
+                  <ColorModesRow
+                    key={i}
+                    item={item}
+                    value={color}
+                    address={address}
+                    isChanged={Boolean(primaryPaletteChanged[i])}
+                    onRevert={address && onRevert ? () => onRevert(address) : undefined}
+                  />
+                );
+              }
               return (
                 // ColorSwatch passes `i` back via its (index, value) onChange so we
                 // hand `handlePaletteChange` directly — no inline arrow, memo
@@ -1685,6 +1762,18 @@ export default function ColorTab({
                   const address = item
                     ? { tabId: secondaryTab.id, tierId: secondaryPaletteTier?.id ?? 'palette', itemId: item.id }
                     : undefined;
+                  if (item?.modes) {
+                    return (
+                      <ColorModesRow
+                        key={i}
+                        item={item}
+                        value={color}
+                        address={address}
+                        isChanged={Boolean(secondaryPaletteChanged[i])}
+                        onRevert={address && onRevert ? () => onRevert(address) : undefined}
+                      />
+                    );
+                  }
                   return (
                     <ColorSwatch
                       key={i}

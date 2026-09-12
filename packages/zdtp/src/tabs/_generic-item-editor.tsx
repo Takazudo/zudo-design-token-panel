@@ -19,6 +19,7 @@ import TokenLabel from '../controls/token-label';
 import ColorField from '../components/color-picker/color-field';
 import { RoleButton } from '../controls/role-button';
 import { deriveCyclableUnit, nextCyclableUnit } from '../utils/unit-cycle';
+import { ModesRow, resolveModeRowSides } from './modes-row';
 
 export interface GenericItemEditorProps {
   item: TierItem;
@@ -52,6 +53,18 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
     },
     [onChange, item.id, pillValue, customDefault],
   );
+
+  // Manifest mode pairs are shown as two swatches and deliberately have no
+  // editing control. `value` may be a persisted plain or light-dark override
+  // from a host, so use it when it differs from the manifest fallback.
+  if (item.modes !== undefined) {
+    return (
+      <ModesRow
+        item={item}
+        sides={resolveModeRowSides(item, value, value !== item.default)}
+      />
+    );
+  }
 
   switch (type.kind) {
     case 'length':
