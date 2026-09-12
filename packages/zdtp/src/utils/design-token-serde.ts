@@ -104,6 +104,7 @@ import { resolvePaletteCssVar } from '../config/cluster-config';
 import { resolveRefToCssVar } from '../apply/tier-resolver';
 import { flatOverrideChanged, semanticMappingsEqual } from './token-diff';
 import type { TierItem } from '../tokens/tier-model';
+import { splitLightDark } from '../tokens/mode-dependence';
 
 /** Minimal token-like interface extracted from TierItem for serde lookups. */
 type SerdeItem = Pick<TierItem, 'id' | 'cssVar' | 'default' | 'readonly'>;
@@ -130,6 +131,10 @@ function getTabItems(tabId: string, cfg: PanelConfig = getPanelConfig()): readon
     }
   }
   return items;
+}
+
+function readonlyColorVars(cfg: PanelConfig): ReadonlySet<string> {
+  return new Set(getTabItems('color', cfg).filter((item) => item.readonly).map((item) => item.cssVar));
 }
 
 /**
@@ -375,6 +380,25 @@ export interface DeserializeOptions {
    *  exports are missing most fields by design). Typically the current
    *  scheme's initial state. */
   colorDefaults?: ColorTweakState;
+  /** Tab ids to load. Omitted selects every configured token tab; [] loads nothing.
+   * Supports color, spacing, font, size, and generic tabs. Notes and
+   * color-secondary have no external serde slice. */
+  tabs?: string[];
+  /** Map only explicit per-mode values; ordinary token values are unchanged. */
+  modeSides?: 'as-is' | 'swap' | 'light-only' | 'dark-only' | 'light-to-both';
+  /** Replace selected tabs by default, or retain their unmentioned current values. */
+  strategy?: 'merge' | 'replace';
+  /** Live instance state. Without it, merge and one-side imports fall back to defaults. */
+  current?: TweakState;
+}
+
+/** A state-free description of the token entries in an import document. */
+export interface ImportAnalysis {
+  schema: string;
+  tabs: { id: string; known: boolean; entries: number; perModeEntries: number }[];
+  sides: ('light' | 'dark')[];
+  /** Unknown token keys within known tabs; foreign tabs are identified by `known`. */
+  unknownTokens: string[];
 }
 
 /**
@@ -511,6 +535,7 @@ function serializeColorTab(
   const baseline = opts.colorDefaults;
   const full = opts.includeDefaults === true;
   const cluster = getActivePrimaryCluster(cfg);
+  const readonlyVars = readonlyColorVars(cfg);
 
   const out: V3TabEntry = {};
   let wrote = false;
@@ -519,6 +544,7 @@ function serializeColorTab(
   const palette: Record<string, string> = {};
   let palettWrote = false;
   for (let i = 0; i < color.palette.length; i++) {
+    if (readonlyVars.has(resolvePaletteCssVar(cluster, i))) continue;
     const baselineColor = baseline?.palette[i];
     if (full || baselineColor === undefined || color.palette[i] !== baselineColor) {
       palette[resolvePaletteCssVar(cluster, i)] = color.palette[i];
@@ -542,6 +568,7 @@ function serializeColorTab(
   let semanticWrote = false;
   let usesObjectSemanticLeaf = false;
   for (const [key, cssName] of Object.entries(cluster.semanticCssNames)) {
+    if (readonlyVars.has(cssName)) continue;
     const cur = color.semanticMappings[key];
     if (cur === undefined) continue;
     const baselineVal = baseline?.semanticMappings[key];
@@ -652,8 +679,9 @@ function serializeOverridesV2(
  * CSS var name that doesn't match a known manifest entry is collected into
  * `unknownTokens` (the caller can surface these as a warning).
  *
- * Missing fields fall back to `opts.colorDefaults` (or, absent that, a
- * minimal neutral default) so the result is always a valid `TweakState`.
+ * Missing fields in selected tabs fall back to defaults, or to `opts.current`
+ * under `strategy: 'merge'`. Unselected tabs always retain their current state.
+ * `modeSides` transforms only explicit per-mode leaves in the document.
  *
  * `cfg` defaults to the active (most-recently-configured) instance so the
  * single-default path stays byte-identical. The Import modal threads its OWN
@@ -666,6 +694,34 @@ export function deserialize(
   opts: DeserializeOptions = {},
   cfg: PanelConfig = getPanelConfig(),
 ): DeserializeResult {
+  const obj = validateImportDocument(input);
+  const selected = new Set(
+    cfg.tabs.filter((tab) => opts.tabs === undefined || opts.tabs.includes(tab.id)).map((tab) => tab.id),
+  );
+  if (selected.size === 0 && opts.current) {
+    return { state: opts.current, unknownTokens: [], warnings: [] };
+  }
+
+  const scoped = scopeImportDocument(obj, selected, opts, cfg);
+  // Color is a complete state rather than an override map. Using current as
+  // the merge baseline preserves individual missing palette/semantic entries.
+  const parseOptions = opts.strategy === 'merge' && opts.current
+    ? { colorDefaults: opts.current.color }
+    : opts;
+  const result = obj.$schema === SCHEMA_V1
+    ? deserializeV1(scoped, parseOptions, cfg)
+    : obj.$schema === SCHEMA_V2
+      ? deserializeV2(scoped, parseOptions, cfg)
+      : deserializeV3(scoped, parseOptions, cfg);
+
+  if (opts.current) {
+    result.state = combineImportedState(result.state, opts.current, selected, opts.strategy === 'merge');
+  }
+  return result;
+}
+
+/** Keep analysis and import schema errors identical, including their messages. */
+function validateImportDocument(input: unknown): Record<string, unknown> & { $schema: string } {
   if (input === null || typeof input !== 'object' || Array.isArray(input)) {
     throw new DesignTokenSchemaError('not-object', 'Input is not a JSON object.');
   }
@@ -680,16 +736,8 @@ export function deserialize(
     );
   }
 
-  if (schema === SCHEMA_V3) {
-    return deserializeV3(obj, opts, cfg);
-  }
-
-  if (schema === SCHEMA_V2) {
-    return deserializeV2(obj, opts, cfg);
-  }
-
-  if (schema === SCHEMA_V1) {
-    return deserializeV1(obj, opts, cfg);
+  if (schema === SCHEMA_V3 || schema === SCHEMA_V2 || schema === SCHEMA_V1) {
+    return obj as Record<string, unknown> & { $schema: string };
   }
 
   throw new DesignTokenSchemaError(
@@ -704,6 +752,250 @@ function normalizeTabsRaw(tabs: unknown): Record<string, unknown> {
   return tabs && typeof tabs === 'object' && !Array.isArray(tabs)
     ? (tabs as Record<string, unknown>)
     : {};
+}
+
+/** Give legacy documents the same external tab ids as v2/v3 for scope/analysis. */
+function importTabs(obj: Record<string, unknown>): Record<string, unknown> {
+  if (obj.$schema !== SCHEMA_V1) return normalizeTabsRaw(obj.tabs);
+  const tabs: Record<string, unknown> = {};
+  for (const [key, id] of [['color', 'color'], ['spacing', 'spacing'], ['typography', 'font'], ['size', 'size']]) {
+    if (Object.hasOwn(obj, key)) tabs[id] = key === 'color' ? obj[key] : { raw: obj[key] };
+  }
+  return tabs;
+}
+
+type ImportModePair = { light: string; dark: string };
+
+/** Only explicit leaf pairs count, never a row's inferred mode dependence. */
+function importModePair(value: unknown): ImportModePair | null {
+  if (typeof value === 'string') return splitLightDark(value);
+  const literal = normalizeTabsRaw(value).literal;
+  if (typeof literal === 'string') return splitLightDark(literal);
+  const pair = normalizeTabsRaw(literal);
+  return typeof pair.light === 'string' && typeof pair.dark === 'string'
+    ? { light: pair.light, dark: pair.dark }
+    : null;
+}
+
+/**
+ * Inspect a document without constructing state, resolving CSS colors, or
+ * touching storage. Counts token leaves (including unknown/malformed values),
+ * not tier containers or the properties inside a semantic literal/ref leaf.
+ */
+export function analyzeDesignTokenJson(
+  input: unknown,
+  cfg: PanelConfig = getPanelConfig(),
+): ImportAnalysis {
+  const obj = validateImportDocument(input);
+  const cluster = getActivePrimaryCluster(cfg);
+  const unknownTokens = new Set<string>();
+  const tabs: ImportAnalysis['tabs'] = [];
+  for (const [id, raw] of Object.entries(importTabs(obj))) {
+    const known = cfg.tabs.some((tab) => tab.id === id);
+    const knownVars = new Set(getTabItems(id, cfg).filter((item) => !item.readonly).map((item) => item.cssVar));
+    let entries = 0;
+    let perModeEntries = 0;
+    const count = (key: string, value: unknown, tokenKnown: boolean): void => {
+      entries++;
+      if (importModePair(value)) perModeEntries++;
+      if (known && id !== 'notes' && !tokenKnown) unknownTokens.add(key);
+    };
+    for (const [tier, map] of Object.entries(normalizeTabsRaw(raw))) {
+      if (obj.$schema === SCHEMA_V1 && id === 'color') {
+        if (tier === 'palette' && Array.isArray(map)) {
+          map.forEach((value, index) => {
+            const cssVar = resolvePaletteCssVar(cluster, index);
+            count(cssVar, value, knownVars.has(cssVar));
+          });
+        } else if (tier === 'semantic') {
+          for (const [key, value] of Object.entries(normalizeTabsRaw(map))) {
+            count(key, value, knownVars.has(cluster.semanticCssNames[key]));
+          }
+        } else if (tier === 'base') {
+          for (const [key, value] of Object.entries(normalizeTabsRaw(map))) {
+            count(key, value, ['bg', 'fg', 'cursor', 'sel-bg', 'sel-fg'].includes(key));
+          }
+        }
+        continue;
+      }
+      for (const [key, value] of Object.entries(normalizeTabsRaw(map))) {
+        count(key, value, knownVars.has(key));
+      }
+    }
+    tabs.push({ id, known, entries, perModeEntries });
+  }
+  return {
+    schema: obj.$schema,
+    tabs,
+    sides: tabs.some((tab) => tab.perModeEntries > 0) ? ['light', 'dark'] : [],
+    unknownTokens: [...unknownTokens],
+  };
+}
+
+/** A plain current value applies to both sides; a pair supplies each separately. */
+function valueSides(value: unknown): ImportModePair | null {
+  const pair = importModePair(value);
+  if (pair) return pair;
+  const literal = normalizeTabsRaw(value).literal;
+  const plain = typeof value === 'string' ? value : literal;
+  return typeof plain === 'string' && plain.length > 0 ? { light: plain, dark: plain } : null;
+}
+
+function semanticSides(
+  mapping: SemanticValue | undefined,
+  color: ColorTweakState | undefined,
+  cfg: PanelConfig,
+): ImportModePair | null {
+  if (mapping === undefined) return null;
+  if (isIndexMapping(mapping)) {
+    const cluster = getActivePrimaryCluster(cfg);
+    const index = mapping === 'bg' ? color?.background ?? cluster.baseDefaults.background
+      : mapping === 'fg' ? color?.foreground ?? cluster.baseDefaults.foreground : mapping;
+    if (index === undefined) return null;
+    const live = valueSides(color?.palette[index]);
+    if (live) return live;
+    const cssVar = resolvePaletteCssVar(cluster, index);
+    const paletteItem = cfg.tabs.find((tab) => tab.id === 'color')?.tiers
+      .flatMap((tier) => tier.items).find((item) => item.cssVar === cssVar);
+    return paletteItem?.modes ?? valueSides(paletteItem?.default);
+  }
+  if (isRefMapping(mapping)) {
+    const tab = cfg.tabs.find((tab) => tab.id === 'color');
+    if (!tab) return null;
+    try {
+      return valueSides(`var(${resolveRefToCssVar(mapping.ref, tab, cfg.tabs)})`);
+    } catch {
+      return null;
+    }
+  }
+  return valueSides(mapping);
+}
+
+/** Resolve the side to keep from live state, supplied defaults, then the manifest. */
+function retainedModeSides(
+  tabId: string,
+  tierId: string,
+  cssVar: string,
+  opts: DeserializeOptions,
+  cfg: PanelConfig,
+): ImportModePair | null {
+  const tab = cfg.tabs.find((tab) => tab.id === tabId);
+  const tier = tab?.tiers.find((tier) => tier.items.some((item) => item.cssVar === cssVar));
+  const item = tier?.items.find((item) => item.cssVar === cssVar);
+  const referencedItem = tier?.referencesTier
+    ? tab?.tiers.find((target) => target.id === tier.referencesTier)?.items.find((target) => target.id === item?.default)
+    : undefined;
+  const manifestSides = item?.modes ?? (referencedItem
+    ? valueSides(`var(${referencedItem.cssVar})`)
+    : valueSides(item?.default));
+  if (tabId === 'color') {
+    const cluster = getActivePrimaryCluster(cfg);
+    if (tierId === 'palette') {
+      const index = Array.from({ length: cluster.paletteSize }, (_, i) => resolvePaletteCssVar(cluster, i)).indexOf(cssVar);
+      return valueSides(opts.current?.color.palette[index])
+        ?? valueSides(opts.colorDefaults?.palette[index])
+        ?? manifestSides;
+    }
+    if (tierId === 'semantic') {
+      const key = Object.keys(cluster.semanticCssNames).find((key) => cluster.semanticCssNames[key] === cssVar);
+      if (key === undefined) return manifestSides;
+      return semanticSides(opts.current?.color.semanticMappings[key], opts.current?.color, cfg)
+        ?? semanticSides(opts.colorDefaults?.semanticMappings[key], opts.colorDefaults, cfg)
+        ?? item?.modes
+        ?? semanticSides(cluster.semanticDefaults[key], opts.colorDefaults ?? opts.current?.color, cfg)
+        ?? manifestSides;
+    }
+    return manifestSides;
+  }
+  if (!item || !tier) return null;
+  const flat = tabId === 'spacing' ? opts.current?.spacing
+    : tabId === 'font' ? opts.current?.typography
+      : tabId === 'size' ? opts.current?.size
+        : opts.current?.tabs?.[tabId]?.[tier.id];
+  return valueSides(flat?.[item.id]) ?? manifestSides;
+}
+
+function mapImportModeValue(
+  value: unknown,
+  mode: DeserializeOptions['modeSides'],
+  retained: () => ImportModePair | null,
+): unknown {
+  if (mode === undefined || mode === 'as-is') return value;
+  const pair = importModePair(value);
+  if (!pair) return value;
+  const previous = mode === 'light-only' || mode === 'dark-only' ? retained() : null;
+  const mapped = mode === 'swap' ? { light: pair.dark, dark: pair.light }
+    : mode === 'light-to-both' ? { light: pair.light, dark: pair.light }
+      : mode === 'light-only' ? { light: pair.light, dark: previous?.dark ?? pair.dark }
+        : { light: previous?.light ?? pair.light, dark: pair.dark };
+  const css = `light-dark(${mapped.light}, ${mapped.dark})`;
+  return typeof value === 'string' ? css
+    : typeof normalizeTabsRaw(value).literal === 'string' ? { literal: css }
+      : { literal: mapped };
+}
+
+/** Filter before parsing so ignored tabs cannot produce warnings or unknown tokens. */
+function scopeImportDocument(
+  obj: Record<string, unknown>,
+  selected: ReadonlySet<string>,
+  opts: DeserializeOptions,
+  cfg: PanelConfig,
+): Record<string, unknown> {
+  const tabs = Object.fromEntries(Object.entries(importTabs(obj)).filter(([id]) => selected.has(id)).map(([id, raw]) => {
+    if (opts.modeSides === undefined || opts.modeSides === 'as-is') return [id, raw];
+    const entry = Object.fromEntries(Object.entries(normalizeTabsRaw(raw)).map(([tier, map]) => {
+      const mapValue = (cssVar: string, value: unknown): unknown => mapImportModeValue(
+        value, opts.modeSides, () => retainedModeSides(id, tier, cssVar, opts, cfg),
+      );
+      if (obj.$schema === SCHEMA_V1 && id === 'color' && tier === 'palette' && Array.isArray(map)) {
+        const cluster = getActivePrimaryCluster(cfg);
+        return [tier, map.map((value, index) => mapValue(resolvePaletteCssVar(cluster, index), value))];
+      }
+      if (map === null || typeof map !== 'object' || Array.isArray(map)) return [tier, map];
+      return [tier, Object.fromEntries(Object.entries(map).map(([cssVar, value]) => [cssVar, mapValue(cssVar, value)]))];
+    }));
+    return [id, entry];
+  }));
+  if (obj.$schema !== SCHEMA_V1) return { ...obj, tabs };
+  return {
+    ...obj,
+    color: tabs.color,
+    spacing: normalizeTabsRaw(tabs.spacing).raw,
+    typography: normalizeTabsRaw(tabs.font).raw,
+    size: normalizeTabsRaw(tabs.size).raw,
+  };
+}
+
+function combineImportedState(
+  imported: TweakState,
+  current: TweakState,
+  selected: ReadonlySet<string>,
+  merge: boolean,
+): TweakState {
+  const state: TweakState = { ...current, ...imported };
+  if (!selected.has('color')) state.color = current.color;
+  for (const [tabId, slice] of [['spacing', 'spacing'], ['font', 'typography'], ['size', 'size']] as const) {
+    state[slice] = !selected.has(tabId) ? current[slice]
+      : merge ? { ...current[slice], ...imported[slice] } : imported[slice];
+  }
+  const tabs = { ...current.tabs };
+  for (const id of selected) {
+    if (RESERVED_TAB_IDS.has(id)) continue;
+    const incoming = imported.tabs?.[id];
+    if (!merge) {
+      delete tabs[id];
+      if (incoming) tabs[id] = incoming;
+    } else if (incoming) {
+      const tiers = { ...tabs[id] };
+      for (const [tier, values] of Object.entries(incoming)) {
+        tiers[tier] = { ...tiers[tier], ...values };
+      }
+      tabs[id] = tiers;
+    }
+  }
+  delete state.tabs;
+  if (Object.keys(tabs).length > 0) state.tabs = tabs;
+  return state;
 }
 
 /**
@@ -803,7 +1095,7 @@ function deserializeV2(
   const tabsRaw = normalizeTabsRaw(obj.tabs);
 
   // Color tab.
-  const color = deserializeColorV2(tabsRaw['color'], baseline, cluster, warnings);
+  const color = deserializeColorV2(tabsRaw['color'], baseline, cluster, warnings, cfg);
 
   const { spacing, typography, size, tabsState } = deserializeNonColorSlices(
     tabsRaw,
@@ -908,6 +1200,11 @@ function parseSemanticExternalValue(val: unknown, paletteSize: number): Semantic
   return undefined;
 }
 
+/** A parsed mode pair must reach state intact instead of a single-color sanitizer. */
+function normalizeImportedPaletteEntry(value: string): string {
+  return splitLightDark(value) ? value : normalizeSchemePaletteEntry(value);
+}
+
 /**
  * Deserialize the `palette` tier shared by v2 and v3 `color` tabs — a
  * cssVar-keyed map of hex/oklch color strings. Extracted so
@@ -917,6 +1214,7 @@ function deserializePaletteTier(
   raw: Record<string, unknown>,
   baseline: ColorTweakState,
   cluster: ReturnType<typeof getActivePrimaryCluster>,
+  readonlyVars: ReadonlySet<string>,
 ): string[] {
   if (!raw['palette'] || typeof raw['palette'] !== 'object' || Array.isArray(raw['palette'])) {
     return [...baseline.palette];
@@ -925,13 +1223,14 @@ function deserializePaletteTier(
   const newPalette = [...baseline.palette];
   for (let i = 0; i < cluster.paletteSize; i++) {
     const cssVar = resolvePaletteCssVar(cluster, i);
+    if (readonlyVars.has(cssVar)) continue;
     const val = paletteMap[cssVar];
     if (typeof val === 'string') {
       // Apply the same seed-time sanitiser (commit 8d54e07): preserve
       // valid oklch() verbatim and route everything else through
       // cssColorToHex() so a garbage entry like "18" becomes '#000000'
       // instead of leaking verbatim into a CSS custom property.
-      newPalette[i] = normalizeSchemePaletteEntry(val);
+      newPalette[i] = normalizeImportedPaletteEntry(val);
     }
   }
   return newPalette;
@@ -950,7 +1249,8 @@ function deserializeColorV3(
   }
 
   const c = raw as Record<string, unknown>;
-  const palette = deserializePaletteTier(c, baseline, cluster);
+  const readonlyVars = readonlyColorVars(cfg);
+  const palette = deserializePaletteTier(c, baseline, cluster, readonlyVars);
 
   // Semantic tier: cssVar-keyed. Accepts a palette-index integer (same as v2)
   // OR one of the `SemanticValue` object variants (#462) via
@@ -963,6 +1263,7 @@ function deserializeColorV3(
       Object.entries(cluster.semanticCssNames).map(([k, v]) => [v, k]),
     );
     for (const [cssName, val] of Object.entries(semMap)) {
+      if (readonlyVars.has(cssName)) continue;
       const key = cssNameToKey.get(cssName);
       if (!key) {
         warnings.push(`color.semantic: unknown cssVar "${cssName}"; skipped.`);
@@ -1016,6 +1317,7 @@ function deserializeColorV2(
   baseline: ColorTweakState,
   cluster: ReturnType<typeof getActivePrimaryCluster>,
   warnings: string[],
+  cfg: PanelConfig,
 ): ColorTweakState {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     // No color tab — fall back entirely to baseline.
@@ -1023,25 +1325,10 @@ function deserializeColorV2(
   }
 
   const c = raw as Record<string, unknown>;
+  const readonlyVars = readonlyColorVars(cfg);
 
   // Palette tier: cssVar-keyed.
-  let palette = [...baseline.palette];
-  if (c['palette'] && typeof c['palette'] === 'object' && !Array.isArray(c['palette'])) {
-    const paletteMap = c['palette'] as Record<string, unknown>;
-    const newPalette = [...baseline.palette];
-    for (let i = 0; i < cluster.paletteSize; i++) {
-      const cssVar = resolvePaletteCssVar(cluster, i);
-      const val = paletteMap[cssVar];
-      if (typeof val === 'string') {
-        // Apply the same seed-time sanitiser (commit 8d54e07): preserve
-        // valid oklch() verbatim and route everything else through
-        // cssColorToHex() so a garbage entry like "18" becomes '#000000'
-        // instead of leaking verbatim into a CSS custom property.
-        newPalette[i] = normalizeSchemePaletteEntry(val);
-      }
-    }
-    palette = newPalette;
-  }
+  const palette = deserializePaletteTier(c, baseline, cluster, readonlyVars);
 
   // Semantic tier: cssVar-keyed palette-index integers. Only ever populated
   // with legacy `number` values below (v2 deserialize doesn't admit
@@ -1056,6 +1343,7 @@ function deserializeColorV2(
       Object.entries(cluster.semanticCssNames).map(([k, v]) => [v, k]),
     );
     for (const [cssName, val] of Object.entries(semMap)) {
+      if (readonlyVars.has(cssName)) continue;
       const key = cssNameToKey.get(cssName);
       if (!key) {
         warnings.push(`color.semantic: unknown cssVar "${cssName}"; skipped.`);
@@ -1126,7 +1414,7 @@ function deserializeV1(
   const unknownTokens: string[] = [];
   const baseline = opts.colorDefaults ?? neutralColorDefaults(cfg);
 
-  const color = deserializeColorV1(obj.color, baseline, warnings);
+  const color = deserializeColorV1(obj.color, baseline, warnings, cfg);
   // Read items from tabs[] so a host-supplied config drives validation.
   // v1 used "typography" as the key (not "font") for the typography tab.
   const spacing = deserializeOverridesV1(obj.spacing, getTabItems('spacing', cfg), 'spacing', unknownTokens, warnings);
@@ -1144,6 +1432,7 @@ function deserializeColorV1(
   raw: unknown,
   baseline: ColorTweakState,
   warnings: string[],
+  cfg: PanelConfig,
 ): ColorTweakState {
   if (!raw || typeof raw !== 'object') {
     // No color block at all — user probably diffed only spacing/typography/size.
@@ -1154,6 +1443,8 @@ function deserializeColorV1(
     };
   }
   const c = raw as Record<string, unknown>;
+  const cluster = getActivePrimaryCluster(cfg);
+  const readonlyVars = readonlyColorVars(cfg);
 
   // Palette
   let palette = [...baseline.palette];
@@ -1164,7 +1455,8 @@ function deserializeColorV1(
       // oklch() verbatim and route everything else through cssColorToHex() so
       // a garbage entry like "18" becomes '#000000' instead of leaking into a
       // CSS custom property.
-      palette = parsed.map(normalizeSchemePaletteEntry);
+      palette = parsed.map((value, index) => readonlyVars.has(resolvePaletteCssVar(cluster, index))
+        ? baseline.palette[index] : normalizeImportedPaletteEntry(value));
     } else if (c.palette.length > 0) {
       const detail =
         parsed.length < c.palette.length
@@ -1194,6 +1486,11 @@ function deserializeColorV1(
   };
   if (c.semantic && typeof c.semantic === 'object') {
     for (const [key, val] of Object.entries(c.semantic as Record<string, unknown>)) {
+      if (!Object.hasOwn(cluster.semanticCssNames, key)) {
+        warnings.push(`color.semantic: unknown token "${key}"; skipped.`);
+        continue;
+      }
+      if (readonlyVars.has(cluster.semanticCssNames[key])) continue;
       if (typeof val === 'number') {
         semanticMappings[key] = val;
       } else if (val === 'bg' || val === 'fg') {

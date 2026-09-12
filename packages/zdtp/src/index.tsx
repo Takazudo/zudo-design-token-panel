@@ -581,7 +581,11 @@ export {
   SCHEMA_V1,
   SCHEMA_V2,
   SCHEMA_V3,
+  analyzeDesignTokenJson,
+  deserialize,
+  DesignTokenSchemaError,
 } from './utils/design-token-serde';
+export type { ImportAnalysis, DeserializeOptions, DeserializeResult } from './utils/design-token-serde';
 // Per-mode literal helpers (#472). `getClusterDefaultMode` reads the cluster's
 // `colorMode.defaultMode`; `resolvePerModeLiteral` / `resolveSemanticPreviewColor`
 // collapse a `{ literal: { light, dark } }` value to a single concrete color for
