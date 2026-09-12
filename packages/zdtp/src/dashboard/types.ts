@@ -1,7 +1,14 @@
 import type { TierConfig, TierValueKind } from '../tokens/tier-model';
 
 /** Internal, render-independent description of declared token defaults. */
-export type DashboardMode = 'light' | 'dark';
+export type DashboardMode = 'light' | 'dark' | 'host';
+
+export type DashboardInclude = 'all' | 'mode-dependent' | 'mode-independent';
+
+export interface DashboardModelOptions {
+  mode?: DashboardMode;
+  include?: DashboardInclude;
+}
 
 /** Appearance of the dashboard chrome, independent of declared token mode. */
 export type DashboardChrome = 'light' | 'dark' | 'host';
@@ -29,6 +36,10 @@ export interface DashboardRow {
   cssVar: string;
   kind: TierValueKind['kind'];
   source: 'item' | 'base-role';
+  modeDependent: boolean;
+  /** Direct authored pair; reference-derived dependence has no local pair. */
+  sides: { light: string; dark: string } | null;
+  origin: 'modes' | 'semantic' | 'default' | 'reference' | null;
   defaultValue: string;
   /** Human-readable selected-mode declaration, including explicit semantic overrides. */
   declaredValue: string;
@@ -36,8 +47,9 @@ export interface DashboardRow {
   cssValue: string | null;
   /**
    * Follows direct declared references only, never computes CSS. Expressions
-   * remain expressions. Null means invalid or dependent on unknown context;
-   * the renderer must not show a value preview in that case.
+   * remain expressions. Null means invalid or dependent on unknown context.
+   * In host mode, mode-dependent rows stay null while cssValue retains the
+   * declarations needed for the browser to resolve the inherited scheme.
    */
   resolvedValue: string | null;
   references: DashboardReference[];
@@ -64,7 +76,10 @@ export interface DashboardTab {
 
 export interface DashboardModel {
   mode: DashboardMode;
+  include: DashboardInclude;
+  /** Visible inventory, with empty tiers and tabs omitted. */
   tabs: DashboardTab[];
+  /** Complete graph, including rows hidden by include. */
   rows: DashboardRow[];
   /** Declare these on each preview scope, never on :root or the document. */
   declarations: Readonly<Record<string, string>>;
