@@ -25,7 +25,11 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { __resetPanelConfigForTests, type PanelConfig } from '../config/panel-config';
+import {
+  __resetPanelConfigForTests,
+  type PanelConfig,
+  type PanelInstanceHandle,
+} from '../config/panel-config';
 import { getOpenKey } from '../state/tweak-state';
 import { flushEffects } from './_test-helpers';
 
@@ -75,15 +79,24 @@ function adapterState(): { bound: boolean; modulePromise: unknown } | null {
   return (map?.[CFG.storagePrefix] ?? null) as { bound: boolean; modulePromise: unknown } | null;
 }
 
+let adapterHandle: PanelInstanceHandle | undefined;
+
 async function bootstrapAdapter(): Promise<void> {
   vi.resetModules();
-  const { __resetPanelConfigForTests: reset } = await import('../config/panel-config');
+  const { __resetPanelConfigForTests: reset, configurePanel, getPanelConfig } =
+    await import('../config/panel-config');
   reset();
   await import('../astro/host-adapter');
+  // The adapter owns the handle it gets from configurePanel(), so recover the
+  // stable handle through the idempotent same-config path for teardown. This
+  // keeps tests on the real instance lifecycle instead of removing a live
+  // Preact root directly from the document.
+  adapterHandle = configurePanel(getPanelConfig());
 }
 
 describe('host-adapter window.zdtp global alias (#523)', () => {
   beforeEach(() => {
+    adapterHandle = undefined;
     setupConfigScript();
     localStorage.clear();
     document.body.innerHTML = '';
@@ -95,7 +108,14 @@ describe('host-adapter window.zdtp global alias (#523)', () => {
     __resetPanelConfigForTests();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Preact schedules useEffect work through requestAnimationFrame with a
+    // setTimeout fallback. Let that work settle while jsdom is still live,
+    // then destroy the configured instance so its effect cleanups run before
+    // the root and document are cleared.
+    await flushEffects();
+    adapterHandle?.destroy();
+    await flushEffects();
     localStorage.clear();
     document.body.innerHTML = '';
     document.head.innerHTML = '';
