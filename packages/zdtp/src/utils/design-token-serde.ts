@@ -953,7 +953,15 @@ function retainedModeSides(
     : tabId === 'font' ? opts.current?.typography
       : tabId === 'size' ? opts.current?.size
         : opts.current?.tabs?.[tabId]?.[tier.id];
-  return valueSides(flat?.[item.id]) ?? manifestSides;
+  const currentValue = flat?.[item.id];
+  const currentReference = tier.referencesTier
+    ? tab?.tiers.find((target) => target.id === tier.referencesTier)?.items
+      .find((target) => target.id === currentValue)
+    : undefined;
+  // Reference overrides are stored as item ids, not CSS literals. Preserve
+  // their variable reference when retaining one side of an imported pair.
+  return (currentReference ? valueSides(`var(${currentReference.cssVar})`) : valueSides(currentValue))
+    ?? manifestSides;
 }
 
 function mapImportModeValue(

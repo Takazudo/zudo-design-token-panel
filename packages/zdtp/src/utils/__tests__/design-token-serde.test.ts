@@ -1550,6 +1550,10 @@ describe('deserialize — scoped modes and strategy', () => {
     expect(deserialize({ $schema: SCHEMA_V3, tabs: { 'reference-tab': { raw: { '--ref-use': IMPORT_CSS } } } }, {
       modeSides: 'dark-only',
     }, cfg).state.tabs).toEqual({ 'reference-tab': { semantic: { use: 'light-dark(var(--ref-base), #0000ff)' } } });
+    const current = { ...scopedCurrent(), tabs: { 'reference-tab': { semantic: { use: 'base' } } } };
+    expect(deserialize({ $schema: SCHEMA_V3, tabs: { 'reference-tab': { raw: { '--ref-use': IMPORT_CSS } } } }, {
+      current, modeSides: 'dark-only',
+    }, cfg).state.tabs).toEqual({ 'reference-tab': { semantic: { use: 'light-dark(var(--ref-base), #0000ff)' } } });
   });
 
   it.each([SCHEMA_V1, SCHEMA_V2, SCHEMA_V3])('applies raw side mapping and merge under %s', ($schema) => {
