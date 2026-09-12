@@ -22,7 +22,7 @@ import {
   type PanelConfig,
 } from '../config/panel-config';
 import { TierResolverError, resolveRefToCssVar } from '../apply/tier-resolver';
-import type { TabConfig } from '../tokens/tier-model';
+import type { TabConfig, TierItem } from '../tokens/tier-model';
 
 /**
  * `panel-config.ts` contract:
@@ -760,6 +760,66 @@ describe('panel-config — assertValidPanelConfig host-tabs validation', () => {
     expect(() =>
       assertValidPanelConfig(makeBaseConfig({ tabs: [tabEmptyCssVar] })),
     ).toThrow(/cssVar must be non-empty after "--"/);
+  });
+
+  // Mode-dependent item pairs ------------------------------------------------
+
+  function makeModesTab(
+    kind: 'color' | 'text' | 'length',
+    modes: unknown,
+  ): TabConfig {
+    return {
+      id: 'modes-tab',
+      label: 'Modes',
+      tiers: [{
+        id: 'values',
+        label: 'Values',
+        items: [{
+          id: 'token',
+          cssVar: '--modes-token',
+          label: 'Token',
+          default: kind === 'length' ? '8px' : '#fff',
+          // Runtime validation intentionally receives unknown JSON-shaped
+          // values in these cases, so keep the fixture's type cast local.
+          type: (kind === 'length'
+            ? { kind, step: 1, unit: 'px' }
+            : { kind }) as TierItem['type'],
+          modes: modes as { light: string; dark: string },
+        }],
+      }],
+    };
+  }
+
+  it('accepts modes on color and text items when both sides are non-empty strings', () => {
+    for (const kind of ['color', 'text'] as const) {
+      expect(() =>
+        assertValidPanelConfig(makeBaseConfig({
+          tabs: [makeModesTab(kind, { light: '#fff', dark: '#000' })],
+        })),
+      ).not.toThrow();
+    }
+  });
+
+  it('rejects modes on a length item even when the values look like a pair', () => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({
+        tabs: [makeModesTab('length', { light: '8px', dark: '16px' })],
+      })),
+    ).toThrow(/modes is only valid when type\.kind is "color" or "text"/);
+  });
+
+  it.each([
+    null,
+    { light: '#fff' },
+    { light: '#fff', dark: '' },
+    { light: '   ', dark: '#000' },
+    { light: '#fff', dark: 0 },
+  ])('rejects malformed modes shape %j', (modes) => {
+    expect(() =>
+      assertValidPanelConfig(makeBaseConfig({
+        tabs: [makeModesTab('color', modes)],
+      })),
+    ).toThrow(/\.modes(?:\.(?:light|dark))? /);
   });
 
   // Rule: referencesTier must name an existing tier --------------------------

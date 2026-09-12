@@ -1468,6 +1468,38 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>, allTabs: un
         );
       }
 
+      const itType = it.type;
+
+      // Rule: `modes` is a light/dark color pair. It is intentionally
+      // available on color and text rows only: those are the token kinds for
+      // which emitting `light-dark(light, dark)` is meaningful. Validate this
+      // at the trust boundary so a malformed host manifest cannot make a
+      // length/number editor carry an invalid mode pair.
+      if (it.modes !== undefined) {
+        const modesPath =
+          `[design-token-panel] PanelConfig.tabs["${tabId}"].tiers["${tierId}"].items["${it.id}"].modes`;
+        if (it.modes === null || typeof it.modes !== 'object' || Array.isArray(it.modes)) {
+          throw new Error(`${modesPath} must be a plain object`);
+        }
+        const kind =
+          itType !== null &&
+          typeof itType === 'object' &&
+          !Array.isArray(itType)
+            ? (itType as Record<string, unknown>).kind
+            : undefined;
+        if (kind !== 'color' && kind !== 'text') {
+          throw new Error(
+            `${modesPath} is only valid when type.kind is "color" or "text" (got ${JSON.stringify(kind)})`,
+          );
+        }
+        const modes = it.modes as Record<string, unknown>;
+        for (const side of ['light', 'dark'] as const) {
+          if (typeof modes[side] !== 'string' || modes[side].trim().length === 0) {
+            throw new Error(`${modesPath}.${side} must be a non-empty string`);
+          }
+        }
+      }
+
       // Rule: length-kind `type.units` (opt-in click-to-cycle unit suffix,
       // #519) — when present, must be an array of non-empty, non-duplicate
       // unit strings. Only checked for `kind: 'length'` items; the field is
@@ -1475,7 +1507,6 @@ function assertValidTab(tabId: string, tab: Record<string, unknown>, allTabs: un
       // empty) array is intentionally NOT rejected here — per the #519
       // design, fewer than 2 entries means "not opted into cycling yet",
       // which the editor renders as today's static, non-interactive span.
-      const itType = it.type;
       if (
         itType !== null &&
         typeof itType === 'object' &&

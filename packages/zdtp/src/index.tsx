@@ -592,6 +592,7 @@ export {
   resolvePerModeLiteral,
   resolveSemanticPreviewColor,
 } from './state/tweak-state';
+export { splitLightDark, resolveModeSides, isModeDependent } from './tokens/mode-dependence';
 
 /**
  * Show ONE instance's panel. Internal per-instance core shared by the public
