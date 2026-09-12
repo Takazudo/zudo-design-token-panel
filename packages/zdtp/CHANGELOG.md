@@ -8,6 +8,42 @@ The format is based on Keep a Changelog, and release notes are generated from th
 
 No unreleased changes yet.
 
+## [0.8.0] - 2026-09-12
+
+### Breaking Changes
+
+- feat(dashboard): render mode-aware token regions (bd8fb6b). Mode-dependent rows now precede independent rows in separate regions. Independent specimens follow `chrome`, while dependent specimens follow `mode`. **Migration**: update custom DOM/CSS integrations to target `.zdtp-dashboard__region`; set both `mode="dark"` and `chrome="dark"` for uniformly dark output, or compose filtered instances with `include="mode-dependent"` and `include="mode-independent"`.
+- feat(dashboard): derive chrome colors from theme inputs (495af9f). The outer root is transparent and derived chrome paints the header and regions. **Migration**: provide any surrounding page background on your wrapper and customize the four inherited `--zdtp-dashboard-light-bg`, `--zdtp-dashboard-light-fg`, `--zdtp-dashboard-dark-bg`, and `--zdtp-dashboard-dark-fg` inputs instead of relying on the former fixed palette.
+- feat(dashboard): model mode dependence per row (d570b9b). Existing top-level `light-dark()` defaults display and emit the selected side in light/dark snapshots; empty inventory groups are omitted. **Migration**: use `mode="host"` when the declaration should remain a browser-selected pair, and read the authored manifest when you need unfiltered source order or empty groups. The internal model helper's positional-mode overload remains available.
+- feat(zdtp): add scoped import modal flow (a8223ba). Load becomes available after JSON analysis. **Migration**: in UI automation, choose **Analyze** or wait for **Import scope**, select the desired tabs/options, and then choose **Load**.
+
+### Features
+
+- feat(zdtp): add mode-dependent token helpers (28cceb8)
+- feat(zdtp): add scoped token import analysis and mode mapping (e2ea25a)
+- feat(zdtp): apply manifest color modes across panel lifecycle (08bfb52)
+- feat(zdtp): render and serialize manifest mode rows (2b501bf)
+
+Mode pairs are display-only in the panel. Per-mode editing is tracked in [#953](https://github.com/Takazudo/zudo-design-token-panel/issues/953). Diff-only export retains its comparison against `item.default`; use `includeDefaults: true` for a complete export.
+
+### Fixed
+
+- fix: preserve current references during single-side imports (87dc04b)
+
+### Other Changes
+
+- test: clean up host adapter alias lifecycle (9361c48)
+- test: drain host adapter autoload lifecycle (d8f7f2c)
+- test(dashboard): guard against hostile host styles (070ae9b)
+- test: verify mode pairs on real browser apply targets (def8853)
+- test: align packed dashboard SSR with region chrome (d836407)
+- test: analyze imports in the browser header workflow (50d1953)
+- docs: cover mode-aware dashboard consumers (b2496d6)
+- docs: capture mode-aware dashboard browser evidence (42ca61a)
+- docs(deps): sync vendored zudo-doc scaffold to v5.21.0 ([#937](https://github.com/Takazudo/zudo-design-token-panel/pull/937)) (a7c56e2)
+- docs(deps): sync pin comment, vendored manifest, and doc prose to 0.7.0 ([#936](https://github.com/Takazudo/zudo-design-token-panel/pull/936)) (7966f0b)
+- chore(deps): bump @takazudo/* registry deps to frozen targets ([#936](https://github.com/Takazudo/zudo-design-token-panel/pull/936)) (af2f40f)
+
 ## [0.7.0] - 2026-09-09
 
 ### Breaking Changes
