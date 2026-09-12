@@ -1,17 +1,20 @@
 import type { JSX } from 'preact';
 import type { TabConfig, TierConfig } from '../tokens/tier-model';
 import { buildDashboardModel } from './model';
-import type { DashboardChrome, DashboardMode, DashboardModel, DashboardRow, DashboardTier } from './types';
+import type { DashboardChrome, DashboardInclude, DashboardMode, DashboardModel, DashboardRow, DashboardTier } from './types';
 
 /** Visual samples are independent from the panel's editor kind. */
 export type DashboardPreviewKind = NonNullable<TierConfig['preview']> | 'color' | 'shadow' | 'text';
 
 export interface TokenDashboardProps {
   tabs: readonly TabConfig[];
-  /** Selects declared per-mode defaults. Does not read the host or panel mode. */
+  /** Selects declared per-mode defaults. 'host' follows the inherited CSS
+   * color-scheme without reading browser or panel state. Defaults to 'light'. */
   mode?: DashboardMode;
-  /** Selects chrome appearance (shell, cards, labels, borders, diagnostics and
-   * focus/scroll affordances), independently of mode's declared defaults.
+  /** Selects visible rows by mode dependence. Defaults to 'all'. */
+  include?: DashboardInclude;
+  /** Selects the shell and mode-independent region's appearance, including
+   * cards, labels, borders, diagnostics and focus/scroll affordances.
    * 'host' inherits the host's effective color-scheme. Defaults to 'light'. */
   chrome?: DashboardChrome;
   title?: string;
@@ -37,6 +40,16 @@ function isTypography(kind: DashboardPreviewKind): boolean {
   return ['size', 'family', 'weight', 'line-height'].includes(kind);
 }
 
+function regionTabs(tabs: DashboardModel['tabs'], modeDependent: boolean): DashboardModel['tabs'] {
+  return tabs.flatMap((tab) => {
+    const tiers = tab.tiers.flatMap((tier) => {
+      const rows = tier.rows.filter((row) => row.modeDependent === modeDependent);
+      return rows.length > 0 ? [{ ...tier, rows }] : [];
+    });
+    return tiers.length > 0 ? [{ ...tab, tiers }] : [];
+  });
+}
+
 /** Prove only direct local aliases and px/rem literals; never evaluate CSS. */
 function rulerLength(row: DashboardRow, model: DashboardModel): string | null {
   const visited = new Set<string>();
@@ -54,12 +67,13 @@ function rulerLength(row: DashboardRow, model: DashboardModel): string | null {
   return null;
 }
 
-function Preview({ row, tier, kind, model, previewText }: {
+function Preview({ row, tier, kind, model, previewText, colorScheme }: {
   row: DashboardRow;
   tier: DashboardTier;
   kind: DashboardPreviewKind;
   model: DashboardModel;
   previewText: string;
+  colorScheme: 'light' | 'dark' | 'inherit';
 }) {
   if (kind === 'bar') {
     const length = rulerLength(row, model);
@@ -69,15 +83,21 @@ function Preview({ row, tier, kind, model, previewText }: {
       <div className="zdtp-dashboard__scroll zdtp-dashboard__ruler-scroll" role="region" tabIndex={0} aria-label={`${row.label} (${row.cssVar}) actual-size ruler`}>
         <div className="zdtp-dashboard__ruler" style={{ inlineSize: `max(100%, ${length})` }}>
           <div className="zdtp-dashboard__ruler-origin">0</div>
-          <div className="zdtp-dashboard__specimen" style={{ colorScheme: model.mode }}>
+          <div className="zdtp-dashboard__specimen" style={{ colorScheme }}>
             <span className="zdtp-dashboard__sample zdtp-dashboard__sample--bar" style={{ inlineSize: length }} aria-hidden="true" />
           </div>
         </div>
       </div>
     </div>;
   }
-  if (row.cssValue === null || row.resolvedValue === null || kind === 'text' || kind === 'duration') return null;
-  const resolved = row.resolvedValue.trim().toLowerCase();
+  // Safe host colors intentionally have no selected resolvedValue: CSS picks
+  // the side at the specimen. Context diagnostics still suppress previews.
+  const previewValue = row.resolvedValue ?? (
+    model.mode === 'host' && row.modeDependent && kind === 'color' && row.diagnostics.length === 0
+      ? row.cssValue : null
+  );
+  if (row.cssValue === null || previewValue === null || kind === 'text' || kind === 'duration') return null;
+  const resolved = previewValue.trim().toLowerCase();
   if (!resolved) return null;
   if (kind === 'radius' || kind === 'size') {
     if (/^(?:auto|none|normal|(?:min|max)-content|stretch|content)$|^fit-content(?:\(|$)/.test(resolved)) return null;
@@ -104,7 +124,7 @@ function Preview({ row, tier, kind, model, previewText }: {
     <div className={`zdtp-dashboard__preview zdtp-dashboard__preview--${kind}${typography ? ' zdtp-dashboard__preview--typography zdtp-dashboard__scroll' : ''}`}
       aria-hidden={typography ? undefined : 'true'} role={typography ? 'region' : undefined}
       tabIndex={typography ? 0 : undefined} aria-label={typography ? `${row.label} (${row.cssVar}) typography specimen` : undefined}>
-      <div className="zdtp-dashboard__specimen" style={{ colorScheme: model.mode }}>
+      <div className="zdtp-dashboard__specimen" style={{ colorScheme }}>
         <span className={`zdtp-dashboard__sample zdtp-dashboard__sample--${kind}`} style={style}>
           {typography ? previewText : ''}
         </span>
@@ -121,71 +141,83 @@ function Preview({ row, tier, kind, model, previewText }: {
 export function TokenDashboard({
   tabs,
   mode = 'light',
+  include = 'all',
   chrome = 'light',
   title = 'Token dashboard',
   id,
   previewOverrides,
   previewText = DEFAULT_PREVIEW_TEXT,
 }: TokenDashboardProps) {
-  const model = buildDashboardModel(tabs, mode);
-  const diagnosticRows = model.rows.filter((row) => row.diagnostics.length > 0).length;
+  const model = buildDashboardModel(tabs, { mode, include });
+  const visibleRows = model.tabs.flatMap((tab) => tab.tiers.flatMap((tier) => tier.rows));
+  const diagnosticRows = visibleRows.filter((row) => row.diagnostics.length > 0).length;
+  const regions = [
+    { key: 'mode-dependent', scheme: mode, tabs: regionTabs(model.tabs, true) },
+    { key: 'mode-independent', scheme: chrome, tabs: regionTabs(model.tabs, false) },
+  ].filter((region) => region.tabs.length > 0);
 
   return (
-    <div id={id} className="zdtp-dashboard" role="region" aria-label={title} data-mode={mode} data-chrome={chrome}>
+    <div id={id} className="zdtp-dashboard" role="region" aria-label={title} data-mode={mode} data-include={include} data-chrome={chrome}>
       <div className="zdtp-dashboard__header">
         <div role="heading" aria-level={2} className="zdtp-dashboard__title">{title}</div>
         <div className="zdtp-dashboard__summary">
-          <span className="zdtp-dashboard__count">{model.rows.length} tokens</span>
-          <span>Declared defaults · {mode} mode</span>
+          <span className="zdtp-dashboard__count">{visibleRows.length} tokens</span>
+          <span>Declared defaults · {mode} mode{include !== 'all' ? ` · ${include} only` : ''}</span>
           {diagnosticRows > 0 && <span>{diagnosticRows} with diagnostics</span>}
         </div>
       </div>
       {/* One local graph per instance keeps expressions intact without repeating
           every declaration per row. Chrome never reads inventory variables. */}
       <div className="zdtp-dashboard__inventory" style={model.declarations}>
-        {model.rows.length === 0 && <div className="zdtp-dashboard__empty">No tokens declared.</div>}
-        {model.tabs.map((tab) => (
-          <div key={tab.key} className="zdtp-dashboard__tab" role="group" aria-label={tab.label}>
-            <div className="zdtp-dashboard__tab-header">
-              <div role="heading" aria-level={3} className="zdtp-dashboard__tab-title">{tab.label}</div>
-              <span className="zdtp-dashboard__tab-count">
-                {tab.tiers.reduce((count, tier) => count + tier.rows.length, 0)} tokens
-              </span>
-            </div>
-            {tab.tiers.map((tier) => (
-              <div key={tier.key} className="zdtp-dashboard__tier">
-                <div role="heading" aria-level={4} className="zdtp-dashboard__tier-title">{tier.label}</div>
-                <div className={tier.palette ? 'zdtp-dashboard__scroll zdtp-dashboard__palette-scroll' : undefined} role={tier.palette ? 'region' : undefined} tabIndex={tier.palette ? 0 : undefined} aria-label={tier.palette ? `${tier.label} palette stops` : undefined}>
-                  <div className={`zdtp-dashboard__grid${tier.palette ? ' zdtp-dashboard__palette' : ''}`} role="list" aria-label={tier.label}>
-                    {tier.rows.map((row) => {
-                      const kind = previewKind(row, tier, previewOverrides);
-                      const wide = !tier.palette && (kind === 'bar' || isTypography(kind));
-                      return (
-                      <div key={row.key} className={`zdtp-dashboard__token${wide ? ' zdtp-dashboard__token--wide' : ''}`} role="listitem" data-css-var={row.cssVar}>
-                        <Preview row={row} tier={tier} kind={kind} model={model} previewText={previewText} />
-                        <div className="zdtp-dashboard__token-content">
-                          <div className="zdtp-dashboard__name">{row.label}</div>
-                          <div className="zdtp-dashboard__variable">{row.cssVar}</div>
-                          <div className="zdtp-dashboard__value">{row.declaredValue || '(empty)'}</div>
-                          {row.cssValue !== null && row.cssValue !== row.declaredValue && (
-                            <div className="zdtp-dashboard__reference">CSS: {row.cssValue}</div>
-                          )}
-                          {row.references.length > 0 && (
-                            <div className="zdtp-dashboard__reference">
-                              References: {row.references.map((reference) => reference.cssVar).join(', ')}
-                            </div>
-                          )}
-                          {row.diagnostics.map((diagnostic, index) => (
-                            <div key={index} className="zdtp-dashboard__diagnostic" data-diagnostic={diagnostic.code}>
-                              {diagnostic.severity === 'error' ? 'Unavailable' : 'Context needed'}: {diagnostic.message}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      );
-                    })}
-                  </div>
+        {visibleRows.length === 0 && <div className="zdtp-dashboard__empty" style={{ colorScheme: chrome === 'host' ? 'inherit' : chrome }}>
+          {model.rows.length === 0 ? 'No tokens declared.' : 'No tokens match this view.'}
+        </div>}
+        {regions.map((region) => (
+          <div key={region.key} className="zdtp-dashboard__region" data-scheme={region.scheme}>
+            {region.tabs.map((tab) => (
+              <div key={tab.key} className="zdtp-dashboard__tab" role="group" aria-label={tab.label}>
+                <div className="zdtp-dashboard__tab-header">
+                  <div role="heading" aria-level={3} className="zdtp-dashboard__tab-title">{tab.label}</div>
+                  <span className="zdtp-dashboard__tab-count">
+                    {tab.tiers.reduce((count, tier) => count + tier.rows.length, 0)} tokens
+                  </span>
                 </div>
+                {tab.tiers.map((tier) => (
+                  <div key={tier.key} className="zdtp-dashboard__tier">
+                    <div role="heading" aria-level={4} className="zdtp-dashboard__tier-title">{tier.label}</div>
+                    <div className={tier.palette ? 'zdtp-dashboard__scroll zdtp-dashboard__palette-scroll' : undefined} role={tier.palette ? 'region' : undefined} tabIndex={tier.palette ? 0 : undefined} aria-label={tier.palette ? `${tier.label} palette stops` : undefined}>
+                      <div className={`zdtp-dashboard__grid${tier.palette ? ' zdtp-dashboard__palette' : ''}`} role="list" aria-label={tier.label}>
+                        {tier.rows.map((row) => {
+                          const kind = previewKind(row, tier, previewOverrides);
+                          const wide = !tier.palette && (kind === 'bar' || isTypography(kind));
+                          return (
+                            <div key={row.key} className={`zdtp-dashboard__token${wide ? ' zdtp-dashboard__token--wide' : ''}`} role="listitem" data-css-var={row.cssVar}>
+                              <Preview row={row} tier={tier} kind={kind} model={model} previewText={previewText} colorScheme={region.scheme === 'host' ? 'inherit' : region.scheme} />
+                              <div className="zdtp-dashboard__token-content">
+                                <div className="zdtp-dashboard__name">{row.label}</div>
+                                <div className="zdtp-dashboard__variable">{row.cssVar}</div>
+                                <div className="zdtp-dashboard__value">{row.declaredValue || '(empty)'}</div>
+                                {row.cssValue !== null && row.cssValue !== row.declaredValue && (
+                                  <div className="zdtp-dashboard__reference">CSS: {row.cssValue}</div>
+                                )}
+                                {row.references.length > 0 && (
+                                  <div className="zdtp-dashboard__reference">
+                                    References: {row.references.map((reference) => reference.cssVar).join(', ')}
+                                  </div>
+                                )}
+                                {row.diagnostics.map((diagnostic, index) => (
+                                  <div key={index} className="zdtp-dashboard__diagnostic" data-diagnostic={diagnostic.code}>
+                                    {diagnostic.severity === 'error' ? 'Unavailable' : 'Context needed'}: {diagnostic.message}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             ))}
           </div>
