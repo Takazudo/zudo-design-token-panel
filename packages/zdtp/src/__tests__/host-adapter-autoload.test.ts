@@ -42,6 +42,7 @@ import {
   storageKey_autoload,
   storageKey_visible,
   type PanelConfig,
+  type PanelInstanceHandle,
 } from '../config/panel-config';
 import { getOpenKey } from '../state/tweak-state';
 import { flushEffects } from './_test-helpers';
@@ -96,23 +97,39 @@ function setupConfigScript(cfg: PanelConfig = CFG): void {
  * `storagePrefix` (e.g. the sibling-prefix collision cases) — it re-writes
  * the inline config script before importing so the adapter reads it.
  */
+type AdapterRuntimeState = {
+  bound: boolean;
+  modulePromise: Promise<unknown> | null;
+};
+
+const adapterHandles: PanelInstanceHandle[] = [];
+const adapterStates = new Set<AdapterRuntimeState>();
+
 async function bootstrapAdapter(cfg: PanelConfig = CFG): Promise<void> {
   setupConfigScript(cfg);
   vi.resetModules();
-  const { __resetPanelConfigForTests: reset } = await import('../config/panel-config');
+  const { __resetPanelConfigForTests: reset, configurePanel, getPanelConfig } =
+    await import('../config/panel-config');
   reset();
   await import('../astro/host-adapter');
+  // Keep the adapter's instance handle so teardown can use the same lifecycle
+  // path as a host instead of removing a live Preact root from the document.
+  // `getPanelConfig()` returns the adapter's normalized config (including the
+  // Astro legacy-id map), so this is the idempotent same-config lookup.
+  adapterHandles.push(configurePanel(getPanelConfig()));
+  const state = adapterStateFor(cfg.storagePrefix);
+  if (state) adapterStates.add(state);
 }
 
 /** Read the adapter's per-prefix runtime state from the window slot. */
-function adapterStateFor(prefix: string): { bound: boolean; modulePromise: unknown } | null {
+function adapterStateFor(prefix: string): AdapterRuntimeState | null {
   const map = (window as unknown as Record<string, unknown>).__zudoDesignTokenPanelAdapter as
     | Record<string, unknown>
     | undefined;
-  return (map?.[prefix] ?? null) as { bound: boolean; modulePromise: unknown } | null;
+  return (map?.[prefix] ?? null) as AdapterRuntimeState | null;
 }
 
-function adapterState(): { bound: boolean; modulePromise: unknown } | null {
+function adapterState(): AdapterRuntimeState | null {
   return adapterStateFor(CFG.storagePrefix);
 }
 
@@ -130,6 +147,8 @@ function api(): ConsoleApiSurface {
 
 describe('host-adapter owner-autoload wiring (S2 #419)', () => {
   beforeEach(() => {
+    adapterHandles.length = 0;
+    adapterStates.clear();
     setupConfigScript();
     localStorage.clear();
     document.body.innerHTML = '';
@@ -141,7 +160,25 @@ describe('host-adapter owner-autoload wiring (S2 #419)', () => {
     __resetPanelConfigForTests();
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Eager-load probes start a fire-and-forget dynamic import. Await every
+    // state retained by bootstrapAdapter(), including states from a second
+    // bootstrap in the same test, while jsdom and its document are live.
+    const modulePromises = [...adapterStates]
+      .map((state) => state.modulePromise)
+      .filter((promise): promise is Promise<unknown> => promise !== null);
+    await Promise.all(modulePromises);
+    await flushEffects();
+
+    // Destroy in reverse bootstrap order. A test may reset the shared config
+    // registry and bootstrap the same prefix again; the newest handle must
+    // release its current instance before an older handle is allowed to run.
+    for (const handle of [...adapterHandles].reverse()) {
+      handle.destroy();
+    }
+    await flushEffects();
+    adapterHandles.length = 0;
+    adapterStates.clear();
     localStorage.clear();
     document.body.innerHTML = '';
     document.head.innerHTML = '';
