@@ -134,6 +134,32 @@ OS の設定より優先されます。枠やラベルは専用の CSS カスタ
 [デモ](https://zdtp-playground.zudolab.dev/dashboard/#host-light-inventory)の「Dark host」を
 切り替えると、2つの一覧で4通りを確認できます。この切り替えは CSS だけで動作します。
 
+Chrome とモード対応行の両方をページに従わせる 1 つの一覧には、両方の prop へ `host` を指定します。
+
+```tsx
+<TokenDashboard
+  tabs={tokenTabs}
+  chrome="host"
+  mode="host"
+  title="ページに従う一覧"
+  id="page-following"
+/>
+```
+
+4 つの公開 Chrome 入力は祖先に設定できるため、兄弟のインスタンスを変えずに 1 つだけ
+カスタムパレットへ変更できます。
+
+```tsx
+<div style="--zdtp-dashboard-light-bg: #fff7ed; --zdtp-dashboard-light-fg: #7c2d12; --zdtp-dashboard-dark-bg: #1c1917; --zdtp-dashboard-dark-fg: #fed7aa">
+  <TokenDashboard tabs={tokenTabs} chrome="host" mode="host" title="暖色のダッシュボード Chrome" />
+</div>
+```
+
+入力は `--zdtp-dashboard-light-bg`、`--zdtp-dashboard-light-fg`、
+`--zdtp-dashboard-dark-bg`、`--zdtp-dashboard-dark-fg` です。ダッシュボードはこれらを
+継承値として保持し、背景、前景、ミュート色、ボーダー、カード、診断、サンプル面を
+`light-dark()` と `color-mix()` で派生させます。ルートは透明なので、周囲の面はホストページが管理します。
+
 ## 両モードを表示する・一部を埋め込む
 
 `mode="light"` と `mode="dark"` のインスタンスを並べてレンダリングできます。
@@ -145,6 +171,41 @@ OS の設定より優先されます。枠やラベルは専用の CSS カスタ
 参照トークンが依存するティアも含めてください。参照先がなければ、サンプルの代わりに
 診断メッセージが表示されます。[デモ](https://zdtp-playground.zudolab.dev/dashboard/)には
 両モードの全一覧と、幅を絞ったスペーシング一覧があります。
+
+## 3 つの絞り込みインスタンスを組み合わせる
+
+モード依存性は、モード依存の行を参照する行も含めて行単位で計算されます。
+そのため、混在するティアも分割後は両リージョンに現れます。2 つのモードのスナップショットと
+共有セクションを 1 つのコンパクトな一覧にする場合は、依存行をモードごとに 1 回ずつ、独立行を
+全体で 1 回レンダリングします。
+
+```tsx
+<TokenDashboard
+  tabs={tokenTabs}
+  mode="light"
+  include="mode-dependent"
+  title="ライト依存トークン"
+  id="tokens-light"
+/>
+<TokenDashboard
+  tabs={tokenTabs}
+  mode="dark"
+  include="mode-dependent"
+  title="ダーク依存トークン"
+  id="tokens-dark"
+/>
+<TokenDashboard
+  tabs={tokenTabs}
+  chrome="host"
+  include="mode-independent"
+  title="共有トークン"
+  id="tokens-shared"
+/>
+```
+
+モード依存行は最初の 2 インスタンスにそれぞれ 1 回ずつ現れ、独立行は 3 つ目に全体で
+1 回だけ現れます。サブセットを作るときは、同じデータに参照先のティアも含めてください。
+非表示の宣言は表示中のエイリアスを解決するために保持されます。
 
 既存のプレビュー情報には `TierConfig.preview` を使います。
 テキストエディターで編集する色や影には、`previewOverrides` で CSS 変数ごとに
