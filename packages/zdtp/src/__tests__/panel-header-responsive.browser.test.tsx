@@ -451,9 +451,14 @@ describe('locked yielded-header geometry with the full vendored manifest', () =>
     const input = requiredElement(dialog, 'textarea') as HTMLTextAreaElement;
     await page.elementLocator(input).fill(JSON.stringify({ $schema: SCHEMA_V2, tabs: { spacing: { raw: { '--zd-spacing-hgap-md': '53px' } } } }));
     await flushEffects();
-    const load = [...dialog.querySelectorAll<HTMLElement>('[role="button"]')].find((element) => element.textContent === 'Load');
+    const analyze = [...dialog.querySelectorAll<HTMLElement>('[role="button"]')].find((element) => element.textContent?.trim() === 'Analyze');
+    expect(analyze).toBeDefined();
+    await page.elementLocator(analyze!).click();
+    await flushEffects();
+    expect(dialog.textContent).toContain('Import scope');
+    const load = [...dialog.querySelectorAll<HTMLElement>('[role="button"]')].find((element) => element.textContent?.trim() === 'Load');
     expect(load).toBeDefined();
-    load!.click();
+    await page.elementLocator(load!).click();
     await flushEffects();
     expect(dialog.textContent).toContain('Loaded.');
     expect(document.documentElement.style.getPropertyValue('--zd-spacing-hgap-md')).toBe('53px');

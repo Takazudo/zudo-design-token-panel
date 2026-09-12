@@ -24,6 +24,7 @@ the same subpath:
 import type {
   TokenDashboardProps,
   DashboardMode,
+  DashboardInclude,
   DashboardChrome,
   DashboardPreviewKind,
   TabConfig,
@@ -35,7 +36,8 @@ import type {
 | Prop | Type / default | Meaning |
 | --- | --- | --- |
 | `tabs` | `readonly TabConfig[]`, required | Shared manifest data, in display order. An empty array renders an empty inventory. |
-| `mode` | `'light' \| 'dark'`, default `'light'` | Selects declared per-mode defaults and the local preview color scheme. |
+| `mode` | `'light' \| 'dark' \| 'host'`, default `'light'` | Selects declared per-mode defaults and the local preview color scheme. `host` emits `light-dark()` values and lets the dependent region inherit the page scheme. |
+| `include` | `'all' \| 'mode-dependent' \| 'mode-independent'`, default `'all'` | Filters visible rows after mode dependence has propagated through references. The complete declaration graph stays available inside the instance. |
 | `chrome` | `'light' \| 'dark' \| 'host'`, default `'light'` | Selects shell, background, and label appearance independently of `mode`. **Unreleased (next release)**. |
 | `title` | `string`, default `'Token dashboard'` | Visible heading and accessible region name. |
 | `id` | Optional `string` | Root element ID; caller owns uniqueness. Omitted IDs are not generated. |
@@ -47,6 +49,52 @@ pipeline. Dashboard JavaScript has no stylesheet side-effect import. This CSS
 is separate from `@takazudo/zdtp/styles.css`; the panel stylesheet is unnecessary
 for a dashboard-only page. Preact is required; no React adapter or HTML-export
 function/CLI is provided.
+
+### Chrome inputs and derivation
+
+The stylesheet exposes four inheriting color inputs. Set them on a wrapper or on
+an individual dashboard when a page needs a different chrome palette:
+
+| Variable | Default | Used for |
+| --- | --- | --- |
+| `--zdtp-dashboard-light-bg` | `#f8fafc` | Light page and shell background |
+| `--zdtp-dashboard-light-fg` | `#182131` | Light primary text and foreground |
+| `--zdtp-dashboard-dark-bg` | `#151b24` | Dark page and shell background |
+| `--zdtp-dashboard-dark-fg` | `#edf2f7` | Dark primary text and foreground |
+
+The dashboard declares these four names as inherited values so an ancestor can
+override them without being shadowed by the component. `--zdtp-dashboard-bg`
+and `--zdtp-dashboard-fg` select the light or dark pair with `light-dark()`.
+Muted text and borders use `color-mix()` between that pair (58% foreground for
+muted text, 16% light / 22% dark foreground for borders). Card backgrounds mix
+20% white into light backgrounds and 8% black into dark backgrounds. Diagnostic,
+focus, ruler, bar, sample, and checkerboard colors are also derived in the
+stylesheet from `light-dark()` and these chrome values. The dashboard root stays
+transparent so the host page controls the surrounding surface.
+
+## Mode dependence and row regions
+
+Mode dependence belongs to individual rows and then propagates through every
+declared reference. The dashboard uses one parser, `splitLightDark()`, for a
+top-level `light-dark(light, dark)` value. Detection has this precedence:
+
+1. `item.modes` is used when present.
+2. A semantic `{ literal: { light, dark } }` override is used next.
+3. A top-level `light-dark(a, b)` in `item.default` is parsed next.
+4. A row that references a mode-dependent row becomes mode-dependent too.
+
+The selected `mode` displays the corresponding side. `mode="host"` keeps the
+pair as `light-dark(light, dark)` and lets the browser select the side from the
+inherited scheme. A malformed or nested expression is not treated as a mode
+pair; the authored declaration remains and no side is guessed.
+
+The dependence check is per row, so a tier can contain both kinds. The inventory
+partitions each non-empty tab and tier by row: the mode-dependent region comes
+first and uses `mode` for its specimens; the mode-independent region follows and
+uses `chrome`. Original tab, tier, and row order is preserved within each region.
+`include="mode-dependent"` or `include="mode-independent"` selects one side of
+that visible partition. Filtering does not remove hidden declarations needed by
+references, and counts and diagnostics describe the visible rows.
 
 ## Declared values
 
@@ -91,6 +139,49 @@ previewed, and URL/mask assets are not loaded. Text is escaped by Preact.
 
 Include referenced tiers when embedding a subset. Use an ordinary static Preact
 render for no-client-JavaScript output; hydration remains the host's choice.
+
+## Composition recipes
+
+To make one inventory follow the surrounding page, set both `chrome` and
+`mode` to `host`. The host must set `color-scheme` on an ancestor:
+
+```tsx
+<TokenDashboard
+  tabs={tokenTabs}
+  chrome="host"
+  mode="host"
+  title="Page-following tokens"
+  id="page-following"
+/>
+```
+
+For a three-instance reference, render the dependent rows once for each fixed
+mode and render the independent rows once. This keeps every mode-dependent row
+available in both snapshots while avoiding a duplicate independent inventory:
+
+```tsx
+<TokenDashboard tabs={tokenTabs} include="mode-dependent" mode="light" title="Light-dependent tokens" id="tokens-light" />
+<TokenDashboard tabs={tokenTabs} include="mode-dependent" mode="dark" title="Dark-dependent tokens" id="tokens-dark" />
+<TokenDashboard tabs={tokenTabs} include="mode-independent" chrome="host" title="Shared tokens" id="tokens-shared" />
+```
+
+Each instance owns one local declaration scope. Give instances distinct `id`
+values when they need to be linked from page navigation; IDs are never
+generated automatically. A wrapper can customize the four chrome inputs for
+just one instance:
+
+```tsx
+<div style="--zdtp-dashboard-light-bg: #fff7ed; --zdtp-dashboard-light-fg: #7c2d12; --zdtp-dashboard-dark-bg: #1c1917; --zdtp-dashboard-dark-fg: #fed7aa">
+  <TokenDashboard tabs={tokenTabs} chrome="host" mode="host" title="Warm chrome" />
+</div>
+```
+
+The dashboard's internal `buildDashboardModel` helper now accepts an options
+object when its implementation needs both settings:
+`buildDashboardModel(tabs, { mode: 'dark', include: 'mode-dependent' })`.
+The positional `buildDashboardModel(tabs, 'dark')` overload remains available
+for compatibility; use the options form in internal integrations so the include
+filter is explicit. It is not a separate package dashboard export.
 
 ## Layouts for spacing, color, and typography
 

@@ -136,6 +136,35 @@ inventory dark all work. In the
 “Dark host” to check all four combinations across the two inventories. That
 switch works entirely through CSS.
 
+For one inventory that follows the page in both its chrome and its mode-aware
+rows, use `host` for both props:
+
+```tsx
+<TokenDashboard
+  tabs={tokenTabs}
+  chrome="host"
+  mode="host"
+  title="Page-following inventory"
+  id="page-following"
+/>
+```
+
+The four public chrome inputs can be set on an ancestor, so one instance can
+carry a custom palette without changing its siblings:
+
+```tsx
+<div style="--zdtp-dashboard-light-bg: #fff7ed; --zdtp-dashboard-light-fg: #7c2d12; --zdtp-dashboard-dark-bg: #1c1917; --zdtp-dashboard-dark-fg: #fed7aa">
+  <TokenDashboard tabs={tokenTabs} chrome="host" mode="host" title="Warm dashboard chrome" />
+</div>
+```
+
+Those inputs are `--zdtp-dashboard-light-bg`, `--zdtp-dashboard-light-fg`,
+`--zdtp-dashboard-dark-bg`, and `--zdtp-dashboard-dark-fg`. The dashboard keeps
+them inherited and derives its background, foreground, muted text, borders,
+cards, diagnostics, and sample surfaces with `light-dark()` and `color-mix()`.
+The root remains transparent, allowing the host page to own the surrounding
+surface.
+
 ## Show both modes or embed a subset
 
 Render two instances with `mode="light"` and `mode="dark"`. Each preview scope
@@ -148,6 +177,43 @@ container's width. Include the tiers that referenced tokens depend on, or the
 reference will be shown with a diagnostic instead of a sample. The
 [demo](https://zdtp-playground.zudolab.dev/dashboard/) shows both complete modes
 and a narrow embedded spacing reference.
+
+## Compose three filtered instances
+
+Mode dependence is computed per row, including rows that reference a
+mode-dependent row. A mixed tier therefore appears in both regions after
+partitioning. To publish one compact listing with two mode snapshots and one
+shared section, render each dependent row once for each mode and each
+independent row once overall:
+
+```tsx
+<TokenDashboard
+  tabs={tokenTabs}
+  mode="light"
+  include="mode-dependent"
+  title="Light-dependent tokens"
+  id="tokens-light"
+/>
+<TokenDashboard
+  tabs={tokenTabs}
+  mode="dark"
+  include="mode-dependent"
+  title="Dark-dependent tokens"
+  id="tokens-dark"
+/>
+<TokenDashboard
+  tabs={tokenTabs}
+  chrome="host"
+  include="mode-independent"
+  title="Shared tokens"
+  id="tokens-shared"
+/>
+```
+
+The mode-dependent rows occur once in each of the first two instances, while
+the independent rows occur once in the third. Include referenced tiers in the
+same source data when building a subset; hidden declarations remain available
+to resolve the visible aliases.
 
 Use `TierConfig.preview` for existing preview metadata. For text-editor colors
 or shadows, `previewOverrides` selects samples by CSS variable without creating

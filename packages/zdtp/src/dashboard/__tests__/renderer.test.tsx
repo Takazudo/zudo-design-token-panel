@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { renderToString } from 'preact-render-to-string';
-import { TokenDashboard, type DashboardChrome, type DashboardPreviewKind, type TokenDashboardProps } from '../index';
+import { TokenDashboard, type DashboardChrome, type DashboardInclude, type DashboardMode, type DashboardPreviewKind, type TokenDashboardProps } from '../index';
 import type { TabConfig, TierConfig, TierItem } from '../../tokens/tier-model';
 
 function item(id: string, value: string, extra: Partial<TierItem> = {}): TierItem {
@@ -51,16 +51,22 @@ describe('static TokenDashboard', () => {
       { id: 'spacing', label: 'Spacing', preview: 'bar', items: [item('space', '32px')] },
       { id: 'radius', label: 'Radius', preview: 'radius', items: [item('radius', '8px')] },
     ]);
-    for (const mode of ['light', 'dark'] as const) {
+    for (const mode of ['light', 'dark', 'host'] as const) {
       const { container } = render({ tabs: data, chrome, mode });
       expect(container.firstElementChild?.getAttribute('data-chrome')).toBe(chrome ?? 'light');
       expect(container.firstElementChild?.getAttribute('data-mode')).toBe(mode);
       const inventory = container.querySelector<HTMLElement>('.zdtp-dashboard__inventory')!;
       expect(inventory.style.colorScheme).toBe('');
-      expect(inventory.style.getPropertyValue('--color')).toBe('light-dark(#fff, #111)');
+      expect(inventory.style.getPropertyValue('--color')).toBe(mode === 'host' ? 'light-dark(#fff, #111)' : mode === 'dark' ? '#111' : '#fff');
+      const regions = container.querySelectorAll<HTMLElement>('.zdtp-dashboard__region');
+      expect([...regions].map((region) => region.dataset.scheme)).toEqual([mode, chrome ?? 'light']);
+      expect([...regions].map((region) => region.querySelectorAll('[role="listitem"]').length)).toEqual([1, 3]);
       const specimens = container.querySelectorAll<HTMLElement>('.zdtp-dashboard__specimen');
       expect(specimens).toHaveLength(4);
-      for (const specimen of specimens) expect(specimen.style.colorScheme).toBe(mode);
+      for (const specimen of specimens) {
+        const scheme = specimen.closest<HTMLElement>('.zdtp-dashboard__region')!.dataset.scheme;
+        expect(specimen.style.colorScheme).toBe(scheme === 'host' ? 'inherit' : scheme);
+      }
       for (const wrapper of container.querySelectorAll<HTMLElement>('.zdtp-dashboard__preview, .zdtp-dashboard__scroll')) {
         expect(wrapper.style.colorScheme).toBe('');
         expect(wrapper.closest('.zdtp-dashboard__specimen')).toBeNull();
@@ -69,6 +75,81 @@ describe('static TokenDashboard', () => {
         expect(sample.closest('.zdtp-dashboard__specimen')).not.toBeNull();
       }
     }
+  });
+
+  it('uses an item modes pair ahead of its fallback default', () => {
+    const data = inventory([item('surface', '#777', {
+      modes: { light: '#fafafa', dark: '#181818' }, type: { kind: 'color' },
+    })]);
+    const { container } = render({ tabs: data, mode: 'dark' });
+    expect(container.querySelector('.zdtp-dashboard__value')?.textContent).toBe('#181818');
+    expect(container.querySelector('.zdtp-dashboard__sample--color')?.getAttribute('style')).toBe('background-color:#181818;');
+    expect(container.querySelectorAll('.zdtp-dashboard__region')).toHaveLength(1);
+    expect(container.querySelector('.zdtp-dashboard__region')?.getAttribute('data-scheme')).toBe('dark');
+  });
+
+  it.each<DashboardInclude>(['all', 'mode-dependent', 'mode-independent'])('filters %s rows and counts while retaining the whole declaration graph', (include) => {
+    const data: TabConfig[] = [
+      { id: 'first', label: 'First', tiers: [
+        { id: 'mixed', label: 'Mixed', items: [
+          item('fixed', '#abc'),
+          item('themed', '#777', { modes: { light: 'var(--fixed)', dark: '#123' } }),
+          item('external', 'var(--outside)'),
+        ] },
+        { id: 'later', label: 'Later', items: [item('alias', 'var(--themed)'), item('length', '20px')] },
+      ] },
+      { id: 'second', label: 'Second', tiers: [
+        { id: 'values', label: 'Values', items: [item('pair', 'light-dark(#eee, #222)'), item('last', 'serif')] },
+      ] },
+    ];
+    const dependent = ['--themed', '--alias', '--pair'];
+    const independent = ['--fixed', '--external', '--length', '--last'];
+    const expected = include === 'all' ? [...dependent, ...independent] : include === 'mode-dependent' ? dependent : independent;
+    const { container } = render({ tabs: data, mode: 'dark', include });
+    expect([...container.querySelectorAll('[data-css-var]')].map((card) => card.getAttribute('data-css-var'))).toEqual(expected);
+    expect(container.querySelector('.zdtp-dashboard__count')?.textContent).toBe(`${expected.length} tokens`);
+    const summary = container.querySelector('.zdtp-dashboard__summary')!.textContent!;
+    expect(summary).toContain(`Declared defaults · dark mode${include === 'all' ? '' : ` · ${include} only`}`);
+    if (include === 'mode-dependent') expect(summary).not.toContain('with diagnostics');
+    else expect(summary).toContain('1 with diagnostics');
+
+    const regions = [...container.querySelectorAll('.zdtp-dashboard__region')];
+    expect(regions.map((region) => region.getAttribute('data-scheme')))
+      .toEqual(include === 'all' ? ['dark', 'light'] : include === 'mode-dependent' ? ['dark'] : ['light']);
+    for (const region of regions) {
+      expect([...region.querySelectorAll('.zdtp-dashboard__tab-title')].map((title) => title.textContent)).toEqual(['First', 'Second']);
+      expect([...region.querySelectorAll('.zdtp-dashboard__tier-title')].map((title) => title.textContent)).toEqual(['Mixed', 'Later', 'Values']);
+    }
+    expect([...container.querySelectorAll('.zdtp-dashboard__tab-count')].map((count) => count.textContent))
+      .toEqual(include === 'all' ? ['2 tokens', '1 tokens', '3 tokens', '1 tokens'] : include === 'mode-dependent' ? ['2 tokens', '1 tokens'] : ['3 tokens', '1 tokens']);
+    const scope = container.querySelector<HTMLElement>('.zdtp-dashboard__inventory')!;
+    expect(scope.style.getPropertyValue('--fixed')).toBe('#abc');
+    expect(scope.style.getPropertyValue('--themed')).toBe('#123');
+    expect(scope.style.getPropertyValue('--alias')).toBe('var(--themed)');
+    expect(scope.style.getPropertyValue('--length')).toBe('20px');
+    expect(container.querySelectorAll('[style*="--fixed:"]')).toHaveLength(1);
+  });
+
+  it('previews safe host colors and local aliases without treating unknown context as resolved', () => {
+    const data = inventory([
+      item('fixed', '#abc'),
+      item('pair', '#777', { modes: { light: 'var(--fixed)', dark: '#123' } }),
+      item('alias', 'var(--pair)'),
+      item('mix', 'color-mix(in srgb, var(--pair), var(--fixed))'),
+      item('external', '#777', { modes: { light: '#eee', dark: 'var(--outside)' } }),
+      item('context', '#777', { modes: { light: '#eee', dark: 'currentColor' } }),
+      item('context-alias', 'var(--context)'),
+      item('unsafe', '#777', { modes: { light: '#eee', dark: 'red;position:fixed' } }),
+      item('unsafe-alias', 'var(--unsafe)'),
+    ].map((entry) => ({ ...entry, type: { kind: 'color' as const } })));
+    const { container } = render({ tabs: data, mode: 'host', include: 'mode-dependent' });
+    expect([...container.querySelectorAll('.zdtp-dashboard__sample--color')].map((sample) => sample.closest('[data-css-var]')!.getAttribute('data-css-var')))
+      .toEqual(['--pair', '--alias', '--mix']);
+    expect(container.querySelector<HTMLElement>('.zdtp-dashboard__inventory')!.style.getPropertyValue('--pair')).toBe('light-dark(var(--fixed), #123)');
+    expect(container.querySelector<HTMLElement>('.zdtp-dashboard__inventory')!.style.getPropertyValue('--fixed')).toBe('#abc');
+    expect(container.querySelector('[data-css-var="--fixed"]')).toBeNull();
+    for (const specimen of container.querySelectorAll<HTMLElement>('.zdtp-dashboard__specimen')) expect(specimen.style.colorScheme).toBe('inherit');
+    expect(container.querySelector('.zdtp-dashboard__summary')?.textContent).toContain('5 with diagnostics');
   });
 
   it('uses explicit tier previews and per-variable overrides without label heuristics', () => {
@@ -102,7 +183,7 @@ describe('static TokenDashboard', () => {
     expect(scope.style.getPropertyValue('--alias')).toBe('var(--base)');
     expect(scope.style.colorScheme).toBe('');
     for (const specimen of container.querySelectorAll<HTMLElement>('.zdtp-dashboard__specimen')) {
-      expect(specimen.style.colorScheme).toBe('dark');
+      expect(specimen.style.colorScheme).toBe('light');
     }
     const root = container.firstElementChild!;
     expect(root.hasAttribute('style')).toBe(false);
@@ -183,13 +264,18 @@ describe('static TokenDashboard', () => {
   });
 
   it('renders without browser globals and contains only inert div/span markup', () => {
-    const data = inventory([item('color', '#123', { type: { kind: 'color' } })]);
+    const data = inventory([
+      item('fixed', '#123', { type: { kind: 'color' } }),
+      item('color', '#777', { type: { kind: 'color' }, modes: { light: '#eee', dark: '#222' } }),
+    ]);
+    const modes: DashboardMode[] = ['light', 'dark', 'host'];
+    const includes: DashboardInclude[] = ['all', 'mode-dependent', 'mode-independent'];
     vi.stubGlobal('window', undefined);
     vi.stubGlobal('document', undefined);
     vi.stubGlobal('localStorage', undefined);
     let html: string;
     try {
-      html = renderToString(<TokenDashboard tabs={data} />);
+      html = modes.flatMap((mode) => includes.map((include) => renderToString(<TokenDashboard tabs={data} mode={mode} include={include} />))).join('');
     } finally {
       vi.unstubAllGlobals();
     }
@@ -217,6 +303,10 @@ describe('static TokenDashboard', () => {
     expect(render({ tabs: [] }).container.textContent).toContain('No tokens declared.');
     const notes = { id: 'notes', label: 'Notes', tiers: [] } as TabConfig;
     expect(render({ tabs: [notes] }).container.textContent).not.toContain('Notes');
+    const { container } = render({ tabs: inventory([item('fixed', '1px')]), include: 'mode-dependent' });
+    expect(container.querySelector('.zdtp-dashboard__count')?.textContent).toBe('0 tokens');
+    expect(container.textContent).toContain('No tokens match this view.');
+    expect(container.querySelector('.zdtp-dashboard__region, .zdtp-dashboard__tab, .zdtp-dashboard__tier')).toBeNull();
   });
 });
 

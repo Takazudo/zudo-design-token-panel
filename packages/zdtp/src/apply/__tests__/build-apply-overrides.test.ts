@@ -173,6 +173,34 @@ function makeState(
   };
 }
 
+describe('buildApplyOverrides — manifest modes', () => {
+  const tab: TabConfig = {
+    id: 'palette', label: 'Palette', tiers: [{ id: 'raw', label: 'Raw', items: [
+      { id: 'surface', cssVar: '--surface', label: 'Surface', default: '#fff',
+        type: { kind: 'color' }, modes: { light: '#eee', dark: '#111' } },
+      { id: 'plain', cssVar: '--plain', label: 'Plain', default: '#000', type: { kind: 'color' } },
+      { id: 'readonly', cssVar: '--readonly', label: 'Readonly', default: '#fff',
+        type: { kind: 'text' }, readonly: true, modes: { light: '#fff', dark: '#000' } },
+    ] }],
+  };
+
+  it.each<TweakState['tabs']>([undefined, {}, { palette: {} }])('emits the pair with sparse state %j', (tabs) => {
+    expect(buildApplyOverrides({ ...makeState(), tabs }, EMPTY_COLOR, STUB_CLUSTER, [tab]))
+      .toEqual({ '--surface': 'light-dark(#eee, #111)' });
+  });
+
+  it('emits an existing override even when it equals the non-mode fallback', () => {
+    const state = { ...makeState(), tabs: { palette: { raw: { surface: '#fff' } } } };
+    expect(buildApplyOverrides(state, EMPTY_COLOR, STUB_CLUSTER, [tab]))
+      .toEqual({ '--surface': '#fff' });
+  });
+
+  it.each(['spacing', 'font', 'size'])('also emits modes on the dedicated %s slice', (id) => {
+    expect(buildApplyOverrides(makeState(), EMPTY_COLOR, STUB_CLUSTER, [{ ...tab, id }]))
+      .toEqual({ '--surface': 'light-dark(#eee, #111)' });
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Tests — spacing
 // ---------------------------------------------------------------------------

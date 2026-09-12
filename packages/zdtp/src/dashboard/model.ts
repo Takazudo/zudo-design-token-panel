@@ -1,10 +1,12 @@
 /** Pure declared-default model. No panel state, configuration singleton or DOM. */
 import type { BaseRoleKey } from '../config/cluster-config';
+import { resolveModeSides } from '../tokens/mode-dependence';
 import type { SemanticValue, TabConfig, TierConfig, TierItem } from '../tokens/tier-model';
 import type {
   DashboardDiagnostic,
   DashboardMode,
   DashboardModel,
+  DashboardModelOptions,
   DashboardRow,
   DashboardTab,
   DashboardTier,
@@ -115,10 +117,17 @@ function groupBy<T>(items: readonly T[], key: (item: T) => string): Map<string, 
  */
 export function buildDashboardModel(
   tabs: readonly TabConfig[],
-  mode: DashboardMode = 'light',
+  options?: DashboardModelOptions,
+): DashboardModel;
+/** Compatibility for consumers passing the declared mode positionally. */
+export function buildDashboardModel(tabs: readonly TabConfig[], mode?: DashboardMode): DashboardModel;
+export function buildDashboardModel(
+  tabs: readonly TabConfig[],
+  options: DashboardModelOptions | DashboardMode = {},
 ): DashboardModel {
+  const { mode = 'light', include = 'all' } = typeof options === 'string' ? { mode: options } : options;
   const model: DashboardModel = {
-    mode, tabs: [], rows: [], declarations: Object.create(null), diagnostics: [],
+    mode, include, tabs: [], rows: [], declarations: Object.create(null), diagnostics: [],
   };
   const nodes: Node[] = [];
   const tokenTabs = tabs.filter((tab) => tab.id !== 'notes');
@@ -151,6 +160,7 @@ export function buildDashboardModel(
         key: `${outputTier.key}-item-${itemIndex}`, tabId: tab.id, tierId: tier.id,
         itemId: item.id, label: item.label, cssVar: item.cssVar, kind: item.type.kind,
         source: 'item', defaultValue: item.default, declaredValue: item.default,
+        modeDependent: false, sides: null, origin: null,
         cssValue: null, resolvedValue: null, references: [], diagnostics: [],
       }, item, tier));
     });
@@ -167,6 +177,7 @@ export function buildDashboardModel(
       addNode(tab, baseTier, {
         key: `${baseTier.key}-${role}`, tabId: tab.id, tierId: baseTier.id, itemId: role,
         label: role, cssVar, kind: 'color', source: 'base-role',
+        modeDependent: false, sides: null, origin: null,
         defaultValue: value === undefined ? '' : String(value),
         declaredValue: value === undefined ? '(no declared default)' : `palette[${value}]`,
         cssValue: null, resolvedValue: null, references: [], diagnostics: [],
@@ -242,6 +253,10 @@ export function buildDashboardModel(
     paletteReference(node, index);
   }
 
+  function modeValue(sides: NonNullable<DashboardRow['sides']>): string {
+    return mode === 'host' ? `light-dark(${sides.light}, ${sides.dark})` : sides[mode];
+  }
+
   function semanticOverride(node: Node, value: SemanticValue): void {
     if (typeof value === 'number') {
       node.row.declaredValue = `palette[${value}]`;
@@ -250,7 +265,7 @@ export function buildDashboardModel(
       node.row.declaredValue = value;
       baseReference(node, value === 'bg' ? 'background' : 'foreground');
     } else if (typeof value === 'object' && value !== null && 'literal' in value) {
-      const literal = typeof value.literal === 'string' ? value.literal : value.literal[mode];
+      const literal = typeof value.literal === 'string' ? value.literal : modeValue(value.literal);
       node.row.declaredValue = literal;
       node.row.cssValue = literal;
     } else if (typeof value === 'object' && value !== null && 'ref' in value) {
@@ -272,7 +287,17 @@ export function buildDashboardModel(
     const defaultPalettes = tier.referencesTier === undefined ? palettes : palettes.filter((palette) => palette.id === tier.referencesTier);
     const paletteMatches = defaultPalettes.flatMap((palette) => palette.items.filter((entry) => entry.id === item.default).map(() => palette));
     const overrides = node.tab.colorExtras?.semanticDefaults;
-    if (isSemantic && overrides && Object.hasOwn(overrides, item.id)) {
+    const override = isSemantic && overrides && Object.hasOwn(overrides, item.id) ? overrides[item.id] : undefined;
+    const sides = resolveModeSides(item, override);
+    if (sides !== null) {
+      node.row.modeDependent = true;
+      node.row.sides = sides;
+      node.row.origin = item.modes !== undefined ? 'modes'
+        : typeof override === 'object' && override !== null && 'literal' in override && typeof override.literal !== 'string' ? 'semantic'
+        : 'default';
+      node.row.declaredValue = modeValue(sides);
+      node.row.cssValue = node.row.declaredValue;
+    } else if (isSemantic && overrides && Object.hasOwn(overrides, item.id)) {
       semanticOverride(node, overrides[item.id]);
     } else if (isSemantic && paletteMatches.length > 0) {
       if (paletteMatches.length > 1) {
@@ -334,6 +359,26 @@ export function buildDashboardModel(
     }
   }
 
+  // Propagate across the complete graph before resolving or filtering rows.
+  // Each node enters the queue once, so cycles cannot keep this pass running.
+  const dependents = new Map<Node, Node[]>();
+  for (const node of nodes) {
+    for (const dependency of node.dependencies) {
+      const consumers = dependents.get(dependency) ?? [];
+      consumers.push(node);
+      dependents.set(dependency, consumers);
+    }
+  }
+  const dependentNodes = nodes.filter((node) => node.row.modeDependent);
+  for (let index = 0; index < dependentNodes.length; index++) {
+    for (const dependent of dependents.get(dependentNodes[index]) ?? []) {
+      if (dependent.row.modeDependent) continue;
+      dependent.row.modeDependent = true;
+      dependent.row.origin = 'reference';
+      dependentNodes.push(dependent);
+    }
+  }
+
   const visited = new Set<Node>();
   const visiting: Node[] = [];
   function resolve(node: Node): void {
@@ -356,9 +401,18 @@ export function buildDashboardModel(
     visiting.pop();
     visited.add(node);
     if (node.row.diagnostics.some((entry) => entry.severity === 'error')) node.row.cssValue = null;
-    else if (!node.contextDependent) node.row.resolvedValue = node.directReference?.row.resolvedValue ?? node.row.cssValue;
+    else if (!node.contextDependent && !(mode === 'host' && node.row.modeDependent)) {
+      node.row.resolvedValue = node.directReference?.row.resolvedValue ?? node.row.cssValue;
+    }
   }
   for (const node of nodes) resolve(node);
   model.declarations = Object.fromEntries(nodes.filter((node) => node.row.cssValue !== null).map((node) => [node.row.cssVar, node.row.cssValue!]));
+  for (const tab of model.tabs) {
+    for (const tier of tab.tiers) {
+      tier.rows = tier.rows.filter((row) => include === 'all' || row.modeDependent === (include === 'mode-dependent'));
+    }
+    tab.tiers = tab.tiers.filter((tier) => tier.rows.length > 0);
+  }
+  model.tabs = model.tabs.filter((tab) => tab.tiers.length > 0);
   return model;
 }

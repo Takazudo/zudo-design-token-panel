@@ -5,9 +5,20 @@ import { readFileSync } from 'node:fs';
 const constantsSource = fileURLToPath(new URL('./src/constants.ts', import.meta.url));
 const dashboardDirectory = fileURLToPath(new URL('./src/dashboard/', import.meta.url));
 const dashboardStyles = fileURLToPath(new URL('./src/dashboard/styles.css', import.meta.url));
+// Pure mode-detection helpers are part of the public dashboard entry as well
+// as the main panel entry. Keep this one shared source allowed without opening
+// the dashboard bundle to panel/runtime dependencies.
+const modeDependenceSource = fileURLToPath(new URL('./src/tokens/mode-dependence.ts', import.meta.url));
 
 function normalizeModuleId(id: string): string {
   return id.split('?')[0];
+}
+
+function isAllowedDashboardSource(source: string): boolean {
+  return (
+    source === modeDependenceSource ||
+    (source.startsWith(dashboardDirectory) && /\.(?:ts|tsx)$/.test(source))
+  );
 }
 
 /**
@@ -85,7 +96,7 @@ function staticDashboard(): Plugin {
       for (const id of [...moduleInfo.importedIds, ...moduleInfo.dynamicallyImportedIds]) {
         const source = normalizeModuleId(id);
         if (source === 'preact' || source.startsWith('preact/')) continue;
-        if (source.startsWith(dashboardDirectory) && /\.(?:ts|tsx)$/.test(source)) continue;
+        if (isAllowedDashboardSource(source)) continue;
         // Check before extraction/tree-shaking too: an imported stylesheet can
         // disappear from chunk.modules while still polluting legacy panel CSS.
         this.error(`Unexpected dashboard source dependency: ${id}.`);
@@ -105,8 +116,10 @@ function staticDashboard(): Plugin {
         visited.add(chunk.fileName);
         for (const id of Object.keys(chunk.modules)) {
           const source = normalizeModuleId(id);
-          if (!source.startsWith(dashboardDirectory) || /\.css$/.test(source)) {
-            this.error(`Dashboard must only contain dashboard source and external Preact; found ${id}.`);
+          if (!isAllowedDashboardSource(source)) {
+            this.error(
+              `Dashboard must only contain dashboard source, the pure mode helper, and external Preact; found ${id}.`,
+            );
           }
         }
         for (const imported of [...chunk.imports, ...chunk.dynamicImports]) {

@@ -1,3 +1,41 @@
+/*
+ * Public chrome inputs. Hosts may set these four variables on the dashboard or
+ * on an ancestor. The registered initial values keep the dashboard usable when
+ * no host value is supplied; the `inherit` declarations below preserve an
+ * ancestor override instead of shadowing it.
+ *
+ * --zdtp-dashboard-light-bg: light-mode page and shell background.
+ * --zdtp-dashboard-light-fg: light-mode primary text and foreground.
+ * --zdtp-dashboard-dark-bg: dark-mode page and shell background.
+ * --zdtp-dashboard-dark-fg: dark-mode primary text and foreground.
+ *
+ * All other chrome colors are derived from these inputs with light-dark() and
+ * color-mix().
+ */
+@property --zdtp-dashboard-light-bg {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #f8fafc;
+}
+
+@property --zdtp-dashboard-light-fg {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #182131;
+}
+
+@property --zdtp-dashboard-dark-bg {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #151b24;
+}
+
+@property --zdtp-dashboard-dark-fg {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #edf2f7;
+}
+
 /* Static dashboard chrome deliberately uses no inventory custom properties.
    The namespace and div/span markup protect documentation hosts from tag resets. */
 .zdtp-dashboard,
@@ -6,27 +44,60 @@
 }
 
 .zdtp-dashboard {
-  --zdtp-dashboard-bg: light-dark(#f8fafc, #151b24);
-  --zdtp-dashboard-fg: light-dark(#182131, #edf2f7);
-  --zdtp-dashboard-muted: light-dark(#536174, #acb9cb);
-  --zdtp-dashboard-border: light-dark(#dce1e8, #465367);
-  --zdtp-dashboard-card-bg: light-dark(#fff, #202936);
+  /* Keep these inputs inheritable so a wrapper can theme the dashboard. */
+  --zdtp-dashboard-light-bg: inherit;
+  --zdtp-dashboard-light-fg: inherit;
+  --zdtp-dashboard-dark-bg: inherit;
+  --zdtp-dashboard-dark-fg: inherit;
+
+  --zdtp-dashboard-bg: light-dark(
+    color-mix(in oklab, var(--zdtp-dashboard-light-bg, #f8fafc), var(--zdtp-dashboard-light-fg, #182131) 0%),
+    color-mix(in oklab, var(--zdtp-dashboard-dark-bg, #151b24), var(--zdtp-dashboard-dark-fg, #edf2f7) 0%)
+  );
+  --zdtp-dashboard-fg: light-dark(
+    color-mix(in oklab, var(--zdtp-dashboard-light-bg, #f8fafc), var(--zdtp-dashboard-light-fg, #182131) 100%),
+    color-mix(in oklab, var(--zdtp-dashboard-dark-bg, #151b24), var(--zdtp-dashboard-dark-fg, #edf2f7) 100%)
+  );
+  --zdtp-dashboard-muted: light-dark(
+    color-mix(in oklab, var(--zdtp-dashboard-light-bg, #f8fafc), var(--zdtp-dashboard-light-fg, #182131) 58%),
+    color-mix(in oklab, var(--zdtp-dashboard-dark-bg, #151b24), var(--zdtp-dashboard-dark-fg, #edf2f7) 58%)
+  );
+  --zdtp-dashboard-border: light-dark(
+    color-mix(in oklab, var(--zdtp-dashboard-light-bg, #f8fafc), var(--zdtp-dashboard-light-fg, #182131) 16%),
+    color-mix(in oklab, var(--zdtp-dashboard-dark-bg, #151b24), var(--zdtp-dashboard-dark-fg, #edf2f7) 22%)
+  );
+  --zdtp-dashboard-card-bg: light-dark(
+    color-mix(in oklab, color-mix(in oklab, var(--zdtp-dashboard-light-bg, #f8fafc), var(--zdtp-dashboard-light-fg, #182131) 0%), white 20%),
+    color-mix(in oklab, color-mix(in oklab, var(--zdtp-dashboard-dark-bg, #151b24), var(--zdtp-dashboard-dark-fg, #edf2f7) 0%), black 8%)
+  );
   --zdtp-dashboard-diag-bg: light-dark(#fff5e6, #3b2c18);
   --zdtp-dashboard-diag-fg: light-dark(#704612, #ffdaa3);
   --zdtp-dashboard-diag-accent: light-dark(#9d641a, #e4ad5c);
   --zdtp-dashboard-focus: light-dark(#245caa, #6488b8);
-  --zdtp-dashboard-ruler-major: light-dark(#8290a3, #a3b2c7);
-  --zdtp-dashboard-ruler-minor: light-dark(#c4ccd7, #63748c);
+  --zdtp-dashboard-ruler-major: light-dark(
+    color-mix(in oklab, var(--zdtp-dashboard-light-bg, #f8fafc), var(--zdtp-dashboard-light-fg, #182131) 48%),
+    color-mix(in oklab, var(--zdtp-dashboard-dark-bg, #151b24), var(--zdtp-dashboard-dark-fg, #edf2f7) 52%)
+  );
+  --zdtp-dashboard-ruler-minor: light-dark(
+    color-mix(in oklab, var(--zdtp-dashboard-light-bg, #f8fafc), var(--zdtp-dashboard-light-fg, #182131) 22%),
+    color-mix(in oklab, var(--zdtp-dashboard-dark-bg, #151b24), var(--zdtp-dashboard-dark-fg, #edf2f7) 26%)
+  );
   --zdtp-dashboard-bar: light-dark(#526c92, #9dbbe6);
-  --zdtp-dashboard-sample-bg: light-dark(#fff, #39475b);
-  --zdtp-dashboard-sample-border: light-dark(#8290a3, #a3b2c7);
-  --zdtp-dashboard-transparent: light-dark(transparent, transparent);
+  --zdtp-dashboard-sample-bg: light-dark(
+    color-mix(in oklab, var(--zdtp-dashboard-light-bg, #f8fafc), var(--zdtp-dashboard-light-fg, #182131) 4%),
+    color-mix(in oklab, var(--zdtp-dashboard-dark-bg, #151b24), var(--zdtp-dashboard-dark-fg, #edf2f7) 6%)
+  );
+  --zdtp-dashboard-sample-border: light-dark(
+    color-mix(in oklab, var(--zdtp-dashboard-light-bg, #f8fafc), var(--zdtp-dashboard-light-fg, #182131) 48%),
+    color-mix(in oklab, var(--zdtp-dashboard-dark-bg, #151b24), var(--zdtp-dashboard-dark-fg, #edf2f7) 52%)
+  );
+  --zdtp-dashboard-transparent: transparent;
   min-inline-size: 0;
   max-inline-size: 100%;
   border: 1px solid var(--zdtp-dashboard-border);
   border-radius: 10px;
-  background: var(--zdtp-dashboard-bg);
-  color: var(--zdtp-dashboard-fg);
+  background: transparent;
+  color: inherit;
   font: 400 14px/1.5 system-ui, sans-serif;
   letter-spacing: normal;
   text-align: start;
@@ -35,9 +106,14 @@
   overflow-wrap: anywhere;
 }
 
-.zdtp-dashboard[data-chrome='light'] { color-scheme: light; }
-.zdtp-dashboard[data-chrome='dark'] { color-scheme: dark; }
 .zdtp-dashboard[data-chrome='host'] { color-scheme: inherit; }
+
+/* Shell chrome is scoped to the header and the mode-independent region. This
+   leaves a mode-dependent `data-scheme="host"` region able to inherit from the
+   page ancestor, even when the shell itself is fixed to light or dark. */
+.zdtp-dashboard[data-chrome='light'] > .zdtp-dashboard__header { color-scheme: light; }
+.zdtp-dashboard[data-chrome='dark'] > .zdtp-dashboard__header { color-scheme: dark; }
+.zdtp-dashboard[data-chrome='host'] > .zdtp-dashboard__header { color-scheme: inherit; }
 
 .zdtp-dashboard :where(div, span) {
   min-inline-size: 0;
@@ -56,7 +132,20 @@
   gap: 8px;
   padding: 20px;
   border-block-end: 1px solid var(--zdtp-dashboard-border);
+  background: var(--zdtp-dashboard-bg);
+  color: var(--zdtp-dashboard-fg);
 }
+
+.zdtp-dashboard__region {
+  display: grid;
+  gap: 32px;
+  background: var(--zdtp-dashboard-bg);
+  color: var(--zdtp-dashboard-fg);
+}
+
+.zdtp-dashboard__region[data-scheme='light'] { color-scheme: light; }
+.zdtp-dashboard__region[data-scheme='dark'] { color-scheme: dark; }
+.zdtp-dashboard__region[data-scheme='host'] { color-scheme: inherit; }
 
 .zdtp-dashboard__title {
   font-size: 22px;
@@ -185,16 +274,8 @@
   align-items: center;
   flex: 1;
   padding: 16px;
-}
-
-:where(.zdtp-dashboard[data-mode='light']) .zdtp-dashboard__preview > .zdtp-dashboard__specimen {
-  background: #eef1f5;
-  color: #182131;
-}
-
-.zdtp-dashboard[data-mode='dark'] .zdtp-dashboard__preview > .zdtp-dashboard__specimen {
-  background: #222936;
-  color: #f1f5f9;
+  background: light-dark(#eef1f5, #222936);
+  color: light-dark(#182131, #f1f5f9);
 }
 
 .zdtp-dashboard__sample {
@@ -205,14 +286,7 @@
 
 .zdtp-dashboard__preview--color > .zdtp-dashboard__specimen {
   padding: 0;
-}
-
-:where(.zdtp-dashboard[data-mode='light']) .zdtp-dashboard__preview--color > .zdtp-dashboard__specimen {
-  background: repeating-conic-gradient(#e2e6eb 0% 25%, #fff 0% 50%) 0 / 16px 16px;
-}
-
-.zdtp-dashboard[data-mode='dark'] .zdtp-dashboard__preview--color > .zdtp-dashboard__specimen {
-  background: repeating-conic-gradient(#3e4652 0% 25%, #252c37 0% 50%) 0 / 16px 16px;
+  background: repeating-conic-gradient(light-dark(#e2e6eb, #3e4652) 0% 25%, light-dark(#fff, #252c37) 0% 50%) 0 / 16px 16px;
 }
 
 .zdtp-dashboard__sample--color {
@@ -243,6 +317,7 @@
 }
 
 .zdtp-dashboard__empty {
+  background: var(--zdtp-dashboard-bg);
   color: var(--zdtp-dashboard-muted);
 }
 

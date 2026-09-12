@@ -122,6 +122,38 @@ const SIZE_TAB_WITH_PILL: TabConfig = {
 
 const EMPTY_OVERRIDES: TabOverrides = {};
 
+describe('resolveTierItemValue — manifest modes', () => {
+  const pair = { light: 'rgb(10, 20, 30)', dark: 'oklch(0.8 0.1 240)' };
+  const tab: TabConfig = {
+    id: 'palette', label: 'Palette', tiers: [
+      { id: 'raw', label: 'Raw', items: [
+        { ...colorItem('surface', '--surface', '#fff'), modes: pair },
+      ] },
+      { id: 'semantic', label: 'Semantic', referencesTier: 'raw', items: [
+        { ...rawItem('text', '--text', 'surface'), modes: pair },
+      ] },
+    ],
+  };
+
+  it.each([['raw', 'surface'], ['semantic', 'text']])(
+    'resolves an unmodified modes row in %s as a literal', (tier, item) => {
+      expect(resolveTierItemValue(tab, tier, item, {})).toEqual({
+        kind: 'literal', value: 'light-dark(rgb(10, 20, 30), oklch(0.8 0.1 240))',
+      });
+    },
+  );
+
+  it('keeps an existing literal override, including the ordinary fallback default', () => {
+    expect(resolveTierItemValue(tab, 'raw', 'surface', { raw: { surface: '#fff' } }))
+      .toEqual({ kind: 'literal', value: '#fff' });
+  });
+
+  it('keeps the established reference semantics for an existing override', () => {
+    expect(resolveTierItemValue(tab, 'semantic', 'text', { semantic: { text: 'surface' } }))
+      .toEqual({ kind: 'ref', targetCssVar: '--surface' });
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 1. Literal tier — no override (uses item default)
 // ---------------------------------------------------------------------------

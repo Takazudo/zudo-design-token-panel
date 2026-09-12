@@ -5,20 +5,27 @@ import {
   SCHEMA_V2,
   SCHEMA_V3,
   deserialize,
+  analyzeDesignTokenJson,
   getDesignTokenSchema,
   serialize,
   type DesignTokenJsonV2,
   type DesignTokenJsonV3,
+  type DeserializeOptions,
 } from '../design-token-serde';
 import { applyFullState } from '../../state/tweak-state';
 import type { ColorTweakState, SemanticValue, TweakState } from '../../state/tweak-state';
-import { __resetPanelConfigForTests } from '../../config/panel-config';
-import { installFixturePanelConfig, FIXTURE_CLUSTER, FIXTURE_TABS } from '../../__tests__/_test-helpers';
+import { __resetPanelConfigForTests, type PanelConfig } from '../../config/panel-config';
+import { installFixturePanelConfig, FIXTURE_CLUSTER, FIXTURE_TABS, FIXTURE_PANEL_CONFIG } from '../../__tests__/_test-helpers';
 import type { TabConfig } from '../../tokens/tier-model';
 import {
   SCHEMA_V1 as ROOT_SCHEMA_V1,
   SCHEMA_V2 as ROOT_SCHEMA_V2,
   SCHEMA_V3 as ROOT_SCHEMA_V3,
+  analyzeDesignTokenJson as ROOT_ANALYZE,
+  deserialize as ROOT_DESERIALIZE,
+  DesignTokenSchemaError as ROOT_SCHEMA_ERROR,
+  type ImportAnalysis as RootImportAnalysis,
+  type DeserializeOptions as RootDeserializeOptions,
 } from '../../index';
 
 beforeEach(() => {
@@ -600,9 +607,68 @@ const GENERIC_TAB: TabConfig = {
   ],
 };
 
+const GENERIC_MODES_TAB: TabConfig = {
+  id: 'ui-modes',
+  label: 'UI Modes',
+  tiers: [{
+    id: 'brand',
+    label: 'Brand',
+    items: [{
+      id: 'mode-brand',
+      cssVar: '--ui-mode-brand',
+      label: 'Mode brand',
+      default: '#222222',
+      type: { kind: 'text' },
+      modes: { light: '#ffffff', dark: '#111111' },
+    }, {
+      id: 'mode-same',
+      cssVar: '--ui-mode-same',
+      label: 'Mode same',
+      default: 'light-dark(#eeeeee, #121212)',
+      type: { kind: 'color' },
+      modes: { light: '#eeeeee', dark: '#121212' },
+    }],
+  }],
+};
+
+const COLOR_MODES_TAB: TabConfig = {
+  id: 'color',
+  label: 'Color',
+  colorExtras: {
+    id: 'mode-color',
+    baseRoles: {},
+    baseDefaults: { background: 0, foreground: 1 },
+    defaultShikiTheme: 'dracula',
+    colorSchemes: {},
+    panelSettings: { colorScheme: '', colorMode: false },
+  },
+  tiers: [{
+    id: 'palette',
+    label: 'Palette',
+    items: [{
+      id: 'mode-p0',
+      cssVar: '--mode-p0',
+      label: 'Mode palette 0',
+      default: '#222222',
+      type: { kind: 'text' },
+      modes: { light: '#ffffff', dark: '#111111' },
+    }, {
+      id: 'mode-p1',
+      cssVar: '--mode-p1',
+      label: 'Mode palette 1',
+      default: '#333333',
+      type: { kind: 'color' },
+    }],
+  }],
+};
+
 /** Install the fixture config WITH the generic `ui-color` tab appended. */
 function installWithGenericTab(): void {
   installFixturePanelConfig({ tabs: [...FIXTURE_TABS, GENERIC_TAB] });
+}
+
+function installWithGenericModesTab(): void {
+  installFixturePanelConfig({ tabs: [...FIXTURE_TABS, GENERIC_MODES_TAB] });
 }
 
 describe('serialize/deserialize — generic (custom-id) tabs', () => {
@@ -696,6 +762,83 @@ describe('serialize/deserialize — generic (custom-id) tabs', () => {
 
     const { state } = deserialize(JSON.parse(JSON.stringify(json)), { colorDefaults: COLOR_BASELINE });
     expect(state.tabs).toBeUndefined();
+  });
+});
+
+describe('serialize/deserialize — manifest mode rows (#949)', () => {
+  beforeEach(() => {
+    installWithGenericModesTab();
+  });
+
+  it('diff-only emits the resolved light-dark pair when it differs from item.default', () => {
+    const json = serialize(makeState(), { colorDefaults: COLOR_BASELINE });
+    expect(json.tabs?.['ui-modes']?.raw).toEqual({
+      '--ui-mode-brand': 'light-dark(#ffffff, #111111)',
+    });
+    expect(json.tabs?.['ui-modes']?.raw?.['--ui-mode-same']).toBeUndefined();
+  });
+
+  it('includeDefaults always emits every mode pair, including one equal to its default', () => {
+    const json = serialize(makeState(), {
+      colorDefaults: COLOR_BASELINE,
+      includeDefaults: true,
+    });
+    expect(json.tabs?.['ui-modes']?.raw).toEqual({
+      '--ui-mode-brand': 'light-dark(#ffffff, #111111)',
+      '--ui-mode-same': 'light-dark(#eeeeee, #121212)',
+    });
+  });
+
+  it('round-trips a mode pair as a plain string override for the generic tier', () => {
+    const original = makeState({
+      tabs: {
+        'ui-modes': {
+          brand: { 'mode-brand': 'light-dark(#abcdef, #123456)' },
+        },
+      },
+    });
+    const json = serialize(original, { colorDefaults: COLOR_BASELINE });
+    expect(json.tabs?.['ui-modes']?.raw).toEqual({
+      '--ui-mode-brand': 'light-dark(#abcdef, #123456)',
+    });
+    const result = deserialize(JSON.parse(JSON.stringify(json)), {
+      colorDefaults: COLOR_BASELINE,
+    });
+    expect(result.unknownTokens).toEqual([]);
+    expect(result.state.tabs).toEqual({
+      'ui-modes': {
+        brand: { 'mode-brand': 'light-dark(#abcdef, #123456)' },
+      },
+    });
+  });
+
+  it('serializes an explicit mode pair in a color palette whose first item is text-kind', () => {
+    installFixturePanelConfig({ tabs: [COLOR_MODES_TAB, ...FIXTURE_TABS.filter((tab) => tab.id !== 'color')] });
+    const baseline: ColorTweakState = {
+      palette: ['#222222', '#333333'],
+      background: 0,
+      foreground: 1,
+      cursor: 0,
+      selectionBg: 0,
+      selectionFg: 1,
+      semanticMappings: {},
+      shikiTheme: 'dracula',
+    };
+    const state = makeState({
+      color: { ...baseline, palette: ['light-dark(#ffffff, #111111)', '#333333'] },
+    });
+    const json = serialize(state, { colorDefaults: baseline });
+    expect(json.tabs?.color?.palette).toEqual({
+      '--mode-p0': 'light-dark(#ffffff, #111111)',
+    });
+    const result = deserialize(JSON.parse(JSON.stringify(json)), {
+      colorDefaults: baseline,
+    }, {
+      ...FIXTURE_PANEL_CONFIG,
+      tabs: [COLOR_MODES_TAB, ...FIXTURE_TABS.filter((tab) => tab.id !== 'color')],
+    });
+    expect(result.state.color.palette[0]).toBe('light-dark(#ffffff, #111111)');
+    expect(result.unknownTokens).toEqual([]);
   });
 });
 
@@ -1160,5 +1303,431 @@ describe('S5 — composed: stale-ref V3 import + applyFullState keeps the styles
     // path skips a null — so the token is never written and keeps whatever
     // its stylesheet declares.
     expect(appliedNames).not.toContain('--fixture-semantic-active');
+  });
+});
+
+// Scoped imports (#944): assertions cover the resulting state, including the
+// existing color slice and generic tier-nested override maps.
+const MODE_CONFIG: PanelConfig = {
+  ...FIXTURE_PANEL_CONFIG,
+  tabs: [
+    ...FIXTURE_TABS.map((tab) => tab.id !== 'color' ? tab : {
+      ...tab,
+      tiers: tab.tiers.map((tier) => tier.id !== 'semantic' ? tier : {
+        ...tier,
+        semantic: true as const,
+        referencesTier: undefined,
+        items: tier.items.map((item) => ({
+          ...item,
+          default: item.id === 'active' ? 'light-dark(#dddddd, #222222)' : '#888888',
+          ...(item.id === 'accent' ? { modes: { light: '#dddddd', dark: '#222222' } } : {}),
+        })),
+      }),
+    }),
+    {
+      ...GENERIC_TAB,
+      tiers: GENERIC_TAB.tiers.map((tier) => ({
+        ...tier,
+        items: tier.items.map((item) => ({
+          ...item,
+          ...(item.id === 'brand-base' ? { modes: { light: '#dddddd', dark: '#222222' } } : {}),
+        })),
+      })),
+    },
+  ],
+};
+
+const IMPORT_PAIR = { light: 'rgb(255, 0, 0)', dark: '#0000ff' };
+const IMPORT_CSS = '  LIGHT-DARK(rgb(255, 0, 0), #0000ff)  ';
+const CURRENT_PAIR = { light: '#eeeeee', dark: '#111111' };
+const CURRENT_CSS = 'light-dark(#eeeeee, #111111)';
+
+function scopedCurrent(): TweakState {
+  const color = cloneBaseline();
+  color.palette[0] = CURRENT_CSS;
+  color.semanticMappings.accent = { literal: { ...CURRENT_PAIR } };
+  color.semanticMappings.active = { literal: CURRENT_CSS };
+  return makeState({
+    color,
+    spacing: { 'hsp-md': '55px', 'vsp-sm': '22px' },
+    typography: { 'text-base': '2rem' },
+    size: { 'radius-lg': '14px' },
+    secondary: cloneBaseline(),
+    tabs: {
+      'ui-color': {
+        brand: { 'brand-base': CURRENT_CSS, 'brand-ink': 'ivory' },
+        surface: { 'surface-base': 'navy' },
+      },
+      'retired-tab': { raw: { retained: 'old value' } },
+    },
+  });
+}
+
+describe('deserialize — scoped modes and strategy', () => {
+  it.each([
+    ['as-is', IMPORT_PAIR, IMPORT_CSS],
+    ['swap', { light: '#0000ff', dark: 'rgb(255, 0, 0)' }, 'light-dark(#0000ff, rgb(255, 0, 0))'],
+    ['light-only', { light: 'rgb(255, 0, 0)', dark: '#111111' }, 'light-dark(rgb(255, 0, 0), #111111)'],
+    ['dark-only', { light: '#eeeeee', dark: '#0000ff' }, 'light-dark(#eeeeee, #0000ff)'],
+    ['light-to-both', { light: 'rgb(255, 0, 0)', dark: 'rgb(255, 0, 0)' }, 'light-dark(rgb(255, 0, 0), rgb(255, 0, 0))'],
+  ] as const)('%s maps pair, literal-string, palette-string, and generic-string leaves', (modeSides, pair, css) => {
+    const current = scopedCurrent();
+    const doc = {
+      $schema: SCHEMA_V3,
+      tabs: {
+        color: {
+          palette: { '--fixture-p0': IMPORT_CSS },
+          semantic: {
+            '--fixture-semantic-accent': { literal: IMPORT_PAIR },
+            '--fixture-semantic-active': { literal: IMPORT_CSS },
+            '--fixture-semantic-muted': { literal: '#abcdef' },
+          },
+        },
+        'ui-color': { raw: { '--ui-brand': IMPORT_CSS, '--ui-brand-ink': 'black' } },
+        spacing: { raw: { '--zd-spacing-hgap-md': '12px' } },
+        size: { raw: { '--radius-lg': '4px' } },
+      },
+    };
+    const originalDoc = structuredClone(doc);
+    const originalCurrent = structuredClone(current);
+    const expectedColor = cloneBaseline();
+    expectedColor.palette[0] = css;
+    expectedColor.semanticMappings = {
+      accent: { literal: pair }, active: { literal: css }, muted: { literal: '#abcdef' },
+    };
+    expect(deserialize(doc, { modeSides, current, colorDefaults: COLOR_BASELINE }, MODE_CONFIG)).toEqual({
+      state: makeState({
+        color: expectedColor,
+        spacing: { 'hsp-md': '12px' },
+        size: { 'radius-lg': '4px' },
+        secondary: current.secondary,
+        tabs: {
+          'ui-color': { brand: { 'brand-base': css, 'brand-ink': 'black' } },
+          'retired-tab': current.tabs!['retired-tab'],
+        },
+      }),
+      unknownTokens: [], warnings: [],
+    });
+    expect(doc).toEqual(originalDoc);
+    expect(current).toEqual(originalCurrent);
+  });
+
+  it.each(['merge', 'replace'] as const)('%s preserves all unselected tabs and ignores their diagnostics', (strategy) => {
+    const current = scopedCurrent();
+    const state = deserialize({
+      $schema: SCHEMA_V3,
+      tabs: {
+        spacing: { raw: { '--zd-spacing-hgap-md': '12px' } },
+        font: { raw: { '--unknown': 42 } },
+        color: { semantic: { '--fixture-semantic-accent': { ref: {} } } },
+        'ui-color': { raw: { '--ui-brand': 'changed' } },
+      },
+    }, { tabs: ['spacing'], strategy, current }, MODE_CONFIG);
+    expect(state).toEqual({
+      state: { ...current, spacing: strategy === 'merge' ? { 'hsp-md': '12px', 'vsp-sm': '22px' } : { 'hsp-md': '12px' } },
+      unknownTokens: [], warnings: [],
+    });
+  });
+
+  it.each(['merge', 'replace'] as const)('%s handles missing entries within color and across generic tiers', (strategy) => {
+    const current = scopedCurrent();
+    const expectedColor = strategy === 'merge' ? structuredClone(current.color) : cloneBaseline();
+    expectedColor.palette[1] = '#123456';
+    expectedColor.semanticMappings.muted = 3;
+    const expectedTabs = {
+      ...current.tabs,
+      'ui-color': strategy === 'merge' ? {
+        brand: { 'brand-base': 'red', 'brand-ink': 'ivory' },
+        surface: { 'surface-base': 'navy' },
+      } : { brand: { 'brand-base': 'red' } },
+    };
+    expect(deserialize({
+      $schema: SCHEMA_V3,
+      tabs: {
+        color: { palette: { '--fixture-p1': '#123456' }, semantic: { '--fixture-semantic-muted': 3 } },
+        'ui-color': { raw: { '--ui-brand': 'red' } },
+      },
+    }, { current, strategy, tabs: ['color', 'ui-color'], colorDefaults: COLOR_BASELINE }, MODE_CONFIG).state).toEqual({
+      ...current, color: expectedColor, tabs: expectedTabs,
+    });
+  });
+
+  it('replace clears selected absent tabs while merge keeps them', () => {
+    const current = scopedCurrent();
+    const doc = { $schema: SCHEMA_V3 };
+    const opts: DeserializeOptions = { current, tabs: ['spacing', 'font', 'ui-color'] };
+    expect(deserialize(doc, { ...opts, strategy: 'merge' }, MODE_CONFIG).state).toEqual(current);
+    expect(deserialize(doc, { ...opts, strategy: 'replace' }, MODE_CONFIG).state).toEqual({
+      ...current, spacing: {}, typography: {}, tabs: { 'retired-tab': current.tabs!['retired-tab'] },
+    });
+  });
+
+  it('tabs: [] returns the current instance exactly or an empty/default state', () => {
+    const current = scopedCurrent();
+    const doc = { $schema: SCHEMA_V3, tabs: { spacing: { raw: { '--unknown': 42 } } } };
+    expect(deserialize(doc, { tabs: [], current }, MODE_CONFIG)).toEqual({ state: current, warnings: [], unknownTokens: [] });
+    expect(deserialize(doc, { tabs: [], current }, MODE_CONFIG).state).toBe(current);
+    expect(deserialize(doc, { tabs: [], colorDefaults: COLOR_BASELINE }, MODE_CONFIG)).toEqual({
+      state: makeState(), warnings: [], unknownTokens: [],
+    });
+    expect(() => deserialize({ $schema: 'bad' }, { tabs: [], current }, MODE_CONFIG)).toThrow(DesignTokenSchemaError);
+  });
+
+  it('merge without current uses the ordinary import defaults', () => {
+    const doc = { $schema: SCHEMA_V3, tabs: { spacing: { raw: { '--zd-spacing-hgap-md': '12px' } } } };
+    expect(deserialize(doc, { strategy: 'merge', colorDefaults: COLOR_BASELINE }, MODE_CONFIG).state).toEqual(
+      makeState({ spacing: { 'hsp-md': '12px' } }),
+    );
+  });
+
+  it.each([
+    ['light-only', { light: 'rgb(255, 0, 0)', dark: '#222222' }, 'light-dark(rgb(255, 0, 0), #222222)'],
+    ['dark-only', { light: '#dddddd', dark: '#0000ff' }, 'light-dark(#dddddd, #0000ff)'],
+  ] as const)('%s without current uses manifest modes and parsed defaults', (modeSides, pair, css) => {
+    const state = deserialize({
+      $schema: SCHEMA_V3,
+      tabs: {
+        color: { semantic: {
+          '--fixture-semantic-accent': { literal: IMPORT_PAIR },
+          '--fixture-semantic-active': { literal: IMPORT_CSS },
+        } },
+        'ui-color': { raw: { '--ui-brand': IMPORT_CSS } },
+      },
+    }, { modeSides }, MODE_CONFIG).state;
+    expect(state.color.semanticMappings).toEqual({ accent: { literal: pair }, active: { literal: css } });
+    expect(state.tabs).toEqual({ 'ui-color': { brand: { 'brand-base': css } } });
+    expect(state.spacing).toEqual({});
+    expect(state.typography).toEqual({});
+    expect(state.size).toEqual({});
+  });
+
+  it('uses colorDefaults per entry when current lacks that mapping', () => {
+    const defaults = cloneBaseline();
+    defaults.semanticMappings.accent = { literal: { light: '#cccccc', dark: '#333333' } };
+    const current = makeState();
+    delete current.color.semanticMappings.accent;
+    const doc = { $schema: SCHEMA_V3, tabs: { color: { semantic: { '--fixture-semantic-accent': { literal: IMPORT_PAIR } } } } };
+    for (const live of [undefined, current]) {
+      expect(deserialize(doc, { current: live, colorDefaults: defaults, modeSides: 'light-only' }, MODE_CONFIG).state.color).toEqual({
+        ...defaults,
+        semanticMappings: { ...defaults.semanticMappings, accent: { literal: { light: 'rgb(255, 0, 0)', dark: '#333333' } } },
+      });
+    }
+  });
+
+  it('retains a plain live color or an indexed palette color as the untouched side', () => {
+    const current = scopedCurrent();
+    current.color.semanticMappings.accent = 2;
+    current.tabs!['ui-color'] = { brand: { 'brand-base': 'purple' } };
+    const result = deserialize({
+      $schema: SCHEMA_V3,
+      tabs: {
+        color: { semantic: { '--fixture-semantic-accent': { literal: IMPORT_PAIR } } },
+        'ui-color': { raw: { '--ui-brand': IMPORT_CSS } },
+      },
+    }, { current, modeSides: 'dark-only' }, MODE_CONFIG).state;
+    expect(result.color.semanticMappings.accent).toEqual({ literal: { light: '#020202', dark: '#0000ff' } });
+    expect(result.tabs!['ui-color']).toEqual({ brand: { 'brand-base': 'light-dark(purple, #0000ff)' } });
+  });
+
+  it('retains the manifest palette value for an indexed semantic default without any state baseline', () => {
+    const doc = { $schema: SCHEMA_V3, tabs: { color: { semantic: { '--fixture-semantic-accent': { literal: IMPORT_PAIR } } } } };
+    expect(deserialize(doc, { modeSides: 'light-only' }, FIXTURE_PANEL_CONFIG).state.color.semanticMappings).toEqual({
+      accent: { literal: { light: 'rgb(255, 0, 0)', dark: '#000000' } },
+    });
+  });
+
+  it('retains a manifest reference as a CSS variable when importing one side into a generic reference row', () => {
+    const cfg: PanelConfig = {
+      ...MODE_CONFIG,
+      tabs: [...MODE_CONFIG.tabs, {
+        id: 'reference-tab', label: 'References', tiers: [
+          { id: 'raw', label: 'Raw', items: [{ id: 'base', cssVar: '--ref-base', label: 'Base', default: CURRENT_CSS, type: { kind: 'text' } }] },
+          { id: 'semantic', label: 'Semantic', referencesTier: 'raw', items: [{ id: 'use', cssVar: '--ref-use', label: 'Use', default: 'base', type: { kind: 'text' } }] },
+        ],
+      }],
+    };
+    expect(deserialize({ $schema: SCHEMA_V3, tabs: { 'reference-tab': { raw: { '--ref-use': IMPORT_CSS } } } }, {
+      modeSides: 'dark-only',
+    }, cfg).state.tabs).toEqual({ 'reference-tab': { semantic: { use: 'light-dark(var(--ref-base), #0000ff)' } } });
+    const current = { ...scopedCurrent(), tabs: { 'reference-tab': { semantic: { use: 'base' } } } };
+    expect(deserialize({ $schema: SCHEMA_V3, tabs: { 'reference-tab': { raw: { '--ref-use': IMPORT_CSS } } } }, {
+      current, modeSides: 'dark-only',
+    }, cfg).state.tabs).toEqual({ 'reference-tab': { semantic: { use: 'light-dark(var(--ref-base), #0000ff)' } } });
+  });
+
+  it.each([SCHEMA_V1, SCHEMA_V2, SCHEMA_V3])('applies raw side mapping and merge under %s', ($schema) => {
+    const current = scopedCurrent();
+    current.typography['text-base'] = CURRENT_CSS;
+    const doc = $schema === SCHEMA_V1
+      ? { $schema, typography: { '--zd-font-base-size': IMPORT_CSS } }
+      : { $schema, tabs: { font: { raw: { '--zd-font-base-size': IMPORT_CSS } } } };
+    expect(deserialize(doc, { tabs: ['font'], modeSides: 'light-only', strategy: 'merge', current }, MODE_CONFIG).state).toEqual({
+      ...current, typography: { 'text-base': 'light-dark(rgb(255, 0, 0), #111111)' },
+    });
+  });
+
+  it('v1 merges individual base fields and honors the external font tab id', () => {
+    const current = scopedCurrent();
+    expect(deserialize({
+      $schema: SCHEMA_V1,
+      color: { base: { bg: 4 }, semantic: { muted: 3 } },
+      typography: { '--zd-font-base-size': '3rem' },
+      spacing: { '--zd-spacing-hgap-md': '100px' },
+    }, { tabs: ['color', 'font'], strategy: 'merge', current }, MODE_CONFIG).state).toEqual({
+      ...current,
+      color: { ...current.color, background: 4, semanticMappings: { ...current.color.semanticMappings, muted: 3 } },
+      typography: { 'text-base': '3rem' },
+    });
+  });
+
+  it('ignores unknown selected tab ids and preserves current tabs omitted from the config', () => {
+    const current = scopedCurrent();
+    expect(deserialize({ $schema: SCHEMA_V3, tabs: { foreign: { raw: { '--x': IMPORT_CSS } } } }, {
+      current, tabs: ['foreign'], modeSides: 'swap',
+    }, MODE_CONFIG).state).toBe(current);
+  });
+});
+
+describe('analyzeDesignTokenJson', () => {
+  it('counts token leaves and mode entries, separates foreign tabs, and reports unknown token keys', () => {
+    const doc = {
+      $schema: SCHEMA_V3,
+      tabs: {
+        color: { semantic: {
+          '--fixture-semantic-accent': { literal: IMPORT_PAIR },
+          '--fixture-semantic-active': { literal: IMPORT_CSS },
+          '--fixture-semantic-muted': { ref: { tier: 'palette', item: 'fixture-p0' } },
+          '--unknown-color': 2,
+        } },
+        'ui-color': { raw: { '--ui-brand': IMPORT_CSS, '--ui-brand-ink': 'white', '--unknown': 'red' } },
+        spacing: { raw: { '--zd-spacing-hgap-md': '24px' } },
+        foreign: { raw: { '--foreign': IMPORT_CSS } },
+      },
+    };
+    const original = structuredClone(doc);
+    expect(analyzeDesignTokenJson(doc, MODE_CONFIG)).toEqual({
+      schema: SCHEMA_V3,
+      tabs: [
+        { id: 'color', known: true, entries: 4, perModeEntries: 2 },
+        { id: 'ui-color', known: true, entries: 3, perModeEntries: 1 },
+        { id: 'spacing', known: true, entries: 1, perModeEntries: 0 },
+        { id: 'foreign', known: false, entries: 1, perModeEntries: 1 },
+      ],
+      sides: ['light', 'dark'],
+      unknownTokens: ['--unknown-color', '--unknown'],
+    });
+    expect(doc).toEqual(original);
+  });
+
+  it('does not infer per-mode entries from the manifest or malformed light-dark strings', () => {
+    expect(analyzeDesignTokenJson({
+      $schema: SCHEMA_V2,
+      tabs: { 'ui-color': { raw: { '--ui-brand': 'red', '--ui-brand-ink': 'light-dark(red, blue) extra' } }, spacing: null },
+    }, MODE_CONFIG)).toEqual({
+      schema: SCHEMA_V2,
+      tabs: [
+        { id: 'ui-color', known: true, entries: 2, perModeEntries: 0 },
+        { id: 'spacing', known: true, entries: 0, perModeEntries: 0 },
+      ],
+      sides: [], unknownTokens: [],
+    });
+  });
+
+  it('analyzes v1 using external font ids and counts palette entries without treating metadata as tokens', () => {
+    expect(analyzeDesignTokenJson({
+      $schema: SCHEMA_V1,
+      color: { palette: [IMPORT_CSS, '#000000'], semantic: { accent: 2 }, base: { bg: 0 }, shikiTheme: 'dracula' },
+      typography: { '--zd-font-base-size': '2rem' },
+    }, MODE_CONFIG)).toEqual({
+      schema: SCHEMA_V1,
+      tabs: [
+        { id: 'color', known: true, entries: 4, perModeEntries: 1 },
+        { id: 'font', known: true, entries: 1, perModeEntries: 0 },
+      ],
+      sides: ['light', 'dark'], unknownTokens: [],
+    });
+  });
+
+  it('uses the explicitly supplied instance manifest', () => {
+    const doc = { $schema: SCHEMA_V3, tabs: { 'ui-color': { raw: { '--ui-brand': IMPORT_CSS } } } };
+    expect(analyzeDesignTokenJson(doc).tabs[0].known).toBe(false);
+    expect(analyzeDesignTokenJson(doc, MODE_CONFIG).tabs[0].known).toBe(true);
+  });
+
+  it.each([null, [], 4, {}, { $schema: null }, { $schema: 'custom' }])('throws exactly the deserialize schema error for %j', (doc) => {
+    const capture = (fn: () => unknown): unknown => { try { fn(); } catch (error) { return error; } return undefined; };
+    const actual = capture(() => analyzeDesignTokenJson(doc, MODE_CONFIG));
+    const expected = capture(() => deserialize(doc, {}, MODE_CONFIG));
+    expect(actual).toBeInstanceOf(DesignTokenSchemaError);
+    expect(actual).toEqual(expected);
+    expect((actual as DesignTokenSchemaError).reason).toBe((expected as DesignTokenSchemaError).reason);
+    expect((actual as DesignTokenSchemaError).actualSchema).toBe((expected as DesignTokenSchemaError).actualSchema);
+  });
+
+  it('exports the analysis and scoped import API from the package root', () => {
+    const options: RootDeserializeOptions = { tabs: [], modeSides: 'swap', strategy: 'merge' };
+    const result: RootImportAnalysis = ROOT_ANALYZE({ $schema: SCHEMA_V3 }, MODE_CONFIG);
+    expect(ROOT_ANALYZE).toBe(analyzeDesignTokenJson);
+    expect(ROOT_DESERIALIZE).toBe(deserialize);
+    expect(ROOT_SCHEMA_ERROR).toBe(DesignTokenSchemaError);
+    expect(result).toEqual({ schema: SCHEMA_V3, tabs: [], sides: [], unknownTokens: [] });
+    expect(ROOT_DESERIALIZE({ $schema: SCHEMA_V3 }, { ...options, colorDefaults: COLOR_BASELINE }, MODE_CONFIG).state).toEqual(makeState());
+  });
+});
+
+describe('scoped analysis/import — readonly color rows', () => {
+  const cfg: PanelConfig = {
+    ...FIXTURE_PANEL_CONFIG,
+    tabs: FIXTURE_TABS.map((tab) => tab.id !== 'color' ? tab : {
+      ...tab,
+      tiers: tab.tiers.map((tier) => ({
+        ...tier,
+        items: tier.items.map((item) => ['fixture-p0', 'accent'].includes(item.id)
+          ? { ...item, readonly: true as const } : item),
+      })),
+    }),
+  };
+
+  it.each([SCHEMA_V1, SCHEMA_V2, SCHEMA_V3])('%s ignores the readonly palette and semantic entries identified by analysis', ($schema) => {
+    const palette = [...PALETTE_BASELINE];
+    palette[0] = '#abcdef';
+    palette[1] = '#123456';
+    const doc = $schema === SCHEMA_V1
+      ? { $schema, color: { palette, semantic: { accent: 3, muted: 4 } } }
+      : { $schema, tabs: { color: {
+        palette: { '--fixture-p0': '#abcdef', '--fixture-p1': '#123456' },
+        semantic: { '--fixture-semantic-accent': $schema === SCHEMA_V3 ? { literal: IMPORT_PAIR } : 3, '--fixture-semantic-muted': 4 },
+      } } };
+    expect(analyzeDesignTokenJson(doc, cfg).unknownTokens).toEqual([
+      '--fixture-p0', $schema === SCHEMA_V1 ? 'accent' : '--fixture-semantic-accent',
+    ]);
+    const expected = cloneBaseline();
+    expected.palette[1] = '#123456';
+    expected.semanticMappings.muted = 4;
+    expect(deserialize(doc, { tabs: ['color'], modeSides: 'swap', colorDefaults: COLOR_BASELINE }, cfg).state).toEqual(
+      makeState({ color: expected }),
+    );
+  });
+
+  it('v1 drops unknown semantic keys that analysis reports', () => {
+    const doc = { $schema: SCHEMA_V1, color: { semantic: { 'foreign-semantic': 3 } } };
+    expect(analyzeDesignTokenJson(doc, cfg).unknownTokens).toEqual(['foreign-semantic']);
+    const result = deserialize(doc, { colorDefaults: COLOR_BASELINE }, cfg);
+    expect(result.state).toEqual(makeState());
+    expect(result.warnings).toContain('color.semantic: unknown token "foreign-semantic"; skipped.');
+  });
+
+  it('does not export readonly color rows in diff-only or includeDefaults mode', () => {
+    const current = makeState();
+    current.color.palette[0] = '#abcdef';
+    current.color.semanticMappings.accent = { literal: IMPORT_PAIR };
+    expect(serialize(current, { colorDefaults: COLOR_BASELINE }, cfg).tabs).toBeUndefined();
+    const full = serialize(current, { colorDefaults: COLOR_BASELINE, includeDefaults: true }, cfg);
+    expect(full.$schema).toBe(SCHEMA_V2);
+    expect(full.tabs?.color?.palette).not.toHaveProperty('--fixture-p0');
+    expect(full.tabs?.color?.semantic).not.toHaveProperty('--fixture-semantic-accent');
+    expect(full.tabs?.color?.palette).toHaveProperty('--fixture-p1', PALETTE_BASELINE[1]);
+    expect(full.tabs?.color?.semantic).toHaveProperty('--fixture-semantic-muted', COLOR_BASELINE.semanticMappings.muted);
   });
 });

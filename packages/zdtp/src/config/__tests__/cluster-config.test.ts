@@ -19,6 +19,34 @@ const COLOR_EXTRAS = {
   panelSettings: { colorScheme: 'default', colorMode: false as const },
 };
 
+describe('resolveColorClusterFromTab — manifest modes', () => {
+  it.each(['color', 'text'] as const)('builds a %s palette cluster and preserves the mode pair as its slot seed', (kind) => {
+    const cluster = resolveColorClusterFromTab({
+      id: 'color', label: 'Color', colorExtras: COLOR_EXTRAS,
+      tiers: [{ id: 'palette', label: 'Palette', items: [
+        { id: 'p0', cssVar: '--pal-0', label: 'Surface', default: '#aaa',
+          type: { kind }, modes: { light: '#eee', dark: '#111' } },
+      ] }],
+    });
+    expect(cluster).toMatchObject({ paletteSize: 1, paletteCssVarTemplate: '--pal-{n}',
+      paletteModes: { 0: { light: '#eee', dark: '#111' } } });
+    expect(JSON.parse(JSON.stringify(cluster))).toEqual(cluster);
+  });
+
+  it('seeds semantic modes before references and config-time semantic overrides', () => {
+    const cluster = resolveColorClusterFromTab({
+      id: 'color', label: 'Color',
+      colorExtras: { ...COLOR_EXTRAS, semanticDefaults: { surface: { literal: '#aaa' } } },
+      tiers: [{ id: 'semantic', label: 'Semantic', semantic: true, items: [
+        { id: 'surface', cssVar: '--surface', label: 'Surface', default: '#aaa',
+          type: { kind: 'text' }, modes: { light: '#eee', dark: '#111' } },
+      ] }],
+    });
+    expect(cluster).toMatchObject({ paletteSize: 0,
+      semanticDefaults: { surface: { literal: { light: '#eee', dark: '#111' } } } });
+  });
+});
+
 describe('resolveColorClusterFromTab — palette vs. semantic disambiguation (#461)', () => {
   it('does NOT select a lone `semantic: true` color tier as the palette', () => {
     const tab: TabConfig = {

@@ -8,6 +8,7 @@ import { oklchaToHex, staticCssColorToOklcha, type Oklcha } from '../../utils/co
 import { matchesSearchFields } from '../../search/token-search';
 import type { TokenAddress } from '../flat/types';
 import { tokenAddressKey } from '../flat/types';
+import { ModesValuePair, resolveModeRowSides, type ModeSides } from '../modes-row';
 
 const CHIP_COLOR_AAA = '#1a7a3f';
 const CHIP_COLOR_AA = '#8a6200';
@@ -30,12 +31,26 @@ interface PaletteEntry {
   color: Oklcha | null;
   hex: string | null;
   opaque: boolean;
+  modes: ModeSides | null;
 }
 
 function resolveEntry(tabId: string, item: TierItem, tierId: string, overrides: TabOverrides): PaletteEntry {
-  const value = overrides[tierId]?.[item.id] ?? item.default;
-  const color = staticCssColorToOklcha(value);
-  return { address: { tabId, tierId, itemId: item.id }, item, tierId, value, color, hex: color ? oklchaToHex(color) : null, opaque: color !== null && color.a >= 100 };
+  const override = overrides[tierId]?.[item.id];
+  const modes = item.modes
+    ? resolveModeRowSides(item, override, override !== undefined)
+    : null;
+  const value = override ?? (modes ? `light-dark(${modes.light}, ${modes.dark})` : item.default);
+  const color = modes ? null : staticCssColorToOklcha(value);
+  return {
+    address: { tabId, tierId, itemId: item.id },
+    item,
+    tierId,
+    value,
+    color,
+    hex: color ? oklchaToHex(color) : null,
+    opaque: color !== null && color.a >= 100,
+    modes,
+  };
 }
 
 function entryKey(entry: PaletteEntry): string {
@@ -52,14 +67,14 @@ function EntryName({ entry }: { entry: PaletteEntry }) {
   return (
     <div className="tokenpanel-palette-check-row-name">
       <div>{entry.item.label}</div>
-      {!entry.opaque && <div className="tokenpanel-palette-check-row-value">{entry.item.cssVar}: {entry.value}</div>}
+      {!entry.opaque && !entry.modes && <div className="tokenpanel-palette-check-row-value">{entry.item.cssVar}: {entry.value}</div>}
     </div>
   );
 }
 
 function BaseRow({ entry, isSelected, onSelect }: { entry: PaletteEntry; isSelected: boolean; onSelect: (entry: PaletteEntry) => void }) {
   const disabled = !entry.opaque;
-  const reason = entry.color ? 'transparent colors need compositing' : 'unsupported color';
+  const reason = entry.modes ? 'mode-dependent colors' : entry.color ? 'transparent colors need compositing' : 'unsupported color';
   const handleClick = useCallback(() => {
     if (!disabled) onSelect(entry);
   }, [disabled, entry, onSelect]);
@@ -74,17 +89,21 @@ function BaseRow({ entry, isSelected, onSelect }: { entry: PaletteEntry; isSelec
     <div
       role="button"
       tabIndex={disabled ? -1 : 0}
-      className={`tokenpanel-palette-check-base-row${isSelected ? ' is-selected' : ''}${disabled ? ' is-disabled' : ''}`}
+      className={`tokenpanel-palette-check-base-row${isSelected ? ' is-selected' : ''}${disabled ? ' is-disabled' : ''}${entry.modes ? ' tokenpanel-palette-check-row--modes' : ''}`}
       aria-pressed={disabled ? undefined : isSelected}
       aria-disabled={disabled || undefined}
-      aria-label={`${entry.item.label}: ${entry.value}${disabled ? ` (N/A: ${reason})` : ''}`}
+      aria-label={`${entry.item.label}: ${entry.modes ? `light ${entry.modes.light}, dark ${entry.modes.dark}` : entry.value}${disabled ? ` (N/A: ${reason})` : ''}`}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       data-testid={`palette-check-base-row-${entry.item.id}`}
       data-address={tokenAddressKey(entry.address)}
       data-na-reason={disabled ? reason : undefined}
     >
-      <div className={`tokenpanel-palette-check-swatch${entry.color ? '' : ' is-invalid'}`} style={entry.hex ? { background: entry.hex } : undefined} aria-hidden="true" />
+      {entry.modes ? (
+        <ModesValuePair sides={entry.modes} testIdPrefix={`palette-check-base-${entry.item.id}`} />
+      ) : (
+        <div className={`tokenpanel-palette-check-swatch${entry.color ? '' : ' is-invalid'}`} style={entry.hex ? { background: entry.hex } : undefined} aria-hidden="true" />
+      )}
       <EntryName entry={entry} />
       {disabled && <div className="tokenpanel-palette-check-na">N/A</div>}
     </div>
@@ -95,10 +114,14 @@ function CandidateRow({ entry, base, isLarge }: { entry: PaletteEntry; base: Pal
   const computable = Boolean(base?.opaque && base.hex && entry.opaque && entry.hex);
   const ratio = computable ? contrastRatio(base!.hex!, entry.hex!) : null;
   const score = ratio === null ? null : contrastScore(ratio, { large: isLarge });
-  const reason = !base ? 'no valid opaque base' : !entry.color ? 'unsupported color' : !entry.opaque ? 'transparent color needs compositing' : null;
+  const reason = entry.modes ? 'mode-dependent colors' : !base ? 'no valid opaque base' : !entry.color ? 'unsupported color' : !entry.opaque ? 'transparent color needs compositing' : null;
   return (
-    <div className={`tokenpanel-palette-check-candidate-row${computable ? '' : ' is-na'}`} data-testid={`palette-check-candidate-row-${entry.item.id}`} data-address={tokenAddressKey(entry.address)} data-na-reason={reason ?? undefined}>
-      <div className={`tokenpanel-palette-check-aa-sample${entry.color ? '' : ' is-invalid'}`} style={entry.hex && base?.hex ? { color: entry.hex, background: base.hex } : undefined} aria-hidden="true">{entry.color ? 'Aa' : 'N/A'}</div>
+    <div className={`tokenpanel-palette-check-candidate-row${computable ? '' : ' is-na'}${entry.modes ? ' tokenpanel-palette-check-row--modes' : ''}`} data-testid={`palette-check-candidate-row-${entry.item.id}`} data-address={tokenAddressKey(entry.address)} data-na-reason={reason ?? undefined}>
+      {entry.modes ? (
+        <ModesValuePair sides={entry.modes} testIdPrefix={`palette-check-candidate-${entry.item.id}`} />
+      ) : (
+        <div className={`tokenpanel-palette-check-aa-sample${entry.color ? '' : ' is-invalid'}`} style={entry.hex && base?.hex ? { color: entry.hex, background: base.hex } : undefined} aria-hidden="true">{entry.color ? 'Aa' : 'N/A'}</div>
+      )}
       <EntryName entry={entry} />
       <div className="tokenpanel-palette-check-ratio">{ratio === null ? 'N/A' : ratio.toFixed(1)}</div>
       <div className={`tokenpanel-palette-check-chip${score ? '' : ' is-na'}`} style={score ? { background: chipColor(score) } : undefined} data-testid={`palette-check-chip-${entry.item.id}`}>{score ?? 'N/A'}</div>

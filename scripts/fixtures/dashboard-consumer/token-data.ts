@@ -5,6 +5,7 @@ export const tokenTabs: readonly TabConfig[] = [{
     id: 'ocean', label: 'Ocean', items: [
       { id: 'pale', label: 'Pale', cssVar: '--consumer-pale', default: '#eef4ff', type: { kind: 'color' } },
       { id: 'deep', label: 'Deep', cssVar: '--consumer-deep', default: '#18243a', type: { kind: 'color' } },
+      { id: 'paired', label: 'Paired', cssVar: '--consumer-paired', default: '#dbeafe', type: { kind: 'color' }, modes: { light: '#dbeafe', dark: '#1e3a8a' } },
     ],
   }],
 }, {

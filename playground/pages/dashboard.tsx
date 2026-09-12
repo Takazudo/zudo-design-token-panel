@@ -2,6 +2,7 @@ import { TokenDashboard } from '@takazudo/zdtp/dashboard';
 import {
   dashboardFixtureTabs,
   dashboardPreviewText,
+  dashboardPreviewOverrides,
   dashboardHostFixtureTabs,
   dashboardHostPreviewOverrides,
 } from '../config/dashboard-fixtures';
@@ -51,7 +52,9 @@ export default function DashboardPage() {
               This switch works with JavaScript disabled.
             </p>
             <nav class="dashboard-page__nav" aria-label="Dashboard examples">
+              <a href="#follow-page">Follow the page</a>
               <a href="#host-light-inventory">Host-following chrome</a>
+              <a href="#mode-composition">Three-instance composition</a>
               <a href="#light-defaults">Light defaults</a>
               <a href="#dark-defaults">Dark defaults</a>
               <a href="#compact-defaults">Compact example</a>
@@ -60,12 +63,37 @@ export default function DashboardPage() {
             </nav>
           </div>
 
+          <TokenDashboard tabs={dashboardFixtureTabs} chrome="host" mode="host"
+            previewOverrides={dashboardPreviewOverrides} previewText={dashboardPreviewText}
+            title="Follow the page · host inventory" id="follow-page" />
+
           <TokenDashboard tabs={dashboardHostFixtureTabs} chrome="host" mode="light"
             previewOverrides={dashboardHostPreviewOverrides}
             title="Host chrome · light inventory" id="host-light-inventory" />
-          <TokenDashboard tabs={dashboardHostFixtureTabs} chrome="host" mode="dark"
-            previewOverrides={dashboardHostPreviewOverrides}
-            title="Host chrome · dark inventory" id="host-dark-inventory" />
+          <div style="--zdtp-dashboard-light-bg: #fff7ed; --zdtp-dashboard-light-fg: #7c2d12; --zdtp-dashboard-dark-bg: #1c1917; --zdtp-dashboard-dark-fg: #fed7aa">
+            <TokenDashboard tabs={dashboardHostFixtureTabs} chrome="host" mode="dark"
+              previewOverrides={dashboardHostPreviewOverrides}
+              title="Custom chrome · dark inventory" id="host-dark-inventory" />
+          </div>
+
+          <div class="dashboard-page__intro" id="mode-composition">
+            <h2>Three instances, one source</h2>
+            <p>
+              Mode dependence is tracked per row. The paired palette stop, its alias, and the{' '}
+              <code>light-dark()</code> text row appear once in each mode snapshot; independent
+              rows appear once in the shared listing below. A mixed tier is split into its two
+              regions without changing the order inside either region.
+            </p>
+          </div>
+          <TokenDashboard tabs={dashboardFixtureTabs} mode="light" include="mode-dependent"
+            previewOverrides={dashboardPreviewOverrides} previewText={dashboardPreviewText}
+            title="Light-dependent rows" id="dependent-light" />
+          <TokenDashboard tabs={dashboardFixtureTabs} mode="dark" include="mode-dependent"
+            previewOverrides={dashboardPreviewOverrides} previewText={dashboardPreviewText}
+            title="Dark-dependent rows" id="dependent-dark" />
+          <TokenDashboard tabs={dashboardFixtureTabs} mode="light" include="mode-independent" chrome="host"
+            previewOverrides={dashboardPreviewOverrides} previewText={dashboardPreviewText}
+            title="Shared independent rows" id="shared-independent" />
 
           <div class="dashboard-page__intro">
             <h2>Rulers, ramps, and reading</h2>
@@ -81,6 +109,7 @@ export default function DashboardPage() {
             </p>
           </div>
           <TokenDashboard tabs={dashboardFixtureTabs} previewText={dashboardPreviewText}
+            previewOverrides={dashboardPreviewOverrides}
             title="Rulers, ramps, and reading" id="layout-examples" />
 
           <TokenDashboard tabs={defaultTabs} mode="light" title="Light defaults" id="light-defaults" />

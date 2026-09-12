@@ -77,6 +77,29 @@ const PALETTE_TAB_FIXTURE: TabConfig = {
   ],
 };
 
+const MODES_PALETTE_TAB: TabConfig = {
+  id: 'palette-modes',
+  label: 'Palette modes',
+  tiers: [{
+    id: 'brand',
+    label: 'Brand',
+    items: [{
+      id: 'brand-mode',
+      cssVar: '--palette-brand-mode',
+      label: 'Brand mode',
+      default: '#777777',
+      type: { kind: 'text' },
+      modes: { light: '#f8f8f8', dark: '#181818' },
+    }, {
+      id: 'brand-static',
+      cssVar: '--palette-brand-static',
+      label: 'Brand static',
+      default: '#ffffff',
+      type: { kind: 'color' },
+    }],
+  }],
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -201,6 +224,22 @@ describe('PaletteCheckView — grouped mode', () => {
       `[data-testid="palette-check-base-row-${firstItem.id}"]`,
     );
     expect(row?.getAttribute('aria-pressed')).toBe('true');
+  });
+});
+
+describe('PaletteCheckView — manifest mode rows', () => {
+  it('shows both mode swatches and marks the pair N/A for contrast', async () => {
+    await renderCheckView(MODES_PALETTE_TAB);
+    const row = container.querySelector<HTMLElement>('[data-testid="palette-check-base-row-brand-mode"]')!;
+    expect(row.classList.contains('tokenpanel-palette-check-row--modes')).toBe(true);
+    expect(row.querySelector('[data-mode="light"]')?.getAttribute('data-value')).toBe('#f8f8f8');
+    expect(row.querySelector('[data-mode="dark"]')?.getAttribute('data-value')).toBe('#181818');
+    expect(row.querySelectorAll('.tokenpanel-modes-chip')).toHaveLength(2);
+    expect(row.getAttribute('aria-disabled')).toBe('true');
+    expect(row.querySelector('input, select')).toBeNull();
+    const candidate = container.querySelector<HTMLElement>('[data-testid="palette-check-candidate-row-brand-mode"]')!;
+    expect(candidate.querySelectorAll('.tokenpanel-modes-chip')).toHaveLength(2);
+    expect(candidate.querySelector('.tokenpanel-palette-check-ratio')?.textContent).toBe('N/A');
   });
 });
 
