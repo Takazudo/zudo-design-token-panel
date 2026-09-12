@@ -57,6 +57,8 @@
  *
  * For non-color tokens, the sparse maps may retain empty or default-equal
  * values. Those entries are omitted so Apply matches UI and diff-only export.
+ * Explicit `modes` rows are also emitted without an override, so their manifest
+ * pair is materialized on disk; existing overrides still take precedence.
  *
  * Pure / no IO — safe to import anywhere (browser, Node, tests).
  */
@@ -119,7 +121,7 @@ export function buildApplyOverrides(
     const current = color.palette[i];
     if (typeof current !== 'string' || current.length === 0) continue;
     const baseline = colorDefaults?.palette[i];
-    if (colorDefaults === undefined || current !== baseline) {
+    if (colorDefaults === undefined || current !== baseline || cluster.paletteModes?.[i]) {
       out[resolvePaletteCssVar(cluster, i)] = current;
     }
   }
@@ -129,7 +131,11 @@ export function buildApplyOverrides(
   // so we emit exactly the tokens the design system declares — any stray keys
   // in `semanticMappings` with no matching cssVar are silently dropped.
   for (const [key, cssVar] of Object.entries(cluster.semanticCssNames)) {
-    const currentMapping = color.semanticMappings[key];
+    const hasModes = currentTab?.tiers.some((tier) =>
+      tier.items.some((item) => item.id === key && item.modes !== undefined),
+    );
+    const currentMapping = color.semanticMappings[key] ??
+      (hasModes ? cluster.semanticDefaults[key] : undefined);
     if (currentMapping === undefined) continue;
     const baselineMapping = colorDefaults?.semanticMappings[key];
     // Structural (not reference) equality: a `{ literal }` object produced by
@@ -138,7 +144,7 @@ export function buildApplyOverrides(
     // diff-only contract documented at the top of this file.
     const changed = colorDefaults === undefined || baselineMapping === undefined ||
       !semanticMappingsEqual(currentMapping, baselineMapping, color, colorDefaults);
-    if (!changed) continue;
+    if (!changed && !hasModes) continue;
 
     // Per-mode `{ literal: { light, dark } }` (#472). Emit a CSS
     // `light-dark(<light>, <dark>)` — byte-identical to the DOM emitter
@@ -210,7 +216,6 @@ export function buildApplyOverrides(
   ];
 
   for (const { tabId, overrides } of NON_COLOR_SLICES) {
-    if (Object.keys(overrides).length === 0) continue;
     const tab = tabs.find((t) => t.id === tabId);
     if (!tab) continue;
     emitTabOverrides(tab, overrides, out);
@@ -220,19 +225,15 @@ export function buildApplyOverrides(
   // `state.tabs` stores per-tab overrides as `TabOverrides` (tierId → itemId → value).
   // Flatten each tab's tier map into a single itemId → value map before resolving,
   // mirroring the same flatten step the live-apply path uses in `applyFullState`.
-  if (state.tabs) {
-    for (const [tabId, tabOverrides] of Object.entries(state.tabs)) {
-      const tab = tabs.find((t) => t.id === tabId);
-      if (!tab) continue;
-      const flatOverrides: Record<string, string> = {};
-      for (const tierOverrides of Object.values(tabOverrides)) {
-        for (const [itemId, value] of Object.entries(tierOverrides)) {
-          flatOverrides[itemId] = value;
-        }
+  for (const tab of tabs) {
+    if (['color', 'color-secondary', 'spacing', 'font', 'size'].includes(tab.id)) continue;
+    const flatOverrides: Record<string, string> = {};
+    for (const tierOverrides of Object.values(state.tabs?.[tab.id] ?? {})) {
+      for (const [itemId, value] of Object.entries(tierOverrides)) {
+        flatOverrides[itemId] = value;
       }
-      if (Object.keys(flatOverrides).length === 0) continue;
-      emitTabOverrides(tab, flatOverrides, out);
     }
+    emitTabOverrides(tab, flatOverrides, out);
   }
 
   return out;
@@ -240,7 +241,7 @@ export function buildApplyOverrides(
 
 /**
  * Walk a tab's tier items and emit `cssVar → cssValue` entries into `out`
- * for every item id present in `overrides`.
+ * for every item id present in `overrides` or declaring a manifest mode pair.
  *
  * Uses the tier resolver so reference tiers emit `var(--targetCssVar)` rather
  * than the raw item-id string. Readonly items are silently skipped (they are
@@ -259,7 +260,7 @@ function emitTabOverrides(
     const tierOverrides: Record<string, string> = {};
     for (const item of tier.items) {
       const v = overrides[item.id];
-      if (flatOverrideChanged(v, item.default)) {
+      if (item.modes ? typeof v === 'string' && v.length > 0 : flatOverrideChanged(v, item.default)) {
         tierOverrides[item.id] = v;
       }
     }
@@ -273,7 +274,7 @@ function emitTabOverrides(
     for (const item of tier.items) {
       if (item.readonly) continue;
       const v = overrides[item.id];
-      if (!flatOverrideChanged(v, item.default)) continue;
+      if (!item.modes && !flatOverrideChanged(v, item.default)) continue;
       try {
         const resolved = resolveTierItemValue(tab, tier.id, item.id, tabOverrides as TabOverrides);
         out[item.cssVar] = emitTierItemCssValue(resolved);

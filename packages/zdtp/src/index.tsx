@@ -50,6 +50,7 @@ import './styles/panel.css';
 import panelCss from './styles/panel.css?inline';
 import {
   applyFullState,
+  applyManifestModeDefaults,
   applyNonColorSlices,
   getActivePrimaryCluster,
   hasActiveColorSlot,
@@ -754,8 +755,8 @@ export function __reapplyFromStorageForTests(): void {
  * Preact shell still mounts separately when visibility intent requires it via
  * `reapplyFromStorage()`.
  *
- * No-op when nothing is persisted. Swallows errors — missing storage or
- * corrupt state should never block the UI thread (stylesheet defaults paint
+ * With no persisted state, applies only explicit manifest mode pairs. Swallows
+ * errors — missing storage or corrupt state should never block the UI thread (stylesheet defaults paint
  * instead, same as before this helper existed).
  */
 export function reapplyPersistedOverrides(): void {
@@ -787,6 +788,8 @@ export function reapplyPersistedOverrides(): void {
         } else {
           applyNonColorSlices(persisted, cfg);
         }
+      } else {
+        applyManifestModeDefaults(cfg);
       }
     } catch {
       /* ignore — stylesheet defaults paint instead */

@@ -90,6 +90,7 @@ import {
   resolveRefToCssVar,
 } from '../apply/tier-resolver';
 import { cssToOklcha, type Oklcha } from '../utils/color-oklch';
+import { splitLightDark } from '../tokens/mode-dependence';
 
 // Re-export the cluster types under their historical names so existing call
 // sites (build-apply-overrides.ts, apply-modal.tsx, tests) keep compiling.
@@ -887,6 +888,8 @@ export function initSecondaryDefaults(cluster: ColorClusterDataConfig): ColorTwe
   // (no Math.max(1, ...) floor) — see #466.
   const size = cluster.paletteSize;
   const palette: string[] = Array.from({ length: size }, (_, i) => {
+    const modes = cluster.paletteModes?.[i];
+    if (modes) return `light-dark(${modes.light}, ${modes.dark})`;
     if (size === 1) return '#808080';
     const v = Math.round((i / (size - 1)) * 255);
     const hex = v.toString(16).padStart(2, '0');
@@ -1212,9 +1215,10 @@ export function getActiveColorIdentity(
 }
 
 /**
- * Palette entry sanitiser. Raw `oklch(...)` values are preserved verbatim so
+ * Palette entry sanitiser. Complete `light-dark(...)` pairs and raw `oklch(...)`
+ * values are preserved verbatim so mode defaults and
  * wide-gamut chroma survives (and they never touch the canvas → no '#000000'
- * under jsdom / engines whose 2D canvas can't parse oklch). Every NON-oklch entry
+ * under jsdom / engines whose 2D canvas can't parse oklch). Other entries
  * goes through cssColorToHex() — the exact pre-OKLCH behaviour — which
  * canonicalises valid hex/rgb and, crucially, turns an unparseable string into a
  * safe '#000000' rather than leaking it into a CSS custom property. Without this,
@@ -1226,7 +1230,7 @@ export function getActiveColorIdentity(
  * export closes the equivalent gap in the JSON-import path.
  */
 export function normalizeSchemePaletteEntry(value: string): string {
-  return cssToOklcha(value) ? value : cssColorToHex(value);
+  return splitLightDark(value) || cssToOklcha(value) ? value : cssColorToHex(value);
 }
 
 export function initColorFromSchemeData(
@@ -1257,6 +1261,9 @@ export function initColorFromSchemeData(
   // into a safe '#000000' instead of leaking them to apply. sRGB clamping for
   // oklch still happens only at a true hex-conversion boundary.
   const palette = scheme.palette.map(normalizeSchemePaletteEntry);
+  for (const [index, modes] of Object.entries(cluster.paletteModes ?? {})) {
+    palette[Number(index)] = `light-dark(${modes.light}, ${modes.dark})`;
+  }
   const semanticMappings: Record<string, SemanticValue> = {};
   for (const [key, defaultVal] of Object.entries(cluster.semanticDefaults)) {
     const schemeVal = scheme.semantic?.[key as keyof typeof scheme.semantic];
@@ -1479,18 +1486,83 @@ export function resolveSemanticPreviewColor(
 const COLOR_SCHEME_PROP = 'color-scheme';
 const COLOR_SCHEME_LIGHT_DARK = 'light dark';
 
+/** Establish the fallback without claiming or replacing a host declaration. */
+function ensureDocumentColorScheme(ownerPrefix?: string): void {
+  const style = document.documentElement.style;
+  const value = style.getPropertyValue(COLOR_SCHEME_PROP);
+  const isPanelValue =
+    value === COLOR_SCHEME_LIGHT_DARK && style.getPropertyPriority(COLOR_SCHEME_PROP) === '';
+  if (ownerPrefix && !isPanelValue) clearColorSchemeOwnership(ownerPrefix);
+  if (value === '') {
+    setCssVar(COLOR_SCHEME_PROP, COLOR_SCHEME_LIGHT_DARK);
+    if (ownerPrefix) markColorSchemeWritten(ownerPrefix);
+  }
+}
+
+function hasManifestModes(tabs: readonly TabConfig[]): boolean {
+  return tabs.some((tab) =>
+    tab.tiers.some((tier) =>
+      tier.items.some((item) => !item.readonly && item.modes !== undefined),
+    ),
+  );
+}
+
+/**
+ * Apply only explicit manifest mode pairs, without painting scheme seeds or
+ * changing other host declarations. Used at cold start and after Reset All.
+ * `colorOnly` restores color defaults when the active scheme has no saved slot;
+ * the independent generic-tab overrides remain applied by their normal path.
+ */
+export function applyManifestModeDefaults(
+  cfg: PanelConfig = getPanelConfig(),
+  colorOnly = false,
+): void {
+  const pairs: [string, string][] = [];
+  for (const tab of cfg.tabs) {
+    if (colorOnly && tab.id !== 'color' && tab.id !== 'color-secondary') continue;
+    for (const tier of tab.tiers) {
+      for (const item of tier.items) {
+        if (item.readonly || !item.modes) continue;
+        const value = resolveTierItemValue(tab, tier.id, item.id, {});
+        pairs.push([item.cssVar, emitTierItemCssValue(value)]);
+      }
+    }
+  }
+  if (pairs.length === 0) return;
+  if (cfg.applySink) {
+    pairs.push([COLOR_SCHEME_PROP, COLOR_SCHEME_LIGHT_DARK]);
+    try {
+      cfg.applySink.apply(pairs);
+      markColorSchemeWritten(cfg.storagePrefix);
+    } catch (err) {
+      console.warn('[design-token-panel] applySink.apply threw; falling back silently.', err);
+    }
+  } else {
+    for (const [name, value] of pairs) setCssVar(name, value);
+    ensureDocumentColorScheme(cfg.storagePrefix);
+  }
+}
+
 /**
  * True when applying `state` against `cluster` would emit at least one per-mode
- * `light-dark()` semantic value — i.e. the applied root needs
+ * palette or semantic value — i.e. the applied root needs
  * `color-scheme: light dark` for those values to resolve.
  */
-function hasPerModeLiteralSemantic(
+function hasPerModeColorValues(
   state: ColorTweakState,
   cluster: ColorClusterDataConfig,
 ): boolean {
+  if (state.palette.some((value) => splitLightDark(value) !== null)) return true;
   for (const key of Object.keys(cluster.semanticCssNames)) {
     const mapping = state.semanticMappings[key] ?? cluster.semanticDefaults[key];
     if (mapping !== undefined && isPerModeLiteral(mapping)) return true;
+    if (
+      isLiteralMapping(mapping) &&
+      typeof mapping.literal === 'string' &&
+      splitLightDark(mapping.literal)
+    ) {
+      return true;
+    }
   }
   return false;
 }
@@ -1557,7 +1629,7 @@ export function applyColorState(
     // needs `color-scheme: light dark` for it to resolve. Route it through the
     // SAME sink so it lands on the sink's own target root, never a hardcoded
     // `document.documentElement`.
-    if (hasPerModeLiteralSemantic(state, cluster)) {
+    if (hasPerModeColorValues(state, cluster)) {
       pairs.push([COLOR_SCHEME_PROP, COLOR_SCHEME_LIGHT_DARK]);
       // #501 — record that THIS instance wrote `color-scheme` to its sink root
       // so the clear paths can scope removal to panel-written values.
@@ -1604,17 +1676,7 @@ export function applyColorState(
   // the panel fallback when the host has not provided an inline declaration.
   // A retained panel sentinel needs no rewrite; another instance must not
   // claim it merely because it also has per-mode literals.
-  if (hasPerModeLiteralSemantic(state, cluster)) {
-    const style = document.documentElement.style;
-    const value = style.getPropertyValue(COLOR_SCHEME_PROP);
-    const isPanelValue =
-      value === COLOR_SCHEME_LIGHT_DARK && style.getPropertyPriority(COLOR_SCHEME_PROP) === '';
-    if (ownerPrefix && !isPanelValue) clearColorSchemeOwnership(ownerPrefix);
-    if (value === '') {
-      setCssVar(COLOR_SCHEME_PROP, COLOR_SCHEME_LIGHT_DARK);
-      if (ownerPrefix) markColorSchemeWritten(ownerPrefix);
-    }
-  }
+  if (hasPerModeColorValues(state, cluster)) ensureDocumentColorScheme(ownerPrefix);
 }
 
 /**
@@ -1693,11 +1755,15 @@ export function applyTokenOverrides(
  * instance actually wrote (`clearOwnedColorSchemeFromDocument`) so a host that
  * owns `<html style="color-scheme">` is never clobbered; the sink path stays
  * unconditional (sink targets are panel-owned) but drops the ownership claim.
+ * A color-only pass preserves the fallback serving generic manifest mode rows.
+ * `applyFullState` disables that preservation because its following generic
+ * pass resolves whether those rows have active single-color overrides.
  */
 export function applyColorSlices(
   color: ColorTweakState,
   secondary: ColorTweakState | undefined,
   cfg?: PanelConfig,
+  preserveNonColorModes = true,
 ) {
   const config = cfg ?? getPanelConfig();
   const sink = config.applySink;
@@ -1722,13 +1788,16 @@ export function applyColorSlices(
       config.tabs,
       config.storagePrefix,
     );
-    secondaryHasPerMode = hasPerModeLiteralSemantic(secondary, secondaryCluster);
+    secondaryHasPerMode = hasPerModeColorValues(secondary, secondaryCluster);
   }
   // #482 D3 — clear the aggregate `color-scheme` exactly when NEITHER
   // cluster needs it. When either does, that cluster's own `applyColorState`
   // call already set it above (see the docstring above for why this can't
   // be a per-cluster decision).
-  if (!hasPerModeLiteralSemantic(color, primaryCluster) && !secondaryHasPerMode) {
+  const nonColorNeedsScheme = preserveNonColorModes && hasManifestModes(
+    config.tabs.filter((tab) => tab.id !== 'color' && tab.id !== 'color-secondary'),
+  );
+  if (!hasPerModeColorValues(color, primaryCluster) && !secondaryHasPerMode && !nonColorNeedsScheme) {
     if (sink) {
       // Sink targets (shadow root / iframe) are panel-owned, so the sink clear
       // stays unconditional — but drop the ownership claim to keep it honest.
@@ -1766,15 +1835,15 @@ export function applyFullState(state: TweakState, cfg?: PanelConfig) {
   // `color-scheme` decision, extracted so the scheme-change handler can
   // re-apply ONLY the color slices without touching the spacing/font/size vars
   // (#347 non-color survival) — see `applyColorSlices`.
-  applyColorSlices(state.color, state.secondary, config);
-  applyNonColorSlices(state, config);
+  // The following tab pass makes the actual generic-override scheme decision.
+  applyColorSlices(state.color, state.secondary, config, false);
+  applyNonColorSlicesImpl(state, config);
 }
 
 /**
- * Apply ONLY the non-color slices (spacing / typography / size / generic-tab
- * overrides), leaving the color clusters and aggregate `color-scheme` decision
- * untouched. Complement of `applyColorSlices`; together they compose
- * `applyFullState`.
+ * Apply the non-color slices (spacing / typography / size / generic-tab
+ * overrides), plus explicit manifest color mode defaults. Dense scheme seeds
+ * remain untouched, while mode pairs receive the required color-scheme fallback.
  *
  * Extracted (#509 audit) so the persisted-overrides reapply paths
  * (`reapplyPersistedOverrides`, the panel first-open effect) can, when a v4
@@ -1786,25 +1855,31 @@ export function applyFullState(state: TweakState, cfg?: PanelConfig) {
  */
 export function applyNonColorSlices(state: TweakState, cfg?: PanelConfig) {
   const config = cfg ?? getPanelConfig();
+  applyManifestModeDefaults(config, true);
+  applyNonColorSlicesImpl(state, config);
+}
+
+function applyNonColorSlicesImpl(state: TweakState, config: PanelConfig) {
   const sink = config.applySink;
   // Apply spacing / typography / size from tabs[] (required field post-Wave-5).
-  applyTabOverridesFlat(config.tabs, 'spacing', state.spacing, sink);
-  applyTabOverridesFlat(config.tabs, 'font', state.typography, sink);
-  applyTabOverridesFlat(config.tabs, 'size', state.size, sink);
+  applyTabOverridesFlat(config.tabs, 'spacing', state.spacing, sink, config.storagePrefix);
+  applyTabOverridesFlat(config.tabs, 'font', state.typography, sink, config.storagePrefix);
+  applyTabOverridesFlat(config.tabs, 'size', state.size, sink, config.storagePrefix);
   // Apply generic tab overrides (v3 envelope tabs field).
   // The `tabs` field stores `TabOverrides` (tierId → { itemId → value }).
   // `applyTabOverridesFlat` takes a flat `TokenOverrides` (itemId → value),
   // so we flatten each tab's tier map before passing it through.
-  if (state.tabs) {
-    for (const [tabId, tabOverrides] of Object.entries(state.tabs)) {
-      const flatOverrides: TokenOverrides = {};
-      for (const tierOverrides of Object.values(tabOverrides)) {
-        for (const [itemId, value] of Object.entries(tierOverrides)) {
-          flatOverrides[itemId] = value;
-        }
+  for (const tab of config.tabs) {
+    if (['color', 'color-secondary', 'spacing', 'font', 'size'].includes(tab.id)) continue;
+    const modesOnly = state.tabs?.[tab.id] === undefined;
+    if (modesOnly && !hasManifestModes([tab])) continue;
+    const flatOverrides: TokenOverrides = {};
+    for (const tierOverrides of Object.values(state.tabs?.[tab.id] ?? {})) {
+      for (const [itemId, value] of Object.entries(tierOverrides)) {
+        flatOverrides[itemId] = value;
       }
-      applyTabOverridesFlat(config.tabs, tabId, flatOverrides, sink);
     }
+    applyTabOverridesFlat(config.tabs, tab.id, flatOverrides, sink, config.storagePrefix, modesOnly);
   }
 }
 
@@ -1812,8 +1887,9 @@ export function applyNonColorSlices(state: TweakState, cfg?: PanelConfig) {
  * Apply a flat TokenOverrides map against a TabConfig. Finds the tab by id
  * in `tabs`, then for each tier item resolves the effective CSS value using
  * the tier resolver (so reference tiers emit `var(--target)`) and writes it
- * to `:root`. Items not present in the overrides map have their inline
- * property removed so the stylesheet default re-asserts.
+ * to `:root`. Items without overrides restore their manifest mode pair or
+ * reference; other items have their inline property removed. When a generic
+ * tab has never stored overrides, `modesOnly` preserves its other declarations.
  *
  * Skips gracefully when the tab is not found (host config without that tab).
  *
@@ -1825,6 +1901,8 @@ function applyTabOverridesFlat(
   tabId: string,
   overrides: TokenOverrides,
   sink?: ApplySink,
+  ownerPrefix?: string,
+  modesOnly = false,
 ) {
   const tab = tabs.find((t) => t.id === tabId);
   if (!tab) return;
@@ -1850,13 +1928,13 @@ function applyTabOverridesFlat(
     const clearNames: string[] = [];
     for (const tier of tab.tiers) {
       for (const item of tier.items) {
-        if (item.readonly) continue;
+        if (item.readonly || (modesOnly && !item.modes)) continue;
         try {
           const resolved = resolveTierItemValue(tab, tier.id, item.id, tabOverrides);
           const cssValue = emitTierItemCssValue(resolved);
           const hasOverride =
             typeof overrides[item.id] === 'string' && overrides[item.id].length > 0;
-          if (hasOverride || tier.referencesTier !== undefined) {
+          if (hasOverride || item.modes || tier.referencesTier !== undefined) {
             applyPairs.push([item.cssVar, cssValue]);
           } else {
             clearNames.push(item.cssVar);
@@ -1866,9 +1944,12 @@ function applyTabOverridesFlat(
         }
       }
     }
+    const needsColorScheme = applyPairs.some(([, value]) => splitLightDark(value) !== null);
+    if (needsColorScheme) applyPairs.push([COLOR_SCHEME_PROP, COLOR_SCHEME_LIGHT_DARK]);
     if (applyPairs.length > 0) {
       try {
         sink.apply(applyPairs);
+        if (needsColorScheme && ownerPrefix) markColorSchemeWritten(ownerPrefix);
       } catch (err) {
         console.warn('[design-token-panel] applySink.apply threw; falling back silently.', err);
       }
@@ -1887,19 +1968,20 @@ function applyTabOverridesFlat(
   const root = document.documentElement;
   for (const tier of tab.tiers) {
     for (const item of tier.items) {
-      if (item.readonly) continue;
+      if (item.readonly || (modesOnly && !item.modes)) continue;
       try {
         const resolved = resolveTierItemValue(tab, tier.id, item.id, tabOverrides);
         const cssValue = emitTierItemCssValue(resolved);
-        // Only write if there is actually an override — otherwise remove
-        // so the stylesheet default takes effect.
+        // Mode pairs and references remain materialized without an override;
+        // ordinary literals return to their stylesheet value.
         const hasOverride = typeof overrides[item.id] === 'string' && overrides[item.id].length > 0;
-        if (hasOverride || tier.referencesTier !== undefined) {
+        if (hasOverride || item.modes || tier.referencesTier !== undefined) {
           // For reference tiers we always write var(--target) because the
           // CSS var itself points at the canonical default target, which
           // may differ from a user-overridden raw tier item. Writing nothing
           // would leave the previous var() ref or the stylesheet default.
           setCssVar(item.cssVar, cssValue);
+          if (splitLightDark(cssValue)) ensureDocumentColorScheme(ownerPrefix);
         } else {
           root.style.removeProperty(item.cssVar);
         }
@@ -1943,8 +2025,8 @@ function clusterVarNames(cluster: ColorClusterDataConfig): string[] {
 }
 
 /**
- * Collect ALL CSS var names owned by non-color tabs (spacing/font/size and
- * generic host tabs). Used by the sink-aware reset path.
+ * Collect non-color tab CSS vars for the sink-aware reset. Color rows follow
+ * the caller's cluster wipe set.
  */
 function nonColorTabVarNames(cfg: PanelConfig): string[] {
   const names: string[] = [];
@@ -2028,14 +2110,20 @@ export function clearAppliedColorStyles(
 ) {
   const resolvedClusters = clusters ?? defaultClusterWipeSet(cfg);
   const resolvedSink = sink ?? cfg?.applySink;
-  const ownerPrefix = (cfg ?? getPanelConfig()).storagePrefix;
-  return clearAppliedColorStylesImpl(resolvedClusters, resolvedSink, ownerPrefix);
+  const config = cfg ?? getPanelConfig();
+  const preserveColorScheme = hasManifestModes(
+    config.tabs.filter((tab) => tab.id !== 'color' && tab.id !== 'color-secondary'),
+  );
+  return clearAppliedColorStylesImpl(
+    resolvedClusters, resolvedSink, config.storagePrefix, preserveColorScheme,
+  );
 }
 
 function clearAppliedColorStylesImpl(
   clusters: readonly ColorClusterDataConfig[],
   sink?: ApplySink,
   ownerPrefix?: string,
+  preserveColorScheme = false,
 ) {
   if (sink) {
     const names: string[] = [];
@@ -2048,7 +2136,7 @@ function clearAppliedColorStylesImpl(
     // doesn't leave it lingering. Harmless when it was never set — clearing
     // an absent property is a no-op. Sink targets are panel-owned, so this
     // stays unconditional; we just drop the ownership claim to keep it honest.
-    if (clusters.length > 0) names.push(COLOR_SCHEME_PROP);
+    if (clusters.length > 0 && !preserveColorScheme) names.push(COLOR_SCHEME_PROP);
     if (names.length > 0) {
       try {
         sink.clear(names);
@@ -2056,7 +2144,7 @@ function clearAppliedColorStylesImpl(
         console.warn('[design-token-panel] applySink.clear threw; falling back silently.', err);
       }
     }
-    if (ownerPrefix && clusters.length > 0) clearColorSchemeOwnership(ownerPrefix);
+    if (ownerPrefix && clusters.length > 0 && !preserveColorScheme) clearColorSchemeOwnership(ownerPrefix);
     return;
   }
   const root = document.documentElement;
@@ -2075,7 +2163,7 @@ function clearAppliedColorStylesImpl(
   // for a per-mode literal, but #501-gated: only when THIS instance wrote it
   // and the host hasn't overwritten it since (never wipe a host-owned
   // `<html style="color-scheme">`).
-  if (clusters.length > 0 && ownerPrefix) clearOwnedColorSchemeFromDocument(ownerPrefix);
+  if (clusters.length > 0 && ownerPrefix && !preserveColorScheme) clearOwnedColorSchemeFromDocument(ownerPrefix);
 }
 
 /**
@@ -2100,6 +2188,7 @@ export function clearAppliedStyles(
   const config = cfg ?? getPanelConfig();
   const sink = config.applySink;
   const resolvedClusters = clusters ?? defaultClusterWipeSet(config);
+  const clearColorScheme = resolvedClusters.length > 0 || hasManifestModes(config.tabs);
 
   if (sink) {
     // Collect the FULL token-name set for this instance so the sink target
@@ -2113,30 +2202,30 @@ export function clearAppliedStyles(
     // sink's target root (#472/#474); clear it here too so a Reset (or the
     // post-Apply cleanup) doesn't leave it lingering. Harmless when it was
     // never set — clearing an absent property is a no-op.
-    if (resolvedClusters.length > 0) names.push(COLOR_SCHEME_PROP);
+    if (clearColorScheme) names.push(COLOR_SCHEME_PROP);
     names.push(...nonColorTabVarNames(config));
     if (names.length > 0) {
       try {
-        sink.clear(names);
+        sink.clear([...new Set(names)]);
       } catch (err) {
         console.warn('[design-token-panel] applySink.clear threw; falling back silently.', err);
       }
     }
     // #501 — sink targets are panel-owned; the clear above is unconditional, so
     // just drop the ownership claim to keep it honest.
-    if (resolvedClusters.length > 0) clearColorSchemeOwnership(config.storagePrefix);
+    if (clearColorScheme) clearColorSchemeOwnership(config.storagePrefix);
     return;
   }
 
   // Default path — write/remove directly on document.documentElement.
   // Color cluster vars (palette / base roles / semantic). Pass `config` so the
   // color-scheme removal is #501-gated on THIS instance's ownership.
-  clearAppliedColorStyles(resolvedClusters, undefined, config);
+  clearAppliedColorStylesImpl(resolvedClusters, undefined, config.storagePrefix);
+  if (clearColorScheme) clearOwnedColorSchemeFromDocument(config.storagePrefix);
   // Tabs — clear all cssVars for items in spacing/font/size tabs so the
   // stylesheet defaults take effect again.
   const root = document.documentElement;
   for (const tab of config.tabs) {
-    // Color tab vars are handled above via cluster clear paths.
     if (tab.id === 'color' || tab.id === 'color-secondary') continue;
     for (const tier of tab.tiers) {
       for (const item of tier.items) {
