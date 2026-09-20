@@ -17,10 +17,12 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
+import { options, render, type VNode } from 'preact';
 import { act } from 'preact/test-utils';
 import GenericTab from '../generic-tab';
 import GenericItemEditor from '../_generic-item-editor';
+import type { ColorFieldProps } from '../../components/color-picker/color-field';
+import { RoleButton } from '../../controls/role-button';
 import type { TabConfig, TierItem } from '../../tokens/tier-model';
 import {
   emitTierItemCssValue,
@@ -28,6 +30,7 @@ import {
   type TabOverrides,
 } from '../../apply/tier-resolver';
 import { TooltipProvider } from '../../controls/tooltip';
+import type { RowContribution } from '../flat/types';
 
 // ---------------------------------------------------------------------------
 // Synthetic TabConfig fixtures
@@ -165,6 +168,14 @@ const MODES_TAB: TabConfig = {
       default: 'transparent',
       type: { kind: 'text' },
       modes: { light: '#111111', dark: '#eeeeee' },
+    }, {
+      id: 'mode-readonly',
+      cssVar: '--test-mode-readonly',
+      label: 'Mode readonly',
+      default: '#333333',
+      type: { kind: 'color' },
+      modes: { light: '#cccccc', dark: '#222222' },
+      readonly: true,
     }],
   }],
 };
@@ -396,31 +407,189 @@ describe('GenericTab — item editors by kind', () => {
 });
 
 describe('GenericTab — manifest mode rows', () => {
-  it('renders both mode values with swatches and no editor control', async () => {
+  const colorFieldProps = new Map<string, ColorFieldProps>();
+  let prevVnode: typeof options.vnode;
+
+  function colorFieldKey(cssVar: string, mode: 'light' | 'dark'): string {
+    return `${cssVar}:${mode}`;
+  }
+
+  function fireColorFieldChange(cssVar: string, mode: 'light' | 'dark', next: string): void {
+    const handler = colorFieldProps.get(colorFieldKey(cssVar, mode))?.onChange;
+    if (!handler) {
+      throw new Error(`ColorField onChange for ${cssVar} ${mode} was not captured`);
+    }
+    act(() => {
+      handler(next);
+    });
+  }
+
+  beforeEach(() => {
+    colorFieldProps.clear();
+    prevVnode = options.vnode;
+    // Capture ColorField props so pair-commit tests can call onChange without
+    // driving ColorPicker (Wave 1 recipe; jsdom native input events skip Preact).
+    options.vnode = (vnode: VNode) => {
+      prevVnode?.(vnode);
+      const type = vnode.type;
+      if (typeof type === 'function' && type.name === 'ColorField') {
+        const props = vnode.props as unknown as ColorFieldProps;
+        if ((props.resolveMode === 'light' || props.resolveMode === 'dark') && props.cssVar) {
+          colorFieldProps.set(colorFieldKey(props.cssVar, props.resolveMode), props);
+        }
+      }
+    };
+  });
+
+  afterEach(() => {
+    options.vnode = prevVnode;
+  });
+
+  it('renders ColorFields on writable rows and keeps chips on readonly rows', async () => {
     await renderGenericTab(MODES_TAB);
 
-    for (const [id, light, dark] of [
-      ['mode-color', '#ffffff', '#111111'],
-      ['mode-text', '#111111', '#eeeeee'],
+    for (const [id, cssVar] of [
+      ['mode-color', '--test-mode-color'],
+      ['mode-text', '--test-mode-text'],
     ] as const) {
       const row = container.querySelector<HTMLElement>(`[data-testid="tier-item-${id}"]`);
       expect(row).not.toBeNull();
       expect(row?.classList.contains('tokenpanel-row--modes')).toBe(true);
-      expect(row?.classList.contains('tokenpanel-row--editor-disabled')).toBe(true);
+      expect(row?.classList.contains('tokenpanel-row--editor-disabled')).toBe(false);
       expect(row?.classList.contains('is-readonly')).toBe(false);
-      expect(row?.querySelector('[data-mode="light"]')?.getAttribute('data-value')).toBe(light);
-      expect(row?.querySelector('[data-mode="dark"]')?.getAttribute('data-value')).toBe(dark);
-      expect(row?.querySelectorAll('.tokenpanel-modes-chip')).toHaveLength(2);
-      expect(row?.querySelector('input, select')).toBeNull();
+      expect(row?.querySelectorAll('.tokenpanel-modes-chip')).toHaveLength(0);
+      expect(row?.querySelectorAll('[data-testid="color-field-swatch"]')).toHaveLength(2);
+      expect(colorFieldProps.get(colorFieldKey(cssVar, 'light'))).toBeDefined();
+      expect(colorFieldProps.get(colorFieldKey(cssVar, 'dark'))).toBeDefined();
     }
+
+    const readonlyRow = container.querySelector<HTMLElement>('[data-testid="tier-item-mode-readonly"]');
+    expect(readonlyRow).not.toBeNull();
+    expect(readonlyRow?.classList.contains('tokenpanel-row--editor-disabled')).toBe(true);
+    expect(readonlyRow?.querySelector('[data-mode="light"]')?.getAttribute('data-value')).toBe('#cccccc');
+    expect(readonlyRow?.querySelector('[data-mode="dark"]')?.getAttribute('data-value')).toBe('#222222');
+    expect(readonlyRow?.querySelectorAll('.tokenpanel-modes-chip')).toHaveLength(2);
+    expect(readonlyRow?.querySelector('[data-testid="color-field-swatch"]')).toBeNull();
   });
 
-  it('uses a stored override for both mode chips while keeping the row display-only', async () => {
-    await renderGenericTab(MODES_TAB, { values: { 'mode-color': 'light-dark(#abcdef, #123456)' } });
-    const row = container.querySelector<HTMLElement>('[data-testid="tier-item-mode-color"]')!;
-    expect(row.querySelector('[data-mode="light"]')?.getAttribute('data-value')).toBe('#abcdef');
-    expect(row.querySelector('[data-mode="dark"]')?.getAttribute('data-value')).toBe('#123456');
-    expect(row.querySelector('input, select')).toBeNull();
+  it('edits light without changing dark, and dark without changing light', async () => {
+    const onChange = vi.fn();
+    await renderGenericTab(MODES_TAB, {}, onChange);
+
+    fireColorFieldChange('--test-mode-color', 'light', '#00ff00');
+    expect(onChange).toHaveBeenCalledWith('values', 'mode-color', 'light-dark(#00ff00, #111111)');
+
+    onChange.mockClear();
+    fireColorFieldChange('--test-mode-color', 'dark', '#0000ff');
+    expect(onChange).toHaveBeenCalledWith('values', 'mode-color', 'light-dark(#ffffff, #0000ff)');
+  });
+
+  it('splits a loaded light-dark override and keeps each side independently editable', async () => {
+    const onChange = vi.fn();
+    await renderGenericTab(
+      MODES_TAB,
+      { values: { 'mode-color': 'light-dark(#abcdef, #123456)' } },
+      onChange,
+    );
+
+    expect(colorFieldProps.get(colorFieldKey('--test-mode-color', 'light'))?.value).toBe('#abcdef');
+    expect(colorFieldProps.get(colorFieldKey('--test-mode-color', 'dark'))?.value).toBe('#123456');
+
+    fireColorFieldChange('--test-mode-color', 'light', '#00ff00');
+    expect(onChange).toHaveBeenCalledWith('values', 'mode-color', 'light-dark(#00ff00, #123456)');
+
+    onChange.mockClear();
+    fireColorFieldChange('--test-mode-color', 'dark', '#000000');
+    expect(onChange).toHaveBeenCalledWith('values', 'mode-color', 'light-dark(#abcdef, #000000)');
+  });
+
+  it('prefers a loaded flat override even when it equals item.default', async () => {
+    await renderGenericTab(MODES_TAB, { values: { 'mode-color': '#222222' } });
+
+    expect(colorFieldProps.get(colorFieldKey('--test-mode-color', 'light'))?.value).toBe('#222222');
+    expect(colorFieldProps.get(colorFieldKey('--test-mode-color', 'dark'))?.value).toBe('#222222');
+  });
+
+  it('deletes the override key from a stub trailing revert instead of writing light-dark(manifest)', async () => {
+    const current: TabOverrides = { values: { 'mode-color': 'light-dark(#abcdef, #123456)' } };
+    const onChange = vi.fn((tierId: string, itemId: string, next: string | undefined) => {
+      const nextTier = { ...current[tierId] };
+      if (next === undefined) delete nextTier[itemId];
+      else nextTier[itemId] = next;
+      current[tierId] = nextTier;
+    });
+    const stubRevert: RowContribution = {
+      id: 'stub-revert',
+      trailing: (entry) => (
+        <RoleButton
+          data-testid={`stub-revert-${entry.item.id}`}
+          aria-label={`Revert ${entry.item.label}`}
+          onClick={() => onChange(entry.address.tierId, entry.address.itemId, undefined)}
+        >
+          Revert
+        </RoleButton>
+      ),
+    };
+
+    await act(() => {
+      render(
+        <GenericTab
+          tab={MODES_TAB}
+          overrides={current}
+          onChange={onChange}
+          changedContribution={stubRevert}
+        />,
+        container,
+      );
+    });
+
+    const revert = container.querySelector<HTMLElement>('[data-testid="stub-revert-mode-color"]');
+    expect(revert).not.toBeNull();
+    act(() => {
+      revert!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(onChange).toHaveBeenCalledWith('values', 'mode-color', undefined);
+    expect(onChange).not.toHaveBeenCalledWith(
+      'values',
+      'mode-color',
+      'light-dark(#ffffff, #111111)',
+    );
+    expect(current.values?.['mode-color']).toBeUndefined();
+  });
+
+  it('does not fire onChange from a readonly modes row', async () => {
+    const onChange = vi.fn();
+    await renderGenericTab(MODES_TAB, {}, onChange);
+
+    expect(colorFieldProps.get(colorFieldKey('--test-mode-readonly', 'light'))).toBeUndefined();
+    expect(colorFieldProps.get(colorFieldKey('--test-mode-readonly', 'dark'))).toBeUndefined();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('GenericItemEditor prefers a stored override even when it equals item.default', async () => {
+    const item = MODES_TAB.tiers[0].items[0]!;
+    const onChange = vi.fn();
+    await act(() => {
+      render(
+        <GenericItemEditor item={item} value={item.default} override={item.default} onChange={onChange} />,
+        container,
+      );
+    });
+
+    expect(colorFieldProps.get(colorFieldKey(item.cssVar, 'light'))?.value).toBe('#222222');
+    expect(colorFieldProps.get(colorFieldKey(item.cssVar, 'dark'))?.value).toBe('#222222');
+  });
+
+  it('GenericItemEditor commits a ColorField change as a pair', async () => {
+    const item = MODES_TAB.tiers[0].items[0]!;
+    const onChange = vi.fn();
+    await act(() => {
+      render(<GenericItemEditor item={item} value={item.default} onChange={onChange} />, container);
+    });
+
+    fireColorFieldChange(item.cssVar, 'light', '#00ff00');
+    expect(onChange).toHaveBeenCalledWith('mode-color', 'light-dark(#00ff00, #111111)');
   });
 });
 
