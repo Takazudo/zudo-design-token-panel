@@ -6,7 +6,9 @@ The format is based on Keep a Changelog, and release notes are generated from th
 
 ## [Unreleased]
 
-No unreleased changes yet.
+### Features
+
+- Manifest `modes` rows are independently editable per side on generic tabs and the Palette tab (Edit and Check). Editing one ColorField side preserves the other as `light-dark()`; Reset restores the manifest pair. Color-tab palette-slot ColorModesRow stays display-only.
 
 ## [0.8.0] - 2026-09-12
 
