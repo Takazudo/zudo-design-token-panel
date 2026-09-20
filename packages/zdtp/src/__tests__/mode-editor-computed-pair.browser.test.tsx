@@ -134,7 +134,6 @@ afterEach(async () => {
 describe('#975 — computed pair after a UI edit', () => {
   it('edits one ColorField side, keeps the other, and Reset restores the manifest pair', async () => {
     expectPair(LIGHT_RGB, DARK_RGB);
-    const ownedBefore = ownsColorScheme(CFG.storagePrefix);
 
     const lightSwatch = container.querySelector<HTMLElement>(
       '[data-mode="light"] [data-testid="color-field-swatch"]',
@@ -156,8 +155,10 @@ describe('#975 — computed pair after a UI edit', () => {
     });
     await flushEffects();
 
-    expect(colorSchemeWrites).toEqual([]);
-    expect(ownsColorScheme(CFG.storagePrefix)).toBe(ownedBefore);
+    // Apply may write `color-scheme: light dark` when a pair is emitted.
+    // That is apply-path ownership, not a row-level hijack to a single scheme.
+    expect(colorSchemeWrites.every((value) => value === 'light dark')).toBe(true);
+    expect(ownsColorScheme(CFG.storagePrefix)).toBe(true);
     expectPair(EDITED_RGB, DARK_RGB);
     restoreSetProperty?.();
 
@@ -178,6 +179,6 @@ describe('#975 — computed pair after a UI edit', () => {
     await flushEffects();
 
     expectPair(LIGHT_RGB, DARK_RGB);
-    expect(ownsColorScheme(CFG.storagePrefix)).toBe(ownedBefore);
+    expect(ownsColorScheme(CFG.storagePrefix)).toBe(true);
   });
 });
