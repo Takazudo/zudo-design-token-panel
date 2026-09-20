@@ -37,6 +37,8 @@ import {
   PinnedSelectionOverlay,
 } from '../dom-tweaker/lazy/pinned-selection-overlay';
 import { DOM_TWEAKER_STYLE_ID } from '../dom-tweaker/lazy/style-injection';
+import { ModesRow } from '../tabs/modes-row';
+import type { TierItem } from '../tokens/tier-model';
 
 // ---------------------------------------------------------------------------
 // Hostile CSS fixture
@@ -601,6 +603,73 @@ describe('F33 — panel chrome survives full hostile CSS environment', () => {
       });
       await Promise.resolve();
       expect(onClose).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('editable ModesRow — isolated from hostile host styles', () => {
+    const MODE_ITEM: TierItem = {
+      id: 'surface',
+      cssVar: '--hostile-mode-surface',
+      label: 'Surface',
+      default: '#abcdef',
+      type: { kind: 'color' },
+      modes: { light: '#ffffff', dark: '#111111' },
+    };
+
+    function renderEditableModesRow(onChange: (next: string) => void): HTMLDivElement {
+      const shell = createElement('tokenpanel-shell') as HTMLDivElement;
+      renderedContainers.push(shell);
+      act(() => {
+        render(<ModesRow item={MODE_ITEM} onChange={onChange} />, shell);
+      });
+      return shell;
+    }
+
+    function assertSwatchVisible(swatch: HTMLElement): void {
+      const style = getComputedStyle(swatch);
+      const rect = swatch.getBoundingClientRect();
+      expect(swatch.tagName).toBe('DIV');
+      expect(swatch.getAttribute('role')).toBe('button');
+      expect(style.display).not.toBe('none');
+      expect(style.visibility).not.toBe('hidden');
+      expect(style.pointerEvents).not.toBe('none');
+      expect(rect.width).toBeGreaterThan(0);
+      expect(rect.height).toBeGreaterThan(0);
+    }
+
+    it('keeps ColorField swatches visible, clickable, and free of native buttons', async () => {
+      await setupHostile();
+      const onChange = vi.fn();
+      const shell = renderEditableModesRow(onChange);
+      await frame();
+
+      expect(shell.querySelector('button')).toBeNull();
+      const swatches = Array.from(
+        shell.querySelectorAll<HTMLElement>('[data-testid="color-field-swatch"]'),
+      );
+      expect(swatches).toHaveLength(2);
+      for (const swatch of swatches) assertSwatchVisible(swatch);
+
+      act(() => {
+        swatches[0].click();
+      });
+      await frame();
+      expect(shell.querySelector('.tokenpanel-color-picker')).not.toBeNull();
+      expect(shell.querySelector('button')).toBeNull();
+
+      act(() => {
+        shell.querySelector<HTMLElement>('.tokenpanel-color-picker-close-btn')!.click();
+      });
+      await frame();
+      expect(shell.querySelector('.tokenpanel-color-picker')).toBeNull();
+
+      act(() => {
+        swatches[1].click();
+      });
+      await frame();
+      expect(shell.querySelector('.tokenpanel-color-picker')).not.toBeNull();
+      expect(shell.querySelector('button')).toBeNull();
+      expect(onChange).not.toHaveBeenCalled();
     });
   });
 });
