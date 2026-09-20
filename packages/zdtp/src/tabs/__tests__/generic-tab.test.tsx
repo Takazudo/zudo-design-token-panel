@@ -511,7 +511,9 @@ describe('GenericTab — manifest mode rows', () => {
   });
 
   it('deletes the override key from a stub trailing revert instead of writing light-dark(manifest)', async () => {
-    const current: TabOverrides = { values: { 'mode-color': 'light-dark(#abcdef, #123456)' } };
+    const current: Record<string, Record<string, string>> = {
+      values: { 'mode-color': 'light-dark(#abcdef, #123456)' },
+    };
     const onChange = vi.fn((tierId: string, itemId: string, next: string | undefined) => {
       const nextTier = { ...current[tierId] };
       if (next === undefined) delete nextTier[itemId];
