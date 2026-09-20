@@ -14,6 +14,7 @@ export default defineConfig(
       png32: "/favicon-32x32.png",
       png16: "/favicon-16x16.png",
     },
+    home: { wide: true },
     locales: {
       ja: {
         label: "JA",
