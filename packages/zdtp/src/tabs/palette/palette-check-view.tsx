@@ -8,7 +8,7 @@ import { oklchaToHex, staticCssColorToOklcha, type Oklcha } from '../../utils/co
 import { matchesSearchFields } from '../../search/token-search';
 import type { TokenAddress } from '../flat/types';
 import { tokenAddressKey } from '../flat/types';
-import { ModesValuePair, resolveModeRowSides, type ModeSides } from '../modes-row';
+import { ModesEditorFields, ModesValuePair, resolveModeRowSides, type ModeSides } from '../modes-row';
 
 const CHIP_COLOR_AAA = '#1a7a3f';
 const CHIP_COLOR_AA = '#8a6200';
@@ -72,9 +72,36 @@ function EntryName({ entry }: { entry: PaletteEntry }) {
   );
 }
 
+function ModesBaseRow({
+  entry,
+  onChange,
+}: {
+  entry: PaletteEntry;
+  onChange: (tierId: string, itemId: string, next: string) => void;
+}) {
+  const sides = entry.modes;
+  if (!sides) return null;
+  return (
+    <div
+      className="tokenpanel-palette-check-base-row tokenpanel-palette-check-row--modes"
+      data-testid={`palette-check-base-row-${entry.item.id}`}
+      data-address={tokenAddressKey(entry.address)}
+      data-na-reason="mode-dependent colors"
+    >
+      <ModesEditorFields
+        item={entry.item}
+        sides={sides}
+        onChange={(next) => onChange(entry.tierId, entry.item.id, next)}
+      />
+      <EntryName entry={entry} />
+      <div className="tokenpanel-palette-check-na">N/A</div>
+    </div>
+  );
+}
+
 function BaseRow({ entry, isSelected, onSelect }: { entry: PaletteEntry; isSelected: boolean; onSelect: (entry: PaletteEntry) => void }) {
   const disabled = !entry.opaque;
-  const reason = entry.modes ? 'mode-dependent colors' : entry.color ? 'transparent colors need compositing' : 'unsupported color';
+  const reason = entry.color ? 'transparent colors need compositing' : 'unsupported color';
   const handleClick = useCallback(() => {
     if (!disabled) onSelect(entry);
   }, [disabled, entry, onSelect]);
@@ -89,21 +116,17 @@ function BaseRow({ entry, isSelected, onSelect }: { entry: PaletteEntry; isSelec
     <div
       role="button"
       tabIndex={disabled ? -1 : 0}
-      className={`tokenpanel-palette-check-base-row${isSelected ? ' is-selected' : ''}${disabled ? ' is-disabled' : ''}${entry.modes ? ' tokenpanel-palette-check-row--modes' : ''}`}
+      className={`tokenpanel-palette-check-base-row${isSelected ? ' is-selected' : ''}${disabled ? ' is-disabled' : ''}`}
       aria-pressed={disabled ? undefined : isSelected}
       aria-disabled={disabled || undefined}
-      aria-label={`${entry.item.label}: ${entry.modes ? `light ${entry.modes.light}, dark ${entry.modes.dark}` : entry.value}${disabled ? ` (N/A: ${reason})` : ''}`}
+      aria-label={`${entry.item.label}: ${entry.value}${disabled ? ` (N/A: ${reason})` : ''}`}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       data-testid={`palette-check-base-row-${entry.item.id}`}
       data-address={tokenAddressKey(entry.address)}
       data-na-reason={disabled ? reason : undefined}
     >
-      {entry.modes ? (
-        <ModesValuePair sides={entry.modes} testIdPrefix={`palette-check-base-${entry.item.id}`} />
-      ) : (
-        <div className={`tokenpanel-palette-check-swatch${entry.color ? '' : ' is-invalid'}`} style={entry.hex ? { background: entry.hex } : undefined} aria-hidden="true" />
-      )}
+      <div className={`tokenpanel-palette-check-swatch${entry.color ? '' : ' is-invalid'}`} style={entry.hex ? { background: entry.hex } : undefined} aria-hidden="true" />
       <EntryName entry={entry} />
       {disabled && <div className="tokenpanel-palette-check-na">N/A</div>}
     </div>
@@ -136,6 +159,7 @@ interface EntrySectionProps {
   showHeading: boolean;
   selectedKey?: string;
   onSelect?: (entry: PaletteEntry) => void;
+  onChange?: (tierId: string, itemId: string, next: string) => void;
   base?: PaletteEntry | null;
   isLarge?: boolean;
 }
@@ -145,11 +169,15 @@ function EntrySection(props: EntrySectionProps) {
   return (
     <div className="tokenpanel-tab-section" data-testid={`palette-check-${side}-tier-${tier.id}`}>
       {showHeading && <div role="heading" aria-level={3} className="tokenpanel-tab-section-heading">{tier.label}</div>}
-      {entries.map((entry) => side === 'left' ? (
-        <BaseRow key={entryKey(entry)} entry={entry} isSelected={props.selectedKey === entryKey(entry)} onSelect={props.onSelect!} />
-      ) : (
-        <CandidateRow key={entryKey(entry)} entry={entry} base={props.base ?? null} isLarge={Boolean(props.isLarge)} />
-      ))}
+      {entries.map((entry) => {
+        if (side !== 'left') {
+          return <CandidateRow key={entryKey(entry)} entry={entry} base={props.base ?? null} isLarge={Boolean(props.isLarge)} />;
+        }
+        if (entry.modes) {
+          return <ModesBaseRow key={entryKey(entry)} entry={entry} onChange={props.onChange!} />;
+        }
+        return <BaseRow key={entryKey(entry)} entry={entry} isSelected={props.selectedKey === entryKey(entry)} onSelect={props.onSelect!} />;
+      })}
     </div>
   );
 }
@@ -157,6 +185,7 @@ function EntrySection(props: EntrySectionProps) {
 export default function PaletteCheckView({
   tab,
   overrides,
+  onChange,
   searchQuery = '',
   changedOnly = false,
   isChanged,
@@ -211,9 +240,9 @@ export default function PaletteCheckView({
   const passCount = computableEntries.filter((entry) => contrastRatio(selectedBase!.hex!, entry.hex!) >= aaThreshold).length;
   const flatTier: TierConfig = { id: '__flat__', label: 'Palette', items: [] };
   const renderSections = (side: 'left' | 'right') => isGrouped ? visibleTiers.map((tier) => (
-    <EntrySection key={`${side}-${tier.id}`} tier={tier} entries={entriesByTier.get(tier.id) ?? []} side={side} showHeading={true} selectedKey={effectiveSelectedKey} onSelect={handleSelect} base={selectedBase} isLarge={isLarge} />
+    <EntrySection key={`${side}-${tier.id}`} tier={tier} entries={entriesByTier.get(tier.id) ?? []} side={side} showHeading={true} selectedKey={effectiveSelectedKey} onSelect={handleSelect} onChange={onChange} base={selectedBase} isLarge={isLarge} />
   )) : (
-    <EntrySection tier={flatTier} entries={allEntries} side={side} showHeading={false} selectedKey={effectiveSelectedKey} onSelect={handleSelect} base={selectedBase} isLarge={isLarge} />
+    <EntrySection tier={flatTier} entries={allEntries} side={side} showHeading={false} selectedKey={effectiveSelectedKey} onSelect={handleSelect} onChange={onChange} base={selectedBase} isLarge={isLarge} />
   );
 
   return (
