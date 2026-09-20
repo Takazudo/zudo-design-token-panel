@@ -115,9 +115,9 @@ function initialSelectionIndex(tier: TierConfig, overrides: TabOverrides): numbe
 /** Resolve a dense item slot without inventing a color for unsupported CSS. */
 function resolveItemSlot(item: TierItem, tierId: string, overrides: TabOverrides): ColorSlot {
   const value = resolveItemValue(item, tierId, overrides);
-  // Explicit mode pairs are display-only rows. Do not let the ordinary
-  // fallback/default color turn them into writable chart nodes or a direct
-  // ColorField target; their two authored sides are rendered below the strip.
+  // Mode pairs are not ramp colors. Do not let the ordinary fallback/default
+  // color turn them into writable chart nodes or a selected-step ColorField
+  // target; their two authored sides are edited below the strip via ModesRow.
   return { value, color: item.modes ? null : staticCssColorToOklcha(value) };
 }
 
@@ -597,6 +597,7 @@ export default function PaletteEditView({
                       className="tokenpanel-palette-edit-modes-row"
                       dataTestId={`palette-edit-modes-${item.id}`}
                       address={address}
+                      onChange={(next) => onChange(tier.id, item.id, next)}
                     />
                   );
                 })}
