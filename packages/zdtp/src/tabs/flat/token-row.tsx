@@ -79,9 +79,8 @@ function TokenRowInner({
     'data-address': address,
   };
 
-  // A manifest mode pair is intentionally display-only. Keep this branch
-  // ahead of reference-tier dispatch because an item's explicit pair has
-  // precedence over whatever value its tier would otherwise select.
+  // Keep this branch ahead of reference-tier dispatch: an item's explicit
+  // pair has precedence over whatever value its tier would otherwise select.
   if (item.modes !== undefined) {
     const override = overrides[tier.id]?.[item.id];
     return (
@@ -99,6 +98,7 @@ function TokenRowInner({
           </>
         }
         tail={region('tail')}
+        onChange={(next) => onChange(entry.address, next)}
       />
     );
   }
@@ -351,5 +351,11 @@ export default memo(TokenRow, (previous, next) => (
   && previous.contributions === next.contributions
   && previous.onChange === next.onChange
   && previous.onDelete === next.onDelete
-  && (previous.entry.tier.referencesTier === undefined || previous.overrides === next.overrides)
+  && (
+    previous.overrides === next.overrides
+    || (
+      previous.entry.tier.referencesTier === undefined
+      && previous.entry.item.modes === undefined
+    )
+  )
 ));

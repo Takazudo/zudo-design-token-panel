@@ -296,6 +296,24 @@ function openGroup(tierId: string): void {
   });
 }
 
+/** Open a modes-row ColorField and nudge Lightness the same way ramp tests do. */
+function fireModesColorFieldLightness(row: HTMLElement, side: 'light' | 'dark'): void {
+  const field = row.querySelector<HTMLElement>(
+    `[data-mode="${side}"] [data-testid="color-field-swatch"]`,
+  );
+  if (!field) throw new Error(`modes ${side} ColorField not found`);
+  act(() => {
+    field.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+  const lightness = row.querySelector<HTMLElement>(
+    `[data-mode="${side}"] [role="slider"][aria-label="Lightness"]`,
+  );
+  if (!lightness) throw new Error(`modes ${side} Lightness slider not found`);
+  act(() => {
+    lightness.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Grouped grid + heading structure
 // ---------------------------------------------------------------------------
@@ -454,21 +472,73 @@ describe('PaletteEditView — grouped grid', () => {
 });
 
 describe('PaletteEditView — manifest mode rows', () => {
-  it('shows both mode swatches without adding a palette editor for the row', () => {
-    renderView({ tab: MODES_PALETTE_TAB });
+  it('keeps modes items out of the ramp and edits them via ColorField', () => {
+    const onChange = vi.fn();
+    const onCommitBatch = vi.fn();
+    renderView({ tab: MODES_PALETTE_TAB, onChange, onCommitBatch });
     openGroup('brand');
 
     const row = container.querySelector<HTMLElement>('[data-testid="palette-edit-modes-brand-light-dark"]');
     expect(row).not.toBeNull();
     expect(row?.classList.contains('tokenpanel-row--modes')).toBe(true);
-    expect(row?.classList.contains('tokenpanel-row--editor-disabled')).toBe(true);
-    expect(row?.querySelector('[data-mode="light"]')?.getAttribute('data-value')).toBe('#f8f8f8');
-    expect(row?.querySelector('[data-mode="dark"]')?.getAttribute('data-value')).toBe('#181818');
-    expect(row?.querySelectorAll('.tokenpanel-modes-chip')).toHaveLength(2);
-    expect(row?.querySelector('input, select')).toBeNull();
+    expect(row?.classList.contains('tokenpanel-row--editor-disabled')).toBe(false);
+    expect(row?.querySelectorAll('.tokenpanel-modes-chip')).toHaveLength(0);
+    expect(row?.querySelectorAll('[data-testid="color-field-swatch"]')).toHaveLength(2);
+    expect(row?.querySelector('.tokenpanel-changed-revert')).toBeNull();
     expect(row?.classList.contains('is-readonly')).toBe(false);
+    expect(container.querySelector('[data-testid="palette-edit-swatch-brand-light-dark"]')).toBeNull();
+    expect(container.querySelector('[data-testid="palette-edit-swatch-brand-static"]')).not.toBeNull();
     expect(container.querySelector('[data-node-index="0"]')).toBeNull();
     expect(container.querySelector('[data-node-index="1"]')).not.toBeNull();
+
+    fireModesColorFieldLightness(row!, 'light');
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][0]).toBe('brand');
+    expect(onChange.mock.calls[0][1]).toBe('brand-light-dark');
+    expect(onChange.mock.calls[0][2]).toMatch(/^light-dark\(.+, #181818\)$/);
+    expect(onCommitBatch).not.toHaveBeenCalled();
+  });
+
+  it('edits a loaded paired override without flattening the untouched side', () => {
+    const onChange = vi.fn();
+    const paired = 'light-dark(rgb(10, 20, 30), oklch(0.8 0.1 240))';
+    renderView({
+      tab: MODES_PALETTE_TAB,
+      onChange,
+      overrides: { brand: { 'brand-light-dark': paired } },
+    });
+    openGroup('brand');
+
+    const row = container.querySelector<HTMLElement>('[data-testid="palette-edit-modes-brand-light-dark"]')!;
+    fireModesColorFieldLightness(row, 'light');
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0].slice(0, 2)).toEqual(['brand', 'brand-light-dark']);
+    expect(onChange.mock.calls[0][2]).toMatch(/^light-dark\(.+, oklch\(0\.8 0\.1 240\)\)$/);
+    expect(onChange.mock.calls[0][2]).not.toContain('rgb(10, 20, 30)');
+
+    onChange.mockClear();
+    fireModesColorFieldLightness(row, 'dark');
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][2]).toMatch(/^light-dark\(rgb\(10, 20, 30\), .+\)$/);
+    expect(onChange.mock.calls[0][2]).not.toContain('oklch(0.8 0.1 240)');
+  });
+
+  it('edits a loaded flat override without flattening the untouched side', () => {
+    const onChange = vi.fn();
+    renderView({
+      tab: MODES_PALETTE_TAB,
+      onChange,
+      overrides: { brand: { 'brand-light-dark': '#cccccc' } },
+    });
+    openGroup('brand');
+
+    const row = container.querySelector<HTMLElement>('[data-testid="palette-edit-modes-brand-light-dark"]')!;
+    fireModesColorFieldLightness(row, 'light');
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0].slice(0, 2)).toEqual(['brand', 'brand-light-dark']);
+    const next = onChange.mock.calls[0][2] as string;
+    expect(next).toMatch(/^light-dark\(.+, #cccccc\)$/);
+    expect(next).not.toBe('light-dark(#cccccc, #cccccc)');
   });
 });
 

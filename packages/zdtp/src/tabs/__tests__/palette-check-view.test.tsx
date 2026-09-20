@@ -13,10 +13,11 @@
  *  6. Keyboard accessibility: Enter/Space on base rows trigger selection.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { render } from 'preact';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { options, render, type VNode } from 'preact';
 import { act } from 'preact/test-utils';
 import PaletteCheckView from '../palette/palette-check-view';
+import type { ColorFieldProps } from '../../components/color-picker/color-field';
 import type { TabConfig } from '../../tokens/tier-model';
 import type { TabOverrides } from '../../apply/tier-resolver';
 import { contrastRatio, contrastScore } from '../../utils/wcag-contrast';
@@ -228,18 +229,137 @@ describe('PaletteCheckView — grouped mode', () => {
 });
 
 describe('PaletteCheckView — manifest mode rows', () => {
-  it('shows both mode swatches and marks the pair N/A for contrast', async () => {
+  const colorFieldProps = new Map<'light' | 'dark', ColorFieldProps>();
+  let prevVnode: typeof options.vnode;
+
+  beforeEach(() => {
+    colorFieldProps.clear();
+    prevVnode = options.vnode;
+    options.vnode = (vnode: VNode) => {
+      prevVnode?.(vnode);
+      const type = vnode.type;
+      if (typeof type === 'function' && type.name === 'ColorField') {
+        const props = vnode.props as unknown as ColorFieldProps;
+        if (props.resolveMode === 'light' || props.resolveMode === 'dark') {
+          colorFieldProps.set(props.resolveMode, props);
+        }
+      }
+    };
+  });
+
+  afterEach(() => {
+    options.vnode = prevVnode;
+  });
+
+  function fireColorFieldChange(resolveMode: 'light' | 'dark', next: string): void {
+    const handler = colorFieldProps.get(resolveMode)?.onChange;
+    if (!handler) {
+      throw new Error(`ModesEditorFields onChange for ${resolveMode} was not captured`);
+    }
+    act(() => {
+      handler(next);
+    });
+  }
+
+  function assertNoNestedRoleButton(root: Element): void {
+    expect(root.getAttribute('role')).not.toBe('button');
+    for (const btn of root.querySelectorAll('[role="button"]')) {
+      let ancestor = btn.parentElement;
+      while (ancestor && ancestor !== root) {
+        expect(ancestor.getAttribute('role')).not.toBe('button');
+        ancestor = ancestor.parentElement;
+      }
+    }
+  }
+
+  it('puts ModesEditorFields on the left and keeps chips + N/A on the right', async () => {
     await renderCheckView(MODES_PALETTE_TAB);
     const row = container.querySelector<HTMLElement>('[data-testid="palette-check-base-row-brand-mode"]')!;
     expect(row.classList.contains('tokenpanel-palette-check-row--modes')).toBe(true);
-    expect(row.querySelector('[data-mode="light"]')?.getAttribute('data-value')).toBe('#f8f8f8');
-    expect(row.querySelector('[data-mode="dark"]')?.getAttribute('data-value')).toBe('#181818');
-    expect(row.querySelectorAll('.tokenpanel-modes-chip')).toHaveLength(2);
-    expect(row.getAttribute('aria-disabled')).toBe('true');
-    expect(row.querySelector('input, select')).toBeNull();
+    expect(row.getAttribute('role')).toBeNull();
+    expect(row.getAttribute('data-na-reason')).toBe('mode-dependent colors');
+    expect(row.querySelectorAll('.tokenpanel-per-mode-field')).toHaveLength(2);
+    expect(row.querySelectorAll('[data-testid="color-field-swatch"]')).toHaveLength(2);
+    expect(row.querySelectorAll('.tokenpanel-modes-chip')).toHaveLength(0);
+    expect(row.querySelector('.tokenpanel-palette-check-na')?.textContent).toBe('N/A');
+    expect(colorFieldProps.get('light')?.value).toBe('#f8f8f8');
+    expect(colorFieldProps.get('dark')?.value).toBe('#181818');
+
     const candidate = container.querySelector<HTMLElement>('[data-testid="palette-check-candidate-row-brand-mode"]')!;
+    expect(candidate.classList.contains('tokenpanel-palette-check-row--modes')).toBe(true);
+    expect(candidate.getAttribute('data-na-reason')).toBe('mode-dependent colors');
     expect(candidate.querySelectorAll('.tokenpanel-modes-chip')).toHaveLength(2);
+    expect(candidate.querySelector('[data-mode="light"]')?.getAttribute('data-value')).toBe('#f8f8f8');
+    expect(candidate.querySelector('[data-mode="dark"]')?.getAttribute('data-value')).toBe('#181818');
+    expect(candidate.querySelectorAll('.tokenpanel-per-mode-field')).toHaveLength(0);
+    expect(candidate.querySelector('[data-testid="color-field-swatch"]')).toBeNull();
     expect(candidate.querySelector('.tokenpanel-palette-check-ratio')?.textContent).toBe('N/A');
+    expect(candidate.querySelector('.tokenpanel-palette-check-chip')?.textContent).toBe('N/A');
+  });
+
+  it('does not nest ColorField role=button inside a role=button modes row', async () => {
+    await renderCheckView(MODES_PALETTE_TAB);
+    const row = container.querySelector('[data-testid="palette-check-base-row-brand-mode"]')!;
+    assertNoNestedRoleButton(row);
+    expect(row.querySelectorAll('[role="button"]')).toHaveLength(2);
+  });
+
+  it('keeps opaque non-modes BaseRow as role=button and does not let modes rows steal selection', async () => {
+    await renderCheckView(MODES_PALETTE_TAB);
+    const staticRow = container.querySelector<HTMLElement>('[data-testid="palette-check-base-row-brand-static"]')!;
+    const modesRow = container.querySelector<HTMLElement>('[data-testid="palette-check-base-row-brand-mode"]')!;
+    expect(staticRow.getAttribute('role')).toBe('button');
+    expect(staticRow.getAttribute('tabindex')).toBe('0');
+    expect(staticRow.getAttribute('aria-pressed')).toBe('true');
+    expect(staticRow.querySelector('[data-testid="color-field-swatch"]')).toBeNull();
+
+    await act(() => {
+      modesRow.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await act(() => {
+      modesRow.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    expect(staticRow.getAttribute('aria-pressed')).toBe('true');
+    expect(modesRow.getAttribute('aria-pressed')).toBeNull();
+  });
+
+  it('loads a paired light-dark() override into both ColorFields', async () => {
+    await renderCheckView(MODES_PALETTE_TAB, {
+      brand: { 'brand-mode': 'light-dark(#aabbcc, #112233)' },
+    });
+    expect(colorFieldProps.get('light')?.value).toBe('#aabbcc');
+    expect(colorFieldProps.get('dark')?.value).toBe('#112233');
+    const candidate = container.querySelector('[data-testid="palette-check-candidate-row-brand-mode"]')!;
+    expect(candidate.querySelector('[data-mode="light"]')?.getAttribute('data-value')).toBe('#aabbcc');
+    expect(candidate.querySelector('[data-mode="dark"]')?.getAttribute('data-value')).toBe('#112233');
+  });
+
+  it('loads a flat override onto both sides', async () => {
+    await renderCheckView(MODES_PALETTE_TAB, {
+      brand: { 'brand-mode': '#cccccc' },
+    });
+    expect(colorFieldProps.get('light')?.value).toBe('#cccccc');
+    expect(colorFieldProps.get('dark')?.value).toBe('#cccccc');
+  });
+
+  it('commits each side through onChange and preserves the other side bytes', async () => {
+    const onChange = vi.fn();
+    const mixed = 'light-dark(rgb(10, 20, 30), oklch(0.8 0.1 240))';
+    await renderCheckView(MODES_PALETTE_TAB, { brand: { 'brand-mode': mixed } }, onChange);
+
+    fireColorFieldChange('light', '#ff0000');
+    expect(onChange).toHaveBeenCalledWith('brand', 'brand-mode', 'light-dark(#ff0000, oklch(0.8 0.1 240))');
+
+    onChange.mockClear();
+    fireColorFieldChange('dark', 'oklch(0.2 0.05 30)');
+    expect(onChange).toHaveBeenCalledWith('brand', 'brand-mode', 'light-dark(rgb(10, 20, 30), oklch(0.2 0.05 30))');
+  });
+
+  it('writes light-dark(new, oldPlain) after a both-sides-equal flat override', async () => {
+    const onChange = vi.fn();
+    await renderCheckView(MODES_PALETTE_TAB, { brand: { 'brand-mode': '#cccccc' } }, onChange);
+    fireColorFieldChange('light', '#0000ff');
+    expect(onChange).toHaveBeenCalledWith('brand', 'brand-mode', 'light-dark(#0000ff, #cccccc)');
   });
 });
 
