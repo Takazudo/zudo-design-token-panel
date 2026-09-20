@@ -26,9 +26,12 @@ export interface GenericItemEditorProps {
   value: string;
   /** Called with (itemId, newValue). */
   onChange: (itemId: string, next: string) => void;
+  /** Stored override, if any. Distinct from `value` so a loaded override
+   *  equal to `item.default` still wins over the manifest pair. */
+  override?: string;
 }
 
-function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProps) {
+function GenericItemEditorInner({ item, value, onChange, override }: GenericItemEditorProps) {
   const type: TierValueKind = item.type;
   const isReadonly = item.readonly === true;
   const pill = item.pill;
@@ -54,14 +57,12 @@ function GenericItemEditorInner({ item, value, onChange }: GenericItemEditorProp
     [onChange, item.id, pillValue, customDefault],
   );
 
-  // Manifest mode pairs are shown as two swatches and deliberately have no
-  // editing control. `value` may be a persisted plain or light-dark override
-  // from a host, so use it when it differs from the manifest fallback.
   if (item.modes !== undefined) {
     return (
       <ModesRow
         item={item}
-        sides={resolveModeRowSides(item, value, value !== item.default)}
+        sides={resolveModeRowSides(item, override, override !== undefined)}
+        onChange={(next) => onChange(item.id, next)}
       />
     );
   }
