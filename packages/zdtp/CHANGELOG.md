@@ -8,6 +8,14 @@ The format is based on Keep a Changelog, and release notes are generated from th
 
 No unreleased changes yet.
 
+## [0.8.2] - 2026-09-21
+
+### Other Changes
+
+- chore(deps): bump @takazudo/* registry deps to frozen targets ([#983](https://github.com/Takazudo/zudo-design-token-panel/pull/983)) (993b0f2)
+- chore(deps): sync vendored zudo-doc manifest and pin prose to 5.26.3 / 0.8.1 ([#983](https://github.com/Takazudo/zudo-design-token-panel/pull/983)) (04943a4)
+- chore(deps): stamp zudo-doc pins to v5.26.3 after verify ([#983](https://github.com/Takazudo/zudo-design-token-panel/pull/983)) (0570df5)
+
 ## [0.8.1] - 2026-09-21
 
 ### Features
