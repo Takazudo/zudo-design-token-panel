@@ -88,11 +88,15 @@ function ModesBaseRow({
       data-address={tokenAddressKey(entry.address)}
       data-na-reason="mode-dependent colors"
     >
-      <ModesEditorFields
-        item={entry.item}
-        sides={sides}
-        onChange={(next) => onChange(entry.tierId, entry.item.id, next)}
-      />
+      {entry.item.readonly === true ? (
+        <ModesValuePair sides={sides} testIdPrefix={`palette-check-base-${entry.item.id}`} />
+      ) : (
+        <ModesEditorFields
+          item={entry.item}
+          sides={sides}
+          onChange={(next) => onChange(entry.tierId, entry.item.id, next)}
+        />
+      )}
       <EntryName entry={entry} />
       <div className="tokenpanel-palette-check-na">N/A</div>
     </div>

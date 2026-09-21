@@ -297,6 +297,21 @@ describe('PaletteCheckView — manifest mode rows', () => {
     expect(candidate.querySelector('.tokenpanel-palette-check-chip')?.textContent).toBe('N/A');
   });
 
+  it('keeps a readonly modes row on display-only chips', async () => {
+    const tab: TabConfig = {
+      ...MODES_PALETTE_TAB,
+      tiers: [{
+        ...MODES_PALETTE_TAB.tiers[0]!,
+        items: [{ ...MODES_PALETTE_TAB.tiers[0]!.items[0]!, readonly: true }],
+      }],
+    };
+    await renderCheckView(tab);
+    const row = container.querySelector<HTMLElement>('[data-testid="palette-check-base-row-brand-mode"]')!;
+    expect(row.querySelectorAll('.tokenpanel-per-mode-field')).toHaveLength(0);
+    expect(row.querySelectorAll('.tokenpanel-modes-chip')).toHaveLength(2);
+    expect(row.querySelector('[data-testid="color-field-swatch"]')).toBeNull();
+  });
+
   it('does not nest ColorField role=button inside a role=button modes row', async () => {
     await renderCheckView(MODES_PALETTE_TAB);
     const row = container.querySelector('[data-testid="palette-check-base-row-brand-mode"]')!;
