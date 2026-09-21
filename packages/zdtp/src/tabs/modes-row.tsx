@@ -1,6 +1,7 @@
 import type { ComponentChildren } from 'preact';
-import type { TierItem } from '../tokens/tier-model';
+import ColorField from '../components/color-picker/color-field';
 import TokenLabel from '../controls/token-label';
+import type { TierItem } from '../tokens/tier-model';
 import { splitLightDark } from '../tokens/mode-dependence';
 import type { TokenAddress } from './flat/types';
 import { tokenAddressKey } from './flat/types';
@@ -63,6 +64,64 @@ export function ModesValuePair({ sides, testIdPrefix = 'tokenpanel-modes' }: Mod
   );
 }
 
+/**
+ * Commit one side of a mode pair as `light-dark(light, dark)`. The untouched
+ * side is copied byte-for-byte so a mixed-format pair such as
+ * `light-dark(rgb(10, 20, 30), oklch(0.8 0.1 240))` keeps the other side's
+ * authored syntax.
+ */
+export function commitModePair(
+  sides: ModeSides,
+  side: keyof ModeSides,
+  next: string,
+): string {
+  const light = side === 'light' ? next : sides.light;
+  const dark = side === 'dark' ? next : sides.dark;
+  return `light-dark(${light}, ${dark})`;
+}
+
+function modeValueFormat(item: TierItem): 'oklch' | 'hex' {
+  return item.type.kind === 'color' && item.type.format === 'oklch' ? 'oklch' : 'hex';
+}
+
+export interface ModesEditorFieldsProps {
+  item: TierItem;
+  sides: ModeSides;
+  onChange: (next: string) => void;
+}
+
+/**
+ * Compact light/dark ColorField pair for a manifest `modes` row. Palette Check
+ * reuses this without ModesRow chrome. Manifest `modes` is always a pair — no
+ * SemanticLiteralRow "Per-mode" checkbox.
+ */
+export function ModesEditorFields({ item, sides, onChange }: ModesEditorFieldsProps) {
+  // Manifest `modes` is always a color pair, so ColorFields are used even when
+  // type.kind is not 'color' (generic mode-text / palette text-kind rows).
+  const valueFormat = modeValueFormat(item);
+
+  return (
+    <div className="tokenpanel-per-mode-fields">
+      {(['light', 'dark'] as const).map((mode) => {
+        const sideLabel = mode === 'light' ? 'Light' : 'Dark';
+        return (
+          <div key={mode} className="tokenpanel-per-mode-field" data-mode={mode}>
+            <span className="tokenpanel-per-mode-label">{sideLabel}</span>
+            <ColorField
+              value={sides[mode]}
+              onChange={(next) => onChange(commitModePair(sides, mode, next))}
+              valueFormat={valueFormat}
+              resolveMode={mode}
+              label={`${item.label} (${sideLabel})`}
+              cssVar={item.cssVar}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export interface ModesRowProps {
   item: TierItem;
   sides?: ModeSides;
@@ -72,13 +131,14 @@ export interface ModesRowProps {
   leading?: ComponentChildren;
   trailing?: ComponentChildren;
   tail?: ComponentChildren;
+  /** Parents close over address/ids. Absent or a readonly item keeps chips. */
+  onChange?: (next: string) => void;
 }
 
 /**
- * Display-only row for a manifest `modes` item. It deliberately carries an
- * editor-disabled state class while retaining ordinary row actions such as
- * highlighting and token-chain navigation. The pair itself contains no
- * input, select, picker, or other editing affordance.
+ * Row for a manifest `modes` item. With `onChange` (and not readonly) the pair
+ * is edited via `ModesEditorFields`; otherwise chips stay and the row keeps
+ * `tokenpanel-row--editor-disabled` while retaining ordinary row actions.
  */
 export function ModesRow({
   item,
@@ -89,12 +149,14 @@ export function ModesRow({
   leading,
   trailing,
   tail,
+  onChange,
 }: ModesRowProps) {
+  const editor = onChange !== undefined && item.readonly !== true ? onChange : undefined;
   const rowClass = [
     'tokenpanel-row',
     'tokenpanel-modes-row',
     'tokenpanel-row--modes',
-    'tokenpanel-row--editor-disabled',
+    editor ? '' : 'tokenpanel-row--editor-disabled',
     className,
   ].filter(Boolean).join(' ');
 
@@ -110,7 +172,11 @@ export function ModesRow({
         <TokenLabel cssVar={item.cssVar} label={item.label} />
       </div>
       <div className="tokenpanel-card-editor">
-        <ModesValuePair sides={sides} testIdPrefix={`${dataTestId}-modes`} />
+        {editor ? (
+          <ModesEditorFields item={item} sides={sides} onChange={editor} />
+        ) : (
+          <ModesValuePair sides={sides} testIdPrefix={`${dataTestId}-modes`} />
+        )}
       </div>
       <div className="tokenpanel-card-actions">{trailing}</div>
       {tail}

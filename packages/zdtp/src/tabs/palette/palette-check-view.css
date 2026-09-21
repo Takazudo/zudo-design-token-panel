@@ -148,6 +148,21 @@
   background-color: transparent;
 }
 
+.tokenpanel-palette-check-base-row.tokenpanel-palette-check-row--modes {
+  cursor: default;
+  user-select: auto;
+  flex-wrap: wrap;
+}
+
+.tokenpanel-palette-check-base-row.tokenpanel-palette-check-row--modes:hover {
+  background-color: transparent;
+}
+
+.tokenpanel-palette-check-row--modes .tokenpanel-per-mode-fields {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
 .tokenpanel-palette-check-swatch {
   flex-shrink: 0;
   width: 18px;

@@ -126,11 +126,14 @@ documented as CSS colors because the runtime emits the pair as
 and mask-image rows. The ordinary `default` remains the fallback value used by
 consumers that do not select a mode.
 
-Mode rows are display-only in the editor: the panel shows both sides without
-turning the pair into an ordinary single-value input. This editor-disabled state
-is separate from `readonly: true`. A mode row with `readonly` omitted remains in
-the normal apply and serde contract, while `readonly` rows stay visible but are
-excluded from apply and import/export state.
+Mode rows are edited per side: the panel renders one color field for `light`
+and one for `dark` instead of turning the pair into an ordinary single-value
+input. Editing one side commits the whole pair as `light-dark(light, dark)`,
+copying the untouched side verbatim, and Reset restores the manifest pair. This
+applies on generic tabs and on both Palette views; a palette slot declared with
+`modes` on the color tab stays display-only. A mode row with `readonly` omitted
+remains in the normal apply and serde contract, while `readonly` rows keep the
+two display-only chips and are excluded from apply and import/export state.
 
 `assertValidPanelConfig` checks this shape at the configuration boundary. It
 reports a path-specific error when `modes` is not a plain object, when the item

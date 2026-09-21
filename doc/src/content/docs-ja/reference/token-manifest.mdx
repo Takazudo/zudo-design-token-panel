@@ -121,10 +121,13 @@ export interface TierItem {
 length、number、select、cursor、content、mask-image の行では拒否されます。
 通常の `default` は、モードを選択しない利用側で使われるフォールバックとして残ります。
 
-モード行はエディター上で表示専用となり、通常の単一値入力には変換されません。
-このエディター無効状態は `readonly: true` とは別のものです。`readonly` を省略した
-モード行は通常の apply と serde の契約に残ります。一方、`readonly` 行は表示されますが、
-apply と import／export の state から除外されます。
+モード行は左右の側ごとに編集します。通常の単一値入力には変換されず、`light` と
+`dark` それぞれにカラーフィールドが表示されます。一方を編集すると、触れていない側を
+そのまま保ったまま `light-dark(light, dark)` としてペア全体がコミットされ、Reset で
+マニフェストのペアに戻ります。これは汎用タブと Palette の両ビューでの挙動で、Color
+タブのパレットスロットに宣言した `modes` はこれまでどおり表示専用です。`readonly` を
+省略したモード行は通常の apply と serde の契約に残ります。一方、`readonly` 行は表示専用の
+チップ 2 つのまま、apply と import／export の state から除外されます。
 
 `assertValidPanelConfig` は設定境界でこの形を検証します。`modes` がプレーンオブジェクト
 でない場合、item の kind が `color` または `text` でない場合、どちらかの側が空でない文字列
