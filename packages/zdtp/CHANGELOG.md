@@ -6,9 +6,24 @@ The format is based on Keep a Changelog, and release notes are generated from th
 
 ## [Unreleased]
 
+No unreleased changes yet.
+
+## [0.8.1] - 2026-09-21
+
 ### Features
 
-- Manifest `modes` rows are independently editable per side on generic tabs and the Palette tab (Edit and Check). Editing one ColorField side preserves the other as `light-dark()`; Reset restores the manifest pair. Color-tab palette-slot ColorModesRow stays display-only.
+- Manifest `modes` rows are independently editable per side. Each row renders a light and a dark `ColorField` instead of two display-only chips; editing one side commits the whole pair as `light-dark(light, dark)`, copying the untouched side verbatim so a mixed-format pair keeps its authored syntax, and Reset restores the manifest pair. Applies to generic tabs and to both Palette views; a palette slot declared with `modes` on the Color tab stays display-only (a2a03fd, b87d2f6, 9368067, e32390a)
+- A stored override equal to `item.default` now wins over the manifest pair, so a loaded state round-trips instead of falling back to the authored values (e32390a)
+
+### Fixed
+
+- Keep `readonly` manifest `modes` rows display-only in the Palette Check view. They rendered editable color fields there while every other surface correctly kept the two chips (6302328)
+
+### Other Changes
+
+- The `modes` section of the token-manifest reference now describes per-side editing, the `light-dark()` commit, Reset, the Color-tab palette-slot exception, and the `readonly` case, in both locales (27bb35e)
+- The documentation homepage opts into the zudo-doc `home.wide` sitemap layout (e0fba99)
+- Added per-mode editor coverage: a computed light/dark pair browser test, a hostile-host isolation case, and unit tests for the mode-pair commit path (bbe97a6, 6168338, 682986b)
 
 ## [0.8.0] - 2026-09-12
 
