@@ -236,6 +236,25 @@ function findRoot(cfg: PanelConfig): HTMLElement | null {
   return document.getElementById(getPanelId(cfg));
 }
 
+// A root id alone does not prove that it contains a live Preact tree. SPA
+// swaps can leave a connected replacement with the same id; closed panels
+// also legitimately have zero DOM children. Track the element we rendered
+// into, shared across copies of this module on the same window.
+type MountedRootsWindow = Window & {
+  __zudoDesignTokenPanelMountedRoots?: Map<string, HTMLElement>;
+};
+
+function getMountedRoots(): Map<string, HTMLElement> {
+  const w = window as MountedRootsWindow;
+  return (w.__zudoDesignTokenPanelMountedRoots ??= new Map());
+}
+
+function hasLiveMount(cfg: PanelConfig): boolean {
+  if (!isDocumentUsable()) return false;
+  const root = findRoot(cfg);
+  return root !== null && getMountedRoots().get(cfg.storagePrefix) === root;
+}
+
 // Stable id for the injected <style> element so injection is idempotent
 // across re-mounts (astro:page-load re-materialises the shell) and across
 // multiple panel instances on one page (they share one storagePrefix-keyed
@@ -444,17 +463,30 @@ function ensureMounted(cfg: PanelConfig): boolean {
   // additionally bound eagerly at module init.
   bindInstance(cfg);
   const panelId = getPanelId(cfg);
-  if (doc.getElementById(panelId)) return false;
+  const mountedRoots = getMountedRoots();
+  const ownedRoot = mountedRoots.get(cfg.storagePrefix);
+  const existingRoot = doc.getElementById(panelId);
+  if (ownedRoot === existingRoot && existingRoot) return false;
+  if (ownedRoot) {
+    // The old tree may already be detached by the host. Still unmount it so
+    // its effects and host mutations cannot outlive this replacement mount.
+    render(null, ownedRoot);
+    mountedRoots.delete(cfg.storagePrefix);
+    releaseSpawnSlot(cfg);
+    releaseHostMutations(cfg.storagePrefix);
+    releaseHostMutations(onPageSpecimenMutationOwner(cfg));
+  }
   if (!doc.body) return false;
   ensurePanelStyles();
   // Claim the spawn slot before the render so the ordinal can feed the
-  // geometry the shell's first paint uses (#585). Placed AFTER both early
-  // returns: a prefix that is already mounted, or that cannot mount because
-  // there is no <body>, must not consume a slot.
+  // geometry the shell's first paint uses (#585). A healthy owned root and
+  // a missing <body> return above without consuming a slot.
   const spawnOrdinal = claimSpawnSlot(cfg);
-  const root = doc.createElement('div');
-  root.id = panelId;
-  doc.body.appendChild(root);
+  const root = existingRoot ?? doc.createElement('div');
+  if (!existingRoot) {
+    root.id = panelId;
+    doc.body.appendChild(root);
+  }
   // Pass the instance's OWN config so the panel reads ITS own open/visible
   // keys, subscribes to ITS own per-instance sync event, and renders ITS own
   // tabs — two panels on one page stay fully independent (issue #354). `cfg`
@@ -463,14 +495,15 @@ function ensureMounted(cfg: PanelConfig): boolean {
   // sibling already mounted. Flows mount layer -> panel -> geometry helper;
   // `tweak-state.ts` never reaches back into this module (epic #582).
   render(<DesignTokenTweakPanel instanceConfig={cfg} spawnOrdinal={spawnOrdinal} />, root);
+  mountedRoots.set(cfg.storagePrefix, root);
   return true;
 }
 
 /**
  * Full Preact unmount + DOM-root removal for ONE instance. Drives the panel's
  * `useEffect` cleanups (so its window/document listeners detach) before
- * detaching the root, so a destroyed instance leaks nothing. No-op when the
- * instance is not mounted.
+ * detaching the root, so a destroyed instance leaks nothing. Also removes a
+ * same-id orphan left by a host swap.
  */
 function unmountInstance(cfg: PanelConfig): void {
   // Release BEFORE the root probe. `findRoot` also returns null on a
@@ -483,10 +516,21 @@ function unmountInstance(cfg: PanelConfig): void {
   // registry still retains the exact elements and priorities it mutated.
   releaseHostMutations(cfg.storagePrefix);
   releaseHostMutations(onPageSpecimenMutationOwner(cfg));
-  const root = findRoot(cfg);
-  if (!root) return;
-  render(null, root);
-  root.remove();
+  const ownedRoot = typeof window !== 'undefined'
+    ? getMountedRoots().get(cfg.storagePrefix)
+    : undefined;
+  if (ownedRoot) {
+    if (isDocumentUsable()) render(null, ownedRoot);
+    getMountedRoots().delete(cfg.storagePrefix);
+    ownedRoot.remove();
+  }
+  // A host may have replaced the owned element while it was detached. Remove
+  // the still-connected reserved root too, so destroy/recreate starts clean.
+  const currentRoot = findRoot(cfg);
+  if (currentRoot) {
+    if (currentRoot !== ownedRoot) render(null, currentRoot);
+    currentRoot.remove();
+  }
 }
 
 // NOTE: `dispatchToggle()` was removed in favour of `notifyPanelOpenChanged()`.
@@ -612,7 +656,7 @@ function showInstance(cfg: PanelConfig): void {
   // after the document was torn down. Bail BEFORE any storage write so a dead
   // environment's straggler doesn't corrupt the next environment's state.
   if (!isDocumentUsable()) return;
-  const isFreshMount = !findRoot(cfg);
+  const isFreshMount = !hasLiveMount(cfg);
   // Write OPEN_KEY synchronously so both the fresh-mount path (panel reads on
   // mount) and the steady-state path (panel reads on sync event) see the
   // same authoritative value.
@@ -640,7 +684,7 @@ function hideInstance(cfg: PanelConfig): void {
   if (typeof window === 'undefined') return;
   // Straggler guard — see showInstance.
   if (!isDocumentUsable()) return;
-  const isFreshMount = !findRoot(cfg);
+  const isFreshMount = !hasLiveMount(cfg);
   // A public close should remove the page specimen immediately, before the
   // mounted panel receives its open-state sync event and flushes effects.
   releaseHostMutations(onPageSpecimenMutationOwner(cfg));
@@ -660,7 +704,7 @@ function toggleInstance(cfg: PanelConfig): void {
   if (typeof window === 'undefined') return;
   // Straggler guard — see showInstance.
   if (!isDocumentUsable()) return;
-  const isFreshMount = !findRoot(cfg);
+  const isFreshMount = !hasLiveMount(cfg);
   // When the panel root is absent (fresh mount, or SPA-nav zombie state where
   // `unmountForSwap` removed the root but left `OPEN_KEY='1'` behind), the
   // user's intent on this toggle is unambiguously "open" — deriving direction
@@ -831,8 +875,7 @@ function unmountForSwap(): void {
   const cfgs = getAllPanelConfigs();
   const targets = cfgs.length > 0 ? cfgs : [getPanelConfig()];
   for (const cfg of targets) {
-    const root = findRoot(cfg);
-    if (!root) continue;
+    if (!getMountedRoots().has(cfg.storagePrefix) && !findRoot(cfg)) continue;
     const shouldRestore = wasVisible(cfg);
     // Route the teardown through `unmountInstance` so the shell's LIVE spawn
     // slot (#584) is released here too. Its persisted ordinal identity remains
@@ -935,7 +978,7 @@ function handleExternalToggleEvent(cfg: PanelConfig): void {
   // Straggler guard — see showInstance. A toggle event replayed into a
   // torn-down environment must not seed OPEN_KEY or attempt a mount.
   if (!isDocumentUsable()) return;
-  const isFreshMount = !findRoot(cfg);
+  const isFreshMount = !hasLiveMount(cfg);
   // When the panel root is absent (fresh mount, or SPA-nav zombie state where
   // `unmountForSwap` removed the root but left `OPEN_KEY='1'` behind), the
   // user's intent on this toggle event is unambiguously "open" — deriving

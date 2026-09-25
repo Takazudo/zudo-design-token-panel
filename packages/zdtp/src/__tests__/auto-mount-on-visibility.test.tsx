@@ -32,6 +32,7 @@
  * no event dispatch, no rAF dependency.
  */
 
+import { act } from 'preact/test-utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getOpenKey } from '../state/tweak-state';
 import {
@@ -78,7 +79,13 @@ describe('design-token-panel adapter — auto-mount with visibility flag', () =>
     delete adapterWin.__zudoDesignTokenPanelLifecycle;
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    // Unmount through the lifecycle's swap teardown before wiping the DOM. A
+    // still-mounted panel keeps a pending effect flush that can fire after
+    // jsdom is torn down ("window is not defined").
+    await act(() => {
+      document.dispatchEvent(new CustomEvent('astro:before-swap'));
+    });
     document.body.innerHTML = '';
     localStorage.clear();
   });
