@@ -1,0 +1,19 @@
+---
+title: "0.8.3"
+description: "0.8.3 のリリースノート。"
+sidebar_position: 110
+---
+
+Released: 2026-09-25
+
+### バグ修正
+
+- SPA 遷移で孤立したルートからパネルのマウントを復旧: SPA のスワップで残された同じ id のルートを引き継いで再描画するようにし、以降のトグルが無視される問題を修正 ([#986](https://github.com/Takazudo/zudo-design-token-panel/issues/986), [#996](https://github.com/Takazudo/zudo-design-token-panel/pull/996)) (2ba9339)
+
+### その他の変更
+
+- パッケージ化した利用側での SPA 再マウントをテストで検証 ([#996](https://github.com/Takazudo/zudo-design-token-panel/pull/996)) (2f0bd38)
+- パッケージ化した doc のスモークテストを実際のブートストラップのタイミングに合わせる ([#996](https://github.com/Takazudo/zudo-design-token-panel/pull/996)) (878a612)
+- jsdom の破棄前に auto-mount テストのパネルをアンマウント ([#996](https://github.com/Takazudo/zudo-design-token-panel/pull/996)) (c67549c)
+- ファーストパーティ依存と vendor ピンを更新 ([#994](https://github.com/Takazudo/zudo-design-token-panel/pull/994)) (f224082)
+- b4push の重いステップをマシン全体の heavy-guard 経由でキューイング ([#985](https://github.com/Takazudo/zudo-design-token-panel/pull/985)) (27982a5)

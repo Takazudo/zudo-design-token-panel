@@ -1,0 +1,19 @@
+---
+title: "0.8.3"
+description: Release notes for 0.8.3.
+sidebar_position: 110
+---
+
+Released: 2026-09-25
+
+### Fixed
+
+- Recover panel mounts from orphaned SPA roots: a same-id root left behind by an SPA swap is now adopted and re-rendered instead of silently ignoring later toggles ([#986](https://github.com/Takazudo/zudo-design-token-panel/issues/986), [#996](https://github.com/Takazudo/zudo-design-token-panel/pull/996)) (2ba9339)
+
+### Other Changes
+
+- test: cover packed consumer SPA remount ([#996](https://github.com/Takazudo/zudo-design-token-panel/pull/996)) (2f0bd38)
+- test: align packed doc smoke with real bootstrap timing ([#996](https://github.com/Takazudo/zudo-design-token-panel/pull/996)) (878a612)
+- test: unmount auto-mount panel before jsdom teardown ([#996](https://github.com/Takazudo/zudo-design-token-panel/pull/996)) (c67549c)
+- chore(deps): update first-party packages and vendor pins ([#994](https://github.com/Takazudo/zudo-design-token-panel/pull/994)) (f224082)
+- feat(b4push): queue heavy steps through the machine-wide heavy-guard ([#985](https://github.com/Takazudo/zudo-design-token-panel/pull/985)) (27982a5)
