@@ -314,6 +314,10 @@ export default function DesignTokenTweakPanel({
   // the same document do not share dtp-tab-* / dtp-panel-* IDs.
   const ariaIdScope = useId();
   const [open, setOpen] = useState(false);
+  // The persist effect's mount run sees the initial `open=false`, not the
+  // user's intent; writing it clobbered the seed `showInstance` / toggle had
+  // just made, for one flush (#1000).
+  const skipMountPersistRef = useRef(true);
   const [showExport, setShowExport] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showApply, setShowApply] = useState(false);
@@ -543,8 +547,10 @@ export default function DesignTokenTweakPanel({
     // :visible='0', clobbering the seeds `showInstance` had already made
     // synchronously and restoring the panel closed on the next page. Skip:
     // the dead environment's `open` says nothing about the user's intent.
-    // Inert on a live mount — the `open` dep re-runs this effect as soon as
-    // the restore sets it, rewriting the correct values.
+    if (skipMountPersistRef.current) {
+      skipMountPersistRef.current = false;
+      return;
+    }
     if (!isDocumentUsable()) return;
     try {
       const openKey = getOpenKey(instanceConfig);
