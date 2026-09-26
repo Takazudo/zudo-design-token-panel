@@ -1,0 +1,11 @@
+---
+title: "0.8.4"
+description: Release notes for 0.8.4.
+sidebar_position: 111
+---
+
+Released: 2026-09-26
+
+### Fixed
+
+- Recover an owned SPA root left empty with the open intent stored: after each open request the panel checks once that its root rendered, and remounts into the same element when the root is still empty, so later toggles keep working after an SPA remount ([#986](https://github.com/Takazudo/zudo-design-token-panel/issues/986), [#997](https://github.com/Takazudo/zudo-design-token-panel/pull/997)) (58cf00b)

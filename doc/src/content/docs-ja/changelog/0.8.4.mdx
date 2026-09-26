@@ -1,0 +1,11 @@
+---
+title: "0.8.4"
+description: "0.8.4 のリリースノート。"
+sidebar_position: 111
+---
+
+Released: 2026-09-26
+
+### バグ修正
+
+- 開いた状態が保存されたまま空になった SPA ルートを復旧: 開く操作のたびにルートが描画されたかを一度確認し、空のままなら同じ要素に再マウントするようにしたため、SPA の再マウント後も以降のトグルが機能し続ける ([#986](https://github.com/Takazudo/zudo-design-token-panel/issues/986), [#997](https://github.com/Takazudo/zudo-design-token-panel/pull/997)) (58cf00b)
