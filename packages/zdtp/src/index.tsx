@@ -443,6 +443,64 @@ export function __resetSpawnSlotsForTests(): void {
   getMountedSlots().clear();
 }
 
+function releaseOwnedMount(cfg: PanelConfig, ownedRoot: HTMLElement): void {
+  render(null, ownedRoot);
+  getMountedRoots().delete(cfg.storagePrefix);
+  releaseSpawnSlot(cfg);
+  releaseHostMutations(cfg.storagePrefix);
+  releaseHostMutations(onPageSpecimenMutationOwner(cfg));
+}
+
+/**
+ * How long an open request waits before checking that the owned root actually
+ * rendered. Covers Preact's post-paint effect flush (rAF, or its 100ms timeout
+ * fallback) plus the re-render the mount effect triggers.
+ */
+const OPEN_VERIFY_DELAY_MS = 250;
+export const __OPEN_VERIFY_DELAY_MS_FOR_TESTS = OPEN_VERIFY_DELAY_MS;
+
+const openVerifyTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+/**
+ * Verify, once, that an open request produced a populated root (#986).
+ *
+ * An owned, connected root is trusted as a live mount, so open requests only
+ * pulse the in-component sync listener. If the tree behind that root stopped
+ * responding (a downstream SPA remount left it connected and empty with the
+ * open intent stored), every later toggle updated storage and nothing else.
+ * An open panel always renders into its root, so an empty owned root with the
+ * intent still open means the tree is dead: unmount it and mount a fresh one
+ * into the same element. A healthy tree that is merely slow is remounted at
+ * worst, which is harmless because the fresh mount re-reads storage.
+ */
+function scheduleOpenVerification(cfg: PanelConfig): void {
+  if (typeof window === 'undefined') return;
+  cancelOpenVerification(cfg);
+  openVerifyTimers.set(
+    cfg.storagePrefix,
+    setTimeout(() => {
+      openVerifyTimers.delete(cfg.storagePrefix);
+      recoverEmptyOpenRoot(cfg);
+    }, OPEN_VERIFY_DELAY_MS),
+  );
+}
+
+function cancelOpenVerification(cfg: PanelConfig): void {
+  const timer = openVerifyTimers.get(cfg.storagePrefix);
+  if (timer === undefined) return;
+  clearTimeout(timer);
+  openVerifyTimers.delete(cfg.storagePrefix);
+}
+
+function recoverEmptyOpenRoot(cfg: PanelConfig): void {
+  if (!isDocumentUsable() || !isPanelCurrentlyOpen(cfg)) return;
+  const root = findRoot(cfg);
+  if (!root || getMountedRoots().get(cfg.storagePrefix) !== root) return;
+  if (root.childElementCount > 0) return;
+  releaseOwnedMount(cfg, root);
+  ensureMounted(cfg);
+}
+
 /**
  * Idempotently mount the Preact shell. Returns `true` only on a fresh mount.
  *
@@ -467,15 +525,9 @@ function ensureMounted(cfg: PanelConfig): boolean {
   const ownedRoot = mountedRoots.get(cfg.storagePrefix);
   const existingRoot = doc.getElementById(panelId);
   if (ownedRoot === existingRoot && existingRoot) return false;
-  if (ownedRoot) {
-    // The old tree may already be detached by the host. Still unmount it so
-    // its effects and host mutations cannot outlive this replacement mount.
-    render(null, ownedRoot);
-    mountedRoots.delete(cfg.storagePrefix);
-    releaseSpawnSlot(cfg);
-    releaseHostMutations(cfg.storagePrefix);
-    releaseHostMutations(onPageSpecimenMutationOwner(cfg));
-  }
+  // The old tree may already be detached by the host. Still unmount it so
+  // its effects and host mutations cannot outlive this replacement mount.
+  if (ownedRoot) releaseOwnedMount(cfg, ownedRoot);
   if (!doc.body) return false;
   ensurePanelStyles();
   // Claim the spawn slot before the render so the ordinal can feed the
@@ -506,6 +558,7 @@ function ensureMounted(cfg: PanelConfig): boolean {
  * same-id orphan left by a host swap.
  */
 function unmountInstance(cfg: PanelConfig): void {
+  cancelOpenVerification(cfg);
   // Release BEFORE the root probe. `findRoot` also returns null on a
   // torn-down document, and a `destroy()` that lands in that state must still
   // give the slot back — otherwise a destroy -> recreate cycle would leave the
@@ -666,6 +719,7 @@ function showInstance(cfg: PanelConfig): void {
   // Auto-remember: any action that shows the panel arms the owner-autoload flag
   // so subsequent page loads reload it automatically (contract from autoload-state.ts).
   rememberAutoload(cfg);
+  scheduleOpenVerification(cfg);
   // Fresh mount: panel.tsx's mount-effect picks up OPEN_KEY="1" and renders
   // open — no listener race because the listener doesn't run yet anyway.
   if (isFreshMount) return;
@@ -688,6 +742,7 @@ function hideInstance(cfg: PanelConfig): void {
   // A public close should remove the page specimen immediately, before the
   // mounted panel receives its open-state sync event and flushes effects.
   releaseHostMutations(onPageSpecimenMutationOwner(cfg));
+  cancelOpenVerification(cfg);
   seedOpenStateBeforeMount(cfg, false);
   ensureMounted(cfg);
   setStoredVisibility(cfg, false);
@@ -717,7 +772,12 @@ function toggleInstance(cfg: PanelConfig): void {
   setStoredVisibility(cfg, willBeOpen);
   // Auto-remember: opening via toggle arms autoload so the panel reloads on
   // the next page visit (contract from autoload-state.ts).
-  if (willBeOpen) rememberAutoload(cfg);
+  if (willBeOpen) {
+    rememberAutoload(cfg);
+    scheduleOpenVerification(cfg);
+  } else {
+    cancelOpenVerification(cfg);
+  }
   // Fresh mount: seed already drove the mount-effect to the desired state.
   if (isFreshMount) return;
   notifyPanelOpenChanged(cfg);
@@ -990,7 +1050,12 @@ function handleExternalToggleEvent(cfg: PanelConfig): void {
   // Auto-remember: the header button / window event opens the panel → arm
   // autoload so the panel reloads automatically on the next page visit
   // (contract from autoload-state.ts).
-  if (willBeOpen) rememberAutoload(cfg);
+  if (willBeOpen) {
+    rememberAutoload(cfg);
+    scheduleOpenVerification(cfg);
+  } else {
+    cancelOpenVerification(cfg);
+  }
   // Fresh mount: the seed has already driven the mount-effect to the desired
   // state; no in-component listener exists to notify yet. The sync event
   // would harmlessly land in the void.
