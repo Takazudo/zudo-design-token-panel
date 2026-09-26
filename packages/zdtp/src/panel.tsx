@@ -314,6 +314,10 @@ export default function DesignTokenTweakPanel({
   // the same document do not share dtp-tab-* / dtp-panel-* IDs.
   const ariaIdScope = useId();
   const [open, setOpen] = useState(false);
+  // The persist effect's mount run sees the initial `open=false`, not the
+  // user's intent; writing it clobbered the seed `showInstance` / toggle had
+  // just made, for one flush (#1000).
+  const skipMountPersistRef = useRef(true);
   const [showExport, setShowExport] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showApply, setShowApply] = useState(false);
@@ -537,14 +541,13 @@ export default function DesignTokenTweakPanel({
   // next page load via reapplyFromStorage → wasVisible(). Writing :visible
   // here ensures every close path (public API or internal UI) stays in lockstep.
   useEffect(() => {
-    // Liveness probe (zudolab/zudo-doc#3344): when the mount-restore effect
-    // above bailed on a torn-down document, `open` is still its initial
-    // `false` — writing that here would REMOVE the open key and write
-    // :visible='0', clobbering the seeds `showInstance` had already made
-    // synchronously and restoring the panel closed on the next page. Skip:
-    // the dead environment's `open` says nothing about the user's intent.
-    // Inert on a live mount — the `open` dep re-runs this effect as soon as
-    // the restore sets it, rewriting the correct values.
+    if (skipMountPersistRef.current) {
+      skipMountPersistRef.current = false;
+      return;
+    }
+    // Liveness probe (zudolab/zudo-doc#3344): an effect flush that lands after
+    // the document was torn down must not write a dead environment's `open`
+    // over the next environment's stored intent.
     if (!isDocumentUsable()) return;
     try {
       const openKey = getOpenKey(instanceConfig);
