@@ -1,0 +1,15 @@
+---
+title: "0.8.5"
+description: "0.8.5 のリリースノート。"
+sidebar_position: 112
+---
+
+Released: 2026-09-27
+
+### バグ修正
+
+- 新しくマウントしたパネルが 1 フラッシュの間だけ閉じた状態を保存してしまう問題を修正: 開閉状態を保存するエフェクトが、`showInstance` やトグルが直前に保存した開いた状態を、初期値 `open=false` で上書きしなくなった。以前はこの間にリロードや遷移をするとパネルが閉じた状態で復元され、この間のトグルも失われていた ([#1000](https://github.com/Takazudo/zudo-design-token-panel/issues/1000), [#1001](https://github.com/Takazudo/zudo-design-token-panel/pull/1001)) (fc61431)
+
+### その他の変更
+
+- 生存確認のコメントを、それが説明するチェックの位置へ移動 (f3c9bc7)

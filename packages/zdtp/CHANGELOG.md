@@ -8,6 +8,16 @@ The format is based on Keep a Changelog, and release notes are generated from th
 
 No unreleased changes yet.
 
+## [0.8.5] - 2026-09-27
+
+### Fixed
+
+- Stop a fresh panel mount persisting closed state for one flush: the open-state persist effect no longer writes the initial `open=false` over the intent that `showInstance` or a toggle had just stored. A reload or navigation in that window used to restore the panel closed, and a toggle in that window was lost ([#1000](https://github.com/Takazudo/zudo-design-token-panel/issues/1000), [#1001](https://github.com/Takazudo/zudo-design-token-panel/pull/1001)) (fc61431)
+
+### Other Changes
+
+- Move the liveness comment onto the check it explains (f3c9bc7)
+
 ## [0.8.4] - 2026-09-26
 
 ### Fixed
