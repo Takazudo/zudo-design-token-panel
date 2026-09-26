@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 
+import { render } from 'preact';
 import { act } from 'preact/test-utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  __OPEN_VERIFY_DELAY_MS_FOR_TESTS,
   __mountedSpawnSlotsForTests,
   __resetInstanceBindingsForTests,
   __resetSpawnSlotsForTests,
@@ -31,6 +33,16 @@ function config(prefix: string): PanelConfig {
 
 async function flush(fn: () => void): Promise<void> {
   await act(fn);
+}
+
+async function waitForOpenVerification(): Promise<void> {
+  await act(() => new Promise<void>((resolve) => setTimeout(resolve, __OPEN_VERIFY_DELAY_MS_FOR_TESTS + 50)));
+}
+
+// Leaves the root connected and still owned, but with no live Preact tree
+// behind it — the state the downstream packed consumer reported (#986).
+function killTreeKeepingRoot(root: HTMLElement): void {
+  render(null, root);
 }
 
 describe('SPA remount root ownership (#992)', () => {
@@ -165,6 +177,68 @@ describe('SPA remount root ownership (#992)', () => {
     await flush(() => document.dispatchEvent(new CustomEvent('astro:page-load')));
     expect(document.getElementById(panelRootId(cfg))?.querySelector('.tokenpanel-shell')).not.toBeNull();
     expect(__mountedSpawnSlotsForTests().has(cfg.storagePrefix)).toBe(true);
+    handle.destroy();
+  });
+
+  it('remounts an owned empty root whose tree stopped responding to toggles (#986)', async () => {
+    const cfg = config('dead-tree-preview');
+    const handle = configurePanel(cfg);
+    await flush(() => window.dispatchEvent(new CustomEvent(toggleEventName(cfg))));
+    const root = document.getElementById(panelRootId(cfg))!;
+    expect(root.querySelector('.tokenpanel-shell')).not.toBeNull();
+
+    killTreeKeepingRoot(root);
+    expect(root.isConnected).toBe(true);
+    expect(root.childElementCount).toBe(0);
+
+    // The stored intent is still open, so the first toggle closes it.
+    await flush(() => window.dispatchEvent(new CustomEvent(toggleEventName(cfg))));
+    await waitForOpenVerification();
+    expect(root.querySelector('.tokenpanel-shell')).toBeNull();
+
+    await flush(() => window.dispatchEvent(new CustomEvent(toggleEventName(cfg))));
+    await waitForOpenVerification();
+    expect(document.getElementById(panelRootId(cfg))).toBe(root);
+    expect(root.querySelector('.tokenpanel-shell')).not.toBeNull();
+    expect(__mountedSpawnSlotsForTests().has(cfg.storagePrefix)).toBe(true);
+
+    // The recovered tree is live: steady-state toggles work again.
+    await flush(() => window.dispatchEvent(new CustomEvent(toggleEventName(cfg))));
+    expect(root.querySelector('.tokenpanel-shell')).toBeNull();
+    await flush(() => window.dispatchEvent(new CustomEvent(toggleEventName(cfg))));
+    expect(root.querySelector('.tokenpanel-shell')).not.toBeNull();
+    handle.destroy();
+  });
+
+  it('recovers a fresh after-swap mount that dies before page-load reapply (#986)', async () => {
+    const cfg = config('dead-swap-preview');
+    const handle = configurePanel(cfg);
+    await flush(() => handle.open());
+    await flush(() => document.dispatchEvent(new CustomEvent('astro:before-swap')));
+    expect(document.getElementById(panelRootId(cfg))).toBeNull();
+
+    // Header click during after-swap mounts fresh; the tree dies before its
+    // mount effects run, then page-load reapply asks for the open panel.
+    window.dispatchEvent(new CustomEvent(toggleEventName(cfg)));
+    const root = document.getElementById(panelRootId(cfg))!;
+    killTreeKeepingRoot(root);
+    await flush(() => document.dispatchEvent(new CustomEvent('astro:page-load')));
+    expect(root.childElementCount).toBe(0);
+
+    await waitForOpenVerification();
+    expect(document.getElementById(panelRootId(cfg))).toBe(root);
+    expect(root.querySelector('.tokenpanel-shell')).not.toBeNull();
+    handle.destroy();
+  });
+
+  it('leaves a healthy open tree alone after the verification window', async () => {
+    const cfg = config('healthy-preview');
+    const handle = configurePanel(cfg);
+    await flush(() => handle.open());
+    const shell = document.getElementById(panelRootId(cfg))?.querySelector('.tokenpanel-shell');
+    expect(shell).not.toBeNull();
+    await waitForOpenVerification();
+    expect(document.getElementById(panelRootId(cfg))?.querySelector('.tokenpanel-shell')).toBe(shell);
     handle.destroy();
   });
 });
