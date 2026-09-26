@@ -541,16 +541,13 @@ export default function DesignTokenTweakPanel({
   // next page load via reapplyFromStorage → wasVisible(). Writing :visible
   // here ensures every close path (public API or internal UI) stays in lockstep.
   useEffect(() => {
-    // Liveness probe (zudolab/zudo-doc#3344): when the mount-restore effect
-    // above bailed on a torn-down document, `open` is still its initial
-    // `false` — writing that here would REMOVE the open key and write
-    // :visible='0', clobbering the seeds `showInstance` had already made
-    // synchronously and restoring the panel closed on the next page. Skip:
-    // the dead environment's `open` says nothing about the user's intent.
     if (skipMountPersistRef.current) {
       skipMountPersistRef.current = false;
       return;
     }
+    // Liveness probe (zudolab/zudo-doc#3344): an effect flush that lands after
+    // the document was torn down must not write a dead environment's `open`
+    // over the next environment's stored intent.
     if (!isDocumentUsable()) return;
     try {
       const openKey = getOpenKey(instanceConfig);
