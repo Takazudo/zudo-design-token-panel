@@ -1,7 +1,7 @@
 import { defineConfig } from '@takazudo/zfb/config';
 
 export default defineConfig({
-  framework: 'preact',
+  wind: false,
   base: '/',
   collections: [{ name: 'prose', path: 'content/prose' }],
   markdown: { gfm: true },

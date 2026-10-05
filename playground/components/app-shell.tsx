@@ -1,5 +1,5 @@
-import { Island, type IslandProps } from '@takazudo/zfb';
-import type { ComponentChildren } from 'preact';
+import { Island } from '@takazudo/zfb';
+import type { Child } from '@takazudo/zfb/zudo-react';
 import PlaygroundControls from './playground-controls';
 import '../styles/global.css';
 
@@ -7,7 +7,7 @@ interface AppShellProps {
   title: string;
   activePath: string;
   lang?: string;
-  children: ComponentChildren;
+  children: Child;
 }
 
 const navItems = [
@@ -21,20 +21,18 @@ export function AppShell({ title, activePath, lang = 'en', children }: AppShellP
   return (
     <html lang={lang} data-theme="light">
       <head>
-        <meta charSet="utf-8" />
+        <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>{title}</title>
         <script
-          dangerouslySetInnerHTML={{
-            __html: "try{var t=localStorage.getItem('zfb-playground-theme');if(t==='dark'||t==='light'){document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t}}catch(e){}",
-          }}
+          rawHtml={"try{var t=localStorage.getItem('zfb-playground-theme');if(t==='dark'||t==='light'){document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t}}catch(e){}"}
         />
       </head>
       <body>
         <header class="zfb-topbar">
           <a class="zfb-brand" href="/">zdtp playground</a>
           <Island when="load" ssrFallback={<span aria-hidden="true" />}>
-            {(<PlaygroundControls />) as unknown as IslandProps['children']}
+            <PlaygroundControls />
           </Island>
         </header>
         <div class="zfb-layout">

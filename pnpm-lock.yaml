@@ -156,11 +156,11 @@ importers:
         specifier: workspace:*
         version: link:../packages/zdtp
       '@takazudo/zfb':
-        specifier: 2.20.3
-        version: 2.20.3
+        specifier: 3.2.0
+        version: 3.2.0
       '@takazudo/zfb-runtime':
-        specifier: 2.20.3
-        version: 2.20.3(@takazudo/zfb@2.20.3)
+        specifier: 3.2.0
+        version: 3.2.0(@takazudo/zfb@3.2.0)
       preact:
         specifier: ^10.29.1
         version: 10.29.1
@@ -1103,8 +1103,18 @@ packages:
     cpu: [arm64]
     os: [darwin]
 
+  '@takazudo/zfb-darwin-arm64@3.2.0':
+    resolution: {integrity: sha512-SUcFtVPiHU2TAmXiz5o9G9OGeRYl0jvzK7a+PLjLJK98aZtjD7gRjbfOc/7/z8kaQFxtDTPLBZmLyD4oSsTiUQ==}
+    cpu: [arm64]
+    os: [darwin]
+
   '@takazudo/zfb-darwin-x64@2.20.3':
     resolution: {integrity: sha512-U67e7UAHsPqie5QStb6fp4LfO+qkufXv05jz6FVX181p7F4EAJt17i33Peba+5ot5mZK+CTVcEPzpZux1KdZ0w==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@takazudo/zfb-darwin-x64@3.2.0':
+    resolution: {integrity: sha512-7yFmi9VDwQy1KW2/90gA/l+mosd6/mywuHI3WSIoN+mlgEnnhMZrtCcEKKwbyo78/z6O14iMzhNVBfymxoPjEg==}
     cpu: [x64]
     os: [darwin]
 
@@ -1113,8 +1123,18 @@ packages:
     cpu: [arm64]
     os: [linux]
 
+  '@takazudo/zfb-linux-arm64-gnu@3.2.0':
+    resolution: {integrity: sha512-SqPJGcjAbF7jzzu7FLgvnDlB+M3TqXp9M5sfDB6w6wxenDiFSfVxRoy5WHGQBPYFFHgZZtJLbc9JlhqhaCVNCQ==}
+    cpu: [arm64]
+    os: [linux]
+
   '@takazudo/zfb-linux-x64-gnu@2.20.3':
     resolution: {integrity: sha512-Y7P2b+XAonM2kf9DBJFOkALiBbZbuHlyLQApT+mHaiPjQP7TK98IQ2B8/q9hR+mZVxBrr9F3m9lfKDmR8CIkzA==}
+    cpu: [x64]
+    os: [linux]
+
+  '@takazudo/zfb-linux-x64-gnu@3.2.0':
+    resolution: {integrity: sha512-CUP2A7dW1GXqR+remMJ1wNU5srPaSbAyeyamhLk0j68JjZQPtM/RDQOa+QpalNFfXdapnk5nU/VW/mHDoo5AQA==}
     cpu: [x64]
     os: [linux]
 
@@ -1132,8 +1152,19 @@ packages:
       react:
         optional: true
 
+  '@takazudo/zfb-runtime@3.2.0':
+    resolution: {integrity: sha512-0bbDJH3ZXW19mRxHm9LWHrRavyS3lwP0u7WbMiJQf7DKd1x2YSe24DnezJQg3tjafx6Qbgvf0Sw1qSjjYmayQA==}
+    engines: {node: '>=22.0.0', pnpm: '>=10.0.0'}
+    peerDependencies:
+      '@takazudo/zfb': 3.2.0
+
   '@takazudo/zfb-win32-x64-msvc@2.20.3':
     resolution: {integrity: sha512-zuCO68Zx4Ov07x3njwHBNgiDr8XnnnxDDUKj9FzeaeXO3qvaorn0cFEuDmqwgs9or0fOiiT29EKxRc1JccabFw==}
+    cpu: [x64]
+    os: [win32]
+
+  '@takazudo/zfb-win32-x64-msvc@3.2.0':
+    resolution: {integrity: sha512-jHL4SN6FntZA/8RQZd6I7kX0qVg57OOKlu0oOGqNDTC5Sx4XbGjl8jszJUXXh4u9Ns+hTLqGNWt+JhUcVDhp2A==}
     cpu: [x64]
     os: [win32]
 
@@ -1146,6 +1177,11 @@ packages:
     peerDependenciesMeta:
       react:
         optional: true
+
+  '@takazudo/zfb@3.2.0':
+    resolution: {integrity: sha512-+d6RN1QBF4M8VY99vxcqsjxjmqD1i7LINutL1kvgxagg81ab7Qo7qm+BW0LmBD/XgTMx/IkJZu3aV+78L/U2pQ==}
+    engines: {node: '>=22.0.0', pnpm: '>=10.0.0'}
+    hasBin: true
 
   '@takazudo/zudo-doc-history-server@5.27.0':
     resolution: {integrity: sha512-FA+IcIqfgZtwQi8kaXxC7TsHuKwqkIU4U/raoxjGXJAVSb+7rrGO2MwtUwOrWVNVS9IwOT8KZ8UaSQFEM1JorQ==}
@@ -3197,13 +3233,25 @@ snapshots:
   '@takazudo/zfb-darwin-arm64@2.20.3':
     optional: true
 
+  '@takazudo/zfb-darwin-arm64@3.2.0':
+    optional: true
+
   '@takazudo/zfb-darwin-x64@2.20.3':
+    optional: true
+
+  '@takazudo/zfb-darwin-x64@3.2.0':
     optional: true
 
   '@takazudo/zfb-linux-arm64-gnu@2.20.3':
     optional: true
 
+  '@takazudo/zfb-linux-arm64-gnu@3.2.0':
+    optional: true
+
   '@takazudo/zfb-linux-x64-gnu@2.20.3':
+    optional: true
+
+  '@takazudo/zfb-linux-x64-gnu@3.2.0':
     optional: true
 
   '@takazudo/zfb-md-wasm@2.20.3':
@@ -3219,7 +3267,15 @@ snapshots:
       '@takazudo/zfb': 2.20.3
       hono: 4.12.27
 
+  '@takazudo/zfb-runtime@3.2.0(@takazudo/zfb@3.2.0)':
+    dependencies:
+      '@takazudo/zfb': 3.2.0
+      hono: 4.12.27
+
   '@takazudo/zfb-win32-x64-msvc@2.20.3':
+    optional: true
+
+  '@takazudo/zfb-win32-x64-msvc@3.2.0':
     optional: true
 
   '@takazudo/zfb@2.20.3':
@@ -3229,6 +3285,14 @@ snapshots:
       '@takazudo/zfb-linux-arm64-gnu': 2.20.3
       '@takazudo/zfb-linux-x64-gnu': 2.20.3
       '@takazudo/zfb-win32-x64-msvc': 2.20.3
+
+  '@takazudo/zfb@3.2.0':
+    optionalDependencies:
+      '@takazudo/zfb-darwin-arm64': 3.2.0
+      '@takazudo/zfb-darwin-x64': 3.2.0
+      '@takazudo/zfb-linux-arm64-gnu': 3.2.0
+      '@takazudo/zfb-linux-x64-gnu': 3.2.0
+      '@takazudo/zfb-win32-x64-msvc': 3.2.0
 
   '@takazudo/zudo-doc-history-server@5.27.0': {}
 
