@@ -116,7 +116,7 @@ export default function PlaygroundControls() {
   return (
     <div class="zfb-controls">
       <span class="zfb-meta">
-        {computed(() => manifest.value === 'zudo-doc' ? `zudo-doc ${ZUDO_DOC_SOURCE_VERSION}` : 'playground manifest')} · {buildProvenanceLabel()}
+        {computed(() => manifest.value === 'zudo-doc' ? `zudo-doc ${ZUDO_DOC_SOURCE_VERSION}` : 'playground manifest')} · <span>{buildProvenanceLabel()}</span>
       </span>
       <button type="button" class="zfb-button zfb-button--quiet" on:click={toggleTheme}>
         {computed(() => mode.value === 'dark' ? 'Light mode' : 'Dark mode')}
