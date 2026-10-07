@@ -138,7 +138,7 @@ await run(
   packageRoot,
 );
 
-await writeFile(join(appDir, 'index.html'), '<div id="app"></div><script type="module" src="/smoke.js"></script>\n');
+await writeFile(join(appDir, 'index.html'), '<link rel="icon" href="data:,"><div id="app"></div><script type="module" src="/smoke.js"></script>\n');
 await writeFile(join(appDir, 'smoke.js'), `
 import * as panel from '@takazudo/zdtp';
 import * as astro from '@takazudo/zdtp/astro';
