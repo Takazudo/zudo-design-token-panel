@@ -93,7 +93,7 @@ jobs:
         with:
           name: panel-test-harness-trace
           path: |
-            packages/zdtp/test-results/e2e/**/trace.zip
+            test-results/e2e/**/trace.zip
             packages/zdtp/test-results/pack/trace.zip
           # A build/unit/VRT failure can happen before either browser harness
           # creates a trace. Preserve the original failure instead of replacing

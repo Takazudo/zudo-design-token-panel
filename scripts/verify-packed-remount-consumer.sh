@@ -18,7 +18,8 @@ Usage:
   bash scripts/verify-packed-remount-consumer.sh --panel-tarball <path.tgz> [--keep]
 
 Builds the real zfb/zudo-doc doc consumer in a disposable directory, overrides
-only its packed panel version, then runs the packed SPA remount browser probe.
+its packed panel version, pins the retained zudo-doc 5.27 fixture, then runs
+the packed SPA remount browser probe.
 USAGE
 }
 
@@ -103,9 +104,18 @@ cp "$ROOT_DIR/pnpm-workspace.yaml" "$SCRATCH_DOC/pnpm-workspace.yaml"
 
 ROOT_WORKSPACE_FILE="$ROOT_DIR/pnpm-workspace.yaml" \
 SCRATCH_WORKSPACE_FILE="$SCRATCH_DOC/pnpm-workspace.yaml" \
+ROOT_PACKAGE_FILE="$ROOT_DIR/package.json" \
+SCRATCH_PACKAGE_FILE="$SCRATCH_DOC/package.json" \
 LOCAL_PANEL_SPEC="$PANEL_SPEC" \
 node --input-type=module <<'NODE'
 import { readFile, writeFile } from 'node:fs/promises';
+
+// This probe retains the zfb 2 / zudo-doc 5.27 contract asserted below.
+const scratchPackage = JSON.parse(await readFile(process.env.SCRATCH_PACKAGE_FILE, 'utf8'));
+scratchPackage.dependencies['@takazudo/zudo-doc'] = '5.27.0';
+scratchPackage.dependencies['@takazudo/zudo-doc-history-server'] = '5.27.0';
+scratchPackage.packageManager = JSON.parse(await readFile(process.env.ROOT_PACKAGE_FILE, 'utf8')).packageManager;
+await writeFile(process.env.SCRATCH_PACKAGE_FILE, `${JSON.stringify(scratchPackage, null, 2)}\n`);
 
 const rootWorkspaceFile = process.env.ROOT_WORKSPACE_FILE;
 const scratchWorkspaceFile = process.env.SCRATCH_WORKSPACE_FILE;

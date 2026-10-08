@@ -1,4 +1,4 @@
-import { TokenDashboard } from '@takazudo/zdtp/dashboard';
+import { StaticTokenDashboard as TokenDashboard } from '../components/static-token-dashboard';
 import {
   dashboardFixtureTabs,
   dashboardPreviewText,
@@ -17,7 +17,7 @@ export default function DashboardPage() {
   return (
     <html lang="en">
       <head>
-        <meta charSet="utf-8" />
+        <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Static token dashboard — zdtp playground</title>
         <meta name="description" content="A static Preact token inventory with light, dark, and compact examples using the same playground manifest." />
