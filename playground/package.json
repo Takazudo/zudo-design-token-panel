@@ -24,8 +24,8 @@
   },
   "dependencies": {
     "@takazudo/zdtp": "workspace:*",
-    "@takazudo/zfb": "4.1.0",
-    "@takazudo/zfb-runtime": "4.1.0",
+    "@takazudo/zfb": "4.2.0",
+    "@takazudo/zfb-runtime": "4.2.0",
     "preact": "^10.29.1",
     "preact-render-to-string": "^6.6.6"
   },
