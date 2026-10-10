@@ -114,10 +114,9 @@ await writeFile(join(appDir, 'package.json'), JSON.stringify({
   type: 'module',
   dependencies: {
     '@takazudo/zdtp': `file:${tarball}`,
-    preact: '^10.29.1',
   },
 }, null, 2));
-await run('pnpm', ['install', '--no-frozen-lockfile', '--ignore-scripts'], appDir);
+await run('pnpm', ['install', '--no-frozen-lockfile', '--ignore-scripts', '--config.auto-install-peers=false'], appDir);
 
 await cp(constantsFixtureDir, constantsAppDir, { recursive: true });
 await writeFile(join(constantsAppDir, 'package.json'), JSON.stringify({

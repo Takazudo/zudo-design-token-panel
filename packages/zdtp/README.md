@@ -172,7 +172,7 @@ A Preact-rendered side panel that:
 - Exposes a small console API (`window.<namespace>.showDesignPanel()` etc.) so a developer can pop the panel without it being mounted on every page.
 - Plugs into Astro's view-transition lifecycle (`astro:before-swap` / `astro:page-load`) so soft navigation does not double-mount the panel.
 
-The package builds against Preact (declared as a `peerDependency`) and ships its own bundled CSS scoped under the `--tokentweak-*` namespace. **It does not require Tailwind** in the consumer; see §11.
+The package builds against Preact (installed as its own regular dependency) and ships its own bundled CSS scoped under the `--tokentweak-*` namespace. **It does not require Tailwind** in the consumer; see §11.
 
 > Visual: a screenshot or short capture would go here. Skipped in the v1 README — a placeholder is worse than nothing. See the external example repos linked in §15 for live demos.
 
@@ -182,29 +182,38 @@ The package builds against Preact (declared as a `peerDependency`) and ships its
 
 ## 2. Install
 
-Install from npm. Preact is a peer dependency — bring your own copy so the panel shares one runtime with any other Preact islands you mount.
+Install the panel from npm. Preact is a regular dependency owned by ZDTP, so
+an imperative host does not need to declare Preact or use it as its JSX runtime.
 
 ```sh
-pnpm add @takazudo/zdtp preact
+pnpm add @takazudo/zdtp
 ```
 
 ```jsonc
 // consumer/package.json
 {
   "dependencies": {
-    "@takazudo/zdtp": "^0.1.0",
-  },
-  "peerDependencies": {
-    "preact": "^10.29.1",
-  },
+    "@takazudo/zdtp": "^0.8.6"
+  }
 }
 ```
 
-### Peer dependencies
+ZDTP's public declarations still use Preact types; its regular dependency makes
+those types available to TypeScript without a host-level Preact dependency.
+Preact hosts and users of the Preact `./dashboard` renderer should keep their own
+Preact dependency for their JSX and rendering code. A compatible installed copy
+can still be shared; ZDTP does not bundle a private Preact runtime.
 
-| Peer     | Range      | Why                                                                                                                                     |
-| -------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `preact` | `^10.29.1` | The panel UI is rendered with Preact. The consumer must bring its own copy so the panel and any other Preact islands share one runtime. |
+For ZFB 3 and 4, load ZDTP inside the host island's activation callback and mount
+it through `configurePanel()`. Keep ZDTP's Preact tree separate from zudo-react's
+VNode tree. The panel injects its CSS on mount, so no static CSS import is needed;
+`@takazudo/zdtp/styles.css` remains an optional public CSS export for hosts that
+want a static stylesheet. The static dashboard instead requires its separate
+`@takazudo/zdtp/dashboard/styles.css` asset.
+
+The DOM Tweaker's Tailwind browser runtime remains behind its existing lazy
+activation boundary. Those dependencies are still installed with the package;
+ordinary panel mounting does not load that runtime.
 
 The package's CSS is self-contained — it ships its own bundled stylesheet under the panel-private `--tokentweak-*` namespace and does not depend on any host design-system package.
 

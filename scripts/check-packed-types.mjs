@@ -69,6 +69,37 @@ try {
   assert.deepEqual(unexpectedProblems({ ...report, problems: {} }), []);
   writeFileSync(join(scratch, 'package.json'), JSON.stringify({ private: true, type: 'module' }));
   const version = (name) => JSON.parse(readFileSync(join(panel, 'node_modules', name, 'package.json'), 'utf8')).version;
+  // Disable npm's peer auto-install: this must work because the package owns
+  // its runtime, rather than silently accepting a host-required Preact peer.
+  run('npm', ['install', '--ignore-scripts', '--legacy-peer-deps', '--no-audit',
+    '--no-fund', '--package-lock=false', tarball], scratch);
+  const imperativeManifest = JSON.parse(readFileSync(join(scratch, 'package.json'), 'utf8'));
+  assert.deepEqual(Object.keys(imperativeManifest.dependencies), ['@takazudo/zdtp']);
+  const packedManifest = JSON.parse(readFileSync(join(scratch, 'node_modules/@takazudo/zdtp/package.json'), 'utf8'));
+  assert.ok(packedManifest.dependencies.preact, 'Packed panel must own its Preact runtime');
+  assert.equal(packedManifest.peerDependencies?.preact, undefined, 'No host Preact peer requirement');
+  writeFileSync(join(scratch, 'imperative-consumer.ts'), `import { configurePanel, type PanelConfig } from '@takazudo/zdtp';
+import type { PanelConfig as AstroPanelConfig } from '@takazudo/zdtp/astro';
+import * as server from '@takazudo/zdtp/server';
+import * as testing from '@takazudo/zdtp/testing';
+import type { TokenDashboardProps } from '@takazudo/zdtp/dashboard';
+const config: PanelConfig = { storagePrefix: 'isolated', consoleNamespace: 'isolated',
+  modalClassPrefix: 'isolated-modal', schemaId: 'isolated/v1', exportFilenameBase: 'isolated', tabs: [] };
+const astroConfig: AstroPanelConfig = config;
+const props: TokenDashboardProps = { tabs: [] };
+export { astroConfig, props, server, testing };
+export const mount = () => configurePanel(config);
+`);
+  for (const mode of ['bundler', 'node16', 'nodenext']) {
+    writeFileSync(join(scratch, 'tsconfig.imperative.json'), JSON.stringify({ compilerOptions: {
+      target: 'ES2022', module: mode === 'bundler' ? 'ESNext' : mode,
+      moduleResolution: mode, strict: true, skipLibCheck: false, noEmit: true,
+      types: [], lib: ['ES2022', 'DOM', 'DOM.Iterable'],
+    }, files: ['imperative-consumer.ts'] }));
+    run('node', [join(panel, 'node_modules/typescript/bin/tsc'), '-p', join(scratch, 'tsconfig.imperative.json')], scratch);
+    console.log(`Packed imperative consumer without host Preact: ${mode}, strict, skipLibCheck=false: PASS`);
+  }
+  // Preact dashboard users still own the framework used by their JSX/SSR code.
   run('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--package-lock=false', tarball,
     `preact@${version('preact')}`, `preact-render-to-string@${version('preact-render-to-string')}`], scratch);
   const installed = join(scratch, 'node_modules/@takazudo/zdtp');
