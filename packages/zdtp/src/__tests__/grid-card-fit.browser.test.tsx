@@ -501,9 +501,11 @@ describe('bounded absent control shapes and interactions', () => {
     expect(input.value).toBe(long);
     expect(input.scrollWidth).toBeGreaterThan(input.clientWidth);
     input.focus();
-    await userEvent.keyboard('{End}');
+    // macOS Chromium binds line-start/end caret moves to Cmd+Arrow; Home/End do not move the caret there.
+    const isMac = /Mac/i.test(navigator.platform);
+    await userEvent.keyboard(isMac ? '{Meta>}{ArrowRight}{/Meta}' : '{End}');
     expect(input.selectionStart).toBe(long.length);
-    await userEvent.keyboard('{Home}');
+    await userEvent.keyboard(isMac ? '{Meta>}{ArrowLeft}{/Meta}' : '{Home}');
     expect(input.selectionStart).toBe(0);
     const select = required<HTMLSelectElement>('.tokenpanel-row-select', root);
     const option = select.options[select.options.length - 1]!;
