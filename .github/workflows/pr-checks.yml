@@ -55,7 +55,10 @@ jobs:
 
       - name: Deploy PR preview (preview alias)
         id: deploy
-        if: vars.CF_WORKERS_DEPLOY == 'true'
+        # This consumer rollout is verification-only; keep other PR previews unchanged.
+        if: >-
+          github.head_ref != 'chore/playground-zfb-4.3.0' &&
+          vars.CF_WORKERS_DEPLOY == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
