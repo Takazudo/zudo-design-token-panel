@@ -32,6 +32,6 @@
   "devDependencies": {
     "@arethetypeswrong/cli": "0.18.5",
     "lefthook": "^2.1.6",
-    "wrangler": "^4.110.0"
+    "wrangler": "^4.149.0"
   }
 }
