@@ -18,21 +18,17 @@ doc page for live demos and source links.
 
 ## Status
 
-**In-progress port.** Epic 1 (repo + doc-site bootstrap) has landed; the panel
-package, the bin server, and the example apps are still being ported from
-[Takazudo Modular](https://takazudomodular.com/). Track progress on the
-[super-epic issue #2](https://github.com/Takazudo/zudo-design-token-panel/issues/2).
-The remaining work is split across Epics 2 through 7.
-
-The **abstract token tiers** feature
-([epic #69](https://github.com/Takazudo/zudo-design-token-panel/issues/69)) has
-landed on the `base/abstract-token-tiers` branch and is pending merge. It
-replaces the former `tokens` + `colorCluster` fields on `PanelConfig` with a
-fully data-driven `tabs` array (`TabConfig` / `TierConfig` / `TierItem`).
-Semantic tokens can reference base tokens via `TierConfig.referencesTier`,
-and the apply pipeline emits `var(--base-cssvar)` for ref-tier items.
-See `packages/zdtp/PORTABLE-CONTRACT.md` §3 and the package
-`CHANGELOG.md` for details.
+`@takazudo/zdtp` is published on npm and documented at
+[zdtp.zudolab.dev](https://zdtp.zudolab.dev/). The public surfaces are split
+deliberately: the docs site runs the pinned npm release, while two live demos
+run this repo's workspace build and therefore lead it —
+[zdtp-minimal.zudolab.dev](https://zdtp-minimal.zudolab.dev/) (the smallest
+wiring that works, from `examples/minimal/`) and
+[zdtp-playground.zudolab.dev](https://zdtp-playground.zudolab.dev/) (full size,
+from `playground/`). Five external example apps (Astro, Vite + React, Next.js,
+zfb, zfb + Tailwind v4) live in dedicated sibling repos; see the
+[Examples](https://zdtp.zudolab.dev/docs/getting-started/examples/) doc page.
+Release history is in the package `CHANGELOG.md`.
 
 ## Repository layout
 
@@ -70,8 +66,8 @@ served at the root of its Cloudflare Workers (static assets) deployment.
 
 Requirements:
 
-- Node.js 20 or newer
-- pnpm 10 (the repo pins `packageManager` in `package.json`)
+- Node.js 22.12 or newer
+- pnpm 11 (the repo pins `packageManager` to `pnpm@11.3.0` in `package.json`)
 
 Install dependencies at the repo root:
 
@@ -126,8 +122,8 @@ on PATH, or alias `grep=ggrep`.
 ## Contributing
 
 Contributions are welcome — pull requests, issue reports, and reproductions
-all help. The project is mid-port, so check the
-[super-epic issue #2](https://github.com/Takazudo/zudo-design-token-panel/issues/2)
+all help. Check the
+[open issues](https://github.com/Takazudo/zudo-design-token-panel/issues)
 to see what is in flight before starting non-trivial work.
 
 ## License

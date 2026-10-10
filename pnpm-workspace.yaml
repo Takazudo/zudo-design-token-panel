@@ -12,9 +12,10 @@ strictPeerDependencies: false
 preferFrozenLockfile: true
 engineStrict: true
 
-# doc/ consumes @takazudo/zdtp from the npm registry (pinned 0.8.1), NOT the local
-# workspace package — the docs site must build against the published artifact. Pinned
-# explicitly so a future pnpm default flip to `true` can't silently re-link it.
+# doc/ consumes @takazudo/zdtp from the npm registry (pinned to a published release;
+# see doc/package.json), NOT the local workspace package — the docs site must build
+# against the published artifact. Pinned explicitly so a future pnpm default flip
+# to `true` can't silently re-link it.
 linkWorkspacePackages: false
 
 # pnpm 11 defaults minimumReleaseAge to 1440 (24h), which would block CI
@@ -41,8 +42,8 @@ allowBuilds:
 #   uuid    <11.1.1  — via doc>mermaid (mermaid accepts ^11.1.0 || ^12 || ^13 || ^14)
 #   ws      <8.21.0  — via vitest>jsdom>ws (^8.18.0 floor); wrangler>miniflare now pins 8.21.0 exactly
 #   yaml    <2.8.3   — via doc>@astrojs/check>...>yaml-language-server>yaml
-#   esbuild <0.28.1  — via vite (vite 7.x caps esbuild at ^0.27; only vite 8 moves to
-#                      ^0.28, so no in-range bump of the direct vite dep reaches the fix)
+#   esbuild <0.28.1  — via vite (vite 7.3.7 accepts ^0.27.0 || ^0.28.0; the override keeps
+#                      every resolution off the vulnerable ^0.27 line)
 overrides:
   "uuid@<11.1.1": ">=11.1.1"
   "ws@<8.21.0": ">=8.21.0"
