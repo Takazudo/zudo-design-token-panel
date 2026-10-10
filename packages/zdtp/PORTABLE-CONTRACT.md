@@ -1389,6 +1389,13 @@ window.zdtp.toggle = () => void | Promise<void>;  // toggle the panel
 
 ## 7. CSS contract
 
+The panel owns Preact as a regular package dependency. Imperative hosts, including
+ZFB 3/4 zudo-react islands, can install only `@takazudo/zdtp`; lazy-load it inside
+activation and keep its mounted tree separate from the host renderer. Public
+Preact declaration imports resolve through that dependency. The Preact dashboard
+renderer remains Preact-specific; a host rendering it directly still owns its JSX
+and server-rendering dependencies. No private Preact copy is bundled.
+
 ### 7.1 Panel-private namespace
 
 The panel ships its own bundled CSS. Panel-private color, font, spacing,

@@ -58,6 +58,7 @@ jobs:
         # This consumer rollout is verification-only; keep other PR previews unchanged.
         if: >-
           github.head_ref != 'chore/playground-zfb-4.3.0' &&
+          github.head_ref != 'fix/zdtp-owned-preact' &&
           vars.CF_WORKERS_DEPLOY == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
