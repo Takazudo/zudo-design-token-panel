@@ -38,13 +38,18 @@ zdtp/
 │   └── zdtp/                       # panel + bin
 │                                   #   npm: @takazudo/zdtp
 ├── doc/                            # public doc site (zudo-doc framework)
+├── playground/                     # full-size demo on the workspace build
+├── examples/
+│   └── minimal/                    # smallest-wiring demo on the workspace build
+├── scripts/                        # repo tooling (hooks, deploy audit, vendoring)
 └── LICENSE                         # MIT
 ```
 
-- [`packages/`](./packages) — workspace packages (panel + bin live here once
-  ported).
+- [`packages/`](./packages) — workspace packages (panel + bin).
 - [`doc/`](./doc) — public-facing documentation site, built with the
   [zudo-doc](https://github.com/Takazudo/zudo-doc) framework.
+- [`playground/`](./playground) and [`examples/minimal/`](./examples/minimal) —
+  the two live demos, both consuming the local workspace package.
 
 ## Doc site
 
@@ -81,24 +86,21 @@ Run the doc dev server:
 pnpm dev
 ```
 
-The panel package lives in this repo under `packages/zdtp/`.
-The five example apps (Astro, Vite + React, Next.js, zfb, zfb + Tailwind v4)
-have moved out of this monorepo into dedicated sibling repos — see the
-[Examples](https://zdtp.zudolab.dev/docs/getting-started/examples/)
-doc page for live demos and source links to each external repo. The root
-`pnpm build`, `pnpm test`, `pnpm typecheck`, and `pnpm lint` scripts fan out
-across the remaining workspaces (the panel package and the doc site) via
-`pnpm -r`.
+The root `pnpm build`, `pnpm test`, `pnpm typecheck`, and `pnpm lint` scripts
+fan out across every workspace (the panel package, the doc site, `playground/`,
+and `examples/minimal/`) via `pnpm -r`.
 
 ## Verifying the deploy output
 
-The doc workspace is served at the domain root:
+Three workspaces deploy, each served at the root of its own domain:
 
-| Workspace | Deploy root | Build output |
-| --------- | ----------- | ------------ |
-| `doc`     | `/`         | `doc/dist`   |
+| Workspace          | Deploy root | Build output            |
+| ------------------ | ----------- | ----------------------- |
+| `doc`              | `/`         | `doc/dist`              |
+| `playground`       | `/`         | `playground/dist`       |
+| `examples/minimal` | `/`         | `examples/minimal/dist` |
 
-Because the site lives at the root, there is no sub-path for an asset
+Because each site lives at the root, there is no sub-path for an asset
 reference to escape — root-relative URLs are correct by construction. What
 still matters is information disclosure, so run:
 
@@ -106,18 +108,19 @@ still matters is information disclosure, so run:
 pnpm check:deploy-paths
 ```
 
-The script (`scripts/check-deploy-paths.sh`) builds the doc workspace (plus
-the `@takazudo/zudo-design-token-panel` package as a precondition) and then
-greps the bundle for:
+The script (`scripts/check-deploy-paths.sh`) builds the deployed workspaces
+(plus the `@takazudo/zdtp` package as a precondition) and then greps each
+bundle for:
 
 - Source-map information disclosure: a `*.map` file embedding an absolute
   build-host path (`/home/...`, `/Users/...`, `/runner/...`, …) or this
   worktree's root.
 
 The script exits non-zero on any leak so it can gate CI or pre-push. It
-relies on GNU grep (PCRE plus the `--include` flags) and refuses to run
-otherwise. On macOS, install with `brew install grep` and put gnubin first
-on PATH, or alias `grep=ggrep`.
+needs a PCRE-capable grep (`grep -P`): GNU grep works, and when the system
+grep lacks `-P` (macOS BSD grep) it falls back to the ugrep bundled with the
+Claude Code CLI if `claude` is on PATH, then to Homebrew's `ggrep`
+(`brew install grep`).
 
 ## Contributing
 
