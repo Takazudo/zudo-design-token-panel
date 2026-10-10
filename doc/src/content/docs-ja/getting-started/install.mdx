@@ -4,40 +4,40 @@ description: pnpm、npm、yarn、bun の各プロジェクトへ @takazudo/zdtp 
 sidebar_position: 2
 ---
 
-`@takazudo/zdtp` は通常の npm パッケージです。公開インターフェースは `configurePanel({...})` の呼び出しと Preact でレンダリングするシェルだけなので、Astro、Vite + React、Next.js、プレーンな Vite SPA など、Preact island をレンダリングできるプロジェクトで動作します。
+`@takazudo/zdtp` は通常の npm パッケージです。Astro、Vite + React、Next.js、プレーンな Vite、ZFB 3/4 などのブラウザーホストで動作します。`configurePanel({...})` が独立した Preact のシェルをマウントし、ホストは自身のレンダラーを使い続けます。
 
 このページではパッケージ自体のインストールを説明します。レイアウトへの組み込みについては[クイックスタート](./quickstart.mdx)を参照してください。
 
 ## パッケージをインストールする
 
-プロジェクトのパッケージマネージャーに合うコマンドを選んでください。各コマンドはパネル本体と、唯一の peer dependency である [Preact](https://preactjs.com/) をインストールします。
+プロジェクトのパッケージマネージャーに合うコマンドを選んでください。ZDTP は [Preact](https://preactjs.com/) を通常の依存関係として持ちます。命令型 API を使うホストではパネルだけを指定し、ホストの JSX ランタイムは React や zudo-react のまま使えます。
 
 ### pnpm
 
 ```sh
-pnpm add @takazudo/zdtp preact
+pnpm add @takazudo/zdtp
 ```
 
 ### npm
 
 ```sh
-npm install @takazudo/zdtp preact
+npm install @takazudo/zdtp
 ```
 
 ### yarn
 
 ```sh
-yarn add @takazudo/zdtp preact
+yarn add @takazudo/zdtp
 ```
 
 ### bun
 
 ```sh
-bun add @takazudo/zdtp preact
+bun add @takazudo/zdtp
 ```
 
-<Note title="Preact は peer dependency です">
-  パネル UI は Preact でレンダリングされ、`^10.29.1` の `peerDependency` として宣言されています。パネルとアプリ内のほかの Preact island が同じランタイムを共有できるよう、利用側で Preact を用意します。二重にインストールするとランタイムが分かれ、root 間のイベントデリゲーションが壊れます。
+<Note title="ZDTP 自身が Preact を持ちます">
+  0.8.6 から Preact `^10.29.1` は peer ではなく通常の依存関係です。公開宣言には引き続き Preact の型が含まれ、その依存関係から解決されます。独自の Preact JSX や `@takazudo/zdtp/dashboard` を描画するホストは、自身の Preact と SSR 用依存関係を宣言してください。非公開ランタイムをバンドルする方式ではありません。パネルのツリーは他のレンダラーと分離します。
 </Note>
 
 ## インストールを確認する
@@ -75,13 +75,11 @@ npx zdtp-server \
   --allow-origin http://localhost:5173
 ```
 
-## peer dependency の互換性
+## ランタイム依存関係の境界
 
-パッケージの `package.json` では次の peer dependency を宣言しています。
+ZDTP は Preact、`@tailwindcss/browser`、`tailwind-merge`、`culori` を通常の依存関係としてインストールします。Tailwind コンパイラーは DOM Tweaker の遅延有効化境界の内側にあり、通常のパネルを開いても読み込み・実行されません。Tailwind を一切インストールしない構成ではありません。別パッケージや任意のエントリへの分離は、互換性を別途検討する変更です。`optionalDependencies` に移しても既定ではインストールされます。
 
-| Peer | Range | 理由 |
-| --- | --- | --- |
-| `preact` | `^10.29.1` | パネル UI は Preact でレンダリングされます。アプリのほかの部分と同じ Preact ランタイムを共有する必要があります。上の注記を参照してください。 |
+ZFB 3/4 では `getScope().onActivate()` 内でパネルを import し、アイランドの破棄時に読み込み待ちをキャンセルします。そのライフサイクル内で返されたハンドルを設定・破棄してください。Preact の VNode をホストの zudo-react レンダラーに渡してはいけません。
 
 <Info>
   パネルの CSS は自己完結しています。パネル専用の `--tokentweak-*` 名前空間にまとめたスタイルシートが同梱されています。パネルを利用するプロジェクトに **Tailwind は不要です**。

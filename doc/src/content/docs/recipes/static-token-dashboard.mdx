@@ -50,7 +50,7 @@ source definitions; it does not connect the dashboard to the panel's live state.
 ## Render a Preact page
 
 Use a host that renders Preact and configure TSX with `jsxImportSource: "preact"`
-when needed. Preact is a peer dependency. The dashboard import does not initialize
+when needed. ZDTP owns Preact as a regular dependency; the host should still declare Preact for its own JSX/SSR code. The dashboard import does not initialize
 the panel or require the panel stylesheet.
 
 ```tsx

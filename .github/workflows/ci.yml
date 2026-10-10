@@ -53,6 +53,9 @@ jobs:
       - name: Check packed declaration consumers
         run: pnpm check:packed-types --skip-build
 
+      - name: Check native packed panel consumer
+        run: node scripts/check-native-panel-consumer.mjs --skip-build
+
       - name: Check isolated dashboard consumer
         run: pnpm check:dashboard-consumer --skip-build --output-dir test-results/dashboard-consumer
 

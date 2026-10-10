@@ -4,40 +4,40 @@ description: Install @takazudo/zdtp into any pnpm, npm, yarn, or bun project.
 sidebar_position: 2
 ---
 
-`@takazudo/zdtp` is a regular npm package. It works in any project that can render a Preact island — Astro, Vite + React, Next.js, or a plain Vite SPA — because the public surface is just a `configurePanel({...})` call plus a Preact-rendered shell.
+`@takazudo/zdtp` is a regular npm package. It works in browser hosts such as Astro, Vite + React, Next.js, plain Vite and ZFB 3/4. The `configurePanel({...})` call mounts a separate Preact-rendered shell; the host keeps its own renderer.
 
 This page covers installing the package itself. For wiring it into your layout, see [Quickstart](./quickstart.mdx).
 
 ## Install the package
 
-Pick the invocation that matches your project's package manager. Each command installs the panel package and its single peer dependency, [Preact](https://preactjs.com/).
+Pick the invocation that matches your project's package manager. ZDTP owns [Preact](https://preactjs.com/) as a regular dependency. Imperative hosts need only the panel package; their JSX runtime can remain React or zudo-react.
 
 ### pnpm
 
 ```sh
-pnpm add @takazudo/zdtp preact
+pnpm add @takazudo/zdtp
 ```
 
 ### npm
 
 ```sh
-npm install @takazudo/zdtp preact
+npm install @takazudo/zdtp
 ```
 
 ### yarn
 
 ```sh
-yarn add @takazudo/zdtp preact
+yarn add @takazudo/zdtp
 ```
 
 ### bun
 
 ```sh
-bun add @takazudo/zdtp preact
+bun add @takazudo/zdtp
 ```
 
-<Note title="Preact is a peer dependency">
-  The panel UI is rendered with Preact and declares it as a `peerDependency` at `^10.29.1`. You bring your own copy so the panel and any other Preact islands in your app share one runtime — installing it twice would split the runtime and break event delegation across roots.
+<Note title="ZDTP owns Preact">
+  Since 0.8.6, Preact `^10.29.1` is a regular dependency rather than a peer. Public declarations still use Preact types, resolved through that dependency. Hosts rendering their own Preact JSX or `@takazudo/zdtp/dashboard` should declare their own Preact and SSR dependencies. ZDTP does not bundle a private runtime; keep the panel tree separate from other renderers.
 </Note>
 
 ## Verify the install
@@ -75,13 +75,11 @@ npx zdtp-server \
   --allow-origin http://localhost:5173
 ```
 
-## Peer-dependency compatibility
+## Runtime dependency boundary
 
-The package's `package.json` declares the following peer:
+ZDTP installs Preact, `@tailwindcss/browser`, `tailwind-merge` and `culori` as regular dependencies. The Tailwind compiler is behind the DOM Tweaker's lazy activation boundary: ordinary panel opening does not load or execute it. This is not a Tailwind-free installation; a companion package or optional entry would be a separate compatibility decision. Moving dependencies to `optionalDependencies` would still install them by default.
 
-| Peer     | Range      | Why                                                                                                                            |
-| -------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `preact` | `^10.29.1` | The panel UI is Preact-rendered. Sharing one Preact runtime with the rest of your app is mandatory — see the note above. |
+For ZFB 3/4, import the panel in `getScope().onActivate()` and cancel a pending import when the island is disposed. Configure and destroy the returned handle inside that lifecycle. Do not pass Preact VNodes to the host's zudo-react renderer.
 
 <Info>
   The panel's CSS is self-contained. It ships its own bundled stylesheet under the panel-private `--tokentweak-*` namespace. **Tailwind is not required in your project** to consume the panel.

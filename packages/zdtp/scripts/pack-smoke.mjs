@@ -141,7 +141,6 @@ await writeFile(join(appDir, 'index.html'), '<link rel="icon" href="data:,"><div
 await writeFile(join(appDir, 'smoke.js'), `
 import * as panel from '@takazudo/zdtp';
 import * as astro from '@takazudo/zdtp/astro';
-import '@takazudo/zdtp/styles';
 
 window.__zdtpSmoke = {
   entry: Object.keys(panel),
@@ -209,6 +208,16 @@ try {
   if (smoke?.astro?.setPanelColorPresets !== 'function') {
     throw new Error('Astro subpath did not expose setPanelColorPresets');
   }
+  const loadedModules = [...vite.moduleGraph.idToModuleMap.values()]
+    .filter((node) => node.transformResult || node.ssrTransformResult)
+    .map((node) => cleanModuleId(node.id));
+  const eagerCompiler = loadedModules.filter((id) =>
+    /@tailwindcss\/browser|tailwind-merge|dom-tweaker\/lazy/.test(id ?? ''));
+  if (eagerCompiler.length) throw new Error(`Ordinary packed panel loaded DOM Tweaker compiler modules: ${eagerCompiler.join(', ')}`);
+  if (await page.locator('[data-zdtp-dom-tweaker-tailwind-runtime], [data-zdtp-dom-tweaker-tailwind-runtime-script], style[type="text/tailwindcss"]').count()) {
+    throw new Error('Ordinary packed panel started the Tailwind compiler');
+  }
+  console.log('Packed Vite module graph: no eager DOM Tweaker/Tailwind modules or compiler nodes; self-injected CSS: PASS');
   if (errors.length > 0) throw new Error(`Packed browser smoke emitted errors:\n${errors.join('\n')}`);
 
   await constantsVite.listen();

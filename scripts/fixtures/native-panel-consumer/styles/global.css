@@ -1,0 +1,2 @@
+@import "@takazudo/zdtp/styles.css";
+:root{--space-sm:8px}#preview{padding-left:var(--space-sm)}

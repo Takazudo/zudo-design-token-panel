@@ -54,6 +54,8 @@ description: "--tokentweak-* プライベート変数、panel-tokens.css に組�
 import '@takazudo/zdtp/styles';
 ```
 
+ZFB 3/4 では自己注入を使えば CSS の import は不要です。公開 export の `@takazudo/zdtp/styles.css` も現在の ZFB 4.3.0 で利用できます。ZFB 3.0.0 には authored CSS の export 解決の不具合がありました。その版では非公開の `dist/zdtp.css` パスを使わず、自己注入を利用してください。パネルの手書き CSS を Wind へ書き換える必要はありません。
+
 <Warning title="Tailwind への依存なし">
 パッケージは、利用側に Tailwind がなくてもビルドおよび実行できる**必要があります**。パネル JSX は、`--tokentweak-*` 変数だけを基盤とする手書きの CSS クラスを使用します。
 </Warning>
