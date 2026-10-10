@@ -54,6 +54,8 @@ The `./styles` sub-export (alias `./styles.css`) resolves to `dist/zdtp.css` and
 import '@takazudo/zdtp/styles';
 ```
 
+For ZFB 3/4, self-injection needs no authored CSS import. The public `@takazudo/zdtp/styles.css` export also remains supported by current ZFB 4.3.0. ZFB 3.0.0 had an authored CSS export-resolution bug; use self-injection there rather than a private `dist/zdtp.css` path. Panel CSS stays hand-authored and is not rewritten in Wind.
+
 <Warning title="No Tailwind dependency">
 The package MUST build and run without Tailwind in the consumer. The panel JSX uses hand-authored CSS classes backed by `--tokentweak-*` vars exclusively.
 </Warning>

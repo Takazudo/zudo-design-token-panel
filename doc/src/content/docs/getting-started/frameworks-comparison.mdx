@@ -12,10 +12,10 @@ This page is the side-by-side overview. For full code, see the [Examples](./exam
 
 | Step | Astro | Vite + React | Next.js (App Router) | zfb | zfb + Tailwind v4 |
 | --- | --- | --- | --- | --- | --- |
-| Install package | `pnpm add @takazudo/zdtp preact` | same | same | same | same + `tailwindcss` |
+| Install package | `pnpm add @takazudo/zdtp` | same | same | same | same + `tailwindcss` |
 | Define `PanelConfig` | one TS file, host-side | same | same | same | same |
-| Mount the host | `<DesignTokenPanelHost>` in layout | call `configurePanel(...)` from entry | call `configurePanel(...)` from a `'use client'` module | call `configurePanel(...)` from a `"use client"` island | same as zfb |
-| Side-effect script | `void import('.../astro/host-adapter')` next to the host | not required | not required | `void import('.../astro/host-adapter')` in a `"use client"` island | same as zfb |
+| Mount the host | `<DesignTokenPanelHost>` in layout | call `configurePanel(...)` from entry | call `configurePanel(...)` from a `'use client'` module | call `configurePanel(...)` in `onActivate()` | same as zfb |
+| Side-effect script | `void import('.../astro/host-adapter')` next to the host | not required | not required | not required (native activation) | same as zfb |
 | Styles import | not required (self-injected) | not required (self-injected) | not required (self-injected) | not required (self-injected) | not required (self-injected); tokens also registered via `@theme` block |
 | Tailwind integration | n/a | n/a | n/a | n/a | tokens registered into Tailwind namespaces via `@theme`; utility classes like `text-body` and `p-hsp-md` resolve to panel custom properties |
 | View-transition lifecycle | wired automatically by the host adapter when `<ClientRouter />` is present | n/a | n/a | n/a | n/a |
@@ -40,7 +40,7 @@ What differs:
 
 ## Astro
 
-The Astro entry handles mounting for you. Drop `<DesignTokenPanelHost>` into a shared layout, pair it with the host-adapter script tag, and import the styles. That's the entire integration.
+The Astro entry handles mounting for you. Drop `<DesignTokenPanelHost>` into a shared layout and pair it with the host-adapter script tag; panel styles are self-injected. That's the entire integration.
 
 ```astro
 ---
@@ -138,7 +138,7 @@ Worked example: [GitHub source](https://github.com/Takazudo/zudo-design-token-pa
 
 [zfb](https://github.com/Takazudo/zudo-front-builder) is a WIP build orchestrator the author is developing in a separate repo (`Takazudo/zudo-front-builder`). The zfb example shows how to drop the panel into a zfb project.
 
-The integration shape is close to Astro: zfb uses Preact islands with a `"use client"` marker, so the `@takazudo/zdtp/astro/host-adapter` side-effect import is used the same way.
+ZFB 3/4 uses zudo-react islands. Keep the panel as an opaque Preact widget: lazy-import `@takazudo/zdtp` inside `getScope().onActivate()`, configure it there, cancel late imports after disposal and destroy the handle during cleanup. The panel owns Preact; the host does not need a Preact JSX configuration. The older ZFB 2 integration used Preact islands and the Astro host adapter.
 
 The key difference from the other three examples is how the dev-time apply proxy is wired up. Vite and Next.js have built-in proxy/rewrite config; zfb exposes a `devMiddleware` plugin hook instead. Register the proxy in a plugin:
 
@@ -147,7 +147,6 @@ The key difference from the other three examples is how the dev-time apply proxy
 import { defineConfig } from '@takazudo/zfb/config';
 
 export default defineConfig({
-  framework: 'preact',
   base: '/',
   plugins: [
     { name: './plugins/dev-apply-proxy.mjs' },
@@ -159,12 +158,9 @@ export default defineConfig({
 // plugins/dev-apply-proxy.mjs
 export default {
   name: 'dev-apply-proxy',
-  devMiddleware(app) {
-    // Forward POST requests at the FULL base-prefixed path to the bin server.
-    app.post(
-      '/api/dev/apply',
-      proxyHandler,
-    );
+  devMiddleware(ctx) {
+    // The handler returns { status, headers, body }; register a full request path.
+    ctx.register('/api/dev/apply', proxyHandler);
   },
 };
 ```

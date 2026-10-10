@@ -50,7 +50,7 @@ export const tokenTabs: readonly TabConfig[] = [{
 ## Preact のページとしてレンダリングする
 
 Preact をレンダリングできるホストを使い、必要に応じて TSX の
-`jsxImportSource` を `"preact"` に設定します。Preact は peer dependency です。
+`jsxImportSource` を `"preact"` に設定します。ZDTP は Preact を通常の依存関係として持ちますが、ホスト自身の JSX／SSR コード用にはホスト側でも Preact を宣言します。
 ダッシュボードの import はパネルを初期化せず、パネル用のスタイルシートも必要としません。
 
 ```tsx

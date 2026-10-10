@@ -12,10 +12,10 @@ sidebar_position: 4
 
 | 手順 | Astro | Vite + React | Next.js (App Router) | zfb | zfb + Tailwind v4 |
 | --- | --- | --- | --- | --- | --- |
-| パッケージのインストール | `pnpm add @takazudo/zdtp preact` | 同じ | 同じ | 同じ | 同じ + `tailwindcss` |
+| パッケージのインストール | `pnpm add @takazudo/zdtp` | 同じ | 同じ | 同じ | 同じ + `tailwindcss` |
 | `PanelConfig` の定義 | ホスト側の TS ファイル 1 つ | 同じ | 同じ | 同じ | 同じ |
-| ホストのマウント | レイアウト内の `<DesignTokenPanelHost>` | エントリから `configurePanel(...)` を呼ぶ | `'use client'` モジュールから `configurePanel(...)` を呼ぶ | `"use client"` island から `configurePanel(...)` を呼ぶ | zfb と同じ |
-| 副作用 script | ホストの隣で `void import('.../astro/host-adapter')` | 不要 | 不要 | `"use client"` island 内で `void import('.../astro/host-adapter')` | zfb と同じ |
+| ホストのマウント | レイアウト内の `<DesignTokenPanelHost>` | エントリから `configurePanel(...)` を呼ぶ | `'use client'` モジュールから `configurePanel(...)` を呼ぶ | `onActivate()` 内で `configurePanel(...)` を呼ぶ | zfb と同じ |
+| 副作用 script | ホストの隣で `void import('.../astro/host-adapter')` | 不要 | 不要 | 不要（ネイティブな有効化処理） | zfb と同じ |
 | スタイル import | 不要（自己注入） | 不要（自己注入） | 不要（自己注入） | 不要（自己注入） | 不要（自己注入）。トークンは `@theme` ブロックにも登録 |
 | Tailwind 連携 | 該当なし | 該当なし | 該当なし | 該当なし | `@theme` で Tailwind 名前空間へトークンを登録。`text-body` や `p-hsp-md` がパネルのカスタムプロパティへ解決される |
 | view transition ライフサイクル | `<ClientRouter />` がある場合、ホストアダプターが自動接続 | 該当なし | 該当なし | 該当なし | 該当なし |
@@ -138,7 +138,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 [zfb](https://github.com/Takazudo/zudo-front-builder) は作者が別リポジトリ（`Takazudo/zudo-front-builder`）で開発している WIP のビルドオーケストレーターです。zfb サンプルでは zfb プロジェクトへパネルを組み込む方法を示します。
 
-組み込み方は Astro に近いものです。zfb は `"use client"` マーカー付きの Preact island を使うため、同様に `@takazudo/zdtp/astro/host-adapter` の副作用 import を使います。
+ZFB 3/4 は zudo-react のアイランドを使います。パネルは独立した Preact ウィジェットとして扱い、`getScope().onActivate()` 内で `@takazudo/zdtp` を遅延 import して設定します。破棄後に完了した import はキャンセルし、クリーンアップでハンドルを破棄します。Preact はパネル自身の依存関係なので、ホストの JSX 設定を Preact に変える必要はありません。以前の ZFB 2 では Preact アイランドと Astro ホストアダプターを使っていました。
 
 ほかの 3 サンプルとの主な違いは、開発時の apply プロキシの接続方法です。Vite と Next.js には組み込みの proxy / rewrite 設定がありますが、zfb は `devMiddleware` プラグインフックを提供します。プラグインでプロキシを登録します。
 
@@ -147,7 +147,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 import { defineConfig } from '@takazudo/zfb/config';
 
 export default defineConfig({
-  framework: 'preact',
   base: '/',
   plugins: [
     { name: './plugins/dev-apply-proxy.mjs' },
@@ -159,12 +158,9 @@ export default defineConfig({
 // plugins/dev-apply-proxy.mjs
 export default {
   name: 'dev-apply-proxy',
-  devMiddleware(app) {
-    // Forward POST requests at the FULL base-prefixed path to the bin server.
-    app.post(
-      '/api/dev/apply',
-      proxyHandler,
-    );
+  devMiddleware(ctx) {
+    // The handler returns { status, headers, body }; register a full request path.
+    ctx.register('/api/dev/apply', proxyHandler);
   },
 };
 ```
