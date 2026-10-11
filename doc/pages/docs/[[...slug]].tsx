@@ -32,11 +32,14 @@ import { createChrome } from "@takazudo/zudo-doc/chrome";
 import { DocHistoryBoundary as DocHistory } from "@takazudo/zudo-doc/doc-history-area";
 import { defineChromeBindings } from "@takazudo/zudo-doc/chrome-bindings";
 import { chromeBindings } from "virtual:zudo-doc-chrome-bindings";
+// A direct import keeps the host client island in the static scanner graph.
+import { chromeBindings as localChromeBindings } from "../../src/chrome-bindings";
 
 const ctx = routeContext as unknown as RouteContextPayload;
 const routeCtx = createRouteContext(ctx);
 const { renderDocPage } = createChrome(routeCtx, {
   ...chromeBindings,
+  ...localChromeBindings,
   ...defineChromeBindings({ DocHistory }),
 });
 

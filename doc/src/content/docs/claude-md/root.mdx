@@ -36,11 +36,11 @@ Documentation site built with [zudo-doc](https://github.com/zudolab/zudo-doc) �
 ```
 zfb.config.ts             # THE one config file — zudoDoc({ ...only fields you chose })
 pages/
-├── index.tsx             # 1-line re-export of the package home route
+├── index.tsx             # package home re-export + local island scanner edge
 └── docs/[[...slug]].tsx  # retained native doc-route stub (explicit host ownership)
   [locale]/docs/[[...slug]].tsx  # same, for non-default locales
 src/
-├── chrome-bindings.tsx   # optional typed primary chrome / named header / MDX bindings
+├── chrome-bindings.tsx   # typed native panel bootstrap boundary
 ├── content/
 │   └── docs/             # MDX content (this project's showcase docs)
 │   └── docs-ja/         # Japanese MDX content (mirrors docs/)
@@ -49,6 +49,15 @@ src/
 ```
 
 Everything else — layout, header, sidebar, footer, doc chrome, islands, and the default design tokens — lives in `node_modules/@takazudo/zudo-doc`. For supported markup replacement, create `src/chrome-bindings.tsx` with `defineChromeBindings`, set `chromeBindingsModule`, and use the primary `Header` / `Footer` / `Sidebar` / `Toc` / `Breadcrumb` / `DocPager` slots or the named `headerRightComponents` registry. The generated default, locale, and doc-history route shapes already consume the same binding object; do not fork a route stub for presentational customization. `npx zudo-doc eject <component>` only copies source: heed its primary, nested-chrome, or content-layer remediation before expecting the copy to render. Settings you didn't set explicitly in `zfb.config.ts` use the package's documented defaults — hover `zudoDoc`'s `ZudoDocConfig` argument in your editor to see every field and its `@default`.
+
+The local `DesignTokenPanelBootstrap` boundary preserves early header clicks across
+native SPA swaps in zudo-doc 6.0.0. `src/panel-bootstrap.tsx` queues toggle parity
+between `zfb:before-swap` and incoming scope activation, then calls the public
+bootstrap controller with the native scope's abort signal and replays at most one
+intent. Package code still owns lazy loading, cancellation, configuration and the
+opaque panel runtime. Keep direct route imports of the binding module: the virtual
+host-callables channel alone does not guarantee static island discovery. Both
+first-load and incoming-unhydrated clicks are covered by the current-host probe.
 
 ## zdtp ↔ zudo-doc relationship
 

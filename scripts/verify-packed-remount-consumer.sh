@@ -234,11 +234,16 @@ echo "Building the $HOST packed consumer site"
 GEN_DOC_HISTORY=1 pnpm --dir "$SCRATCH_DOC" build
 
 echo "Running the $HOST packed SPA remount browser regression"
-pnpm --dir "$ROOT_DIR" --filter @takazudo/zdtp exec node scripts/verify-packed-remount-browser.mjs --host "$SCRATCH_DOC/dist"
-
 if [[ "$HOST" == "current" ]]; then
+  # Collect independent native-host evidence even if another browser probe
+  # fails; the final status remains nonzero for any failure.
+  browser_status=0
+  pnpm --dir "$ROOT_DIR" --filter @takazudo/zdtp exec node scripts/verify-packed-remount-browser.mjs --host "$SCRATCH_DOC/dist" --native-host || browser_status=1
   echo "Running current-host production features"
-  pnpm --dir "$ROOT_DIR" --filter @takazudo/zdtp exec node scripts/verify-current-doc-browser.mjs --host "$SCRATCH_DOC/dist"
+  pnpm --dir "$ROOT_DIR" --filter @takazudo/zdtp exec node scripts/verify-current-doc-browser.mjs --host "$SCRATCH_DOC/dist" || browser_status=1
   echo "Running current-host dev features with the real history sidecar"
-  pnpm --dir "$ROOT_DIR" --filter @takazudo/zdtp exec node scripts/verify-current-doc-browser.mjs --dev "$SCRATCH_DOC"
+  pnpm --dir "$ROOT_DIR" --filter @takazudo/zdtp exec node scripts/verify-current-doc-browser.mjs --dev "$SCRATCH_DOC" || browser_status=1
+  exit "$browser_status"
+else
+  pnpm --dir "$ROOT_DIR" --filter @takazudo/zdtp exec node scripts/verify-packed-remount-browser.mjs --host "$SCRATCH_DOC/dist"
 fi

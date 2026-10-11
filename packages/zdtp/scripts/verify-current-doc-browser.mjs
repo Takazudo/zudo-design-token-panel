@@ -212,6 +212,16 @@ try {
     await history(page, historyPath);
   }
 
+  await page.goto(`${origin}/docs/getting-started/quickstart/`, { waitUntil: 'domcontentloaded' });
+  await settled(page);
+  const highlighting = await page.locator('.hi-root').evaluateAll((blocks) => ({
+    blocks: blocks.length,
+    colors: [...new Set(blocks.flatMap((block) => [...block.querySelectorAll('[class*="hi-"]')]
+      .map((token) => getComputedStyle(token).color)))],
+  }));
+  assert(highlighting.blocks > 0 && highlighting.colors.length > 1,
+    `Fenced-code semantic highlighting lacks emitted/computed token colors: ${JSON.stringify(highlighting)}`);
+
   await page.goto(`${origin}/docs/getting-started/`, { waitUntil: 'domcontentloaded' });
   await settled(page);
   await page.locator('[data-zd-theme-menu] > button').click();

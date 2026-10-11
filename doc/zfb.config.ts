@@ -39,6 +39,7 @@ export default defineConfig(
     ],
     cjkFriendly: true,
     designTokenPanel: true,
+    chromeBindingsModule: "./src/chrome-bindings.tsx",
     sidebarResizer: true,
     sidebarToggle: true,
     tocToggle: true,
