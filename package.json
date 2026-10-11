@@ -17,7 +17,8 @@
     "prepare": "lefthook install && bash scripts/install-git-hooks.sh",
     "init-worktree": "bash scripts/install-git-hooks.sh",
     "check:packed-types": "node scripts/check-packed-types.mjs",
-    "check:dashboard-consumer": "node scripts/check-dashboard-consumer.mjs"
+    "check:dashboard-consumer": "node scripts/check-dashboard-consumer.mjs",
+    "check:dashboard-client-consumer": "node scripts/check-dashboard-client-consumer.mjs"
   },
   "engines": {
     "node": ">=22.12.0",

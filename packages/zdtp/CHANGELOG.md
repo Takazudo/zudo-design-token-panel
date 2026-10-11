@@ -6,7 +6,7 @@ The format is based on Keep a Changelog, and release notes are generated from th
 
 ## [Unreleased]
 
-No unreleased changes yet.
+- Added an optional, unreleased `@takazudo/zdtp/dashboard/client` mount/dispose API for hosts without a Preact renderer. The documentation site's pinned 0.8.6 package does not include it.
 
 ## [0.8.6] - 2026-10-10
 

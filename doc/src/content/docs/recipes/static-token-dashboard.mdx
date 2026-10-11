@@ -12,8 +12,9 @@ plus CSS with no dashboard hydration.
 :::note[Availability]
 The dashboard is available from npm v0.6.1 and in the
 [workspace demo](https://zdtp-playground.zudolab.dev/dashboard/). This documentation site's panel still uses its
-separate pinned npm dependency. The `chrome` prop is **unreleased (next release)**
-and is not supported in v0.6.1.
+separate pinned npm dependency. The optional imperative client API is
+**unreleased** and is not in this site's pinned 0.8.6 package; see the
+[dashboard reference](../reference/token-dashboard.mdx).
 :::
 
 ## Keep token definitions build-safe
@@ -109,7 +110,7 @@ the explicit asset copy and link above. Verify the emitted HTML and CSS.
 
 ## Follow the host theme
 
-`chrome="host"` is **unreleased (next release)**. Set `color-scheme` on a host
+Set `color-scheme` on a host
 ancestor to make the dashboard shell, backgrounds, and labels follow it.
 For example, let your application's theme switch update `data-theme` on `html`:
 
