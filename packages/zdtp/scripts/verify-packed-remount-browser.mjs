@@ -118,6 +118,21 @@ function lifecycleProbeInitScript() {
       timeline: [],
       armedClick: null,
     };
+    // Count actual host queue registrations: stopImmediatePropagation can hide
+    // duplicate capture listeners from event-count assertions alone.
+    const captureToggleListeners = new Set();
+    const originalAdd = window.addEventListener;
+    const originalRemove = window.removeEventListener;
+    const captures = (options) => options === true || Boolean(options && typeof options === 'object' && options.capture);
+    window.addEventListener = function(type, listener, options) {
+      if (type === 'toggle-design-token-panel' && captures(options)) captureToggleListeners.add(listener);
+      return originalAdd.call(this, type, listener, options);
+    };
+    window.removeEventListener = function(type, listener, options) {
+      if (type === 'toggle-design-token-panel' && captures(options)) captureToggleListeners.delete(listener);
+      return originalRemove.call(this, type, listener, options);
+    };
+    Object.defineProperty(probe, 'queueCaptureListeners', { get: () => captureToggleListeners.size });
     const storagePrefix = '${PANEL_STORAGE_PREFIX}';
     const rootIdentityIds = new WeakMap();
     let nextRootIdentityId = 1;
@@ -280,6 +295,7 @@ async function panelDiagnostics(page) {
       probe: {
         triggerClicks: window.__packedRemountProbe.triggerClicks,
         toggleEvents: window.__packedRemountProbe.toggleEvents,
+        queueCaptureListeners: window.__packedRemountProbe.queueCaptureListeners,
         swapClicks: window.__packedRemountProbe.swapClicks,
         pageLoads: window.__packedRemountProbe.pageLoads,
         timeline: window.__packedRemountProbe.timeline,
@@ -699,6 +715,7 @@ async function proveNativeIncomingEarlyClick(browser, origin, panelChunkPaths) {
     const state = await panelDiagnostics(page);
     check(state.probe.triggerClicks === 1, 'Native early recovery required another user click');
     check(state.probe.toggleEvents === 1, 'Native early intent did not deliver exactly one public toggle after activation');
+    check(state.probe.queueCaptureListeners === 1, 'Expected exactly one host navigation capture queue');
     check(state.bindingPrefixes?.filter((prefix) => prefix === PANEL_STORAGE_PREFIX).length === 1,
       `Native early replay duplicated public binding: ${JSON.stringify(state)}`);
     for (let index = 0; index < 4; index++) {
@@ -718,6 +735,7 @@ async function proveNativeIncomingEarlyClick(browser, origin, panelChunkPaths) {
       check(after.probe.triggerClicks === before.probe.triggerClicks + 1 &&
         after.probe.toggleEvents === before.probe.toggleEvents + 1,
       `${label}: expected one user click and one delivered toggle: ${JSON.stringify(after)}`);
+      check(after.probe.queueCaptureListeners === 1, `${label}: native remount duplicated the capture queue`);
       check(JSON.stringify(after.bindingPrefixes) === JSON.stringify(state.bindingPrefixes) &&
         after.lifecycleCleanups === state.lifecycleCleanups,
       `${label}: repeated native queue activation leaked bindings or lifecycle listeners: ${JSON.stringify(after)}`);
