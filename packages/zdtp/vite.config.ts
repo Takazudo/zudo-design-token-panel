@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const constantsSource = fileURLToPath(new URL('./src/constants.ts', import.meta.url));
 const dashboardDirectory = fileURLToPath(new URL('./src/dashboard/', import.meta.url));
+const dashboardClientSource = fileURLToPath(new URL('./src/dashboard/client.ts', import.meta.url));
 const dashboardStyles = fileURLToPath(new URL('./src/dashboard/styles.css', import.meta.url));
 // Pure mode-detection helpers are part of the public dashboard entry as well
 // as the main panel entry. Keep this one shared source allowed without opening
@@ -116,9 +117,9 @@ function staticDashboard(): Plugin {
         visited.add(chunk.fileName);
         for (const id of Object.keys(chunk.modules)) {
           const source = normalizeModuleId(id);
-          if (!isAllowedDashboardSource(source)) {
+          if (source === dashboardClientSource || !isAllowedDashboardSource(source)) {
             this.error(
-              `Dashboard must only contain dashboard source, the pure mode helper, and external Preact; found ${id}.`,
+              `Static dashboard must contain only its renderer source, the pure mode helper, and external Preact; found ${id}.`,
             );
           }
         }
@@ -209,6 +210,7 @@ export default defineConfig({
         constants: 'src/constants.ts',
         // Static Preact renderer. CSS is an independent asset, never imported here.
         'dashboard/index': 'src/dashboard/index.ts',
+        'dashboard/client': 'src/dashboard/client.ts',
       },
       formats: ['es'],
       // Explicit cssFileName so the exports map contract ("./styles": "./dist/zdtp.css")

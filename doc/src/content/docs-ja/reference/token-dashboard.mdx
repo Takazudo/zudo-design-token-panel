@@ -9,8 +9,9 @@ description: 静的トークンダッシュボードの Preact props、スタイ
 hydration を必要とせず、読み取り専用の一覧をレンダリングします。
 
 :::note[利用可能なビルド]
-これらのサブパスは npm v0.6.1 から利用できます。
-ただし、`chrome` prop は**未リリース（次回リリース予定）**で、v0.6.1 では使えません。
+静的ダッシュボードのサブパスは npm v0.6.1 から利用できます。以下の
+`dashboard/client` API は**未リリース**で、このドキュメントサイトが固定している
+0.8.6 には含まれていません。
 ビルド時にも使えるデータの共有、CSS の読み込み、ワークスペースのデモについては
 [静的ダッシュボードのレシピ](../recipes/static-token-dashboard.mdx)をご覧ください。
 :::
@@ -38,7 +39,7 @@ import type {
 | `tabs` | `readonly TabConfig[]`、必須 | 表示順に並べた共有マニフェスト。空配列では空の一覧を表示します。 |
 | `mode` | `'light' \| 'dark' \| 'host'`、既定値 `'light'` | 宣言されたモード別の既定値と、プレビュー内のカラースキームを選びます。`host` は `light-dark()` の値を出力し、依存リージョンをページのスキームに従わせます。 |
 | `include` | `'all' \| 'mode-dependent' \| 'mode-independent'`、既定値 `'all'` | 参照を通じてモード依存性を伝播させた後、表示する行を絞り込みます。参照に必要な宣言グラフ全体はインスタンス内に保持されます。 |
-| `chrome` | `'light' \| 'dark' \| 'host'`、既定値 `'light'` | 枠・背景・ラベルなどの外観を選びます。`mode` とは独立しています。**未リリース（次回リリース予定）**。 |
+| `chrome` | `'light' \| 'dark' \| 'host'`、既定値 `'light'` | 枠・背景・ラベルなどの外観を選びます。`mode` とは独立しています。 |
 | `title` | `string`、既定値 `'Token dashboard'` | 表示する見出しと、リージョンのアクセシブル名。 |
 | `id` | 省略可能な `string` | ルート要素の ID。一意性は呼び出し元が管理します。省略時は生成しません。 |
 | `previewText` | 省略可能な `string`、既定値は英語・日本語の文章 | 静的な文字見本。明示的な空文字列も保持します。 |
@@ -49,6 +50,45 @@ import type {
 この CSS は `@takazudo/zdtp/styles.css` と独立しており、ダッシュボードだけのページに
 パネル用スタイルシートは不要です。Preact が必要です。React アダプターや
 HTML 書き出し関数・CLI は提供しません。
+
+## 命令的なクライアント API（未リリース）
+
+`@takazudo/zdtp/dashboard/client` は同期関数の
+`mountTokenDashboard(host, props)` と `TokenDashboardProps`、
+`TokenDashboardHandle` 型を公開します。ハンドルの `dispose()` は何度呼んでも安全です。
+ホスト側の ref が所有する専用の空要素を渡します。要素と属性はホストが保持し、
+初回マウント時に無関係の子要素があればエラーになります。同じ要素への再マウントは
+以前の表示を置き換え、古いハンドルは新しい表示を削除できません。別々の要素は独立します。
+
+```ts
+import '@takazudo/zdtp/dashboard/styles.css';
+import { mountTokenDashboard, type TokenDashboardProps } from '@takazudo/zdtp/dashboard/client';
+import { tokenTabs } from './token-tabs';
+
+export function setupDashboard(host: HTMLElement) {
+  // host はホスト側フレームワークの ref が渡す空の要素。
+  const props: TokenDashboardProps = { tabs: tokenTabs, mode: 'host', chrome: 'host' };
+  const dashboard = mountTokenDashboard(host, props);
+  return () => dashboard.dispose(); // ホスト側の破棄時に呼ぶ。
+}
+```
+
+遅延 import を使う場合、破棄済みの ref に読み込み完了後のマウントを行わないよう
+ホスト側でキャンセルします。
+
+```ts
+export function setupLazyDashboard(host: HTMLElement, props: TokenDashboardProps) {
+  let cancelled = false;
+  let dashboard: import('@takazudo/zdtp/dashboard/client').TokenDashboardHandle | undefined;
+  void import('@takazudo/zdtp/dashboard/client').then(({ mountTokenDashboard }) => {
+    if (!cancelled) dashboard = mountTokenDashboard(host, props);
+  });
+  return () => { cancelled = true; dashboard?.dispose(); };
+}
+```
+
+静的な Preact エントリーは引き続き Node SSR とクライアント JavaScript 不要の HTML に
+利用できます。公開 CSS はどちらのエントリーでも明示的に読み込んでください。
 
 ### Chrome の入力と派生値
 

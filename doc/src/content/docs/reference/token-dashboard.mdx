@@ -9,8 +9,9 @@ It accepts tab data and renders a read-only inventory without browser globals,
 panel setup, storage access, or hydration requirements.
 
 :::note[Availability]
-These subpaths are available from npm v0.6.1.
-The `chrome` prop is **unreleased (next release)** and is not supported in v0.6.1.
+The static dashboard subpaths are available from npm v0.6.1. The separate
+`dashboard/client` API described below is **unreleased** and is not in this
+documentation site's pinned 0.8.6 package.
 See the [static dashboard recipe](../recipes/static-token-dashboard.mdx) for
 build-safe data sharing, stylesheet inclusion, and the live workspace demo.
 :::
@@ -38,7 +39,7 @@ import type {
 | `tabs` | `readonly TabConfig[]`, required | Shared manifest data, in display order. An empty array renders an empty inventory. |
 | `mode` | `'light' \| 'dark' \| 'host'`, default `'light'` | Selects declared per-mode defaults and the local preview color scheme. `host` emits `light-dark()` values and lets the dependent region inherit the page scheme. |
 | `include` | `'all' \| 'mode-dependent' \| 'mode-independent'`, default `'all'` | Filters visible rows after mode dependence has propagated through references. The complete declaration graph stays available inside the instance. |
-| `chrome` | `'light' \| 'dark' \| 'host'`, default `'light'` | Selects shell, background, and label appearance independently of `mode`. **Unreleased (next release)**. |
+| `chrome` | `'light' \| 'dark' \| 'host'`, default `'light'` | Selects shell, background, and label appearance independently of `mode`. |
 | `title` | `string`, default `'Token dashboard'` | Visible heading and accessible region name. |
 | `id` | Optional `string` | Root element ID; caller owns uniqueness. Omitted IDs are not generated. |
 | `previewText` | Optional `string`; default English/Japanese prose | Static typography passage; explicit empty strings are preserved. |
@@ -49,6 +50,45 @@ pipeline. Dashboard JavaScript has no stylesheet side-effect import. This CSS
 is separate from `@takazudo/zdtp/styles.css`; the panel stylesheet is unnecessary
 for a dashboard-only page. Preact is required; no React adapter or HTML-export
 function/CLI is provided.
+
+## Optional imperative client (unreleased)
+
+`@takazudo/zdtp/dashboard/client` exports synchronous
+`mountTokenDashboard(host, props)` plus `TokenDashboardProps` and
+`TokenDashboardHandle` types. The handle has an idempotent `dispose()` method.
+Use a dedicated empty element from the host's ref; the host keeps ownership of
+the element and attributes. An initial mount rejects unrelated children.
+Mounting again through this API replaces the earlier dashboard, and an old
+disposer cannot clear its replacement. Different hosts are independent.
+
+```ts
+import '@takazudo/zdtp/dashboard/styles.css';
+import { mountTokenDashboard, type TokenDashboardProps } from '@takazudo/zdtp/dashboard/client';
+import { tokenTabs } from './token-tabs';
+
+export function setupDashboard(host: HTMLElement) {
+  // host is an empty element supplied by the host framework's ref.
+  const props: TokenDashboardProps = { tabs: tokenTabs, mode: 'host', chrome: 'host' };
+  const dashboard = mountTokenDashboard(host, props);
+  return () => dashboard.dispose(); // Call on host teardown.
+}
+```
+
+For a lazy import, the host must ignore completion after its ref is disposed:
+
+```ts
+export function setupLazyDashboard(host: HTMLElement, props: TokenDashboardProps) {
+  let cancelled = false;
+  let dashboard: import('@takazudo/zdtp/dashboard/client').TokenDashboardHandle | undefined;
+  void import('@takazudo/zdtp/dashboard/client').then(({ mountTokenDashboard }) => {
+    if (!cancelled) dashboard = mountTokenDashboard(host, props);
+  });
+  return () => { cancelled = true; dashboard?.dispose(); };
+}
+```
+
+The static Preact entry remains suitable for Node SSR and HTML without client
+JavaScript. Neither entry injects the public CSS automatically.
 
 ### Chrome inputs and derivation
 

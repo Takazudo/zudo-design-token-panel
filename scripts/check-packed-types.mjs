@@ -18,7 +18,7 @@ function run(command, args, cwd = root, allowFailure = false) {
 const assets = new Set(['./styles', './styles.css', './dashboard/styles.css', './astro/DesignTokenPanelHost.astro']);
 function unexpectedProblems(report) {
   assert.ok(report.analysis?.types, 'ATTW must analyze a typed package');
-  for (const entrypoint of ['.', './astro', './server', './testing', './dashboard']) {
+  for (const entrypoint of ['.', './astro', './server', './testing', './dashboard', './dashboard/client']) {
     assert.ok(report.analysis.entrypoints?.[entrypoint], `ATTW must analyze ${entrypoint}`);
   }
   assert.ok(report.problems && typeof report.problems === 'object');
@@ -83,10 +83,13 @@ import type { PanelConfig as AstroPanelConfig } from '@takazudo/zdtp/astro';
 import * as server from '@takazudo/zdtp/server';
 import * as testing from '@takazudo/zdtp/testing';
 import type { TokenDashboardProps } from '@takazudo/zdtp/dashboard';
+import { mountTokenDashboard, type TokenDashboardHandle, type TokenDashboardProps as ClientProps } from '@takazudo/zdtp/dashboard/client';
 const config: PanelConfig = { storagePrefix: 'isolated', consoleNamespace: 'isolated',
   modalClassPrefix: 'isolated-modal', schemaId: 'isolated/v1', exportFilenameBase: 'isolated', tabs: [] };
 const astroConfig: AstroPanelConfig = config;
 const props: TokenDashboardProps = { tabs: [] };
+const clientProps: ClientProps = props;
+export const mountDashboard = (host: HTMLElement): TokenDashboardHandle => mountTokenDashboard(host, clientProps);
 export { astroConfig, props, server, testing };
 export const mount = () => configurePanel(config);
 `);
