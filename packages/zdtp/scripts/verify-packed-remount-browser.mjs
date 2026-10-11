@@ -13,6 +13,14 @@ function check(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+// Arm multiple independent waits without allowing context teardown to turn a
+// secondary rejection into an unhandled error that hides the original failure.
+// Return the original promise: its eventual explicit await still throws.
+function observed(promise) {
+  promise.catch(() => {});
+  return promise;
+}
+
 function deferred() {
   let resolvePromise;
   const promise = new Promise((resolveValue) => { resolvePromise = resolveValue; });
@@ -249,8 +257,8 @@ function publicApiReady(probe) {
   );
 }
 
-async function waitForZfbEvent(page, eventName) {
-  return page.evaluate(({ eventName, timeoutMs }) => new Promise((resolve, reject) => {
+function waitForZfbEvent(page, eventName) {
+  return observed(page.evaluate(({ eventName, timeoutMs }) => new Promise((resolve, reject) => {
     const timeout = window.setTimeout(() => {
       document.removeEventListener(eventName, onEvent);
       reject(new Error(`Timed out waiting for ${eventName}`));
@@ -260,7 +268,7 @@ async function waitForZfbEvent(page, eventName) {
       resolve({ path: location.pathname, time: performance.now() });
     };
     document.addEventListener(eventName, onEvent, { once: true });
-  }), { eventName, timeoutMs: TIMEOUT_MS });
+  }), { eventName, timeoutMs: TIMEOUT_MS }));
 }
 
 async function waitForPublicEvents(page) {
@@ -506,8 +514,8 @@ async function proveSpaRemount(browser, origin, panelChunkPaths, { nativeHost = 
     check(cleanStorage.keys.length === 0,
       `SPA regression started with persisted panel state: ${cleanStorage.keys.join(', ')}`);
 
-    const panelRequest = page.waitForRequest((request) =>
-      panelChunkPaths.has(new URL(request.url()).pathname), { timeout: TIMEOUT_MS });
+    const panelRequest = observed(page.waitForRequest((request) =>
+      panelChunkPaths.has(new URL(request.url()).pathname), { timeout: TIMEOUT_MS }));
     if (!nativeHost) await armAfterSwapHeaderClick(page, 'first-host-to-engine');
     const firstSwap = waitForZfbEvent(page, 'zfb:after-swap');
     const firstPageLoad = waitForZfbEvent(page, 'zfb:page-load');
@@ -669,6 +677,11 @@ async function proveSpaRemount(browser, origin, panelChunkPaths, { nativeHost = 
     }));
     console.log(`Packed remount evidence: ${JSON.stringify(evidence)}`);
     console.log(`PASS packed ${nativeHost ? 'native (first activation at incoming island mount)' : 'legacy (first activation inside after-swap)'} SPA remount: host→docs→host→docs header clicks, populated root, one shell, and repeat navigation`);
+  } catch (error) {
+    console.error('SPA remount original failure:', error);
+    console.error('SPA remount diagnostics:', JSON.stringify(await panelDiagnostics(page).catch((diagnosticError) => ({ error: String(diagnosticError) }))));
+    console.error('SPA remount browser errors:', JSON.stringify(errors));
+    throw error;
   } finally {
     releasePanelChunk();
     await context.close();
@@ -699,7 +712,7 @@ async function proveNativeIncomingEarlyClick(browser, origin, panelChunkPaths) {
     await page.goto(`${origin}/`, { waitUntil: 'load' });
     await page.locator('[data-zfb-island="DocPanelBootstrap"][data-zfb-island-mounted]').waitFor({ state: 'attached' });
     check(!await panelChunksLoaded(page, panelChunkPaths), 'Early SPA test loaded panel before activation');
-    const requested = page.waitForRequest((request) => panelChunkPaths.has(new URL(request.url()).pathname), { timeout: TIMEOUT_MS });
+    const requested = observed(page.waitForRequest((request) => panelChunkPaths.has(new URL(request.url()).pathname), { timeout: TIMEOUT_MS }));
     await armAfterSwapHeaderClick(page, 'native-incoming-unhydrated');
     const swap = waitForZfbEvent(page, 'zfb:after-swap');
     await page.getByRole('link', { name: 'Getting Started', exact: true }).first().click();
@@ -742,6 +755,11 @@ async function proveNativeIncomingEarlyClick(browser, origin, panelChunkPaths) {
     }
     check(errors.length === 0, `Native early SPA flow emitted browser errors: ${errors.join(' | ')}`);
     console.log(`PASS current native incoming unhydrated header click: ${JSON.stringify({ proof, triggerClicks: state.probe.triggerClicks, toggleEvents: state.probe.toggleEvents })}`);
+  } catch (error) {
+    console.error('Native incoming early-click original failure:', error);
+    console.error('Native incoming early-click diagnostics:', JSON.stringify(await panelDiagnostics(page).catch((diagnosticError) => ({ error: String(diagnosticError) }))));
+    console.error('Native incoming early-click browser errors:', JSON.stringify(errors));
+    throw error;
   } finally {
     gate.resolve();
     await context.close();

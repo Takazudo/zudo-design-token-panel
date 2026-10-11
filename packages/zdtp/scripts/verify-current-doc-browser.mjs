@@ -224,7 +224,7 @@ try {
 
   await page.goto(`${origin}/docs/getting-started/`, { waitUntil: 'domcontentloaded' });
   await settled(page);
-  await page.locator('[data-zd-theme-menu] > button').click();
+  await page.getByRole('button', { name: /^Appearance:/ }).click();
   await page.getByRole('menuitemradio', { name: 'Dark', exact: true }).click();
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
   const resizer = page.getByRole('separator', { name: 'Resize sidebar', exact: true });
@@ -240,7 +240,7 @@ try {
 
   // Exercise the actual v6 indexed-search UI. Its published implementation
   // loads search-index.json; it does not call Pagefind's browser API.
-  await page.locator('[data-open-search]').click();
+  await page.locator('[data-open-search]:visible').click();
   await page.locator('[data-search-input]').fill('token');
   await page.locator('[data-search-results] a').first().waitFor();
   await page.locator('[data-close-search]').click();
