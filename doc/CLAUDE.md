@@ -154,7 +154,7 @@ Admonitions (above), tabbed content (`<Tabs>` / `<TabItem>`, `<CodeGroup>`), and
 
 ## Enabled Features
 
-- **search** — Full-text search via Pagefind
+- **search** — Package-owned full-text search UI and generated `search-index.json` (the v6 browser runtime does not call Pagefind)
 - **claudeResources** — Auto-generated docs for Claude Code resources
 - **designTokenPanel** — Interactive tabbed panel for tweaking spacing, font, size, and color tokens
 - **sidebarResizer** — Draggable sidebar width
