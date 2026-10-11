@@ -242,6 +242,9 @@ if [[ "$HOST" == "current" ]]; then
   echo "Running current-host production features"
   pnpm --dir "$ROOT_DIR" --filter @takazudo/zdtp exec node scripts/verify-current-doc-browser.mjs --host "$SCRATCH_DOC/dist" || browser_status=1
   echo "Running current-host dev features with the real history sidecar"
+  # Exercise a clean dev boot, not a production dist/ seed served while the
+  # development compiler starts. These are generated files in our mktemp copy.
+  rm -rf "$SCRATCH_DOC/dist" "$SCRATCH_DOC/.zfb-build"
   pnpm --dir "$ROOT_DIR" --filter @takazudo/zdtp exec node scripts/verify-current-doc-browser.mjs --dev "$SCRATCH_DOC" || browser_status=1
   exit "$browser_status"
 else

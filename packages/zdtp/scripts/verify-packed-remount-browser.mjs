@@ -172,6 +172,8 @@ function lifecycleProbeInitScript() {
         mountedPrefixes: mountedRoots instanceof Map ? [...mountedRoots.keys()] : null,
         bindingPrefixes: bindings instanceof Map ? [...bindings.keys()] : null,
         lifecycleCleanups: Array.isArray(lifecycle?.cleanups) ? lifecycle.cleanups.length : null,
+        storedOpen: localStorage.getItem(storagePrefix + '-open'),
+        storedVisible: localStorage.getItem(storagePrefix + ':visible'),
       };
     };
     const record = (name, details = {}) => {
@@ -297,6 +299,8 @@ async function panelDiagnostics(page) {
       mountedPrefixes: mountedRoots instanceof Map ? [...mountedRoots.keys()] : null,
       bindingPrefixes: bindings instanceof Map ? [...bindings.keys()] : null,
       lifecycleCleanups: Array.isArray(lifecycle?.cleanups) ? lifecycle.cleanups.length : null,
+      storedOpen: localStorage.getItem(storagePrefix + '-open'),
+      storedVisible: localStorage.getItem(storagePrefix + ':visible'),
       rootChildren: root?.childElementCount ?? 0,
       rootHtmlLength: root?.innerHTML.length ?? 0,
       shellCount: shells.length,
@@ -703,6 +707,18 @@ async function assertNativeQueuedClick(page, label) {
   return proof;
 }
 
+async function assertNativePersistedVisibility(page, visible, label) {
+  try {
+    await page.waitForFunction(({ prefix, visible }) => {
+      const open = localStorage.getItem(prefix + '-open') === '1';
+      const storedVisibility = localStorage.getItem(prefix + ':visible');
+      return open === visible && storedVisibility === (visible ? '1' : '0');
+    }, { prefix: PANEL_STORAGE_PREFIX, visible }, { timeout: TIMEOUT_MS });
+  } catch {
+    throw new Error(`${label}: panel visibility did not settle in both persistence keys: ${JSON.stringify(await panelDiagnostics(page))}`);
+  }
+}
+
 async function proveNativeIncomingEarlyClick(browser, origin, panelChunkPaths) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   const page = await context.newPage();
@@ -740,6 +756,7 @@ async function proveNativeIncomingEarlyClick(browser, origin, panelChunkPaths) {
     check(beforeRelease.shellCount === 0, 'Held lazy panel implementation rendered before release');
     gate.resolve();
     await assertPanelState(page, true, 'native incoming unhydrated click replay');
+    await assertNativePersistedVisibility(page, true, 'native incoming unhydrated click replay');
     const state = await panelDiagnostics(page);
     check(state.probe.triggerClicks === 1, 'Native early recovery required another user click');
     check(state.probe.toggleEvents === 2, 'Expected one raw early toggle plus one queue replay');
@@ -762,6 +779,10 @@ async function proveNativeIncomingEarlyClick(browser, origin, panelChunkPaths) {
       await page.waitForFunction(() => window.__packedRemountProbe.acceptedToggleEvents === window.__packedRemountProbe.triggerClicks,
         null, { timeout: TIMEOUT_MS });
       const after = await assertPanelState(page, index % 2 !== 0, label);
+      // A remounted closed shell is initially empty before its effects flush;
+      // that alone does not prove the close intent has settled. Require both
+      // persistence keys before starting another navigation.
+      await assertNativePersistedVisibility(page, index % 2 !== 0, label);
       check(after.probe.triggerClicks === before.probe.triggerClicks + 1 &&
         after.probe.toggleEvents === before.probe.toggleEvents + 2 &&
         after.probe.acceptedToggleEvents === before.probe.acceptedToggleEvents + 1,

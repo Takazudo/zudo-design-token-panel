@@ -31,6 +31,12 @@ Documentation site built with [zudo-doc](https://github.com/zudolab/zudo-doc) �
 - `pnpm check` — TypeScript type checking
 - `pnpm preview` — serve the built `dist/`
 
+The docs dev scripts use `scripts/dev-zfb.mjs` to select ZFB's supported eager
+startup (`ZFB_DEV_BOOT_LAZY=0`). On 4.3.1, cold-lazy route discovery can produce
+incompatible native island identities during SPA navigation. Use `dev:zfb` (or
+`dev:zfb:network`) so the real server and current-host CI exercise the same mode;
+keep transport identity checks enabled.
+
 ## Key Directories
 
 ```

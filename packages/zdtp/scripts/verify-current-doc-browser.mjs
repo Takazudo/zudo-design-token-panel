@@ -190,7 +190,9 @@ try {
   if (dev) {
     start(['dev:history'], resolve(dev));
     await ready('http://127.0.0.1:4322/health');
-    start(['exec', 'zfb', 'dev', '--host', '127.0.0.1', '--port', '4327'], resolve(dev));
+    // Exercise the actual documented launcher, including its supported eager
+    // boot setting that keeps native HTML and client transport identities aligned.
+    start(['dev:zfb', '--host', '127.0.0.1', '--port', '4327'], resolve(dev));
     origin = 'http://127.0.0.1:4327';
     await ready(origin);
   }
@@ -280,7 +282,7 @@ try {
 
   await page.locator('#design-token-trigger').click();
   await page.locator('.tokenpanel-shell').waitFor({ state: 'visible' });
-  await page.getByRole('tab', { name: 'Spacing', exact: true }).click();
+  await page.locator('[role="tab"][id$="-spacing"]').click();
   const input = page.getByLabel('--spacing-hsp-md value', { exact: true });
   const navLink = page.locator('[data-header-nav] a[data-nav-category="getting-started"]');
   const previousPadding = await navLink.evaluate((element) => getComputedStyle(element).paddingLeft);
@@ -308,24 +310,27 @@ try {
   await page.locator('#design-token-trigger').click();
   await page.locator('.tokenpanel-shell').waitFor({ state: 'hidden' });
   const toggles = await page.evaluate(() => window.__currentDocProbe.toggles);
+  const navigationMarker = await page.evaluate(() => window.__currentDocProbe.marker);
   await spa(page, () => page.getByRole('link', { name: 'Reference', exact: true }).first().click(), '/docs/reference');
   for (let i = 0; i < 2; i++) {
     await spa(page, () => page.goBack(), '/docs/getting-started');
     await spa(page, () => page.goForward(), '/docs/reference');
   }
+  assert.equal(await page.evaluate(() => window.__currentDocProbe.marker), navigationMarker,
+    'The repeated SPA sequence unexpectedly loaded another document');
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
   assert(await page.locator('html').evaluate((element) => element.hasAttribute('data-sidebar-hidden')));
   assert.equal(await page.evaluate(() => window.__currentDocProbe.toggles), toggles, 'Navigation replayed panel toggle');
   await page.locator('#design-token-trigger').click();
   await page.locator('.tokenpanel-shell').waitFor({ state: 'visible' });
-  await page.getByRole('tab', { name: 'Spacing', exact: true }).click();
+  await page.locator('[role="tab"][id$="-spacing"]').click();
   assert.equal(await input.inputValue(), '1.25', 'Token edit lost during SPA remount');
   assert.deepEqual(await panelInvariant(page), ownership, 'Repeated remount leaked roots/listeners');
   assert.equal(await page.evaluate(() => window.__currentDocProbe.toggles), toggles + 1, 'Header click dispatched more than one event');
   await page.goto(page.url(), { waitUntil: 'domcontentloaded' });
   await settled(page);
   await page.locator('.tokenpanel-shell').waitFor({ state: 'visible' });
-  await page.getByRole('tab', { name: 'Spacing', exact: true }).click();
+  await page.locator('[role="tab"][id$="-spacing"]').click();
   assert.equal(await input.inputValue(), '1.25', 'Token edit lost on reload');
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
   assert(await page.locator('html').evaluate((element) => element.hasAttribute('data-sidebar-hidden')));
