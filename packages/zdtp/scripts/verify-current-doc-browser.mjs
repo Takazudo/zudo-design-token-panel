@@ -212,7 +212,7 @@ try {
     if (frame === page.mainFrame()) browserLog.push(`main-frame: ${frame.url()}`);
   });
   await page.addInitScript(() => {
-    window.__currentDocProbe = { marker: Math.random(), swaps: 0, loads: 0, loadedPath: '', toggles: 0 };
+    window.__currentDocProbe = { marker: Math.random(), swaps: 0, loads: 0, loadedPath: '', toggles: 0, rawToggles: 0 };
     const record = (event) => console.debug('current-doc-event', JSON.stringify({
       event, path: location.pathname, ...window.__currentDocProbe,
     }));
@@ -224,7 +224,11 @@ try {
       record('page-load');
     });
     document.addEventListener('zfb:navigation-aborted', () => record('navigation-aborted'));
-    window.addEventListener('toggle-design-token-panel', () => window.__currentDocProbe.toggles++);
+    // Count actual host deliveries independently of the reserved header event.
+    // The host intercepts the reserved channel to avoid activating the panel's
+    // unconfigured default instance, and forwards to its explicit channel.
+    window.addEventListener('toggle-design-token-panel', () => window.__currentDocProbe.rawToggles++);
+    window.addEventListener('toggle-zdtp-doc-host', () => window.__currentDocProbe.toggles++);
   });
 
   // Direct loads prove locale route and history wiring separately from SPA.

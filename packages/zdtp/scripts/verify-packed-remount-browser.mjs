@@ -738,7 +738,7 @@ async function proveNativeIncomingEarlyClick(browser, origin, panelChunkPaths) {
     // counts only events actually released to downstream panel consumers.
     await page.evaluate(() => {
       window.__packedRemountProbe.acceptedToggleEvents = 0;
-      window.addEventListener('toggle-design-token-panel', () => {
+      window.addEventListener('toggle-zdtp-doc-host', () => {
         window.__packedRemountProbe.acceptedToggleEvents++;
       });
     });
@@ -759,7 +759,7 @@ async function proveNativeIncomingEarlyClick(browser, origin, panelChunkPaths) {
     await assertNativePersistedVisibility(page, true, 'native incoming unhydrated click replay');
     const state = await panelDiagnostics(page);
     check(state.probe.triggerClicks === 1, 'Native early recovery required another user click');
-    check(state.probe.toggleEvents === 2, 'Expected one raw early toggle plus one queue replay');
+    check(state.probe.toggleEvents === 1, 'Expected one raw early header toggle');
     check(state.probe.acceptedToggleEvents === 1, 'Native early intent did not deliver exactly one downstream toggle after activation');
     check(state.probe.queueCaptureListeners === 1, 'Expected exactly one host navigation capture queue');
     check(state.bindingPrefixes?.filter((prefix) => prefix === PANEL_STORAGE_PREFIX).length === 1,
@@ -784,9 +784,9 @@ async function proveNativeIncomingEarlyClick(browser, origin, panelChunkPaths) {
       // persistence keys before starting another navigation.
       await assertNativePersistedVisibility(page, index % 2 !== 0, label);
       check(after.probe.triggerClicks === before.probe.triggerClicks + 1 &&
-        after.probe.toggleEvents === before.probe.toggleEvents + 2 &&
+        after.probe.toggleEvents === before.probe.toggleEvents + 1 &&
         after.probe.acceptedToggleEvents === before.probe.acceptedToggleEvents + 1,
-      `${label}: expected one user click, raw event plus replay, and one downstream toggle: ${JSON.stringify(after)}`);
+      `${label}: expected one user click, one raw header event, and one downstream host toggle: ${JSON.stringify(after)}`);
       check(after.probe.queueCaptureListeners === 1, `${label}: native remount duplicated the capture queue`);
       check(JSON.stringify(after.bindingPrefixes) === JSON.stringify(state.bindingPrefixes) &&
         after.lifecycleCleanups === state.lifecycleCleanups,
