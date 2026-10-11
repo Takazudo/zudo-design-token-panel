@@ -18,6 +18,8 @@ const timeout = 30_000;
 const processes = [];
 let server;
 let browser;
+let activePage;
+const browserLog = [];
 let serverOutput = '';
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
@@ -74,14 +76,26 @@ async function builtServer(directory) {
 }
 async function settled(page) {
   await page.waitForFunction(() => document.querySelector('#design-token-trigger') &&
+    document.querySelector('[data-zfb-island="DocPanelBootstrap"][data-zfb-island-mounted]') &&
+    document.querySelector('[data-zd-theme-menu] button') &&
     !document.querySelector('[data-zd-theme-menu] button[data-zd-pending]'));
 }
 async function spa(page, action, path) {
-  const before = await page.evaluate(() => ({ marker: window.__currentDocProbe.marker, swaps: window.__currentDocProbe.swaps }));
+  const before = await page.evaluate(() => ({
+    marker: window.__currentDocProbe.marker,
+    swaps: window.__currentDocProbe.swaps,
+    loads: window.__currentDocProbe.loads,
+  }));
   await action();
-  await page.waitForFunction(({ marker, swaps, path }) => window.__currentDocProbe.marker === marker &&
-    window.__currentDocProbe.swaps > swaps && location.pathname.replace(/\/$/, '') === path.replace(/\/$/, ''), { ...before, path });
+  // after-swap precedes runScripts and native island mounting. Complete this
+  // navigation before starting the next back/forward operation.
+  await page.waitForFunction(({ marker, swaps, loads, path }) => window.__currentDocProbe.marker === marker &&
+    window.__currentDocProbe.swaps > swaps && window.__currentDocProbe.loads > loads &&
+    window.__currentDocProbe.loadedPath.replace(/\/$/, '') === path.replace(/\/$/, '') &&
+    location.pathname.replace(/\/$/, '') === path.replace(/\/$/, ''), { ...before, path });
   await settled(page);
+  assert.equal(await page.evaluate(() => window.__currentDocProbe.marker), before.marker,
+    `SPA navigation unexpectedly replaced the document: ${path}`);
 }
 async function history(page, expectedPath) {
   const pending = page.waitForResponse((response) => new URL(response.url()).pathname === expectedPath);
@@ -120,6 +134,7 @@ async function lateImportCancellation() {
   assert(chunks.size > 0, 'Missing lazy panel implementation chunk');
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   const page = await context.newPage();
+  activePage = page;
   page.setDefaultTimeout(timeout);
   let release;
   const gate = new Promise((done) => { release = done; });
@@ -182,13 +197,31 @@ try {
   browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   const page = await context.newPage();
+  activePage = page;
   page.setDefaultTimeout(timeout);
   const errors = [];
   page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
-  page.on('console', (message) => { if (message.type() === 'error') errors.push(`console: ${message.text()}`); });
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(`console: ${message.text()}`);
+    browserLog.push(`${message.type()}: ${message.text()}`);
+    if (browserLog.length > 100) browserLog.shift();
+  });
+  page.on('framenavigated', (frame) => {
+    if (frame === page.mainFrame()) browserLog.push(`main-frame: ${frame.url()}`);
+  });
   await page.addInitScript(() => {
-    window.__currentDocProbe = { marker: Math.random(), swaps: 0, toggles: 0 };
-    document.addEventListener('zfb:after-swap', () => window.__currentDocProbe.swaps++);
+    window.__currentDocProbe = { marker: Math.random(), swaps: 0, loads: 0, loadedPath: '', toggles: 0 };
+    const record = (event) => console.debug('current-doc-event', JSON.stringify({
+      event, path: location.pathname, ...window.__currentDocProbe,
+    }));
+    record('document-init');
+    document.addEventListener('zfb:after-swap', () => { window.__currentDocProbe.swaps++; record('after-swap'); });
+    document.addEventListener('zfb:page-load', () => {
+      window.__currentDocProbe.loads++;
+      window.__currentDocProbe.loadedPath = location.pathname;
+      record('page-load');
+    });
+    document.addEventListener('zfb:navigation-aborted', () => record('navigation-aborted'));
     window.addEventListener('toggle-design-token-panel', () => window.__currentDocProbe.toggles++);
   });
 
@@ -330,6 +363,20 @@ try {
   await context.close();
   if (dist) await lateImportCancellation();
 } catch (error) {
+  console.error('Current-doc browser timeline:', JSON.stringify(browserLog));
+  if (activePage && !activePage.isClosed()) {
+    try {
+      console.error('Current-doc failure state:', JSON.stringify(await activePage.evaluate(() => ({
+        path: location.href,
+        probe: window.__currentDocProbe,
+        heading: document.querySelector('h1')?.textContent,
+        bootstraps: [...document.querySelectorAll('[data-zfb-island="DocPanelBootstrap"]')].map((node) => node.outerHTML),
+        tabs: [...document.querySelectorAll('[role="tab"]')].map((node) => node.textContent),
+        roots: [...document.querySelectorAll('[id$="-root"]')].filter((node) => node.id.includes('tweak')).map((node) => ({ id: node.id, html: node.innerHTML.slice(0, 6000) })),
+        storage: Object.fromEntries(Object.entries(localStorage).filter(([key]) => key.startsWith('zudo-doc'))),
+      }))));
+    } catch (diagnosticError) { console.error('Could not capture failure state:', diagnosticError); }
+  }
   if (dev) console.error(serverOutput);
   throw error;
 } finally {

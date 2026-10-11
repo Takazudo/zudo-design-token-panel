@@ -229,6 +229,7 @@ function lifecycleProbeInitScript() {
         ready: apiReady(),
         pending: pending(),
         eventsBefore: probe.toggleEvents,
+        acceptedEventsBefore: probe.acceptedToggleEvents,
         nativeBootstrapMounted: document.querySelector('[data-zfb-island="DocPanelBootstrap"]')?.hasAttribute('data-zfb-island-mounted') ?? null,
         ...rootStatus(),
       };
@@ -236,6 +237,8 @@ function lifecycleProbeInitScript() {
       queueMicrotask(() => {
         proof.eventsAfter = probe.toggleEvents;
         proof.pendingAfter = pending();
+        proof.acceptedEventsAfter = probe.acceptedToggleEvents;
+        proof.acceptedPendingAfter = probe.triggerClicks - probe.acceptedToggleEvents;
         Object.assign(proof, rootStatus());
         record('after-swap-header-click-complete', proof);
       });
@@ -303,6 +306,7 @@ async function panelDiagnostics(page) {
       probe: {
         triggerClicks: window.__packedRemountProbe.triggerClicks,
         toggleEvents: window.__packedRemountProbe.toggleEvents,
+        acceptedToggleEvents: window.__packedRemountProbe.acceptedToggleEvents,
         queueCaptureListeners: window.__packedRemountProbe.queueCaptureListeners,
         swapClicks: window.__packedRemountProbe.swapClicks,
         pageLoads: window.__packedRemountProbe.pageLoads,
@@ -692,8 +696,10 @@ async function assertNativeQueuedClick(page, label) {
   const proof = await page.evaluate((clickLabel) => window.__packedRemountProbe.swapClicks.find((click) => click.label === clickLabel), label);
   check(proof?.visible && proof.nativeBootstrapMounted === false,
     `${label}: expected a visible header click before incoming native bootstrap mount: ${JSON.stringify(proof)}`);
-  check(proof.eventsAfter === proof.eventsBefore && proof.pendingAfter === 1,
-    `${label}: expected one intent held by the native navigation queue without premature delivery: ${JSON.stringify(proof)}`);
+  check(proof.eventsAfter === proof.eventsBefore + 1,
+    `${label}: expected the initial raw header event before the queue intercepts it: ${JSON.stringify(proof)}`);
+  check(proof.acceptedEventsAfter === proof.acceptedEventsBefore && proof.acceptedPendingAfter === 1,
+    `${label}: expected one intent held by the native navigation queue without downstream delivery: ${JSON.stringify(proof)}`);
   return proof;
 }
 
@@ -711,6 +717,15 @@ async function proveNativeIncomingEarlyClick(browser, origin, panelChunkPaths) {
   try {
     await page.goto(`${origin}/`, { waitUntil: 'load' });
     await page.locator('[data-zfb-island="DocPanelBootstrap"][data-zfb-island-mounted]').waitFor({ state: 'attached' });
+    // The init-time raw observer precedes the host's window capture listener.
+    // Keep that evidence, and register a second observer AFTER the queue so it
+    // counts only events actually released to downstream panel consumers.
+    await page.evaluate(() => {
+      window.__packedRemountProbe.acceptedToggleEvents = 0;
+      window.addEventListener('toggle-design-token-panel', () => {
+        window.__packedRemountProbe.acceptedToggleEvents++;
+      });
+    });
     check(!await panelChunksLoaded(page, panelChunkPaths), 'Early SPA test loaded panel before activation');
     const requested = observed(page.waitForRequest((request) => panelChunkPaths.has(new URL(request.url()).pathname), { timeout: TIMEOUT_MS }));
     await armAfterSwapHeaderClick(page, 'native-incoming-unhydrated');
@@ -727,7 +742,8 @@ async function proveNativeIncomingEarlyClick(browser, origin, panelChunkPaths) {
     await assertPanelState(page, true, 'native incoming unhydrated click replay');
     const state = await panelDiagnostics(page);
     check(state.probe.triggerClicks === 1, 'Native early recovery required another user click');
-    check(state.probe.toggleEvents === 1, 'Native early intent did not deliver exactly one public toggle after activation');
+    check(state.probe.toggleEvents === 2, 'Expected one raw early toggle plus one queue replay');
+    check(state.probe.acceptedToggleEvents === 1, 'Native early intent did not deliver exactly one downstream toggle after activation');
     check(state.probe.queueCaptureListeners === 1, 'Expected exactly one host navigation capture queue');
     check(state.bindingPrefixes?.filter((prefix) => prefix === PANEL_STORAGE_PREFIX).length === 1,
       `Native early replay duplicated public binding: ${JSON.stringify(state)}`);
@@ -743,18 +759,20 @@ async function proveNativeIncomingEarlyClick(browser, origin, panelChunkPaths) {
       await assertNativeQueuedClick(page, label);
       await nextLoad;
       await page.locator('[data-zfb-island="DocPanelBootstrap"][data-zfb-island-mounted]').waitFor({ state: 'attached' });
-      await waitForPublicEvents(page);
+      await page.waitForFunction(() => window.__packedRemountProbe.acceptedToggleEvents === window.__packedRemountProbe.triggerClicks,
+        null, { timeout: TIMEOUT_MS });
       const after = await assertPanelState(page, index % 2 !== 0, label);
       check(after.probe.triggerClicks === before.probe.triggerClicks + 1 &&
-        after.probe.toggleEvents === before.probe.toggleEvents + 1,
-      `${label}: expected one user click and one delivered toggle: ${JSON.stringify(after)}`);
+        after.probe.toggleEvents === before.probe.toggleEvents + 2 &&
+        after.probe.acceptedToggleEvents === before.probe.acceptedToggleEvents + 1,
+      `${label}: expected one user click, raw event plus replay, and one downstream toggle: ${JSON.stringify(after)}`);
       check(after.probe.queueCaptureListeners === 1, `${label}: native remount duplicated the capture queue`);
       check(JSON.stringify(after.bindingPrefixes) === JSON.stringify(state.bindingPrefixes) &&
         after.lifecycleCleanups === state.lifecycleCleanups,
       `${label}: repeated native queue activation leaked bindings or lifecycle listeners: ${JSON.stringify(after)}`);
     }
     check(errors.length === 0, `Native early SPA flow emitted browser errors: ${errors.join(' | ')}`);
-    console.log(`PASS current native incoming unhydrated header click: ${JSON.stringify({ proof, triggerClicks: state.probe.triggerClicks, toggleEvents: state.probe.toggleEvents })}`);
+    console.log(`PASS current native incoming unhydrated header click: ${JSON.stringify({ proof, triggerClicks: state.probe.triggerClicks, rawToggleEvents: state.probe.toggleEvents, acceptedToggleEvents: state.probe.acceptedToggleEvents })}`);
   } catch (error) {
     console.error('Native incoming early-click original failure:', error);
     console.error('Native incoming early-click diagnostics:', JSON.stringify(await panelDiagnostics(page).catch((diagnosticError) => ({ error: String(diagnosticError) }))));
