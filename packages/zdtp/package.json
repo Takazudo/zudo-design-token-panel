@@ -76,6 +76,11 @@
       "import": "./dist/dashboard/index.js",
       "default": "./dist/dashboard/index.js"
     },
+    "./dashboard/client": {
+      "types": "./dist/dashboard/client.d.ts",
+      "import": "./dist/dashboard/client.js",
+      "default": "./dist/dashboard/client.js"
+    },
     "./dashboard/styles.css": "./dist/dashboard/styles.css",
     "./styles": "./dist/zdtp.css",
     "./styles.css": "./dist/zdtp.css",

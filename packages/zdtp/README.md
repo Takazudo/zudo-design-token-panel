@@ -43,8 +43,7 @@ walkthrough and the shortcut table.
 ## Static token dashboard
 
 Import `TokenDashboard` from `@takazudo/zdtp/dashboard` to render the same tab
-manifest on a plain page. This entry is available from v0.6.1. The `chrome`
-prop is **unreleased (next release)** and is not supported in v0.6.1. The [live workspace demo](https://zdtp-playground.zudolab.dev/dashboard/)
+manifest on a plain page. This entry is available from v0.6.1. The [live workspace demo](https://zdtp-playground.zudolab.dev/dashboard/)
 shows both modes and a compact embedded instance.
 
 ```tsx
@@ -93,8 +92,9 @@ public assets directory and add a stylesheet link. The
 [static dashboard recipe](https://zdtp.zudolab.dev/docs/recipes/static-token-dashboard/)
 provides complete data and CSS-copy examples.
 
-Optional props are `mode` (`light` by default), `chrome` (`light` by default;
-**unreleased for the next release**), `title`, caller-owned unique `id`,
+Optional props are `mode` (`light` by default, or `dark`/`host`), `include`
+(`all` by default, or either mode-dependence filter), `chrome` (`light` by default),
+`title`, caller-owned unique `id`,
 `previewText`, and `previewOverrides` keyed by CSS variable (for example, a
 text-editor shadow can use `'shadow'`). Existing `TierConfig.preview` metadata is reused.
 
@@ -125,8 +125,35 @@ scheme follows `chrome`, while each specimen's `color-scheme` follows `mode`;
 both are local to the instance, and the component never writes to `:root`.
 Arbitrary notes HTML and URL/mask assets are not rendered or loaded.
 
-This checkpoint provides a Preact component. An HTML-export API/CLI, React
-adapter, and automatic panel-state synchronization are outside its scope.
+### Optional client mount (unreleased)
+
+The unreleased `@takazudo/zdtp/dashboard/client` leaf lets a host without its
+own Preact renderer mount the same component into a dedicated empty element.
+It is available in this repository's package build, **not in the documentation
+site's pinned 0.8.6 package**. Include the public dashboard stylesheet explicitly.
+
+```ts
+import '@takazudo/zdtp/dashboard/styles.css';
+import { mountTokenDashboard, type TokenDashboardProps } from '@takazudo/zdtp/dashboard/client';
+import { tokenTabs } from './token-tabs';
+
+export function setupDashboard(host: HTMLElement) {
+  // host is a dedicated, empty element owned by your framework ref.
+  const props: TokenDashboardProps = { tabs: tokenTabs, mode: 'host', chrome: 'host' };
+  const handle = mountTokenDashboard(host, props);
+  return () => handle.dispose(); // Call on host teardown.
+}
+```
+
+Mounting again on the same API-owned host replaces the earlier dashboard. A
+stale handle cannot remove its replacement; disposal is idempotent and retains
+the host element and attributes. Separate hosts remain independent. When a host
+loads this leaf with `import()`, cancel an abandoned load in the host before it
+calls `mountTokenDashboard`; the synchronous API does not manage that promise.
+The static Preact renderer keeps its Node SSR and no-client-JavaScript behavior.
+
+An HTML-export API/CLI, React adapter, and automatic panel-state
+synchronization are outside this scope.
 See [`PORTABLE-CONTRACT.md` §12](./PORTABLE-CONTRACT.md#12-static-token-dashboard).
 
 ---

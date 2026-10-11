@@ -1750,17 +1750,17 @@ on across a release bump.
 
 ## 12. Static token dashboard
 
-This entry is available from v0.6.1. The `chrome` prop is **unreleased (next
-release)** and is not supported in v0.6.1. It does not change the
+This entry is available from v0.6.1. It does not change the
 `configurePanel` or persistence contracts above.
 
 `@takazudo/zdtp/dashboard` exports the Preact `TokenDashboard` component and
-`TokenDashboardProps`, `DashboardMode`, `DashboardChrome`,
+`TokenDashboardProps`, `DashboardMode`, `DashboardInclude`, `DashboardChrome`,
 `DashboardPreviewKind`, `TabConfig`, `TierConfig`, and `TierItem` types. The
 internal value model is not a public API.
 
 ```ts
-export type DashboardMode = 'light' | 'dark';
+export type DashboardMode = 'light' | 'dark' | 'host';
+export type DashboardInclude = 'all' | 'mode-dependent' | 'mode-independent';
 export type DashboardChrome = 'light' | 'dark' | 'host';
 export type DashboardPreviewKind =
   | 'bar' | 'size' | 'line-height' | 'family' | 'weight' | 'radius' | 'duration'
@@ -1769,7 +1769,8 @@ export type DashboardPreviewKind =
 export interface TokenDashboardProps {
   tabs: readonly TabConfig[];
   mode?: DashboardMode; // default: light
-  chrome?: DashboardChrome; // default: light; unreleased (next release)
+  include?: DashboardInclude; // default: all
+  chrome?: DashboardChrome; // default: light
   title?: string; // default: Token dashboard
   previewText?: string; // static typography passage; default English/Japanese prose
   id?: string; // optional root ID; caller owns uniqueness
@@ -1778,6 +1779,18 @@ export interface TokenDashboardProps {
 ```
 
 ### Rendering and package boundary
+
+The **unreleased** `@takazudo/zdtp/dashboard/client` leaf exports
+`mountTokenDashboard(host: HTMLElement, props: TokenDashboardProps): TokenDashboardHandle`,
+where `TokenDashboardHandle` has `dispose(): void`. It is in the repository
+build but not in the documentation site's pinned 0.8.6 package. The caller
+supplies a dedicated empty host and owns that element and its attributes. The
+API owns only its rendered content: an initial mount rejects unrelated children,
+another API mount on the same host replaces the old one, and an old disposer
+cannot remove a newer mount. Disposal is idempotent, releases ownership and
+leaves the host intact. Different hosts are independent. The call is synchronous;
+a host using a late dynamic import must cancel an abandoned load before mounting.
+The leaf does not add hydration, update, renderer or peer-dependency contracts.
 
 - Ordinary Preact rendering and server rendering are supported. The component
   has no browser-global, panel-runtime, persistence, host-adapter, bin-server,
