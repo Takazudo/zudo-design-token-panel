@@ -90,28 +90,20 @@ NODE
 echo "Installing the scratch doc with the packed panel override"
 pnpm --dir "$SCRATCH_DOC" install --no-frozen-lockfile
 
-# Verify the two peer consumers resolve the local package and the same Preact
-# installation before starting the site. This is the local spike gate: a
-# mismatch is actionable evidence rather than an accidental mixed dependency.
+# Verify the local panel and coherent current-host family. The zudo-react host
+# does not render with Preact; the packed panel owns its runtime independently.
 EXPECTED_PANEL_VERSION="$PANEL_VERSION" \
 SCRATCH_DOC_DIR="$SCRATCH_DOC" \
 node --input-type=module <<'NODE'
 import { createRequire } from 'node:module';
-import { readFile, realpath } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 
 const scratchDoc = process.env.SCRATCH_DOC_DIR;
 const expectedPanelVersion = process.env.EXPECTED_PANEL_VERSION;
 const scratchRequire = createRequire(resolve(scratchDoc, 'package.json'));
 const panelPackagePath = scratchRequire.resolve('@takazudo/zdtp/package.json');
 const panelPackage = JSON.parse(await readFile(panelPackagePath, 'utf8'));
-const panelRoot = dirname(panelPackagePath);
-const panelPreactPath = scratchRequire.resolve('preact/package.json', { paths: [panelRoot] });
-const docPreactPath = scratchRequire.resolve('preact/package.json');
-const [panelPreact, docPreact] = await Promise.all([
-  realpath(panelPreactPath),
-  realpath(docPreactPath),
-]);
 
 if (panelPackage.version !== expectedPanelVersion) {
   throw new Error(
@@ -119,14 +111,19 @@ if (panelPackage.version !== expectedPanelVersion) {
   );
 }
 
-if (panelPreact !== docPreact) {
-  throw new Error(
-    `The local panel and zudo-doc do not share Preact (${panelPreact} vs ${docPreact})`,
-  );
+for (const [name, expected] of Object.entries({
+  '@takazudo/zfb': '4.3.1',
+  '@takazudo/zfb-runtime': '4.3.1',
+  '@takazudo/zfb-adapter-cloudflare': '4.3.1',
+  '@takazudo/zfb-md-wasm': '4.3.1',
+  '@takazudo/zudo-doc': '6.0.0',
+  '@takazudo/zudo-doc-history-server': '6.0.0',
+})) {
+  const actual = JSON.parse(await readFile(resolve(scratchDoc, 'node_modules', name, 'package.json'), 'utf8')).version;
+  if (actual !== expected) throw new Error(`Expected ${name}@${expected}, resolved ${actual}`);
+  console.log(`Resolved ${name}@${actual}`);
 }
-
 console.log(`Resolved local @takazudo/zdtp@${panelPackage.version}`);
-console.log(`Resolved one shared Preact installation: ${docPreact}`);
 NODE
 
 echo
