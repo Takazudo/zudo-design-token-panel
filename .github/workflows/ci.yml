@@ -70,6 +70,9 @@ jobs:
       - name: Build playground deploy bundle
         run: pnpm --filter playground build:deploy
 
+      - name: Verify playground Apply proxy and stylesheet persistence
+        run: node scripts/check-playground-apply.mjs
+
       - name: Build minimal deploy bundle
         run: pnpm --filter minimal build:deploy
 
@@ -110,7 +113,7 @@ jobs:
         run: pnpm lint
 
   consumer-smoke:
-    name: Consumer smoke (local panel + doc)
+    name: Consumer smoke (legacy and current doc hosts)
     # Keep this lane informational until the unpublished-panel workflow has
     # proven stable enough to make it a required repository check.
     continue-on-error: true
@@ -150,7 +153,13 @@ jobs:
           fi
           echo "tarball=$panel_tarball" >> "$GITHUB_OUTPUT"
 
-      - name: Build and exercise scratch doc with the local packed panel
+      - name: Legacy host — ZFB 2 / zudo-doc 5 packed remount
         env:
           PANEL_TARBALL: ${{ steps.panel.outputs.tarball }}
-        run: bash scripts/verify-packed-remount-consumer.sh --panel-tarball "$PANEL_TARBALL"
+        run: bash scripts/verify-packed-remount-consumer.sh --host legacy --panel-tarball "$PANEL_TARBALL"
+
+      - name: Current host — ZFB 4 / zudo-doc 6 packed remount
+        if: ${{ !cancelled() && steps.panel.outcome == 'success' }}
+        env:
+          PANEL_TARBALL: ${{ steps.panel.outputs.tarball }}
+        run: bash scripts/verify-packed-remount-consumer.sh --host current --panel-tarball "$PANEL_TARBALL"

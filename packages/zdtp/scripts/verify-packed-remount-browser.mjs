@@ -13,6 +13,14 @@ function check(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+// Arm multiple independent waits without allowing context teardown to turn a
+// secondary rejection into an unhandled error that hides the original failure.
+// Return the original promise: its eventual explicit await still throws.
+function observed(promise) {
+  promise.catch(() => {});
+  return promise;
+}
+
 function deferred() {
   let resolvePromise;
   const promise = new Promise((resolveValue) => { resolvePromise = resolveValue; });
@@ -118,6 +126,21 @@ function lifecycleProbeInitScript() {
       timeline: [],
       armedClick: null,
     };
+    // Count actual host queue registrations: stopImmediatePropagation can hide
+    // duplicate capture listeners from event-count assertions alone.
+    const captureToggleListeners = new Set();
+    const originalAdd = window.addEventListener;
+    const originalRemove = window.removeEventListener;
+    const captures = (options) => options === true || Boolean(options && typeof options === 'object' && options.capture);
+    window.addEventListener = function(type, listener, options) {
+      if (type === 'toggle-design-token-panel' && captures(options)) captureToggleListeners.add(listener);
+      return originalAdd.call(this, type, listener, options);
+    };
+    window.removeEventListener = function(type, listener, options) {
+      if (type === 'toggle-design-token-panel' && captures(options)) captureToggleListeners.delete(listener);
+      return originalRemove.call(this, type, listener, options);
+    };
+    Object.defineProperty(probe, 'queueCaptureListeners', { get: () => captureToggleListeners.size });
     const storagePrefix = '${PANEL_STORAGE_PREFIX}';
     const rootIdentityIds = new WeakMap();
     let nextRootIdentityId = 1;
@@ -149,6 +172,8 @@ function lifecycleProbeInitScript() {
         mountedPrefixes: mountedRoots instanceof Map ? [...mountedRoots.keys()] : null,
         bindingPrefixes: bindings instanceof Map ? [...bindings.keys()] : null,
         lifecycleCleanups: Array.isArray(lifecycle?.cleanups) ? lifecycle.cleanups.length : null,
+        storedOpen: localStorage.getItem(storagePrefix + '-open'),
+        storedVisible: localStorage.getItem(storagePrefix + ':visible'),
       };
     };
     const record = (name, details = {}) => {
@@ -206,12 +231,16 @@ function lifecycleProbeInitScript() {
         ready: apiReady(),
         pending: pending(),
         eventsBefore: probe.toggleEvents,
+        acceptedEventsBefore: probe.acceptedToggleEvents,
+        nativeBootstrapMounted: document.querySelector('[data-zfb-island="DocPanelBootstrap"]')?.hasAttribute('data-zfb-island-mounted') ?? null,
         ...rootStatus(),
       };
       if (proof.visible) button.click();
       queueMicrotask(() => {
         proof.eventsAfter = probe.toggleEvents;
         proof.pendingAfter = pending();
+        proof.acceptedEventsAfter = probe.acceptedToggleEvents;
+        proof.acceptedPendingAfter = probe.triggerClicks - probe.acceptedToggleEvents;
         Object.assign(proof, rootStatus());
         record('after-swap-header-click-complete', proof);
       });
@@ -233,8 +262,8 @@ function publicApiReady(probe) {
   );
 }
 
-async function waitForZfbEvent(page, eventName) {
-  return page.evaluate(({ eventName, timeoutMs }) => new Promise((resolve, reject) => {
+function waitForZfbEvent(page, eventName) {
+  return observed(page.evaluate(({ eventName, timeoutMs }) => new Promise((resolve, reject) => {
     const timeout = window.setTimeout(() => {
       document.removeEventListener(eventName, onEvent);
       reject(new Error(`Timed out waiting for ${eventName}`));
@@ -244,7 +273,7 @@ async function waitForZfbEvent(page, eventName) {
       resolve({ path: location.pathname, time: performance.now() });
     };
     document.addEventListener(eventName, onEvent, { once: true });
-  }), { eventName, timeoutMs: TIMEOUT_MS });
+  }), { eventName, timeoutMs: TIMEOUT_MS }));
 }
 
 async function waitForPublicEvents(page) {
@@ -270,6 +299,8 @@ async function panelDiagnostics(page) {
       mountedPrefixes: mountedRoots instanceof Map ? [...mountedRoots.keys()] : null,
       bindingPrefixes: bindings instanceof Map ? [...bindings.keys()] : null,
       lifecycleCleanups: Array.isArray(lifecycle?.cleanups) ? lifecycle.cleanups.length : null,
+      storedOpen: localStorage.getItem(storagePrefix + '-open'),
+      storedVisible: localStorage.getItem(storagePrefix + ':visible'),
       rootChildren: root?.childElementCount ?? 0,
       rootHtmlLength: root?.innerHTML.length ?? 0,
       shellCount: shells.length,
@@ -279,6 +310,8 @@ async function panelDiagnostics(page) {
       probe: {
         triggerClicks: window.__packedRemountProbe.triggerClicks,
         toggleEvents: window.__packedRemountProbe.toggleEvents,
+        acceptedToggleEvents: window.__packedRemountProbe.acceptedToggleEvents,
+        queueCaptureListeners: window.__packedRemountProbe.queueCaptureListeners,
         swapClicks: window.__packedRemountProbe.swapClicks,
         pageLoads: window.__packedRemountProbe.pageLoads,
         timeline: window.__packedRemountProbe.timeline,
@@ -447,7 +480,7 @@ async function assertAfterSwapClick(page, label, { requireReady = true } = {}) {
   }), label);
   const { proof, timeline } = result;
   const details = JSON.stringify({ proof, timeline });
-  check(proof?.visible, `${label}: public header trigger was not visible inside zfb:after-swap: ${details}`);
+  check(proof?.visible, `${label}: public header trigger was not visible at the host readiness boundary: ${details}`);
   if (requireReady) {
     check(publicApiReady(proof), `${label}: expected ready public bootstrap with no queued clicks: ${details}`);
   }
@@ -456,7 +489,7 @@ async function assertAfterSwapClick(page, label, { requireReady = true } = {}) {
   return proof;
 }
 
-async function proveSpaRemount(browser, origin, panelChunkPaths) {
+async function proveSpaRemount(browser, origin, panelChunkPaths, { nativeHost = false } = {}) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   const page = await context.newPage();
   const errors = [];
@@ -489,13 +522,32 @@ async function proveSpaRemount(browser, origin, panelChunkPaths) {
     check(cleanStorage.keys.length === 0,
       `SPA regression started with persisted panel state: ${cleanStorage.keys.join(', ')}`);
 
-    const panelRequest = page.waitForRequest((request) =>
-      panelChunkPaths.has(new URL(request.url()).pathname), { timeout: TIMEOUT_MS });
-    await armAfterSwapHeaderClick(page, 'first-host-to-engine');
+    const panelRequest = observed(page.waitForRequest((request) =>
+      panelChunkPaths.has(new URL(request.url()).pathname), { timeout: TIMEOUT_MS }));
+    if (!nativeHost) await armAfterSwapHeaderClick(page, 'first-host-to-engine');
     const firstSwap = waitForZfbEvent(page, 'zfb:after-swap');
     const firstPageLoad = waitForZfbEvent(page, 'zfb:page-load');
     await page.getByRole('link', { name: 'Getting Started', exact: true }).first().click();
     await firstSwap;
+    if (nativeHost) {
+      // v6's scope-owned bootstrap is mounted after the native DOM swap; the
+      // legacy engine's synchronous after-swap-ready contract does not apply.
+      // Wait for the *incoming island's* actual mount, not a delay or retry.
+      await page.locator('[data-zfb-island="DocPanelBootstrap"][data-zfb-island-mounted]').waitFor({ state: 'attached' });
+      const proof = await page.evaluate(() => ({
+        label: 'first-host-to-engine', phase: 'native-island-mounted', path: location.pathname,
+        visible: Boolean(document.querySelector('#design-token-trigger')?.getClientRects().length),
+        ready: typeof window.zdtp?.toggle === 'function',
+        pending: window.__packedRemountProbe.triggerClicks - window.__packedRemountProbe.toggleEvents,
+        eventsBefore: window.__packedRemountProbe.toggleEvents,
+      }));
+      await page.locator(TRIGGER_SELECTOR).click();
+      await page.evaluate((clickProof) => {
+        clickProof.eventsAfter = window.__packedRemountProbe.toggleEvents;
+        clickProof.pendingAfter = window.__packedRemountProbe.triggerClicks - window.__packedRemountProbe.toggleEvents;
+        window.__packedRemountProbe.swapClicks.push(clickProof);
+      }, proof);
+    }
     const firstClick = await assertAfterSwapClick(page, 'first-host-to-engine', { requireReady: false });
     check(firstClick.path.startsWith('/docs/getting-started'),
       `First transition did not reach the engine doc route: ${JSON.stringify(firstClick)}`);
@@ -548,18 +600,22 @@ async function proveSpaRemount(browser, origin, panelChunkPaths) {
     const hostPath = new URL(page.url()).pathname;
     check(hostPath === '/' || hostPath === '', `Expected host home route after back, received ${hostPath}`);
 
-    await armAfterSwapHeaderClick(page, 'second-host-to-engine');
+    if (!nativeHost) await armAfterSwapHeaderClick(page, 'second-host-to-engine');
     const forwardSwap = waitForZfbEvent(page, 'zfb:after-swap');
     const forwardPageLoad = waitForZfbEvent(page, 'zfb:page-load');
     await page.goForward();
     await forwardSwap;
-    const remountClick = await assertAfterSwapClick(page, 'second-host-to-engine');
-    check(remountClick.path.startsWith('/docs/getting-started'),
-      `Second transition did not reach the engine doc route: ${JSON.stringify(remountClick)}`);
+    if (!nativeHost) {
+      const remountClick = await assertAfterSwapClick(page, 'second-host-to-engine');
+      check(remountClick.path.startsWith('/docs/getting-started'),
+        `Second transition did not reach the engine doc route: ${JSON.stringify(remountClick)}`);
+    } else {
+      check(new URL(page.url()).pathname.startsWith('/docs/getting-started'), 'Native forward traversal did not reach docs');
+    }
     await forwardPageLoad;
     const enginePath = new URL(page.url()).pathname;
     await assertPageLoadSnapshot(page, enginePath, 'second host-to-engine transition', { visible: true });
-    await assertPanelState(page, true, 'ready header click recovered the panel before page-load');
+    await assertPanelState(page, true, nativeHost ? 'native forward traversal preserved the open panel' : 'ready header click recovered the panel before page-load');
 
     const beforeInitialClose = await page.evaluate(() => window.__packedRemountProbe.toggleEvents);
     await page.locator(TRIGGER_SELECTOR).click();
@@ -628,9 +684,123 @@ async function proveSpaRemount(browser, origin, panelChunkPaths) {
       eventTimeline: window.__packedRemountProbe.timeline,
     }));
     console.log(`Packed remount evidence: ${JSON.stringify(evidence)}`);
-    console.log('PASS packed SPA remount: host→engine→host→engine header clicks, populated root, one shell, and repeat navigation');
+    console.log(`PASS packed ${nativeHost ? 'native (first activation at incoming island mount)' : 'legacy (first activation inside after-swap)'} SPA remount: host→docs→host→docs header clicks, populated root, one shell, and repeat navigation`);
+  } catch (error) {
+    console.error('SPA remount original failure:', error);
+    console.error('SPA remount diagnostics:', JSON.stringify(await panelDiagnostics(page).catch((diagnosticError) => ({ error: String(diagnosticError) }))));
+    console.error('SPA remount browser errors:', JSON.stringify(errors));
+    throw error;
   } finally {
     releasePanelChunk();
+    await context.close();
+  }
+}
+
+async function assertNativeQueuedClick(page, label) {
+  const proof = await page.evaluate((clickLabel) => window.__packedRemountProbe.swapClicks.find((click) => click.label === clickLabel), label);
+  check(proof?.visible && proof.nativeBootstrapMounted === false,
+    `${label}: expected a visible header click before incoming native bootstrap mount: ${JSON.stringify(proof)}`);
+  check(proof.eventsAfter === proof.eventsBefore + 1,
+    `${label}: expected the initial raw header event before the queue intercepts it: ${JSON.stringify(proof)}`);
+  check(proof.acceptedEventsAfter === proof.acceptedEventsBefore && proof.acceptedPendingAfter === 1,
+    `${label}: expected one intent held by the native navigation queue without downstream delivery: ${JSON.stringify(proof)}`);
+  return proof;
+}
+
+async function assertNativePersistedVisibility(page, visible, label) {
+  try {
+    await page.waitForFunction(({ prefix, visible }) => {
+      const open = localStorage.getItem(prefix + '-open') === '1';
+      const storedVisibility = localStorage.getItem(prefix + ':visible');
+      return open === visible && storedVisibility === (visible ? '1' : '0');
+    }, { prefix: PANEL_STORAGE_PREFIX, visible }, { timeout: TIMEOUT_MS });
+  } catch {
+    throw new Error(`${label}: panel visibility did not settle in both persistence keys: ${JSON.stringify(await panelDiagnostics(page))}`);
+  }
+}
+
+async function proveNativeIncomingEarlyClick(browser, origin, panelChunkPaths) {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const page = await context.newPage();
+  const errors = [];
+  installBrowserErrorCapture(page, errors);
+  await page.addInitScript(lifecycleProbeInitScript());
+  const gate = deferred();
+  await page.route('**/*.js*', async (route) => {
+    if (panelChunkPaths.has(new URL(route.request().url()).pathname)) await gate.promise;
+    await route.continue();
+  });
+  try {
+    await page.goto(`${origin}/`, { waitUntil: 'load' });
+    await page.locator('[data-zfb-island="DocPanelBootstrap"][data-zfb-island-mounted]').waitFor({ state: 'attached' });
+    // The init-time raw observer precedes the host's window capture listener.
+    // Keep that evidence, and register a second observer AFTER the queue so it
+    // counts only events actually released to downstream panel consumers.
+    await page.evaluate(() => {
+      window.__packedRemountProbe.acceptedToggleEvents = 0;
+      window.addEventListener('toggle-zdtp-doc-host', () => {
+        window.__packedRemountProbe.acceptedToggleEvents++;
+      });
+    });
+    check(!await panelChunksLoaded(page, panelChunkPaths), 'Early SPA test loaded panel before activation');
+    const requested = observed(page.waitForRequest((request) => panelChunkPaths.has(new URL(request.url()).pathname), { timeout: TIMEOUT_MS }));
+    await armAfterSwapHeaderClick(page, 'native-incoming-unhydrated');
+    const swap = waitForZfbEvent(page, 'zfb:after-swap');
+    await page.getByRole('link', { name: 'Getting Started', exact: true }).first().click();
+    await swap;
+    const proof = await assertNativeQueuedClick(page, 'native-incoming-unhydrated');
+    check(proof.nativeBootstrapMounted === false,
+      `Early incoming click did not precede native bootstrap mount: ${JSON.stringify(proof)}`);
+    await requested;
+    const beforeRelease = await panelDiagnostics(page);
+    check(beforeRelease.shellCount === 0, 'Held lazy panel implementation rendered before release');
+    gate.resolve();
+    await assertPanelState(page, true, 'native incoming unhydrated click replay');
+    await assertNativePersistedVisibility(page, true, 'native incoming unhydrated click replay');
+    const state = await panelDiagnostics(page);
+    check(state.probe.triggerClicks === 1, 'Native early recovery required another user click');
+    check(state.probe.toggleEvents === 1, 'Expected one raw early header toggle');
+    check(state.probe.acceptedToggleEvents === 1, 'Native early intent did not deliver exactly one downstream toggle after activation');
+    check(state.probe.queueCaptureListeners === 1, 'Expected exactly one host navigation capture queue');
+    check(state.bindingPrefixes?.filter((prefix) => prefix === PANEL_STORAGE_PREFIX).length === 1,
+      `Native early replay duplicated public binding: ${JSON.stringify(state)}`);
+    for (let index = 0; index < 4; index++) {
+      const label = `native-configured-queued-${index}`;
+      const before = await panelDiagnostics(page);
+      await armAfterSwapHeaderClick(page, label);
+      const nextSwap = waitForZfbEvent(page, 'zfb:after-swap');
+      const nextLoad = waitForZfbEvent(page, 'zfb:page-load');
+      if (index % 2 === 0) await page.goBack();
+      else await page.goForward();
+      await nextSwap;
+      await assertNativeQueuedClick(page, label);
+      await nextLoad;
+      await page.locator('[data-zfb-island="DocPanelBootstrap"][data-zfb-island-mounted]').waitFor({ state: 'attached' });
+      await page.waitForFunction(() => window.__packedRemountProbe.acceptedToggleEvents === window.__packedRemountProbe.triggerClicks,
+        null, { timeout: TIMEOUT_MS });
+      const after = await assertPanelState(page, index % 2 !== 0, label);
+      // A remounted closed shell is initially empty before its effects flush;
+      // that alone does not prove the close intent has settled. Require both
+      // persistence keys before starting another navigation.
+      await assertNativePersistedVisibility(page, index % 2 !== 0, label);
+      check(after.probe.triggerClicks === before.probe.triggerClicks + 1 &&
+        after.probe.toggleEvents === before.probe.toggleEvents + 1 &&
+        after.probe.acceptedToggleEvents === before.probe.acceptedToggleEvents + 1,
+      `${label}: expected one user click, one raw header event, and one downstream host toggle: ${JSON.stringify(after)}`);
+      check(after.probe.queueCaptureListeners === 1, `${label}: native remount duplicated the capture queue`);
+      check(JSON.stringify(after.bindingPrefixes) === JSON.stringify(state.bindingPrefixes) &&
+        after.lifecycleCleanups === state.lifecycleCleanups,
+      `${label}: repeated native queue activation leaked bindings or lifecycle listeners: ${JSON.stringify(after)}`);
+    }
+    check(errors.length === 0, `Native early SPA flow emitted browser errors: ${errors.join(' | ')}`);
+    console.log(`PASS current native incoming unhydrated header click: ${JSON.stringify({ proof, triggerClicks: state.probe.triggerClicks, rawToggleEvents: state.probe.toggleEvents, acceptedToggleEvents: state.probe.acceptedToggleEvents })}`);
+  } catch (error) {
+    console.error('Native incoming early-click original failure:', error);
+    console.error('Native incoming early-click diagnostics:', JSON.stringify(await panelDiagnostics(page).catch((diagnosticError) => ({ error: String(diagnosticError) }))));
+    console.error('Native incoming early-click browser errors:', JSON.stringify(errors));
+    throw error;
+  } finally {
+    gate.resolve();
     await context.close();
   }
 }
@@ -645,7 +815,8 @@ let browser;
 try {
   browser = await chromium.launch({ headless: true });
   await provePrehydrationClick(browser, server.origin);
-  await proveSpaRemount(browser, server.origin, panelChunkPaths);
+  if (process.argv.includes('--native-host')) await proveNativeIncomingEarlyClick(browser, server.origin, panelChunkPaths);
+  await proveSpaRemount(browser, server.origin, panelChunkPaths, { nativeHost: process.argv.includes('--native-host') });
 } finally {
   await browser?.close();
   await server.close();

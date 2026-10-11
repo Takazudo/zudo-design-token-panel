@@ -1,4 +1,4 @@
-import { defineConfig } from "zfb/config";
+import { defineConfig } from "@takazudo/zfb/config";
 import { zudoDoc } from "@takazudo/zudo-doc/config";
 
 export default defineConfig(
@@ -39,6 +39,7 @@ export default defineConfig(
     ],
     cjkFriendly: true,
     designTokenPanel: true,
+    chromeBindingsModule: "./src/chrome-bindings.tsx",
     sidebarResizer: true,
     sidebarToggle: true,
     tocToggle: true,

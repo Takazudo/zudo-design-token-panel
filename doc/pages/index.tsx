@@ -3,4 +3,6 @@
 // Verified by the #2652 spike (Q2) to build, dev-render, and hydrate — a
 // dynamic route (see pages/docs/[[...slug]].tsx) cannot use this form because
 // `paths()` static-AST-extraction requires source, not compiled `dist/` JS.
+// Keep the local native bootstrap visible to the static island scanner.
+import "../src/chrome-bindings";
 export { default } from "@takazudo/zudo-doc/routes/index";
