@@ -294,11 +294,13 @@ function GhostIdleToggle({
 interface DesignTokenTweakPanelProps {
   instanceConfig?: PanelConfig;
   spawnOrdinal?: number;
+  onCloseIntent?: () => void;
 }
 
 export default function DesignTokenTweakPanel({
   instanceConfig: instanceConfigProp,
   spawnOrdinal = 0,
+  onCloseIntent,
 }: DesignTokenTweakPanelProps = {}) {
   // Resolve the instance config: the passed-in registered config, or the active
   // default instance for a direct (prop-less) test render. Memoised so the
@@ -314,10 +316,6 @@ export default function DesignTokenTweakPanel({
   // the same document do not share dtp-tab-* / dtp-panel-* IDs.
   const ariaIdScope = useId();
   const [open, setOpen] = useState(false);
-  // The persist effect's mount run sees the initial `open=false`, not the
-  // user's intent; writing it clobbered the seed `showInstance` / toggle had
-  // just made, for one flush (#1000).
-  const skipMountPersistRef = useRef(true);
   const [showExport, setShowExport] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showApply, setShowApply] = useState(false);
@@ -469,7 +467,10 @@ export default function DesignTokenTweakPanel({
     // restore into.
     if (!isDocumentUsable()) return;
     try {
-      if (localStorage.getItem(getOpenKey(instanceConfig)) === '1') setOpen(true);
+      if (localStorage.getItem(getOpenKey(instanceConfig)) === '1') {
+        setOpen(true);
+        localStorage.setItem(storageKey_visible(instanceConfig), '1');
+      }
     } catch {
       /* ignore */
     }
@@ -534,35 +535,22 @@ export default function DesignTokenTweakPanel({
     [instanceConfig],
   );
 
-  // Persist open state, and keep the adapter-level :visible key in sync.
-  // The adapter (index.tsx) only writes :visible from its public API paths
-  // (show/hide/toggle), so an internal close (X button, ESC) would leave
-  // :visible='1' while -open is absent — causing the panel to reopen on the
-  // next page load via reapplyFromStorage → wasVisible(). Writing :visible
-  // here ensures every close path (public API or internal UI) stays in lockstep.
-  useEffect(() => {
-    if (skipMountPersistRef.current) {
-      skipMountPersistRef.current = false;
-      return;
-    }
-    // Liveness probe (zudolab/zudo-doc#3344): an effect flush that lands after
-    // the document was torn down must not write a dead environment's `open`
-    // over the next environment's stored intent.
+  // Publish intent before the empty render can trigger dead-root recovery (#1046).
+  const closePanel = useCallback(() => {
     if (!isDocumentUsable()) return;
+    onCloseIntent?.();
     try {
-      const openKey = getOpenKey(instanceConfig);
-      if (open) localStorage.setItem(openKey, '1');
-      else localStorage.removeItem(openKey);
+      localStorage.removeItem(getOpenKey(instanceConfig));
     } catch {
       /* ignore */
     }
     try {
-      const visibleKey = storageKey_visible(instanceConfig);
-      localStorage.setItem(visibleKey, open ? '1' : '0');
+      localStorage.setItem(storageKey_visible(instanceConfig), '0');
     } catch {
       /* ignore */
     }
-  }, [open, instanceConfig]);
+    setOpen(false);
+  }, [instanceConfig, onCloseIntent]);
 
   // Dock claims are live only while the shell is visible. The shared registry
   // makes the ownership decision cross-bundle safe and restores host inline
@@ -608,8 +596,11 @@ export default function DesignTokenTweakPanel({
   useEffect(() => {
     const eventName = openStateChangedEventName(instanceConfig);
     function syncOpenFromStorage() {
+      if (!isDocumentUsable()) return;
       try {
-        setOpen(localStorage.getItem(getOpenKey(instanceConfig)) === '1');
+        const nextOpen = localStorage.getItem(getOpenKey(instanceConfig)) === '1';
+        setOpen(nextOpen);
+        localStorage.setItem(storageKey_visible(instanceConfig), nextOpen ? '1' : '0');
       } catch {
         /* ignore */
       }
@@ -1556,7 +1547,7 @@ export default function DesignTokenTweakPanel({
           order: 4,
           render: () => (
             <RoleButton
-              onClick={() => setOpen(false)}
+              onClick={closePanel}
               className="tokenpanel-close-btn"
               aria-label="Close panel"
             >
@@ -1660,7 +1651,7 @@ export default function DesignTokenTweakPanel({
       onRedo={handleRedo}
       onFlipSnapshots={handleFlipSnapshots}
     />
-    {open && <PanelEscapeShortcut onClose={() => setOpen(false)} />}
+    {open && <PanelEscapeShortcut onClose={closePanel} />}
     <HighlightOrchestrator instanceConfig={instanceConfig}>
     <ElementPathOrchestrator>
     <ElementInspectOrchestrator
