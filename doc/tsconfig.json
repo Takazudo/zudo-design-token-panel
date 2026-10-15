@@ -6,10 +6,9 @@
     "zfb.config.ts"
   ],
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
       "@/*": [
-        "src/*"
+        "./src/*"
       ]
     }
   }
