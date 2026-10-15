@@ -1,11 +1,13 @@
 import { spawn } from 'node:child_process';
+import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
-import { cp, mkdir, mkdtemp, readdir, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
+import { verifyCloseRecovery, writeCloseRecoveryFixture } from './close-recovery-smoke.mjs';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const outputDir = join(packageRoot, 'test-results/pack');
@@ -117,6 +119,16 @@ await writeFile(join(appDir, 'package.json'), JSON.stringify({
   },
 }, null, 2));
 await run('pnpm', ['install', '--no-frozen-lockfile', '--ignore-scripts', '--config.auto-install-peers=false'], appDir);
+const installedPanel = await realpath(join(appDir, 'node_modules/@takazudo/zdtp'));
+assert.ok(installedPanel.startsWith(appDir) && installedPanel.includes('@file+'), installedPanel);
+for (const file of await readdir(join(packageRoot, 'dist'), { recursive: true, withFileTypes: true })) {
+  if (!file.isFile()) continue;
+  const source = join(file.parentPath, file.name);
+  const relative = source.slice(join(packageRoot, 'dist').length + 1);
+  assert.deepEqual(await readFile(join(installedPanel, 'dist', relative)), await readFile(source), relative);
+}
+console.log(`Packed candidate installed and every dist file byte-verified: ${installedPanel}`);
+await writeCloseRecoveryFixture(appDir);
 
 await cp(constantsFixtureDir, constantsAppDir, { recursive: true });
 await writeFile(join(constantsAppDir, 'package.json'), JSON.stringify({
@@ -193,6 +205,7 @@ try {
   if (!address || typeof address === 'string') throw new Error('Vite did not expose a TCP port');
 
   browser = await chromium.launch({ headless: true });
+  await verifyCloseRecovery(browser, `http://127.0.0.1:${address.port}`);
   context = await browser.newContext();
   await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
   const page = await context.newPage();

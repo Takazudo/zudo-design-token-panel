@@ -546,7 +546,14 @@ function ensureMounted(cfg: PanelConfig): boolean {
   // `spawnOrdinal` cascades this shell's fresh-open position away from any
   // sibling already mounted. Flows mount layer -> panel -> geometry helper;
   // `tweak-state.ts` never reaches back into this module (epic #582).
-  render(<DesignTokenTweakPanel instanceConfig={cfg} spawnOrdinal={spawnOrdinal} />, root);
+  render(
+    <DesignTokenTweakPanel
+      instanceConfig={cfg}
+      spawnOrdinal={spawnOrdinal}
+      onCloseIntent={() => cancelOpenVerification(cfg)}
+    />,
+    root,
+  );
   mountedRoots.set(cfg.storagePrefix, root);
   return true;
 }
