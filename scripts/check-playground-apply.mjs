@@ -7,7 +7,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 const root = resolve(import.meta.dirname, '..');
 const playground = resolve(root, 'playground');
 const cssPath = resolve(playground, 'styles/global.css');
-const before = await readFile(cssPath, 'utf8');
+const beforeBytes = await readFile(cssPath);
+const before = beforeBytes.toString('utf8');
 const origin = 'http://localhost:44327';
 const children = [];
 let output = '';
@@ -97,3 +98,7 @@ try {
     }
   }
 }
+
+assert.deepEqual(await readFile(cssPath), beforeBytes,
+  'Apply verification must restore the stylesheet byte-for-byte');
+console.log('PASS playground Apply: stylesheet restored byte-for-byte');
