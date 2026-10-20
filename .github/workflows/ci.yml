@@ -133,14 +133,19 @@ jobs:
         with:
           node-version: 22
 
+      # pnpm re-checks the root engines on every run, so each call opts out.
       - name: Install dependencies without engine enforcement
         run: pnpm install --frozen-lockfile --config.engine-strict=false
 
       - name: Build the panel package
-        run: pnpm --filter @takazudo/zdtp build
+        run: pnpm --config.engine-strict=false --filter @takazudo/zdtp build
+
+      - name: Generate playground build info
+        working-directory: playground
+        run: node ../scripts/generate-example-build-info.mjs --out config/build-info.generated.ts
 
       - name: Unit tests
-        run: pnpm --filter @takazudo/zdtp test:unit
+        run: pnpm --config.engine-strict=false --filter @takazudo/zdtp test:unit
 
   consumer-smoke:
     name: Consumer smoke (legacy and current doc hosts)
