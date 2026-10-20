@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22.12.0" },
+  "engines": { "node": ">=24 <25" },
   "scripts": {
     "generate:build-info": "node ../scripts/generate-example-build-info.mjs --out config/build-info.generated.ts",
     "generate:build-info:deploy": "node ../scripts/generate-example-build-info.mjs --out config/build-info.generated.ts --deploy",

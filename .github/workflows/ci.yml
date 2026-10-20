@@ -33,7 +33,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -115,6 +115,33 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+  zdtp-node22:
+    name: Published package on Node 22 (build and unit tests)
+    # The workspace needs Node 24 (zudo-doc 7 engines + engineStrict), but the
+    # published @takazudo/zdtp still declares engines >=22, so prove that here.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+
+      - name: Install dependencies without engine enforcement
+        run: pnpm install --frozen-lockfile --config.engine-strict=false
+
+      - name: Build the panel package
+        run: pnpm --filter @takazudo/zdtp build
+
+      - name: Unit tests
+        run: pnpm --filter @takazudo/zdtp test:unit
+
   consumer-smoke:
     name: Consumer smoke (legacy and current doc hosts)
     # Keep this lane informational until the unpublished-panel workflow has
@@ -132,7 +159,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
