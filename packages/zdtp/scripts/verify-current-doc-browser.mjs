@@ -108,6 +108,83 @@ async function history(page, expectedPath) {
   assert(!/Failed to load|Malformed history/.test(await page.locator('[data-doc-history-panel]').innerText()));
   await page.getByRole('button', { name: 'Close history panel', exact: true }).click();
 }
+// Holds the first SPA fetch for `path` so actions can run while the navigation
+// is still pending, i.e. before zfb:before-swap.
+async function heldNavigation(page, path) {
+  let release;
+  const gate = new Promise((done) => { release = done; });
+  let requested;
+  const seen = new Promise((done) => { requested = done; });
+  let held = false;
+  const matcher = (url) => url.pathname.replace(/\/$/, '') === path;
+  const handler = async (route) => {
+    if (!held && route.request().resourceType() === 'fetch') {
+      held = true;
+      requested();
+      await gate;
+    }
+    try { await route.continue(); } catch { /* The page aborted the superseded fetch. */ }
+  };
+  await page.route(matcher, handler);
+  let deadline;
+  const started = Promise.race([seen, new Promise((_, reject) => {
+    deadline = setTimeout(() => reject(new Error(`SPA fetch was not requested: ${path}`)), timeout);
+  })]).finally(() => clearTimeout(deadline));
+  return { started, release: () => release(), dispose: () => page.unroute(matcher, handler) };
+}
+
+// zudo-doc 7 limits its loading overlay to the content area, so the header
+// trigger stays clickable while a navigation is fetching, before before-swap.
+async function pendingNavigationClicks(page) {
+  const probe = () => page.evaluate(() => ({ ...window.__currentDocProbe }));
+  const base = await probe();
+  let ownership;
+
+  // Commit: open during the pending fetch, then the swap must keep it open.
+  const committed = await heldNavigation(page, '/docs/getting-started');
+  const navigation = spa(page, () => page.getByRole('link', { name: 'Getting Started', exact: true }).first().click(),
+    '/docs/getting-started');
+  try {
+    await committed.started;
+    assert.equal((await probe()).swaps, base.swaps, 'Held navigation swapped before its fetch was released');
+    await page.locator('#design-token-trigger').click();
+    await page.locator('.tokenpanel-shell').waitFor({ state: 'visible' });
+    assert.equal((await probe()).toggles, base.toggles + 1, 'Pending-navigation click did not toggle exactly once');
+    ownership = await panelInvariant(page);
+    assert.equal(ownership.roots, 1);
+    assert.equal(ownership.shells, 1);
+    assert.equal(ownership.bindings, 1);
+  } finally { committed.release(); }
+  await navigation;
+  await committed.dispose();
+  await page.locator('.tokenpanel-shell').waitFor({ state: 'visible' });
+  assert.equal((await probe()).toggles, base.toggles + 1, 'Swap replayed the pending-navigation click');
+  assert.deepEqual(await panelInvariant(page), ownership, 'Pending-navigation open leaked roots/listeners');
+
+  // Abort: close during a pending fetch that a newer navigation supersedes.
+  const superseded = await heldNavigation(page, '/docs/reference');
+  await page.locator('#design-token-trigger').click();
+  await page.locator('.tokenpanel-shell').waitFor({ state: 'hidden' });
+  const reopened = await probe();
+  const pending = page.getByRole('link', { name: 'Reference', exact: true }).first().click();
+  try {
+    await pending;
+    await superseded.started;
+    await page.locator('#design-token-trigger').click();
+    await page.locator('.tokenpanel-shell').waitFor({ state: 'visible' });
+    assert.equal((await probe()).toggles, reopened.toggles + 1, 'Pending-navigation click before abort did not toggle exactly once');
+    await spa(page, () => page.goBack(), '/docs/reference');
+  } finally { superseded.release(); }
+  await superseded.dispose();
+  const after = await probe();
+  assert(after.aborts > reopened.aborts, 'Superseded navigation did not report zfb:navigation-aborted');
+  await page.locator('.tokenpanel-shell').waitFor({ state: 'visible' });
+  assert.equal(after.toggles, reopened.toggles + 1, 'Aborted navigation replayed the pending click');
+  assert.deepEqual(await panelInvariant(page), ownership, 'Aborted pending navigation leaked roots/listeners');
+  await page.locator('#design-token-trigger').click();
+  await page.locator('.tokenpanel-shell').waitFor({ state: 'hidden' });
+}
+
 async function panelInvariant(page) {
   return page.evaluate(() => {
     const prefix = 'zudo-doc-tweak';
@@ -212,7 +289,7 @@ try {
     if (frame === page.mainFrame()) browserLog.push(`main-frame: ${frame.url()}`);
   });
   await page.addInitScript(() => {
-    window.__currentDocProbe = { marker: Math.random(), swaps: 0, loads: 0, loadedPath: '', toggles: 0, rawToggles: 0 };
+    window.__currentDocProbe = { marker: Math.random(), swaps: 0, loads: 0, loadedPath: '', toggles: 0, rawToggles: 0, aborts: 0 };
     const record = (event) => console.debug('current-doc-event', JSON.stringify({
       event, path: location.pathname, ...window.__currentDocProbe,
     }));
@@ -223,7 +300,7 @@ try {
       window.__currentDocProbe.loadedPath = location.pathname;
       record('page-load');
     });
-    document.addEventListener('zfb:navigation-aborted', () => record('navigation-aborted'));
+    document.addEventListener('zfb:navigation-aborted', () => { window.__currentDocProbe.aborts++; record('navigation-aborted'); });
     // Count actual host deliveries independently of the reserved header event.
     // The host intercepts the reserved channel to avoid activating the panel's
     // unconfigured default instance, and forwards to its explicit channel.
@@ -277,7 +354,7 @@ try {
   await page.getByRole('button', { name: 'Hide sidebar', exact: true }).click();
   await page.waitForFunction(() => document.documentElement.hasAttribute('data-sidebar-hidden'));
 
-  // Exercise the actual v6 indexed-search UI. Its published implementation
+  // Exercise the actual zudo-doc indexed-search UI. Its published implementation
   // loads search-index.json; it does not call Pagefind's browser API.
   await page.locator('[data-open-search]:visible').click();
   await page.locator('[data-search-input]').fill('token');
@@ -367,8 +444,9 @@ try {
   assert.equal(rejected?.path.replace(/\/$/, ''), '/docs/reference', 'Rejected History write altered the outgoing URL before recovery');
   assert(rejected?.heading?.includes('Reference'), 'Rejected navigation swapped outgoing content before recovery');
   await spa(page, () => page.getByRole('link', { name: 'Reference', exact: true }).first().click(), '/docs/reference');
+  await pendingNavigationClicks(page);
   assert.deepEqual(errors, [], 'Current host emitted browser errors');
-  console.log(`PASS current ${dev ? 'dev + real history sidecar' : dist ? 'production' : 'served origin'}: EN/JA/fallback/history/anchor/search/theme/sidebar resize/computed token effect/reopen/SPA/back-forward/persistence/root ownership/History rejection recovery`);
+  console.log(`PASS current ${dev ? 'dev + real history sidecar' : dist ? 'production' : 'served origin'}: EN/JA/fallback/history/anchor/search/theme/sidebar resize/computed token effect/reopen/SPA/back-forward/persistence/root ownership/History rejection recovery/pending-navigation clicks (commit + abort)`);
   await context.close();
   if (dist) await lateImportCancellation();
 } catch (error) {

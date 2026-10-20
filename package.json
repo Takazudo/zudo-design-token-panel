@@ -21,7 +21,7 @@
     "check:dashboard-client-consumer": "node scripts/check-dashboard-client-consumer.mjs"
   },
   "engines": {
-    "node": ">=22.12.0",
+    "node": ">=24 <25",
     "pnpm": ">=11.0.0"
   },
   "license": "MIT",

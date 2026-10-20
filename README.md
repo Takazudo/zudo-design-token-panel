@@ -71,7 +71,7 @@ served at the root of its Cloudflare Workers (static assets) deployment.
 
 Requirements:
 
-- Node.js 22.12 or newer
+- Node.js 24 (the workspace requires `>=24 <25`; the published `@takazudo/zdtp` package itself still supports Node 22)
 - pnpm 11 (the repo pins `packageManager` to `pnpm@11.3.0` in `package.json`)
 
 Install dependencies at the repo root:

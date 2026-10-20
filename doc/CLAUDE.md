@@ -1,10 +1,10 @@
 # Zudo Design Token Panel
 
-Documentation site built with [zudo-doc](https://github.com/zudolab/zudo-doc) — a ZFB 4.5.2 documentation host with MDX, Wind CSS, and native zudo-react islands (zudo-doc 6.2.0). This project is intentionally minimal: one config file (`zfb.config.ts`) plus markdown content — layout, chrome, and islands all ship from `@takazudo/zudo-doc` in `node_modules`.
+Documentation site built with [zudo-doc](https://github.com/zudolab/zudo-doc) — a ZFB 4.5.3 documentation host with MDX, Wind CSS, and native zudo-react islands (zudo-doc 7.0.0). This project is intentionally minimal: one config file (`zfb.config.ts`) plus markdown content — layout, chrome, and islands all ship from `@takazudo/zudo-doc` in `node_modules`.
 
 ## Tech Stack
 
-- **ZFB 4.5.2** — documentation build framework; import configuration helpers from `@takazudo/zfb/config`
+- **ZFB 4.5.3** — documentation build framework; import configuration helpers from `@takazudo/zfb/config`
 - **MDX** — content format, authored under `src/content/`
 - **Wind** — the host utility CSS engine; zudo-doc registers its Wind manifest automatically. Keep `@layer zw-reset, zd-flow;` and the public theme-before-feature CSS import order in `src/styles/global.css`. Token overrides belong in ordinary `:root`; do not add Tailwind directives or scan package `dist/` files.
 - **zudo-react** — native host JSX and interactive islands; extend `@takazudo/zudo-doc/tsconfig.base.json` without React/Preact JSX aliases. The panel owns its separate Preact tree; never pass its VNodes into native host JSX or Island JSON props.
@@ -25,8 +25,9 @@ The docs dev scripts use `scripts/dev-zfb.mjs` to select ZFB's supported eager
 startup (`ZFB_DEV_BOOT_LAZY=0`). On 4.3.1, cold-lazy route discovery can produce
 incompatible native island identities during SPA navigation. Use `dev:zfb` (or
 `dev:zfb:network`) so the real server and current-host CI exercise the same mode;
-keep transport identity checks enabled. Retain this workaround on 4.5.2: its
-ready-banner fix does not establish cold-lazy transport identity safety.
+keep transport identity checks enabled. Retain this workaround on 4.5.3: neither
+the 4.5.2 ready-banner fix nor the 4.5.3 include-parsing fix establishes
+cold-lazy transport identity safety.
 
 ## Key Directories
 
@@ -48,13 +49,16 @@ src/
 Everything else — layout, header, sidebar, footer, doc chrome, islands, and the default design tokens — lives in `node_modules/@takazudo/zudo-doc`. For supported markup replacement, create `src/chrome-bindings.tsx` with `defineChromeBindings`, set `chromeBindingsModule`, and use the primary `Header` / `Footer` / `Sidebar` / `Toc` / `Breadcrumb` / `DocPager` slots or the named `headerRightComponents` registry. The generated default, locale, and doc-history route shapes already consume the same binding object; do not fork a route stub for presentational customization. `npx zudo-doc eject <component>` only copies source: heed its primary, nested-chrome, or content-layer remediation before expecting the copy to render. Settings you didn't set explicitly in `zfb.config.ts` use the package's documented defaults — hover `zudoDoc`'s `ZudoDocConfig` argument in your editor to see every field and its `@default`.
 
 The local `DesignTokenPanelBootstrap` boundary preserves early header clicks across
-native SPA swaps in zudo-doc 6.x. `src/panel-bootstrap.tsx` queues toggle parity
+native SPA swaps in zudo-doc 7.x. `src/panel-bootstrap.tsx` queues toggle parity
 between `zfb:before-swap` and incoming scope activation, then calls the public
 bootstrap controller with the native scope's abort signal and replays at most one
-intent. Package code still owns lazy loading, cancellation, configuration and the
-opaque panel runtime. Keep direct route imports of the binding module: the virtual
-host-callables channel alone does not guarantee static island discovery. Both
-first-load and incoming-unhydrated clicks are covered by the current-host probe.
+intent. zudo-doc 7 limits its loading overlay to the content area, so the header
+trigger stays clickable while a navigation is still fetching (before
+`zfb:before-swap`); such a click toggles the live outgoing host and its state
+must survive the swap or a superseding navigation. Package code still owns lazy
+loading, cancellation, configuration and the opaque panel runtime. Keep direct route imports of the binding module: the virtual
+host-callables channel alone does not guarantee static island discovery. First-load, pending-navigation and incoming-unhydrated clicks are covered by the
+current-host probe.
 
 ## zdtp ↔ zudo-doc relationship
 
