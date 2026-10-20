@@ -4,8 +4,9 @@ import { getScope } from "@takazudo/zfb/zudo-react";
 import { runDesignTokenPanelBootstrapOnce } from "@takazudo/zudo-doc/design-token-panel-bootstrap";
 import { buildDesignTokenPanelConfig } from "@takazudo/zudo-doc/design-token-panel-config";
 
-// zudo-doc 6.0.0's initial-load shim is one-shot. Preserve clicks on the
-// incoming header between the native DOM swap and bootstrap activation too.
+// zudo-doc's initial-load shim is one-shot. Preserve clicks on the incoming
+// header between the native DOM swap and bootstrap activation too. Clicks while
+// a navigation is still fetching go straight to the live outgoing host.
 // The public controller still owns lazy loading, cancellation and panel state.
 let installed = false;
 let navigating = false;
