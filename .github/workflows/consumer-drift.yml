@@ -25,10 +25,45 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
 
+      # The job tracks the latest zudo-doc, so it must run on the Node range
+      # that release declares (zudo-doc 7.0.0 moved to ">=24 <25"); otherwise an
+      # upstream engine bump fails the install and masquerades as manifest drift.
+      - name: Resolve the latest zudo-doc version and Node engine
+        id: zudo-doc
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(npm view @takazudo/zudo-doc@latest version)"
+          range="$(npm view "@takazudo/zudo-doc@${version}" engines.node)"
+          echo "zudo-doc ${version} engines.node: ${range:-<none>}"
+          history_range="$(npm view "@takazudo/zudo-doc-history-server@${version}" engines.node 2>/dev/null || echo '<unpublished>')"
+          echo "history-server ${version} engines.node: ${history_range:-<none>}"
+          echo "zudo-doc ${version} peerDependencies:"
+          npm view "@takazudo/zudo-doc@${version}" peerDependencies
+
+          unbounded_re='^(>=?)[[:space:]]*v?([0-9]+)'
+          if [ -z "$range" ] || [ "$range" = "undefined" ]; then
+            range=22
+          elif [[ "$range" != *"<"* && "$range" != *"||"* && "$range" =~ $unbounded_re ]]; then
+            # Unbounded (">=24"): pin the lowest admitted major instead of the newest Node.
+            major="${BASH_REMATCH[2]}"
+            if [ "${BASH_REMATCH[1]}" = ">" ]; then major=$((major + 1)); fi
+            range="$major"
+          fi
+          echo "Resolved Node range: ${range}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "node-range=${range}" >> "$GITHUB_OUTPUT"
+
       - name: Setup Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: 22
+          node-version: ${{ steps.zudo-doc.outputs.node-range }}
+
+      - name: Record the installed Node version
+        id: node
+        run: |
+          node -v
+          echo "version=$(node -v)" >> "$GITHUB_OUTPUT"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -36,20 +71,38 @@ jobs:
       - name: Install Chromium for the manifest contract
         run: pnpm --filter @takazudo/zdtp exec playwright install --with-deps chromium
 
-      - name: Install the latest zudo-doc in the disposable checkout
-        run: pnpm --filter doc update @takazudo/zudo-doc --latest
+      - name: Install the resolved zudo-doc family in the disposable checkout
+        shell: bash
+        env:
+          ZUDO_DOC_VERSION: ${{ steps.zudo-doc.outputs.version }}
+        run: |
+          set -euo pipefail
+          # zudo-doc and its history server release in lockstep and zudo-doc peers
+          # the same major, so install both at the one resolved version.
+          if [ -n "$(npm view "@takazudo/zudo-doc-history-server@${ZUDO_DOC_VERSION}" version 2>/dev/null)" ]; then
+            pnpm --filter doc update "@takazudo/zudo-doc@${ZUDO_DOC_VERSION}" "@takazudo/zudo-doc-history-server@${ZUDO_DOC_VERSION}"
+          else
+            echo "history-server@${ZUDO_DOC_VERSION} missing; using --latest for it"
+            pnpm --filter doc update "@takazudo/zudo-doc@${ZUDO_DOC_VERSION}"
+            pnpm --filter doc update @takazudo/zudo-doc-history-server --latest
+          fi
 
       - name: Re-vendor the latest zudo-doc manifest
         run: node scripts/vendor-consumer-manifest.mjs
 
+      # `exec vitest` with a path filter runs only this file; `test:browser -- <file>`
+      # forwarded the `--` and ran the whole browser project.
       - name: Run the consumer-manifest contract test
-        run: pnpm --filter @takazudo/zdtp test:browser -- src/__tests__/consumer-manifest.browser.test.tsx
+        run: pnpm --filter @takazudo/zdtp exec vitest run --project browser src/__tests__/consumer-manifest.browser.test.tsx
 
       - name: Open or update the manifest drift issue
         if: ${{ failure() }}
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           DRIFT_MARKER: '<!-- consumer-drift:zudo-doc-manifest -->'
+          ZUDO_DOC_VERSION: ${{ steps.zudo-doc.outputs.version }}
+          NODE_RANGE: ${{ steps.zudo-doc.outputs.node-range }}
+          NODE_VERSION: ${{ steps.node.outputs.version }}
         with:
           script: |
             const marker = process.env.DRIFT_MARKER;
@@ -62,6 +115,10 @@ jobs:
 
             - Run: ${runUrl}
             - Commit: \`${context.sha}\`
+            - zudo-doc: \`${process.env.ZUDO_DOC_VERSION || 'unresolved'}\`
+            - Node range: \`${process.env.NODE_RANGE || 'unresolved'}\`, installed: \`${process.env.NODE_VERSION || 'not installed'}\`
+
+            Check the failing step before treating this as manifest drift: an install or engine failure stops the job before the contract test runs.
 
             This issue is deduplicated by the marker above and will be updated by the next failed run.`;
 

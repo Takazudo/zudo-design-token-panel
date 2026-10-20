@@ -137,7 +137,9 @@ templates until materialized outside the checkout; do not add old real
 `package.json` files to the dependency resolver's repository scan.
 
 The scheduled `.github/workflows/consumer-drift.yml` workflow installs the
-latest zudo-doc for the consumer-manifest contract check. Its five-example
+latest zudo-doc for the consumer-manifest contract check, on the Node range
+that release declares in `engines.node`, so an upstream engine bump does not
+masquerade as manifest drift. Its five-example
 matrix is manual-dispatch-only and informational while those public examples
 still pin older panel APIs; failures open or update one deduplicated issue per
 job.
