@@ -205,7 +205,7 @@ const panelPackage = JSON.parse(await readFile(panelPackagePath, 'utf8'));
 assert.equal(panelPackage.version, expectedPanelVersion,
   `Expected @takazudo/zdtp@${expectedPanelVersion}, resolved @takazudo/zdtp@${panelPackage.version}`);
 const legacy = process.env.CONSUMER_HOST === 'legacy';
-const expectedZfbVersion = legacy ? '2.20.3' : '4.5.4';
+const expectedZfbVersion = legacy ? '2.20.3' : '4.6.0';
 const expectedDocVersion = legacy ? '5.27.0' : '7.0.0';
 for (const name of ['@takazudo/zfb', '@takazudo/zfb-runtime',
   '@takazudo/zfb-adapter-cloudflare', '@takazudo/zfb-md-wasm',
