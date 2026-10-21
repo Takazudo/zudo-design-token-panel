@@ -112,10 +112,10 @@ if (panelPackage.version !== expectedPanelVersion) {
 }
 
 for (const [name, expected] of Object.entries({
-  '@takazudo/zfb': '4.5.4',
-  '@takazudo/zfb-runtime': '4.5.4',
-  '@takazudo/zfb-adapter-cloudflare': '4.5.4',
-  '@takazudo/zfb-md-wasm': '4.5.4',
+  '@takazudo/zfb': '4.6.0',
+  '@takazudo/zfb-runtime': '4.6.0',
+  '@takazudo/zfb-adapter-cloudflare': '4.6.0',
+  '@takazudo/zfb-md-wasm': '4.6.0',
   '@takazudo/zudo-doc': '7.0.0',
   '@takazudo/zudo-doc-history-server': '7.0.0',
 })) {
