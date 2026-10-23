@@ -1,10 +1,10 @@
 # Zudo Design Token Panel
 
-Documentation site built with [zudo-doc](https://github.com/zudolab/zudo-doc) — a ZFB 4.6.0 documentation host with MDX, Wind CSS, and native zudo-react islands (zudo-doc 7.0.0). This project is intentionally minimal: one config file (`zfb.config.ts`) plus markdown content — layout, chrome, and islands all ship from `@takazudo/zudo-doc` in `node_modules`.
+Documentation site built with [zudo-doc](https://github.com/zudolab/zudo-doc) — a ZFB 4.7.0 documentation host with MDX, Wind CSS, and native zudo-react islands (zudo-doc 7.1.0). This project is intentionally minimal: one config file (`zfb.config.ts`) plus markdown content — layout, chrome, and islands all ship from `@takazudo/zudo-doc` in `node_modules`.
 
 ## Tech Stack
 
-- **ZFB 4.6.0** — documentation build framework; import configuration helpers from `@takazudo/zfb/config`
+- **ZFB 4.7.0** — documentation build framework; import configuration helpers from `@takazudo/zfb/config`
 - **MDX** — content format, authored under `src/content/`
 - **Wind** — the host utility CSS engine; zudo-doc registers its Wind manifest automatically. Keep `@layer zw-reset, zd-flow;` and the public theme-before-feature CSS import order in `src/styles/global.css`. Token overrides belong in ordinary `:root`; do not add Tailwind directives or scan package `dist/` files.
 - **zudo-react** — native host JSX and interactive islands; extend `@takazudo/zudo-doc/tsconfig.base.json` without React/Preact JSX aliases. The panel owns its separate Preact tree; never pass its VNodes into native host JSX or Island JSON props.
@@ -25,11 +25,13 @@ The docs dev scripts use `scripts/dev-zfb.mjs` to select ZFB's supported eager
 startup (`ZFB_DEV_BOOT_LAZY=0`). On 4.3.1, cold-lazy route discovery can produce
 incompatible native island identities during SPA navigation. Use `dev:zfb` (or
 `dev:zfb:network`) so the real server and current-host CI exercise the same mode;
-keep transport identity checks enabled. Retain this workaround on 4.6.0: the
+keep transport identity checks enabled. Retain this workaround on 4.7.0: the
 4.5.2 ready-banner fix, the 4.5.3 include-parsing fix, the 4.5.4 islands
-build-identity change (which keys island bytes to the resolved browser graph)
-and the 4.6.0 shadow-staging and Windows path fixes do not establish cold-lazy
-transport identity safety.
+build-identity change (which keys island bytes to the resolved browser graph),
+the 4.6.0 shadow-staging and Windows path fixes and the 4.7.0 Rolldown bundler
+switch do not claim cold-lazy transport identity safety. The packed current-host
+dev probe also passed with `ZFB_DEV_BOOT_LAZY=1` on 4.7.0, but that probe was not
+shown to catch the original 4.3.1 failure, so it is not proof the workaround can go.
 
 ## Key Directories
 
