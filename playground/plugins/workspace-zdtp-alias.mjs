@@ -12,5 +12,10 @@ export default {
     ctx.addAlias('@takazudo/zdtp', '../packages/zdtp/dist/index.js');
     ctx.addAlias('@takazudo/zdtp/dashboard', '../packages/zdtp/dist/dashboard/index.js');
     ctx.addAlias('@takazudo/zdtp/package.json', '../packages/zdtp/package.json');
+    // Rolldown's staged workspace imports need the panel-owned Preact paths too.
+    ctx.addAlias('preact', '../packages/zdtp/node_modules/preact/dist/preact.module.js');
+    ctx.addAlias('preact/hooks', '../packages/zdtp/node_modules/preact/hooks/dist/hooks.module.js');
+    ctx.addAlias('preact/compat', '../packages/zdtp/node_modules/preact/compat/dist/compat.module.js');
+    ctx.addAlias('preact/jsx-runtime', '../packages/zdtp/node_modules/preact/jsx-runtime/dist/jsxRuntime.module.js');
   },
 };
