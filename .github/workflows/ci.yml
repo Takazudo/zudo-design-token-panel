@@ -193,7 +193,7 @@ jobs:
           PANEL_TARBALL: ${{ steps.panel.outputs.tarball }}
         run: bash scripts/verify-packed-remount-consumer.sh --host legacy --panel-tarball "$PANEL_TARBALL"
 
-      - name: Current host — ZFB 4 / zudo-doc 7 packed remount
+      - name: Current host — ZFB 5 / zudo-doc 8 packed remount
         if: ${{ !cancelled() && steps.panel.outcome == 'success' }}
         env:
           PANEL_TARBALL: ${{ steps.panel.outputs.tarball }}

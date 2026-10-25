@@ -140,7 +140,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 ZFB 3/4 は zudo-react のアイランドを使います。パネルは独立した Preact ウィジェットとして扱い、`getScope().onActivate()` 内で `@takazudo/zdtp` を遅延 import して設定します。破棄後に完了した import はキャンセルし、クリーンアップでハンドルを破棄します。Preact はパネル自身の依存関係なので、ホストの JSX 設定を Preact に変える必要はありません。
 
-このドキュメントサイトは ZFB 5.0.1 上の zudo-doc 8.0.0 を使い、ネイティブの zudo-react と Wind CSS で描画します。サイト内のパネルは公開済み npm リリースに固定し、playground と minimal デモはワークスペースのパネルビルドを使います。以前の ZFB 2 では Preact アイランドと Astro ホストアダプターを使っていました。その再マウント回帰テストは、現在のドキュメントの依存だけを戻すのではなく、独立した ZFB 2.20.3 / zudo-doc 5.27.0 のフィクスチャで維持します。
+このドキュメントサイトは ZFB 5.1.2 上の zudo-doc 8.1.0 を使い、ネイティブの zudo-react と Wind CSS で描画します。サイト内のパネルは公開済み npm リリースに固定し、playground と minimal デモはワークスペースのパネルビルドを使います。以前の ZFB 2 では Preact アイランドと Astro ホストアダプターを使っていました。その再マウント回帰テストは、現在のドキュメントの依存だけを戻すのではなく、独立した ZFB 2.20.3 / zudo-doc 5.27.0 のフィクスチャで維持します。
 
 ほかの 3 サンプルとの主な違いは、開発時の apply プロキシの接続方法です。Vite と Next.js には組み込みの proxy / rewrite 設定がありますが、zfb は `devMiddleware` プラグインフックを提供します。プラグインでプロキシを登録します。
 
