@@ -117,7 +117,7 @@ jobs:
 
   zdtp-node22:
     name: Published package on Node 22 (build and unit tests)
-    # The workspace needs Node 24 (zudo-doc 7 engines + engineStrict), but the
+    # The workspace needs Node 24 (zudo-doc 7+ engines + engineStrict), but the
     # published @takazudo/zdtp still declares engines >=22, so prove that here.
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -193,7 +193,7 @@ jobs:
           PANEL_TARBALL: ${{ steps.panel.outputs.tarball }}
         run: bash scripts/verify-packed-remount-consumer.sh --host legacy --panel-tarball "$PANEL_TARBALL"
 
-      - name: Current host — ZFB 4 / zudo-doc 7 packed remount
+      - name: Current host — ZFB 5 / zudo-doc 8 packed remount
         if: ${{ !cancelled() && steps.panel.outcome == 'success' }}
         env:
           PANEL_TARBALL: ${{ steps.panel.outputs.tarball }}
