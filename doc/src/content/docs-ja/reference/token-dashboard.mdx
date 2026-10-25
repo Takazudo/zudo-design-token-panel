@@ -10,8 +10,8 @@ hydration を必要とせず、読み取り専用の一覧をレンダリング�
 
 :::note[利用可能なビルド]
 静的ダッシュボードのサブパスは npm v0.6.1 から利用できます。以下の
-`dashboard/client` API は**未リリース**で、このドキュメントサイトが固定している
-0.8.6 には含まれていません。
+`dashboard/client` API は npm v0.8.7 から利用でき、このドキュメントサイトが固定している
+0.8.6 より新しい版です。
 ビルド時にも使えるデータの共有、CSS の読み込み、ワークスペースのデモについては
 [静的ダッシュボードのレシピ](../recipes/static-token-dashboard.mdx)をご覧ください。
 :::
@@ -51,7 +51,7 @@ import type {
 パネル用スタイルシートは不要です。Preact が必要です。React アダプターや
 HTML 書き出し関数・CLI は提供しません。
 
-## 命令的なクライアント API（未リリース）
+## 命令的なクライアント API
 
 `@takazudo/zdtp/dashboard/client` は同期関数の
 `mountTokenDashboard(host, props)` と `TokenDashboardProps`、

@@ -10,8 +10,8 @@ panel setup, storage access, or hydration requirements.
 
 :::note[Availability]
 The static dashboard subpaths are available from npm v0.6.1. The separate
-`dashboard/client` API described below is **unreleased** and is not in this
-documentation site's pinned 0.8.6 package.
+`dashboard/client` API described below is available from npm v0.8.7, newer
+than this documentation site's pinned 0.8.6 package.
 See the [static dashboard recipe](../recipes/static-token-dashboard.mdx) for
 build-safe data sharing, stylesheet inclusion, and the live workspace demo.
 :::
@@ -51,7 +51,7 @@ is separate from `@takazudo/zdtp/styles.css`; the panel stylesheet is unnecessar
 for a dashboard-only page. Preact is required; no React adapter or HTML-export
 function/CLI is provided.
 
-## Optional imperative client (unreleased)
+## Optional imperative client
 
 `@takazudo/zdtp/dashboard/client` exports synchronous
 `mountTokenDashboard(host, props)` plus `TokenDashboardProps` and

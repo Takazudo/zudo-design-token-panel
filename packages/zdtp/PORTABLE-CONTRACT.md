@@ -1780,10 +1780,9 @@ export interface TokenDashboardProps {
 
 ### Rendering and package boundary
 
-The **unreleased** `@takazudo/zdtp/dashboard/client` leaf exports
+The `@takazudo/zdtp/dashboard/client` leaf (available from v0.8.7) exports
 `mountTokenDashboard(host: HTMLElement, props: TokenDashboardProps): TokenDashboardHandle`,
-where `TokenDashboardHandle` has `dispose(): void`. It is in the repository
-build but not in the documentation site's pinned 0.8.6 package. The caller
+where `TokenDashboardHandle` has `dispose(): void`. The caller
 supplies a dedicated empty host and owns that element and its attributes. The
 API owns only its rendered content: an initial mount rejects unrelated children,
 another API mount on the same host replaces the old one, and an old disposer

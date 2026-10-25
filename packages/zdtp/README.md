@@ -125,12 +125,11 @@ scheme follows `chrome`, while each specimen's `color-scheme` follows `mode`;
 both are local to the instance, and the component never writes to `:root`.
 Arbitrary notes HTML and URL/mask assets are not rendered or loaded.
 
-### Optional client mount (unreleased)
+### Optional client mount
 
-The unreleased `@takazudo/zdtp/dashboard/client` leaf lets a host without its
-own Preact renderer mount the same component into a dedicated empty element.
-It is available in this repository's package build, **not in the documentation
-site's pinned 0.8.6 package**. Include the public dashboard stylesheet explicitly.
+The `@takazudo/zdtp/dashboard/client` leaf (available from v0.8.7) lets a host
+without its own Preact renderer mount the same component into a dedicated empty
+element. Include the public dashboard stylesheet explicitly.
 
 ```ts
 import '@takazudo/zdtp/dashboard/styles.css';
