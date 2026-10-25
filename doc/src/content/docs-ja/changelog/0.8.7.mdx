@@ -1,0 +1,49 @@
+---
+title: "0.8.7"
+description: "0.8.7 のリリースノート。"
+sidebar_position: 114
+---
+
+Released: 2026-10-26
+
+### 機能
+
+- feat: 独立したダッシュボードのクライアントマウント API を追加。Preact レンダラーを持たないホスト向けに、新しいサブパス `@takazudo/zdtp/dashboard/client` から `mountTokenDashboard(host, props)` と、何度呼んでも安全な `dispose()` ハンドルを提供 (b4a9f82)
+
+### バグ修正
+
+- fix: 復帰処理をまたいでもパネル内部の Close を優先するように修正。× ボタンや Escape で閉じた意図を、250 ms の再オープン復帰タイマーがパネルを再マウントする前に保存 ([#1049](https://github.com/Takazudo/zudo-design-token-panel/pull/1049)) (8e12a70)
+- fix: ドキュメント側のパネルトグルを分離し、キューに積んだ再生を描画後まで遅延 (74b21ee)
+- fix: ネイティブなドキュメント遷移をまたいで早期のパネルクリックを保持 (c816aed)
+- fix: ドキュメント開発サーバーの起動を一貫した eager モードに統一 (1656d84)
+- fix: PR プレビュー全体で no-preview ラベルを使い、レシピの固定バージョン説明を明確化 (5b8fef0)
+- fix(ci): zudo-doc ドリフトジョブを上流が宣言する Node の範囲で実行 (58a70ce)
+- fix(docs): issue 1002 のホスト契約とパック検証を整合 (99274f1)
+
+### その他の変更
+
+- docs: ダッシュボードのクライアントマウント API を v0.8.7 から利用可能と明記 (d300691)
+- docs: レビューを受けて残りの ZFB 対応範囲と zudo-doc 8 の記述を統一 (084c1e6)
+- docs: パネル CSS トークンのページで ZFB の対応範囲を 3〜5 に拡大 (81952bc)
+- chore(deps): ZFB 系パッケージを 5.1.2、zudo-doc を 8.1.0 に更新 (3c28290)
+- chore(deps): ZFB を 5.0.1、zudo-doc を 8.0.0 に更新 (3221cb5)
+- chore(deps): ZFB と zudo-doc を 7.1.0 に更新 (7119dcf)
+- chore(deps): ZFB を 4.6.0 に更新 (6299f2c)
+- chore(deps): ZFB を 4.5.4 に更新 (cb3de11)
+- chore(deps): ZFB を 4.5.3、zudo-doc と history-server を 7.0.0 に更新 (7919525)
+- chore: ワークスペースのツールチェーン基準を Node 24 に移行 (16736e8)
+- chore: ZFB 4.5.2 とドキュメント 6.2 の依存関係を更新 ([#1050](https://github.com/Takazudo/zudo-design-token-panel/pull/1050)) (47a86e4)
+- chore: ドキュメントを zudo-doc 6 と ZFB 4.3.1 へ移行 (739357a)
+- chore(deps): ドキュメント実行時の脆弱性対応、zdtp を 0.8.6 に固定、KaTeX を削除 (486321d)
+- chore(deps): wrangler 系パッケージを 4.149.0 に更新 (405fac3)
+- chore(deps): Vitest/Vite ツールと推移的な脆弱性経路を更新 (86f2d01)
+- chore(ci): base/sweep-1014 のプレビューデプロイを省略し、zudo-doc 5.27.0 を厳密に固定 (56e03f3)
+- chore: pnpm-workspace の linkWorkspacePackages コメントを整形 (068677a)
+- ci: Node 22 のパッケージジョブで、すべての pnpm 実行時にエンジンチェックを無効化できるように変更 (93f1753)
+- test: zudo-doc 7 の遷移待機中のヘッダートリガークリックをテスト (2077655)
+- test: ネイティブページの完了を待ち、届いたクリック数を数えるように変更 (ce59cf8)
+- test: テーマトリガーを区別し、ブラウザでの失敗を保持 (ca6c80a)
+- test: ネイティブ遷移キューのリスナー数を数えるように変更 (9680640)
+- test: 現行と旧版のドキュメントホストを個別に検証 (f0f8a1b)
+- test(zdtp): grid-card-fit テストで macOS では Cmd+矢印でキャレットを移動 (ec2bc14)
+- docs: README のレイアウトとデプロイゲートの記述、esbuild override のコメントを整合 (f7d0150)

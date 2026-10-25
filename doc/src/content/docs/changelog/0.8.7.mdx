@@ -1,0 +1,49 @@
+---
+title: "0.8.7"
+description: Release notes for 0.8.7.
+sidebar_position: 114
+---
+
+Released: 2026-10-26
+
+### Features
+
+- feat: add isolated dashboard client mount API — new `@takazudo/zdtp/dashboard/client` subpath exporting `mountTokenDashboard(host, props)` with an idempotent `dispose()` handle, for hosts without their own Preact renderer (b4a9f82)
+
+### Fixed
+
+- fix: keep internal panel Close authoritative across recovery — closing via the X button or Escape now persists the closed intent before the 250 ms open-recovery timer can remount the panel ([#1049](https://github.com/Takazudo/zudo-design-token-panel/pull/1049)) (8e12a70)
+- fix: isolate doc panel toggles and defer queued replay until paint (74b21ee)
+- fix: preserve early panel clicks across native doc swaps (c816aed)
+- fix: use coherent eager docs dev startup (1656d84)
+- fix: use no-preview label across PR previews and clarify recipe pin (5b8fef0)
+- fix(ci): run the zudo-doc drift job on the Node range upstream declares (58a70ce)
+- fix(docs): reconcile issue 1002 host contract and packed proofs (99274f1)
+
+### Other Changes
+
+- docs: mark the dashboard client mount API as available from v0.8.7 (d300691)
+- docs: align remaining ZFB support ranges and zudo-doc 8 wording after review (084c1e6)
+- docs: widen the panel CSS token page's ZFB range to 3 to 5 (81952bc)
+- chore(deps): bump zfb family to 5.1.2 and zudo-doc to 8.1.0 (3c28290)
+- chore(deps): bump zfb to 5.0.1 and zudo-doc to 8.0.0 (3221cb5)
+- chore(deps): bump zfb and zudo-doc to 7.1.0 (7119dcf)
+- chore(deps): bump zfb to 4.6.0 (6299f2c)
+- chore(deps): bump zfb to 4.5.4 (cb3de11)
+- chore(deps): bump zfb to 4.5.3 and zudo-doc/history-server to 7.0.0 (7919525)
+- chore: move the workspace toolchain baseline to Node 24 (16736e8)
+- chore: refresh ZFB 4.5.2 and doc 6.2 dependencies ([#1050](https://github.com/Takazudo/zudo-design-token-panel/pull/1050)) (47a86e4)
+- chore: migrate docs to zudo-doc 6 and ZFB 4.3.1 (739357a)
+- chore(deps): doc runtime advisories, zdtp pin 0.8.6, drop KaTeX (486321d)
+- chore(deps): refresh wrangler family to 4.149.0 (405fac3)
+- chore(deps): refresh Vitest/Vite tooling and transitive advisory paths (86f2d01)
+- chore(ci): skip preview deploy for base/sweep-1014 and pin zudo-doc 5.27.0 exactly (56e03f3)
+- chore: reflow pnpm-workspace linkWorkspacePackages comment (068677a)
+- ci: let the Node 22 package job opt out of engine checks on every pnpm run (93f1753)
+- test: cover header trigger clicks during a pending zudo-doc 7 navigation (2077655)
+- test: wait for native page completion and count delivered clicks (ce59cf8)
+- test: disambiguate theme trigger and retain browser failures (ca6c80a)
+- test: count native navigation queue listeners (9680640)
+- test: verify current and legacy docs hosts independently (f0f8a1b)
+- test(zdtp): use Cmd+Arrow caret moves on macOS in grid-card-fit test (ec2bc14)
+- docs: reconcile README layout/deploy-gate text and esbuild override comment (f7d0150)
