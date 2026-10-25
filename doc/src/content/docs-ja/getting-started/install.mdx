@@ -4,7 +4,7 @@ description: pnpm、npm、yarn、bun の各プロジェクトへ @takazudo/zdtp 
 sidebar_position: 2
 ---
 
-`@takazudo/zdtp` は通常の npm パッケージです。Astro、Vite + React、Next.js、プレーンな Vite、ZFB 3/4 などのブラウザーホストで動作します。`configurePanel({...})` が独立した Preact のシェルをマウントし、ホストは自身のレンダラーを使い続けます。
+`@takazudo/zdtp` は通常の npm パッケージです。Astro、Vite + React、Next.js、プレーンな Vite、ZFB 3〜5 などのブラウザーホストで動作します。`configurePanel({...})` が独立した Preact のシェルをマウントし、ホストは自身のレンダラーを使い続けます。
 
 このページではパッケージ自体のインストールを説明します。レイアウトへの組み込みについては[クイックスタート](./quickstart.mdx)を参照してください。
 
@@ -79,7 +79,7 @@ npx zdtp-server \
 
 ZDTP は Preact、`@tailwindcss/browser`、`tailwind-merge`、`culori` を通常の依存関係としてインストールします。Tailwind コンパイラーは DOM Tweaker の遅延有効化境界の内側にあり、通常のパネルを開いても読み込み・実行されません。Tailwind を一切インストールしない構成ではありません。別パッケージや任意のエントリへの分離は、互換性を別途検討する変更です。`optionalDependencies` に移しても既定ではインストールされます。
 
-ZFB 3/4 では `getScope().onActivate()` 内でパネルを import し、アイランドの破棄時に読み込み待ちをキャンセルします。そのライフサイクル内で返されたハンドルを設定・破棄してください。Preact の VNode をホストの zudo-react レンダラーに渡してはいけません。
+ZFB 3〜5 では `getScope().onActivate()` 内でパネルを import し、アイランドの破棄時に読み込み待ちをキャンセルします。そのライフサイクル内で返されたハンドルを設定・破棄してください。Preact の VNode をホストの zudo-react レンダラーに渡してはいけません。
 
 <Info>
   パネルの CSS は自己完結しています。パネル専用の `--tokentweak-*` 名前空間にまとめたスタイルシートが同梱されています。パネルを利用するプロジェクトに **Tailwind は不要です**。

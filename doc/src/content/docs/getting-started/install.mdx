@@ -4,7 +4,7 @@ description: Install @takazudo/zdtp into any pnpm, npm, yarn, or bun project.
 sidebar_position: 2
 ---
 
-`@takazudo/zdtp` is a regular npm package. It works in browser hosts such as Astro, Vite + React, Next.js, plain Vite and ZFB 3/4. The `configurePanel({...})` call mounts a separate Preact-rendered shell; the host keeps its own renderer.
+`@takazudo/zdtp` is a regular npm package. It works in browser hosts such as Astro, Vite + React, Next.js, plain Vite and ZFB 3 to 5. The `configurePanel({...})` call mounts a separate Preact-rendered shell; the host keeps its own renderer.
 
 This page covers installing the package itself. For wiring it into your layout, see [Quickstart](./quickstart.mdx).
 
@@ -79,7 +79,7 @@ npx zdtp-server \
 
 ZDTP installs Preact, `@tailwindcss/browser`, `tailwind-merge` and `culori` as regular dependencies. The Tailwind compiler is behind the DOM Tweaker's lazy activation boundary: ordinary panel opening does not load or execute it. This is not a Tailwind-free installation; a companion package or optional entry would be a separate compatibility decision. Moving dependencies to `optionalDependencies` would still install them by default.
 
-For ZFB 3/4, import the panel in `getScope().onActivate()` and cancel a pending import when the island is disposed. Configure and destroy the returned handle inside that lifecycle. Do not pass Preact VNodes to the host's zudo-react renderer.
+For ZFB 3 to 5, import the panel in `getScope().onActivate()` and cancel a pending import when the island is disposed. Configure and destroy the returned handle inside that lifecycle. Do not pass Preact VNodes to the host's zudo-react renderer.
 
 <Info>
   The panel's CSS is self-contained. It ships its own bundled stylesheet under the panel-private `--tokentweak-*` namespace. **Tailwind is not required in your project** to consume the panel.
