@@ -117,7 +117,7 @@ jobs:
 
   zdtp-node22:
     name: Published package on Node 22 (build and unit tests)
-    # The workspace needs Node 24 (zudo-doc 7 engines + engineStrict), but the
+    # The workspace needs Node 24 (zudo-doc 7+ engines + engineStrict), but the
     # published @takazudo/zdtp still declares engines >=22, so prove that here.
     runs-on: ubuntu-latest
     timeout-minutes: 15

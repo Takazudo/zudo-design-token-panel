@@ -138,7 +138,7 @@ Worked example: [GitHub source](https://github.com/Takazudo/zudo-design-token-pa
 
 [zfb](https://github.com/Takazudo/zudo-front-builder) is a WIP build orchestrator the author is developing in a separate repo (`Takazudo/zudo-front-builder`). The zfb example shows how to drop the panel into a zfb project.
 
-ZFB 3/4 uses zudo-react islands. Keep the panel as an opaque Preact widget: lazy-import `@takazudo/zdtp` inside `getScope().onActivate()`, configure it there, cancel late imports after disposal and destroy the handle during cleanup. The panel owns Preact; the host does not need a Preact JSX configuration.
+ZFB 3 to 5 use zudo-react islands. Keep the panel as an opaque Preact widget: lazy-import `@takazudo/zdtp` inside `getScope().onActivate()`, configure it there, cancel late imports after disposal and destroy the handle during cleanup. The panel owns Preact; the host does not need a Preact JSX configuration.
 
 This documentation site uses zudo-doc 8.1.0 on ZFB 5.1.2, with native zudo-react rendering and Wind CSS. Its embedded panel remains the pinned npm release; the playground and minimal demo consume the workspace panel build. The older ZFB 2 integration used Preact islands and the Astro host adapter; its remount regression is retained in an independent ZFB 2.20.3 / zudo-doc 5.27.0 fixture, rather than repinning the current docs.
 

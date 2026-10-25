@@ -39,9 +39,10 @@ keep transport identity checks enabled. Retain this workaround on 5.1.2: the
 4.5.2 ready-banner fix, the 4.5.3 include-parsing fix, the 4.5.4 islands
 build-identity change (which keys island bytes to the resolved browser graph),
 the 4.6.0 shadow-staging and Windows path fixes, the 4.7.0 Rolldown bundler
-switch and the 5.0.x Rolldown fixes and the 5.1.x islands build guard plus Windows and symlinked-path fixes do not claim cold-lazy transport identity safety. The packed current-host
-dev probe also passed with `ZFB_DEV_BOOT_LAZY=1` on 4.7.0, but that probe was not
-shown to catch the original 4.3.1 failure, so it is not proof the workaround can go.
+switch, the 5.0.x Rolldown fixes, and the 5.1.x islands build guard plus Windows
+and symlinked-path fixes do not claim cold-lazy transport identity safety. The
+packed current-host dev probe also passed with `ZFB_DEV_BOOT_LAZY=1` on 4.7.0,
+but that probe was not shown to catch the original 4.3.1 failure, so it is not proof the workaround can go.
 
 ## Key Directories
 
@@ -63,7 +64,7 @@ src/
 Everything else — layout, header, sidebar, footer, doc chrome, islands, and the default design tokens — lives in `node_modules/@takazudo/zudo-doc`. For supported markup replacement, create `src/chrome-bindings.tsx` with `defineChromeBindings`, set `chromeBindingsModule`, and use the primary `Header` / `Footer` / `Sidebar` / `Toc` / `Breadcrumb` / `DocPager` slots or the named `headerRightComponents` registry. The generated default, locale, and doc-history route shapes already consume the same binding object; do not fork a route stub for presentational customization. `npx zudo-doc eject <component>` only copies source: heed its primary, nested-chrome, or content-layer remediation before expecting the copy to render. Settings you didn't set explicitly in `zfb.config.ts` use the package's documented defaults — hover `zudoDoc`'s `ZudoDocConfig` argument in your editor to see every field and its `@default`.
 
 The local `DesignTokenPanelBootstrap` boundary preserves early header clicks across
-native SPA swaps in zudo-doc 7.x. `src/panel-bootstrap.tsx` queues toggle parity
+native SPA swaps in zudo-doc 7.x and 8.x. `src/panel-bootstrap.tsx` queues toggle parity
 between `zfb:before-swap` and incoming scope activation, then calls the public
 bootstrap controller with the native scope's abort signal and replays at most one
 intent. zudo-doc 7 limits its loading overlay to the content area, so the header

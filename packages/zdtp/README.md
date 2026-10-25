@@ -231,7 +231,7 @@ Preact hosts and users of the Preact `./dashboard` renderer should keep their ow
 Preact dependency for their JSX and rendering code. A compatible installed copy
 can still be shared; ZDTP does not bundle a private Preact runtime.
 
-For ZFB 3 and 4, load ZDTP inside the host island's activation callback and mount
+For ZFB 3 to 5, load ZDTP inside the host island's activation callback and mount
 it through `configurePanel()`. Keep ZDTP's Preact tree separate from zudo-react's
 VNode tree. The panel injects its CSS on mount, so no static CSS import is needed;
 `@takazudo/zdtp/styles.css` remains an optional public CSS export for hosts that
