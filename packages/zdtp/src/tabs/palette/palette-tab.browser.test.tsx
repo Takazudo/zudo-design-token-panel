@@ -1,4 +1,5 @@
 // @vitest-environment browser
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 /**
  * Browser-mode tests for the Palette tab (#396).
  *
@@ -17,8 +18,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { render } from 'preact';
-import { act } from '../../zr/test-utils';
+import { act, cleanupZr, renderZr } from '../../zr/test-utils';
 import PaletteTab from './palette-tab';
 import type { TabConfig } from '../../tokens/tier-model';
 import type { TabOverrides } from '../../apply/tier-resolver';
@@ -96,9 +96,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
-  act(() => {
-    render(null, container);
-  });
+  cleanupZr();
   document.body.removeChild(container);
   panelStyle.remove();
   document.documentElement.style.cssText = '';
@@ -110,7 +108,7 @@ async function renderPaletteTab(
   onChange: (tierId: string, itemId: string, next: string) => void = () => undefined,
 ): Promise<void> {
   await act(() => {
-    render(<PaletteTab tab={tab} overrides={overrides} onChange={onChange} />, container);
+    renderZr(() => <PaletteTab tab={tab} overrides={overrides} onChange={onChange} />, container);
   });
 }
 

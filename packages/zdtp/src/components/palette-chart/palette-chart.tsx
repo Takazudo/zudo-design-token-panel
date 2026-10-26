@@ -1,13 +1,5 @@
-import {
-  memo,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'preact/compat';
-import type { JSX } from 'preact';
+/** @jsxImportSource @takazudo/zfb/zudo-react */
+import { computed, For, getScope, Show, signal, type ReadonlySignal, type Ref } from '@takazudo/zfb/zudo-react';
 import {
   CHANNEL_MAX,
   stepX as stepXNorm,
@@ -16,6 +8,8 @@ import {
   type Channel,
 } from '../../utils/palette-curve';
 import { oklchaToHex, type Oklcha } from '../../utils/color-oklch';
+import { read, type Reactive } from '../../zr/live';
+import { Rebuild } from '../../zr/rebuild';
 
 /**
  * PaletteChart — controlled, presentational OKLCH L/C/H curve editor.
@@ -228,45 +222,58 @@ function curveHitSegments(
 
 // ── Component ───────────────────────────────────────────────────────────────
 
-function PaletteChartImpl({
-  colors,
-  editable,
-  identities,
-  selectedIndex,
-  visibleChannels,
-  onChange,
-  onSelectIndex,
+type ChartDrag =
+  | { kind: 'node'; index: number; identity: string; channel: Channel }
+  | {
+      kind: 'curve';
+      channel: Channel;
+      startPointerValue: number;
+      startValues: Array<number | null>;
+      startIdentities: Array<string | null>;
+    };
+
+/** Shared, live state each channel layer reads. */
+interface ChartModel {
+  colors: ReadonlySignal<Array<Oklcha | null>>;
+  editable: ReadonlySignal<boolean[]>;
+  identities: ReadonlySignal<string[]>;
+  selectedIndex: ReadonlySignal<number>;
+  nodeRx: ReadonlySignal<number>;
+  nodeRy: ReadonlySignal<number>;
+  /** Tracks the in-flight drag. Discriminated so the node and curve move
+   *  paths can never cross-fire. */
+  drag: { current: ChartDrag | null };
+  onChange: PaletteChartProps['onChange'];
+  onSelectIndex: PaletteChartProps['onSelectIndex'];
+  onChangeStart?: () => void;
+  onChangeEnd?: () => void;
+}
+
+export function PaletteChart(props: Reactive<
+  PaletteChartProps,
+  'onChange' | 'onSelectIndex' | 'onToggleChannel' | 'onChangeStart' | 'onChangeEnd'
+>) {
   // onToggleChannel is part of the controlled contract (the parent renders the
   // real channel-toggle UI and owns visibleChannels) — the chart only consumes
-  // visibleChannels, so it is intentionally not destructured/used here.
-  onChangeStart,
-  onChangeEnd,
-}: PaletteChartProps): JSX.Element {
-  // One SVG ref per channel layer — drag maps clientY against the SVG that owns
-  // the dragged node, so each channel resolves against its own rect/Y-domain.
-  const svgRefs = {
-    l: useRef<SVGSVGElement>(null),
-    c: useRef<SVGSVGElement>(null),
-    h: useRef<SVGSVGElement>(null),
-  };
+  // visibleChannels, so it is intentionally not used here.
+  const colors = computed(() => read(props.colors));
+  const editable = computed(() => read(props.editable));
+  const visibleChannels = computed(() => read(props.visibleChannels));
 
   // Live rendered size of the chart box, tracked so node markers can be
   // counter-scaled back to true circles under `preserveAspectRatio="none"`.
   // Initialised to the viewBox so the first paint and non-DOM environments
   // (no ResizeObserver) render an undistorted circle.
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [chartSize, setChartSize] = useState({ w: VIEW_W, h: VIEW_H });
-  useLayoutEffect(() => {
-    const el = containerRef.current;
+  const container: Ref<HTMLDivElement> = { current: null };
+  const chartSize = signal({ w: VIEW_W, h: VIEW_H });
+  getScope().onActivate(() => {
+    const el = container.current;
     if (!el) return;
     const measure = () => {
       const rect = el.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) {
-        setChartSize((prev) =>
-          prev.w === rect.width && prev.h === rect.height
-            ? prev
-            : { w: rect.width, h: rect.height },
-        );
+      const prev = chartSize.value;
+      if (rect.width > 0 && rect.height > 0 && (prev.w !== rect.width || prev.h !== rect.height)) {
+        chartSize.value = { w: rect.width, h: rect.height };
       }
     };
     measure();
@@ -274,455 +281,425 @@ function PaletteChartImpl({
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  });
 
   // User-unit radii that render the node as a true on-screen circle of
   // NODE_R_VISUAL_PX regardless of the panel's aspect ratio: a length of `r`
   // user units maps to `r · (renderedDim / viewDim)` px, so divide out that
   // scale per axis.
-  const scaleX = chartSize.w > 0 ? chartSize.w / VIEW_W : 1;
-  const scaleY = chartSize.h > 0 ? chartSize.h / VIEW_H : 1;
-  const nodeRx = NODE_R_VISUAL_PX / scaleX;
-  const nodeRy = NODE_R_VISUAL_PX / scaleY;
-  const readonlyBlockRx = READONLY_BLOCK_R_PX / scaleX;
-  const readonlyBlockRy = READONLY_BLOCK_R_PX / scaleY;
+  const scaleX = computed(() => (chartSize.value.w > 0 ? chartSize.value.w / VIEW_W : 1));
+  const scaleY = computed(() => (chartSize.value.h > 0 ? chartSize.value.h / VIEW_H : 1));
 
-  // Keep callbacks in refs so the imperative pointer listeners (registered once
-  // per channel SVG) always call the latest props without re-subscribing.
-  const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
-  const onSelectIndexRef = useRef(onSelectIndex);
-  onSelectIndexRef.current = onSelectIndex;
-  const onChangeStartRef = useRef(onChangeStart);
-  onChangeStartRef.current = onChangeStart;
-  const onChangeEndRef = useRef(onChangeEnd);
-  onChangeEndRef.current = onChangeEnd;
+  const model: ChartModel = {
+    colors,
+    editable,
+    identities: computed(() => read(props.identities)),
+    selectedIndex: computed(() => read(props.selectedIndex)),
+    nodeRx: computed(() => NODE_R_VISUAL_PX / scaleX.value),
+    nodeRy: computed(() => NODE_R_VISUAL_PX / scaleY.value),
+    drag: { current: null },
+    onChange: props.onChange,
+    onSelectIndex: props.onSelectIndex,
+    onChangeStart: props.onChangeStart,
+    onChangeEnd: props.onChangeEnd,
+  };
 
-  // Snapshot of the live `colors` so curve-drag pointer-down reads the latest
-  // node values without churning the listener registration.
-  const colorsRef = useRef<Array<Oklcha | null>>(colors);
-  colorsRef.current = colors;
-  const editableRef = useRef<boolean[]>(editable);
-  editableRef.current = editable;
-  const identitiesRef = useRef<string[]>(identities);
-  identitiesRef.current = identities;
-
-  // Tracks the in-flight drag. Discriminated so the node and curve move paths
-  // can never cross-fire: a node drag and a whole-curve drag are mutually
-  // exclusive and each path bails unless `kind` matches.
-  const dragRef = useRef<
-    | { kind: 'node'; index: number; identity: string; channel: Channel }
-    | {
-        kind: 'curve';
-        channel: Channel;
-        startPointerValue: number;
-        startValues: Array<number | null>;
-        startIdentities: Array<string | null>;
-      }
-    | null
-  >(null);
-
-  // Pre-compute band fills once per `colors` change. No contrast badges — that
-  // lives in Check mode (#394).
-  const bands = useMemo(
-    () =>
-      colors.map((c, i) => ({
-        index: i,
-        x: (i / colors.length) * VIEW_W,
-        width: VIEW_W / Math.max(1, colors.length),
-        fill: c ? oklchaToHex(c) : undefined,
-        valid: c !== null,
-        editable: Boolean(c && editable[i]),
-      })),
-    [colors, editable],
-  );
-
-  /** Map a clientY to a clamped+quantized channel value via the channel's SVG rect. */
-  const eventToValue = useCallback(
-    (clientY: number, channel: Channel): number => {
-      const svg = svgRefs[channel].current;
-      if (!svg) return 0;
-      const rect = svg.getBoundingClientRect();
-      // Guard against a zero-size rect (jsdom without a mocked rect) so unit
-      // tests that mock getBoundingClientRect still map correctly.
-      const normY = rect.height > 0 ? (clientY - rect.top) / rect.height : 0;
-      const raw = yToValueNorm(normY, channel);
-      return quantize(raw, channel);
-    },
-    // svgRefs is a stable object of stable refs — read at call time.
-    [],
-  );
-
-  // ── Imperative pointer wiring ─────────────────────────────────────────────
-  //
-  // Pointer handlers are registered via addEventListener (NOT JSX onPointer*
-  // props): Preact's JSX event delegation checks `lowerCaseName in dom` to pick
-  // the event name, but jsdom does NOT expose `onpointerdown` etc. on elements,
-  // so Preact registers the wrong-cased "PointerDown" and dispatched
-  // "pointerdown" events never fire the handler. addEventListener bypasses that
-  // heuristic and works in both jsdom and browsers (matches CustomSlider).
-  //
-  // We delegate per channel SVG: one `pointerdown` listener inspects the target
-  // to find whether a node hit-circle or the curve hit-line was grabbed, then
-  // move/up listeners on the SVG drive the active drag. Pointer capture keeps
-  // the stream flowing when the pointer leaves the grabbed element.
-  useEffect(() => {
-    const channels = CHANNELS;
-    const cleanups: Array<() => void> = [];
-
-    for (const channel of channels) {
-      const svg = svgRefs[channel].current;
-      if (!svg) continue;
-
-      function handlePointerDown(e: PointerEvent) {
-        const target = e.target as Element | null;
-        if (!target) return;
-
-        const nodeHit = target.closest<SVGElement>('[data-node-hit]');
-        const hitLine = target.closest<SVGElement>('[data-hit-line]');
-
-        if (nodeHit) {
-          // Per-node drag wins over curve drag.
-          const index = Number(nodeHit.getAttribute('data-node-hit'));
-          if (!colorsRef.current[index] || !editableRef.current[index]) return;
-          const identity = identitiesRef.current[index];
-          if (!identity) return;
-          e.preventDefault();
-          // Stop the event from also being read as a curve grab.
-          e.stopPropagation();
-          try {
-            nodeHit.setPointerCapture(e.pointerId);
-          } catch {
-            // jsdom does not implement setPointerCapture; ignore.
-          }
-          dragRef.current = { kind: 'node', index, identity, channel };
-          onSelectIndexRef.current(index);
-          onChangeStartRef.current?.();
-          return;
-        }
-
-        if (hitLine) {
-          e.preventDefault();
-          try {
-            hitLine.setPointerCapture(e.pointerId);
-          } catch {
-            // jsdom does not implement setPointerCapture; ignore.
-          }
-          const startValues = colorsRef.current.map((c, index) =>
-            c && editableRef.current[index] ? channelValue(c, channel) : null,
-          );
-          const startIdentities = startValues.map((value, index) =>
-            value === null ? null : identitiesRef.current[index] ?? null,
-          );
-          if (!startValues.some((value) => value !== null)) return;
-          dragRef.current = {
-            kind: 'curve',
-            channel,
-            startPointerValue: eventToValue(e.clientY, channel),
-            startValues,
-            startIdentities,
-          };
-          onChangeStartRef.current?.();
-        }
-      }
-
-      function handlePointerMove(e: PointerEvent) {
-        const drag = dragRef.current;
-        if (!drag || drag.channel !== channel) return;
-
-        if (drag.kind === 'node') {
-          if (
-            !colorsRef.current[drag.index] ||
-            !editableRef.current[drag.index] ||
-            identitiesRef.current[drag.index] !== drag.identity
-          ) return;
-          onChangeRef.current(
-            drag.index,
-            channel,
-            eventToValue(e.clientY, channel),
-          );
-          return;
-        }
-
-        // Whole-curve drag — translate every node by ONE clamped delta so the
-        // shape is preserved and translation stops when any node hits the
-        // channel's [0, CHANNEL_MAX] boundary (Prism parity).
-        const { startValues, startIdentities, startPointerValue } = drag;
-        if (startValues.length === 0) return;
-        const max = CHANNEL_MAX[channel];
-        const rawDelta = eventToValue(e.clientY, channel) - startPointerValue;
-        const editableValues = startValues.filter(
-          (value, index): value is number =>
-            value !== null &&
-            Boolean(colorsRef.current[index]) &&
-            Boolean(editableRef.current[index]) &&
-            identitiesRef.current[index] === startIdentities[index],
-        );
-        if (editableValues.length === 0) return;
-        const minV = Math.min(...editableValues);
-        const maxV = Math.max(...editableValues);
-        const delta = clamp(rawDelta, -minV, max - maxV);
-        startValues.forEach((v, i) => {
-          if (
-            v === null ||
-            !colorsRef.current[i] ||
-            !editableRef.current[i] ||
-            identitiesRef.current[i] !== startIdentities[i]
-          ) return;
-          onChangeRef.current(i, channel, quantize(v + delta, channel));
-        });
-      }
-
-      function endDrag() {
-        if (!dragRef.current || dragRef.current.channel !== channel) return;
-        dragRef.current = null;
-        onChangeEndRef.current?.();
-      }
-
-      svg.addEventListener('pointerdown', handlePointerDown);
-      svg.addEventListener('pointermove', handlePointerMove);
-      svg.addEventListener('pointerup', endDrag);
-      svg.addEventListener('pointercancel', endDrag);
-
-      cleanups.push(() => {
-        svg.removeEventListener('pointerdown', handlePointerDown);
-        svg.removeEventListener('pointermove', handlePointerMove);
-        svg.removeEventListener('pointerup', endDrag);
-        svg.removeEventListener('pointercancel', endDrag);
-      });
-    }
-
-    return () => {
-      for (const c of cleanups) c();
-    };
-    // Re-subscribe when the set of mounted channel SVGs changes (visibility
-    // toggle) — a hidden channel unmounts its SVG, so its listeners must be
-    // re-attached when it re-appears.
-  }, [visibleChannels.l, visibleChannels.c, visibleChannels.h, eventToValue]);
-
-  /** Keyboard handler for a focused node. Mirrors CustomSlider's key map. */
-  const handleNodeKeyDown = useCallback(
-    (e: KeyboardEvent, index: number, identity: string, channel: Channel, value: number) => {
-      if (
-        !colorsRef.current[index] ||
-        !editableRef.current[index] ||
-        identitiesRef.current[index] !== identity
-      ) return;
-      const max = CHANNEL_MAX[channel];
-      const step = CHANNEL_STEP[channel];
-      const coarse = step * 10;
-      let next: number | null = null;
-      switch (e.key) {
-        case 'ArrowUp':
-        case 'ArrowRight':
-          next = value + (e.shiftKey ? coarse : step);
-          break;
-        case 'ArrowDown':
-        case 'ArrowLeft':
-          next = value - (e.shiftKey ? coarse : step);
-          break;
-        case 'Home':
-          next = 0;
-          break;
-        case 'End':
-          next = max;
-          break;
-        default:
-          return;
-      }
-      e.preventDefault();
-      onSelectIndexRef.current(index);
-      // Keyboard edits are atomic — open and close the commit boundary around
-      // the single value change so the parent persists one step.
-      onChangeStartRef.current?.();
-      onChangeRef.current(index, channel, quantize(clamp(next, 0, max), channel));
-      onChangeEndRef.current?.();
-    },
-    [],
-  );
-
-  const hasColors = colors.length > 0;
+  const bandIndexes = computed(() => colors.value.map((_, i) => i));
+  const blockers = computed(() => CHANNELS.flatMap((channel) => {
+    if (!visibleChannels.value[channel]) return [];
+    return colors.value.flatMap((c, i) => (c && !editable.value[i] ? [{ channel, index: i }] : []));
+  }));
 
   return (
     <div
-      className="tokenpanel-palette-chart"
+      class="tokenpanel-palette-chart"
       data-testid="palette-chart"
-      ref={containerRef}
+      ref={container}
     >
       {/* ── Background bands (one SVG, full height) ─────────────────────── */}
       <svg
-        className="tokenpanel-palette-chart-bands"
+        class="tokenpanel-palette-chart-bands"
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
         preserveAspectRatio="none"
         role="presentation"
         data-testid="palette-chart-bands"
       >
-        {bands.map((b) => (
-          <rect
-            key={`band-${b.index}`}
-            x={b.x}
-            y={0}
-            width={b.width}
-            height={VIEW_H}
-            fill={b.fill}
-            data-band-index={b.index}
-            data-invalid={b.valid ? undefined : true}
-            data-readonly={b.valid && !b.editable ? true : undefined}
-            className={b.valid ? undefined : 'tokenpanel-palette-chart-band is-invalid'}
-            opacity={b.index === selectedIndex ? 1 : 0.82}
-          />
-        ))}
+        <For each={bandIndexes} by={(i) => i}>
+          {(entry) => {
+            const i = entry.value;
+            const color = computed(() => colors.value[i] ?? null);
+            const valid = computed(() => color.value !== null);
+            return (
+              <rect
+                x={computed(() => (i / colors.value.length) * VIEW_W)}
+                y={0}
+                width={computed(() => VIEW_W / Math.max(1, colors.value.length))}
+                height={VIEW_H}
+                fill={computed(() => (color.value ? oklchaToHex(color.value) : null))}
+                data-band-index={i}
+                data-invalid={computed(() => (valid.value ? null : true))}
+                data-readonly={computed(() => (valid.value && !editable.value[i] ? true : null))}
+                class={computed(() => (valid.value ? null : 'tokenpanel-palette-chart-band is-invalid'))}
+                opacity={computed(() => (i === model.selectedIndex.value ? 1 : 0.82))}
+              />
+            );
+          }}
+        </For>
       </svg>
 
       {/* ── One overlay SVG per channel — own Y-domain, shared pixel height ── */}
-      {CHANNELS.map((channel) => {
-        if (!visibleChannels[channel] || !hasColors) return null;
-        return (
-          <svg
-            key={`curve-${channel}`}
-            ref={svgRefs[channel]}
-            className={`tokenpanel-palette-chart-curve tokenpanel-palette-chart-curve--${channel}`}
-            viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-            preserveAspectRatio="none"
-            role="presentation"
-            data-testid={`palette-chart-curve-${channel}`}
-            data-channel={channel}
-          >
-            {/* Whole-curve drag hit area — transparent fat line beneath the
-                visible curve. Renders FIRST so the node hit circles (rendered
-                after) win an overlapping pointer-down. `pointer-events: stroke`
-                (CSS) makes only the stroke grabbable, so the stacked channel
-                SVGs don't steal events from lower channels. */}
-            {curveHitSegments(colors, editable, channel).map((points, segmentIndex) => (
-              <polyline
-                key={`hit-segment-${channel}-${segmentIndex}`}
-                className="tokenpanel-palette-chart-hit-line"
-                points={points}
-                fill="none"
-                stroke="transparent"
-                strokeWidth={CURVE_HIT_STROKE_W}
-                strokeLinejoin="round"
-                strokeLinecap="round"
-                vectorEffect="non-scaling-stroke"
-                data-hit-line={channel}
-                data-testid={`palette-chart-hit-line-${channel}`}
-                data-channel={channel}
-              />
-            ))}
-            {curveSegments(colors, channel).map((segment, segmentIndex) => (
-              <g key={`segment-${channel}-${segmentIndex}`}>
-                <polyline
-                  className="tokenpanel-palette-chart-line"
-                  points={segment.points}
-                  fill="none"
-                  strokeWidth={CURVE_STROKE_W}
-                  vectorEffect="non-scaling-stroke"
-                  pointerEvents="none"
-                />
-              </g>
-            ))}
-            {colors.map((c, i) => {
-              if (!c) return null;
-              const value = channelValue(c, channel);
-              const x = stepX(i, colors.length);
-              const y = valueToY(value, channel);
-              const isSelected = i === selectedIndex;
-              const isEditable = Boolean(editable[i]);
-              return (
-                <g
-                  key={`node-${channel}-${i}`}
-                  data-node-index={i}
-                  data-readonly={isEditable ? undefined : true}
-                >
-                  {/* Visual node (non-interactive — the hit circle handles
-                      pointers). Drawn as an ellipse with rx/ry counter-scaled
-                      so it lands as a true NODE_R_VISUAL_PX-radius circle
-                      despite preserveAspectRatio="none" stretching the viewBox. */}
-                  <ellipse
-                    className={
-                      isEditable
-                        ? 'tokenpanel-palette-chart-node-visual'
-                        : 'tokenpanel-palette-chart-node-visual is-readonly'
-                    }
-                    cx={x}
-                    cy={y}
-                    rx={nodeRx}
-                    ry={nodeRy}
-                    strokeWidth={isSelected ? 3 : 2}
-                    vectorEffect="non-scaling-stroke"
-                    aria-hidden="true"
-                    pointerEvents="none"
-                  />
-                  {/* Hit area — carries pointer capture (via delegation) +
-                      keyboard. role="slider" so it is operable without a
-                      pointer. */}
-                  {isEditable && (
-                    <circle
-                      className="tokenpanel-palette-chart-node-hit"
-                      cx={x}
-                      cy={y}
-                      r={NODE_R_HIT}
-                      fill="transparent"
-                      tabIndex={0}
-                      role="slider"
-                      aria-label={`${channel.toUpperCase()} of color ${i + 1}`}
-                      aria-valuemin={0}
-                      aria-valuemax={CHANNEL_MAX[channel]}
-                      aria-valuenow={value}
-                      data-channel={channel}
-                      data-node-hit={i}
-                      onKeyDown={(e: JSX.TargetedKeyboardEvent<SVGCircleElement>) =>
-                        handleNodeKeyDown(e, i, identities[i] ?? '', channel, value)
-                      }
-                      onFocus={() => onSelectIndexRef.current(i)}
-                    />
-                  )}
-                </g>
-              );
-            })}
-          </svg>
-        );
-      })}
+      {CHANNELS.map((channel) => (
+        <Show when={computed(() => visibleChannels.value[channel] && colors.value.length > 0)}>
+          {() => <ChannelLayer channel={channel} model={model} />}
+        </Show>
+      ))}
       {/* A final SVG sits above every channel layer. Its inert ellipses prevent
           any underlying node/curve target (including another stacked channel)
           from winning hit-testing at a readonly marker coordinate. */}
       <svg
-        className="tokenpanel-palette-chart-blockers"
+        class="tokenpanel-palette-chart-blockers"
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
         preserveAspectRatio="none"
         role="presentation"
         aria-hidden="true"
       >
-        {CHANNELS.flatMap((channel) => {
-          if (!visibleChannels[channel]) return [];
-          return colors.map((c, i) => {
-            if (!c || editable[i]) return null;
+        <For each={blockers} by={(blocker) => `${blocker.channel}:${blocker.index}`}>
+          {(entry) => {
+            const { channel, index } = entry.value;
+            const color = computed(() => colors.value[index]);
             return (
               <ellipse
-                key={`readonly-blocker-${channel}-${i}`}
-                className="tokenpanel-palette-chart-readonly-blocker"
-                cx={stepX(i, colors.length)}
-                cy={valueToY(channelValue(c, channel), channel)}
-                rx={readonlyBlockRx}
-                ry={readonlyBlockRy}
+                class="tokenpanel-palette-chart-readonly-blocker"
+                cx={computed(() => stepX(index, colors.value.length))}
+                cy={computed(() => (color.value ? valueToY(channelValue(color.value, channel), channel) : 0))}
+                rx={computed(() => READONLY_BLOCK_R_PX / scaleX.value)}
+                ry={computed(() => READONLY_BLOCK_R_PX / scaleY.value)}
                 fill="transparent"
-                pointerEvents="all"
-                data-readonly-blocker={i}
+                data-readonly-blocker={index}
                 data-channel={channel}
               />
             );
-          });
-        })}
+          }}
+        </For>
       </svg>
     </div>
   );
 }
 
 /**
- * Memoized so parent re-renders that don't change props don't re-walk every
- * band/curve/node. The drag state lives in refs, so a controlled-value update
- * from the parent flows back through props as the single source of truth.
+ * Which nodes, segments and hit targets a channel layer has. Values move the
+ * existing elements; only a change here rebuilds the layer's children, so a
+ * drag never loses its pointer capture to a re-render.
  */
-export const PaletteChart = memo(PaletteChartImpl);
+function layerStructure(colors: Array<Oklcha | null>, editable: boolean[], identities: string[]): string {
+  return colors
+    .map((c, i) => `${c ? 1 : 0}${c && editable[i] ? 1 : 0}${identities[i] ?? ''}`)
+    .join('|');
+}
+
+function ChannelLayer({ channel, model }: { channel: Channel; model: ChartModel }) {
+  const { colors, editable, identities, drag } = model;
+  const svg: Ref<SVGSVGElement> = { current: null };
+
+  /** Map a clientY to a clamped+quantized channel value via this layer's SVG rect. */
+  const eventToValue = (clientY: number): number => {
+    const el = svg.current;
+    if (!el) return 0;
+    const rect = el.getBoundingClientRect();
+    // Guard against a zero-size rect (jsdom without a mocked rect) so unit
+    // tests that mock getBoundingClientRect still map correctly.
+    const normY = rect.height > 0 ? (clientY - rect.top) / rect.height : 0;
+    return quantize(yToValueNorm(normY, channel), channel);
+  };
+
+  // ── Pointer wiring ────────────────────────────────────────────────────────
+  //
+  // One delegated `pointerdown` listener inspects the target to find whether a
+  // node hit-circle or the curve hit-line was grabbed, then move/up listeners
+  // on the SVG drive the active drag. Pointer capture keeps the stream flowing
+  // when the pointer leaves the grabbed element.
+  getScope().onActivate(() => {
+    const el = svg.current;
+    if (!el) return;
+
+    function handlePointerDown(e: PointerEvent) {
+      const target = e.target as Element | null;
+      if (!target) return;
+
+      const nodeHit = target.closest<SVGElement>('[data-node-hit]');
+      const hitLine = target.closest<SVGElement>('[data-hit-line]');
+
+      if (nodeHit) {
+        // Per-node drag wins over curve drag.
+        const index = Number(nodeHit.getAttribute('data-node-hit'));
+        if (!colors.value[index] || !editable.value[index]) return;
+        const identity = identities.value[index];
+        if (!identity) return;
+        e.preventDefault();
+        // Stop the event from also being read as a curve grab.
+        e.stopPropagation();
+        try {
+          nodeHit.setPointerCapture(e.pointerId);
+        } catch {
+          // jsdom does not implement setPointerCapture; ignore.
+        }
+        drag.current = { kind: 'node', index, identity, channel };
+        model.onSelectIndex(index);
+        model.onChangeStart?.();
+        return;
+      }
+
+      if (hitLine) {
+        e.preventDefault();
+        try {
+          hitLine.setPointerCapture(e.pointerId);
+        } catch {
+          // jsdom does not implement setPointerCapture; ignore.
+        }
+        const startValues = colors.value.map((c, index) =>
+          c && editable.value[index] ? channelValue(c, channel) : null,
+        );
+        const startIdentities = startValues.map((value, index) =>
+          value === null ? null : identities.value[index] ?? null,
+        );
+        if (!startValues.some((value) => value !== null)) return;
+        drag.current = {
+          kind: 'curve',
+          channel,
+          startPointerValue: eventToValue(e.clientY),
+          startValues,
+          startIdentities,
+        };
+        model.onChangeStart?.();
+      }
+    }
+
+    function handlePointerMove(e: PointerEvent) {
+      const current = drag.current;
+      if (!current || current.channel !== channel) return;
+      const liveColors = colors.value;
+      const liveEditable = editable.value;
+      const liveIdentities = identities.value;
+
+      if (current.kind === 'node') {
+        if (
+          !liveColors[current.index] ||
+          !liveEditable[current.index] ||
+          liveIdentities[current.index] !== current.identity
+        ) return;
+        model.onChange(current.index, channel, eventToValue(e.clientY));
+        return;
+      }
+
+      // Whole-curve drag — translate every node by ONE clamped delta so the
+      // shape is preserved and translation stops when any node hits the
+      // channel's [0, CHANNEL_MAX] boundary (Prism parity).
+      const { startValues, startIdentities, startPointerValue } = current;
+      if (startValues.length === 0) return;
+      const max = CHANNEL_MAX[channel];
+      const rawDelta = eventToValue(e.clientY) - startPointerValue;
+      const stillLive = (index: number) =>
+        Boolean(liveColors[index]) &&
+        Boolean(liveEditable[index]) &&
+        liveIdentities[index] === startIdentities[index];
+      const editableValues = startValues.filter(
+        (value, index): value is number => value !== null && stillLive(index),
+      );
+      if (editableValues.length === 0) return;
+      const minV = Math.min(...editableValues);
+      const maxV = Math.max(...editableValues);
+      const delta = clamp(rawDelta, -minV, max - maxV);
+      startValues.forEach((v, i) => {
+        if (v === null || !stillLive(i)) return;
+        model.onChange(i, channel, quantize(v + delta, channel));
+      });
+    }
+
+    function endDrag() {
+      if (!drag.current || drag.current.channel !== channel) return;
+      drag.current = null;
+      model.onChangeEnd?.();
+    }
+
+    el.addEventListener('pointerdown', handlePointerDown);
+    el.addEventListener('pointermove', handlePointerMove);
+    el.addEventListener('pointerup', endDrag);
+    el.addEventListener('pointercancel', endDrag);
+    return () => {
+      el.removeEventListener('pointerdown', handlePointerDown);
+      el.removeEventListener('pointermove', handlePointerMove);
+      el.removeEventListener('pointerup', endDrag);
+      el.removeEventListener('pointercancel', endDrag);
+    };
+  });
+
+  /** Keyboard handler for a focused node. Mirrors CustomSlider's key map. */
+  const handleNodeKeyDown = (e: KeyboardEvent, index: number, identity: string) => {
+    const color = colors.value[index];
+    if (!color || !editable.value[index] || identities.value[index] !== identity) return;
+    const value = channelValue(color, channel);
+    const max = CHANNEL_MAX[channel];
+    const step = CHANNEL_STEP[channel];
+    const coarse = step * 10;
+    let next: number | null = null;
+    switch (e.key) {
+      case 'ArrowUp':
+      case 'ArrowRight':
+        next = value + (e.shiftKey ? coarse : step);
+        break;
+      case 'ArrowDown':
+      case 'ArrowLeft':
+        next = value - (e.shiftKey ? coarse : step);
+        break;
+      case 'Home':
+        next = 0;
+        break;
+      case 'End':
+        next = max;
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+    model.onSelectIndex(index);
+    // Keyboard edits are atomic — open and close the commit boundary around
+    // the single value change so the parent persists one step.
+    model.onChangeStart?.();
+    model.onChange(index, channel, quantize(clamp(next, 0, max), channel));
+    model.onChangeEnd?.();
+  };
+
+  const structure = computed(() => layerStructure(colors.value, editable.value, identities.value));
+
+  return (
+    <svg
+      ref={svg}
+      class={`tokenpanel-palette-chart-curve tokenpanel-palette-chart-curve--${channel}`}
+      viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+      preserveAspectRatio="none"
+      role="presentation"
+      data-testid={`palette-chart-curve-${channel}`}
+      data-channel={channel}
+    >
+      <Rebuild value={structure}>
+        {() => {
+          const initialColors = colors.value;
+          const hitCount = curveHitSegments(initialColors, editable.value, channel).length;
+          const segmentCount = curveSegments(initialColors, channel).length;
+          const hitPoints = computed(() => curveHitSegments(colors.value, editable.value, channel));
+          const segmentPoints = computed(() => curveSegments(colors.value, channel));
+          const nodeIndexes = initialColors.flatMap((c, i) => (c ? [i] : []));
+          return (
+            <>
+              {/* Whole-curve drag hit area — transparent fat line beneath the
+                  visible curve. Renders FIRST so the node hit circles (rendered
+                  after) win an overlapping pointer-down. `pointer-events: stroke`
+                  (CSS) makes only the stroke grabbable, so the stacked channel
+                  SVGs don't steal events from lower channels. */}
+              {Array.from({ length: hitCount }, (_, segmentIndex) => (
+                <polyline
+                  class="tokenpanel-palette-chart-hit-line"
+                  points={computed(() => hitPoints.value[segmentIndex] ?? '')}
+                  fill="none"
+                  stroke="transparent"
+                  stroke-width={CURVE_HIT_STROKE_W}
+                  stroke-linejoin="round"
+                  stroke-linecap="round"
+                  data-hit-line={channel}
+                  data-testid={`palette-chart-hit-line-${channel}`}
+                  data-channel={channel}
+                />
+              ))}
+              {Array.from({ length: segmentCount }, (_, segmentIndex) => (
+                <g>
+                  <polyline
+                    class="tokenpanel-palette-chart-line"
+                    points={computed(() => segmentPoints.value[segmentIndex]?.points ?? '')}
+                    fill="none"
+                    stroke-width={CURVE_STROKE_W}
+                  />
+                </g>
+              ))}
+              {nodeIndexes.map((i) => (
+                <ChartNode
+                  channel={channel}
+                  index={i}
+                  editable={Boolean(editable.value[i])}
+                  identity={identities.value[i] ?? ''}
+                  model={model}
+                  onKeyDown={handleNodeKeyDown}
+                />
+              ))}
+            </>
+          );
+        }}
+      </Rebuild>
+    </svg>
+  );
+}
+
+function ChartNode({
+  channel,
+  index,
+  editable,
+  identity,
+  model,
+  onKeyDown,
+}: {
+  channel: Channel;
+  index: number;
+  editable: boolean;
+  identity: string;
+  model: ChartModel;
+  onKeyDown: (e: KeyboardEvent, index: number, identity: string) => void;
+}) {
+  const { colors } = model;
+  const value = computed(() => {
+    const color = colors.value[index];
+    return color ? channelValue(color, channel) : 0;
+  });
+  const x = computed(() => stepX(index, colors.value.length));
+  const y = computed(() => valueToY(value.value, channel));
+  return (
+    <g data-node-index={index} data-readonly={editable ? null : true}>
+      {/* Visual node (non-interactive — the hit circle handles pointers).
+          Drawn as an ellipse with rx/ry counter-scaled so it lands as a true
+          NODE_R_VISUAL_PX-radius circle despite preserveAspectRatio="none"
+          stretching the viewBox. */}
+      <ellipse
+        class={editable
+          ? 'tokenpanel-palette-chart-node-visual'
+          : 'tokenpanel-palette-chart-node-visual is-readonly'}
+        cx={x}
+        cy={y}
+        rx={model.nodeRx}
+        ry={model.nodeRy}
+        stroke-width={computed(() => (index === model.selectedIndex.value ? 3 : 2))}
+        aria-hidden="true"
+      />
+      {/* Hit area — carries pointer capture (via delegation) + keyboard.
+          role="slider" so it is operable without a pointer. */}
+      {editable ? (
+        <circle
+          class="tokenpanel-palette-chart-node-hit"
+          cx={x}
+          cy={y}
+          r={NODE_R_HIT}
+          fill="transparent"
+          tabindex={0}
+          role="slider"
+          aria-label={`${channel.toUpperCase()} of color ${index + 1}`}
+          aria-valuemin={0}
+          aria-valuemax={CHANNEL_MAX[channel]}
+          aria-valuenow={value}
+          data-channel={channel}
+          data-node-hit={index}
+          on:keydown={(e: KeyboardEvent) => onKeyDown(e, index, identity)}
+          on:focus={() => model.onSelectIndex(index)}
+        />
+      ) : null}
+    </g>
+  );
+}
 
 export default PaletteChart;

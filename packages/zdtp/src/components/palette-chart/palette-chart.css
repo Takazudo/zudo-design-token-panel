@@ -72,6 +72,7 @@
 .tokenpanel-palette-chart-hit-line {
   fill: none;
   pointer-events: stroke;
+  vector-effect: non-scaling-stroke;
   cursor: grab;
 }
 
@@ -82,6 +83,8 @@
 /* ── Curve line ── */
 .tokenpanel-palette-chart-line {
   fill: none;
+  pointer-events: none;
+  vector-effect: non-scaling-stroke;
 }
 
 .tokenpanel-palette-chart-curve--l .tokenpanel-palette-chart-line {
@@ -96,9 +99,12 @@
   stroke: var(--tokentweak-color-warning);
 }
 
-/* ── Visual nodes (white core + channel stroke) ── */
+/* ── Visual nodes (white core + channel stroke) ──
+ * Non-interactive: the hit circle beside each node handles pointers. */
 .tokenpanel-palette-chart-node-visual {
   fill: var(--tokentweak-color-bg);
+  pointer-events: none;
+  vector-effect: non-scaling-stroke;
 }
 
 /* Readonly nodes stay on the visual curve but use a dashed ring and never get

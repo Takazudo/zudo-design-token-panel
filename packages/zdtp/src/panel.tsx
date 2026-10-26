@@ -58,8 +58,8 @@ import { ChangedFooterContent } from './changed/footer-content';
 import { ChangedOnlyToggle } from './changed/tab-filter';
 import ColorTab from './tabs/color-tab-preact';
 import { FontTab, GenericTab, SizeTab, SpacingTab } from './tabs/flat-tabs-preact';
-import PaletteTab from './tabs/palette/palette-tab';
-import NotesTab from './tabs/notes-tab';
+import PaletteTab from './tabs/palette/palette-tab-preact';
+import NotesTab from './tabs/notes-tab-preact';
 import type { BulkPatchEntry } from './bulk';
 import { TooltipProvider } from './controls/tooltip-preact';
 import {

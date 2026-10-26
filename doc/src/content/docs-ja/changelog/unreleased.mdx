@@ -10,4 +10,4 @@ sidebar_position: 104
 
 ### その他の変更
 
-- パネルを Preact から zfb の zudo-react ランタイムへ段階的に移行し始めました（[#1075](https://github.com/Takazudo/zudo-design-token-panel/issues/1075)）。パネルは zudo-react を自身のバンドルに含むため、ホスト側で追加のインストールは不要です。これまでにカラーピッカー、カラーフィールドのスウォッチ、エクスポート・インポート・適用の各モーダル、Color タブ、そして Spacing・Font・Size とマニフェスト定義の汎用タブ（行、一括操作、スペシメン、トークンチェーンのポップオーバー、ハイライトのトグルを含む）を移行しました。公開 API は変わりません。移行中は、移行済みの部分が `display: contents` の `.tokenpanel-zr-host` ラッパーの中に入ります。
+- パネルを Preact から zfb の zudo-react ランタイムへ段階的に移行し始めました（[#1075](https://github.com/Takazudo/zudo-design-token-panel/issues/1075)）。パネルは zudo-react を自身のバンドルに含むため、ホスト側で追加のインストールは不要です。これまでにカラーピッカー、カラーフィールドのスウォッチ、エクスポート・インポート・適用の各モーダル、Color タブ、Palette タブ（カーブチャートを含む）、Notes タブ、そして Spacing・Font・Size とマニフェスト定義の汎用タブ（行、一括操作、スペシメン、トークンチェーンのポップオーバー、ハイライトのトグルを含む）を移行しました。公開 API は変わりません。移行中は、移行済みの部分が `display: contents` の `.tokenpanel-zr-host` ラッパーの中に入ります。

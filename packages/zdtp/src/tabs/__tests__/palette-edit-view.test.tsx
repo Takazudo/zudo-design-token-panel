@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 
 /**
  * Unit tests for PaletteEditView (#395) — Edit-mode grouped grid + per-group
@@ -33,8 +34,8 @@ if (typeof PointerEvent === 'undefined') {
 }
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from '../../zr/test-utils';
+import { computed, signal, type Signal } from '@takazudo/zfb/zudo-react';
+import { act, cleanupZr, renderZr } from '../../zr/test-utils';
 import PaletteEditView from '../palette/palette-edit-view';
 import type { TabConfig } from '../../tokens/tier-model';
 import type { TabOverrides } from '../../apply/tier-resolver';
@@ -198,7 +199,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => render(null, container));
+  cleanupZr();
+  mounted = null;
   container.remove();
   vi.restoreAllMocks();
 });
@@ -210,17 +212,31 @@ interface RenderProps {
   onCommitBatch?: (tierId: string, patch: Record<string, string>) => void;
 }
 
+let mounted: Signal<RenderProps> | null = null;
+
+/** Mount once; later calls update the mounted view's props like a re-render. */
 function renderView(props: RenderProps = {}): void {
+  if (mounted) {
+    const current = mounted;
+    act(() => {
+      current.value = props;
+    });
+    return;
+  }
+  const state = signal(props);
+  mounted = state;
+  const fallbackChange = vi.fn();
   act(() => {
-    render(
+    renderZr(() => (
       <PaletteEditView
-        tab={props.tab ?? TAB_FIXTURE}
-        overrides={props.overrides ?? {}}
-        onChange={props.onChange ?? vi.fn()}
-        onCommitBatch={props.onCommitBatch}
-      />,
-      container,
-    );
+        tab={computed(() => state.value.tab ?? TAB_FIXTURE)}
+        overrides={computed(() => state.value.overrides ?? {})}
+        onChange={(tierId, itemId, next) => (state.value.onChange ?? fallbackChange)(tierId, itemId, next)}
+        onCommitBatch={props.onCommitBatch
+          ? (tierId, patch) => state.value.onCommitBatch?.(tierId, patch)
+          : undefined}
+      />
+    ), container);
   });
 }
 

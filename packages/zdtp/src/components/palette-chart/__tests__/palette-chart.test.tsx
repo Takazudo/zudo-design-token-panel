@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 /**
  * Unit tests for {@link PaletteChart} — the OKLCH L/C/H curve editor ported
  * from pgen's PrismChart.
@@ -31,8 +32,8 @@ if (typeof PointerEvent === 'undefined') {
 }
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from '../../../zr/test-utils';
+import { computed, signal, type Signal } from '@takazudo/zfb/zudo-react';
+import { act, cleanupZr, renderZr } from '../../../zr/test-utils';
 import { PaletteChart } from '../palette-chart';
 import type { Channel } from '../palette-chart';
 import type { Oklcha } from '../../../utils/color-oklch';
@@ -53,7 +54,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => render(null, container));
+  cleanupZr();
+  chartProps = null;
   container.remove();
   vi.restoreAllMocks();
 });
@@ -81,25 +83,37 @@ type ChartProps = {
   onChangeEnd?: () => void;
 };
 
+let chartProps: Signal<ChartProps> | null = null;
+
+/** Mount once; later calls update the mounted chart's props like a re-render. */
 function renderChart(props: ChartProps): void {
+  if (chartProps) {
+    const current = chartProps;
+    act(() => {
+      current.value = props;
+    });
+    return;
+  }
+  const state = signal(props);
+  chartProps = state;
+  const fallbackChange = vi.fn();
+  const fallbackSelect = vi.fn();
+  const fallbackToggle = vi.fn();
   act(() => {
-    render(
+    renderZr(() => (
       <PaletteChart
-        colors={props.colors}
-        editable={props.editable ?? props.colors.map((color) => color !== null)}
-        identities={props.identities ?? props.colors.map((_, index) => `item-${index}`)}
-        selectedIndex={props.selectedIndex ?? 0}
-        visibleChannels={
-          props.visibleChannels ?? { l: true, c: true, h: true }
-        }
-        onChange={props.onChange ?? vi.fn()}
-        onSelectIndex={props.onSelectIndex ?? vi.fn()}
-        onToggleChannel={props.onToggleChannel ?? vi.fn()}
-        onChangeStart={props.onChangeStart}
-        onChangeEnd={props.onChangeEnd}
-      />,
-      container,
-    );
+        colors={computed(() => state.value.colors)}
+        editable={computed(() => state.value.editable ?? state.value.colors.map((color) => color !== null))}
+        identities={computed(() => state.value.identities ?? state.value.colors.map((_, index) => `item-${index}`))}
+        selectedIndex={computed(() => state.value.selectedIndex ?? 0)}
+        visibleChannels={computed(() => state.value.visibleChannels ?? { l: true, c: true, h: true })}
+        onChange={(i, c, v) => (state.value.onChange ?? fallbackChange)(i, c, v)}
+        onSelectIndex={(i) => (state.value.onSelectIndex ?? fallbackSelect)(i)}
+        onToggleChannel={(c) => (state.value.onToggleChannel ?? fallbackToggle)(c)}
+        onChangeStart={() => state.value.onChangeStart?.()}
+        onChangeEnd={() => state.value.onChangeEnd?.()}
+      />
+    ), container);
   });
 }
 
