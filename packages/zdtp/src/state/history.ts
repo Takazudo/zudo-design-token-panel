@@ -1,5 +1,3 @@
-import { useEffect, useState } from 'preact/hooks';
-
 import type { TweakState } from './tweak-state';
 import { structuralEqual } from '../utils/structural-equal';
 
@@ -177,16 +175,4 @@ export class TweakHistory {
 
 export function createTweakHistory(): TweakHistory {
   return new TweakHistory();
-}
-
-/** Reactive facade consumed by the later history UI. */
-export function useHistory(history: TweakHistory) {
-  const [snapshot, setSnapshot] = useState<TweakHistorySnapshot>(() => history.getSnapshot());
-  useEffect(() => history.subscribe(() => setSnapshot(history.getSnapshot())), [history]);
-  return {
-    ...snapshot,
-    undo: () => history.undo(),
-    redo: () => history.redo(),
-    jumpTo: (index: number) => history.jumpTo(index),
-  };
 }

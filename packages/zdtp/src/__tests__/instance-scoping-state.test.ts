@@ -29,8 +29,6 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { useEffect } from 'preact/hooks';
 import {
   __resetPanelConfigForTests,
   configurePanel,
@@ -52,8 +50,8 @@ import {
   savePersistedState,
   type TweakState,
 } from '../state/tweak-state';
-import { usePersist } from '../state/persist';
-import { useTweakStateTransaction } from '../state/transaction';
+import { createPersist } from '../state/persist';
+import { createTweakStateTransaction } from '../state/transaction';
 import { buildApplyOverrides } from '../apply/build-apply-overrides';
 import { FIXTURE_TABS } from './_test-helpers';
 import type { TabConfig } from '../tokens/tier-model';
@@ -171,8 +169,8 @@ afterEach(() => {
 // 1. The panel's persist path, scoped to A's instanceConfig, hits A only
 // ---------------------------------------------------------------------------
 
-describe('state path — usePersist scoped to a non-default instance writes to A only', () => {
-  it('persistSpacing on A routes its CSS-var writes to A\'s sink and persists to A\'s storage key, never B', async () => {
+describe('state path — createPersist scoped to a non-default instance writes to A only', () => {
+  it('persistSpacing on A routes its CSS-var writes to A\'s sink and persists to A\'s storage key, never B', () => {
     const sinkA = makeSinkSpy();
     const sinkB = makeSinkSpy();
     const cfgA = makeConfig('inst-alpha', { applySink: sinkA });
@@ -180,27 +178,17 @@ describe('state path — usePersist scoped to a non-default instance writes to A
     configurePanel(cfgA);
     configurePanel(cfgB); // B is now the active default — getPanelConfig() → B
 
-    // Drive the panel's persist pipeline exactly as panel.tsx does: render a
-    // tiny component that calls `usePersist(setState, A's instanceConfig)` (the
-    // real hook the mounted panel uses) and fires persistSpacing on mount.
+    // Drive the panel's persist pipeline exactly as panel.tsx does: the real
+    // transaction + persist factories, bound to A's instanceConfig.
     let stateRef: TweakState | null = fullTweakStateFor(cfgA);
-    function Harness() {
-      const setState = (updater: (prev: TweakState | null) => TweakState | null) => {
-        stateRef = updater(stateRef);
-      };
-      const { commitTweakState } = useTweakStateTransaction(stateRef, setState, cfgA);
-      const { persistSpacing } = usePersist(commitTweakState, cfgA);
-      useEffect(() => {
-        persistSpacing((prev) => ({ ...prev, 'hsp-md': '99px' }));
-      }, [persistSpacing]);
-      return null;
-    }
-    const host = document.createElement('div');
-    document.body.appendChild(host);
-    render(<Harness />, host);
-    await new Promise<void>((resolve) =>
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-    );
+    const { commitTweakState } = createTweakStateTransaction({
+      cfg: cfgA,
+      getState: () => stateRef,
+      setState: (next) => {
+        stateRef = next;
+      },
+    });
+    createPersist(commitTweakState).persistSpacing((prev) => ({ ...prev, 'hsp-md': '99px' }));
 
     // A's sink received writes; B's did not.
     expect(flatApplyPairs(sinkA.applyCalls).length).toBeGreaterThan(0);
@@ -211,8 +199,6 @@ describe('state path — usePersist scoped to a non-default instance writes to A
     // Persisted to A's storage key, NOT B's.
     expect(localStorage.getItem(storageKey_stateV4(cfgA))).not.toBeNull();
     expect(localStorage.getItem(storageKey_stateV4(cfgB))).toBeNull();
-
-    render(null, host);
   });
 });
 

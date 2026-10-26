@@ -77,9 +77,7 @@ import type { TabConfig } from './tokens/tier-model';
 import { isDocumentUsable } from './utils/document-liveness';
 import { claimHostDock, releaseHostMutations } from './host/host-mutations';
 import { onPageSpecimenMutationOwner } from './specimen/on-page-specimen';
-import { usePersist } from './state/persist';
-import { useHistory } from './state/history';
-import { useTweakStateTransaction } from './state/transaction';
+import { useHistory, usePersist, useTweakStateTransaction } from './state/preact-hooks';
 import {
   type TweakState,
   type ColorTweakState,
