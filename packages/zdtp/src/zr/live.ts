@@ -1,4 +1,4 @@
-import { computed, type ReadonlySignal } from '@takazudo/zfb/zudo-react';
+import { computed, signal, type ReadonlySignal } from '@takazudo/zfb/zudo-react';
 
 /**
  * Props as a zudo-react component receives them: every data prop is a live
@@ -31,4 +31,30 @@ export function read<T>(value: MaybeSignal<T>): T {
 /** Normalise a plain-or-signal prop to a signal. */
 export function toSignal<T>(value: MaybeSignal<T>): ReadonlySignal<T> {
   return isSignal(value) ? (value as ReadonlySignal<T>) : computed(() => value as T);
+}
+
+/**
+ * A signal whose current value can also be read without tracking it — the
+ * stand-in for `untracked`, which zudo-react does not export.
+ */
+export interface PeekableSignal<T> {
+  value: T;
+  peek(): T;
+  readonly signal: ReadonlySignal<T>;
+}
+
+export function peekable<T>(initial: T): PeekableSignal<T> {
+  const inner = signal(initial);
+  let current = initial;
+  return {
+    get value() {
+      return inner.value;
+    },
+    set value(next: T) {
+      current = next;
+      inner.value = next;
+    },
+    peek: () => current,
+    signal: inner,
+  };
 }

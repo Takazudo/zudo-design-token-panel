@@ -1,5 +1,5 @@
 import type { ComponentChildren } from 'preact';
-import ColorField from '../components/color-picker/color-field';
+import ColorField from '../components/color-picker/color-picker-preact';
 import TokenLabel from '../controls/token-label';
 import type { TierItem } from '../tokens/tier-model';
 import { splitLightDark } from '../tokens/mode-dependence';

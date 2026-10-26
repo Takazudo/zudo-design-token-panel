@@ -16,7 +16,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'preact/compat';
 import type { TierItem, TierValueKind } from '../tokens/tier-model';
 import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
 import TokenLabel from '../controls/token-label';
-import ColorField from '../components/color-picker/color-field';
+import ColorField from '../components/color-picker/color-picker-preact';
 import { RoleButton } from '../controls/role-button-preact';
 import { deriveCyclableUnit, nextCyclableUnit } from '../utils/unit-cycle';
 import { ModesRow, resolveModeRowSides } from './modes-row';

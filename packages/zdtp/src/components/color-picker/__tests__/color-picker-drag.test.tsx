@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 
 /**
  * Unit tests for the ColorPicker drag-handle feature (issue #180).
@@ -42,10 +43,8 @@ if (typeof PointerEvent === 'undefined') {
 }
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from '../../../zr/test-utils';
-import { useRef } from 'preact/compat';
-import type { JSX } from 'preact';
+import { act, cleanupZr, renderZr } from '../../../zr/test-utils';
+import { computed, signal } from '@takazudo/zfb/zudo-react';
 import { ColorPicker } from '../color-picker';
 import type { ColorPickerProps } from '../color-picker';
 
@@ -66,42 +65,51 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => render(null, container));
+  act(() => cleanupZr());
   container.remove();
 });
 
-function PickerWrapper(
-  props: Omit<ColorPickerProps, 'anchorRef' | 'onClose'> & {
-    onClose?: () => void;
-  },
-): JSX.Element {
-  const anchorRef = useRef<HTMLDivElement>(null);
+type PickerProps = Omit<ColorPickerProps, 'anchorRef' | 'onClose'> & {
+  onClose?: () => void;
+};
+
+// One picker per test container; later calls replace its props, standing in
+// for a parent re-render.
+const pickerProps = signal<PickerProps>({ color: '#ff0000', onChange: () => {} });
+let pickerHost: HTMLElement | null = null;
+
+function PickerHost() {
+  const anchorRef: { current: HTMLDivElement | null } = { current: null };
+  const initial = pickerProps.value;
   return (
     <div>
-      <div ref={anchorRef} style={{ width: 40, height: 40 }} />
+      <div ref={anchorRef} style={{ width: '40px', height: '40px' }} />
       <ColorPicker
-        {...props}
-        anchorRef={anchorRef as React.RefObject<HTMLElement | null>}
-        onClose={props.onClose ?? (() => {})}
+        color={computed(() => pickerProps.value.color)}
+        resolveMode={computed(() => pickerProps.value.resolveMode)}
+        label={computed(() => pickerProps.value.label)}
+        valueFormat={initial.valueFormat}
+        defaultMode={initial.defaultMode}
+        onChange={(value) => pickerProps.value.onChange(value)}
+        anchorRef={anchorRef}
+        onClose={() => pickerProps.value.onClose?.()}
       />
     </div>
   );
+}
+
+function mountPicker(props: PickerProps): void {
+  pickerProps.value = props;
+  if (pickerHost === container) return;
+  pickerHost = container;
+  renderZr(() => <PickerHost />, container);
 }
 
 function renderPicker(
   partial: Partial<ColorPickerProps> & { onClose?: () => void } = {},
 ): void {
   act(() => {
-    render(
-      <PickerWrapper
-        color={partial.color ?? '#ff0000'}
-        onChange={partial.onChange ?? vi.fn()}
-        label={partial.label}
-        defaultMode={partial.defaultMode}
-        onClose={partial.onClose ?? (() => {})}
-      />,
-      container,
-    );
+    mountPicker({ color: partial.color ?? '#ff0000', onChange: partial.onChange ?? vi.fn(), label: partial.label, defaultMode: partial.defaultMode, onClose: partial.onClose ?? (() => {}) });
   });
 }
 

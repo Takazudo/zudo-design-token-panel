@@ -38,8 +38,7 @@
 import { memo, useState, useEffect, useCallback, useMemo, useRef, useId } from 'preact/compat';
 import type { ColorScheme } from '../config/color-schemes';
 import { pushDismissLayer } from '../controls/dismiss-layer';
-import ColorPicker from '../components/color-picker';
-import ColorField from '../components/color-picker/color-field';
+import { ColorField, ColorPicker } from '../components/color-picker/color-picker-preact';
 import { Z } from '../styles/z-index-tokens';
 import type { ColorPickerValueFormat } from '../components/color-picker/color-picker';
 import {

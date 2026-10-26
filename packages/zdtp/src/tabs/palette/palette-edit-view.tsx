@@ -48,7 +48,7 @@ import {
 } from '../../utils/color-oklch';
 import { clampHueForPersist, type Channel } from '../../utils/palette-curve';
 import { PaletteChart } from '../../components/palette-chart';
-import { ColorField } from '../../components/color-picker/color-field';
+import { ColorField } from '../../components/color-picker/color-picker-preact';
 import PaletteReadout from './palette-readout';
 import type { TokenAddress } from '../flat/types';
 import { tokenAddressKey } from '../flat/types';

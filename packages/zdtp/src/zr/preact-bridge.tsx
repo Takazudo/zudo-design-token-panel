@@ -68,5 +68,8 @@ export function bridgeToPreact<P extends object, C extends keyof P = never>(
     return <div ref={host} className="tokenpanel-zr-host" style={{ display: 'contents' }} />;
   }
   ZrBridge.displayName = `ZrBridge(${component.name || 'Component'})`;
+  // Keep the wrapped component's name so vnode-hook tests that match on
+  // `type.name` still find the bridged component.
+  Object.defineProperty(ZrBridge, 'name', { value: component.name });
   return ZrBridge;
 }
