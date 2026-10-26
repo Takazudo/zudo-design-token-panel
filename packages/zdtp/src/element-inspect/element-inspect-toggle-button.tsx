@@ -1,6 +1,6 @@
 import { useContext } from 'preact/hooks';
 import type { JSX } from 'preact';
-import { RoleButton } from '../controls/role-button';
+import { RoleButton } from '../controls/role-button-preact';
 import { useShortcut } from '../shell/shortcut-dispatcher';
 import { ElementInspectContext } from './element-inspect-context';
 

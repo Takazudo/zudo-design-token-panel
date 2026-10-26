@@ -4,7 +4,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../zr/test-utils';
 import DesignTokenTweakPanel from '../panel';
 import { getOpenKey, getPositionKey, getSizeKey } from '../state/tweak-state';
 import { FIXTURE_PANEL_CONFIG, flushEffects } from './_test-helpers';

@@ -1,6 +1,6 @@
 import { Fragment } from 'preact';
 
-import { RoleButton } from '../controls/role-button';
+import { RoleButton } from '../controls/role-button-preact';
 import type { TweakHistoryEntry, TweakHistorySnapshot } from '../state/history';
 import type { SnapshotSlot, SnapshotSlots, TweakSnapshot } from './snapshots';
 

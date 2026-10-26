@@ -13,9 +13,9 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../../zr/test-utils';
 import { HelpIcon } from '../help-icon';
-import { TooltipProvider } from '../tooltip';
+import { TooltipProvider } from '../tooltip-preact';
 
 // ---------------------------------------------------------------------------
 // Setup / teardown

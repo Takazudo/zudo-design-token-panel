@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../zr/test-utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   __OPEN_VERIFY_DELAY_MS_FOR_TESTS,

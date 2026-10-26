@@ -28,7 +28,7 @@ if (typeof PointerEvent === 'undefined') {
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../../zr/test-utils';
 import { h } from 'preact';
 import { HighlightSettingsPopover } from '../highlight-settings-popover';
 import { HighlightContext, type HighlightContextValue } from '../highlight-toggle-button';

@@ -1,5 +1,5 @@
 import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../zr/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { zudoDocConfigs } from '../../../../playground/config/zudo-doc-manifest.generated';
 import DesignTokenTweakPanel from '../panel';

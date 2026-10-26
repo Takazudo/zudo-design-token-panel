@@ -27,7 +27,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../zr/test-utils';
 import DesignTokenTweakPanel from '../panel';
 import { getOpenKey, getPositionKey, getSizeKey, VISIBLE_MIN, MIN_PANEL_WIDTH, MIN_PANEL_HEIGHT } from '../state/tweak-state';
 import { FIXTURE_PANEL_CONFIG } from './_test-helpers';

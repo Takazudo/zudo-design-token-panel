@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { h, render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../../zr/test-utils';
 import { LayerActivityProvider } from '../../shell/layer-activity';
 import { HighlightContext, type HighlightContextValue } from '../../highlight/highlight-toggle-button';
 import { DEFAULT_HIGHLIGHT_SLOTS, type HighlightState } from '../../highlight/highlight-state';

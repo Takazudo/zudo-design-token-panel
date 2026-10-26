@@ -32,7 +32,7 @@ if (typeof PointerEvent === 'undefined') {
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../../../zr/test-utils';
 import { useRef } from 'preact/compat';
 import type { JSX } from 'preact';
 import { ColorField } from '../color-field';

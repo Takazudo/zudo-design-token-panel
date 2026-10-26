@@ -18,7 +18,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../../zr/test-utils';
 import PaletteTab from './palette-tab';
 import type { TabConfig } from '../../tokens/tier-model';
 import type { TabOverrides } from '../../apply/tier-resolver';

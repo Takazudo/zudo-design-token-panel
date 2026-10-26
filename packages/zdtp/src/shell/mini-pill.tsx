@@ -1,5 +1,5 @@
 import type { ComponentChildren, JSX, RefObject } from 'preact';
-import { RoleButton } from '../controls/role-button';
+import { RoleButton } from '../controls/role-button-preact';
 
 /** Slots intentionally stay small so changed-state and history features can
  * add their own controls without making the dock-mode shell depend on them. */

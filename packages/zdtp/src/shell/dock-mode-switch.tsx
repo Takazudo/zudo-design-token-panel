@@ -1,4 +1,4 @@
-import { RoleButton } from '../controls/role-button';
+import { RoleButton } from '../controls/role-button-preact';
 import type { DockMode } from '../state/tweak-state';
 
 const MODES: readonly { mode: DockMode; label: string; shortcut: string }[] = [

@@ -3,7 +3,7 @@ import { useCallback, useContext, useEffect, useRef, useState } from 'preact/hoo
 import type { JSX } from 'preact';
 import { HighlightContext } from '../highlight/highlight-toggle-button';
 import { getFixedPopoverStyle, usePopoverClose } from '../components/color-picker';
-import { RoleButton } from '../controls/role-button';
+import { RoleButton } from '../controls/role-button-preact';
 import { useLayerRegistration } from '../shell/layer-activity';
 import { Z } from '../styles/z-index-tokens';
 import { staticCssColorToOklcha } from '../utils/color-oklch';

@@ -1,6 +1,6 @@
 import { useMemo } from 'preact/hooks';
 
-import { RoleButton } from '../controls/role-button';
+import { RoleButton } from '../controls/role-button-preact';
 import type { TweakHistorySnapshot } from '../state/history';
 import { useRegisterRegionItem, type ShellRegionItem } from '../shell/regions';
 import { useShortcut } from '../shell/shortcut-dispatcher';

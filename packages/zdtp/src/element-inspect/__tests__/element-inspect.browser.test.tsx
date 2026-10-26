@@ -1,7 +1,7 @@
 // @vitest-environment browser
 
 import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../../zr/test-utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import DesignTokenTweakPanel from '../../panel';
 import { getOpenKey, getPositionKey, getSizeKey } from '../../state/tweak-state';

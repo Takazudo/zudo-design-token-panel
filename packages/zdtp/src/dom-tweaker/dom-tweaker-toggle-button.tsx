@@ -9,7 +9,7 @@
 import { useContext } from 'preact/hooks';
 import type { JSX } from 'preact';
 import { DomTweakerContext } from './dom-tweaker-context';
-import { RoleButton } from '../controls/role-button';
+import { RoleButton } from '../controls/role-button-preact';
 
 export function DomTweakerToggleButton({ compact = false }: { compact?: boolean } = {}): JSX.Element | null {
   const ctx = useContext(DomTweakerContext);

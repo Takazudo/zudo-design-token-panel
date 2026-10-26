@@ -16,7 +16,7 @@
 
 import { useContext, useRef, useState } from 'preact/compat';
 import type { JSX } from 'preact';
-import { RoleButton } from '../controls/role-button';
+import { RoleButton } from '../controls/role-button-preact';
 import { ColorPicker, getFixedPopoverStyle, usePopoverClose } from '../components/color-picker/index';
 import { HighlightContext } from './highlight-toggle-button';
 import { Z } from '../styles/z-index-tokens';

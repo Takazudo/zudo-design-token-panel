@@ -1,5 +1,5 @@
 import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../zr/test-utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { PanelConfig } from '../config/panel-config';
 import type { TabConfig } from '../tokens/tier-model';

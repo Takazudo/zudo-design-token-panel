@@ -1,6 +1,6 @@
 import { useContext, useMemo, useState, useEffect } from 'preact/hooks';
 import type { JSX } from 'preact';
-import { RoleButton } from '../controls/role-button';
+import { RoleButton } from '../controls/role-button-preact';
 import { useTokenController } from '../tabs/flat/token-controller';
 import { tokenAddressKey as flatTokenAddressKey, type TokenAddress } from '../tabs/flat/types';
 import type { ElementTokenMatch } from './find-tokens-for-element';

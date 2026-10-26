@@ -10,7 +10,9 @@ interface BridgeKeys<P, C extends keyof P> {
   /** Data props, delivered to the zudo-react component as live signals. */
   signals: ReadonlyArray<Exclude<keyof P, C>>;
   /** Function props, delivered as stable wrappers that call the latest prop. */
-  callbacks: ReadonlyArray<C>;
+  callbacks?: ReadonlyArray<C>;
+  /** Props read once at mount (e.g. an instance config or a controller). */
+  statics?: ReadonlyArray<C>;
 }
 
 /**
@@ -38,7 +40,8 @@ export function bridgeToPreact<P extends object, C extends keyof P = never>(
         signals.set(key, value);
         live[key as PropertyKey] = value;
       }
-      for (const key of keys.callbacks) {
+      for (const key of keys.statics ?? []) live[key as PropertyKey] = props[key];
+      for (const key of keys.callbacks ?? []) {
         live[key as PropertyKey] = (...args: never[]) => {
           const callback = latest.current[key] as Callback | undefined;
           return typeof callback === 'function' ? callback(...args) : undefined;

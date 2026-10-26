@@ -18,18 +18,18 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { options, render, type VNode } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../../zr/test-utils';
 import GenericTab from '../generic-tab';
 import GenericItemEditor from '../_generic-item-editor';
 import type { ColorFieldProps } from '../../components/color-picker/color-field';
-import { RoleButton } from '../../controls/role-button';
+import { RoleButton } from '../../controls/role-button-preact';
 import type { TabConfig, TierItem } from '../../tokens/tier-model';
 import {
   emitTierItemCssValue,
   resolveTierItemValue,
   type TabOverrides,
 } from '../../apply/tier-resolver';
-import { TooltipProvider } from '../../controls/tooltip';
+import { TooltipProvider } from '../../controls/tooltip-preact';
 import type { RowContribution } from '../flat/types';
 
 // ---------------------------------------------------------------------------

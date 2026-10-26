@@ -15,7 +15,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act } from 'preact/test-utils';
+import { act } from '../zr/test-utils';
 import { __resetInstanceBindingsForTests } from '../index';
 import {
   __resetPanelConfigForTests,

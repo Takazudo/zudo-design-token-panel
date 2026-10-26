@@ -36,7 +36,7 @@ globalThis.cancelAnimationFrame = (): void => { /* no-op safety net */ };
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, h } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../../zr/test-utils';
 import { useContext } from 'preact/hooks';
 import { HighlightOrchestrator, tierKindToProbeKind } from '../highlight-orchestrator';
 import {

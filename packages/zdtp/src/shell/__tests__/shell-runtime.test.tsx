@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../../zr/test-utils';
 import { useMemo, useRef } from 'preact/compat';
 import { LayerActivityProvider, useLayerActivity, useLayerRegistration } from '../layer-activity';
 import { ShellFooter } from '../footer';

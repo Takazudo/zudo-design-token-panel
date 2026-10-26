@@ -2,7 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../zr/test-utils';
 import DesignTokenTweakPanel from '../panel';
 import { __resetInstanceBindingsForTests, reapplyPersistedOverrides } from '../index';
 import {
