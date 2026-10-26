@@ -32,7 +32,7 @@ import {
   type HighlightContextValue,
 } from '../../highlight/highlight-toggle-button-preact';
 import { DEFAULT_HIGHLIGHT_SLOTS, type HighlightState } from '../../highlight/highlight-state';
-import ColorTab from '../color-tab';
+import ColorTab from '../color-tab-preact';
 import { TooltipProvider } from '../../controls/tooltip-preact';
 import type { TabConfig } from '../../tokens/tier-model';
 import type { ColorTweakState } from '../../state/tweak-state';

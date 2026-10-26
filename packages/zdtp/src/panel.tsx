@@ -56,7 +56,7 @@ import { scrollToTokenRow } from './tabs/flat/scroll-to-token-row';
 import type { ChangedContributionOptions } from './changed/contribution';
 import { ChangedFooterContent } from './changed/footer-content';
 import { ChangedOnlyToggle } from './changed/tab-filter';
-import ColorTab from './tabs/color-tab';
+import ColorTab from './tabs/color-tab-preact';
 import { FontTab, GenericTab, SizeTab, SpacingTab } from './tabs/flat-tabs-preact';
 import PaletteTab from './tabs/palette/palette-tab';
 import NotesTab from './tabs/notes-tab';
