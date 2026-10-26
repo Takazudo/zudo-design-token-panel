@@ -46,6 +46,7 @@ vi.mock('../../../utils/resolve-css-color', async (importOriginal) => ({
 import { ColorPicker, LOCAL_STORAGE_KEY } from '../color-picker';
 import type { ColorPickerProps } from '../color-picker';
 import { cssToOklcha, oklchaToHex } from '../../../utils/color-oklch';
+import { settle } from '../../../zr/test-utils';
 
 // ---------------------------------------------------------------------------
 // Test harness helpers
@@ -1591,13 +1592,15 @@ describe('ColorPicker — expression conversion', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it('re-resolves mode changes, re-arms new expressions and clears on literals', () => {
+  it('re-resolves mode changes, re-arms new expressions and clears on literals', async () => {
     const onChange = vi.fn();
     renderPicker({ color: source, valueFormat: 'oklch', resolveMode: 'light', onChange });
     fireClick(convert());
     vi.mocked(resolveCssColorInHost).mockReturnValue('oklch(30% 0.1 120 / 0.7)');
     renderPicker({ color: source, valueFormat: 'oklch', resolveMode: 'dark', onChange });
     expect(resolveCssColorInHost).toHaveBeenLastCalledWith(source, 'dark');
+    // Sliders are zudo-react roots; their DOM updates on the next flush.
+    await settle();
     expect(slider().getAttribute('aria-valuenow')).toBe('30');
     expect(onChange).not.toHaveBeenCalled();
     fireClick(convert());

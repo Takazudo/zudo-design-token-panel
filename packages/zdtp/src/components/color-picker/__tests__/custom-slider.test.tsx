@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 
 /**
  * Unit tests for CustomSlider.
@@ -27,8 +28,8 @@ if (typeof PointerEvent === 'undefined') {
 }
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { signal, type Signal } from '@takazudo/zfb/zudo-react';
+import { cleanupZr, renderZr, settle } from '../../../zr/test-utils';
 import { CustomSlider } from '../custom-slider';
 import type { SliderConfig } from '../custom-slider';
 
@@ -70,9 +71,23 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => render(null, container));
+  cleanupZr();
+  mounted = null;
   container.remove();
 });
+
+/** Event dispatch is synchronous; kept as a seam mirroring the old `act` calls. */
+function act(fn: () => void) {
+  fn();
+}
+
+interface MountedSlider {
+  disabled: Signal<boolean | undefined>;
+  config: Signal<SliderConfig>;
+  value: Signal<number>;
+  callbacks: { onChange: (v: number) => void; onDragStart: () => void; onDragEnd: () => void };
+}
+let mounted: MountedSlider | null = null;
 
 function renderSlider(
   config: SliderConfig,
@@ -88,20 +103,35 @@ function renderSlider(
   const onDragStart = callbacks.onDragStart ?? vi.fn();
   const onDragEnd = callbacks.onDragEnd ?? vi.fn();
 
-  act(() => {
-    render(
-      <CustomSlider
-        disabled={callbacks.disabled}
-        config={config}
-        value={value}
-        gradient={GRADIENT}
-        onChange={onChange}
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}
-      />,
+  if (mounted) {
+    // A second call re-renders the same slider with new props.
+    mounted.callbacks = { onChange, onDragStart, onDragEnd };
+    mounted.disabled.value = callbacks.disabled;
+    mounted.config.value = config;
+    mounted.value.value = value;
+  } else {
+    const state: MountedSlider = {
+      disabled: signal(callbacks.disabled),
+      config: signal(config),
+      value: signal(value),
+      callbacks: { onChange, onDragStart, onDragEnd },
+    };
+    mounted = state;
+    renderZr(
+      () => (
+        <CustomSlider
+          disabled={state.disabled}
+          config={state.config}
+          value={state.value}
+          gradient={signal(GRADIENT)}
+          onChange={(v) => state.callbacks.onChange(v)}
+          onDragStart={() => state.callbacks.onDragStart()}
+          onDragEnd={() => state.callbacks.onDragEnd()}
+        />
+      ),
       container,
     );
-  });
+  }
 
   return { onChange, onDragStart, onDragEnd };
 }
@@ -502,7 +532,7 @@ it('disabled blocks pointer and keyboard edits and drag callbacks', () => {
 });
 
 
-it('ends an active drag when disabled and does not resume it on re-enable', () => {
+it('ends an active drag when disabled and does not resume it on re-enable', async () => {
   const onChange = vi.fn();
   const onDragEnd = vi.fn();
   renderSlider(INTEGER_CONFIG, 50, { onChange, onDragEnd });
@@ -511,8 +541,10 @@ it('ends an active drag when disabled and does not resume it on re-enable', () =
   act(() => { slider.dispatchEvent(new PointerEvent('pointerdown', { clientX: 50, pointerId: 1 })); });
   onChange.mockClear();
   renderSlider(INTEGER_CONFIG, 50, { disabled: true, onChange, onDragEnd });
+  await settle();
   expect(onDragEnd).toHaveBeenCalledOnce();
   renderSlider(INTEGER_CONFIG, 50, { onChange, onDragEnd });
+  await settle();
   act(() => { slider.dispatchEvent(new PointerEvent('pointermove', { clientX: 80, pointerId: 1 })); });
   expect(onChange).not.toHaveBeenCalled();
 });

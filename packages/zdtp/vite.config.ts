@@ -11,7 +11,8 @@ const dashboardStyles = fileURLToPath(new URL('./src/dashboard/styles.css', impo
 // the dashboard bundle to panel/runtime dependencies.
 const modeDependenceSource = fileURLToPath(new URL('./src/tokens/mode-dependence.ts', import.meta.url));
 
-// The dashboard renders with the host's zudo-react runtime (an optional peer).
+// The dashboard renders with the host's zudo-react runtime (an optional peer);
+// the panel bundles its own copy so imperative hosts keep a zero-peer install.
 const ZUDO_REACT = '@takazudo/zfb/zudo-react';
 
 function isZudoReact(source: string): boolean {
@@ -176,6 +177,38 @@ function staticDashboard(): Plugin {
  *    mode when there is no React-flavoured plugin installed, so we set it
  *    explicitly here.
  */
+const EXTERNAL: ReadonlyArray<string | RegExp> = [
+  'preact',
+  'preact/compat',
+  'preact/hooks',
+  'preact/jsx-runtime',
+  // Defensive: never let Vite try to compile a `.astro` file into the
+  // lib bundle. The JS `astro/index.js` entry no longer imports the
+  // `.astro` component (zdtp#308 — a static `.astro` import crashed
+  // real npm consumers at prerender). The host component now ships only
+  // via the `./astro/DesignTokenPanelHost.astro` subexport, placed in
+  // dist by `scripts/copy-astro-assets.mjs`, and consumers import it
+  // directly so their own Astro toolchain compiles it.
+  /\.astro$/,
+  // Package self-reference for the host adapter's lazy
+  // dynamic import. Stays as a runtime resolution against the
+  // consumer's `node_modules/.../dist/index.js` so the panel module
+  // shares the `config/panel-config` chunk (and its singleton) with
+  // the adapter.
+  '@takazudo/zdtp',
+  // Node built-ins used by the server entry. Mark both the
+  // `node:` protocol form and the bare specifier form as external so
+  // Rollup leaves them as-is in the emitted ESM bundle.
+  /^node:/,
+  'fs',
+  'path',
+  'fs/promises',
+  'crypto',
+  'os',
+  'http',
+  'url',
+];
+
 export default defineConfig({
   plugins: [assertConstantsEntryIsolation(), staticDashboard()],
   resolve: {
@@ -226,38 +259,10 @@ export default defineConfig({
       cssFileName: 'zdtp',
     },
     rollupOptions: {
-      external: [
-        'preact',
-        'preact/compat',
-        'preact/hooks',
-        'preact/jsx-runtime',
-        /^@takazudo\/zfb\/zudo-react(?:\/|$)/,
-        // Defensive: never let Vite try to compile a `.astro` file into the
-        // lib bundle. The JS `astro/index.js` entry no longer imports the
-        // `.astro` component (zdtp#308 — a static `.astro` import crashed
-        // real npm consumers at prerender). The host component now ships only
-        // via the `./astro/DesignTokenPanelHost.astro` subexport, placed in
-        // dist by `scripts/copy-astro-assets.mjs`, and consumers import it
-        // directly so their own Astro toolchain compiles it.
-        /\.astro$/,
-        // Package self-reference for the host adapter's lazy
-        // dynamic import. Stays as a runtime resolution against the
-        // consumer's `node_modules/.../dist/index.js` so the panel module
-        // shares the `config/panel-config` chunk (and its singleton) with
-        // the adapter.
-        '@takazudo/zdtp',
-        // Node built-ins used by the server entry. Mark both the
-        // `node:` protocol form and the bare specifier form as external so
-        // Rollup leaves them as-is in the emitted ESM bundle.
-        /^node:/,
-        'fs',
-        'path',
-        'fs/promises',
-        'crypto',
-        'os',
-        'http',
-        'url',
-      ],
+      external: (source, importer) =>
+        isZudoReact(source)
+          ? importer !== undefined && normalizeModuleId(importer).startsWith(dashboardDirectory)
+          : EXTERNAL.some((entry) => (typeof entry === 'string' ? entry === source : entry.test(source))),
       output: {
         // Inject the `#!/usr/bin/env node` shebang ONLY for the bin entry.
         // The other chunks (panel UI, astro adapter, server library) are

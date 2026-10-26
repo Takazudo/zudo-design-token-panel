@@ -18,13 +18,15 @@ TokenDashboardRoot.displayName = 'TokenDashboardRoot';
 // zudo-react's caller-owned mount protocol: the wrapper must carry these
 // attributes and the build string must equal the identity's build.
 const identity = { component: TokenDashboardRoot.displayName, build: 'zdtp-dashboard-client-v1' };
+const identityAttributes: ReadonlyArray<readonly [string, string]> = [
+  ['data-zfb-island-skip-ssr', identity.component],
+  ['data-zfb-transport', 'json/1'],
+  ['data-zfb-protocol', 'zudo-react/1'],
+  ['data-zfb-build', identity.build],
+];
 
 function createWrapper(host: HTMLElement): HTMLElement {
   const wrapper = host.ownerDocument.createElement('div');
-  wrapper.setAttribute('data-zfb-island-skip-ssr', identity.component);
-  wrapper.setAttribute('data-zfb-transport', 'json/1');
-  wrapper.setAttribute('data-zfb-protocol', 'zudo-react/1');
-  wrapper.setAttribute('data-zfb-build', identity.build);
   wrapper.style.display = 'contents';
   host.append(wrapper);
   return wrapper;
@@ -53,6 +55,9 @@ export function mountTokenDashboard(host: HTMLElement, props: TokenDashboardProp
   };
   mounts.set(host, handle);
   let failure: unknown;
+  // Only present during mount(): zfb's host island scanner disposes every
+  // `[data-zfb-island-skip-ssr]` root it did not create on client navigation.
+  for (const [name, value] of identityAttributes) wrapper.setAttribute(name, value);
   try {
     root = mount(h(TokenDashboardRoot, { ...props }), wrapper, {
       identity,
@@ -62,6 +67,8 @@ export function mountTokenDashboard(host: HTMLElement, props: TokenDashboardProp
     });
   } catch (error) {
     failure = error;
+  } finally {
+    for (const [name] of identityAttributes) wrapper.removeAttribute(name);
   }
   if (root === null) {
     handle.dispose();
