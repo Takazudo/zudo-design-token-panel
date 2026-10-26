@@ -45,7 +45,13 @@ import {
 } from '../../utils/color-oklch';
 import { isCssExpression, resolveCssColorInHost } from '../../utils/resolve-css-color';
 import { RoleButton } from '../../controls/role-button';
-import { CustomSlider, type SliderConfig } from './custom-slider';
+import { CustomSlider as CustomSliderZr, type CustomSliderProps, type SliderConfig } from './custom-slider';
+import { bridgeToPreact } from '../../zr/preact-bridge';
+
+const CustomSlider = bridgeToPreact<CustomSliderProps, 'onChange' | 'onDragStart' | 'onDragEnd'>(CustomSliderZr, {
+  signals: ['disabled', 'config', 'value', 'gradient'],
+  callbacks: ['onChange', 'onDragStart', 'onDragEnd'],
+});
 import { pushDismissLayer } from '../../controls/dismiss-layer';
 
 /* ── Public API ─────────────────────────────────────────────────────────── */

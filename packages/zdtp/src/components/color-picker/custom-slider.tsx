@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef } from 'preact/compat';
-import type { JSX } from 'preact';
+/** @jsxImportSource @takazudo/zfb/zudo-react */
+import { computed, getScope, type Ref } from '@takazudo/zfb/zudo-react';
+import type { Live } from '../../zr/live';
 
 // ---------------------------------------------------------------------------
 // SliderConfig / CustomSliderProps
@@ -34,6 +35,8 @@ export interface CustomSliderProps {
   onDragEnd: () => void;
 }
 
+export type CustomSliderLiveProps = Live<CustomSliderProps, 'onChange' | 'onDragStart' | 'onDragEnd'>;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -56,6 +59,7 @@ function snapToStep(value: number, min: number, step: number): number {
 // CustomSlider
 //
 // Implements pointer-capture drag, click-to-jump, and keyboard navigation.
+// A zudo-react component: data props arrive as live signals (see `Live`).
 // Rendered as a <div role="slider"> — NOT <input type="range"> — so the track
 // div can carry an arbitrary OKLCH-interpolated CSS gradient.
 //
@@ -68,215 +72,143 @@ function snapToStep(value: number, min: number, step: number): number {
 //   tokenpanel-color-picker-slider-value  — right value span
 // ---------------------------------------------------------------------------
 
-export function CustomSlider({
-  disabled = false,
-  config,
-  value,
-  gradient,
-  onChange,
-  onDragStart,
-  onDragEnd,
-}: CustomSliderProps): JSX.Element {
-  const { label, ariaLabel, min, max, step, format } = config;
-  const disabledRef = useRef(disabled);
-  disabledRef.current = disabled;
-  const stepRef = useRef(step);
-  stepRef.current = step;
+export function CustomSlider(props: CustomSliderLiveProps) {
+  const { config, value, gradient, onChange, onDragStart, onDragEnd } = props;
+  const disabled = computed(() => props.disabled.value ?? false);
+  const track: Ref<HTMLDivElement> = { current: null };
+  let isDragging = false;
 
-  const isDragging = useRef(false);
-  const trackRef = useRef<HTMLDivElement>(null);
+  const fraction = computed(() => {
+    const { min, max } = config.value;
+    return clamp((value.value - min) / (max - min), 0, 1);
+  });
+  const valueText = computed(() => config.value.format(value.value));
 
-  const fraction = clamp((value - min) / (max - min), 0, 1);
-
-  // Keep stable refs for callbacks so the useEffect below does not need to
-  // re-register listeners on every render when the parent re-renders.
-  const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
-  const onDragStartRef = useRef(onDragStart);
-  onDragStartRef.current = onDragStart;
-  const onDragEndRef = useRef(onDragEnd);
-  onDragEndRef.current = onDragEnd;
-
-  useEffect(() => {
-    if (disabled && isDragging.current) {
-      isDragging.current = false;
-      onDragEndRef.current();
+  getScope().effect(() => {
+    if (disabled.value && isDragging) {
+      isDragging = false;
+      onDragEnd();
     }
-  }, [disabled]);
-
-  // Keep min/max in refs as well so pointer handlers close over stable refs.
-  const minRef = useRef(min);
-  minRef.current = min;
-  const maxRef = useRef(max);
-  maxRef.current = max;
+  });
 
   // Compute value from pointer x position relative to the track.
   // Returns null when the rect has zero width (jsdom in tests).
   function valueFromPointerX(clientX: number): number | null {
-    const el = trackRef.current;
+    const el = track.current;
     if (!el) return null;
     const rect = el.getBoundingClientRect();
     if (rect.width === 0) return null;
+    const { min, max, step } = config.value;
     const f = clamp((clientX - rect.left) / rect.width, 0, 1);
-    const raw = minRef.current + f * (maxRef.current - minRef.current);
     // Snap to step so pointer and keyboard interaction emit the same grid.
-    const snapped = snapToStep(raw, minRef.current, stepRef.current);
-    return clamp(snapped, minRef.current, maxRef.current);
+    return clamp(snapToStep(min + f * (max - min), min, step), min, max);
   }
 
-  // ---- Pointer handlers via addEventListener --------------------------------
-  //
-  // Preact's JSX event delegation checks `lowerCaseName in dom` to decide
-  // whether to use the lowercase event name. jsdom does NOT expose
-  // `onpointerdown` / `onpointermove` / `onpointerup` on elements, so Preact
-  // falls through and registers "PointerDown" (wrong case) — tests dispatching
-  // "pointerdown" never fire the handler. Using addEventListener directly
-  // bypasses this heuristic and works correctly in both jsdom and browsers.
-
-  useEffect(() => {
-    const el = trackRef.current;
-    if (!el) return;
-
-    function handlePointerDown(e: PointerEvent) {
-      if (disabledRef.current) return;
-      isDragging.current = true;
-      onDragStartRef.current();
-
-      // Pointer capture keeps events flowing even if pointer leaves the element.
-      try {
-        el!.setPointerCapture(e.pointerId);
-      } catch {
-        // jsdom does not implement setPointerCapture; ignore.
-      }
-
-      // Click-to-jump on pointerdown so the thumb snaps immediately.
-      const next = valueFromPointerX(e.clientX);
-      if (next !== null) onChangeRef.current(next);
+  function handlePointerDown(e: PointerEvent) {
+    if (disabled.value) return;
+    isDragging = true;
+    onDragStart();
+    // Pointer capture keeps events flowing even if pointer leaves the element.
+    try {
+      track.current!.setPointerCapture(e.pointerId);
+    } catch {
+      // jsdom does not implement setPointerCapture; ignore.
     }
+    // Click-to-jump on pointerdown so the thumb snaps immediately.
+    const next = valueFromPointerX(e.clientX);
+    if (next !== null) onChange(next);
+  }
 
-    function handlePointerMove(e: PointerEvent) {
-      if (disabledRef.current || !isDragging.current) return;
-      const next = valueFromPointerX(e.clientX);
-      if (next !== null) onChangeRef.current(next);
+  function handlePointerMove(e: PointerEvent) {
+    if (disabled.value || !isDragging) return;
+    const next = valueFromPointerX(e.clientX);
+    if (next !== null) onChange(next);
+  }
+
+  function endDrag(e: PointerEvent) {
+    if (!isDragging) return;
+    isDragging = false;
+    try {
+      track.current!.releasePointerCapture(e.pointerId);
+    } catch {
+      // jsdom does not implement releasePointerCapture; ignore.
     }
+    onDragEnd();
+  }
 
-    function handlePointerUp(e: PointerEvent) {
-      if (!isDragging.current) return;
-      isDragging.current = false;
-
-      try {
-        el!.releasePointerCapture(e.pointerId);
-      } catch {
-        // jsdom does not implement releasePointerCapture; ignore.
-      }
-
-      onDragEndRef.current();
-    }
-
-    function handlePointerCancel(e: PointerEvent) {
-      if (!isDragging.current) return;
-      isDragging.current = false;
-
-      try {
-        el!.releasePointerCapture(e.pointerId);
-      } catch {
-        // jsdom does not implement releasePointerCapture; ignore.
-      }
-
-      onDragEndRef.current();
-    }
-
-    el.addEventListener('pointerdown', handlePointerDown);
-    el.addEventListener('pointermove', handlePointerMove);
-    el.addEventListener('pointerup', handlePointerUp);
-    el.addEventListener('pointercancel', handlePointerCancel);
-
-    return () => {
-      el.removeEventListener('pointerdown', handlePointerDown);
-      el.removeEventListener('pointermove', handlePointerMove);
-      el.removeEventListener('pointerup', handlePointerUp);
-      el.removeEventListener('pointercancel', handlePointerCancel);
-    };
-    // Empty dependency array: handlers are stable (use refs for callbacks).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ---- Keyboard handler -------------------------------------------------------
   // ArrowRight / ArrowUp  → +step (or +coarse with Shift)
   // ArrowLeft  / ArrowDown → -step (or -coarse with Shift)
   // Home → min; End → max
   // Coarse multiplier: step * 10 (handles both integer and sub-1 steps uniformly)
+  function handleKeyDown(e: KeyboardEvent) {
+    if (disabled.value) return;
+    const { min, max, step } = config.value;
+    const coarse = step * 10;
+    let delta = 0;
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (disabled) return;
-      const coarse = step * 10;
-      let delta = 0;
+    switch (e.key) {
+      case 'ArrowRight':
+      case 'ArrowUp':
+        delta = e.shiftKey ? coarse : step;
+        break;
+      case 'ArrowLeft':
+      case 'ArrowDown':
+        delta = e.shiftKey ? -coarse : -step;
+        break;
+      case 'Home':
+        onChange(min);
+        e.preventDefault();
+        return;
+      case 'End':
+        onChange(max);
+        e.preventDefault();
+        return;
+      default:
+        return;
+    }
 
-      switch (e.key) {
-        case 'ArrowRight':
-        case 'ArrowUp':
-          delta = e.shiftKey ? coarse : step;
-          break;
-        case 'ArrowLeft':
-        case 'ArrowDown':
-          delta = e.shiftKey ? -coarse : -step;
-          break;
-        case 'Home':
-          onChange(min);
-          e.preventDefault();
-          return;
-        case 'End':
-          onChange(max);
-          e.preventDefault();
-          return;
-        default:
-          return;
-      }
-
-      e.preventDefault();
-      onChange(clamp(value + delta, min, max));
-    },
-    [value, min, max, step, onChange, disabled],
-  );
-
-  // ---- Render ---------------------------------------------------------------
+    e.preventDefault();
+    onChange(clamp(value.value + delta, min, max));
+  }
 
   return (
-    <div className="tokenpanel-color-picker-slider-row">
-      <span className="tokenpanel-color-picker-slider-label">{label}</span>
+    <div class="tokenpanel-color-picker-slider-row">
+      <span class="tokenpanel-color-picker-slider-label">{computed(() => config.value.label)}</span>
 
-      {/* Slider host: role=slider carries ARIA semantics; pointer events wired
-          via addEventListener in useEffect (jsdom compatibility); keyboard here */}
+      {/* Slider host: role=slider carries ARIA semantics. */}
       <div
-        ref={trackRef}
+        ref={track}
         role="slider"
-        tabIndex={disabled ? -1 : 0}
-        aria-disabled={disabled || undefined}
-        className="tokenpanel-color-picker-slider"
-        aria-label={ariaLabel}
-        aria-valuemin={min}
-        aria-valuemax={max}
+        tabindex={computed(() => (disabled.value ? -1 : 0))}
+        aria-disabled={computed(() => (disabled.value ? true : null))}
+        class="tokenpanel-color-picker-slider"
+        aria-label={computed(() => config.value.ariaLabel)}
+        aria-valuemin={computed(() => config.value.min)}
+        aria-valuemax={computed(() => config.value.max)}
         aria-valuenow={value}
         // Screen readers announce aria-valuetext (with units, e.g. "180°")
         // in preference to the raw aria-valuenow when both are present.
-        aria-valuetext={format(value)}
-        onKeyDown={handleKeyDown}
+        aria-valuetext={valueText}
+        on:keydown={handleKeyDown}
+        on:pointerdown={handlePointerDown}
+        on:pointermove={handlePointerMove}
+        on:pointerup={endDrag}
+        on:pointercancel={endDrag}
       >
         {/* Gradient track — background set to the OKLCH-interpolated gradient string */}
         <div
-          className="tokenpanel-color-picker-slider-track"
-          style={{ background: gradient }}
+          class="tokenpanel-color-picker-slider-track"
+          style={computed(() => ({ background: gradient.value }))}
         />
 
         {/* Thumb — absolutely positioned at the current fraction */}
         <div
-          className="tokenpanel-color-picker-slider-thumb"
-          style={{ left: `${fraction * 100}%` }}
+          class="tokenpanel-color-picker-slider-thumb"
+          style={computed(() => ({ left: `${fraction.value * 100}%` }))}
         />
       </div>
 
-      <span className="tokenpanel-color-picker-slider-value">{format(value)}</span>
+      <span class="tokenpanel-color-picker-slider-value">{valueText}</span>
     </div>
   );
 }

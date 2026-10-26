@@ -7,3 +7,7 @@ sidebar_position: 104
 ### Breaking Changes
 
 - The static dashboard moves from Preact to zfb's zudo-react runtime. `TokenDashboard` from `@takazudo/zdtp/dashboard` is now a zudo-react component: render it from a zfb page or with `renderToString` from `@takazudo/zfb/zudo-react/server`. `@takazudo/zdtp/dashboard/client` mounts through zudo-react and adds a `display: contents` wrapper inside the host. Dashboard users install `@takazudo/zfb` (new optional peer `^5.1.2`). The panel itself is unaffected.
+
+### Other Changes
+
+- The panel starts moving from Preact to zfb's zudo-react runtime ([#1075](https://github.com/Takazudo/zudo-design-token-panel/issues/1075)). The panel bundles its own copy of zudo-react, so hosts install nothing new; the color picker's sliders are the first part ported. The public API is unchanged; each ported part sits inside a `display: contents` `.tokenpanel-zr-host` wrapper while the migration runs.
