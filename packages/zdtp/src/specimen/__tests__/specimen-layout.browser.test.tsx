@@ -1,10 +1,11 @@
 // @vitest-environment browser
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 
-import { render } from 'preact';
-import { act } from '../../zr/test-utils';
+import { act, cleanupZr, renderZr } from '../../zr/test-utils';
+import { createPanelServices } from '../../zr/panel-services';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PanelConfig } from '../../config/panel-config';
-import { RoleButton } from '../../controls/role-button-preact';
+import { RoleButton } from '../../controls/role-button';
 import FontTab from '../../tabs/font-tab';
 import type { RowContribution } from '../../tabs/flat/types';
 import type { TabConfig } from '../../tokens/tier-model';
@@ -70,14 +71,21 @@ const CFG = {
 const changedContribution: RowContribution = {
   id: 'changed-fixture',
   className: ({ item }) => item.id === 'large' ? 'is-changed' : undefined,
-  trailing: ({ item }) => (
-    <>
-      {item.id === 'large' && <RoleButton className="tokenpanel-changed-revert" onClick={() => undefined} aria-label="Revert large">↶</RoleButton>}
-      <RoleButton className="tokenpanel-chain-button" onClick={() => undefined} aria-label={`Chain ${item.id}`}>+</RoleButton>
-      <RoleButton className="tokenpanel-highlight-toggle" onClick={() => undefined} aria-label={`Highlight ${item.id}`}>+</RoleButton>
-    </>
-  ),
-  tail: ({ item }) => item.id === 'large' ? <span className="tokenpanel-changed-tail">default 2.5rem → 3rem</span> : null,
+  trailing: (entry) => {
+    const { item } = entry.value;
+    return (
+      <>
+        {item.id === 'large'
+          ? <RoleButton class="tokenpanel-changed-revert" onClick={() => undefined} aria-label="Revert large">↶</RoleButton>
+          : null}
+        <RoleButton class="tokenpanel-chain-button" onClick={() => undefined} aria-label={`Chain ${item.id}`}>+</RoleButton>
+        <RoleButton class="tokenpanel-highlight-toggle" onClick={() => undefined} aria-label={`Highlight ${item.id}`}>+</RoleButton>
+      </>
+    );
+  },
+  tail: (entry) => entry.value.item.id === 'large'
+    ? <span class="tokenpanel-changed-tail">default 2.5rem → 3rem</span>
+    : null,
 };
 
 let shell: HTMLDivElement;
@@ -95,7 +103,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
-  act(() => render(null, shell));
+  cleanupZr();
   shell.remove();
   style.remove();
   localStorage.clear();
@@ -128,17 +136,20 @@ function assertRowPartsDoNotOverlap(row: HTMLElement): void {
 async function mount(width: number, density: 0 | 1 | 2): Promise<void> {
   shell.style.width = `${width}px`;
   shell.style.setProperty('--tokenpanel-grid-min', density === 0 ? '192px' : density === 1 ? '288px' : '100%');
-  await act(() => render(
-    <FontTab
-      tab={TAB}
-      state={{ large: '3rem' }}
-      persistFont={() => undefined}
-      instanceConfig={CFG}
-      onBulkApply={vi.fn()}
-      changedContribution={changedContribution}
-    />,
-    shell,
-  ));
+  act(() => {
+    cleanupZr();
+    renderZr(() => (
+      <FontTab
+        tab={TAB}
+        state={{ large: '3rem' }}
+        persistFont={() => undefined}
+        instanceConfig={CFG}
+        onBulkApply={vi.fn()}
+        extraContributions={[changedContribution]}
+        services={createPanelServices()}
+      />
+    ), shell);
+  });
   const text = shell.querySelector<HTMLInputElement>('[aria-label="Preview text"]')!;
   await act(() => {
     text.value = '銀河鉄道の夜を旅する活字見本です';

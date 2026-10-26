@@ -37,7 +37,7 @@ import {
   PinnedSelectionOverlay,
 } from '../dom-tweaker/lazy/pinned-selection-overlay';
 import { DOM_TWEAKER_STYLE_ID } from '../dom-tweaker/lazy/style-injection';
-import { ModesRow } from '../tabs/modes-row';
+import { ModesRow } from '../tabs/modes-row-preact';
 import type { TierItem } from '../tokens/tier-model';
 
 // ---------------------------------------------------------------------------

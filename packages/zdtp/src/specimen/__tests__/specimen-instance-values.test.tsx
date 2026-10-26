@@ -145,10 +145,10 @@ it('resolves semantic family and weight previews through their source tiers', ()
     ],
   };
   expect(specimenFontStyle(semanticTab, (item) => item.default)).toEqual({
-    fontFamily: 'serif', fontWeight: '400',
+    'font-family': 'serif', 'font-weight': '400',
   });
   const edits: Record<string, string> = { family: 'monospace', weight: '700' };
   expect(specimenFontStyle(semanticTab, (item) => edits[item.id] ?? item.default)).toEqual({
-    fontFamily: 'monospace', fontWeight: '700',
+    'font-family': 'monospace', 'font-weight': '700',
   });
 });

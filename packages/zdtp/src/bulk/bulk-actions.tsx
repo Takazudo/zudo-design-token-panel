@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useRef } from 'preact/compat';
-import type { ComponentChildren } from 'preact';
-import { RoleButton } from '../controls/role-button-preact';
+/** @jsxImportSource @takazudo/zfb/zudo-react */
+import { computed, Show, type ReadonlySignal } from '@takazudo/zfb/zudo-react';
+import { RoleButton } from '../controls/role-button';
+import { Checkbox, TextInput } from '../zr/form-controls';
+import { read, type MaybeSignal } from '../zr/live';
+import { Rebuild } from '../zr/rebuild';
 import type { TierConfig } from '../tokens/tier-model';
 import {
   add,
@@ -37,9 +40,9 @@ export interface BulkPatchEntry {
 }
 
 export interface BulkContributionOptions {
-  entriesByTier: ReadonlyMap<string, readonly FlatTabEntry[]>;
-  selectedKeys: ReadonlySet<string>;
-  operations: BulkOperations;
+  entriesByTier: ReadonlySignal<ReadonlyMap<string, readonly FlatTabEntry[]>>;
+  selectedKeys: ReadonlySignal<ReadonlySet<string>>;
+  operations: ReadonlySignal<BulkOperations>;
   onToggle: (entry: FlatTabEntry, checked: boolean) => void;
   onSelectTier: (tier: TierConfig, checked: boolean) => void;
   onQuick: (tier: TierConfig, factor: number) => void;
@@ -115,8 +118,8 @@ export function transformBulkEntry(
 
 interface BulkTierControlsProps {
   tier: TierConfig;
-  entries: readonly FlatTabEntry[];
-  selectedKeys: ReadonlySet<string>;
+  entries: ReadonlySignal<readonly FlatTabEntry[]>;
+  selectedKeys: ReadonlySignal<ReadonlySet<string>>;
   onSelectTier: (tier: TierConfig, checked: boolean) => void;
   onQuick: (tier: TierConfig, factor: number) => void;
 }
@@ -127,36 +130,28 @@ function BulkTierControls({
   selectedKeys,
   onSelectTier,
   onQuick,
-}: BulkTierControlsProps): ComponentChildren {
-  const selectable = useMemo(
-    () => entries.filter(isBulkSelectable),
-    [entries],
-  );
-  const selectedCount = selectable.reduce(
-    (count, entry) => count + (selectedKeys.has(tokenAddressKey(entry.address)) ? 1 : 0),
+}: BulkTierControlsProps) {
+  const selectable = computed(() => entries.value.filter(isBulkSelectable));
+  const selectedCount = computed(() => selectable.value.reduce(
+    (count, entry) => count + (selectedKeys.value.has(tokenAddressKey(entry.address)) ? 1 : 0),
     0,
-  );
-  const allSelected = selectable.length > 0 && selectedCount === selectable.length;
-  const checkboxRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    if (checkboxRef.current) checkboxRef.current.indeterminate = selectedCount > 0 && !allSelected;
-  }, [allSelected, selectedCount]);
+  ));
+  const allSelected = computed(() => selectable.value.length > 0 && selectedCount.value === selectable.value.length);
 
   return (
-    <span className="tokenpanel-bulk-tier-controls">
-      <input
-        ref={checkboxRef}
-        type="checkbox"
-        className="tokenpanel-bulk-checkbox tokenpanel-bulk-tier-checkbox"
+    <span class="tokenpanel-bulk-tier-controls">
+      <Checkbox
+        class="tokenpanel-bulk-checkbox tokenpanel-bulk-tier-checkbox"
         checked={allSelected}
-        disabled={selectable.length === 0}
+        indeterminate={computed(() => selectedCount.value > 0 && !allSelected.value)}
+        disabled={computed(() => selectable.value.length === 0)}
         aria-label={`Select all ${tier.label}`}
         data-testid={`bulk-select-tier-${tier.id}`}
-        onChange={(event) => onSelectTier(tier, event.currentTarget.checked)}
+        onChange={(checked) => onSelectTier(tier, checked)}
       />
-      <span className="tokenpanel-bulk-tier-quick">
+      <span class="tokenpanel-bulk-tier-quick">
         <RoleButton
-          className="tokenpanel-bulk-quick-btn"
+          class="tokenpanel-bulk-quick-btn"
           aria-label={`Select ${tier.label} and multiply by 0.9`}
           title="Select tier and multiply by 0.9"
           data-testid={`bulk-quick-${tier.id}-0.9`}
@@ -165,7 +160,7 @@ function BulkTierControls({
           ×0.9
         </RoleButton>
         <RoleButton
-          className="tokenpanel-bulk-quick-btn"
+          class="tokenpanel-bulk-quick-btn"
           aria-label={`Select ${tier.label} and multiply by 1.1`}
           title="Select tier and multiply by 1.1"
           data-testid={`bulk-quick-${tier.id}-1.1`}
@@ -187,43 +182,50 @@ export function createBulkContribution(options: BulkContributionOptions): RowCon
     onSelectTier,
     onQuick,
   } = options;
+  const isSelected = (entry: FlatTabEntry) => selectedKeys.value.has(tokenAddressKey(entry.address));
   return {
     id: 'bulk',
-    leading: (entry) => {
-      if (!isBulkSelectable(entry)) return null;
-      const selected = selectedKeys.has(tokenAddressKey(entry.address));
-      return (
-        <input
-          type="checkbox"
-          className="tokenpanel-bulk-checkbox tokenpanel-bulk-row-checkbox"
-          checked={selected}
-          aria-label={`Select ${entry.item.label}`}
-          data-testid={`bulk-select-${tokenAddressKey(entry.address)}`}
-          onChange={(event) => onToggle(entry, event.currentTarget.checked)}
-        />
-      );
-    },
+    leading: (entry) => (
+      <Show when={computed(() => isBulkSelectable(entry.value))}>
+        {() => (
+          <Checkbox
+            class="tokenpanel-bulk-checkbox tokenpanel-bulk-row-checkbox"
+            checked={computed(() => isSelected(entry.value))}
+            aria-label={`Select ${entry.value.item.label}`}
+            data-testid={`bulk-select-${tokenAddressKey(entry.value.address)}`}
+            onChange={(checked) => onToggle(entry.value, checked)}
+          />
+        )}
+      </Show>
+    ),
     className: (entry) => (
-      selectedKeys.has(tokenAddressKey(entry.address)) && isBulkSelectable(entry)
+      isSelected(entry) && isBulkSelectable(entry)
         ? 'tokenpanel-row--bulk-selected'
         : undefined
     ),
     tail: (entry) => {
-      if (!selectedKeys.has(tokenAddressKey(entry.address)) || !isBulkSelectable(entry)) return null;
-      const next = transformBulkEntry(entry, operations);
-      if (next === null || next === entry.value) return null;
+      const preview = computed(() => {
+        const current = entry.value;
+        if (!isSelected(current) || !isBulkSelectable(current)) return null;
+        const next = transformBulkEntry(current, operations.value);
+        return next === null || next === current.value ? null : { old: current.value, next };
+      });
       return (
-        <span className="tokenpanel-bulk-preview" data-testid={`bulk-preview-${tokenAddressKey(entry.address)}`}>
-          <span className="tokenpanel-bulk-preview-old">{entry.value}</span>
-          <span className="tokenpanel-bulk-preview-arrow" aria-hidden="true">→</span>
-          <span className="tokenpanel-bulk-preview-new">{next}</span>
-        </span>
+        <Show when={computed(() => preview.value !== null)}>
+          {() => (
+            <span class="tokenpanel-bulk-preview" data-testid={`bulk-preview-${tokenAddressKey(entry.value.address)}`}>
+              <span class="tokenpanel-bulk-preview-old">{computed(() => preview.value?.old ?? '')}</span>
+              <span class="tokenpanel-bulk-preview-arrow" aria-hidden="true">→</span>
+              <span class="tokenpanel-bulk-preview-new">{computed(() => preview.value?.next ?? '')}</span>
+            </span>
+          )}
+        </Show>
       );
     },
     tierHeadingExtra: (tier) => (
       <BulkTierControls
         tier={tier}
-        entries={entriesByTier.get(tier.id) ?? []}
+        entries={computed(() => entriesByTier.value.get(tier.id) ?? [])}
         selectedKeys={selectedKeys}
         onSelectTier={onSelectTier}
         onQuick={onQuick}
@@ -232,149 +234,126 @@ export function createBulkContribution(options: BulkContributionOptions): RowCon
   };
 }
 
-interface BulkRampSilhouetteProps {
-  entries: readonly FlatTabEntry[];
-  operations: BulkOperations;
+interface RampBar {
+  current: number;
+  next: number;
 }
 
-function BulkRampSilhouette({ entries, operations }: BulkRampSilhouetteProps): ComponentChildren {
-  const values = entries.map((entry) => {
+function rampBars(entries: readonly FlatTabEntry[], operations: BulkOperations): RampBar[] {
+  return entries.map((entry) => {
     const current = numericValueForEntry(entry);
     const next = transformBulkEntry(entry, operations);
     const parsedNext = next === null ? null : parseNumericTransformValue(next, current?.unit ?? '');
     return { current: current?.magnitude ?? 0, next: parsedNext?.magnitude ?? current?.magnitude ?? 0 };
   });
-  const max = Math.max(...values.flatMap((value) => [value.current, value.next]), 0.01);
-  const width = Math.max(40, entries.length * 9);
+}
+
+function BulkRampSilhouette({ bars }: { bars: ReadonlySignal<RampBar[]> }) {
+  const max = computed(() => Math.max(...bars.value.flatMap((value) => [value.current, value.next]), 0.01));
+  const width = computed(() => Math.max(40, bars.value.length * 9));
   const height = 28;
   return (
     <svg
-      className="tokenpanel-bulk-ramp"
+      class="tokenpanel-bulk-ramp"
       width={width}
       height={height}
-      viewBox={`0 0 ${width} ${height}`}
+      viewBox={computed(() => `0 0 ${width.value} ${height}`)}
       role="img"
       aria-label="Selected value ramp preview"
       data-testid="bulk-ramp-preview"
     >
-      {values.map((value, index) => {
-        const barHeight = (Math.max(0, value.current) / max) * height;
-        const nextHeight = (Math.max(0, value.next) / max) * height;
-        const x = index * 9;
-        return (
-          <g key={index}>
-            <rect className="tokenpanel-bulk-ramp-old" x={x} y={height - barHeight} width="7" height={barHeight} />
-            <rect className="tokenpanel-bulk-ramp-new" x={x} y={height - nextHeight} width="7" height={nextHeight} />
-          </g>
-        );
-      })}
+      <Rebuild value={computed(() => ({ bars: bars.value, max: max.value }))}>
+        {({ bars: list, max: top }) => list.map((value, index) => {
+          const barHeight = (Math.max(0, value.current) / top) * height;
+          const nextHeight = (Math.max(0, value.next) / top) * height;
+          const x = index * 9;
+          return (
+            <g>
+              <rect class="tokenpanel-bulk-ramp-old" x={x} y={height - barHeight} width="7" height={barHeight} />
+              <rect class="tokenpanel-bulk-ramp-new" x={x} y={height - nextHeight} width="7" height={nextHeight} />
+            </g>
+          );
+        })}
+      </Rebuild>
     </svg>
   );
 }
 
 export interface BulkActionBarProps {
-  entries: readonly FlatTabEntry[];
-  operations: BulkOperations;
+  entries: MaybeSignal<readonly FlatTabEntry[]>;
+  operations: MaybeSignal<BulkOperations>;
   onOperationsChange: (operations: BulkOperations) => void;
   onClear: () => void;
   onApply: (patch: readonly BulkPatchEntry[]) => void;
 }
 
-export function BulkActionBar({
-  entries,
-  operations,
-  onOperationsChange,
-  onClear,
-  onApply,
-}: BulkActionBarProps): ComponentChildren {
-  const patch = entries.flatMap((entry): BulkPatchEntry[] => {
-    const value = transformBulkEntry(entry, operations);
-    return value === null || value === entry.value ? [] : [{ address: entry.address, value }];
-  });
-  const setOperation = (key: keyof BulkOperations) => (event: React.ChangeEvent<HTMLInputElement>) => {
-    onOperationsChange({ ...operations, [key]: event.currentTarget.value });
-  };
-  const operationClass = (key: keyof BulkOperations): string => {
-    const setMode = operations.setTo.trim() !== '';
-    const active = setMode
-      ? key === 'setTo'
-      : key === 'multiply'
-        ? operations.multiply.trim() !== '' && operations.multiply !== '1'
-        : key === 'add'
-          ? operations.add.trim() !== '' && operations.add !== '0'
-          : operations.roundToStep.trim() !== ''
+function isOperationActive(operations: BulkOperations, key: keyof BulkOperations): boolean {
+  const setMode = operations.setTo.trim() !== '';
+  return setMode
+    ? key === 'setTo'
+    : key === 'multiply'
+      ? operations.multiply.trim() !== '' && operations.multiply !== '1'
+      : key === 'add'
+        ? operations.add.trim() !== '' && operations.add !== '0'
+        : key === 'roundToStep'
+          ? operations.roundToStep.trim() !== ''
             && operations.roundToStep !== '0'
-            && operations.roundToStep !== '0.125';
-    return `tokenpanel-bulk-number-input${active ? ' is-active' : ''}`;
-  };
+            && operations.roundToStep !== '0.125'
+          : false;
+}
+
+export function BulkActionBar(props: BulkActionBarProps) {
+  const { onOperationsChange, onClear, onApply } = props;
+  const entries = computed(() => read(props.entries));
+  const operations = computed(() => read(props.operations));
+  const patch = computed(() => entries.value.flatMap((entry): BulkPatchEntry[] => {
+    const value = transformBulkEntry(entry, operations.value);
+    return value === null || value === entry.value ? [] : [{ address: entry.address, value }];
+  }));
+
+  const field = (key: keyof BulkOperations, label: string, attrs: Record<string, string>) => (
+    <TextInput
+      value={computed(() => operations.value[key])}
+      class={computed(() => `tokenpanel-bulk-number-input${isOperationActive(operations.value, key) ? ' is-active' : ''}`)}
+      attrs={{ inputmode: 'decimal', 'aria-label': label, ...attrs }}
+      onInput={(value) => onOperationsChange({ ...operations.value, [key]: value })}
+    />
+  );
 
   return (
-    <div className="tokenpanel-bulk-action-bar" data-testid="bulk-action-bar">
-      <div className="tokenpanel-bulk-selection-count" role="status" aria-live="polite" data-testid="bulk-selection-count">
-        {entries.length} selected
+    <div class="tokenpanel-bulk-action-bar" data-testid="bulk-action-bar">
+      <div class="tokenpanel-bulk-selection-count" role="status" aria-live="polite" data-testid="bulk-selection-count">
+        {computed(() => `${entries.value.length} selected`)}
       </div>
-      <label className="tokenpanel-bulk-operation">
+      <label class="tokenpanel-bulk-operation">
         <span aria-hidden="true">×</span>
-        <input
-          type="text"
-          inputMode="decimal"
-          value={operations.multiply}
-          aria-label="Multiply by"
-          data-testid="bulk-multiply"
-          className={operationClass('multiply')}
-          onInput={setOperation('multiply')}
-        />
+        {field('multiply', 'Multiply by', { 'data-testid': 'bulk-multiply' })}
       </label>
-      <label className="tokenpanel-bulk-operation">
+      <label class="tokenpanel-bulk-operation">
         <span aria-hidden="true">+</span>
-        <input
-          type="text"
-          inputMode="decimal"
-          value={operations.add}
-          aria-label="Add"
-          data-testid="bulk-add"
-          className={operationClass('add')}
-          onInput={setOperation('add')}
-        />
+        {field('add', 'Add', { 'data-testid': 'bulk-add' })}
       </label>
-      <label className="tokenpanel-bulk-operation">
+      <label class="tokenpanel-bulk-operation">
         <span>round to</span>
-        <input
-          type="text"
-          inputMode="decimal"
-          value={operations.roundToStep}
-          aria-label="Round to step"
-          data-testid="bulk-round"
-          className={operationClass('roundToStep')}
-          onInput={setOperation('roundToStep')}
-        />
+        {field('roundToStep', 'Round to step', { 'data-testid': 'bulk-round' })}
       </label>
-      <label className="tokenpanel-bulk-operation">
+      <label class="tokenpanel-bulk-operation">
         <span>set all</span>
-        <input
-          type="text"
-          inputMode="decimal"
-          value={operations.setTo}
-          placeholder="—"
-          aria-label="Set all to"
-          data-testid="bulk-set"
-          className={operationClass('setTo')}
-          onInput={setOperation('setTo')}
-        />
+        {field('setTo', 'Set all to', { 'data-testid': 'bulk-set', placeholder: '—' })}
       </label>
-      <BulkRampSilhouette entries={entries} operations={operations} />
-      <span className="tokenpanel-spacer" />
+      <BulkRampSilhouette bars={computed(() => rampBars(entries.value, operations.value))} />
+      <span class="tokenpanel-spacer" />
       <RoleButton
-        className="tokenpanel-bulk-clear tokenpanel-action-link"
+        class="tokenpanel-bulk-clear tokenpanel-action-link"
         onClick={onClear}
         data-testid="bulk-clear"
       >
         Clear
       </RoleButton>
       <RoleButton
-        className="tokenpanel-bulk-apply"
-        aria-disabled={patch.length === 0}
-        onClick={() => { if (patch.length > 0) onApply(patch); }}
+        class="tokenpanel-bulk-apply"
+        aria-disabled={computed(() => patch.value.length === 0)}
+        onClick={() => { if (patch.value.length > 0) onApply(patch.value); }}
         data-testid="bulk-apply"
       >
         Apply to selection

@@ -20,7 +20,7 @@ import ColorTab from '../tabs/color-tab';
 import {
   HighlightContext,
   type HighlightContextValue,
-} from '../highlight/highlight-toggle-button';
+} from '../highlight/highlight-toggle-button-preact';
 import { DEFAULT_HIGHLIGHT_SLOTS, type HighlightState } from '../highlight/highlight-state';
 import { TooltipProvider } from '../controls/tooltip-preact';
 import { __resetPanelConfigForTests } from '../config/panel-config';

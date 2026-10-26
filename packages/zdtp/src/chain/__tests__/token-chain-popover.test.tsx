@@ -1,16 +1,17 @@
 // @vitest-environment jsdom
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { h, render } from 'preact';
-import { act } from '../../zr/test-utils';
-import { LayerActivityProvider } from '../../shell/layer-activity';
-import { HighlightContext, type HighlightContextValue } from '../../highlight/highlight-toggle-button';
+import { signal } from '@takazudo/zfb/zudo-react';
+import { act, cleanupZr, renderZr } from '../../zr/test-utils';
+import { createPanelServices } from '../../zr/panel-services';
+import type { HighlightContextValue } from '../../highlight/highlight-context';
 import { DEFAULT_HIGHLIGHT_SLOTS, type HighlightState } from '../../highlight/highlight-state';
 import { EXAMPLE_PANEL_CONFIG } from '../../__tests__/_example-ramp-native-tier2';
 import type { TweakState } from '../../state/tweak-state';
 import { tokenAddressKey } from '../../tabs/flat/types';
 import { TokenChainButton } from '../token-chain-popover';
-import { TokenChainProvider } from '../token-chain-context';
+import { buildTokenGraph } from '../../utils/token-graph';
 
 function makeState(): TweakState {
   return {
@@ -60,17 +61,14 @@ function renderChain(
     matchCounts: {},
     requestMatchCount,
   };
+  const services = createPanelServices({
+    highlight: signal(ctx),
+    chain: signal({ graph: buildTokenGraph(EXAMPLE_PANEL_CONFIG, makeState()) }),
+    setLayerActive: vi.fn(),
+  });
   act(() => {
-    render(
-      h(LayerActivityProvider, null,
-        h(HighlightContext.Provider, { value: ctx },
-          h(TokenChainProvider, { instanceConfig: EXAMPLE_PANEL_CONFIG, state: makeState() },
-            h(TokenChainButton, { address }),
-          ),
-        ),
-      ),
-      container,
-    );
+    cleanupZr();
+    renderZr(() => <TokenChainButton address={address} services={services} />, container);
   });
   return ctx;
 }
@@ -98,7 +96,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => render(null, container));
+  cleanupZr();
   container.remove();
   document.querySelector('.tokenpanel-chain-popover')?.remove();
   vi.restoreAllMocks();

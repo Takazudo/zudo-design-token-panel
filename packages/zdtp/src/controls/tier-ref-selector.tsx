@@ -1,7 +1,11 @@
-import { memo } from 'preact/compat';
+/** @jsxImportSource @takazudo/zfb/zudo-react */
+import { computed, getScope, Show } from '@takazudo/zfb/zudo-react';
+import { Checkbox, ControlledSelect } from '../zr/form-controls';
+import { Rebuild } from '../zr/rebuild';
 import type { TabConfig, TierConfig, TierItem } from '../tokens/tier-model';
-import ColorField from '../components/color-picker/color-picker-preact';
+import { ColorField } from '../components/color-picker/color-field';
 import { resolvePerModeLiteral } from '../state/tweak-state';
+import { read, type MaybeSignal } from '../zr/live';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -174,7 +178,7 @@ export interface TierRefSelectorProps {
   /** The item being edited within `tierId`. */
   itemId: string;
   /** Current value — a ramp/ref target, or a literal color/CSS string. */
-  value: TierRefSelectorValue;
+  value: MaybeSignal<TierRefSelectorValue>;
   /**
    * Called when the user commits a selection or edits the literal value.
    *
@@ -189,7 +193,7 @@ export interface TierRefSelectorProps {
    * preview})`. Falls back to the target item's manifest `default` when
    * omitted.
    */
-  previewValueFor?: (ref: TierRefTarget) => string;
+  previewValueFor?: MaybeSignal<((ref: TierRefTarget) => string) | undefined>;
   /**
    * Friendly label used for the literal-mode `ColorField` editor (grouped
    * mode only) and the select's `aria-label`. Defaults to `itemId`.
@@ -212,26 +216,17 @@ export interface TierRefSelectorProps {
 // Component
 // ---------------------------------------------------------------------------
 
-function TierRefSelector({
-  tab,
-  tabs,
-  tierId,
-  itemId,
-  value,
-  onChange,
-  previewValueFor,
-  label,
-  cssVar,
-  defaultMode = 'light',
-}: TierRefSelectorProps) {
-  // -------------------------------------------------------------------------
-  // Derive mode (grouped cross-tab ramps vs. flat intra-tab ref) and options
-  // -------------------------------------------------------------------------
+export function TierRefSelector(props: TierRefSelectorProps) {
+  const { tab, tierId, itemId, onChange, cssVar } = props;
+  const defaultMode = props.defaultMode ?? 'light';
+  const rowLabel = props.label ?? itemId;
 
+  // Options come from the tab config, which is fixed for a mounted row; only
+  // the value and the override-aware previews change.
   const thisTier = findTier(tab, tierId);
   const rampSources = thisTier?.referencesRamps;
   const isGrouped = !!rampSources && rampSources.length > 0;
-  const tabsList = tabs ?? [tab];
+  const tabsList = props.tabs ?? [tab];
 
   const groups: RefGroup[] = isGrouped
     ? buildRampGroups(rampSources!, tab, tabsList)
@@ -240,49 +235,46 @@ function TierRefSelector({
         const refTier = refTierId ? findTier(tab, refTierId) : undefined;
         return refTier ? [{ label: refTier.label, options: buildFlatOptions(refTier) }] : [];
       })();
-
   const allOptions = groups.flatMap((g) => g.options);
 
-  // Determine the currently selected option. When the value is a ref that
-  // doesn't (or no longer) resolve to a built option, leave it undefined —
-  // rendering a disabled "(unresolved: …)" placeholder below instead of
-  // silently falling back to some other option, which would misrepresent a
-  // broken reference as a valid selection.
-  const selectedOption = isLiteralValue(value)
-    ? undefined
-    : allOptions.find((o) => refsEqual(o.ref, value.ref));
+  const value = computed(() => read(props.value));
+  const previewFor = (ref: TierRefTarget, fallback: string): string => {
+    const fn = read(props.previewValueFor);
+    return fn ? fn(ref) : fallback;
+  };
 
-  const unresolvedRef: TierRefTarget | undefined =
-    !isLiteralValue(value) && !selectedOption ? value.ref : undefined;
-
-  if (unresolvedRef) {
-    warnUnresolvedRefOnce(unresolvedRef);
-  }
-
-  const selectedKey = isLiteralValue(value)
+  // A ref that doesn't (or no longer) resolve to a built option selects a
+  // disabled "(unresolved: …)" placeholder instead of silently falling back
+  // to some other option, which would misrepresent a broken reference.
+  const selectedOption = computed(() => {
+    const current = value.value;
+    return isLiteralValue(current) ? undefined : allOptions.find((o) => refsEqual(o.ref, current.ref));
+  });
+  const unresolvedRef = computed<TierRefTarget | null>(() => {
+    const current = value.value;
+    return !isLiteralValue(current) && !selectedOption.value ? current.ref : null;
+  });
+  const selectedKey = computed(() => isLiteralValue(value.value)
     ? LITERAL_OPTION_VALUE
-    : (selectedOption?.key ?? UNRESOLVED_OPTION_VALUE);
+    : (selectedOption.value?.key ?? UNRESOLVED_OPTION_VALUE));
 
-  const rowLabel = label ?? itemId;
-  const resolvedPreview = !isGrouped
-    ? undefined
-    : isLiteralValue(value)
-      ? typeof value.literal === 'string'
-        ? value.literal
-        : resolvePerModeLiteral({ literal: value.literal }, defaultMode)
-      : previewValueFor
-        ? previewValueFor(value.ref)
-        : (selectedOption?.item.default ?? '');
+  const literalSeed = (current: TierRefSelectorValue): string => isLiteralValue(current)
+    ? typeof current.literal === 'string'
+      ? current.literal
+      : resolvePerModeLiteral({ literal: current.literal }, defaultMode)
+    : '';
 
-  // -------------------------------------------------------------------------
-  // Handlers
-  // -------------------------------------------------------------------------
+  const resolvedPreview = computed(() => {
+    const current = value.value;
+    if (isLiteralValue(current)) return literalSeed(current);
+    return previewFor(current.ref, selectedOption.value?.item.default ?? '');
+  });
 
-  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const key = e.currentTarget.value;
+  const handleSelectChange = (key: string) => {
     // The placeholder is disabled, so the browser never fires a real change
     // to it — this guard is defense-in-depth, not a path users can hit.
     if (key === UNRESOLVED_OPTION_VALUE) return;
+    const current = value.value;
     if (key === LITERAL_OPTION_VALUE) {
       // Seed the literal editor from whatever was visible a moment ago, so
       // the user starts from a real color rather than a blank field. Always
@@ -290,12 +282,11 @@ function TierRefSelector({
       // the user expands to per-mode via the "Per-mode" checkbox below. If
       // the previous value was already a per-mode literal, collapse it to
       // the cluster's default-mode side first.
-      const seed = isLiteralValue(value)
-        ? typeof value.literal === 'string'
-          ? value.literal
-          : resolvePerModeLiteral({ literal: value.literal }, defaultMode)
-        : selectedOption
-          ? (previewValueFor ? previewValueFor(selectedOption.ref) : selectedOption.item.default)
+      const option = selectedOption.value;
+      const seed = isLiteralValue(current)
+        ? literalSeed(current)
+        : option
+          ? previewFor(option.ref, option.item.default)
           : '';
       onChange(itemId, { literal: seed });
       return;
@@ -305,10 +296,6 @@ function TierRefSelector({
     onChange(itemId, { ref: opt.ref });
   };
 
-  const handleLiteralChange = (next: string) => {
-    onChange(itemId, { literal: next });
-  };
-
   /**
    * "Per-mode" checkbox (permitted `<label><input type="checkbox">`,
    * CLAUDE.md) — expands a single-mode literal into a light/dark pair, or
@@ -316,89 +303,100 @@ function TierRefSelector({
    * `value` is already a literal (the checkbox only renders in that state).
    */
   const handleTogglePerMode = () => {
-    if (!isLiteralValue(value)) return;
-    const current = value.literal;
-    if (typeof current === 'object' && current !== null) {
+    const current = value.value;
+    if (!isLiteralValue(current)) return;
+    const literal = current.literal;
+    if (typeof literal === 'object' && literal !== null) {
       // Collapse — keep the cluster's default-mode side (#472).
-      onChange(itemId, { literal: resolvePerModeLiteral({ literal: current }, defaultMode) });
+      onChange(itemId, { literal: resolvePerModeLiteral({ literal }, defaultMode) });
     } else {
       // Expand — seed both sides from the current single value.
-      onChange(itemId, { literal: { light: current, dark: current } });
+      onChange(itemId, { literal: { light: literal, dark: literal } });
     }
   };
 
-  const handleLightChange = (next: string) => {
-    if (!isLiteralValue(value)) return;
-    const current = value.literal;
-    if (typeof current !== 'object' || current === null) return;
-    onChange(itemId, { literal: { light: next, dark: current.dark } });
+  const perModeLiteral = computed(() => {
+    const current = value.value;
+    return isLiteralValue(current) && typeof current.literal === 'object' && current.literal !== null
+      ? current.literal
+      : null;
+  });
+  const isPerMode = computed(() => perModeLiteral.value !== null);
+
+  const handleSideChange = (side: 'light' | 'dark') => (next: string) => {
+    const pair = perModeLiteral.value;
+    if (!pair) return;
+    onChange(itemId, { literal: { ...pair, [side]: next } });
   };
 
-  const handleDarkChange = (next: string) => {
-    if (!isLiteralValue(value)) return;
-    const current = value.literal;
-    if (typeof current !== 'object' || current === null) return;
-    onChange(itemId, { literal: { light: current.light, dark: next } });
-  };
+  const optionLabel = (opt: RefOption) =>
+    `${opt.item.cssVar} (${truncatePreview(previewFor(opt.ref, opt.item.default))})`;
 
-  // -------------------------------------------------------------------------
-  // Render
-  // -------------------------------------------------------------------------
+  // <option> content must be static text in zudo-react, so the select is
+  // rebuilt whenever an option label or the unresolved placeholder changes.
+  const optionLabels = computed(() => {
+    const ref = unresolvedRef.value;
+    return JSON.stringify({
+      unresolved: ref ? `(unresolved: ${ref.tier}/${ref.item})` : null,
+      labels: allOptions.map(optionLabel),
+    });
+  });
+
+  getScope().effect(() => {
+    const ref = unresolvedRef.value;
+    if (ref) warnUnresolvedRefOnce(ref);
+  });
 
   return (
     <div
-      className={
-        isGrouped
-          ? 'tokenpanel-tier-ref-selector tokenpanel-tier-ref-selector--grouped'
-          : 'tokenpanel-tier-ref-selector'
-      }
+      class={isGrouped
+        ? 'tokenpanel-tier-ref-selector tokenpanel-tier-ref-selector--grouped'
+        : 'tokenpanel-tier-ref-selector'}
     >
       {isGrouped && (
         <div
-          className="tokenpanel-semantic-resolved-chip"
+          class="tokenpanel-semantic-resolved-chip"
           aria-hidden="true"
           title={resolvedPreview}
-          style={{ backgroundColor: resolvedPreview }}
+          style={computed(() => ({ 'background-color': resolvedPreview.value }))}
         />
       )}
-      <select
-        className="tokenpanel-tier-ref-select"
-        value={selectedKey}
-        onChange={handleSelectChange}
-        aria-label={`${rowLabel} tier reference`}
-      >
-        {unresolvedRef && (
-          <option value={UNRESOLVED_OPTION_VALUE} disabled>
-            (unresolved: {unresolvedRef.tier}/{unresolvedRef.item})
-          </option>
-        )}
-        {isGrouped
-          ? groups.map((group) => (
-              <optgroup key={group.label} label={group.label}>
-                {group.options.map((opt) => {
-                  const preview = truncatePreview(
-                    previewValueFor ? previewValueFor(opt.ref) : opt.item.default,
-                  );
-                  return (
-                    <option key={opt.key} value={opt.key}>
-                      {opt.item.cssVar} ({preview})
-                    </option>
-                  );
-                })}
-              </optgroup>
-            ))
-          : allOptions.map((opt) => {
-              const preview = truncatePreview(
-                previewValueFor ? previewValueFor(opt.ref) : opt.item.default,
-              );
-              return (
-                <option key={opt.key} value={opt.key}>
-                  {opt.item.cssVar} ({preview})
-                </option>
-              );
-            })}
-        <option value={LITERAL_OPTION_VALUE}>Literal…</option>
-      </select>
+      <Rebuild value={optionLabels}>
+        {(encoded) => {
+          const { unresolved, labels } = JSON.parse(encoded) as {
+            unresolved: string | null;
+            labels: string[];
+          };
+          const labelFor = new Map(allOptions.map((opt, i) => [opt.key, labels[i]!]));
+          const renderOption = (opt: RefOption) => (
+            <option value={opt.key}>{labelFor.get(opt.key)!}</option>
+          );
+          return (
+            <ControlledSelect
+              value={selectedKey}
+              class="tokenpanel-tier-ref-select"
+              onChange={handleSelectChange}
+              aria-label={`${rowLabel} tier reference`}
+            >
+              {unresolved === null
+                ? []
+                : [
+                    <option value={UNRESOLVED_OPTION_VALUE} disabled>
+                      {unresolved}
+                    </option>,
+                  ]}
+              {isGrouped
+                ? groups.map((group) => (
+                    <optgroup label={group.label}>
+                      {group.options.map(renderOption)}
+                    </optgroup>
+                  ))
+                : allOptions.map(renderOption)}
+              <option value={LITERAL_OPTION_VALUE}>Literal…</option>
+            </ControlledSelect>
+          );
+        }}
+      </Rebuild>
       {/*
        * The editable literal swatch (single-mode, or the per-mode light/dark
        * pair, S12 #473) only ever appears in grouped (ramp) mode —
@@ -406,55 +404,63 @@ function TierRefSelector({
        * "Literal…" as "revert to the tier's default ref", not a real
        * standalone value to edit (see those tabs' onChange handlers).
        */}
-      {isGrouped && isLiteralValue(value) && (
-        <div className="tokenpanel-per-mode-fields">
-          <label className="tokenpanel-per-mode-toggle">
-            <input
-              type="checkbox"
-              checked={typeof value.literal === 'object' && value.literal !== null}
-              onChange={handleTogglePerMode}
-              aria-label={`${rowLabel} per-mode (light/dark)`}
-            />
-            Per-mode
-          </label>
-          {typeof value.literal === 'object' && value.literal !== null ? (
-            <>
-              <div className="tokenpanel-per-mode-field">
-                <span className="tokenpanel-per-mode-label">Light</span>
-                <ColorField
-                  value={value.literal.light}
-                  onChange={handleLightChange}
-                  valueFormat="oklch"
-                  resolveMode="light"
-                  label={`${rowLabel} (Light)`}
-                  cssVar={cssVar}
+      {isGrouped && (
+        <Show when={computed(() => isLiteralValue(value.value))}>
+          {() => (
+            <div class="tokenpanel-per-mode-fields">
+              <label class="tokenpanel-per-mode-toggle">
+                <Checkbox
+                  checked={isPerMode}
+                  onChange={handleTogglePerMode}
+                  aria-label={`${rowLabel} per-mode (light/dark)`}
                 />
-              </div>
-              <div className="tokenpanel-per-mode-field">
-                <span className="tokenpanel-per-mode-label">Dark</span>
-                <ColorField
-                  value={value.literal.dark}
-                  onChange={handleDarkChange}
-                  valueFormat="oklch"
-                  resolveMode="dark"
-                  label={`${rowLabel} (Dark)`}
-                  cssVar={cssVar}
-                />
-              </div>
-            </>
-          ) : (
-            <ColorField
-              value={value.literal}
-              onChange={handleLiteralChange}
-              valueFormat="oklch"
-              label={rowLabel}
-              cssVar={cssVar}
-            />
+                Per-mode
+              </label>
+              <Show
+                when={isPerMode}
+                fallback={() => (
+                  <ColorField
+                    value={computed(() => literalSeed(value.value))}
+                    onChange={(next) => onChange(itemId, { literal: next })}
+                    valueFormat="oklch"
+                    label={rowLabel}
+                    cssVar={cssVar}
+                  />
+                )}
+              >
+                {() => (
+                  <>
+                    <div class="tokenpanel-per-mode-field">
+                      <span class="tokenpanel-per-mode-label">Light</span>
+                      <ColorField
+                        value={computed(() => perModeLiteral.value?.light ?? '')}
+                        onChange={handleSideChange('light')}
+                        valueFormat="oklch"
+                        resolveMode="light"
+                        label={`${rowLabel} (Light)`}
+                        cssVar={cssVar}
+                      />
+                    </div>
+                    <div class="tokenpanel-per-mode-field">
+                      <span class="tokenpanel-per-mode-label">Dark</span>
+                      <ColorField
+                        value={computed(() => perModeLiteral.value?.dark ?? '')}
+                        onChange={handleSideChange('dark')}
+                        valueFormat="oklch"
+                        resolveMode="dark"
+                        label={`${rowLabel} (Dark)`}
+                        cssVar={cssVar}
+                      />
+                    </div>
+                  </>
+                )}
+              </Show>
+            </div>
           )}
-        </div>
+        </Show>
       )}
     </div>
   );
 }
 
-export default memo(TierRefSelector);
+export default TierRefSelector;

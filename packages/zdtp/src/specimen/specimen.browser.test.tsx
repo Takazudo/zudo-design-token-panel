@@ -3,7 +3,7 @@ import { act } from '../zr/test-utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { PanelConfig } from '../config/panel-config';
 import type { TabConfig } from '../tokens/tier-model';
-import FontTab from '../tabs/font-tab';
+import { FontTab } from '../tabs/flat-tabs-preact';
 
 const TAB: TabConfig = {
   id: 'font',

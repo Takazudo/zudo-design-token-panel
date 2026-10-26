@@ -58,19 +58,19 @@ import { getPanelConfig, type PanelConfig } from '../config/panel-config';
 import { resolveColorClusterFromTab } from '../config/cluster-config';
 import type { TabConfig, TierConfig, TierItem } from '../tokens/tier-model';
 import type { PersistColor, PersistSecondary } from '../state/persist';
-import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
+import { HighlightToggleButton } from '../highlight/highlight-toggle-button-preact';
 import { RoleButton } from '../controls/role-button-preact';
-import { TokenLabel } from '../controls/token-label';
+import { TokenLabel } from '../controls/token-label-preact';
 import { useTooltip } from '../controls/tooltip-preact';
 import { HelpIcon, SEMANTIC_TOKENS_HELP_TEXT } from '../controls/help-icon';
 import TierRefSelector, {
   type TierRefSelectorValue,
   type TierRefTarget,
-} from '../controls/tier-ref-selector';
+} from '../controls/tier-ref-selector-preact';
 import { TokenChainButton } from '../chain';
 import { tokenAddressKey, type TokenAddress } from './flat/types';
 import { matchesSearchFields, stringifySearchValue } from '../search/token-search';
-import { ModesRow, resolveModeRowSides } from './modes-row';
+import { ModesRow, resolveModeRowSides } from './modes-row-preact';
 
 // The bundled scheme registry now lives on
 // `panelConfig.colorCluster.colorSchemes`, not on a global import. Read it

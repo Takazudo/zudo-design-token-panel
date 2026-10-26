@@ -18,7 +18,7 @@ import {
   ModesEditorFields,
   ModesRow,
   resolveModeRowSides,
-} from '../modes-row';
+} from '../modes-row-preact';
 
 let container: HTMLDivElement;
 const colorFieldProps = new Map<'light' | 'dark', ColorFieldProps>();

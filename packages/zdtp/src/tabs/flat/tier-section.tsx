@@ -1,64 +1,62 @@
-import type { ComponentChildren } from 'preact';
-import { useCallback, useMemo } from 'preact/compat';
+/** @jsxImportSource @takazudo/zfb/zudo-react */
+import { computed, For, type ReadonlySignal } from '@takazudo/zfb/zudo-react';
 import type { TabOverrides } from '../../apply/tier-resolver';
 import type { TierConfig, TierItem } from '../../tokens/tier-model';
+import type { PanelServices } from '../../zr/panel-services';
 import TokenRow from './token-row';
 import type { FlatTabEntry, RowContribution, TokenAddress } from './types';
 
-export type SharedRowRenderer = (item: TierItem) => ComponentChildren;
+/** Reorders a tier's items for display; read reactively. */
+export type TierItemOrder = (tier: TierConfig) => readonly TierItem[];
 
 export interface TierSectionProps {
   tier: TierConfig;
-  entries: readonly FlatTabEntry[];
-  overrides: TabOverrides;
+  entries: ReadonlySignal<readonly FlatTabEntry[]>;
+  overrides: ReadonlySignal<TabOverrides>;
   contributions?: readonly RowContribution[];
   testId?: string;
   setValue: (address: TokenAddress, next: string) => void;
   deleteValue: (address: TokenAddress) => void;
-  renderTierBody?: (tier: TierConfig, renderRow: SharedRowRenderer) => ComponentChildren;
+  orderItems?: TierItemOrder;
+  services: PanelServices;
 }
 
-function TierSection({
-  tier,
-  entries,
-  overrides,
-  contributions = [],
-  testId,
-  setValue,
-  deleteValue,
-  renderTierBody,
-}: TierSectionProps) {
+export function TierSection(props: TierSectionProps) {
+  const { tier, entries, overrides, testId, setValue, deleteValue, orderItems, services } = props;
+  const contributions = props.contributions ?? [];
   const isFullWidthSpecimen = tier.preview === 'size' || tier.preview === 'line-height';
-  const entryByItem = useMemo(() => new Map(entries.map((entry) => [entry.item.id, entry])), [entries]);
-  const renderRow = useCallback<SharedRowRenderer>((item) => {
-    const entry = entryByItem.get(item.id);
-    if (!entry) return null;
-    return (
-      <TokenRow
-        key={item.id}
-        entry={entry}
-        overrides={overrides}
-        contributions={contributions}
-        onChange={setValue}
-        onDelete={deleteValue}
-      />
-    );
-  }, [contributions, deleteValue, entryByItem, overrides, setValue]);
+  const rows = computed(() => {
+    const entryByItem = new Map(entries.value.map((entry) => [entry.item.id, entry]));
+    const items = orderItems ? orderItems(tier) : tier.items;
+    return items.flatMap((item) => {
+      const entry = entryByItem.get(item.id);
+      return entry ? [entry] : [];
+    });
+  });
 
   return (
-    <div className="tokenpanel-tab-section" {...(testId ? { 'data-testid': testId } : {})}>
-      <div role="heading" aria-level={3} className="tokenpanel-tab-section-heading">
+    <div class="tokenpanel-tab-section" data-testid={testId ?? null}>
+      <div role="heading" aria-level={3} class="tokenpanel-tab-section-heading">
         {tier.label}
         {contributions.map((contribution) => contribution.tierHeadingExtra
-          ? <span key={contribution.id} className="tokenpanel-tab-section-heading-extra">{contribution.tierHeadingExtra(tier)}</span>
+          ? <span class="tokenpanel-tab-section-heading-extra">{contribution.tierHeadingExtra(tier)}</span>
           : null)}
       </div>
-      <div className={isFullWidthSpecimen
+      <div class={isFullWidthSpecimen
         ? 'tokenpanel-tab-grid tokenpanel-tab-grid--specimen'
         : 'tokenpanel-tab-grid'}>
-        {renderTierBody
-          ? renderTierBody(tier, renderRow)
-          : tier.items.map((item) => renderRow(item))}
+        <For each={rows} by={(entry) => entry.item.id}>
+          {(entry) => (
+            <TokenRow
+              entry={entry}
+              overrides={overrides}
+              contributions={contributions}
+              onChange={setValue}
+              onDelete={deleteValue}
+              services={services}
+            />
+          )}
+        </For>
       </div>
     </div>
   );

@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 
-import { render } from 'preact';
-import { act } from '../../../zr/test-utils';
+import { act, cleanupZr, renderZr } from '../../../zr/test-utils';
+import { createPanelServices } from '../../../zr/panel-services';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TabConfig } from '../../../tokens/tier-model';
 import FlatTab from '../flat-tab';
+import { RoleButton } from '../../../controls/role-button';
 import { scrollToTokenRow, TOKEN_ROW_FLASH_CLASS } from '../scroll-to-token-row';
 import type { RowContribution, TokenAddress } from '../types';
 import { tokenAddressKey } from '../types';
-import { useTokenController } from '../token-controller';
 
 const TAB: TabConfig = {
   id: 'custom',
@@ -32,22 +33,22 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => render(null, container));
+  act(() => cleanupZr());
   container.remove();
 });
 
 function mount(contributions: readonly RowContribution[] = []) {
   act(() => {
-    render(
+    renderZr(() => (
       <FlatTab
         tab={TAB}
         getValue={(_address, item) => item.default}
         setValue={vi.fn()}
         deleteValue={vi.fn()}
         contributions={contributions}
-      />,
-      container,
-    );
+        services={createPanelServices()}
+      />
+    ), container);
   });
 }
 
@@ -64,15 +65,15 @@ describe('FlatTab contributions', () => {
       ],
     };
     act(() => {
-      render(
+      renderZr(() => (
         <FlatTab
           tab={previewTab}
           getValue={(_address, item) => item.default}
           setValue={vi.fn()}
           deleteValue={vi.fn()}
-        />,
-        container,
-      );
+          services={createPanelServices()}
+        />
+      ), container);
     });
 
     const grids = Array.from(container.querySelectorAll('.tokenpanel-tab-grid'));
@@ -122,23 +123,23 @@ describe('FlatTab contributions', () => {
     ]);
   });
 
-  it('gives a tier-body override the contribution-aware shared row renderer', () => {
+  it('renders contribution-aware rows in a tier-order override', () => {
     const contribution: RowContribution = {
       id: 'marker',
-      leading: (entry) => <span data-marker={entry.item.id} />,
+      leading: (entry) => <span data-marker={entry.value.item.id} />,
     };
     act(() => {
-      render(
+      renderZr(() => (
         <FlatTab
           tab={TAB}
           getValue={(_address, item) => item.default}
           setValue={vi.fn()}
           deleteValue={vi.fn()}
           contributions={[contribution]}
-          renderTierBody={(tier, renderRow) => [...tier.items].reverse().map(renderRow)}
-        />,
-        container,
-      );
+          orderItems={(tier) => [...tier.items].reverse()}
+          services={createPanelServices()}
+        />
+      ), container);
     });
 
     expect(Array.from(container.querySelectorAll<HTMLElement>('[data-address]')).map(
@@ -163,75 +164,74 @@ describe('scrollToTokenRow', () => {
   });
 });
 
-function ControllerProbe({ address }: { address: TokenAddress }) {
-  const controller = useTokenController(address);
-  return (
-    <span
-      data-controller-value={controller.value}
-      data-controller-kind={controller.kind}
-      data-controller-readonly={String(controller.readonly)}
-      onClick={() => controller.setValue('changed')}
-      onDblClick={() => controller.revert()}
-      onMouseDown={() => controller.jumpTo?.()}
-    />
-  );
-}
+describe('FlatTab — manifest mode row revert', () => {
+  const MODES_TAB: TabConfig = {
+    id: 'modes',
+    label: 'Modes',
+    tiers: [{
+      id: 'values',
+      label: 'Mode values',
+      items: [{
+        id: 'mode-color',
+        cssVar: '--test-mode-color',
+        label: 'Mode color',
+        default: '#222222',
+        type: { kind: 'color' },
+        modes: { light: '#ffffff', dark: '#111111' },
+      }],
+    }],
+  };
 
-describe('useTokenController', () => {
-  it('adapts flat and generic addresses to value, set, and revert operations', () => {
-    const setValue = vi.fn();
-    const deleteValue = vi.fn();
-    const contributions: RowContribution[] = [{
-      id: 'controller',
-      trailing: (entry) => <ControllerProbe address={entry.address} />,
-    }];
-    act(() => {
-      render(<FlatTab tab={TAB} getValue={(_address, item) => item.default}
-        setValue={setValue} deleteValue={deleteValue} contributions={contributions} />, container);
-    });
-    const probe = container.querySelector<HTMLElement>('[data-controller-value="a"]')!;
-    expect(probe.dataset.controllerKind).toBe('text');
-    expect(probe.dataset.controllerReadonly).toBe('false');
-    probe.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    probe.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
-    expect(setValue).toHaveBeenCalledWith(
-      { tabId: 'custom', tierId: 'values', itemId: 'alpha' },
-      'changed',
-    );
-    expect(deleteValue).toHaveBeenCalledWith(
-      { tabId: 'custom', tierId: 'values', itemId: 'alpha' },
-    );
-  });
-
-  it('keeps Color addresses read-only and exposes jumpTo', () => {
-    const colorTab: TabConfig = {
-      id: 'color',
-      label: 'Color',
-      tiers: [{ id: 'palette', label: 'Palette', items: [{
-        id: 'brand', cssVar: '--brand', label: 'Brand', default: '#ff0000', type: { kind: 'color' },
-      }] }],
+  it('deletes the override key from a stub trailing revert instead of writing light-dark(manifest)', () => {
+    const current: Record<string, Record<string, string>> = {
+      values: { 'mode-color': 'light-dark(#abcdef, #123456)' },
     };
-    const setValue = vi.fn();
-    const deleteValue = vi.fn();
-    const jumpTo = vi.fn();
-    const contributions: RowContribution[] = [{
-      id: 'controller',
-      trailing: (entry) => <ControllerProbe address={entry.address} />,
-    }];
-    act(() => {
-      render(<FlatTab tab={colorTab} getValue={(_address, item) => item.default}
-        setValue={setValue} deleteValue={deleteValue} jumpTo={jumpTo}
-        contributions={contributions} />, container);
+    const onChange = vi.fn((tierId: string, itemId: string, next: string | undefined) => {
+      const nextTier = { ...current[tierId] };
+      if (next === undefined) delete nextTier[itemId];
+      else nextTier[itemId] = next;
+      current[tierId] = nextTier;
     });
-    const probe = container.querySelector<HTMLElement>('[data-controller-value="#ff0000"]')!;
-    expect(probe.dataset.controllerReadonly).toBe('true');
-    probe.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    probe.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
-    probe.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-    expect(setValue).not.toHaveBeenCalled();
-    expect(deleteValue).not.toHaveBeenCalled();
-    expect(jumpTo).toHaveBeenCalledWith(
-      { tabId: 'color', tierId: 'palette', itemId: 'brand' },
+    const stubRevert: RowContribution = {
+      id: 'stub-revert',
+      trailing: (entry) => (
+        <RoleButton
+          data-testid={`stub-revert-${entry.value.item.id}`}
+          aria-label={`Revert ${entry.value.item.label}`}
+          onClick={() => onChange(entry.value.address.tierId, entry.value.address.itemId, undefined)}
+        >
+          Revert
+        </RoleButton>
+      ),
+    };
+
+    // Same setValue/deleteValue wiring GenericTab gives its FlatTab.
+    act(() => {
+      renderZr(() => (
+        <FlatTab
+          tab={MODES_TAB}
+          getValue={(address, item) => current[address.tierId]?.[address.itemId] ?? item.default}
+          setValue={(address, next) => onChange(address.tierId, address.itemId, next)}
+          deleteValue={(address) => onChange(address.tierId, address.itemId, undefined)}
+          overrides={current}
+          contributions={[stubRevert]}
+          services={createPanelServices()}
+        />
+      ), container);
+    });
+
+    const revert = container.querySelector<HTMLElement>('[data-testid="stub-revert-mode-color"]');
+    expect(revert).not.toBeNull();
+    act(() => {
+      revert!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(onChange).toHaveBeenCalledWith('values', 'mode-color', undefined);
+    expect(onChange).not.toHaveBeenCalledWith(
+      'values',
+      'mode-color',
+      'light-dark(#ffffff, #111111)',
     );
+    expect(current.values?.['mode-color']).toBeUndefined();
   });
 });
