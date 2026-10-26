@@ -1884,6 +1884,44 @@ function applyNonColorSlicesImpl(state: TweakState, config: PanelConfig) {
 }
 
 /**
+ * Clear the inline vars a generic tab's full apply pass wrote when the tab
+ * drops out of `state.tabs` between two states (undo, revert, replace import).
+ * The next apply treats that tab as never stored (`modesOnly`) and skips every
+ * item without `modes`, so without this the previous override (and any
+ * reference-tier `var()` write) would stay on `:root`. Mode-pair items are left
+ * for that pass to re-write.
+ */
+export function clearDroppedGenericTabOverrides(
+  previous: TweakState,
+  next: TweakState,
+  cfg?: PanelConfig,
+) {
+  const config = cfg ?? getPanelConfig();
+  const names: string[] = [];
+  for (const tab of config.tabs) {
+    if (['color', 'color-secondary', 'spacing', 'font', 'size'].includes(tab.id)) continue;
+    if (previous.tabs?.[tab.id] === undefined || next.tabs?.[tab.id] !== undefined) continue;
+    for (const tier of tab.tiers) {
+      for (const item of tier.items) {
+        if (!item.readonly && !item.modes) names.push(item.cssVar);
+      }
+    }
+  }
+  if (names.length === 0) return;
+  const sink = config.applySink;
+  if (sink) {
+    try {
+      sink.clear(names);
+    } catch (err) {
+      console.warn('[design-token-panel] applySink.clear threw; falling back silently.', err);
+    }
+    return;
+  }
+  const root = document.documentElement;
+  for (const name of names) root.style.removeProperty(name);
+}
+
+/**
  * Apply a flat TokenOverrides map against a TabConfig. Finds the tab by id
  * in `tabs`, then for each tier item resolves the effective CSS value using
  * the tier resolver (so reference tiers emit `var(--target)`) and writes it
