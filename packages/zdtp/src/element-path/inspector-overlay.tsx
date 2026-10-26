@@ -1,3 +1,4 @@
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 /**
  * InspectorOverlay — the interactive heart of Element Path Copy.
  *
@@ -12,19 +13,20 @@
  *
  * Rendering follows the highlight-overlay convention inside AltClickPicker: the
  * box + label positions are written imperatively from a RAF loop (so they track
- * scroll/reflow without a Preact re-render per frame).
+ * scroll/reflow without a re-render per frame).
  *
  * Self-contained — does NOT own its portal mount; the orchestrator decides where
  * in the DOM this renders.
  */
 
-import { useState, useEffect, useRef, useCallback } from 'preact/hooks';
-import type { JSX } from 'preact';
+import { computed, getScope, signal } from '@takazudo/zfb/zudo-react';
 import { buildSummary, buildElementPathString } from './build-element-path';
 import { copyToClipboard } from '../utils/copy-to-clipboard';
 import { ElementPathToast } from './element-path-toast';
 import { AltClickPicker, type AltClickPickerClassNames } from '../picker';
 import { Z } from '../styles/z-index-tokens';
+import type { Reactive } from '../zr/live';
+import { Rebuild } from '../zr/rebuild';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -65,62 +67,44 @@ interface ToastState {
 // Component
 // ---------------------------------------------------------------------------
 
-export function InspectorOverlay({
-  enabled,
-  onArmingRevoked,
-}: InspectorOverlayProps): JSX.Element | null {
-  const [toast, setToast] = useState<ToastState | null>(null);
+export function InspectorOverlay(props: Reactive<InspectorOverlayProps, 'onArmingRevoked'>) {
+  const toast = signal<ToastState | null>(null);
+  let toastTimer: ReturnType<typeof setTimeout> | null = null;
+  let toastKey = 0;
 
-  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const toastKeyRef = useRef(0);
-
-  // -------------------------------------------------------------------------
-  // Copy handler
-  // -------------------------------------------------------------------------
-
-  const copyPathFor = useCallback(async (el: Element) => {
+  const copyPathFor = async (el: Element) => {
     const text = buildElementPathString(el);
     const ok = await copyToClipboard(text);
-    toastKeyRef.current += 1;
-    setToast({
+    toastKey += 1;
+    toast.value = {
       message: ok ? `Copied path: ${buildSummary(el)}` : 'Copy failed — clipboard unavailable',
       ok,
-      key: toastKeyRef.current,
-    });
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = setTimeout(() => setToast(null), TOAST_DURATION);
-  }, []);
-
-  // -------------------------------------------------------------------------
-  // Clean up the toast timer on unmount.
-  // -------------------------------------------------------------------------
-
-  useEffect(() => {
-    return () => {
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      key: toastKey,
     };
-  }, []);
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      toast.value = null;
+    }, TOAST_DURATION);
+  };
 
-  // -------------------------------------------------------------------------
-  // Render
-  // -------------------------------------------------------------------------
+  getScope().onActivate(() => () => {
+    if (toastTimer) clearTimeout(toastTimer);
+  });
 
-  return (
-    <>
-      <AltClickPicker
-        enabled={enabled}
-        featureId={ELEMENT_PATH_PICKER_FEATURE_ID}
-        onElementPicked={copyPathFor}
-        onArmingRevoked={onArmingRevoked}
-        claimArmingOnEnable
-        getLabelText={buildSummary}
-        ariaLiveMessage={toast?.message ?? ''}
-        classNames={ELEMENT_PATH_PICKER_CLASS_NAMES}
-        zIndex={Z.inspectorBox}
-      />
-      {toast && (
-        <ElementPathToast key={toast.key} message={toast.message} ok={toast.ok} />
-      )}
-    </>
-  );
+  return [
+    <AltClickPicker
+      enabled={props.enabled}
+      featureId={ELEMENT_PATH_PICKER_FEATURE_ID}
+      onElementPicked={copyPathFor}
+      onArmingRevoked={props.onArmingRevoked}
+      claimArmingOnEnable
+      getLabelText={buildSummary}
+      ariaLiveMessage={computed(() => toast.value?.message ?? '')}
+      classNames={ELEMENT_PATH_PICKER_CLASS_NAMES}
+      zIndex={Z.inspectorBox}
+    />,
+    <Rebuild value={toast}>
+      {(current) => (current ? <ElementPathToast message={current.message} ok={current.ok} /> : null)}
+    </Rebuild>,
+  ];
 }

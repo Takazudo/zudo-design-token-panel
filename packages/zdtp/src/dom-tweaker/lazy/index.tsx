@@ -1,3 +1,4 @@
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 /**
  * DOM Tweaker lazy boundary.
  *
@@ -8,8 +9,7 @@
  * lazy boundary does not read global panel config.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import type { JSX } from 'preact';
+import { computed, getScope, Show, signal } from '@takazudo/zfb/zudo-react';
 import type { PanelConfig } from '../../config/panel-config';
 import { buildSummary } from '../../element-path/build-element-path';
 import { AltClickPicker, type AltClickPickerClassNames } from '../../picker';
@@ -31,6 +31,7 @@ import {
 import { buildSuggestions } from './suggestions';
 import { ensureDomTweakerStyles } from './style-injection';
 import { ensureRuntime } from './tailwind-runtime';
+import { read, type Reactive } from '../../zr/live';
 
 export {
   buildStaticSuggestions,
@@ -62,6 +63,15 @@ export interface DomTweakerLazyBoundaryProps {
   onArmingRevoked: () => void;
 }
 
+export type DomTweakerLazyBoundaryStaticKeys =
+  | 'storagePrefix'
+  | 'themeCss'
+  | 'consoleNamespace'
+  | 'modalClassPrefix'
+  | 'onCloseDiffExport'
+  | 'onRuntimeStatusChange'
+  | 'onArmingRevoked';
+
 function makeLazyPanelConfig({
   storagePrefix,
   themeCss,
@@ -87,66 +97,69 @@ function canStartRuntimeInThisEnvironment(): boolean {
   return !/\bjsdom\b/i.test(window.navigator.userAgent);
 }
 
-function readCurrentClasses(el: Element | null, sessionVersion: number): readonly string[] {
-  void sessionVersion;
+function readCurrentClasses(el: Element | null): readonly string[] {
   if (!el) return [];
   return getElementRecord(el)?.currentClasses ?? Array.from(el.classList);
 }
 
-export function DomTweakerLazyBoundary({
-  enabled,
-  storagePrefix,
-  themeCss = '',
-  consoleNamespace,
-  modalClassPrefix,
-  showDiffExport,
-  onCloseDiffExport,
-  onRuntimeStatusChange,
-  onArmingRevoked,
-}: DomTweakerLazyBoundaryProps): JSX.Element | null {
-  const [selectedElement, setSelectedElement] = useState<Element | null>(null);
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [sessionVersion, setSessionVersion] = useState(0);
-  const mountedRef = useRef(false);
-  const runtimeStartRequestedRef = useRef(false);
+export function DomTweakerLazyBoundary(
+  props: Reactive<DomTweakerLazyBoundaryProps, DomTweakerLazyBoundaryStaticKeys>,
+) {
+  const {
+    storagePrefix,
+    themeCss = '',
+    consoleNamespace,
+    modalClassPrefix,
+    onCloseDiffExport,
+    onRuntimeStatusChange,
+    onArmingRevoked,
+  } = props;
+  const enabled = computed(() => read(props.enabled));
+  const showDiffExport = computed(() => read(props.showDiffExport));
+  const selectedElement = signal<Element | null>(null);
+  const editorOpen = signal(false);
+  const sessionVersion = signal(0);
+  let mounted = false;
+  let runtimeStartRequested = false;
 
-  const bumpSessionVersion = useCallback(() => {
-    setSessionVersion((version) => version + 1);
-  }, []);
+  const bumpSessionVersion = () => {
+    sessionVersion.value += 1;
+  };
 
-  const suggestions = useMemo(() => buildSuggestions(themeCss), [themeCss]);
-  const instanceConfig = useMemo(
-    () =>
-      makeLazyPanelConfig({
-        storagePrefix,
-        themeCss,
-        consoleNamespace,
-        modalClassPrefix,
-      }),
-    [consoleNamespace, modalClassPrefix, storagePrefix, themeCss],
-  );
+  const suggestions = buildSuggestions(themeCss);
+  const instanceConfig = makeLazyPanelConfig({
+    storagePrefix,
+    themeCss,
+    consoleNamespace,
+    modalClassPrefix,
+  });
 
-  const selectedSummary = useMemo(
-    () => (selectedElement ? buildSummary(selectedElement) : ''),
-    [selectedElement, sessionVersion],
-  );
-  const currentClasses = useMemo(
-    () => readCurrentClasses(selectedElement, sessionVersion),
-    [selectedElement, sessionVersion],
-  );
-  const diffText = useMemo(() => formatSessionDiff(), [sessionVersion, showDiffExport]);
+  const selectedSummary = computed(() => {
+    void sessionVersion.value;
+    return selectedElement.value ? buildSummary(selectedElement.value) : '';
+  });
+  const currentClasses = computed(() => {
+    void sessionVersion.value;
+    return readCurrentClasses(selectedElement.value);
+  });
+  const diffText = computed(() => {
+    void sessionVersion.value;
+    void showDiffExport.value;
+    return formatSessionDiff();
+  });
 
-  useEffect(() => {
-    mountedRef.current = true;
+  const scope = getScope();
+  scope.onActivate(() => {
+    mounted = true;
     ensureDomTweakerStyles();
     return () => {
-      mountedRef.current = false;
+      mounted = false;
     };
-  }, []);
+  });
 
-  useEffect(() => {
-    if (!enabled || runtimeStartRequestedRef.current) return;
-    runtimeStartRequestedRef.current = true;
+  scope.effect(() => {
+    if (!enabled.value || runtimeStartRequested) return;
+    runtimeStartRequested = true;
 
     if (!canStartRuntimeInThisEnvironment()) {
       onRuntimeStatusChange('error');
@@ -159,95 +172,93 @@ export function DomTweakerLazyBoundary({
     onRuntimeStatusChange('loading');
     ensureRuntime({ themeCss })
       .then(() => {
-        if (mountedRef.current) onRuntimeStatusChange('ready');
+        if (mounted) onRuntimeStatusChange('ready');
       })
       .catch((err: unknown) => {
-        if (!mountedRef.current) return;
+        if (!mounted) return;
         onRuntimeStatusChange('error');
         console.warn(
           `[${consoleNamespace}] [design-token-panel] Failed to start DOM Tweaker Tailwind runtime.`,
           err,
         );
       });
-  }, [consoleNamespace, enabled, onRuntimeStatusChange, themeCss]);
+  });
 
-  useEffect(() => {
-    if (enabled) return;
-    setEditorOpen(false);
-    setSelectedElement(null);
-  }, [enabled]);
+  scope.effect(() => {
+    if (enabled.value) return;
+    editorOpen.value = false;
+    selectedElement.value = null;
+  });
 
-  const handleElementPicked = useCallback((el: Element) => {
-    setSelectedElement(el);
-    setEditorOpen(false);
-  }, []);
+  const handleElementPicked = (el: Element) => {
+    selectedElement.value = el;
+    editorOpen.value = false;
+  };
 
-  const handleTargetDisconnected = useCallback(() => {
-    setEditorOpen(false);
-    setSelectedElement(null);
-  }, []);
+  const handleTargetDisconnected = () => {
+    editorOpen.value = false;
+    selectedElement.value = null;
+  };
 
-  const handleAddClass = useCallback(
-    (className: string) => {
-      if (!selectedElement) return;
-      addClass(selectedElement, className);
-      bumpSessionVersion();
-    },
-    [bumpSessionVersion, selectedElement],
-  );
+  const handleAddClass = (className: string) => {
+    const el = selectedElement.value;
+    if (!el) return;
+    addClass(el, className);
+    bumpSessionVersion();
+  };
 
-  const handleRemoveClass = useCallback(
-    (className: string) => {
-      if (!selectedElement) return;
-      removeClass(selectedElement, className);
-      bumpSessionVersion();
-    },
-    [bumpSessionVersion, selectedElement],
-  );
+  const handleRemoveClass = (className: string) => {
+    const el = selectedElement.value;
+    if (!el) return;
+    removeClass(el, className);
+    bumpSessionVersion();
+  };
 
-  const handleResetAll = useCallback(() => {
+  const handleResetAll = () => {
     resetAll();
     bumpSessionVersion();
-  }, [bumpSessionVersion]);
+  };
 
-  return (
-    <>
-      <AltClickPicker
-        enabled={enabled}
-        featureId={DOM_TWEAKER_PICKER_FEATURE_ID}
-        onElementPicked={handleElementPicked}
-        onArmingRevoked={onArmingRevoked}
-        claimArmingOnEnable
-        getLabelText={buildSummary}
-        ariaLiveMessage={
-          enabled ? 'DOM Tweaker enabled. Hold Alt and click an element to edit classes.' : null
-        }
-        classNames={DOM_TWEAKER_PICKER_CLASS_NAMES}
-        zIndex={Z.inspectorBox}
-      />
-
-      <PinnedSelectionOverlay
-        target={selectedElement}
-        visible={enabled}
-        onTargetDisconnected={handleTargetDisconnected}
-      />
-      <EditIconButton
-        target={selectedElement}
-        visible={enabled && selectedElement !== null}
-        onOpenEditor={() => setEditorOpen(true)}
-      />
-      <ClassEditorPopup
-        target={selectedElement}
-        selectorSummary={selectedSummary}
-        currentClasses={currentClasses}
-        suggestions={suggestions}
-        onAddClass={handleAddClass}
-        onRemoveClass={handleRemoveClass}
-        onClose={() => setEditorOpen(false)}
-        visible={enabled && editorOpen}
-      />
-
-      {showDiffExport && (
+  return [
+    <AltClickPicker
+      enabled={enabled}
+      featureId={DOM_TWEAKER_PICKER_FEATURE_ID}
+      onElementPicked={handleElementPicked}
+      onArmingRevoked={onArmingRevoked}
+      claimArmingOnEnable
+      getLabelText={buildSummary}
+      ariaLiveMessage={computed(() => (enabled.value
+        ? 'DOM Tweaker enabled. Hold Alt and click an element to edit classes.'
+        : null))}
+      classNames={DOM_TWEAKER_PICKER_CLASS_NAMES}
+      zIndex={Z.inspectorBox}
+    />,
+    <PinnedSelectionOverlay
+      target={selectedElement}
+      visible={enabled}
+      onTargetDisconnected={handleTargetDisconnected}
+    />,
+    <EditIconButton
+      target={selectedElement}
+      visible={computed(() => enabled.value && selectedElement.value !== null)}
+      onOpenEditor={() => {
+        editorOpen.value = true;
+      }}
+    />,
+    <ClassEditorPopup
+      target={selectedElement}
+      selectorSummary={selectedSummary}
+      currentClasses={currentClasses}
+      suggestions={suggestions}
+      onAddClass={handleAddClass}
+      onRemoveClass={handleRemoveClass}
+      onClose={() => {
+        editorOpen.value = false;
+      }}
+      visible={computed(() => enabled.value && editorOpen.value)}
+    />,
+    <Show when={showDiffExport}>
+      {() => (
         <DiffExportModal
           diffText={diffText}
           onClose={onCloseDiffExport}
@@ -255,6 +266,6 @@ export function DomTweakerLazyBoundary({
           instanceConfig={instanceConfig}
         />
       )}
-    </>
-  );
+    </Show>,
+  ];
 }

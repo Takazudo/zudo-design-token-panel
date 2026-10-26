@@ -1,8 +1,8 @@
 // @vitest-environment browser
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from '../../../zr/test-utils';
+import { act, cleanupZr, renderZr } from '../../../zr/test-utils';
 import type { PanelConfig } from '../../../config/panel-config';
 import { __resetDismissLayersForTests } from '../../../controls/dismiss-layer';
 import {
@@ -81,7 +81,7 @@ function testConfig(): PanelConfig {
 
 afterEach(() => {
   if (container) {
-    render(null, container);
+    cleanupZr();
     container.remove();
     container = null;
   }
@@ -100,7 +100,7 @@ describe('DOM Tweaker lazy UI', () => {
     expect(document.getElementById(DOM_TWEAKER_STYLE_ID)).toBeNull();
 
     act(() => {
-      render(
+      renderZr(() => 
         <>
           <PinnedSelectionOverlay
             target={target}
@@ -108,7 +108,7 @@ describe('DOM Tweaker lazy UI', () => {
           />
           <EditIconButton target={target} onOpenEditor={onOpenEditor} />
         </>,
-        ensureContainer(),
+        ensureContainer()
       );
     });
     await frame();
@@ -152,7 +152,7 @@ describe('DOM Tweaker lazy UI', () => {
     const onClose = vi.fn();
 
     act(() => {
-      render(
+      renderZr(() => 
         <ClassEditorPopup
           target={target}
           selectorSummary="div#card.px-2.rounded-md"
@@ -162,7 +162,7 @@ describe('DOM Tweaker lazy UI', () => {
           onRemoveClass={onRemoveClass}
           onClose={onClose}
         />,
-        ensureContainer(),
+        ensureContainer()
       );
     });
     await frame();
@@ -228,7 +228,7 @@ describe('DOM Tweaker lazy UI', () => {
     const onClose = vi.fn();
 
     act(() => {
-      render(
+      renderZr(() => 
         <ClassEditorPopup
           target={target}
           selectorSummary="div#card"
@@ -238,7 +238,7 @@ describe('DOM Tweaker lazy UI', () => {
           onRemoveClass={() => undefined}
           onClose={onClose}
         />,
-        ensureContainer(),
+        ensureContainer()
       );
     });
     await frame();
@@ -259,7 +259,7 @@ describe('DOM Tweaker lazy UI', () => {
     const onClose = vi.fn();
 
     act(() => {
-      render(
+      renderZr(() => 
         <DiffExportModal
           diffText={'selector: #card\nbefore: "px-2"\nafter: "px-24"'}
           onCopy={onCopy}
@@ -267,7 +267,7 @@ describe('DOM Tweaker lazy UI', () => {
           onClose={onClose}
           instanceConfig={testConfig()}
         />,
-        ensureContainer(),
+        ensureContainer()
       );
     });
     await frame();

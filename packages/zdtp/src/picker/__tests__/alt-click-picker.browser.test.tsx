@@ -1,8 +1,8 @@
 // @vitest-environment browser
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createRef, render } from 'preact';
-import { act } from '../../zr/test-utils';
+import { act, cleanupZr, renderZr } from '../../zr/test-utils';
 import {
   AltClickPicker,
   type AltClickPickerClassNames,
@@ -57,7 +57,7 @@ function createFixedElement(opts: {
 
 function renderPicker(onElementPicked = vi.fn(), enabled = true): ReturnType<typeof vi.fn> {
   act(() => {
-    render(
+    renderZr(() => 
       <AltClickPicker
         enabled={enabled}
         featureId="test-picker"
@@ -66,7 +66,7 @@ function renderPicker(onElementPicked = vi.fn(), enabled = true): ReturnType<typ
         classNames={PICKER_CLASS_NAMES}
         zIndex={2147483000}
       />,
-      container,
+      container
     );
   });
   return onElementPicked;
@@ -134,7 +134,7 @@ beforeEach(() => {
 afterEach(async () => {
   await flushEffects();
   act(() => {
-    render(null, container);
+    cleanupZr();
   });
   container.remove();
   for (const el of createdElements) el.remove();
@@ -146,17 +146,17 @@ afterEach(async () => {
 describe('AltClickPicker', () => {
   it('can be armed and disarmed through its imperative API', async () => {
     createFixedElement({ id: 'programmatic-target' });
-    const pickerRef = createRef<AltClickPickerHandle>();
+    const pickerRef: { current: AltClickPickerHandle | null } = { current: null };
     act(() => {
-      render(
+      renderZr(() => 
         <AltClickPicker
-          ref={pickerRef}
+          handle={pickerRef}
           enabled
           featureId="test-picker"
           onElementPicked={vi.fn()}
           classNames={PICKER_CLASS_NAMES}
         />,
-        container,
+        container
       );
     });
     await flushEffects();

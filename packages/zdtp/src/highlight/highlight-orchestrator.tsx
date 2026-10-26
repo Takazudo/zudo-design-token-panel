@@ -34,7 +34,8 @@ import {
 } from './highlight-state';
 import { findElementsUsingToken, HIGHLIGHT_PORTAL_MOUNT_ID } from './find-elements';
 import type { FindElementsResult } from './find-elements';
-import { HighlightOverlay, type HighlightOverlayItem } from './highlight-overlay';
+import type { HighlightOverlayItem } from './highlight-overlay';
+import { HighlightOverlay } from './highlight-overlay-preact';
 import { getPanelConfig, type PanelConfig } from '../config/panel-config';
 import { usePortalMount } from '../utils/use-portal-mount';
 import { isDocumentUsable } from '../utils/document-liveness';

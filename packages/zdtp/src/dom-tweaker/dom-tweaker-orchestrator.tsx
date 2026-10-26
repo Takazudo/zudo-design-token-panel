@@ -11,7 +11,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import type { ComponentChildren, JSX } from 'preact';
+import type { ComponentChildren, FunctionComponent } from 'preact';
 import { createPortal } from 'preact/compat';
 import {
   DomTweakerContext,
@@ -21,12 +21,11 @@ import {
 import { loadDomTweakerEnabled, saveDomTweakerEnabled } from './dom-tweaker-state';
 import { usePortalMount } from '../utils/use-portal-mount';
 import type { PanelConfig } from '../config/panel-config';
-import type { DomTweakerLazyBoundaryProps } from './lazy';
+import type { DomTweakerLazyBoundaryProps, DomTweakerLazyBoundaryStaticKeys } from './lazy';
+import { bridgeToPreact } from '../zr/preact-bridge';
 import { DOM_TWEAKER_PORTAL_MOUNT_ID } from '../highlight/find-elements';
 
-type DomTweakerLazyBoundaryComponent = (
-  props: DomTweakerLazyBoundaryProps,
-) => JSX.Element | null;
+type DomTweakerLazyBoundaryComponent = FunctionComponent<DomTweakerLazyBoundaryProps>;
 
 const DOM_TWEAKER_OWNER_SYMBOL = Symbol.for('@takazudo/zdtp:dom-tweaker-owner');
 
@@ -167,7 +166,17 @@ export function DomTweakerOrchestrator({
     if (enabled) setRuntimeStatus('loading');
     lazyImportPromiseRef.current = import('./lazy')
       .then((mod) => {
-        setLazyBoundary(() => mod.DomTweakerLazyBoundary);
+        // The lazy boundary renders with zudo-react; bridge it into this
+        // Preact orchestrator until the shell moves over (epic #1075).
+        const Bridged = bridgeToPreact<DomTweakerLazyBoundaryProps, DomTweakerLazyBoundaryStaticKeys>(
+          mod.DomTweakerLazyBoundary,
+          {
+            signals: ['enabled', 'showDiffExport'],
+            callbacks: ['onCloseDiffExport', 'onRuntimeStatusChange', 'onArmingRevoked'],
+            statics: ['storagePrefix', 'themeCss', 'consoleNamespace', 'modalClassPrefix'],
+          },
+        );
+        setLazyBoundary(() => Bridged);
       })
       .catch((err: unknown) => {
         lazyImportPromiseRef.current = null;

@@ -1,3 +1,4 @@
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 /**
  * AltClickPicker — reusable primitive for DevTools-style Alt+click picking.
  *
@@ -12,16 +13,7 @@
  *   - a fixed-position box + label track the hovered element with RAF.
  */
 
-import { forwardRef } from 'preact/compat';
-import {
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-} from 'preact/hooks';
-import type { JSX, Ref } from 'preact';
+import { computed, getScope, Show, signal, type Ref } from '@takazudo/zfb/zudo-react';
 import { PANEL_EXCLUSION_SELECTOR } from '../highlight/find-elements';
 import { Z } from '../styles/z-index-tokens';
 import {
@@ -29,6 +21,7 @@ import {
   releaseArming,
   requestArming,
 } from './arming-coordinator';
+import { read, type Reactive } from '../zr/live';
 
 const DEFAULT_LABEL_GAP = 2;
 
@@ -68,7 +61,21 @@ export interface AltClickPickerProps {
   zIndex?: number;
   /** Gap between the element box and its label tag. */
   labelGap?: number;
+  /** Receives the imperative handle while mounted. */
+  handle?: { current: AltClickPickerHandle | null };
 }
+
+export type AltClickPickerStaticKeys =
+  | 'featureId'
+  | 'onElementPicked'
+  | 'onArmingRevoked'
+  | 'claimArmingOnEnable'
+  | 'getLabelText'
+  | 'excludeSelector'
+  | 'classNames'
+  | 'zIndex'
+  | 'labelGap'
+  | 'handle';
 
 export interface AltClickPickerHandle {
   /** Arm this picker without synthesizing an Alt keyboard gesture. */
@@ -98,113 +105,112 @@ function isExcludedElement(el: Element, selector: string): boolean {
   }
 }
 
-function AltClickPickerImpl({
-  enabled,
-  featureId,
-  onElementPicked,
-  onArmingRevoked,
-  claimArmingOnEnable = false,
-  getLabelText = defaultLabelText,
-  ariaLiveMessage,
-  excludeSelector = PANEL_EXCLUSION_SELECTOR,
-  classNames,
-  zIndex = Z.inspectorBox,
-  labelGap = DEFAULT_LABEL_GAP,
-}: AltClickPickerProps, ref: Ref<AltClickPickerHandle>): JSX.Element {
-  const [armed, setArmed] = useState(false);
-  const [hoverEl, setHoverEl] = useState<Element | null>(null);
+const VISUALLY_HIDDEN = {
+  position: 'fixed',
+  width: '1px',
+  height: '1px',
+  padding: '0',
+  margin: '-1px',
+  overflow: 'hidden',
+  clip: 'rect(0 0 0 0)',
+  'white-space': 'nowrap',
+  border: '0',
+};
 
-  // Refs mirroring state for stable event handlers / RAF loop.
-  const armedRef = useRef(false);
-  armedRef.current = armed;
-  const hoverElRef = useRef<Element | null>(null);
-  hoverElRef.current = hoverEl;
-
-  const boxRef = useRef<HTMLDivElement | null>(null);
-  const labelRef = useRef<HTMLDivElement | null>(null);
+export function AltClickPicker(props: Reactive<AltClickPickerProps, AltClickPickerStaticKeys>) {
+  const {
+    featureId,
+    onElementPicked,
+    onArmingRevoked,
+    claimArmingOnEnable = false,
+    getLabelText = defaultLabelText,
+    excludeSelector = PANEL_EXCLUSION_SELECTOR,
+    zIndex = Z.inspectorBox,
+    labelGap = DEFAULT_LABEL_GAP,
+    handle,
+  } = props;
+  const classes: AltClickPickerClassNames = { ...DEFAULT_CLASS_NAMES, ...props.classNames };
+  const enabled = computed(() => read(props.enabled));
+  const armed = signal(false);
+  const hoverEl = signal<Element | null>(null);
+  const box: Ref<HTMLDivElement> = { current: null };
+  const label: Ref<HTMLDivElement> = { current: null };
   // Last known pointer position so pressing Alt highlights the element already
   // under the cursor immediately (no need to nudge the mouse first).
-  const lastMouseRef = useRef<{ x: number; y: number } | null>(null);
-  const programmaticArmingRef = useRef(false);
-  const onArmingRevokedRef = useRef(onArmingRevoked);
-  onArmingRevokedRef.current = onArmingRevoked;
+  let lastMouse: { x: number; y: number } | null = null;
+  let programmaticArming = false;
 
-  const classes = useMemo<AltClickPickerClassNames>(
-    () => ({ ...DEFAULT_CLASS_NAMES, ...classNames }),
-    [classNames],
-  );
-
-  const disarm = useCallback(() => {
-    programmaticArmingRef.current = false;
-    setArmed(false);
-    setHoverEl(null);
+  const disarm = () => {
+    programmaticArming = false;
+    armed.value = false;
+    hoverEl.value = null;
     releaseArming(featureId);
-  }, [featureId]);
+  };
 
-  const resolveHoverAt = useCallback((x: number, y: number) => {
+  const resolveHoverAt = (x: number, y: number) => {
     const el = document.elementFromPoint(x, y);
-    setHoverEl(!el || isExcludedElement(el, excludeSelector) ? null : el);
-  }, [excludeSelector]);
+    hoverEl.value = !el || isExcludedElement(el, excludeSelector) ? null : el;
+  };
 
-  const arm = useCallback(() => {
-    if (!enabled) return;
-    programmaticArmingRef.current = true;
+  const arm = () => {
+    if (!enabled.value) return;
+    programmaticArming = true;
     requestArming(featureId);
-    setArmed(true);
-    const last = lastMouseRef.current;
-    if (last) resolveHoverAt(last.x, last.y);
-  }, [enabled, featureId, resolveHoverAt]);
+    armed.value = true;
+    if (lastMouse) resolveHoverAt(lastMouse.x, lastMouse.y);
+  };
 
-  useImperativeHandle(ref, () => ({ arm, disarm }), [arm, disarm]);
-
-  useEffect(() => {
-    return registerArmingOwner(featureId, {
+  const scope = getScope();
+  scope.onActivate(() => {
+    if (handle) handle.current = { arm, disarm };
+    const unregister = registerArmingOwner(featureId, {
       onArmingRevoked: () => {
-        programmaticArmingRef.current = false;
-        setArmed(false);
-        setHoverEl(null);
-        onArmingRevokedRef.current?.();
+        programmaticArming = false;
+        armed.value = false;
+        hoverEl.value = null;
+        onArmingRevoked?.();
       },
     });
-  }, [featureId]);
+    return () => {
+      unregister();
+      if (handle?.current?.arm === arm) handle.current = null;
+    };
+  });
 
-  useEffect(() => {
-    if (!enabled || !claimArmingOnEnable) return;
-    requestArming(featureId);
-  }, [claimArmingOnEnable, enabled, featureId]);
+  scope.effect(() => {
+    if (enabled.value && claimArmingOnEnable) requestArming(featureId);
+  });
 
   // Reset everything when the feature is disabled.
-  useEffect(() => {
-    if (enabled) return;
-    disarm();
-  }, [disarm, enabled]);
+  scope.effect(() => {
+    if (!enabled.value) disarm();
+  });
 
   // Pointer position + Alt arming (active whenever the feature is enabled).
-  useEffect(() => {
-    if (!enabled) return;
+  scope.effect(() => {
+    if (!enabled.value) return;
 
     function onMouseMove(e: MouseEvent) {
-      lastMouseRef.current = { x: e.clientX, y: e.clientY };
-      if (armedRef.current) resolveHoverAt(e.clientX, e.clientY);
+      lastMouse = { x: e.clientX, y: e.clientY };
+      if (armed.value) resolveHoverAt(e.clientX, e.clientY);
     }
 
     function onKeyDown(e: KeyboardEvent) {
       // Only do the arm-transition work on the first Alt-down. Without the
-      // `!armedRef.current` guard, every Alt-modified keystroke (Alt+letter host
+      // `!armed` guard, every Alt-modified keystroke (Alt+letter host
       // shortcuts, Alt+Tab attempts) would re-run the layout-querying
       // elementFromPoint for no behavioural benefit — the position is already
       // tracked by the always-on mousemove handler.
-      if ((e.key === 'Alt' || e.altKey) && !armedRef.current) {
-        programmaticArmingRef.current = false;
+      if ((e.key === 'Alt' || e.altKey) && !armed.value) {
+        programmaticArming = false;
         requestArming(featureId);
-        setArmed(true);
-        const last = lastMouseRef.current;
-        if (last) resolveHoverAt(last.x, last.y);
+        armed.value = true;
+        if (lastMouse) resolveHoverAt(lastMouse.x, lastMouse.y);
       }
     }
 
     function onKeyUp(e: KeyboardEvent) {
-      if (programmaticArmingRef.current) return;
+      if (programmaticArming) return;
       if (e.key === 'Alt' || !e.altKey) disarm();
     }
 
@@ -223,25 +229,27 @@ function AltClickPickerImpl({
       window.removeEventListener('keyup', onKeyUp, true);
       window.removeEventListener('blur', disarm);
     };
-  }, [disarm, enabled, featureId, resolveHoverAt]);
+  });
+
+  const active = computed(() => enabled.value && armed.value);
 
   // Click-to-pick (active only while armed). The click + mousedown listeners
   // are in the capture phase so the interaction is intercepted before any host
   // handler (<a> navigation, button onClick, focus, text selection) can run.
-  useEffect(() => {
-    if (!enabled || !armed) return;
+  scope.effect(() => {
+    if (!active.value) return;
 
     // Suppress mousedown side-effects (focus shift, text selection, drag start)
     // so an inspect-click is purely a picker gesture.
     function onMouseDown(e: MouseEvent) {
-      if (!hoverElRef.current) return;
+      if (!hoverEl.value) return;
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
     }
 
     function onClick(e: MouseEvent) {
-      const el = hoverElRef.current;
+      const el = hoverEl.value;
       if (!el) return;
       e.preventDefault();
       e.stopPropagation();
@@ -255,51 +263,46 @@ function AltClickPickerImpl({
       document.removeEventListener('mousedown', onMouseDown, true);
       document.removeEventListener('click', onClick, true);
     };
-  }, [armed, enabled, onElementPicked]);
+  });
 
   // Crosshair cursor + selection lock while armed. A class on <html> drives a
   // CSS rule so the crosshair wins over host element cursors (links, buttons).
-  useEffect(() => {
-    if (!enabled || !armed) return;
+  scope.effect(() => {
+    if (!active.value) return;
     const root = document.documentElement;
     root.classList.add(classes.inspectingRoot);
     return () => {
       root.classList.remove(classes.inspectingRoot);
     };
-  }, [armed, classes.inspectingRoot, enabled]);
+  });
 
   // Imperative position loop — tracks scroll/reflow without re-rendering.
-  useEffect(() => {
-    if (!armed || !hoverEl) return;
+  scope.effect(() => {
+    if (!armed.value || !hoverEl.value) return;
     let rafId = 0;
 
-    // NB: box + label styles are rewritten unconditionally every frame on
-    // purpose. The label's vertical position (above the box) differs from the
-    // label's JSX inline `top` (the box's own top), so a re-render that fires
-    // while hovering re-applies the JSX value and would strand the label on the
-    // box edge — the unconditional rewrite self-heals that within a frame.
     function position() {
-      const el = hoverElRef.current;
-      const box = boxRef.current;
-      if (el && box) {
+      const el = hoverEl.value;
+      const boxEl = box.current;
+      if (el && boxEl) {
         if (!el.isConnected) {
-          setHoverEl(null);
+          hoverEl.value = null;
           return;
         }
         const r = el.getBoundingClientRect();
-        box.style.top = `${r.top}px`;
-        box.style.left = `${r.left}px`;
-        box.style.width = `${r.width}px`;
-        box.style.height = `${r.height}px`;
+        boxEl.style.top = `${r.top}px`;
+        boxEl.style.left = `${r.left}px`;
+        boxEl.style.width = `${r.width}px`;
+        boxEl.style.height = `${r.height}px`;
 
-        const label = labelRef.current;
-        if (label) {
-          const lh = label.offsetHeight;
+        const labelEl = label.current;
+        if (labelEl) {
+          const lh = labelEl.offsetHeight;
           // Prefer above the box; drop inside the top edge when there's no room.
           let labelTop = r.top - lh - labelGap;
           if (labelTop < 0) labelTop = r.top + labelGap;
-          label.style.left = `${Math.max(0, r.left)}px`;
-          label.style.top = `${labelTop}px`;
+          labelEl.style.left = `${Math.max(0, r.left)}px`;
+          labelEl.style.top = `${labelTop}px`;
         }
       }
       rafId = requestAnimationFrame(position);
@@ -307,81 +310,40 @@ function AltClickPickerImpl({
 
     rafId = requestAnimationFrame(position);
     return () => cancelAnimationFrame(rafId);
-  }, [armed, hoverEl, labelGap]);
+  });
 
-  const showBox = enabled && armed && hoverEl !== null;
-  // Memoize the summary so unrelated re-renders don't re-run attribute reads /
-  // class-filter regexes; it recomputes only when the hovered element changes.
-  const labelText = useMemo(
-    () => (showBox && hoverEl ? getLabelText(hoverEl) : ''),
-    [getLabelText, hoverEl, showBox],
-  );
-  const rect = showBox && hoverEl ? hoverEl.getBoundingClientRect() : null;
+  const shown = computed(() => (active.value ? hoverEl.value : null));
 
-  return (
-    <>
-      {/*
-        Persistent, always-mounted live region. Screen readers reliably announce
-        a live region only when it already exists in the DOM and its text then
-        changes — a region inserted already-populated is frequently NOT announced.
-      */}
-      <div
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-        style={{
+  return [
+    // Persistent, always-mounted live region. Screen readers reliably announce
+    // a live region only when it already exists in the DOM and its text then
+    // changes — a region inserted already-populated is frequently NOT announced.
+    <div role="status" aria-live="polite" aria-atomic="true" style={VISUALLY_HIDDEN}>
+      {computed(() => read(props.ariaLiveMessage) ?? '')}
+    </div>,
+    <Show when={computed(() => shown.value !== null)}>
+      {() => {
+        const rect = computed(() => shown.value?.getBoundingClientRect() ?? null);
+        const fixed = (r: DOMRect | null, sized: boolean) => ({
           position: 'fixed',
-          width: '1px',
-          height: '1px',
-          padding: 0,
-          margin: '-1px',
-          overflow: 'hidden',
-          clip: 'rect(0 0 0 0)',
-          whiteSpace: 'nowrap',
-          border: 0,
-        }}
-      >
-        {ariaLiveMessage ?? ''}
-      </div>
-      {showBox && rect && (
-        <>
-          <div
-            ref={boxRef}
-            className={classes.box}
-            aria-hidden="true"
-            style={{
-              position: 'fixed',
-              top: `${rect.top}px`,
-              left: `${rect.left}px`,
-              width: `${rect.width}px`,
-              height: `${rect.height}px`,
-              zIndex,
-              pointerEvents: 'none',
-            }}
-          />
-          <div
-            ref={labelRef}
-            className={classes.label}
-            aria-hidden="true"
-            style={{
-              position: 'fixed',
-              top: `${rect.top}px`,
-              left: `${rect.left}px`,
-              zIndex,
-              pointerEvents: 'none',
-            }}
-          >
-            <span className={classes.labelName}>{labelText}</span>
-            <span className={classes.labelSize}>
-              {Math.round(rect.width)} × {Math.round(rect.height)}
+          top: `${r?.top ?? 0}px`,
+          left: `${r?.left ?? 0}px`,
+          ...(sized ? { width: `${r?.width ?? 0}px`, height: `${r?.height ?? 0}px` } : {}),
+          'z-index': String(zIndex),
+          'pointer-events': 'none',
+        });
+        return [
+          <div ref={box} class={classes.box} aria-hidden="true" style={fixed(rect.value, true)} />,
+          <div ref={label} class={classes.label} aria-hidden="true" style={fixed(rect.value, false)}>
+            <span class={classes.labelName}>
+              {computed(() => (shown.value ? getLabelText(shown.value) : ''))}
             </span>
-          </div>
-        </>
-      )}
-    </>
-  );
+            <span class={classes.labelSize}>
+              {computed(() => `${Math.round(rect.value?.width ?? 0)} × ${Math.round(rect.value?.height ?? 0)}`)}
+            </span>
+          </div>,
+        ];
+      }}
+    </Show>,
+  ];
 }
-
-export const AltClickPicker = forwardRef<AltClickPickerHandle, AltClickPickerProps>(
-  AltClickPickerImpl,
-);

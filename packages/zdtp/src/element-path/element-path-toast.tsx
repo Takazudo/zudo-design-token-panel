@@ -1,3 +1,4 @@
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 /**
  * ElementPathToast — transient top-center notification shown after a copy.
  *
@@ -9,7 +10,7 @@
  * `.tokenpanel-shell`), so it carries its own `--tokentweak-*` scope via panel.css.
  *
  * Stateless: the parent owns the message lifecycle (auto-dismiss timer). When
- * `message` is null nothing renders.
+ * the parent drops it, nothing renders.
  *
  * Purely visual — it carries no ARIA live-region semantics. InspectorOverlay
  * renders a separate always-mounted visually-hidden live region for screen
@@ -19,35 +20,33 @@
  * persistent announcer.
  */
 
-import type { JSX } from 'preact';
 import { Z } from '../styles/z-index-tokens';
 
 const TOAST_Z_INDEX = Z.toast;
 
 export interface ElementPathToastProps {
-  /** Toast body; null hides the toast. */
-  message: string | null;
+  /** Toast body. */
+  message: string;
   /** Whether the copy succeeded — drives the accent colour. */
   ok: boolean;
 }
 
-export function ElementPathToast({ message, ok }: ElementPathToastProps): JSX.Element | null {
-  if (message === null) return null;
+export function ElementPathToast({ message, ok }: ElementPathToastProps) {
   return (
     <div
       style={{
         position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: TOAST_Z_INDEX,
+        top: '0',
+        left: '0',
+        right: '0',
+        'z-index': String(TOAST_Z_INDEX),
         display: 'flex',
-        justifyContent: 'center',
-        pointerEvents: 'none',
+        'justify-content': 'center',
+        'pointer-events': 'none',
       }}
     >
       <div
-        className={ok ? 'tokenpanel-elpath-toast' : 'tokenpanel-elpath-toast is-error'}
+        class={ok ? 'tokenpanel-elpath-toast' : 'tokenpanel-elpath-toast is-error'}
         aria-hidden="true"
       >
         <svg
@@ -56,22 +55,22 @@ export function ElementPathToast({ message, ok }: ElementPathToastProps): JSX.El
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
           aria-hidden="true"
         >
           {ok ? (
             <path d="M20 6 9 17l-5-5" />
           ) : (
-            <>
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="8" x2="12" y2="12" />
-              <line x1="12" y1="16" x2="12.01" y2="16" />
-            </>
+            [
+              <circle cx="12" cy="12" r="10" />,
+              <line x1="12" y1="8" x2="12" y2="12" />,
+              <line x1="12" y1="16" x2="12.01" y2="16" />,
+            ]
           )}
         </svg>
-        <span className="tokenpanel-elpath-toast-text">{message}</span>
+        <span class="tokenpanel-elpath-toast-text">{message}</span>
       </div>
     </div>
   );

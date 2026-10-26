@@ -20,7 +20,7 @@ import {
   type ElementPathContextValue,
 } from './element-path-context';
 import { loadElementPathEnabled, saveElementPathEnabled } from './element-path-state';
-import { InspectorOverlay } from './inspector-overlay';
+import { InspectorOverlay } from './inspector-overlay-preact';
 import { usePortalMount } from '../utils/use-portal-mount';
 import { ELPATH_PORTAL_MOUNT_ID } from '../highlight/find-elements';
 
