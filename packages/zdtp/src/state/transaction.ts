@@ -1,5 +1,3 @@
-import { useCallback, useMemo, useRef } from 'preact/hooks';
-
 import type { PanelConfig } from '../config/panel-config';
 import { structuralEqual } from '../utils/structural-equal';
 import { createTweakHistory, type TweakHistory } from './history';
@@ -13,7 +11,6 @@ import {
 } from './tweak-state';
 
 export type TweakStateUpdater = TweakState | ((previous: TweakState) => TweakState);
-type SetState = (updater: (previous: TweakState | null) => TweakState | null) => void;
 
 export interface CommitTweakStateOptions {
   address?: string;
@@ -55,76 +52,75 @@ function changedLeafAddress(before: unknown, after: unknown, path = ''): string 
   return found;
 }
 
+export interface TweakStateTransactionOptions {
+  cfg: PanelConfig;
+  getState: () => TweakState | null;
+  /** Publish the committed state; the transaction already treats it as current. */
+  setState: (next: TweakState) => void;
+  history?: TweakHistory;
+}
+
+export type CommitTweakState = (
+  reason: string,
+  next: TweakStateUpdater,
+  opts?: CommitTweakStateOptions,
+) => void;
+
+export interface TweakStateTransaction {
+  commitTweakState: CommitTweakState;
+  history: TweakHistory;
+}
+
 /**
  * The sole state-mutation pipeline for a mounted panel. Side effects retain
  * the established order: apply, persist, then publish component state.
  */
-export function useTweakStateTransaction(
-  state: TweakState | null,
-  setState: SetState,
-  cfg: PanelConfig,
-): {
-  commitTweakState: (
-    reason: string,
-    next: TweakStateUpdater,
-    opts?: CommitTweakStateOptions,
-  ) => void;
-  history: TweakHistory;
-} {
-  const currentRef = useRef<TweakState | null>(state);
-  currentRef.current = state;
-  const history = useMemo(() => createTweakHistory(), []);
-
-  const restore = useCallback(
-    (next: TweakState) => {
-      clearAppliedColorStyles(undefined, undefined, cfg);
-      applyFullState(next, cfg);
-      savePersistedState(next, undefined, cfg);
-      currentRef.current = next;
-      setState(() => next);
-    },
-    [cfg, setState],
-  );
+export function createTweakStateTransaction({
+  cfg,
+  getState,
+  setState,
+  history = createTweakHistory(),
+}: TweakStateTransactionOptions): TweakStateTransaction {
+  const restore = (next: TweakState) => {
+    clearAppliedColorStyles(undefined, undefined, cfg);
+    applyFullState(next, cfg);
+    savePersistedState(next, undefined, cfg);
+    setState(next);
+  };
 
   history.configure({
     restore,
-    getCurrentState: () => currentRef.current,
+    getCurrentState: getState,
     getIdentity: () => getActiveColorIdentity(getActivePrimaryCluster(cfg), cfg),
   });
 
-  const commitTweakState = useCallback(
-    (reason: string, updaterOrState: TweakStateUpdater, opts: CommitTweakStateOptions = {}) => {
-      const before = currentRef.current;
-      if (!before && typeof updaterOrState === 'function') return;
-      const next =
-        typeof updaterOrState === 'function'
-          ? updaterOrState(before as TweakState)
-          : updaterOrState;
+  const commitTweakState: CommitTweakState = (reason, updaterOrState, opts = {}) => {
+    const before = getState();
+    if (!before && typeof updaterOrState === 'function') return;
+    const next =
+      typeof updaterOrState === 'function' ? updaterOrState(before as TweakState) : updaterOrState;
 
-      opts.beforeApply?.();
-      if (opts.apply !== false) (opts.apply ?? ((value) => applyFullState(value, cfg)))(next);
-      if (opts.save !== false)
-        (opts.save ?? ((value) => savePersistedState(value, undefined, cfg)))(next);
-      currentRef.current = next;
-      setState(() => next);
+    opts.beforeApply?.();
+    if (opts.apply !== false) (opts.apply ?? ((value) => applyFullState(value, cfg)))(next);
+    if (opts.save !== false)
+      (opts.save ?? ((value) => savePersistedState(value, undefined, cfg)))(next);
+    setState(next);
 
-      if (before && opts.record !== false) {
-        history.record(
-          {
-            reason,
-            address:
-              opts.address ?? (reason === 'persist' ? changedLeafAddress(before, next) : undefined),
-            identity: getActiveColorIdentity(getActivePrimaryCluster(cfg), cfg),
-            before,
-            after: next,
-            timestamp: opts.timestamp ?? Date.now(),
-          },
-          { reset: opts.resetHistory, force: opts.forceRecord },
-        );
-      }
-    },
-    [cfg, history, setState],
-  );
+    if (before && opts.record !== false) {
+      history.record(
+        {
+          reason,
+          address:
+            opts.address ?? (reason === 'persist' ? changedLeafAddress(before, next) : undefined),
+          identity: getActiveColorIdentity(getActivePrimaryCluster(cfg), cfg),
+          before,
+          after: next,
+          timestamp: opts.timestamp ?? Date.now(),
+        },
+        { reset: opts.resetHistory, force: opts.forceRecord },
+      );
+    }
+  };
 
   return { commitTweakState, history };
 }

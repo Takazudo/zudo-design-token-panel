@@ -1,5 +1,5 @@
 /**
- * `usePersist` hook — adapts slice updaters to the panel's single state
+ * `createPersist` — adapts slice updaters to the panel's single state
  * transaction path. Each callback is a persist pipeline:
  *
  *   updater  →  commitTweakState('persist', updater)
@@ -9,120 +9,80 @@
  * whole envelope themselves.
  *
  * The transaction owns apply/save/setState ordering and history recording;
- * this hook only lifts legacy slice callbacks into whole-state updaters.
+ * this module only lifts legacy slice callbacks into whole-state updaters.
  *
  * `persistColor`'s updater is `(prev: ColorTweakState) => ColorTweakState`, so
  * the widened `ColorTweakState.semanticMappings: Record<string, SemanticValue>`
  * (#459) — including the `{ literal }` / `{ ref }` object variants added for
- * #462 — already flows through this hook's generic pass-through unchanged; the
+ * #462 — already flows through this module's generic pass-through unchanged; the
  * actual validating hydrate/round-trip logic for those variants lives in
  * `tweak-state.ts` (`hydrateSemanticMappings` / `savePersistedState`), not here.
  */
 
-import { useCallback } from 'preact/hooks';
-
-import {
-  type ColorTweakState,
-  type TabOverrides,
-  type TokenOverrides,
-  type TweakState,
+import type {
+  ColorTweakState,
+  TabOverrides,
+  TokenOverrides,
+  TweakState,
 } from './tweak-state';
-import type { PanelConfig } from '../config/panel-config';
-import type { CommitTweakStateOptions, TweakStateUpdater } from './transaction';
+import type { CommitTweakState } from './transaction';
 
-type CommitTweakState = (
-  reason: string,
-  updater: TweakStateUpdater,
-  options?: CommitTweakStateOptions,
-) => void;
-
-/**
- * `usePersist` hook.
- *
- * `cfg` remains accepted for API compatibility; instance scoping is owned by
- * the supplied transaction.
- */
-export function usePersist(commitTweakState: CommitTweakState, cfg?: PanelConfig) {
-  const persist = useCallback(
-    (updater: (prev: TweakState) => TweakState) => {
-      commitTweakState('persist', updater);
-    },
-    // cfg is intentionally included so the callback re-binds when the
-    // config reference changes (e.g. hot-reload in dev).
-    [commitTweakState, cfg],
-  );
+/** Build the persist callbacks for one panel instance's transaction. */
+export function createPersist(commitTweakState: CommitTweakState) {
+  const persist = (updater: (prev: TweakState) => TweakState) => {
+    commitTweakState('persist', updater);
+  };
 
   /**
    * Persist overrides for a single generic tab (identified by `tabId`).
    *
    * This is the general-purpose entry point for host-coined tabs that use the
-   * tier model. The existing slice-specific helpers (`persistColor`,
-   * `persistSpacing`, etc.) remain as thin forwards so the internal tab
-   * components keep compiling until Wave 5 / Wave 7 migrates them.
+   * tier model. The slice-specific helpers (`persistColor`, `persistSpacing`,
+   * etc.) remain as thin forwards for the built-in tab components.
    */
-  const persistTab = useCallback(
-    (tabId: string, updater: (prev: TabOverrides) => TabOverrides) => {
-      persist((prev) => {
-        const prevTabOverrides = prev.tabs?.[tabId] ?? {};
-        const nextTabOverrides = updater(prevTabOverrides);
-        return {
-          ...prev,
-          tabs: {
-            ...prev.tabs,
-            [tabId]: nextTabOverrides,
-          },
-        };
-      });
-    },
-    [persist],
-  );
+  const persistTab = (tabId: string, updater: (prev: TabOverrides) => TabOverrides) => {
+    persist((prev) => ({
+      ...prev,
+      tabs: {
+        ...prev.tabs,
+        [tabId]: updater(prev.tabs?.[tabId] ?? {}),
+      },
+    }));
+  };
 
-  const persistColor = useCallback(
-    (updater: (prev: ColorTweakState) => ColorTweakState) => {
-      persist((prev) => ({ ...prev, color: updater(prev.color) }));
-    },
-    [persist],
-  );
+  const persistColor = (updater: (prev: ColorTweakState) => ColorTweakState) => {
+    persist((prev) => ({ ...prev, color: updater(prev.color) }));
+  };
 
-  const persistSpacing = useCallback(
-    (updater: (prev: TokenOverrides) => TokenOverrides) => {
-      persist((prev) => ({ ...prev, spacing: updater(prev.spacing) }));
-    },
-    [persist],
-  );
+  const persistSpacing = (updater: (prev: TokenOverrides) => TokenOverrides) => {
+    persist((prev) => ({ ...prev, spacing: updater(prev.spacing) }));
+  };
 
-  const persistTypography = useCallback(
-    (updater: (prev: TokenOverrides) => TokenOverrides) => {
-      persist((prev) => ({ ...prev, typography: updater(prev.typography) }));
-    },
-    [persist],
-  );
+  const persistTypography = (updater: (prev: TokenOverrides) => TokenOverrides) => {
+    persist((prev) => ({ ...prev, typography: updater(prev.typography) }));
+  };
 
-  const persistSize = useCallback(
-    (updater: (prev: TokenOverrides) => TokenOverrides) => {
-      persist((prev) => ({ ...prev, size: updater(prev.size) }));
-    },
-    [persist],
-  );
+  const persistSize = (updater: (prev: TokenOverrides) => TokenOverrides) => {
+    persist((prev) => ({ ...prev, size: updater(prev.size) }));
+  };
 
   /**
    * Optional secondary slice — absent until a host opts in. Passing
    * `undefined` from the updater unsets the slice so envelopes stay small
    * when the secondary cluster is idle.
    */
-  const persistSecondary = useCallback(
-    (updater: (prev: ColorTweakState | undefined) => ColorTweakState | undefined) => {
-      persist((prev) => {
-        const next = updater(prev.secondary);
-        if (next === undefined) {
-          const { secondary: _secondary, ...rest } = prev;
-          return rest;
-        }
-        return { ...prev, secondary: next };
-      });
-    },
-    [persist],
-  );
+  const persistSecondary = (
+    updater: (prev: ColorTweakState | undefined) => ColorTweakState | undefined,
+  ) => {
+    persist((prev) => {
+      const next = updater(prev.secondary);
+      if (next === undefined) {
+        const { secondary: _secondary, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, secondary: next };
+    });
+  };
 
   return {
     persist,
@@ -133,20 +93,20 @@ export function usePersist(commitTweakState: CommitTweakState, cfg?: PanelConfig
     // Upstream (zudo-doc) naming — the verbatim-ported FontTab imports
     // `persistFont` / `PersistFont`. The adapted envelope still names the
     // slice `typography`; this alias lets the port compile without touching
-    // the upstream file. Slice can be renamed in a later sub-issue if the
-    // envelope ever aligns with upstream's shape.
+    // the upstream file.
     persistFont: persistTypography,
     persistSize,
     persistSecondary,
   };
 }
 
-export type Persist = ReturnType<typeof usePersist>['persist'];
-export type PersistTab = ReturnType<typeof usePersist>['persistTab'];
-export type PersistColor = ReturnType<typeof usePersist>['persistColor'];
-export type PersistSpacing = ReturnType<typeof usePersist>['persistSpacing'];
-export type PersistTypography = ReturnType<typeof usePersist>['persistTypography'];
+type PersistApi = ReturnType<typeof createPersist>;
+export type Persist = PersistApi['persist'];
+export type PersistTab = PersistApi['persistTab'];
+export type PersistColor = PersistApi['persistColor'];
+export type PersistSpacing = PersistApi['persistSpacing'];
+export type PersistTypography = PersistApi['persistTypography'];
 /** Upstream alias for `PersistTypography`. See `persistFont` above. */
 export type PersistFont = PersistTypography;
-export type PersistSize = ReturnType<typeof usePersist>['persistSize'];
-export type PersistSecondary = ReturnType<typeof usePersist>['persistSecondary'];
+export type PersistSize = PersistApi['persistSize'];
+export type PersistSecondary = PersistApi['persistSecondary'];
