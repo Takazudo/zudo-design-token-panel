@@ -1840,6 +1840,8 @@ export function applyFullState(state: TweakState, cfg?: PanelConfig) {
   applyNonColorSlicesImpl(state, config);
 }
 
+const BUILTIN_TAB_IDS = new Set(['color', 'color-secondary', 'spacing', 'font', 'size']);
+
 /**
  * Apply the non-color slices (spacing / typography / size / generic-tab
  * overrides), plus explicit manifest color mode defaults. Dense scheme seeds
@@ -1870,7 +1872,7 @@ function applyNonColorSlicesImpl(state: TweakState, config: PanelConfig) {
   // `applyTabOverridesFlat` takes a flat `TokenOverrides` (itemId → value),
   // so we flatten each tab's tier map before passing it through.
   for (const tab of config.tabs) {
-    if (['color', 'color-secondary', 'spacing', 'font', 'size'].includes(tab.id)) continue;
+    if (BUILTIN_TAB_IDS.has(tab.id)) continue;
     const modesOnly = state.tabs?.[tab.id] === undefined;
     if (modesOnly && !hasManifestModes([tab])) continue;
     const flatOverrides: TokenOverrides = {};
@@ -1899,7 +1901,7 @@ export function clearDroppedGenericTabOverrides(
   const config = cfg ?? getPanelConfig();
   const names: string[] = [];
   for (const tab of config.tabs) {
-    if (['color', 'color-secondary', 'spacing', 'font', 'size'].includes(tab.id)) continue;
+    if (BUILTIN_TAB_IDS.has(tab.id)) continue;
     if (previous.tabs?.[tab.id] === undefined || next.tabs?.[tab.id] !== undefined) continue;
     for (const tier of tab.tiers) {
       for (const item of tier.items) {

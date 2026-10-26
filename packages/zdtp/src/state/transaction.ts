@@ -82,11 +82,15 @@ export function createTweakStateTransaction({
   setState,
   history = createTweakHistory(),
 }: TweakStateTransactionOptions): TweakStateTransaction {
+  const applyTransition = (previous: TweakState | null, next: TweakState) => {
+    if (previous) clearDroppedGenericTabOverrides(previous, next, cfg);
+    applyFullState(next, cfg);
+  };
+
   const restore = (next: TweakState) => {
     const previous = getState();
     clearAppliedColorStyles(undefined, undefined, cfg);
-    if (previous) clearDroppedGenericTabOverrides(previous, next, cfg);
-    applyFullState(next, cfg);
+    applyTransition(previous, next);
     savePersistedState(next, undefined, cfg);
     setState(next);
   };
@@ -104,12 +108,8 @@ export function createTweakStateTransaction({
       typeof updaterOrState === 'function' ? updaterOrState(before as TweakState) : updaterOrState;
 
     opts.beforeApply?.();
-    if (opts.apply === undefined) {
-      if (before) clearDroppedGenericTabOverrides(before, next, cfg);
-      applyFullState(next, cfg);
-    } else if (opts.apply !== false) {
-      opts.apply(next);
-    }
+    if (opts.apply === undefined) applyTransition(before, next);
+    else if (opts.apply !== false) opts.apply(next);
     if (opts.save !== false)
       (opts.save ?? ((value) => savePersistedState(value, undefined, cfg)))(next);
     setState(next);

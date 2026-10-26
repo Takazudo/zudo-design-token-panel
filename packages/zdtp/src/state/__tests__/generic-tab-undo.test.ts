@@ -41,6 +41,20 @@ const THEME_TAB: TabConfig = {
   ],
 };
 
+const HOST = '--undo-host-note';
+
+const NOTES_TAB: TabConfig = {
+  id: 'notes',
+  label: 'Notes',
+  tiers: [
+    {
+      id: 'raw',
+      label: 'Raw',
+      items: [{ id: 'note', cssVar: HOST, label: 'Note', default: '1px', type: { kind: 'length', step: 1, unit: 'px' } }],
+    },
+  ],
+};
+
 const initial: TweakState = {
   color: {
     palette: Array.from({ length: 16 }, () => '#000000'),
@@ -61,7 +75,7 @@ function makeConfig(applySink?: ApplySink): PanelConfig {
   return {
     ...FIXTURE_PANEL_CONFIG,
     storagePrefix: 'generic-tab-undo',
-    tabs: [...FIXTURE_PANEL_CONFIG.tabs, THEME_TAB],
+    tabs: [...FIXTURE_PANEL_CONFIG.tabs, THEME_TAB, NOTES_TAB],
     ...(applySink ? { applySink } : {}),
   };
 }
@@ -128,12 +142,14 @@ describe('generic tab overrides dropped between states', () => {
     expect(vi.mocked(sink.clear).mock.calls.flat(2)).not.toContain(SURFACE);
   });
 
-  it('keeps an unrelated host declaration when the tab was never stored', () => {
-    document.documentElement.style.setProperty(GAP, '7px');
-    const { persistTab } = setup(makeConfig());
+  it('keeps host declarations of a never-stored tab when another tab is dropped', () => {
+    document.documentElement.style.setProperty(HOST, '7px');
+    const { persistTab, history } = setup(makeConfig());
 
-    persistTab('other', () => ({ raw: { x: '1px' } }));
+    persistTab('theme', () => ({ raw: { gap: '3px' } }));
+    history.undo();
 
-    expect(inline(GAP)).toBe('7px');
+    expect(inline(GAP)).toBe('');
+    expect(inline(HOST)).toBe('7px');
   });
 });
