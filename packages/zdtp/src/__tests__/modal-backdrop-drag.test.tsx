@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 
 /**
  * Modal backdrop dismissal is gesture-aware (#446 F14).
@@ -13,8 +14,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { cleanupZr, renderZr } from '../zr/test-utils';
 import { ExportModal } from '../export-modal';
 import { ImportModal } from '../import-modal';
 import { __resetPanelConfigForTests } from '../config/panel-config';
@@ -60,10 +60,8 @@ function dialogEl(): HTMLDialogElement {
 
 /** press + release at the SAME point. */
 function clickAt(d: HTMLElement, x: number, y: number): void {
-  act(() => {
-    d.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: x, clientY: y }));
-    d.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: x, clientY: y }));
-  });
+  d.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: x, clientY: y }));
+  d.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: x, clientY: y }));
 }
 
 /** press at (downX,downY), release/click at (upX,upY) — a drag gesture. */
@@ -74,10 +72,8 @@ function dragAndRelease(
   upX: number,
   upY: number,
 ): void {
-  act(() => {
-    d.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: downX, clientY: downY }));
-    d.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: upX, clientY: upY }));
-  });
+  d.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: downX, clientY: downY }));
+  d.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: upX, clientY: upY }));
 }
 
 beforeEach(() => {
@@ -94,7 +90,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => render(null, container));
+  cleanupZr();
   container.remove();
   __resetPanelConfigForTests();
   delete (HTMLDialogElement.prototype as { showModal?: unknown }).showModal;
@@ -105,18 +101,14 @@ afterEach(() => {
 describe('ExportModal — gesture-aware backdrop close (F14)', () => {
   it('a genuine backdrop click (press+release outside) closes the modal', () => {
     const onClose = vi.fn();
-    act(() => {
-      render(<ExportModal onClose={onClose} state={fullState()} colorDefaults={colorState()} />, container);
-    });
+    renderZr(() => <ExportModal onClose={onClose} state={fullState()} colorDefaults={colorState()} />, container);
     clickAt(dialogEl(), 5, 5);
     expect(onClose).toHaveBeenCalledOnce();
   });
 
   it('a selection drag that starts inside and ends on the backdrop does NOT close', () => {
     const onClose = vi.fn();
-    act(() => {
-      render(<ExportModal onClose={onClose} state={fullState()} colorDefaults={colorState()} />, container);
-    });
+    renderZr(() => <ExportModal onClose={onClose} state={fullState()} colorDefaults={colorState()} />, container);
     // mousedown inside the dialog rect (200,200), release on the backdrop (5,5).
     dragAndRelease(dialogEl(), 200, 200, 5, 5);
     expect(onClose).not.toHaveBeenCalled();
@@ -124,9 +116,7 @@ describe('ExportModal — gesture-aware backdrop close (F14)', () => {
 
   it('a click that starts and ends inside the dialog does NOT close', () => {
     const onClose = vi.fn();
-    act(() => {
-      render(<ExportModal onClose={onClose} state={fullState()} colorDefaults={colorState()} />, container);
-    });
+    renderZr(() => <ExportModal onClose={onClose} state={fullState()} colorDefaults={colorState()} />, container);
     clickAt(dialogEl(), 200, 200);
     expect(onClose).not.toHaveBeenCalled();
   });
@@ -135,18 +125,14 @@ describe('ExportModal — gesture-aware backdrop close (F14)', () => {
 describe('ImportModal — gesture-aware backdrop close (F14)', () => {
   it('a genuine backdrop click closes the modal', () => {
     const onClose = vi.fn();
-    act(() => {
-      render(<ImportModal onClose={onClose} onLoad={vi.fn()} colorDefaults={colorState()} />, container);
-    });
+    renderZr(() => <ImportModal onClose={onClose} onLoad={vi.fn()} colorDefaults={colorState()} />, container);
     clickAt(dialogEl(), 5, 5);
     expect(onClose).toHaveBeenCalledOnce();
   });
 
   it('a selection drag starting in the textarea and ending on the backdrop does NOT close (pasted JSON preserved)', () => {
     const onClose = vi.fn();
-    act(() => {
-      render(<ImportModal onClose={onClose} onLoad={vi.fn()} colorDefaults={colorState()} />, container);
-    });
+    renderZr(() => <ImportModal onClose={onClose} onLoad={vi.fn()} colorDefaults={colorState()} />, container);
     dragAndRelease(dialogEl(), 200, 200, 5, 5);
     expect(onClose).not.toHaveBeenCalled();
   });

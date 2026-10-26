@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 
 /**
  * Apply-modal DOM-hygiene tests (#150).
@@ -14,8 +15,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act, cleanupZr, renderZr } from '../zr/test-utils';
 import { ApplyModal } from '../apply-modal';
 import { __resetPanelConfigForTests } from '../config/panel-config';
 import { installFixturePanelConfig, FIXTURE_CLUSTER, FIXTURE_TABS } from './_test-helpers';
@@ -57,7 +57,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => render(null, container));
+  act(() => cleanupZr());
   document.body.removeChild(container);
   __resetPanelConfigForTests();
 });
@@ -69,15 +69,13 @@ afterEach(() => {
 describe('apply-modal DOM hygiene', () => {
   it('renders the modal title as role=heading with aria-level=2', () => {
     act(() => {
-      render(
-        <ApplyModal
+      renderZr(() => <ApplyModal
           state={makeEmptyState()}
           open={true}
           onClose={() => undefined}
           onApplied={() => undefined}
         />,
-        container,
-      );
+        container, );
     });
 
     const heading = container.querySelector('[role="heading"]');
@@ -88,15 +86,13 @@ describe('apply-modal DOM hygiene', () => {
 
   it('close role-button has role=button and tabindex=0', () => {
     act(() => {
-      render(
-        <ApplyModal
+      renderZr(() => <ApplyModal
           state={makeEmptyState()}
           open={true}
           onClose={() => undefined}
           onApplied={() => undefined}
         />,
-        container,
-      );
+        container, );
     });
 
     const closeBtn = container.querySelector('[aria-label="Close apply modal"]');
@@ -110,15 +106,13 @@ describe('apply-modal DOM hygiene', () => {
     const onClose = vi.fn();
 
     act(() => {
-      render(
-        <ApplyModal
+      renderZr(() => <ApplyModal
           state={makeEmptyState()}
           open={true}
           onClose={onClose}
           onApplied={() => undefined}
         />,
-        container,
-      );
+        container, );
     });
 
     const closeBtn = container.querySelector('[aria-label="Close apply modal"]') as HTMLElement;
@@ -137,15 +131,13 @@ describe('apply-modal DOM hygiene', () => {
     const onClose = vi.fn();
 
     act(() => {
-      render(
-        <ApplyModal
+      renderZr(() => <ApplyModal
           state={makeEmptyState()}
           open={true}
           onClose={onClose}
           onApplied={() => undefined}
         />,
-        container,
-      );
+        container, );
     });
 
     const closeBtn = container.querySelector('[aria-label="Close apply modal"]') as HTMLElement;
@@ -160,15 +152,13 @@ describe('apply-modal DOM hygiene', () => {
 
   it('renders no h2 elements (replaced by role=heading div)', () => {
     act(() => {
-      render(
-        <ApplyModal
+      renderZr(() => <ApplyModal
           state={makeEmptyState()}
           open={true}
           onClose={() => undefined}
           onApplied={() => undefined}
         />,
-        container,
-      );
+        container, );
     });
 
     const h2s = container.querySelectorAll('h2');
@@ -177,15 +167,13 @@ describe('apply-modal DOM hygiene', () => {
 
   it('renders no button elements (all replaced by role=button divs)', () => {
     act(() => {
-      render(
-        <ApplyModal
+      renderZr(() => <ApplyModal
           state={makeEmptyState()}
           open={true}
           onClose={() => undefined}
           onApplied={() => undefined}
         />,
-        container,
-      );
+        container, );
     });
 
     const buttons = container.querySelectorAll('button');
@@ -194,15 +182,13 @@ describe('apply-modal DOM hygiene', () => {
 
   it('renders no p elements (replaced by divs)', () => {
     act(() => {
-      render(
-        <ApplyModal
+      renderZr(() => <ApplyModal
           state={makeEmptyState()}
           open={true}
           onClose={() => undefined}
           onApplied={() => undefined}
         />,
-        container,
-      );
+        container, );
     });
 
     const ps = container.querySelectorAll('p');
@@ -211,15 +197,13 @@ describe('apply-modal DOM hygiene', () => {
 
   it('renders no header elements (replaced by divs)', () => {
     act(() => {
-      render(
-        <ApplyModal
+      renderZr(() => <ApplyModal
           state={makeEmptyState()}
           open={true}
           onClose={() => undefined}
           onApplied={() => undefined}
         />,
-        container,
-      );
+        container, );
     });
 
     const headers = container.querySelectorAll('header');
@@ -269,16 +253,14 @@ describe('apply-modal Apply button gate — non-color-only payloads (#263)', () 
     };
 
     act(() => {
-      render(
-        <ApplyModal
+      renderZr(() => <ApplyModal
           state={state}
           colorDefaults={colorDefaults}
           open={true}
           onClose={() => undefined}
           onApplied={() => undefined}
         />,
-        container,
-      );
+        container, );
     });
 
     // The primary Apply button is the role=button inside the actions area.
@@ -323,16 +305,14 @@ describe('apply-modal Apply button gate — non-color-only payloads (#263)', () 
     };
 
     act(() => {
-      render(
-        <ApplyModal
+      renderZr(() => <ApplyModal
           state={state}
           colorDefaults={colorDefaults}
           open={true}
           onClose={() => undefined}
           onApplied={() => undefined}
         />,
-        container,
-      );
+        container, );
     });
 
     const buttons = container.querySelectorAll('[role="button"]');
@@ -372,16 +352,14 @@ describe('apply-modal Apply button gate — non-color-only payloads (#263)', () 
     };
 
     act(() => {
-      render(
-        <ApplyModal
+      renderZr(() => <ApplyModal
           state={state}
           colorDefaults={colorDefaults}
           open={true}
           onClose={() => undefined}
           onApplied={() => undefined}
         />,
-        container,
-      );
+        container, );
     });
 
     const buttons = container.querySelectorAll('[role="button"]');

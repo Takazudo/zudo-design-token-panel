@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act, cleanupZr, renderZr } from '../zr/test-utils';
 import { ImportModal } from '../import-modal';
 import type { ColorTweakState, TweakState } from '../state/tweak-state';
 import { __resetPanelConfigForTests } from '../config/panel-config';
@@ -83,15 +83,13 @@ function modeRadio(value: string): HTMLInputElement {
 
 function mount(current = makeState(), onLoad = vi.fn()) {
   act(() => {
-    render(
-      <ImportModal
+    renderZr(() => <ImportModal
         onClose={vi.fn()}
         onLoad={onLoad}
         colorDefaults={colorDefaults}
         current={current}
       />,
-      container,
-    );
+      container, );
   });
   return onLoad;
 }
@@ -110,7 +108,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => render(null, container));
+  act(() => cleanupZr());
   container.remove();
   __resetPanelConfigForTests();
   delete (HTMLDialogElement.prototype as { showModal?: unknown }).showModal;
