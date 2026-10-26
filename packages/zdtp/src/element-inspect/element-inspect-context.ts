@@ -1,16 +1,19 @@
-import { createContext } from 'preact';
+import type { ReadonlySignal } from '@takazudo/zfb/zudo-react';
+import type { TokenControllerRegistry } from '../tabs/flat/token-controller';
 import type { FindTokensForElementResult } from './find-tokens-for-element';
 
 /** The synthetic tab id used by the transient element-inspect view. */
 export const ELEMENT_INSPECT_TAB_ID = 'inspect';
 
-export interface ElementInspectContextValue {
+export interface ElementInspectController {
   /** Whether the picker is armed by the header toggle or the `I` shortcut. */
-  armed: boolean;
+  armed: ReadonlySignal<boolean>;
   /** The page element currently pinned for inspection. */
-  pinned: Element | null;
+  pinned: ReadonlySignal<Element | null>;
   /** Scanner output for the pinned element. */
-  result: FindTokensForElementResult | null;
+  result: ReadonlySignal<FindTokensForElementResult | null>;
+  /** Read/write access to every token the view can show. */
+  tokens: ReadonlySignal<TokenControllerRegistry>;
   /** Arm the picker programmatically. */
   arm: () => void;
   /** Disarm the picker without clearing the pinned element. */
@@ -22,5 +25,3 @@ export interface ElementInspectContextValue {
   /** Clear the pinned element and return to the tab that preceded Inspect. */
   clear: () => void;
 }
-
-export const ElementInspectContext = createContext<ElementInspectContextValue | null>(null);

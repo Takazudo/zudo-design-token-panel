@@ -1,19 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/compat';
-import type { JSX } from 'preact';
-import { RoleButton } from '../controls/role-button-preact';
+/** @jsxImportSource @takazudo/zfb/zudo-react */
+import { computed, getScope, signal, type ReadonlySignal } from '@takazudo/zfb/zudo-react';
+import { RoleButton } from '../controls/role-button';
 import type { PanelConfig } from '../config/panel-config';
 import type { ColorBaseline } from '../utils/token-diff';
 import { changedEntries, formatCssDeclarations } from '../utils/token-diff';
 import type { TweakState } from '../state/tweak-state';
 import type { TokenIndex } from '../utils/token-index';
 import { copyToClipboard } from '../utils/copy-to-clipboard';
+import { Rebuild } from '../zr/rebuild';
 
 export const COPY_REVERT_MS = 2000;
 
 export interface ChangedFooterContentProps {
   index: TokenIndex;
-  state: TweakState;
-  baseline: ColorBaseline;
+  state: ReadonlySignal<TweakState>;
+  baseline: ReadonlySignal<ColorBaseline>;
   cfg: PanelConfig;
   onRevertAll: () => void;
 }
@@ -25,51 +26,60 @@ export function ChangedFooterContent({
   baseline,
   cfg,
   onRevertAll,
-}: ChangedFooterContentProps): JSX.Element {
-  const entries = useMemo(
-    () => changedEntries(index.entries, state, baseline, cfg),
-    [baseline, cfg, index.entries, state],
-  );
-  const total = entries.length;
-  const tabCount = useMemo(
-    () => new Set(entries.map((entry) => entry.address.tabId)).size,
-    [entries],
-  );
-  const [copyLabel, setCopyLabel] = useState('Copy diff');
-  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+}: ChangedFooterContentProps) {
+  const entries = computed(() => changedEntries(index.entries, state.value, baseline.value, cfg));
+  const summary = computed(() => {
+    const list = entries.value;
+    return `${list.length}|${new Set(list.map((entry) => entry.address.tabId)).size}`;
+  });
+  const total = computed(() => entries.value.length);
+  const copyLabel = signal('Copy diff');
+  let copyTimer: ReturnType<typeof setTimeout> | null = null;
 
-  useEffect(() => () => {
-    if (copyTimerRef.current !== null) clearTimeout(copyTimerRef.current);
-  }, []);
+  getScope().onCleanup(() => {
+    if (copyTimer !== null) clearTimeout(copyTimer);
+  });
 
-  const handleCopy = useCallback(async () => {
-    const css = formatCssDeclarations(entries, state, cfg);
+  const handleCopy = async () => {
+    const css = formatCssDeclarations(entries.value, state.value, cfg);
     const ok = await copyToClipboard(css);
-    setCopyLabel(ok ? 'Copied!' : 'Failed');
-    if (copyTimerRef.current !== null) clearTimeout(copyTimerRef.current);
-    copyTimerRef.current = setTimeout(() => setCopyLabel('Copy diff'), COPY_REVERT_MS);
-  }, [cfg, entries, state]);
+    copyLabel.value = ok ? 'Copied!' : 'Failed';
+    if (copyTimer !== null) clearTimeout(copyTimer);
+    copyTimer = setTimeout(() => {
+      copyLabel.value = 'Copy diff';
+    }, COPY_REVERT_MS);
+  };
 
   return (
-    <div className="tokenpanel-changed-footer-content">
-      <span className="tokenpanel-changed-summary" data-testid="tokenpanel-changed-summary" role="status" aria-live="polite">
-        {total > 0
-          ? <><span className="tokenpanel-changed-summary-count">{total}</span> token{total === 1 ? '' : 's'} changed across <span className="tokenpanel-changed-summary-count">{tabCount}</span> tab{tabCount === 1 ? '' : 's'}</>
-          : 'No changes — page is at manifest defaults'}
+    <div class="tokenpanel-changed-footer-content">
+      <span class="tokenpanel-changed-summary" data-testid="tokenpanel-changed-summary" role="status" aria-live="polite">
+        <Rebuild value={summary}>
+          {(key) => {
+            const [count, tabs] = key.split('|').map(Number);
+            return count > 0
+              ? [
+                  <span class="tokenpanel-changed-summary-count">{String(count)}</span>,
+                  ` token${count === 1 ? '' : 's'} changed across `,
+                  <span class="tokenpanel-changed-summary-count">{String(tabs)}</span>,
+                  ` tab${tabs === 1 ? '' : 's'}`,
+                ]
+              : 'No changes — page is at manifest defaults';
+          }}
+        </Rebuild>
       </span>
-      <span className="tokenpanel-changed-footer-spacer" />
+      <span class="tokenpanel-changed-footer-spacer" />
       <RoleButton
-        className="tokenpanel-action-link tokenpanel-changed-copy"
+        class="tokenpanel-action-link tokenpanel-changed-copy"
         aria-label="Copy changed token diff"
-        aria-disabled={total === 0}
+        aria-disabled={computed(() => total.value === 0)}
         onClick={() => void handleCopy()}
       >
         {copyLabel}
       </RoleButton>
       <RoleButton
-        className="tokenpanel-action-link tokenpanel-changed-revert-all"
+        class="tokenpanel-action-link tokenpanel-changed-revert-all"
         aria-label="Revert all changed tokens"
-        aria-disabled={total === 0}
+        aria-disabled={computed(() => total.value === 0)}
         onClick={onRevertAll}
       >
         Revert all

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'preact/hooks';
+import { signal, type ReadonlySignal } from '@takazudo/zfb/zudo-react';
 
 import {
   storageKey_snapshot,
@@ -196,35 +196,29 @@ export function restoreSnapshotState(
  * intentionally kept by the caller as transient UI state; only A/B payloads
  * are persisted.
  */
-export function useSnapshots(cfg: PanelConfig): {
-  snapshots: SnapshotSlots;
+export function createSnapshotStore(cfg: PanelConfig): {
+  snapshots: ReadonlySignal<SnapshotSlots>;
   save: (slot: SnapshotSlot, state: TweakState, identity: string, edits: number) => TweakSnapshot;
   remove: (slot: SnapshotSlot) => void;
 } {
-  const [snapshots, setSnapshots] = useState<SnapshotSlots>(() => loadSnapshots(cfg));
+  const snapshots = signal<SnapshotSlots>(loadSnapshots(cfg));
 
-  const save = useCallback(
-    (slot: SnapshotSlot, state: TweakState, identity: string, edits: number): TweakSnapshot => {
-      const snapshot: TweakSnapshot = {
-        state,
-        identity,
-        savedAt: Date.now(),
-        edits: Math.max(0, Math.floor(edits)),
-      };
-      saveSnapshot(slot, snapshot, cfg);
-      setSnapshots((current) => ({ ...current, [slot]: snapshot }));
-      return snapshot;
-    },
-    [cfg],
-  );
+  const save = (slot: SnapshotSlot, state: TweakState, identity: string, edits: number): TweakSnapshot => {
+    const snapshot: TweakSnapshot = {
+      state,
+      identity,
+      savedAt: Date.now(),
+      edits: Math.max(0, Math.floor(edits)),
+    };
+    saveSnapshot(slot, snapshot, cfg);
+    snapshots.value = { ...snapshots.value, [slot]: snapshot };
+    return snapshot;
+  };
 
-  const remove = useCallback(
-    (slot: SnapshotSlot) => {
-      removeSnapshot(slot, cfg);
-      setSnapshots((current) => ({ ...current, [slot]: null }));
-    },
-    [cfg],
-  );
+  const remove = (slot: SnapshotSlot) => {
+    removeSnapshot(slot, cfg);
+    snapshots.value = { ...snapshots.value, [slot]: null };
+  };
 
   return { snapshots, save, remove };
 }

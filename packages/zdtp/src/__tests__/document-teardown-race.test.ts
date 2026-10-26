@@ -76,7 +76,7 @@ describe('public API against a torn-down document', () => {
 
   afterEach(async () => {
     vi.unstubAllGlobals();
-    // Let any straggler Preact effect flush settle against the restored real
+    // Let any straggler panel effect flush settle against the restored real
     // document before tearing the fixtures down.
     await flushEffects();
     disableAutoload();
@@ -134,8 +134,8 @@ describe('public API against a torn-down document', () => {
     showDesignTokenPanel();
     expect(document.getElementById(panelRootId(FIXTURE_PANEL_CONFIG))).not.toBeNull();
 
-    // Preact flushes effects on rAF/setTimeout — tear the document down
-    // first, then flush, so every mount effect (portal mounts, stylesheet
+    // Mount effects and their follow-up work run after the call returns —
+    // tear the document down first, then flush, so every mount effect (portal mounts, stylesheet
     // observer, tooltip portal re-renders) runs against the corpse.
     vi.stubGlobal('document', makeCrippledDocument());
     await flushEffects();
@@ -143,7 +143,7 @@ describe('public API against a torn-down document', () => {
 
   it('teardown before the effect flush leaves the seeded open state intact', async () => {
     // `showInstance` seeds OPEN_KEY/:visible synchronously, but the panel's
-    // mount effects land later on Preact's rAF flush. Against a dead document
+    // mount effects land later, after the synchronous call returns. Against a dead document
     // the mount-restore effect bails, so `open` is still its initial `false` —
     // the persistence effect must bail too, or it mirrors that stale `false`
     // over the seeds and the next page restores the panel closed.

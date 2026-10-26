@@ -19,7 +19,7 @@
  * always uses the correct prefix.
  *
  * These tests assert the structural contract, not the full browser repro (which
- * requires Preact effect flushes across two concurrent Preact trees — not
+ * requires effect flushes across two concurrent panel trees — not
  * reliably reproducible in jsdom). The observable structural invariant is:
  *
  *   module-init MUST NOT call reapplyFromStorage / reapplyPersistedOverrides

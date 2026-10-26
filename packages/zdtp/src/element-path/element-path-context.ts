@@ -1,21 +1,17 @@
 /**
- * ElementPathContext — shared state for the Element Path Copy feature.
+ * Element Path Copy controller — shared state for the feature.
  *
- * Provided by `ElementPathOrchestrator`; consumed by the header toggle button
- * (`ElementPathToggleButton`) and the inspector overlay. When the context is
- * null (component rendered outside the orchestrator — e.g. a bare unit test),
- * consumers degrade gracefully and render nothing.
+ * Created by `useElementPath` (the orchestrator) and handed to the header
+ * toggle button. A toggle rendered without a controller renders nothing.
  */
 
-import { createContext } from 'preact';
+import type { ReadonlySignal } from '@takazudo/zfb/zudo-react';
 
-export interface ElementPathContextValue {
+export interface ElementPathController {
   /** Whether inspect mode is enabled (persisted). */
-  enabled: boolean;
+  enabled: ReadonlySignal<boolean>;
   /** Enable / disable inspect mode. */
   setEnabled: (enabled: boolean) => void;
   /** Toggle inspect mode. */
   toggle: () => void;
 }
-
-export const ElementPathContext = createContext<ElementPathContextValue | null>(null);

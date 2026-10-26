@@ -422,7 +422,7 @@ describe('ColorPicker — hex input', () => {
       '.tokenpanel-color-picker-hex-input',
     )!;
     act(() => {
-      // Preact wires controlled text inputs to the native "input" event.
+      // Controlled text inputs listen for the native "input" event.
       Object.defineProperty(input, 'value', {
         value: '#00ff00',
         writable: true,
@@ -440,7 +440,7 @@ describe('ColorPicker — hex input', () => {
       '.tokenpanel-color-picker-hex-input',
     )!;
     act(() => {
-      // Preact wires controlled text inputs to the native "input" event.
+      // Controlled text inputs listen for the native "input" event.
       // Set via Object.defineProperty so the getter reports the new value,
       // then fire "input" to trigger the onChange handler.
       Object.defineProperty(input, 'value', {
@@ -465,7 +465,7 @@ describe('ColorPicker — hex input', () => {
         writable: true,
         configurable: true,
       });
-      // Preact wires controlled text inputs to the native "input" event.
+      // Controlled text inputs listen for the native "input" event.
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
     expect(onChange).not.toHaveBeenCalled();
@@ -861,7 +861,7 @@ describe('ColorPicker — partial hex does NOT call onChange (M5 regression)', (
         writable: true,
         configurable: true,
       });
-      // Preact wires controlled text inputs to the native "input" event.
+      // Controlled text inputs listen for the native "input" event.
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
     expect(onChange).not.toHaveBeenCalled();

@@ -473,7 +473,7 @@ function installZdtpAlias(state: DesignTokenPanelAdapterState, handle: PanelInst
   //    is set OR the element-path inspector is enabled OR the DOM Tweaker is
   //    enabled. Any signal means the panel must boot before first paint to
   //    avoid an FOUT or a broken closed-shell feature (element-path / DOM
-  //    Tweaker both need the Preact shell).
+  //    Tweaker both need the panel shell).
   const visibleKey = storageKey_visible(cfg);
   if (
     wasVisible(visibleKey) ||

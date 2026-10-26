@@ -2,7 +2,7 @@
 
 /**
  * Regression tests for issue #370 — panel renders an empty body (no tabs /
- * editors) for a single-instance non-Astro (zfb/Preact) host that self-mounts
+ * editors) for a single-instance non-Astro (zfb) host that self-mounts
  * via `configurePanel(config)` + the historical `toggle-design-token-panel`
  * window event.
  *
@@ -32,8 +32,8 @@
  * `configurePanel`).
  */
 
+import { renderZr } from '../zr/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
 import type { PanelConfig } from '../config/panel-config';
 import { flushEffects } from './_test-helpers';
 
@@ -243,7 +243,7 @@ describe('issue #370 — panel tabConfigById tracks instanceConfig (no stale use
     const root = document.createElement('div');
     document.body.appendChild(root);
 
-    render(<DesignTokenTweakPanel instanceConfig={cfgA} />, root);
+    renderZr(() => <DesignTokenTweakPanel instanceConfig={cfgA} />, root);
     await flushEffects();
     expect(root.textContent ?? '', 'A body rendered').toContain('Alpha Size tier');
 
@@ -251,7 +251,7 @@ describe('issue #370 — panel tabConfigById tracks instanceConfig (no stale use
     // change, NOT a remount). The body's id→TabConfig dispatch map must follow
     // the new config — a stale useMemo([]) would update the tab strip but leave
     // the body dispatching against the old config.
-    render(<DesignTokenTweakPanel instanceConfig={cfgB} />, root);
+    renderZr(() => <DesignTokenTweakPanel instanceConfig={cfgB} />, root);
     await flushEffects();
     const text = root.textContent ?? '';
     expect(text, 'B body now rendered').toContain('Beta Size tier');

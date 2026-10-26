@@ -1258,7 +1258,7 @@ export interface ColorTabProps {
    * grouped ref-or-literal picker's ramp groups, preview resolution, and the
    * host preset list) reads THIS instance's `tabs` / `colorPresets` rather
    * than the active default instance — matching the apply path, which
-   * already resolves against `cfg.tabs` via `usePersist` (`applyFullState`,
+   * already resolves against `cfg.tabs` via `createPersist` (`applyFullState`,
    * `state/persist.ts`). Omitted (e.g. a direct test render) →
    * `getPanelConfig()`, preserving the single-instance path.
    */

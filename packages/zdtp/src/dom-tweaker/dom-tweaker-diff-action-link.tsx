@@ -1,26 +1,26 @@
-import { useContext } from 'preact/hooks';
-import type { JSX } from 'preact';
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 import type { PanelConfig } from '../config/panel-config';
-import { RoleButton } from '../controls/role-button-preact';
-import { DomTweakerContext } from './dom-tweaker-context';
+import { RoleButton } from '../controls/role-button';
+import type { DomTweakerController } from './dom-tweaker-context';
 
 export interface DomTweakerDiffActionLinkProps {
   instanceConfig: PanelConfig;
+  controller: DomTweakerController | null;
   onSelected?: () => void;
 }
 
 export function DomTweakerDiffActionLink({
   instanceConfig,
+  controller,
   onSelected,
-}: DomTweakerDiffActionLinkProps): JSX.Element | null {
-  const ctx = useContext(DomTweakerContext);
-  if (instanceConfig.domTweaker === undefined || ctx === null) return null;
+}: DomTweakerDiffActionLinkProps) {
+  if (instanceConfig.domTweaker === undefined || controller === null) return null;
 
   return (
     <RoleButton
-      className="tokenpanel-action-link"
+      class="tokenpanel-action-link"
       onClick={() => {
-        ctx.openDiffExport();
+        controller.openDiffExport();
         onSelected?.();
       }}
     >

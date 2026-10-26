@@ -14,15 +14,10 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from '../zr/test-utils';
-import ColorTab from '../tabs/color-tab-preact';
-import {
-  HighlightContext,
-  type HighlightContextValue,
-} from '../highlight/highlight-toggle-button-preact';
+import { act, createTestServices, renderZr, unmountZrIn } from '../zr/test-utils';
+import ColorTab from '../tabs/color-tab';
+import type { HighlightContextValue } from '../highlight/highlight-context';
 import { DEFAULT_HIGHLIGHT_SLOTS, type HighlightState } from '../highlight/highlight-state';
-import { TooltipProvider } from '../controls/tooltip-preact';
 import { __resetPanelConfigForTests } from '../config/panel-config';
 import { installFixturePanelConfig, FIXTURE_TABS } from './_test-helpers';
 import { __resetDismissLayersForTests } from '../controls/dismiss-layer';
@@ -59,21 +54,14 @@ function makeColorState(): ColorTweakState {
 function renderColorTab(): void {
   const ctx: HighlightContextValue = { state: makeHighlightState(), toggle: vi.fn() };
   act(() => {
-    render(
-      <TooltipProvider>
-        <HighlightContext.Provider value={ctx}>
-          <ColorTab
+    renderZr(() => <ColorTab services={createTestServices(ctx)}
             tab={COLOR_TAB}
             state={makeColorState()}
             persistColor={persistColor as unknown as PersistColor}
             secondaryTab={null}
             secondaryState={null}
             persistSecondary={vi.fn()}
-          />
-        </HighlightContext.Provider>
-      </TooltipProvider>,
-      container,
-    );
+          />, container,);
   });
 }
 
@@ -85,7 +73,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => render(null, container));
+  act(() => unmountZrIn(container));
   container.remove();
   __resetPanelConfigForTests();
   __resetDismissLayersForTests();

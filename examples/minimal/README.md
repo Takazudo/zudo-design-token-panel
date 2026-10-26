@@ -1,6 +1,6 @@
 # Minimal zdtp example
 
-This Vite app shows the smallest framework-free setup for `@takazudo/zdtp`. Its only direct runtime dependencies are the panel and its required `preact` peer. The panel's own transitive dependencies are installed normally.
+This Vite app shows the smallest framework-free setup for `@takazudo/zdtp`. Its only direct runtime dependency is the panel, which bundles its own renderer. The panel's own transitive dependencies are installed normally.
 
 ```sh
 pnpm install

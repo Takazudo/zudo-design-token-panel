@@ -1,6 +1,8 @@
-import { Fragment } from 'preact';
+/** @jsxImportSource @takazudo/zfb/zudo-react */
+import { computed, type ReadonlySignal } from '@takazudo/zfb/zudo-react';
 
-import { RoleButton } from '../controls/role-button-preact';
+import { RoleButton } from '../controls/role-button';
+import { Rebuild } from '../zr/rebuild';
 import type { TweakHistoryEntry, TweakHistorySnapshot } from '../state/history';
 import type { SnapshotSlot, SnapshotSlots, TweakSnapshot } from './snapshots';
 
@@ -50,15 +52,15 @@ function snapshotLabel(snapshot: TweakSnapshot | null): string {
 function CameraIcon() {
   return (
     <svg
-      className="tokenpanel-history-icon"
+      class="tokenpanel-history-icon"
       width="13"
       height="13"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
       aria-hidden="true"
     >
       <path d="M4 8h3l2-3h6l2 3h3v11H4z" />
@@ -68,11 +70,11 @@ function CameraIcon() {
 }
 
 export interface HistoryRailProps {
-  history: TweakHistorySnapshot;
-  snapshots: SnapshotSlots;
-  selectedSnapshot: SnapshotSlot | null;
-  notice?: string | null;
-  activeIdentity: string;
+  history: ReadonlySignal<TweakHistorySnapshot>;
+  snapshots: ReadonlySignal<SnapshotSlots>;
+  selectedSnapshot: ReadonlySignal<SnapshotSlot | null>;
+  notice: ReadonlySignal<string | null | undefined>;
+  activeIdentity: ReadonlySignal<string>;
   onSaveSnapshot: (slot: SnapshotSlot) => void;
   onSelectSnapshot: (slot: SnapshotSlot) => void;
   onJumpTo: (index: number) => void;
@@ -86,32 +88,83 @@ function SnapshotRow({
   onSelect,
 }: {
   slot: SnapshotSlot;
-  snapshot: TweakSnapshot | null;
-  selected: boolean;
+  snapshot: ReadonlySignal<TweakSnapshot | null>;
+  selected: ReadonlySignal<boolean>;
   onSave: () => void;
   onSelect: () => void;
 }) {
   return (
-    <div className="tokenpanel-snapshot-row">
+    <div class="tokenpanel-snapshot-row">
       <RoleButton
-        className={`tokenpanel-snapshot-tag${selected ? ' is-selected' : ''}`}
+        class={computed(() => `tokenpanel-snapshot-tag${selected.value ? ' is-selected' : ''}`)}
         onClick={() => onSelect()}
-        aria-disabled={snapshot ? undefined : true}
-        aria-label={snapshot ? `Show snapshot ${slot}` : `Snapshot ${slot} is empty`}
+        aria-disabled={computed(() => (snapshot.value ? null : true))}
+        aria-label={computed(() => (snapshot.value ? `Show snapshot ${slot}` : `Snapshot ${slot} is empty`))}
         ariaProps={{ 'aria-pressed': selected }}
       >
         {slot}
       </RoleButton>
-      <span className="tokenpanel-snapshot-meta">{snapshotLabel(snapshot)}</span>
+      <span class="tokenpanel-snapshot-meta">{computed(() => snapshotLabel(snapshot.value))}</span>
       <RoleButton
-        className="tokenpanel-snapshot-save"
+        class="tokenpanel-snapshot-save"
         onClick={() => onSave()}
-        aria-label={snapshot ? `Overwrite snapshot ${slot}` : `Save snapshot ${slot}`}
+        aria-label={computed(() => (snapshot.value ? `Overwrite snapshot ${slot}` : `Save snapshot ${slot}`))}
       >
-        {snapshot ? 'Overwrite' : `Save ${slot}`}
+        {computed(() => (snapshot.value ? 'Overwrite' : `Save ${slot}`))}
       </RoleButton>
     </div>
   );
+}
+
+function HistoryEntries({
+  history,
+  activeIdentity,
+  onJumpTo,
+}: {
+  history: TweakHistorySnapshot;
+  activeIdentity: string;
+  onJumpTo: (index: number) => void;
+}) {
+  const currentIndex = history.cursor - 1;
+  return [
+    history.entries.length === 0
+      ? <div class="tokenpanel-history-empty">Edit a token to start a history.</div>
+      : null,
+    ...history.entries
+      .map((entry, index) => ({ entry, index }))
+      .reverse()
+      .map(({ entry, index }) => {
+        const isCurrent = index === currentIndex;
+        const isFuture = index >= history.cursor;
+        const identityMismatch = entry.identity !== activeIdentity;
+        return (
+          <RoleButton
+            class={`tokenpanel-history-entry${isCurrent ? ' is-current' : ''}${isFuture ? ' is-future' : ''}`}
+            onClick={() => onJumpTo(index)}
+            aria-label={`${entry.reason}${entry.address ? ` ${entry.address}` : ''}`}
+            ariaProps={{ 'aria-current': isCurrent ? 'step' : null }}
+          >
+            <span class="tokenpanel-history-entry-address">
+              {entry.address ?? entry.reason}
+            </span>
+            <span class="tokenpanel-history-entry-reason">
+              {`${entry.reason}${identityMismatch ? ` · inactive identity "${entry.identity}"` : ''}`}
+            </span>
+            <span class="tokenpanel-history-entry-detail">{formatEntry(entry)}</span>
+          </RoleButton>
+        );
+      }),
+    history.entries.length > 0 ? (
+      <RoleButton
+        class={`tokenpanel-history-entry tokenpanel-history-start${history.cursor === 0 ? ' is-current' : ''}`}
+        onClick={() => onJumpTo(-1)}
+        aria-label="Manifest defaults (start)"
+        ariaProps={{ 'aria-current': history.cursor === 0 ? 'step' : null }}
+      >
+        <span class="tokenpanel-history-entry-detail">● manifest defaults (start)</span>
+      </RoleButton>
+    ) : null,
+  ];
 }
 
 export function HistoryRail({
@@ -124,116 +177,82 @@ export function HistoryRail({
   onSelectSnapshot,
   onJumpTo,
 }: HistoryRailProps) {
-  const currentIndex = history.cursor - 1;
+  const entriesView = computed(() => ({ history: history.value, identity: activeIdentity.value }));
+  let lastView: { history: TweakHistorySnapshot; identity: string } | null = null;
+  const stableView = computed(() => {
+    const next = entriesView.value;
+    if (lastView && lastView.history === next.history && lastView.identity === next.identity) return lastView;
+    lastView = next;
+    return next;
+  });
+  const noticeText = computed(() => notice.value ?? null);
   return (
     <div
-      className="tokenpanel-history-rail"
+      class="tokenpanel-history-rail"
       data-testid="tokenpanel-history-rail"
       aria-label="History and snapshots"
     >
-      <div className="tokenpanel-history-rail-heading" role="heading" aria-level={3}>
+      <div class="tokenpanel-history-rail-heading" role="heading" aria-level={3}>
         <CameraIcon />
         <span>Snapshots</span>
       </div>
-      <div className="tokenpanel-snapshots">
-        <SnapshotRow
-          slot="A"
-          snapshot={snapshots.A}
-          selected={selectedSnapshot === 'A'}
-          onSave={() => onSaveSnapshot('A')}
-          onSelect={() => onSelectSnapshot('A')}
-        />
-        <SnapshotRow
-          slot="B"
-          snapshot={snapshots.B}
-          selected={selectedSnapshot === 'B'}
-          onSave={() => onSaveSnapshot('B')}
-          onSelect={() => onSelectSnapshot('B')}
-        />
-        <div className="tokenpanel-snapshot-compare">
-          <span className="tokenpanel-snapshot-compare-label">Compare on page</span>
+      <div class="tokenpanel-snapshots">
+        {(['A', 'B'] as const).map((slot) => (
+          <SnapshotRow
+            slot={slot}
+            snapshot={computed(() => snapshots.value[slot])}
+            selected={computed(() => selectedSnapshot.value === slot)}
+            onSave={() => onSaveSnapshot(slot)}
+            onSelect={() => onSelectSnapshot(slot)}
+          />
+        ))}
+        <div class="tokenpanel-snapshot-compare">
+          <span class="tokenpanel-snapshot-compare-label">Compare on page</span>
           <div
-            className="tokenpanel-snapshot-segmented"
+            class="tokenpanel-snapshot-segmented"
             role="group"
             aria-label="Compare snapshots"
           >
             {(['A', 'B'] as const).map((slot) => {
-              const available = snapshots[slot] !== null;
+              const available = computed(() => snapshots.value[slot] !== null);
               return (
                 <RoleButton
-                  key={slot}
-                  className={selectedSnapshot === slot ? 'is-selected' : ''}
+                  class={computed(() => (selectedSnapshot.value === slot ? 'is-selected' : ''))}
                   onClick={() => onSelectSnapshot(slot)}
-                  aria-disabled={available ? undefined : true}
-                  aria-label={available ? `Compare snapshot ${slot}` : `Snapshot ${slot} is empty`}
-                  ariaProps={{ 'aria-pressed': selectedSnapshot === slot }}
+                  aria-disabled={computed(() => (available.value ? null : true))}
+                  aria-label={computed(() => (available.value ? `Compare snapshot ${slot}` : `Snapshot ${slot} is empty`))}
+                  ariaProps={{ 'aria-pressed': computed(() => selectedSnapshot.value === slot) }}
                 >
                   {slot}
                 </RoleButton>
               );
             })}
           </div>
-          <span className="tokenpanel-snapshot-flip-hint" aria-label="Flip snapshots shortcut">
+          <span class="tokenpanel-snapshot-flip-hint" aria-label="Flip snapshots shortcut">
             \
           </span>
         </div>
       </div>
 
-      {notice && (
-        <div className="tokenpanel-history-notice" role="status">
-          {notice}
-        </div>
-      )}
+      <Rebuild value={noticeText}>
+        {(text) => (text ? <div class="tokenpanel-history-notice" role="status">{text}</div> : null)}
+      </Rebuild>
 
-      <div className="tokenpanel-history-heading">
+      <div class="tokenpanel-history-heading">
         <span role="heading" aria-level={3}>History</span>
-        <span className="tokenpanel-history-heading-count">
-          {history.entries.length > 0
-            ? `${history.entries.length} ${history.entries.length === 1 ? 'edit' : 'edits'}`
-            : 'no edits yet'}
+        <span class="tokenpanel-history-heading-count">
+          {computed(() => {
+            const count = history.value.entries.length;
+            return count > 0 ? `${count} ${count === 1 ? 'edit' : 'edits'}` : 'no edits yet';
+          })}
         </span>
       </div>
-      <div className="tokenpanel-history-list">
-        {history.entries.length === 0 && (
-          <div className="tokenpanel-history-empty">Edit a token to start a history.</div>
-        )}
-        {history.entries
-          .map((entry, index) => ({ entry, index }))
-          .reverse()
-          .map(({ entry, index }) => {
-            const isCurrent = index === currentIndex;
-            const isFuture = index >= history.cursor;
-            const identityMismatch = entry.identity !== activeIdentity;
-            return (
-              <Fragment key={`${entry.timestamp}-${index}`}>
-                <RoleButton
-                  className={`tokenpanel-history-entry${isCurrent ? ' is-current' : ''}${isFuture ? ' is-future' : ''}`}
-                  onClick={() => onJumpTo(index)}
-                  aria-label={`${entry.reason}${entry.address ? ` ${entry.address}` : ''}`}
-                  ariaProps={{ 'aria-current': isCurrent ? 'step' : undefined }}
-                >
-                  <span className="tokenpanel-history-entry-address">
-                    {entry.address ?? entry.reason}
-                  </span>
-                  <span className="tokenpanel-history-entry-reason">
-                    {entry.reason}
-                    {identityMismatch ? ` · inactive identity "${entry.identity}"` : ''}
-                  </span>
-                  <span className="tokenpanel-history-entry-detail">{formatEntry(entry)}</span>
-                </RoleButton>
-              </Fragment>
-            );
-          })}
-        {history.entries.length > 0 && (
-          <RoleButton
-            className={`tokenpanel-history-entry tokenpanel-history-start${history.cursor === 0 ? ' is-current' : ''}`}
-            onClick={() => onJumpTo(-1)}
-            aria-label="Manifest defaults (start)"
-            ariaProps={{ 'aria-current': history.cursor === 0 ? 'step' : undefined }}
-          >
-            <span className="tokenpanel-history-entry-detail">● manifest defaults (start)</span>
-          </RoleButton>
-        )}
+      <div class="tokenpanel-history-list">
+        <Rebuild value={stableView}>
+          {(view) => (
+            <HistoryEntries history={view.history} activeIdentity={view.identity} onJumpTo={onJumpTo} />
+          )}
+        </Rebuild>
       </div>
     </div>
   );

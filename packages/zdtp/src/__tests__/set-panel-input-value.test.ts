@@ -12,7 +12,7 @@
  *
  * Classification context (#264):
  *  This helper was introduced after diagnosing that `fill()` alone works correctly
- *  in headless Preact+Chromium — the panel's numeric text inputs DO commit on native
+ *  in headless Chromium — the panel's numeric text inputs DO commit on native
  *  `input` events dispatched by Playwright's `fill()`. The helper wraps `fill()` with
  *  a defensive second `dispatchEvent('input')` and provides accurate JSDoc that corrects
  *  the misattributed comment in the vite-react Wave 3 demo spec.
@@ -59,7 +59,7 @@ describe('setPanelInputValue — source-level smoke', () => {
     expect(calls).toEqual(['fill(1.5)', 'dispatchEvent(input)']);
   });
 
-  it('does NOT dispatch "change" — Preact-compat maps onChange to native input event', async () => {
+  it('does NOT dispatch "change" — the panel listens for the native input event', async () => {
     const dispatchedTypes: string[] = [];
     const mockLocator = {
       fill: vi.fn().mockResolvedValue(undefined),
@@ -70,7 +70,7 @@ describe('setPanelInputValue — source-level smoke', () => {
 
     await setPanelInputValue(mockLocator, '40');
 
-    // Must not dispatch 'change' — Preact-compat wires onChange to 'input', not 'change'
+    // Must not dispatch 'change' — the panel listens for 'input', not 'change'
     expect(dispatchedTypes).not.toContain('change');
     expect(dispatchedTypes).toContain('input');
   });

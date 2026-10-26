@@ -13,13 +13,13 @@
  *      Actual (pre-fix): panel does not auto-mount; user has to call
  *      `window.<consoleNamespace>.showDesignPanel()` manually each time.
  *
- * Root cause: `ensureMounted()` renders the Preact shell, then
+ * Root cause: `ensureMounted()` renders the panel shell, then
  * `showDesignTokenPanel` used to call `dispatchToggleAfterMount()`, which
- * queued the toggle event on the microtask queue. But `panel.tsx` registers
- * its toggle listener inside a `useEffect`, and Preact flushes effects via
- * `requestAnimationFrame`. The microtask drained long before the next
- * animation frame, so the dispatched event landed before the listener
- * attached, and the panel stayed closed.
+ * queued the toggle event on the microtask queue. But `panel.tsx` registered
+ * its toggle listener inside a `useEffect`, and Preact (the renderer at the
+ * time) flushed effects via `requestAnimationFrame`. The microtask drained
+ * long before the next animation frame, so the dispatched event landed
+ * before the listener attached, and the panel stayed closed.
  *
  * When the user had previously opened-then-closed the panel, OPEN_KEY=='1'
  * had been written by panel.tsx; the mount-effect would then read that key
@@ -113,7 +113,7 @@ describe('design-token-panel adapter — auto-mount with visibility flag', () =>
     const root = document.getElementById(PANEL_ROOT_ID);
     expect(root).not.toBeNull();
 
-    // Primary user-observable assertion: after Preact flushes the
+    // Primary user-observable assertion: after the panel flushes the
     // mount-effect, `panel.tsx` must render its open content (the "Design
     // Tokens" header is the easiest unique sentinel). Without the fix,
     // `panel.tsx` reads OPEN_KEY at mount-time, sees it absent, and stays at

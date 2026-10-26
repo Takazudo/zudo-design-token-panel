@@ -2,12 +2,12 @@
  * Design-token panel adapter.
  *
  * Thin bridge between the package's Astro host adapter
- * (`./astro/host-adapter.ts`) and the Preact panel component
+ * (`./astro/host-adapter.ts`) and the panel component
  * (`./panel.tsx`). Responsibilities:
  *
  *  1. Expose the public API consumed by the host adapter —
  *     `showDesignTokenPanel`, `hideDesignTokenPanel`, `toggleDesignPanel`.
- *  2. Own the Preact mount lifecycle into the panel root element (id derived
+ *  2. Own the zudo-react mount lifecycle into the panel root element (id derived
  *     from `panelConfig.storagePrefix`; default: `#zudo-design-token-panel-root`).
  *  3. Cooperate with `panel.tsx`'s own toggle listeners: the adapter handles
  *     the *initial* toggle (to mount the shell lazily) and then lets
@@ -27,15 +27,15 @@
  *    is owned by `tweak-state.ts` (which also writes it). Routing the probe
  *    through the same accessor guarantees probe-key ≡ write-key.
  *  - `${storagePrefix}-open` (default: `zudo-design-token-panel-open`) —
- *    primarily owned by `panel.tsx` (its `useEffect` mirrors `open` into the
- *    key on every change). The adapter is read-only at steady state, but it
+ *    primarily owned by `panel.tsx` (its open-state effect mirrors `open` into
+ *    the key on every change). The adapter is read-only at steady state, but it
  *    *seeds* the key once before a fresh mount so `panel.tsx`'s mount-effect
  *    picks the desired open state on first paint instead of relying on a
  *    racy post-render toggle event.
  */
 
-import { render } from 'preact';
 import DesignTokenTweakPanel from './panel';
+import { mountOwnedRoot, type RootHandle } from './zr/root';
 // Side-effect import: kept so `vite build` keeps co-emitting
 // `dist/zdtp.css` and the `./styles` / `./styles.css`
 // package exports stay valid for backward compatibility. Vite library mode
@@ -92,7 +92,7 @@ import { onPageSpecimenMutationOwner } from './specimen/on-page-specimen';
 // ---------------------------------------------------------------------------
 
 /**
- * Root element id that hosts the Preact panel tree. Derived from
+ * Root element id that hosts the panel tree. Derived from
  * `cfg.storagePrefix` — pass the instance's config so a non-default panel
  * mounts into ITS own `${storagePrefix}-root`, not the default instance's.
  */
@@ -120,7 +120,8 @@ const TOGGLE_EVENT_ALIAS = 'toggle-color-tweak-panel';
  * first and then dispatches this event; the panel's listener just re-reads the
  * key. Single source of truth lives in `localStorage[OPEN_KEY]`; the event is
  * a "go re-read" pulse — no toggle arithmetic in the listener, so a missed
- * pulse during Preact's effect-flush rAF gap self-heals on the next render.
+ * pulse that lands before the panel's listener attaches self-heals on the next
+ * render.
  */
 function notifyPanelOpenChanged(cfg: PanelConfig): void {
   if (typeof window === 'undefined') return;
@@ -173,7 +174,7 @@ function hasPersistedOverrides(cfg: PanelConfig): boolean {
  * event when the panel is already in the requested state.
  *
  * `OPEN_KEY` is owned by `panel.tsx` for steady-state writes (its
- * `useEffect` mirrors `open` into the key on every change). The adapter
+ * effect mirrors `open` into the key on every change). The adapter
  * additionally seeds the key once before a fresh mount via
  * `seedOpenStateBeforeMount` — see the seed function's docstring for the
  * timing rationale.
@@ -197,21 +198,21 @@ function isPanelCurrentlyOpen(cfg: PanelConfig): boolean {
  * repro: user types `localStorage.setItem(<visible-key>, '1')` and hard-
  * reloads, where `<visible-key>` derives from `panelConfig.storagePrefix` —
  * default `zudo-design-token-panel:visible`): `panel.tsx` registers its
- * toggle listener inside a `useEffect`, which Preact flushes on a
- * `requestAnimationFrame` (or its `setTimeout(35)` polyfill — see preact/hooks
- * `w`). A microtask drains long before that frame, so the dispatched event
+ * toggle listener inside a `useEffect`, which Preact (the renderer at the
+ * time) flushed on a `requestAnimationFrame`. A microtask drains long before
+ * that frame, so the dispatched event
  * lands in the void and the panel never opens. Symptoms:
  * `window.<consoleNamespace>.showDesignPanel()` had to be called manually
  * after every reload despite `wasVisible()` already being true.
  *
- * The fix is to seed `OPEN_KEY` synchronously before the Preact render. The
- * panel's `useEffect` then reads the correct value during its mount pass and
+ * The fix is to seed `OPEN_KEY` synchronously before the panel render. The
+ * panel then reads the correct value during its mount pass and
  * sets `open=true` directly, skipping the dispatch race entirely. Steady-state
  * toggles still use the event channel — by then the listener is attached and
  * the existing `panel.tsx`-owned write keeps `OPEN_KEY` and `open` in lockstep.
  *
- * Keep this in lockstep with `OPEN_KEY` reads in `panel.tsx` (the first
- * `useEffect` in `DesignTokenTweakPanel`).
+ * Keep this in lockstep with `OPEN_KEY` reads in `panel.tsx` (the open-state
+ * restore in `DesignTokenTweakPanel`).
  */
 function seedOpenStateBeforeMount(cfg: PanelConfig, desiredOpen: boolean): void {
   if (typeof window === 'undefined') return;
@@ -236,7 +237,7 @@ function findRoot(cfg: PanelConfig): HTMLElement | null {
   return document.getElementById(getPanelId(cfg));
 }
 
-// A root id alone does not prove that it contains a live Preact tree. SPA
+// A root id alone does not prove that it contains a live panel tree. SPA
 // swaps can leave a connected replacement with the same id; closed panels
 // also legitimately have zero DOM children. Track the element we rendered
 // into, shared across copies of this module on the same window.
@@ -443,8 +444,24 @@ export function __resetSpawnSlotsForTests(): void {
   getMountedSlots().clear();
 }
 
+// Stored on the root element under a global symbol so a second copy of the
+// bundle on the page can still unmount a tree this copy mounted.
+const ROOT_HANDLE = Symbol.for('@takazudo/zdtp:root-handle');
+
+function unmountRoot(root: HTMLElement): void {
+  const holder = root as unknown as Record<symbol, RootHandle | undefined>;
+  const handle = holder[ROOT_HANDLE];
+  if (!handle) return;
+  delete holder[ROOT_HANDLE];
+  handle.unmount();
+}
+
+export function __unmountRootForTests(root: HTMLElement): void {
+  unmountRoot(root);
+}
+
 function releaseOwnedMount(cfg: PanelConfig, ownedRoot: HTMLElement): void {
-  render(null, ownedRoot);
+  unmountRoot(ownedRoot);
   getMountedRoots().delete(cfg.storagePrefix);
   releaseSpawnSlot(cfg);
   releaseHostMutations(cfg.storagePrefix);
@@ -453,8 +470,8 @@ function releaseOwnedMount(cfg: PanelConfig, ownedRoot: HTMLElement): void {
 
 /**
  * How long an open request waits before checking that the owned root actually
- * rendered. Covers Preact's post-paint effect flush (rAF, or its 100ms timeout
- * fallback) plus the re-render the mount effect triggers.
+ * rendered. Covers the mount's deferred activation and effect flush plus the
+ * re-render the mount effect triggers.
  */
 const OPEN_VERIFY_DELAY_MS = 250;
 export const __OPEN_VERIFY_DELAY_MS_FOR_TESTS = OPEN_VERIFY_DELAY_MS;
@@ -502,7 +519,7 @@ function recoverEmptyOpenRoot(cfg: PanelConfig): void {
 }
 
 /**
- * Idempotently mount the Preact shell. Returns `true` only on a fresh mount.
+ * Idempotently mount the panel shell. Returns `true` only on a fresh mount.
  *
  * Callers that need the panel in a specific open state on a fresh mount must
  * call `seedOpenStateBeforeMount(...)` *before* this function — the panel's
@@ -546,21 +563,18 @@ function ensureMounted(cfg: PanelConfig): boolean {
   // `spawnOrdinal` cascades this shell's fresh-open position away from any
   // sibling already mounted. Flows mount layer -> panel -> geometry helper;
   // `tweak-state.ts` never reaches back into this module (epic #582).
-  render(
-    <DesignTokenTweakPanel
-      instanceConfig={cfg}
-      spawnOrdinal={spawnOrdinal}
-      onCloseIntent={() => cancelOpenVerification(cfg)}
-    />,
-    root,
-  );
+  (root as unknown as Record<symbol, RootHandle>)[ROOT_HANDLE] = mountOwnedRoot(root, DesignTokenTweakPanel, {
+    instanceConfig: cfg,
+    spawnOrdinal,
+    onCloseIntent: () => cancelOpenVerification(cfg),
+  });
   mountedRoots.set(cfg.storagePrefix, root);
   return true;
 }
 
 /**
- * Full Preact unmount + DOM-root removal for ONE instance. Drives the panel's
- * `useEffect` cleanups (so its window/document listeners detach) before
+ * Full panel unmount + DOM-root removal for ONE instance. Drives the panel's
+ * effect cleanups (so its window/document listeners detach) before
  * detaching the root, so a destroyed instance leaks nothing. Also removes a
  * same-id orphan left by a host swap.
  */
@@ -571,7 +585,7 @@ function unmountInstance(cfg: PanelConfig): void {
   // give the slot back — otherwise a destroy -> recreate cycle would leave the
   // old slot held forever and drift every later instance upward.
   releaseSpawnSlot(cfg);
-  // Release independently of Preact cleanup/root liveness. During an Astro
+  // Release independently of panel cleanup/root liveness. During an Astro
   // swap the global document may already be changing, while the shared host
   // registry still retains the exact elements and priorities it mutated.
   releaseHostMutations(cfg.storagePrefix);
@@ -580,7 +594,7 @@ function unmountInstance(cfg: PanelConfig): void {
     ? getMountedRoots().get(cfg.storagePrefix)
     : undefined;
   if (ownedRoot) {
-    if (isDocumentUsable()) render(null, ownedRoot);
+    if (isDocumentUsable()) unmountRoot(ownedRoot);
     getMountedRoots().delete(cfg.storagePrefix);
     ownedRoot.remove();
   }
@@ -588,7 +602,7 @@ function unmountInstance(cfg: PanelConfig): void {
   // the still-connected reserved root too, so destroy/recreate starts clean.
   const currentRoot = findRoot(cfg);
   if (currentRoot) {
-    if (currentRoot !== ownedRoot) render(null, currentRoot);
+    if (currentRoot !== ownedRoot) unmountRoot(currentRoot);
     currentRoot.remove();
   }
 }
@@ -736,7 +750,7 @@ function showInstance(cfg: PanelConfig): void {
   // cannot distinguish "already open" from "just re-shown after a hide". The
   // notify must therefore be unconditional (mirrors `hideInstance`).
   // The sync event is idempotent: if the panel is genuinely already open the
-  // panel's `setOpen(true)` is a no-op via Preact's setState identity check.
+  // panel re-reads OPEN_KEY and writes the same `open` value, which changes nothing.
   notifyPanelOpenChanged(cfg);
 }
 
@@ -756,8 +770,8 @@ function hideInstance(cfg: PanelConfig): void {
   if (isFreshMount) return;
   // After the seed, isPanelCurrentlyOpen() returns false. We don't have the
   // pre-seed value here, so just always notify — the sync event is idempotent
-  // (panel re-reads OPEN_KEY and calls setOpen(false); if already false, no
-  // re-render thanks to Preact's identity check on setState).
+  // (panel re-reads OPEN_KEY and writes `open = false`; if already false,
+  // nothing changes).
   notifyPanelOpenChanged(cfg);
 }
 
@@ -813,7 +827,7 @@ export function toggleDesignPanel(): void {
  * `autoload-state.ts §enableAutoload()`:
  *   1. Sets `:autoload = '1'`.
  *   2. Sets `-elpath-enabled = '1'` to arm the alt+click inspector.
- *   3. Mounts the Preact shell CLOSED (element-path inspector activates without
+ *   3. Mounts the panel shell CLOSED (element-path inspector activates without
  *      opening the panel UI).
  */
 export function enableAutoload(cfg: PanelConfig = getPanelConfig()): void {
@@ -834,7 +848,7 @@ export function enableAutoload(cfg: PanelConfig = getPanelConfig()): void {
  *   2. Clears `:visible` (sets to `'0'`).
  *   3. Clears `-elpath-enabled` (sets to `'0'`).
  *   4. Removes the open-state key so the next mount starts closed.
- *   5. Unmounts the Preact shell (drives effect cleanups, removes root).
+ *   5. Unmounts the panel shell (drives effect cleanups, removes root).
  */
 export function disableAutoload(cfg: PanelConfig = getPanelConfig()): void {
   clearAutoload(cfg);
@@ -860,10 +874,10 @@ export function __reapplyFromStorageForTests(): void {
 }
 
 /**
- * Apply persisted token overrides directly to `:root` BEFORE any Preact
+ * Apply persisted token overrides directly to `:root` BEFORE any panel
  * render. Called at adapter module init (and again on every `astro:page-load`)
  * so the bundle's arrival is enough to kill the FOUT on hard navigation; the
- * Preact shell still mounts separately when visibility intent requires it via
+ * panel shell still mounts separately when visibility intent requires it via
  * `reapplyFromStorage()`.
  *
  * With no persisted state, applies only explicit manifest mode pairs. Swallows
@@ -913,12 +927,12 @@ export function reapplyPersistedOverrides(): void {
 // ---------------------------------------------------------------------------
 
 /**
- * Full Preact unmount before Astro's `ClientRouter` swaps `<body>`.
+ * Full panel unmount before Astro's `ClientRouter` swaps `<body>`.
  *
- * Without this, the body swap orphans the Preact tree — its `useEffect`
+ * Without this, the body swap orphans the panel tree — its effect
  * cleanups never fire, so each navigation leaks `window`/`document`
- * listeners and leaves a tree whose `setState` calls no longer touch any
- * live DOM. `render(null, root)` drives a proper unmount (cleanups run),
+ * listeners and leaves a tree whose signal writes no longer touch any
+ * live DOM. Unmounting the root handle drives a proper unmount (cleanups run),
  * then the root itself is detached so `astro:page-load` can start clean.
  *
  * Visibility intent must survive the unmount: snapshot `wasVisible()`
@@ -930,8 +944,8 @@ function unmountForSwap(): void {
   // dead document; bailing here also skips the wasVisible/localStorage churn.
   if (!isDocumentUsable()) return;
   // Loop ALL registered instances so non-default panels are also properly
-  // unmounted via render(null) — this drives their useEffect cleanups, which
-  // removes their per-instance window/document listeners (open-state sync,
+  // unmounted — this drives their effect cleanups, which removes their
+  // per-instance window/document listeners (open-state sync,
   // color-scheme-changed, resize, keydown ESC). Without this, Astro's body
   // swap orphans non-default roots and each soft navigation leaks another set
   // of listeners for every non-default panel.
@@ -960,10 +974,10 @@ function unmountForSwap(): void {
  * reapplying even while the panel stays hidden, (c) the Element Path Copy
  * inspector is enabled, or (d) DOM Tweaker is enabled — closed-shell features
  * must work even when the panel is closed, and their orchestrators only run
- * while the Preact shell is mounted. Cases (b), (c), and (d) mount the shell
+ * while the panel shell is mounted. Cases (b), (c), and (d) mount the shell
  * CLOSED via `hideInstance`.
  *
- * Overrides are applied to `:root` first (cheap, no Preact render) so the
+ * Overrides are applied to `:root` first (cheap, no panel render) so the
  * post-swap paint uses the persisted values immediately instead of waiting
  * for the shell's mount-effect to fire. This kills the FOUT on soft-nav the
  * same way the adapter's module-init path kills it on hard-nav.
@@ -974,7 +988,7 @@ function reapplyFromStorage(): void {
   // async continuations after teardown.
   if (!isDocumentUsable()) return;
   // Apply persisted token overrides to :root for every registered instance
-  // first (kills the FOUT on soft-nav before any Preact render).
+  // first (kills the FOUT on soft-nav before any panel render).
   reapplyPersistedOverrides();
   // Loop ALL registered instances so non-default panels are also re-materialised
   // after an Astro body swap. Without this, only the default instance mounts /
@@ -995,7 +1009,7 @@ function reapplyFromStorage(): void {
       _shouldAutoload(cfg)
     ) {
       // Gate #2 — per autoload-state.ts contract: owner-mode page loads mount
-      // the Preact shell CLOSED so the element-path inspector is available even
+      // the panel shell CLOSED so the element-path inspector is available even
       // while the panel UI is hidden.
       hideInstance(cfg);
     }
@@ -1009,7 +1023,7 @@ function reapplyFromStorage(): void {
  * Owns the full toggle pipeline:
  *
  *   1. Compute the new open state by flipping `localStorage[OPEN_KEY]`.
- *   2. Ensure the Preact shell is mounted (idempotent — no-op when already
+ *   2. Ensure the panel shell is mounted (idempotent — no-op when already
  *      mounted, performs the mount + initial render otherwise).
  *   3. Dispatch the internal `__zdtp:open-state-changed` sync event so a
  *      mounted `panel.tsx` re-reads `OPEN_KEY` and updates `open`.
@@ -1022,9 +1036,9 @@ function reapplyFromStorage(): void {
  *   created two implicit requirements that the runtime could not guarantee
  *   together:
  *
- *     - The in-component listener must be attached. Preact flushes
- *       `useEffect` on `requestAnimationFrame`, so for one paint frame
- *       after mount the component has no listener — a click in that
+ *     - The in-component listener must be attached. Preact (the renderer
+ *       at the time) flushed `useEffect` on `requestAnimationFrame`, so for
+ *       one paint frame after mount the component has no listener — a click in that
  *       window only reaches the module-scope handler, which short-
  *       circuited. The click was silently dropped.
  *     - The in-component listener must not be subsequently detached.
@@ -1275,7 +1289,7 @@ __setPanelLifecycleHooks({
   close: (instanceId) => hideInstance(configForInstance(instanceId)),
   toggle: (instanceId) => toggleInstance(configForInstance(instanceId)),
   destroy: (instanceId) => {
-    // Remove ONLY this instance's listeners + root, and unmount its Preact
+    // Remove ONLY this instance's listeners + root, and unmount its panel
     // tree (so its effect cleanups fire). The registry-level deregistration is
     // handled by Z1's `handle.destroy()` AFTER this hook runs.
     const cfg = configForInstance(instanceId);
@@ -1390,7 +1404,7 @@ function bindAstroFallback(state: AdapterLifecycleState): void {
  * If the adapter omits a hook, the corresponding astro fallback listener is
  * retained for that channel — otherwise a host registering only one of
  * `{onBeforeSwap, onPageLoad}` would silently leak the other channel
- * (no `unmountForSwap` → orphaned Preact tree on body-swapping routers, or
+ * (no `unmountForSwap` → orphaned panel tree on body-swapping routers, or
  * no `reapplyFromStorage` → persisted overrides not re-applied after nav).
  * The internal handlers are idempotent, so a host that emits both astro
  * events AND its own custom event observes at most a no-op double-call.
@@ -1428,7 +1442,7 @@ function bindAdapter(state: AdapterLifecycleState, adapter: LifecycleAdapter): v
     console.warn(
       `[design-token-panel] LifecycleAdapter is missing ${missing}. ` +
         'Astro fallback listener retained for the missing channel(s) so the ' +
-        'panel does not leak the Preact tree or skip override re-apply on ' +
+        'panel does not leak the panel tree or skip override re-apply on ' +
         'soft-nav. Provide the hook explicitly to silence this warning.',
     );
   }
@@ -1460,7 +1474,7 @@ export function setLifecycleAdapter(adapter: LifecycleAdapter | null): void {
  * storagePrefix. Previously these calls ran at module-init time with DEFAULT
  * config. With contaminated localStorage (`zudo-design-token-panel:visible=1`),
  * reapplyFromStorage would mount a default-prefix panel BEFORE configurePanel
- * ran, then its useEffect would removeItem(getOpenKey()) — now pointing at the
+ * ran, then its effect would removeItem(getOpenKey()) — now pointing at the
  * host's prefix — clobbering the first toggle. Registering as a post-configure
  * hook ensures reapply always uses the host-supplied config.
  *

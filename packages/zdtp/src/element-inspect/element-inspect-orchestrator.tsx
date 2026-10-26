@@ -1,22 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import type { ComponentChildren } from 'preact';
-import { createPortal } from 'preact/compat';
+/** @jsxImportSource @takazudo/zfb/zudo-react */
+import { batch, computed, getScope, signal, type ReadonlySignal } from '@takazudo/zfb/zudo-react';
 import type { AltClickPickerHandle } from '../picker';
-import { usePortalMount } from '../utils/use-portal-mount';
+import { useMountPortal } from '../zr/portal';
 import { buildTokenIndex, type TokenIndex } from '../utils/token-index';
 import type { PanelConfig } from '../config/panel-config';
 import type { TweakState } from '../state/tweak-state';
 import type { CommitTweakStateOptions, TweakStateUpdater } from '../state/transaction';
 import type { FlatTabEntry, TokenAddress } from '../tabs/flat/types';
 import { tokenAddressKey as flatTokenAddressKey } from '../tabs/flat/types';
-import { TokenControllerProvider } from '../tabs/flat/token-controller';
+import type { TokenControllerRegistry } from '../tabs/flat/token-controller';
 import { findTokensForElement, type FindTokensForElementResult } from './find-tokens-for-element';
-import {
-  ElementInspectContext,
-  type ElementInspectContextValue,
-} from './element-inspect-context';
-import { ELEMENT_INSPECT_PORTAL_MOUNT_ID } from './element-inspect-overlay';
-import { ElementInspectLayer } from './element-inspect-layer-preact';
+import type { ElementInspectController } from './element-inspect-context';
+import { ELEMENT_INSPECT_PORTAL_MOUNT_ID, ElementInspectLayer } from './element-inspect-overlay';
 
 type CommitTweakState = (
   reason: string,
@@ -117,168 +112,134 @@ function deleteStateAtAddress(previous: TweakState, address: TokenAddress): Twea
   };
 }
 
-interface ElementInspectPortalProps {
-  armed: boolean;
-  pickerRef: { current: AltClickPickerHandle | null };
-  pinned: Element | null;
-  onElementPicked: (element: Element) => void;
-  onPinnedDetached: () => void;
-  onArmingRevoked: () => void;
-}
-
-function ElementInspectPortal({
-  armed,
-  pickerRef,
-  pinned,
-  onElementPicked,
-  onPinnedDetached,
-  onArmingRevoked,
-}: ElementInspectPortalProps) {
-  const mountNode = usePortalMount(ELEMENT_INSPECT_PORTAL_MOUNT_ID);
-  useEffect(() => {
-    // The portal mount is created by an effect. Include it in this seam's
-    // dependencies so an already-armed toggle also arms the picker when the
-    // first mount appears after the orchestrator's initial render.
-    if (mountNode && armed) pickerRef.current?.arm();
-  }, [armed, mountNode, pickerRef]);
-  if (!mountNode) return null;
-  return createPortal(
-    <ElementInspectLayer
-      armed={armed}
-      pinned={pinned}
-      pickerHandle={pickerRef}
-      onElementPicked={onElementPicked}
-      onPinnedDetached={onPinnedDetached}
-      onArmingRevoked={onArmingRevoked}
-    />,
-    mountNode,
-  );
-}
-
-export interface ElementInspectOrchestratorProps {
-  children: ComponentChildren;
+export interface ElementInspectOptions {
   instanceConfig: PanelConfig;
-  state: TweakState | null;
+  state: ReadonlySignal<TweakState | null>;
   commitTweakState: CommitTweakState;
   onInspectTabOpen: () => void;
   onInspectTabClear: () => void;
   onJumpToColorTab?: () => void;
-  panelOpen?: boolean;
+  panelOpen?: ReadonlySignal<boolean>;
 }
 
-export function ElementInspectOrchestrator({
-  children,
+/**
+ * Run the element → tokens inspector for the calling component's lifetime:
+ * the picker and pinned marker render in a body-level portal, and the
+ * returned controller drives the header toggle and the Inspect view.
+ */
+export function useElementInspect({
   instanceConfig,
   state,
   commitTweakState,
   onInspectTabOpen,
   onInspectTabClear,
   onJumpToColorTab,
-  panelOpen = true,
-}: ElementInspectOrchestratorProps) {
-  const tokenIndex = useMemo(() => buildTokenIndex(instanceConfig), [instanceConfig]);
-  const [armed, setArmed] = useState(false);
-  const [pinned, setPinned] = useState<Element | null>(null);
-  const [result, setResult] = useState<FindTokensForElementResult | null>(null);
-  const pickerRef = useRef<import('../picker').AltClickPickerHandle | null>(null);
+  panelOpen,
+}: ElementInspectOptions): ElementInspectController {
+  const tokenIndex = buildTokenIndex(instanceConfig);
+  const armed = signal(false);
+  const pinned = signal<Element | null>(null);
+  const result = signal<FindTokensForElementResult | null>(null);
+  const pickerHandle: { current: AltClickPickerHandle | null } = { current: null };
 
-  const pin = useCallback((element: Element) => {
+  const pin = (element: Element) => {
     if (!element.isConnected) return;
-    setPinned(element);
-    setResult(findTokensForElement(element, tokenIndex));
+    batch(() => {
+      pinned.value = element;
+      result.value = findTokensForElement(element, tokenIndex);
+    });
     onInspectTabOpen();
-  }, [onInspectTabOpen, tokenIndex]);
+  };
 
-  const arm = useCallback(() => setArmed(true), []);
-  const disarm = useCallback(() => {
-    pickerRef.current?.disarm();
-    setArmed(false);
-  }, []);
-  useEffect(() => {
-    if (!panelOpen) disarm();
-  }, [disarm, panelOpen]);
-  useEffect(() => {
-    if (!armed || typeof window === 'undefined') return;
+  const arm = () => {
+    armed.value = true;
+  };
+  const disarm = () => {
+    pickerHandle.current?.disarm();
+    armed.value = false;
+  };
+  const toggle = () => {
+    const next = !armed.value;
+    if (!next) pickerHandle.current?.disarm();
+    armed.value = next;
+  };
+
+  const handlePick = (element: Element) => {
+    pin(element);
+    disarm();
+  };
+
+  const clear = () => {
+    disarm();
+    batch(() => {
+      pinned.value = null;
+      result.value = null;
+    });
+    onInspectTabClear();
+  };
+
+  const handlePinnedDetached = () => {
+    batch(() => {
+      pinned.value = null;
+      result.value = null;
+    });
+    onInspectTabClear();
+  };
+
+  const scope = getScope();
+  if (panelOpen) {
+    scope.effect(() => {
+      if (!panelOpen.value) disarm();
+    });
+  }
+  scope.effect(() => {
+    if (!armed.value) return;
     const handleBlur = () => disarm();
     window.addEventListener('blur', handleBlur);
     return () => window.removeEventListener('blur', handleBlur);
-  }, [armed, disarm]);
-  const toggle = useCallback(() => {
-    setArmed((value) => {
-      const next = !value;
-      if (!next) pickerRef.current?.disarm();
-      return next;
-    });
-  }, []);
+  });
 
-  const handlePick = useCallback((element: Element) => {
-    pin(element);
-    pickerRef.current?.disarm();
-    setArmed(false);
-  }, [pin]);
-
-  const clear = useCallback(() => {
-    pickerRef.current?.disarm();
-    setArmed(false);
-    setPinned(null);
-    setResult(null);
-    onInspectTabClear();
-  }, [onInspectTabClear]);
-
-  const handleArmingRevoked = useCallback(() => {
-    setArmed(false);
-  }, []);
-
-  const handlePinnedDetached = useCallback(() => {
-    setPinned(null);
-    setResult(null);
-    onInspectTabClear();
-  }, [onInspectTabClear]);
-
-  const setValue = useCallback((address: TokenAddress, next: string) => {
+  const setValue = (address: TokenAddress, next: string) => {
     commitTweakState(
       'element-inspect-adjust',
       (previous) => updateStateAtAddress(previous, address, next),
       { address: `element-inspect.${address.tabId}.${address.tierId}.${address.itemId}` },
     );
-  }, [commitTweakState]);
+  };
 
-  const deleteValue = useCallback((address: TokenAddress) => {
+  const deleteValue = (address: TokenAddress) => {
     commitTweakState(
       'element-inspect-revert',
       (previous) => deleteStateAtAddress(previous, address),
       { address: `element-inspect.${address.tabId}.${address.tierId}.${address.itemId}` },
     );
-  }, [commitTweakState]);
+  };
 
-  const entries = useMemo(
-    () => buildControllerEntries(instanceConfig, state, tokenIndex),
-    [instanceConfig, state, tokenIndex],
-  );
-  const contextValue = useMemo<ElementInspectContextValue>(
-    () => ({ armed, pinned, result, arm, disarm, toggle, pin, clear }),
-    [arm, armed, clear, disarm, pin, result, toggle, pinned],
-  );
-  const jumpToColorTab = useCallback(() => onJumpToColorTab?.(), [onJumpToColorTab]);
+  const jumpTo = onJumpToColorTab ? () => onJumpToColorTab() : undefined;
+  const tokens = computed<TokenControllerRegistry>(() => ({
+    entries: buildControllerEntries(instanceConfig, state.value, tokenIndex),
+    setValue,
+    deleteValue,
+    ...(jumpTo ? { jumpTo } : {}),
+  }));
 
-  return (
-    <TokenControllerProvider
-      entries={entries}
-      setValue={setValue}
-      deleteValue={deleteValue}
-      jumpTo={onJumpToColorTab ? jumpToColorTab : undefined}
-    >
-      <ElementInspectContext.Provider value={contextValue}>
-        {children}
-        <ElementInspectPortal
-          armed={armed}
-          pickerRef={pickerRef}
-          pinned={pinned}
-          onElementPicked={handlePick}
-          onPinnedDetached={handlePinnedDetached}
-          onArmingRevoked={handleArmingRevoked}
-        />
-      </ElementInspectContext.Provider>
-    </TokenControllerProvider>
-  );
+  useMountPortal(ELEMENT_INSPECT_PORTAL_MOUNT_ID, () => (
+    <ElementInspectLayer
+      armed={armed}
+      pinned={pinned}
+      pickerHandle={pickerHandle}
+      onElementPicked={handlePick}
+      onPinnedDetached={handlePinnedDetached}
+      onArmingRevoked={() => {
+        armed.value = false;
+      }}
+    />
+  ));
+  // The toggle only enables the picker; arm it too so the next click picks
+  // without holding Alt.
+  scope.effect(() => {
+    if (armed.value) pickerHandle.current?.arm();
+  });
+
+  return { armed, pinned, result, tokens, arm, disarm, toggle, pin, clear };
 }

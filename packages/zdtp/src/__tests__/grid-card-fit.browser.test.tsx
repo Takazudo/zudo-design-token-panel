@@ -2,10 +2,10 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
-import { render } from 'preact';
-import { act } from '../zr/test-utils';
+import { act, renderZr, unmountZrIn } from '../zr/test-utils';
 import DesignTokenTweakPanel from '../panel';
-import GenericItemEditor from '../tabs/_generic-item-editor';
+import SpacingTab from '../tabs/spacing-tab';
+import { createPanelServices } from '../zr/panel-services';
 import { loadHighlightState } from '../highlight/highlight-state';
 import type { PanelConfig } from '../config/panel-config';
 import type { TabConfig, TierItem } from '../tokens/tier-model';
@@ -217,7 +217,7 @@ async function mount(cfg: PanelConfig, width: number, density: PanelDensity, tab
   localStorage.setItem(getPositionKey(cfg), JSON.stringify({ left: 20, top: 20 }));
   localStorage.setItem(getSizeKey(cfg), JSON.stringify({ width, height: 760 }));
   localStorage.setItem(getDensityKey(cfg), String(density));
-  act(() => render(<DesignTokenTweakPanel instanceConfig={cfg} />, host));
+  act(() => renderZr(() => <DesignTokenTweakPanel instanceConfig={cfg} />, host));
   await flushEffects();
   const button = [...host.querySelectorAll<HTMLElement>('[role="tab"]')].find((node) => node.textContent === tab);
   if (!button) throw new Error(`Missing tab ${tab}`);
@@ -240,7 +240,7 @@ beforeEach(async () => {
   document.body.appendChild(host);
 });
 afterEach(async () => {
-  act(() => render(null, host));
+  act(() => unmountZrIn(host));
   host.remove();
   style.remove();
   localStorage.clear();
@@ -517,12 +517,15 @@ describe('bounded absent control shapes and interactions', () => {
     checkCards(root);
   });
 
-  it('applies the same card structure to every legacy editor branch without nesting pills', async () => {
-    act(() => render(<div className="tokenpanel-shell" style={{ position: 'static', width: '320px' }}>
-      <div className="tokenpanel-tab-grid" style={{ width: '192px' }}>
-        {items.map((item) => <GenericItemEditor key={item.id} item={item} value={item.default} onChange={() => {}} />)}
+  it('applies the same card structure to every flat-tab editor branch without nesting pills', async () => {
+    const flatTab: TabConfig = { id: 'fit-flat', label: 'Fit flat', tiers: [{ id: 'raw', label: 'Controls', items }] };
+    act(() => renderZr(() => (
+      <div class="tokenpanel-shell" style="position: static; width: 320px">
+        <div style="width: 192px">
+          <SpacingTab tab={flatTab} state={{}} persistSpacing={() => {}} services={createPanelServices()} />
+        </div>
       </div>
-    </div>, host));
+    ), host));
     await flushEffects();
     expect(host.querySelectorAll('.tokenpanel-card')).toHaveLength(items.length);
     expect(host.querySelectorAll('.tokenpanel-card .tokenpanel-card')).toHaveLength(0);

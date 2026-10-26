@@ -1,6 +1,3 @@
-import { createContext } from 'preact';
-import { useContext } from 'preact/hooks';
-import type { ComponentChildren } from 'preact';
 import type { FlatTabEntry, TokenAddress } from './types';
 import { tokenAddressKey } from './types';
 
@@ -14,32 +11,18 @@ export interface TokenController {
   jumpTo?: () => void;
 }
 
-interface TokenControllerRegistry {
+export interface TokenControllerRegistry {
   entries: ReadonlyMap<string, FlatTabEntry>;
   setValue: (address: TokenAddress, next: string) => void;
   deleteValue: (address: TokenAddress) => void;
   jumpTo?: (address: TokenAddress) => void;
 }
 
-const TokenControllerContext = createContext<TokenControllerRegistry | null>(null);
-
-interface TokenControllerProviderProps extends TokenControllerRegistry {
-  children: ComponentChildren;
-}
-
-export function TokenControllerProvider({ children, ...registry }: TokenControllerProviderProps) {
-  return (
-    <TokenControllerContext.Provider value={registry}>
-      {children}
-    </TokenControllerContext.Provider>
-  );
-}
-
-export function useTokenController(address: TokenAddress): TokenController {
-  const registry = useContext(TokenControllerContext);
-  if (registry === null) {
-    throw new Error('useTokenController must be used inside a FlatTab.');
-  }
+/** The read/write handle for one token address in `registry`. */
+export function getTokenController(
+  registry: TokenControllerRegistry,
+  address: TokenAddress,
+): TokenController {
   const entry = registry.entries.get(tokenAddressKey(address));
   if (entry === undefined) {
     throw new Error(`Unknown token address: ${tokenAddressKey(address)}`);

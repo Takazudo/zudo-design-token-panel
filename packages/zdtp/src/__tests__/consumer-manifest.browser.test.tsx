@@ -1,5 +1,4 @@
-import { render } from 'preact';
-import { act } from '../zr/test-utils';
+import { act, renderZr, unmountZrIn } from '../zr/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { zudoDocConfigs } from '../../../../playground/config/zudo-doc-manifest.generated';
 import DesignTokenTweakPanel from '../panel';
@@ -21,7 +20,7 @@ async function verifyEveryTab(config: PanelConfig): Promise<void> {
   container = mountContainer;
   document.body.appendChild(mountContainer);
 
-  act(() => render(<DesignTokenTweakPanel instanceConfig={config} />, mountContainer));
+  act(() => renderZr(() => <DesignTokenTweakPanel instanceConfig={config} />, mountContainer));
   await settle();
 
   for (const tab of config.tabs) {
@@ -45,7 +44,7 @@ async function verifyEveryTab(config: PanelConfig): Promise<void> {
 afterEach(() => {
   if (container) {
     const mountContainer = container;
-    act(() => render(null, mountContainer));
+    act(() => unmountZrIn(mountContainer));
     mountContainer.remove();
     container = undefined;
   }

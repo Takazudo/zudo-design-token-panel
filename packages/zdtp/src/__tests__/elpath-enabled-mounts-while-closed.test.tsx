@@ -6,7 +6,7 @@
  *
  * The Alt+click "copy selector" gesture lives in the InspectorOverlay, which
  * is mounted by the ElementPathOrchestrator — and that orchestrator only runs
- * while the Preact shell is mounted. The shell mounts lazily (first open). So
+ * while the panel shell is mounted. The shell mounts lazily (first open). So
  * on a page load where the user had previously enabled inspect mode but left
  * the panel closed (and has no token overrides), nothing mounted the shell and
  * the inspector silently did not work.

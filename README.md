@@ -10,7 +10,7 @@ public package, it lets designers and developers adjust design tokens (CSS
 custom properties) live in the browser, while the bin process round-trips
 those tweaks back into the source CSS files on disk.
 
-The panel is a Preact island that mounts inside a host web app. The bin is a
+The panel is a self-contained zudo-react island that mounts inside a host web app. The bin is a
 small local server that watches edits from the panel and persists them. It is
 designed to plug into modern host frameworks: Astro, Vite + React, Next.js,
 zfb, and zfb + Tailwind v4 — see the [Examples](https://zdtp.zudolab.dev/docs/getting-started/examples/)
@@ -136,7 +136,7 @@ MIT — see [LICENSE](./LICENSE).
 ## Try the dashboard as an external package
 
 Run `pnpm check:dashboard-consumer --keep` to build and install the current tarball
-in an isolated temporary Preact app, compile TSX, render static HTML and verify it
+in an isolated temporary zudo-react app, compile TSX, render static HTML and verify it
 in Chromium with JavaScript disabled. The retained app is editable and rebuilds
 with `npm run build`; no npm publication is needed. See the
 [consumer fixture guide](scripts/fixtures/dashboard-consumer/README.md) for CSS

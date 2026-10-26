@@ -1,6 +1,6 @@
 /** @jsxImportSource @takazudo/zfb/zudo-react */
 import { computed, getScope, signal, type Ref } from '@takazudo/zfb/zudo-react';
-import { createDialogBackdropClose } from '../../controls/use-dialog-backdrop-close';
+import { createDialogBackdropClose } from '../../controls/dialog-backdrop-close';
 import {
   getPanelConfig,
   modalClass,

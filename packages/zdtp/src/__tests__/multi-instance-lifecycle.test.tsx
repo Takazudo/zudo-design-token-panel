@@ -10,7 +10,7 @@
  *   1. Two configured panels (distinct `storagePrefix`es) each mount into their
  *      OWN root and open/close via their OWN toggle event — no cross-talk.
  *   2. `handle.destroy()` removes ONLY that instance's root + listeners (and
- *      unmounts its Preact tree); the other panel keeps working.
+ *      unmounts its panel tree); the other panel keeps working.
  *   3. The default (un-configured) instance keeps the historical
  *      `toggle-design-token-panel` event; a configured non-default instance
  *      uses `toggle-${storagePrefix}` (or `config.toggleEvent`).

@@ -80,7 +80,8 @@ export interface TextInputProps {
   onInput?: (value: string) => void;
   onChange?: (value: string) => void;
   onBlur?: () => void;
-  type?: 'text' | 'color' | 'range';
+  onKeyDown?: (event: KeyboardEvent) => void;
+  type?: 'text' | 'color' | 'range' | 'number';
   disabled?: MaybeSignal<boolean>;
   /** Further plain attributes (aria-*, data-*, inputmode, placeholder, …). */
   attrs?: Record<string, MaybeSignal<string | number | boolean | null>>;
@@ -115,6 +116,7 @@ export function TextInput(props: TextInputProps) {
       {...(props.onInput ? { 'on:input': (event: Event) => props.onInput!(valueOf(event)) } : {})}
       {...(props.onChange ? { 'on:change': (event: Event) => props.onChange!(valueOf(event)) } : {})}
       {...(props.onBlur ? { 'on:blur': () => props.onBlur!() } : {})}
+      {...(props.onKeyDown ? { 'on:keydown': (event: KeyboardEvent) => props.onKeyDown!(event) } : {})}
     />
   );
 }

@@ -1,76 +1,44 @@
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 /**
- * ElementPathOrchestrator — integration layer for Element Path Copy.
+ * Element Path Copy orchestrator.
  *
- * Responsibilities (mirrors HighlightOrchestrator):
+ * Responsibilities (mirrors the highlight controller):
  *   1. Lifts and persists the `enabled` flag.
- *   2. Provides ElementPathContext to all descendants (header toggle button).
+ *   2. Returns the controller the header toggle button reads.
  *   3. Mounts the InspectorOverlay in a portal at document.body so the box,
  *      label, and toast render above host content regardless of where the panel
  *      shell lives — and persist even while the panel is closed.
  *   4. Recreates the portal mount on `astro:after-swap` when Astro replaces body.
- *
- * panel.tsx wraps its tree in this component.
  */
 
-import { useState, useCallback, useMemo } from 'preact/hooks';
-import type { ComponentChildren } from 'preact';
-import { createPortal } from 'preact/compat';
-import {
-  ElementPathContext,
-  type ElementPathContextValue,
-} from './element-path-context';
+import { signal, type Child } from '@takazudo/zfb/zudo-react';
+import type { ElementPathController } from './element-path-context';
 import { loadElementPathEnabled, saveElementPathEnabled } from './element-path-state';
-import { InspectorOverlay } from './inspector-overlay-preact';
-import { usePortalMount } from '../utils/use-portal-mount';
+import { InspectorOverlay } from './inspector-overlay';
+import { useMountPortal } from '../zr/portal';
 import { ELPATH_PORTAL_MOUNT_ID } from '../highlight/find-elements';
 
-// ---------------------------------------------------------------------------
-// Portal mount
-// ---------------------------------------------------------------------------
+/** Run Element Path Copy for the calling component's lifetime. */
+export function useElementPath(): ElementPathController {
+  const enabled = signal<boolean>(loadElementPathEnabled());
 
-interface OverlayPortalProps {
-  enabled: boolean;
-  onArmingRevoked: () => void;
-}
-
-function OverlayPortal({ enabled, onArmingRevoked }: OverlayPortalProps) {
-  const mountNode = usePortalMount(ELPATH_PORTAL_MOUNT_ID);
-  if (!mountNode) return null;
-  return createPortal(
-    <InspectorOverlay enabled={enabled} onArmingRevoked={onArmingRevoked} />,
-    mountNode,
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Orchestrator
-// ---------------------------------------------------------------------------
-
-export function ElementPathOrchestrator({ children }: { children: ComponentChildren }) {
-  const [enabled, setEnabledState] = useState<boolean>(loadElementPathEnabled);
-
-  const setEnabled = useCallback((next: boolean) => {
-    setEnabledState(next);
+  const setEnabled = (next: boolean) => {
+    enabled.value = next;
     saveElementPathEnabled(next);
-  }, []);
+  };
+  const toggle = () => setEnabled(!enabled.value);
 
-  const toggle = useCallback(() => {
-    setEnabledState((prev) => {
-      const next = !prev;
-      saveElementPathEnabled(next);
-      return next;
-    });
-  }, []);
+  useMountPortal(ELPATH_PORTAL_MOUNT_ID, () => (
+    <InspectorOverlay enabled={enabled} onArmingRevoked={() => setEnabled(false)} />
+  ));
 
-  const ctxValue = useMemo<ElementPathContextValue>(
-    () => ({ enabled, setEnabled, toggle }),
-    [enabled, setEnabled, toggle],
-  );
+  return { enabled, setEnabled, toggle };
+}
 
-  return (
-    <>
-      <ElementPathContext.Provider value={ctxValue}>{children}</ElementPathContext.Provider>
-      <OverlayPortal enabled={enabled} onArmingRevoked={() => setEnabled(false)} />
-    </>
-  );
+/** Component form of `useElementPath`, for isolated use. */
+export function ElementPathOrchestrator(props: {
+  children?: (controller: ElementPathController) => Child;
+}) {
+  const controller = useElementPath();
+  return props.children ? props.children(controller) : null;
 }

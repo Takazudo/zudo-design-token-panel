@@ -9,8 +9,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from '../zr/test-utils';
+import { act, renderZr, unmountZrIn } from '../zr/test-utils';
 import DesignTokenTweakPanel from '../panel';
 import { MiniPill } from '../shell/mini-pill';
 import {
@@ -52,7 +51,7 @@ async function mountPanel(options: { width?: number; dock?: string } = {}): Prom
   container = document.createElement('div');
   document.body.appendChild(container);
   act(() => {
-    render(<DesignTokenTweakPanel instanceConfig={CFG} />, container);
+    renderZr(() => <DesignTokenTweakPanel instanceConfig={CFG} />, container);
   });
   await flushEffects();
 }
@@ -87,7 +86,7 @@ afterEach(async () => {
   vi.restoreAllMocks();
   await flushEffects();
   if (container) {
-    act(() => render(null, container));
+    act(() => unmountZrIn(container));
     container.remove();
   }
   injectedStyle?.remove();
@@ -129,14 +128,11 @@ describe('mini pill', () => {
 
     const renderCount = (changedCount: number | undefined): void => {
       act(() => {
-        render(
-          <MiniPill
+        renderZr(() => <MiniPill
             changedCount={changedCount}
             onApply={() => undefined}
             onExpand={() => undefined}
-          />,
-          container,
-        );
+          />, container,);
       });
     };
 
@@ -154,15 +150,12 @@ describe('mini pill', () => {
     document.body.appendChild(container);
     const onApply = vi.fn();
     act(() => {
-      render(
-        <MiniPill
+      renderZr(() => <MiniPill
           onApply={onApply}
           applyDisabled
           applyDisabledReason="Apply unavailable: configure an apply endpoint and a non-empty routing map."
           onExpand={() => undefined}
-        />,
-        container,
-      );
+        />, container,);
     });
 
     const apply = container.querySelector<HTMLElement>('[aria-label="Apply changes"]');
@@ -216,7 +209,7 @@ describe('mini pill', () => {
     expect(localStorage.getItem(GHOST_KEY)).toBe('1');
     expect(tabbarToggle.checked).toBe(true);
 
-    act(() => render(null, container));
+    act(() => unmountZrIn(container));
     container.remove();
     await mountPanel({ width: 400 });
     expect(container.querySelector<HTMLInputElement>('.tokenpanel-ghost-idle-checkbox')?.checked).toBe(

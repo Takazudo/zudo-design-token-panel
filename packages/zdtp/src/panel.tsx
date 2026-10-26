@@ -1,52 +1,35 @@
-import { useState, useEffect, useCallback, useRef, useId, useMemo } from 'preact/compat';
-import type { RefObject } from 'preact';
-import { ApplyModal, ExportModal, ImportModal } from './modals-preact';
-import { flattenApplyOverrides } from './apply-modal';
+/** @jsxImportSource @takazudo/zfb/zudo-react */
+import { batch, computed, getScope, Show, signal, type ReadonlySignal } from '@takazudo/zfb/zudo-react';
+import { ApplyModal, flattenApplyOverrides } from './apply-modal';
+import { ExportModal } from './export-modal';
+import { ImportModal } from './import-modal';
 import { loadLastApplied, saveLastApplied, unsavedCssVars } from './apply/last-applied';
 import { reconcileApplied } from './apply/reconcile-applied';
-import { RoleButton } from './controls/role-button-preact';
+import { RoleButton } from './controls/role-button';
+import { createTooltipController } from './controls/tooltip-controller';
 import { HighlightSettingsPopover } from './highlight/highlight-settings-popover';
-import { HighlightOrchestrator } from './highlight/highlight-orchestrator';
-import { TokenChainProvider } from './chain';
-import { ElementPathOrchestrator } from './element-path/element-path-orchestrator';
+import { useHighlightController } from './highlight/highlight-orchestrator';
+import { tokenChainSignal } from './chain/token-chain-context';
+import { useElementPath } from './element-path/element-path-orchestrator';
 import { ElementPathToggleButton } from './element-path/element-path-toggle-button';
-import {
-  ElementInspectOrchestrator,
-  ElementInspectToggleButton,
-  ElementInspectView,
-  ELEMENT_INSPECT_TAB_ID,
-} from './element-inspect';
-import { DomTweakerOrchestrator } from './dom-tweaker/dom-tweaker-orchestrator';
+import { useElementInspect } from './element-inspect/element-inspect-orchestrator';
+import { ElementInspectToggleButton } from './element-inspect/element-inspect-toggle-button';
+import { ElementInspectView } from './element-inspect/element-inspect-view';
+import { ELEMENT_INSPECT_TAB_ID } from './element-inspect/element-inspect-context';
+import { useDomTweaker } from './dom-tweaker/dom-tweaker-orchestrator';
 import { DomTweakerToggleButton } from './dom-tweaker/dom-tweaker-toggle-button';
 import { DomTweakerDiffActionLink } from './dom-tweaker/dom-tweaker-diff-action-link';
 import { ShellHeader } from './shell/header';
-import { ShellTabBar } from './shell/tab-bar';
+import { DensitySlider, ShellTabBar } from './shell/tab-bar';
 import { ShellFooter } from './shell/footer';
 import { DockModeSwitch } from './shell/dock-mode-switch';
 import { MiniPill } from './shell/mini-pill';
-import {
-  loadGhostIdle,
-  saveGhostIdle,
-  useGhostIdle,
-} from './shell/ghost-idle';
-import { ShellRegionsProvider, type ShellRegionItem } from './shell/regions';
-import {
-  LayerActivityProvider,
-  useLayerActivity,
-  useLayerRegistration,
-} from './shell/layer-activity';
-import { ShortcutProvider, useShortcut } from './shell/shortcut-dispatcher';
-import {
-  HistoryButtons,
-  HistoryRail,
-  HistoryShortcuts,
-  HistoryUndoButton,
-} from './history';
-import {
-  restoreSnapshotState,
-  useSnapshots,
-  type SnapshotSlot,
-} from './history/snapshots';
+import { loadGhostIdle, saveGhostIdle, useGhostIdle } from './shell/ghost-idle';
+import { createShellRegions, type RegionItems, type ShellRegionItem } from './shell/regions';
+import { createLayerActivity, useLayerRegistration } from './shell/layer-activity';
+import { createShortcutDispatcher, useShortcut } from './shell/shortcut-dispatcher';
+import { HistoryRail, HistoryUndoButton, historyRegionItem, useHistoryShortcuts } from './history';
+import { createSnapshotStore, restoreSnapshotState, type SnapshotSlot } from './history/snapshots';
 import { SearchHeader } from './search/search-header';
 import { SearchMatchBar, type SearchTabCount } from './search/match-bar';
 import { CommandPalette, type CommandPaletteAction } from './search/command-palette';
@@ -56,12 +39,14 @@ import { scrollToTokenRow } from './tabs/flat/scroll-to-token-row';
 import type { ChangedContributionOptions } from './changed/contribution';
 import { ChangedFooterContent } from './changed/footer-content';
 import { ChangedOnlyToggle } from './changed/tab-filter';
-import ColorTab from './tabs/color-tab-preact';
-import { FontTab, GenericTab, SizeTab, SpacingTab } from './tabs/flat-tabs-preact';
-import PaletteTab from './tabs/palette/palette-tab-preact';
-import NotesTab from './tabs/notes-tab-preact';
+import ColorTab from './tabs/color-tab';
+import FontTab from './tabs/font-tab';
+import GenericTab from './tabs/generic-tab';
+import SizeTab from './tabs/size-tab';
+import SpacingTab from './tabs/spacing-tab';
+import PaletteTab from './tabs/palette/palette-tab';
+import NotesTab from './tabs/notes-tab';
 import type { BulkPatchEntry } from './bulk';
-import { TooltipProvider } from './controls/tooltip-preact';
 import {
   getPanelConfig,
   isApplyConfigured,
@@ -73,7 +58,14 @@ import type { TabConfig } from './tokens/tier-model';
 import { isDocumentUsable } from './utils/document-liveness';
 import { claimHostDock, releaseHostMutations } from './host/host-mutations';
 import { onPageSpecimenMutationOwner } from './specimen/on-page-specimen';
-import { useHistory, usePersist, useTweakStateTransaction } from './state/preact-hooks';
+import { createTweakHistory } from './state/history';
+import { createPersist } from './state/persist';
+import { createTweakStateTransaction } from './state/transaction';
+import { createPanelServices } from './zr/panel-services';
+import { Checkbox } from './zr/form-controls';
+import { Rebuild } from './zr/rebuild';
+import { storeSignal } from './zr/store';
+import { toZrStyle } from './zr/style';
 import {
   type TweakState,
   type ColorTweakState,
@@ -180,90 +172,32 @@ function freshTweakState(cfg?: PanelConfig): TweakState {
   };
 }
 
-function PanelLayerRegistrations({
-  exportOpen,
-  importOpen,
-  applyOpen,
-  highlightSettingsOpen,
-}: {
-  exportOpen: boolean;
-  importOpen: boolean;
-  applyOpen: boolean;
-  highlightSettingsOpen: boolean;
-}) {
-  useLayerRegistration('export-modal', exportOpen);
-  useLayerRegistration('import-modal', importOpen);
-  useLayerRegistration('apply-modal', applyOpen);
-  useLayerRegistration('highlight-settings', highlightSettingsOpen);
-  return null;
-}
-
-function PanelEscapeShortcut({ onClose }: { onClose: () => void }) {
-  const layerActive = useLayerActivity();
-  useShortcut({ key: 'Escape' }, (event) => {
-    if (event.defaultPrevented || layerActive) return;
-    event.preventDefault();
-    onClose();
-  });
-  return null;
-}
-
-function DockShortcuts({
-  value,
-  onChange,
-}: {
-  value: DockMode;
-  onChange: (mode: DockMode) => void;
-}) {
-  const selectMode = (mode: DockMode, event: KeyboardEvent) => {
-    if (mode === value) return;
-    event.preventDefault();
-    onChange(mode);
-  };
-  useShortcut({ key: '1', altKey: true }, (event) => selectMode('float', event));
-  useShortcut({ key: '2', altKey: true }, (event) => selectMode('right', event));
-  useShortcut({ key: '3', altKey: true }, (event) => selectMode('bottom', event));
-  useShortcut({ key: '4', altKey: true }, (event) => selectMode('mini', event));
-  return null;
-}
-
-function GhostIdleBehavior({
-  enabled,
-  targetRef,
-}: {
-  enabled: boolean;
-  targetRef: RefObject<HTMLDivElement>;
-}) {
-  const layerActive = useLayerActivity();
-  useGhostIdle(targetRef, enabled, layerActive);
-  return null;
-}
-
 function GhostIdleToggle({
   enabled,
   onChange,
   compact = false,
 }: {
-  enabled: boolean;
+  enabled: ReadonlySignal<boolean>;
   onChange: (enabled: boolean) => void;
   compact?: boolean;
 }) {
   return (
     <label
-      className={`tokenpanel-ghost-idle-toggle${compact ? ' is-compact' : ''}`}
+      class={`tokenpanel-ghost-idle-toggle${compact ? ' is-compact' : ''}`}
       title="Fade the panel while the pointer is outside it"
     >
-      <input
-        type="checkbox"
+      <Checkbox
         checked={enabled}
-        onInput={(event) => onChange((event.currentTarget as HTMLInputElement).checked)}
-        className="tokenpanel-ghost-idle-checkbox"
+        onChange={onChange}
+        class="tokenpanel-ghost-idle-checkbox"
         aria-label="Ghost when idle"
       />
       <span>Ghost when idle</span>
     </label>
   );
 }
+
+let nextAriaScope = 0;
 
 // --- Main Component ---
 
@@ -272,7 +206,7 @@ function GhostIdleToggle({
  *
  * `instanceConfig` is the FULL registered config of the instance this mounted
  * tree belongs to (issue #354). The adapter (`index.tsx`) passes it at
- * `render(...)` time. The panel reads its OWN open key, visible key,
+ * mount time. The panel reads its OWN open key, visible key,
  * per-instance open-state sync-event name, AND its OWN tabs from this config —
  * so two panels on one page read/write distinct storage keys, listen on
  * distinct sync events, and render distinct manifests, never cross-talking.
@@ -280,7 +214,7 @@ function GhostIdleToggle({
  * the historical single-panel behaviour.
  *
  * `spawnOrdinal` is this shell's slot in the mounted-shell registry (#584),
- * handed down by the adapter at `render(...)` time. It cascades the FIRST-OPEN
+ * handed down by the adapter at mount time. It cascades the FIRST-OPEN
  * position of concurrently mounted instances apart (#585) so a second panel
  * stops landing exactly on top of the first; a persisted position ignores it.
  * Omitted → 0, i.e. no offset.
@@ -291,146 +225,152 @@ interface DesignTokenTweakPanelProps {
   onCloseIntent?: () => void;
 }
 
-export default function DesignTokenTweakPanel({
-  instanceConfig: instanceConfigProp,
-  spawnOrdinal = 0,
-  onCloseIntent,
-}: DesignTokenTweakPanelProps = {}) {
-  // Resolve the instance config: the passed-in registered config, or the active
-  // default instance for a direct (prop-less) test render. Memoised so the
-  // object identity is stable across re-renders (the prop is fixed for a
-  // mount's lifetime), which keeps the [instanceConfig] effect deps quiet.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const instanceConfig = useMemo<PanelConfig>(
-    () => instanceConfigProp ?? getPanelConfig(),
-    [instanceConfigProp],
-  );
+export default function DesignTokenTweakPanel(props: DesignTokenTweakPanelProps = {}) {
+  // The registered config of this instance, or the active default instance
+  // for a direct (prop-less) test render. Fixed for the mount's lifetime.
+  const instanceConfig = props.instanceConfig ?? getPanelConfig();
+  const spawnOrdinal = props.spawnOrdinal ?? 0;
+  const { onCloseIntent } = props;
+  const scope = getScope();
 
   // Scope WAI-ARIA IDs to this panel instance so that two mounted panels in
   // the same document do not share dtp-tab-* / dtp-panel-* IDs.
-  const ariaIdScope = useId();
-  const [open, setOpen] = useState(false);
-  const [showExport, setShowExport] = useState(false);
-  const [showImport, setShowImport] = useState(false);
-  const [showApply, setShowApply] = useState(false);
-  const [showHighlightSettings, setShowHighlightSettings] = useState(false);
-  const [historyRailOpen, setHistoryRailOpen] = useState(false);
-  const [selectedSnapshot, setSelectedSnapshot] = useState<SnapshotSlot | null>(null);
-  const [historyNotice, setHistoryNotice] = useState<string | null>(null);
-  const [showCommandPalette, setShowCommandPalette] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const ariaIdScope = `zdtp${nextAriaScope++}`;
+  const open = signal(false);
+  const showExport = signal(false);
+  const showImport = signal(false);
+  const showApply = signal(false);
+  const showHighlightSettings = signal(false);
+  const historyRailOpen = signal(false);
+  const selectedSnapshot = signal<SnapshotSlot | null>(null);
+  const historyNotice = signal<string | null>(null);
+  const showCommandPalette = signal(false);
+  const searchQuery = signal('');
   // Changed-only is intentionally transient UI state. It follows the active
   // tab but is never written to localStorage or the tweak envelope.
-  const [changedOnly, setChangedOnly] = useState(false);
-  const [pendingJumpAddress, setPendingJumpAddress] = useState<TokenAddress | null>(null);
-  const gearBtnRef = useRef<HTMLDivElement>(null);
-  const [state, setState] = useState<TweakState | null>(null);
+  const changedOnly = signal(false);
+  const pendingJumpAddress = signal<TokenAddress | null>(null);
+  const gearBtnRef: { current: HTMLDivElement | null } = { current: null };
+  const state = signal<TweakState | null>(null);
+  // Mirrors `state` for reads that must not subscribe (handlers, effects).
+  let stateNow: TweakState | null = null;
   // activeTab holds a string to support host-supplied non-reserved tab ids.
   // Lands on the FIRST configured tab (instanceConfig.tabs[0]) rather than
   // the hardcoded 'color' — a host makes ANY tab (e.g. 'notes', #515) the
   // landing view simply by ordering it first in tabs[]. Falls back to
   // DEFAULT_TAB_ID only when tabs is empty (the DEFAULT_PANEL_CONFIG stub,
   // or a misconfigured host) so the panel never lands on an undefined tab id.
-  const [activeTab, setActiveTab] = useState<string>(
-    instanceConfig.tabs[0]?.id ?? DEFAULT_TAB_ID,
-  );
-  const [position, setPosition] = useState<PanelPosition>(DEFAULT_POSITION);
-  const [size, setSize] = useState<PanelSize>(defaultSize);
-  const [density, setDensity] = useState<PanelDensity>(DEFAULT_DENSITY);
-  const [dockMode, setDockMode] = useState<DockMode>(DEFAULT_DOCK_MODE);
-  const [dockSize, setDockSize] = useState<DockSize>(DEFAULT_DOCK_SIZE);
+  const activeTab = signal<string>(instanceConfig.tabs[0]?.id ?? DEFAULT_TAB_ID);
+  const position = signal<PanelPosition>(DEFAULT_POSITION);
+  const size = signal<PanelSize>(defaultSize());
+  const density = signal<PanelDensity>(DEFAULT_DENSITY);
+  const dockMode = signal<DockMode>(DEFAULT_DOCK_MODE);
+  const dockSize = signal<DockSize>(DEFAULT_DOCK_SIZE);
   // The page specimen temporarily forces right docking.  Its previous mode is
   // transient (never persisted as a separate key) and must survive until the
   // specimen exits through any path, including shell unmount/navigation.
-  const [renderSpecimenOnPage, setRenderSpecimenOnPage] = useState(false);
-  const specimenPreviousDockModeRef = useRef<DockMode | null>(null);
-  const [ghostIdle, setGhostIdle] = useState(false);
-  const previousInspectTabRef = useRef<string | null>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const shortcutRootRef = useRef<HTMLDivElement>(null);
-  const setPanelRef = useCallback((element: HTMLDivElement | null) => {
-    panelRef.current = element;
-    shortcutRootRef.current = element;
-  }, []);
-  // tabRefs is now keyed by string to support host-supplied tab ids.
-  const tabRefs = useRef<Record<string, HTMLDivElement | null>>({
-    spacing: null,
-    font: null,
-    size: null,
-    color: null,
-  });
-  const positionRef = useRef<PanelPosition>(DEFAULT_POSITION);
-  // Keep ref in sync with state for use in drag handlers (avoids stale closure)
-  positionRef.current = position;
-  const sizeRef = useRef<PanelSize>(size);
-  sizeRef.current = size;
-  const dockSizeRef = useRef<DockSize>(dockSize);
-  dockSizeRef.current = dockSize;
-  const dockModeRef = useRef<DockMode>(dockMode);
-  dockModeRef.current = dockMode;
-  const lastFullDockModeRef = useRef<DockMode>('float');
-  // Track active drag listeners for cleanup on unmount
-  const dragCleanupRef = useRef<(() => void) | null>(null);
-  // Track active resize listeners for cleanup on unmount
-  const resizeCleanupRef = useRef<(() => void) | null>(null);
+  const renderSpecimenOnPage = signal(false);
+  let specimenPreviousDockMode: DockMode | null = null;
+  const ghostIdle = signal(false);
+  let previousInspectTab: string | null = null;
+  // The full shell element; the shortcut root is the shell or the mini pill.
+  const panelRef: { current: HTMLDivElement | null } = { current: null };
+  const shortcutRootRef: { current: HTMLDivElement | null } = { current: null };
+  // tabRefs is keyed by string to support host-supplied tab ids.
+  const tabRefs: Record<string, HTMLDivElement | null> = {};
+  // Current geometry for drag/resize handlers, which write the DOM directly
+  // and commit to the signals once on mouseup.
+  let positionNow: PanelPosition = DEFAULT_POSITION;
+  let sizeNow: PanelSize = size.value;
+  let dockSizeNow: DockSize = DEFAULT_DOCK_SIZE;
+  let dockModeNow: DockMode = DEFAULT_DOCK_MODE;
+  let lastFullDockMode: DockMode = 'float';
+  // Active drag / resize document listeners, removed on close or unmount.
+  let dragCleanup: (() => void) | null = null;
+  let resizeCleanup: (() => void) | null = null;
 
-  const { commitTweakState, history } = useTweakStateTransaction(state, setState, instanceConfig);
-  const historySnapshot = useHistory(history);
-  const { snapshots, save: saveSnapshotSlot } = useSnapshots(instanceConfig);
-  const { persistColor, persistSpacing, persistFont, persistSize, persistSecondary, persistTab } =
-    usePersist(commitTweakState, instanceConfig);
+  const setPosition = (next: PanelPosition) => {
+    positionNow = next;
+    position.value = next;
+  };
+  const setSize = (next: PanelSize) => {
+    sizeNow = next;
+    size.value = next;
+  };
+  const setDockSize = (next: DockSize) => {
+    dockSizeNow = next;
+    dockSize.value = next;
+  };
+  const setDockMode = (next: DockMode) => {
+    dockModeNow = next;
+    if (next !== 'mini') lastFullDockMode = next;
+    dockMode.value = next;
+  };
 
-  const activeColorIdentity = useMemo(
-    () => {
-      const cluster = getActivePrimaryCluster(instanceConfig);
-      // `getActiveColorIdentity` consults the host document for a
-      // light/dark cluster. During SSR there is no document yet, so use the
-      // cluster's configured scheme as the deterministic identity seed.
-      if (typeof document === 'undefined' || !document.documentElement) {
-        return cluster.panelSettings.colorScheme;
-      }
-      return getActiveColorIdentity(cluster, instanceConfig);
+  const shortcuts = createShortcutDispatcher();
+  const layers = createLayerActivity();
+
+  const history = createTweakHistory();
+  const { commitTweakState } = createTweakStateTransaction({
+    cfg: instanceConfig,
+    history,
+    getState: () => stateNow,
+    setState: (next) => {
+      stateNow = next;
+      state.value = next;
     },
-    [instanceConfig, state],
-  );
+  });
+  const historySnapshot = storeSignal(history);
+  const { snapshots, save: saveSnapshotSlot } = createSnapshotStore(instanceConfig);
+  const { persistColor, persistSpacing, persistFont, persistSize, persistSecondary, persistTab } =
+    createPersist(commitTweakState);
+
+  const activeColorIdentity = computed(() => {
+    // Re-derived on every state change, since a scheme switch commits state.
+    void state.value;
+    const cluster = getActivePrimaryCluster(instanceConfig);
+    // `getActiveColorIdentity` consults the host document for a light/dark
+    // cluster. Without a document, use the cluster's configured scheme as
+    // the deterministic identity seed.
+    if (typeof document === 'undefined' || !document.documentElement) {
+      return cluster.panelSettings.colorScheme;
+    }
+    return getActiveColorIdentity(cluster, instanceConfig);
+  });
+
+  // --- Feature controllers ---
+
+  const highlight = useHighlightController(instanceConfig);
+  const elementPath = useElementPath();
+  const domTweaker = useDomTweaker(instanceConfig);
+  const tooltip = isDocumentUsable() && document.body ? createTooltipController(document) : null;
+  scope.onActivate(() => tooltip?.connect());
+  const services = createPanelServices({
+    tooltip,
+    highlight,
+    chain: tokenChainSignal(instanceConfig, state),
+    setLayerActive: layers.setLayerActive,
+  });
 
   // Bulk action bars hand the panel a complete patch. Keep the callback at
   // this layer so the whole selection travels through exactly one transaction
   // (apply → save → state → history), rather than one transaction per row.
-  const handleSpacingBulkApply = useCallback((patch: readonly BulkPatchEntry[]) => {
-    if (patch.length === 0) return;
-    commitTweakState('bulk', (previous) => ({
-      ...previous,
-      spacing: patch.reduce(
-        (next, item) => ({ ...next, [item.address.itemId]: item.value }),
-        { ...previous.spacing },
-      ),
-    }));
-  }, [commitTweakState]);
+  const bulkApplyTo = (slice: 'spacing' | 'typography' | 'size') =>
+    (patch: readonly BulkPatchEntry[]) => {
+      if (patch.length === 0) return;
+      commitTweakState('bulk', (previous) => ({
+        ...previous,
+        [slice]: patch.reduce(
+          (next, item) => ({ ...next, [item.address.itemId]: item.value }),
+          { ...previous[slice] },
+        ),
+      }));
+    };
+  const handleSpacingBulkApply = bulkApplyTo('spacing');
+  const handleFontBulkApply = bulkApplyTo('typography');
+  const handleSizeBulkApply = bulkApplyTo('size');
 
-  const handleFontBulkApply = useCallback((patch: readonly BulkPatchEntry[]) => {
-    if (patch.length === 0) return;
-    commitTweakState('bulk', (previous) => ({
-      ...previous,
-      typography: patch.reduce(
-        (next, item) => ({ ...next, [item.address.itemId]: item.value }),
-        { ...previous.typography },
-      ),
-    }));
-  }, [commitTweakState]);
-
-  const handleSizeBulkApply = useCallback((patch: readonly BulkPatchEntry[]) => {
-    if (patch.length === 0) return;
-    commitTweakState('bulk', (previous) => ({
-      ...previous,
-      size: patch.reduce(
-        (next, item) => ({ ...next, [item.address.itemId]: item.value }),
-        { ...previous.size },
-      ),
-    }));
-  }, [commitTweakState]);
-
-  const handleGenericBulkApply = useCallback((tabId: string, patch: readonly BulkPatchEntry[]) => {
+  const handleGenericBulkApply = (tabId: string, patch: readonly BulkPatchEntry[]) => {
     if (patch.length === 0) return;
     commitTweakState('bulk', (previous) => {
       const previousTab = previous.tabs?.[tabId] ?? {};
@@ -449,88 +389,63 @@ export default function DesignTokenTweakPanel({
         },
       };
     });
-  }, [commitTweakState]);
+  };
 
-  // Restore open state, position, and size from localStorage after mount (avoids SSR hydration mismatch)
-  useEffect(() => {
-    // Liveness probe (zudolab/zudo-doc#3344): Preact flushes this effect on
-    // rAF/setTimeout, which can land after a test environment tore down the
-    // document. The setStates below would schedule a re-render that Preact
-    // materialises via the dead global document (createElementNS on a
-    // non-Document) — skip the restore entirely; there is no page left to
-    // restore into.
+  // Restore open state, position, and size from localStorage after mount.
+  scope.onActivate(() => {
     if (!isDocumentUsable()) return;
-    try {
-      if (localStorage.getItem(getOpenKey(instanceConfig)) === '1') {
-        setOpen(true);
-        localStorage.setItem(storageKey_visible(instanceConfig), '1');
+    batch(() => {
+      try {
+        if (localStorage.getItem(getOpenKey(instanceConfig)) === '1') {
+          open.value = true;
+          localStorage.setItem(storageKey_visible(instanceConfig), '1');
+        }
+      } catch {
+        /* ignore */
       }
-    } catch {
-      /* ignore */
-    }
-    const loadedSize = loadSize(instanceConfig);
-    setSize(loadedSize);
-    sizeRef.current = loadedSize;
-    // Pass `loadedSize` so the first-open fallback is centered and contained
-    // against the size this shell will ACTUALLY render at — an instance with a
-    // persisted (resized) size but no persisted position would otherwise be
-    // centered as if it were the default width and hang off the viewport.
-    const loaded = loadPosition(instanceConfig, spawnOrdinal, loadedSize);
-    // Clamp against current viewport so a position saved on a 4K monitor
-    // (e.g. left:3000) doesn't restore fully off-screen on a 1080p laptop.
-    // loadSize was already clamped; use its result for the position clamp so
-    // both agree on panel dimensions.
-    const clampedPos = clampPosition(loaded.top, loaded.left, loadedSize.width, loadedSize.height);
-    setPosition(clampedPos);
-    positionRef.current = clampedPos;
-    setDensity(loadDensity(instanceConfig));
-    const storedDockSize = loadDockSize(instanceConfig);
-    const loadedDockSize = {
-      right: Math.max(MIN_PANEL_WIDTH, Math.min(storedDockSize.right, window.innerWidth)),
-      bottom: Math.max(240, Math.min(storedDockSize.bottom, window.innerHeight)),
-    };
-    setDockSize(loadedDockSize);
-    dockSizeRef.current = loadedDockSize;
-    setDockMode(loadDockMode(instanceConfig));
-    setGhostIdle(loadGhostIdle(instanceConfig.storagePrefix));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+      const loadedSize = loadSize(instanceConfig);
+      setSize(loadedSize);
+      // Pass `loadedSize` so the first-open fallback is centered and contained
+      // against the size this shell will ACTUALLY render at — an instance with a
+      // persisted (resized) size but no persisted position would otherwise be
+      // centered as if it were the default width and hang off the viewport.
+      const loaded = loadPosition(instanceConfig, spawnOrdinal, loadedSize);
+      // Clamp against current viewport so a position saved on a 4K monitor
+      // (e.g. left:3000) doesn't restore fully off-screen on a 1080p laptop.
+      // loadSize was already clamped; use its result for the position clamp so
+      // both agree on panel dimensions.
+      setPosition(clampPosition(loaded.top, loaded.left, loadedSize.width, loadedSize.height));
+      density.value = loadDensity(instanceConfig);
+      const storedDockSize = loadDockSize(instanceConfig);
+      setDockSize({
+        right: Math.max(MIN_PANEL_WIDTH, Math.min(storedDockSize.right, window.innerWidth)),
+        bottom: Math.max(240, Math.min(storedDockSize.bottom, window.innerHeight)),
+      });
+      setDockMode(loadDockMode(instanceConfig));
+      ghostIdle.value = loadGhostIdle(instanceConfig.storagePrefix);
+    });
+  });
 
   // A public close can unmount the shell while the command palette is open;
   // keep the transient overlay state aligned with the shell lifetime.
-  useEffect(() => {
-    if (!open) {
-      setShowCommandPalette(false);
-      setPendingJumpAddress(null);
-    }
-  }, [open]);
+  scope.effect(() => {
+    if (open.value) return;
+    showCommandPalette.value = false;
+    pendingJumpAddress.value = null;
+  });
 
-  // The mini pill is a transient presentation of the last full mode. Keep
-  // that mode in memory so expanding after a mini switch returns to the exact
-  // float/right/bottom layout the user was looking at.
-  useEffect(() => {
-    if (dockMode !== 'mini') lastFullDockModeRef.current = dockMode;
-  }, [dockMode]);
+  const handleDensityChange = (next: PanelDensity) => {
+    density.value = next;
+    saveDensity(next, instanceConfig);
+  };
 
-  // Persist density on change
-  const handleDensityChange = useCallback(
-    (next: PanelDensity) => {
-      setDensity(next);
-      saveDensity(next, instanceConfig);
-    },
-    [instanceConfig],
-  );
-
-  const handleGhostIdleChange = useCallback(
-    (enabled: boolean) => {
-      setGhostIdle(enabled);
-      saveGhostIdle(instanceConfig.storagePrefix, enabled);
-    },
-    [instanceConfig],
-  );
+  const handleGhostIdleChange = (enabled: boolean) => {
+    ghostIdle.value = enabled;
+    saveGhostIdle(instanceConfig.storagePrefix, enabled);
+  };
 
   // Publish intent before the empty render can trigger dead-root recovery (#1046).
-  const closePanel = useCallback(() => {
+  const closePanel = () => {
     if (!isDocumentUsable()) return;
     onCloseIntent?.();
     try {
@@ -543,39 +458,41 @@ export default function DesignTokenTweakPanel({
     } catch {
       /* ignore */
     }
-    setOpen(false);
-  }, [instanceConfig, onCloseIntent]);
+    open.value = false;
+  };
 
   // Dock claims are live only while the shell is visible. The shared registry
   // makes the ownership decision cross-bundle safe and restores host inline
   // declarations on every cleanup path (mode change, close, or unmount).
-  useEffect(() => {
-    if (!open || (dockMode !== 'right' && dockMode !== 'bottom')) {
+  scope.effect(() => {
+    const mode = dockMode.value;
+    const sizes = dockSize.value;
+    if (!open.value || (mode !== 'right' && mode !== 'bottom')) {
       releaseHostMutations(instanceConfig.storagePrefix);
       return;
     }
     const claimed = claimHostDock(
       instanceConfig.storagePrefix,
-      dockMode,
-      dockSize[dockMode],
+      mode,
+      sizes[mode],
       instanceConfig.dock?.reflow ?? 'body-margin',
     );
     if (!claimed) {
       console.warn(
-        `[design-token-panel] Cannot dock ${dockMode}: that edge is already owned; falling back to float`,
+        `[design-token-panel] Cannot dock ${mode}: that edge is already owned; falling back to float`,
       );
       setDockMode('float');
       saveDockMode('float', instanceConfig);
       return;
     }
     return () => releaseHostMutations(instanceConfig.storagePrefix);
-  }, [dockMode, dockSize, instanceConfig, open]);
+  });
 
   // Sync `open` from the authoritative `localStorage[OPEN_KEY]` whenever the
   // adapter (`index.tsx`) signals a change. The adapter writes OPEN_KEY itself
   // (header-button event, public API call, etc.) and then dispatches the
   // internal sync event on `window`. This component is downstream: it doesn't
-  // compute the toggle from its own `prev` state — it just mirrors storage.
+  // compute the toggle from its own previous state — it just mirrors storage.
   //
   // The event name and the open key are BOTH keyed by this instance's
   // `storagePrefix` (issue #354): the panel listens only on its OWN
@@ -584,26 +501,23 @@ export default function DesignTokenTweakPanel({
   //
   // The two historical public event names (`toggle-design-token-panel` and
   // its deprecated `toggle-color-tweak-panel` alias) are handled in `index.tsx`
-  // (see `handleExternalToggleEvent`). Removing them from this effect
-  // eliminates the dual-listener race that caused the "click-twice-after-close"
-  // regression — see `index.tsx` for the full rationale.
-  useEffect(() => {
+  // (see `handleExternalToggleEvent`), which avoids the dual-listener race
+  // behind the "click-twice-after-close" regression.
+  scope.onActivate(() => {
     const eventName = openStateChangedEventName(instanceConfig);
     function syncOpenFromStorage() {
       if (!isDocumentUsable()) return;
       try {
         const nextOpen = localStorage.getItem(getOpenKey(instanceConfig)) === '1';
-        setOpen(nextOpen);
+        open.value = nextOpen;
         localStorage.setItem(storageKey_visible(instanceConfig), nextOpen ? '1' : '0');
       } catch {
         /* ignore */
       }
     }
     window.addEventListener(eventName, syncOpenFromStorage);
-    return () => {
-      window.removeEventListener(eventName, syncOpenFromStorage);
-    };
-  }, [instanceConfig]);
+    return () => window.removeEventListener(eventName, syncOpenFromStorage);
+  });
 
   // Re-initialize the COLOR slice when the color scheme or light/dark mode
   // changes. Per-scheme tweak model (#500/#509 — supersedes the old global
@@ -623,10 +537,7 @@ export default function DesignTokenTweakPanel({
   // clearAppliedColorStyles clears only color vars and applyColorSlices writes
   // only color vars, leaving the non-color live state + its inline vars intact
   // (#347). Everything is scoped to THIS instance (#357).
-  //
-  // The apply is done outside setState (with values that don't depend on `prev`)
-  // so the state updater stays a pure merge of the new color/secondary slices.
-  useEffect(() => {
+  scope.onActivate(() => {
     function handleSchemeChange() {
       clearAppliedColorStyles(undefined, undefined, instanceConfig);
       const cluster = getActivePrimaryCluster(instanceConfig);
@@ -644,33 +555,23 @@ export default function DesignTokenTweakPanel({
         nextSecondary = initSecondaryFromConfig(instanceConfig);
         applyManifestModeDefaults(instanceConfig, true);
       }
-      if (state) {
-        commitTweakState(
-          'scheme-reapply',
-          (previous) => ({
-            ...previous,
-            color: nextColor,
-            secondary: nextSecondary,
-          }),
-          { record: false, apply: false, save: false },
-        );
-      } else {
-        commitTweakState(
-          'scheme-reapply',
-          { ...freshTweakState(instanceConfig), color: nextColor, secondary: nextSecondary },
-          { record: false, apply: false, save: false },
-        );
-      }
+      commitTweakState(
+        'scheme-reapply',
+        stateNow
+          ? (previous) => ({ ...previous, color: nextColor, secondary: nextSecondary })
+          : { ...freshTweakState(instanceConfig), color: nextColor, secondary: nextSecondary },
+        { record: false, apply: false, save: false },
+      );
     }
     window.addEventListener('color-scheme-changed', handleSchemeChange);
     return () => window.removeEventListener('color-scheme-changed', handleSchemeChange);
-  }, [instanceConfig, commitTweakState, state]);
+  });
 
   // Initialize state on first open. Every storage read + apply is scoped to
   // THIS instance's config (#357): panel A loads from A's storage keys and
   // applies through A's sink, never touching B's.
-  useEffect(() => {
-    if (!open || state) return;
+  scope.effect(() => {
+    if (!open.value || state.value) return;
     const cluster = getActivePrimaryCluster(instanceConfig);
     const persisted = loadPersistedState(undefined, undefined, cluster, instanceConfig);
     if (persisted) {
@@ -699,19 +600,19 @@ export default function DesignTokenTweakPanel({
       apply: false,
       save: false,
     });
-  }, [open, state, instanceConfig, commitTweakState]);
+  });
 
-  // Drag handler for panel header (stable — reads position from ref)
-  const handleDragStart = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (dockMode === 'right' || dockMode === 'bottom') return;
+  // Drag handler for panel header (reads position from the mirror).
+  const handleDragStart = (e: MouseEvent) => {
+    if (dockModeNow === 'right' || dockModeNow === 'bottom') return;
     // Skip if target is a button (or role=button/tab div), select, or inside one
     const target = e.target as HTMLElement;
     if (target.closest("button, input, textarea, select, option, [contenteditable], [role='tab'], [role='button'], .tokenpanel-search-control")) return;
     e.preventDefault();
     const startX = e.clientX;
     const startY = e.clientY;
-    const startLeft = positionRef.current.left;
-    const startTop = positionRef.current.top;
+    const startLeft = positionNow.left;
+    const startTop = positionNow.top;
     const panelWidth = panelRef.current?.offsetWidth ?? 600;
     const panelHeight = panelRef.current?.offsetHeight ?? 600;
 
@@ -724,45 +625,42 @@ export default function DesignTokenTweakPanel({
         panelWidth,
         panelHeight,
       );
-      // Write directly to the DOM during drag to avoid re-rendering the whole
-      // panel tree at ~60 fps. positionRef stays in sync so mouseup can commit
-      // the final value to React state in one shot.
+      // Write directly to the DOM during drag to avoid re-rendering the
+      // shell at ~60 fps; mouseup commits the final value once.
       if (panelRef.current) {
         panelRef.current.style.top = `${clamped.top}px`;
         panelRef.current.style.left = `${clamped.left}px`;
       }
-      positionRef.current = clamped;
+      positionNow = clamped;
     }
 
     function onMouseUp() {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
-      dragCleanupRef.current = null;
-      // Commit final position to React state (single re-render on drag end).
-      const finalPos = positionRef.current;
+      dragCleanup = null;
+      const finalPos = positionNow;
       setPosition(finalPos);
       savePosition(finalPos, instanceConfig);
     }
 
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
-    dragCleanupRef.current = () => {
+    dragCleanup = () => {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
     };
-  }, [dockMode, instanceConfig]);
+  };
 
   // Resize handler for the bottom-right grip — mirrors handleDragStart's
-  // structure: writes directly to the DOM during the drag (to avoid 60 fps
-  // re-renders of the whole panel) and commits the final value to React
-  // state + localStorage on mouseup.
-  const handleResizeStart = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+  // structure: writes directly to the DOM during the drag and commits the
+  // final value to the signals + localStorage on mouseup.
+  const handleResizeStart = (e: MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     const startX = e.clientX;
     const startY = e.clientY;
-    const startWidth = sizeRef.current.width;
-    const startHeight = sizeRef.current.height;
+    const startWidth = sizeNow.width;
+    const startHeight = sizeNow.height;
 
     function onMouseMove(ev: MouseEvent) {
       const deltaX = ev.clientX - startX;
@@ -776,132 +674,130 @@ export default function DesignTokenTweakPanel({
         panelRef.current.style.width = `${next.width}px`;
         panelRef.current.style.height = `${next.height}px`;
       }
-      sizeRef.current = next;
+      sizeNow = next;
     }
 
     function onMouseUp() {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
-      resizeCleanupRef.current = null;
-      const finalSize = sizeRef.current;
-      setSize(finalSize);
-      saveSize(finalSize, instanceConfig);
-      // Re-clamp position against the new size — a wider panel may need its
-      // anchor pulled back into the viewport.
-      const finalPos = clampPosition(
-        positionRef.current.top,
-        positionRef.current.left,
-        finalSize.width,
-        finalSize.height,
-      );
-      if (finalPos.top !== positionRef.current.top || finalPos.left !== positionRef.current.left) {
-        setPosition(finalPos);
-        savePosition(finalPos, instanceConfig);
-      }
+      resizeCleanup = null;
+      const finalSize = sizeNow;
+      batch(() => {
+        setSize(finalSize);
+        saveSize(finalSize, instanceConfig);
+        // Re-clamp position against the new size — a wider panel may need its
+        // anchor pulled back into the viewport.
+        const finalPos = clampPosition(
+          positionNow.top,
+          positionNow.left,
+          finalSize.width,
+          finalSize.height,
+        );
+        if (finalPos.top !== positionNow.top || finalPos.left !== positionNow.left) {
+          setPosition(finalPos);
+          savePosition(finalPos, instanceConfig);
+        }
+      });
     }
 
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
-    resizeCleanupRef.current = () => {
+    resizeCleanup = () => {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
     };
-  }, [instanceConfig]);
+  };
 
-  const handleDockResizeStart = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if (dockMode !== 'right' && dockMode !== 'bottom') return;
-      const edge = dockMode;
-      e.preventDefault();
-      e.stopPropagation();
-      const start = edge === 'right' ? e.clientX : e.clientY;
-      const startSize = dockSizeRef.current[edge];
-      const min = edge === 'right' ? MIN_PANEL_WIDTH : 240;
-      const viewportMax = edge === 'right' ? window.innerWidth : window.innerHeight;
-      const max = Math.max(min, viewportMax);
+  const handleDockResizeStart = (e: MouseEvent) => {
+    if (dockModeNow !== 'right' && dockModeNow !== 'bottom') return;
+    const edge = dockModeNow;
+    e.preventDefault();
+    e.stopPropagation();
+    const start = edge === 'right' ? e.clientX : e.clientY;
+    const startSize = dockSizeNow[edge];
+    const min = edge === 'right' ? MIN_PANEL_WIDTH : 240;
+    const viewportMax = edge === 'right' ? window.innerWidth : window.innerHeight;
+    const max = Math.max(min, viewportMax);
 
-      function onMouseMove(ev: MouseEvent) {
-        const pointer = edge === 'right' ? ev.clientX : ev.clientY;
-        const nextValue = Math.max(min, Math.min(max, startSize + start - pointer));
-        const next = { ...dockSizeRef.current, [edge]: nextValue };
-        dockSizeRef.current = next;
-        if (panelRef.current) {
-          if (edge === 'right') panelRef.current.style.width = `${nextValue}px`;
-          else panelRef.current.style.height = `${nextValue}px`;
-        }
-        claimHostDock(
-          instanceConfig.storagePrefix,
-          edge,
-          nextValue,
-          instanceConfig.dock?.reflow ?? 'body-margin',
-        );
+    function onMouseMove(ev: MouseEvent) {
+      const pointer = edge === 'right' ? ev.clientX : ev.clientY;
+      const nextValue = Math.max(min, Math.min(max, startSize + start - pointer));
+      dockSizeNow = { ...dockSizeNow, [edge]: nextValue };
+      if (panelRef.current) {
+        if (edge === 'right') panelRef.current.style.width = `${nextValue}px`;
+        else panelRef.current.style.height = `${nextValue}px`;
       }
+      claimHostDock(
+        instanceConfig.storagePrefix,
+        edge,
+        nextValue,
+        instanceConfig.dock?.reflow ?? 'body-margin',
+      );
+    }
 
-      function onMouseUp() {
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
-        resizeCleanupRef.current = null;
-        setDockSize(dockSizeRef.current);
-        saveDockSize(dockSizeRef.current, instanceConfig);
-      }
+    function onMouseUp() {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      resizeCleanup = null;
+      setDockSize(dockSizeNow);
+      saveDockSize(dockSizeNow, instanceConfig);
+    }
 
-      document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp);
-      resizeCleanupRef.current = () => {
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
-      };
-    },
-    [dockMode, instanceConfig],
-  );
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    resizeCleanup = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+  };
 
-  const handleDockModeChange = useCallback(
-    (next: DockMode) => {
-      // Render on page owns the panel's right edge while active.  The only
-      // path allowed to leave that edge is restoreSpecimenDockMode(), which
-      // writes state directly after the page specimen has been disabled.
-      if (renderSpecimenOnPage && next !== 'right') return;
-      // A shortcut can switch modes (or close can follow) while the pointer is
-      // still held on a drag/resize handle. Cancel those document listeners
-      // before changing ownership so a later mousemove cannot re-claim an edge
-      // that this panel has already released.
-      dragCleanupRef.current?.();
-      dragCleanupRef.current = null;
-      resizeCleanupRef.current?.();
-      resizeCleanupRef.current = null;
-      dockModeRef.current = next;
-      setDockMode(next);
-      saveDockMode(next, instanceConfig);
-    },
-    [instanceConfig, renderSpecimenOnPage],
-  );
+  const cancelPointerGestures = () => {
+    dragCleanup?.();
+    dragCleanup = null;
+    resizeCleanup?.();
+    resizeCleanup = null;
+  };
+
+  const handleDockModeChange = (next: DockMode) => {
+    // Render on page owns the panel's right edge while active.  The only
+    // path allowed to leave that edge is restoreSpecimenDockMode(), which
+    // writes state directly after the page specimen has been disabled.
+    if (renderSpecimenOnPage.value && next !== 'right') return;
+    // A shortcut can switch modes (or close can follow) while the pointer is
+    // still held on a drag/resize handle. Cancel those document listeners
+    // before changing ownership so a later mousemove cannot re-claim an edge
+    // that this panel has already released.
+    cancelPointerGestures();
+    setDockMode(next);
+    saveDockMode(next, instanceConfig);
+  };
 
   /** Restore the mode that was active before Render on page forced right dock. */
-  const restoreSpecimenDockMode = useCallback((syncState = true) => {
-    const previous = specimenPreviousDockModeRef.current;
+  const restoreSpecimenDockMode = (syncState = true) => {
+    const previous = specimenPreviousDockMode;
     if (previous === null) return;
-    specimenPreviousDockModeRef.current = null;
+    specimenPreviousDockMode = null;
     // Remove the host portal synchronously on every logical exit.  The
-    // OnPageSpecimen effect cleanup also releases this owner, but this direct
-    // release covers panel-close / toggle-off before the next effect flush.
+    // OnPageSpecimen cleanup also releases this owner, but this direct release
+    // covers panel-close / toggle-off before the next flush.
     releaseHostMutations(onPageSpecimenMutationOwner(instanceConfig));
-    if (syncState) setRenderSpecimenOnPage(false);
-    if (dockModeRef.current === previous) return;
-    dockModeRef.current = previous;
+    if (syncState) renderSpecimenOnPage.value = false;
+    if (dockModeNow === previous) return;
     if (syncState) setDockMode(previous);
+    else dockModeNow = previous;
     saveDockMode(previous, instanceConfig);
-  }, [instanceConfig]);
+  };
 
-  const handleRenderSpecimenOnPageChange = useCallback((enabled: boolean) => {
+  const handleRenderSpecimenOnPageChange = (enabled: boolean) => {
     if (!enabled) {
       restoreSpecimenDockMode();
       return;
     }
-    if (specimenPreviousDockModeRef.current !== null) return;
-    specimenPreviousDockModeRef.current = dockModeRef.current;
-    setRenderSpecimenOnPage(true);
-    if (dockModeRef.current !== 'right') handleDockModeChange('right');
-  }, [handleDockModeChange, restoreSpecimenDockMode]);
+    if (specimenPreviousDockMode !== null) return;
+    specimenPreviousDockMode = dockModeNow;
+    renderSpecimenOnPage.value = true;
+    if (dockModeNow !== 'right') handleDockModeChange('right');
+  };
 
   // Closing the panel unmounts FontTab (and thus the portal), so restore the
   // dock mode while the shell still owns its state.  Leaving right is also an
@@ -909,47 +805,37 @@ export default function DesignTokenTweakPanel({
   // right-edge claim when another instance already owns it and fall back to
   // float. Restore the user's prior mode instead of leaving the page specimen
   // active without the dock it depends on.
-  useEffect(() => {
-    if (!open) restoreSpecimenDockMode();
-    else if (renderSpecimenOnPage && dockMode !== 'right') restoreSpecimenDockMode();
-  }, [dockMode, open, renderSpecimenOnPage, restoreSpecimenDockMode]);
+  scope.effect(() => {
+    const isOpen = open.value;
+    const mode = dockMode.value;
+    const specimen = renderSpecimenOnPage.value;
+    if (!isOpen) restoreSpecimenDockMode();
+    else if (specimen && mode !== 'right') restoreSpecimenDockMode();
+  });
 
-  // Astro swaps and destroy() drive a real Preact unmount, but the state write
-  // must still happen even though the component itself is going away.
-  useEffect(() => () => restoreSpecimenDockMode(false), [restoreSpecimenDockMode]);
+  scope.effect(() => {
+    if (!open.value) cancelPointerGestures();
+  });
 
-  useEffect(() => {
-    if (open) return;
-    dragCleanupRef.current?.();
-    dragCleanupRef.current = null;
-    resizeCleanupRef.current?.();
-    resizeCleanupRef.current = null;
-  }, [open]);
-
-  // Clean up drag + resize listeners on unmount
-  useEffect(() => {
-    return () => {
-      dragCleanupRef.current?.();
-      resizeCleanupRef.current?.();
-    };
-  }, []);
+  // Astro swaps and destroy() drive a real unmount; the dock-mode write must
+  // still happen even though the component itself is going away.
+  scope.onCleanup(() => {
+    restoreSpecimenDockMode(false);
+    cancelPointerGestures();
+  });
 
   // Re-clamp position + size on window resize so a viewport shrink keeps the
   // panel within bounds.
   //
   // Design notes:
-  // (a) Reads current values from sizeRef / positionRef — NOT from setState
-  //     updaters — so the function is called after each debounce tick with
-  //     the latest committed values without placing side effects (localStorage
-  //     writes) inside updaters (which React / Preact may call multiple times).
-  // (b) Uses the freshly clamped size as input to clampPosition, NOT the DOM's
+  // (a) Uses the freshly clamped size as input to clampPosition, NOT the DOM's
   //     offsetWidth/Height — those reflect the pre-clamp frame and can differ.
-  // (c) Only calls setSize / setPosition / save* when the value actually
-  //     changed, avoiding spurious re-renders and localStorage writes on
-  //     every resize event.
-  // (d) Trailing 150 ms debounce — resize fires at ~60 fps; without debouncing
+  // (b) Only writes size / position / storage when the value actually
+  //     changed, avoiding spurious updates and localStorage writes on every
+  //     resize event.
+  // (c) Trailing 150 ms debounce — resize fires at ~60 fps; without debouncing
   //     every pixel of window drag issues a localStorage write.
-  useEffect(() => {
+  scope.onActivate(() => {
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
     function handleResize() {
@@ -959,29 +845,23 @@ export default function DesignTokenTweakPanel({
 
         // Re-clamp size first — a viewport shrink might force a smaller panel,
         // and the new dimensions feed into the position clamp below.
-        const currentSize = sizeRef.current;
+        const currentSize = sizeNow;
         const clampedSize = clampSize(currentSize.width, currentSize.height);
-        const sizeDirty =
-          clampedSize.width !== currentSize.width || clampedSize.height !== currentSize.height;
-        if (sizeDirty) {
+        if (clampedSize.width !== currentSize.width || clampedSize.height !== currentSize.height) {
           setSize(clampedSize);
-          sizeRef.current = clampedSize;
           saveSize(clampedSize, instanceConfig);
         }
 
         // Re-clamp position against the (potentially) new clamped size.
-        const currentPos = positionRef.current;
+        const currentPos = positionNow;
         const clampedPos = clampPosition(
           currentPos.top,
           currentPos.left,
           clampedSize.width,
           clampedSize.height,
         );
-        const posDirty =
-          clampedPos.top !== currentPos.top || clampedPos.left !== currentPos.left;
-        if (posDirty) {
+        if (clampedPos.top !== currentPos.top || clampedPos.left !== currentPos.left) {
           setPosition(clampedPos);
-          positionRef.current = clampedPos;
           savePosition(clampedPos, instanceConfig);
         }
       }, 150);
@@ -992,26 +872,21 @@ export default function DesignTokenTweakPanel({
       window.removeEventListener('resize', handleResize);
       if (debounceTimer !== null) clearTimeout(debounceTimer);
     };
-  }, [instanceConfig]);
+  });
 
-  const handleLoadFromJson = useCallback(
-    (loaded: TweakState) => {
-      // Clear color cluster vars first — mirrors the scheme-change clear
-      // above. Without this, a dangling `{ ref }` in the imported state
-      // (skipped by the resolver, #482 import nit) would leave the PREVIOUS
-      // session's inline value painted instead of falling back to the
-      // stylesheet default.
-      // Replace the panel state with the loaded tweak, apply CSS vars, persist
-      // to localStorage. Unknown tokens have already been filtered out by
-      // deserialize(). Apply + persist are scoped to THIS instance (#357).
-      commitTweakState('import', loaded, {
-        beforeApply: () => clearAppliedColorStyles(undefined, undefined, instanceConfig),
-      });
-    },
-    [instanceConfig, commitTweakState],
-  );
+  const handleLoadFromJson = (loaded: TweakState) => {
+    // Clear color cluster vars first — mirrors the scheme-change clear above.
+    // Without this, a dangling `{ ref }` in the imported state (skipped by
+    // the resolver, #482 import nit) would leave the PREVIOUS session's
+    // inline value painted instead of falling back to the stylesheet default.
+    // Unknown tokens have already been filtered out by deserialize(). Apply +
+    // persist are scoped to THIS instance (#357).
+    commitTweakState('import', loaded, {
+      beforeApply: () => clearAppliedColorStyles(undefined, undefined, instanceConfig),
+    });
+  };
 
-  const handleResetAll = useCallback(() => {
+  const handleResetAll = () => {
     // Clear + reset are scoped to THIS instance's storage keys, clusters, and
     // sink so a reset on panel A never touches panel B's storage/vars (#357).
     // Always seed the secondary slice — every fresh-state path emits a
@@ -1023,65 +898,57 @@ export default function DesignTokenTweakPanel({
       },
       save: () => clearPersistedState(undefined, instanceConfig),
     });
-  }, [instanceConfig, commitTweakState]);
+  };
 
-  const handleHistoryResult = useCallback(
-    (result: { skippedReason?: string }) => {
-      setHistoryNotice(result.skippedReason ?? null);
-    },
-    [],
-  );
+  const handleHistoryResult = (result: { skippedReason?: string }) => {
+    historyNotice.value = result.skippedReason ?? null;
+  };
 
-  const handleUndo = useCallback(() => {
-    if (!historySnapshot.canUndo) return;
+  const handleUndo = () => {
+    if (!history.getSnapshot().canUndo) return;
     handleHistoryResult(history.undo());
-  }, [handleHistoryResult, history, historySnapshot.canUndo]);
+  };
 
-  const handleRedo = useCallback(() => {
-    if (!historySnapshot.canRedo) return;
+  const handleRedo = () => {
+    if (!history.getSnapshot().canRedo) return;
     handleHistoryResult(history.redo());
-  }, [handleHistoryResult, history, historySnapshot.canRedo]);
+  };
 
-  const handleHistoryJump = useCallback(
-    (index: number) => {
-      handleHistoryResult(history.jumpTo(index));
-    },
-    [handleHistoryResult, history],
-  );
+  const handleHistoryJump = (index: number) => {
+    handleHistoryResult(history.jumpTo(index));
+  };
 
-  const handleSaveSnapshot = useCallback(
-    (slot: SnapshotSlot) => {
-      if (!state) return;
-      saveSnapshotSlot(slot, state, activeColorIdentity, historySnapshot.cursor);
-      setSelectedSnapshot(slot);
-      setHistoryNotice(null);
-    },
-    [activeColorIdentity, historySnapshot.cursor, saveSnapshotSlot, state],
-  );
+  const handleSaveSnapshot = (slot: SnapshotSlot) => {
+    if (!stateNow) return;
+    saveSnapshotSlot(slot, stateNow, activeColorIdentity.value, history.getSnapshot().cursor);
+    batch(() => {
+      selectedSnapshot.value = slot;
+      historyNotice.value = null;
+    });
+  };
 
-  const handleSelectSnapshot = useCallback(
-    (slot: SnapshotSlot) => {
-      const snapshot = snapshots[slot];
-      if (!snapshot || !state) return;
-      const restored = restoreSnapshotState(snapshot, state, activeColorIdentity, slot);
-      commitTweakState(`snapshot-${slot.toLowerCase()}`, restored.state, {
-        beforeApply: () => clearAppliedColorStyles(undefined, undefined, instanceConfig),
-      });
-      setSelectedSnapshot(slot);
-      setHistoryNotice(restored.skippedReason ?? `Showing snapshot ${slot}.`);
-    },
-    [activeColorIdentity, commitTweakState, instanceConfig, snapshots, state],
-  );
+  const handleSelectSnapshot = (slot: SnapshotSlot) => {
+    const snapshot = snapshots.value[slot];
+    if (!snapshot || !stateNow) return;
+    const restored = restoreSnapshotState(snapshot, stateNow, activeColorIdentity.value, slot);
+    commitTweakState(`snapshot-${slot.toLowerCase()}`, restored.state, {
+      beforeApply: () => clearAppliedColorStyles(undefined, undefined, instanceConfig),
+    });
+    batch(() => {
+      selectedSnapshot.value = slot;
+      historyNotice.value = restored.skippedReason ?? `Showing snapshot ${slot}.`;
+    });
+  };
 
-  const handleFlipSnapshots = useCallback(() => {
-    if (!snapshots.A || !snapshots.B) {
-      setHistoryNotice('Save both A and B before flipping snapshots.');
+  const handleFlipSnapshots = () => {
+    if (!snapshots.value.A || !snapshots.value.B) {
+      historyNotice.value = 'Save both A and B before flipping snapshots.';
       return;
     }
-    handleSelectSnapshot(selectedSnapshot === 'A' ? 'B' : 'A');
-  }, [handleSelectSnapshot, selectedSnapshot, snapshots.A, snapshots.B]);
+    handleSelectSnapshot(selectedSnapshot.value === 'A' ? 'B' : 'A');
+  };
 
-  const handleResetTab = useCallback((tabId: string) => {
+  const handleResetTab = (tabId: string) => {
     if (tabId === 'color') {
       commitTweakState('reset-color', (previous) => ({
         ...previous,
@@ -1105,417 +972,433 @@ export default function DesignTokenTweakPanel({
     }
     if (tabId === 'notes' || tabId === 'color-secondary') return;
     persistTab(tabId, () => ({}));
-  }, [commitTweakState, instanceConfig, persistFont, persistSize, persistSpacing, persistTab]);
+  };
 
   // Single source of truth for the four header actions (#518) — rendered
   // both as the always-visible .tokenpanel-action-link header links AND
   // inside the narrow-panel kebab popover, so a label/handler change only
   // needs one edit instead of two synchronized ones.
   const applyConfigured = isApplyConfigured(instanceConfig);
-  const panelActions = useMemo(
-    () => [
-      { id: 'export', label: 'Export', onSelect: () => setShowExport(true) },
-      { id: 'import', label: 'Load from JSON…', onSelect: () => setShowImport(true) },
-      {
-        id: 'apply',
-        label: 'Apply',
-        onSelect: () => setShowApply(true),
-        disabled: !applyConfigured,
-        disabledReason: !applyConfigured ? APPLY_DISABLED_REASON : undefined,
-      },
-      { id: 'reset', label: 'Reset', onSelect: handleResetAll },
-    ],
-    [applyConfigured, handleResetAll],
-  );
+  const panelActions = [
+    { id: 'export', label: 'Export', onSelect: () => { showExport.value = true; } },
+    { id: 'import', label: 'Load from JSON…', onSelect: () => { showImport.value = true; } },
+    {
+      id: 'apply',
+      label: 'Apply',
+      onSelect: () => { showApply.value = true; },
+      disabled: !applyConfigured,
+      disabledReason: !applyConfigured ? APPLY_DISABLED_REASON : undefined,
+    },
+    { id: 'reset', label: 'Reset', onSelect: handleResetAll },
+  ];
 
-  const colorDefaults = useMemo(
-    () => initColorFromScheme(getActivePrimaryCluster(instanceConfig), instanceConfig),
-    // The active scheme/mode is the Color evaluator's identity baseline. A
-    // scheme change updates this memo so reverting a Color row restores the
-    // newly-active identity rather than the previous scheme's seed.
-    [activeColorIdentity, instanceConfig],
-  );
-  const secondaryDefaults = useMemo(() => initSecondaryFromConfig(instanceConfig), [instanceConfig]);
-  const flattenedOverrides = useMemo(
-    () => state ? flattenApplyOverrides(state, colorDefaults, instanceConfig) : {},
-    [state, colorDefaults, instanceConfig],
-  );
-  const [lastApplied, setLastApplied] = useState(() => loadLastApplied(instanceConfig));
-  const unsaved = useMemo(
-    () => unsavedCssVars(flattenedOverrides, lastApplied),
-    [flattenedOverrides, lastApplied],
-  );
+  // The active scheme/mode is the Color evaluator's identity baseline. A
+  // scheme change updates it so reverting a Color row restores the
+  // newly-active identity rather than the previous scheme's seed.
+  let colorDefaultsFor: { identity: string; value: ColorTweakState } | null = null;
+  const colorDefaults = computed(() => {
+    const identity = activeColorIdentity.value;
+    if (colorDefaultsFor?.identity !== identity) {
+      colorDefaultsFor = {
+        identity,
+        value: initColorFromScheme(getActivePrimaryCluster(instanceConfig), instanceConfig),
+      };
+    }
+    return colorDefaultsFor.value;
+  });
+  const secondaryDefaults = initSecondaryFromConfig(instanceConfig);
+  const lastApplied = signal(loadLastApplied(instanceConfig));
+  const unsavedCount = computed(() => {
+    const current = state.value;
+    const flattened = current ? flattenApplyOverrides(current, colorDefaults.value, instanceConfig) : {};
+    return unsavedCssVars(flattened, lastApplied.value).length;
+  });
 
-  const handleApplied = useCallback((writtenCssVars: string[]) => {
+  const handleApplied = (writtenCssVars: string[]) => {
     commitTweakState('apply', (current) => {
-      const next = reconcileApplied(current, writtenCssVars, instanceConfig, colorDefaults, secondaryDefaults);
+      const next = reconcileApplied(current, writtenCssVars, instanceConfig, colorDefaults.value, secondaryDefaults);
       // Disk now contains the written subset; retained overrides remain
       // browser-only and therefore intentionally compare dirty against {}.
       saveLastApplied({}, instanceConfig);
-      setLastApplied({});
+      lastApplied.value = {};
       return next;
     }, { resetHistory: true, forceRecord: true });
-  }, [instanceConfig, colorDefaults, secondaryDefaults, commitTweakState]);
+  };
 
-  // Build the active tab list from this instance's PanelConfig.tabs (required).
-  // Keyed on `instanceConfig` so a non-default panel renders ITS own manifest,
-  // not the active default instance's (#354). configurePanel is one-shot per
-  // prefix, so the list is stable for a mount's lifetime.
-  const activeTabs = useMemo((): readonly { id: string; label: string }[] => {
-    return [
-      { id: ELEMENT_INSPECT_TAB_ID, label: 'Inspect' },
-      ...instanceConfig.tabs
-        .filter((t: TabConfig) => t.id !== ELEMENT_INSPECT_TAB_ID)
-        .map((t: TabConfig) => ({ id: t.id, label: t.label })),
-    ];
-  }, [instanceConfig]);
+  // The tab list comes from this instance's PanelConfig.tabs (required), so a
+  // non-default panel renders ITS own manifest (#354). configurePanel is
+  // one-shot per prefix, so the list is fixed for a mount's lifetime.
+  const activeTabs: readonly { id: string; label: string }[] = [
+    { id: ELEMENT_INSPECT_TAB_ID, label: 'Inspect' },
+    ...instanceConfig.tabs
+      .filter((t: TabConfig) => t.id !== ELEMENT_INSPECT_TAB_ID)
+      .map((t: TabConfig) => ({ id: t.id, label: t.label })),
+  ];
+  const tabConfigById: Record<string, TabConfig> = {};
+  for (const t of instanceConfig.tabs) tabConfigById[t.id] = t;
 
-  const openInspectTab = useCallback(() => {
-    setActiveTab((current) => {
-      if (current !== ELEMENT_INSPECT_TAB_ID) previousInspectTabRef.current = current;
-      return ELEMENT_INSPECT_TAB_ID;
-    });
-  }, []);
-
-  const handleActiveTabChange = useCallback((nextTab: string) => {
-    setActiveTab((current) => {
-      if (nextTab === ELEMENT_INSPECT_TAB_ID && current !== ELEMENT_INSPECT_TAB_ID) {
-        previousInspectTabRef.current = current;
-      } else if (nextTab !== ELEMENT_INSPECT_TAB_ID && current === ELEMENT_INSPECT_TAB_ID) {
-        previousInspectTabRef.current = null;
-      }
-      return nextTab;
-    });
-  }, []);
-
-  const clearInspectTab = useCallback(() => {
-    setActiveTab((current) => {
-      if (current !== ELEMENT_INSPECT_TAB_ID) return current;
-      const previous = previousInspectTabRef.current;
-      previousInspectTabRef.current = null;
-      if (previous && activeTabs.some((tab) => tab.id === previous)) return previous;
-      return instanceConfig.tabs[0]?.id ?? DEFAULT_TAB_ID;
-    });
-  }, [activeTabs, instanceConfig]);
-
-  const jumpToColorTab = useCallback(() => {
-    if (activeTabs.some((tab) => tab.id === 'color')) setActiveTab('color');
-  }, [activeTabs]);
-
-  // Build an id→TabConfig lookup for the tab-body dispatch (this instance's
-  // tabs). Keyed on `instanceConfig` — same as `activeTabs` above — so the body
-  // dispatch map tracks the active config. A prior `useMemo([])` left this map
-  // frozen at first render: a config change updated the tab strip (`activeTabs`)
-  // but the body kept dispatching against the stale map, rendering empty (#370).
-  const tabConfigById = useMemo((): Record<string, TabConfig> => {
-    const out: Record<string, TabConfig> = {};
-    for (const t of instanceConfig.tabs) {
-      out[t.id] = t;
+  const handleActiveTabChange = (nextTab: string) => {
+    const current = activeTab.value;
+    if (nextTab === ELEMENT_INSPECT_TAB_ID && current !== ELEMENT_INSPECT_TAB_ID) {
+      previousInspectTab = current;
+    } else if (nextTab !== ELEMENT_INSPECT_TAB_ID && current === ELEMENT_INSPECT_TAB_ID) {
+      previousInspectTab = null;
     }
-    return out;
-  }, [instanceConfig]);
+    activeTab.value = nextTab;
+  };
 
-  const searchIndex = useMemo(() => buildTokenIndex(instanceConfig), [instanceConfig]);
+  const openInspectTab = () => {
+    if (activeTab.value !== ELEMENT_INSPECT_TAB_ID) previousInspectTab = activeTab.value;
+    activeTab.value = ELEMENT_INSPECT_TAB_ID;
+  };
+
+  const clearInspectTab = () => {
+    if (activeTab.value !== ELEMENT_INSPECT_TAB_ID) return;
+    const previous = previousInspectTab;
+    previousInspectTab = null;
+    activeTab.value = previous && activeTabs.some((tab) => tab.id === previous)
+      ? previous
+      : instanceConfig.tabs[0]?.id ?? DEFAULT_TAB_ID;
+  };
+
+  const jumpToColorTab = () => {
+    if (activeTabs.some((tab) => tab.id === 'color')) activeTab.value = 'color';
+  };
+
+  const elementInspect = useElementInspect({
+    instanceConfig,
+    state,
+    commitTweakState,
+    onInspectTabOpen: openInspectTab,
+    onInspectTabClear: clearInspectTab,
+    onJumpToColorTab: jumpToColorTab,
+    panelOpen: open,
+  });
+
+  const searchIndex = buildTokenIndex(instanceConfig);
   // Color rows are backed by a complete ColorTweakState, so their baseline is
   // the active identity's freshly-seeded state. Flat rows continue to compare
   // against manifest defaults through the same S2 evaluator.
-  const changedBaseline = useMemo<ColorBaseline>(() => ({
-    color: colorDefaults,
-    ...(secondaryDefaults ? { secondary: secondaryDefaults } : {}),
-  }), [colorDefaults, secondaryDefaults]);
-  const changedTokenCounts = useMemo(
-    () => state
-      ? changedCounts(searchIndex.entries, state, changedBaseline, instanceConfig)
-      : {},
-    [changedBaseline, instanceConfig, searchIndex.entries, state],
-  );
-  const changedTotal = useMemo(
-    () => Object.values(changedTokenCounts).reduce((sum, count) => sum + count, 0),
-    [changedTokenCounts],
+  let baselineFor: { color: ColorTweakState; value: ColorBaseline } | null = null;
+  const changedBaseline = computed<ColorBaseline>(() => {
+    const color = colorDefaults.value;
+    if (baselineFor?.color !== color) {
+      baselineFor = {
+        color,
+        value: { color, ...(secondaryDefaults ? { secondary: secondaryDefaults } : {}) },
+      };
+    }
+    return baselineFor.value;
+  });
+  const changedTokenCounts = computed(() => {
+    const current = state.value;
+    return current ? changedCounts(searchIndex.entries, current, changedBaseline.value, instanceConfig) : {};
+  });
+  const changedTotal = computed(() =>
+    Object.values(changedTokenCounts.value).reduce((sum, count) => sum + count, 0),
   );
   // The primary Color view owns both primary and optional secondary cluster
   // sections, so its active-tab filter count includes both evaluator slices.
   // Other tabs map one-to-one to their changedCounts entry.
-  const changedOnlyCount = activeTab === 'color'
-    ? (changedTokenCounts.color ?? 0) + (changedTokenCounts['color-secondary'] ?? 0)
-    : changedTokenCounts[activeTab] ?? 0;
-  const isTokenChanged = useCallback((address: TokenAddress) => {
-    const entry = searchIndex.entry(address);
-    return Boolean(entry && state && isChanged(entry, state, changedBaseline, instanceConfig));
-  }, [changedBaseline, instanceConfig, searchIndex, state]);
-  const handleRevertAddress = useCallback((address: TokenAddress) => {
-    if (!state) return;
+  const changedOnlyCount = computed(() => {
+    const counts = changedTokenCounts.value;
+    return activeTab.value === 'color'
+      ? (counts.color ?? 0) + (counts['color-secondary'] ?? 0)
+      : counts[activeTab.value] ?? 0;
+  });
+  const isTokenChanged = computed(() => {
+    const current = state.value;
+    const baseline = changedBaseline.value;
+    return (address: TokenAddress) => {
+      const entry = searchIndex.entry(address);
+      return Boolean(entry && current && isChanged(entry, current, baseline, instanceConfig));
+    };
+  });
+  const handleRevertAddress = (address: TokenAddress) => {
+    if (!stateNow) return;
     const entry = searchIndex.entry(address);
     if (!entry) return;
-    commitTweakState('revert', revertEntry(entry, changedBaseline, instanceConfig), {
+    commitTweakState('revert', revertEntry(entry, changedBaseline.value, instanceConfig), {
       address: tokenAddressKey(address),
     });
-  }, [changedBaseline, commitTweakState, instanceConfig, searchIndex, state]);
-  const changedRowOptions = useMemo<ChangedContributionOptions | undefined>(
-    () => state
+  };
+  const changedRowOptions = computed<ChangedContributionOptions | undefined>(() => {
+    const current = state.value;
+    return current
       ? {
           index: searchIndex,
-          state,
-          baseline: changedBaseline,
+          state: current,
+          baseline: changedBaseline.value,
           cfg: instanceConfig,
-          changedOnly,
+          changedOnly: changedOnly.value,
           onRevert: handleRevertAddress,
         }
-      : undefined,
-    [changedBaseline, changedOnly, handleRevertAddress, instanceConfig, searchIndex, state],
-  );
-  const searchCounts = useMemo<readonly SearchTabCount[]>(() => activeTabs.map((tab) => {
-    if (tab.id === 'palette') {
-      const config = tabConfigById[tab.id];
-      const total = config?.tiers.length ?? 0;
-      const matches = searchQuery.trim()
-        ? (config?.tiers ?? []).filter((tier) =>
-            [tier.id, tier.label].some((field) => field.toLocaleLowerCase().includes(searchQuery.trim().toLocaleLowerCase())),
-          ).length
-        : total;
-      return { tab: config ?? { id: tab.id, label: tab.label, tiers: [] }, total, matches };
-    }
-    const entries = searchIndex.entries.filter((entry) => entry.address.tabId === tab.id);
-    const total = entries.length;
-    const matches = entries.filter((entry) => matchesTokenEntry(entry, searchQuery, state ?? undefined, instanceConfig)).length;
-    return { tab: tabConfigById[tab.id] ?? { id: tab.id, label: tab.label, tiers: [] }, total, matches };
-  }), [activeTabs, instanceConfig, searchIndex, searchQuery, state, tabConfigById]);
+      : undefined;
+  });
+  const searchCounts = computed<readonly SearchTabCount[]>(() => {
+    const query = searchQuery.value;
+    const current = state.value;
+    return activeTabs.map((tab) => {
+      if (tab.id === 'palette') {
+        const config = tabConfigById[tab.id];
+        const total = config?.tiers.length ?? 0;
+        const matches = query.trim()
+          ? (config?.tiers ?? []).filter((tier) =>
+              [tier.id, tier.label].some((field) => field.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())),
+            ).length
+          : total;
+        return { tab: config ?? { id: tab.id, label: tab.label, tiers: [] }, total, matches };
+      }
+      const entries = searchIndex.entries.filter((entry) => entry.address.tabId === tab.id);
+      const total = entries.length;
+      const matches = entries.filter((entry) => matchesTokenEntry(entry, query, current ?? undefined, instanceConfig)).length;
+      return { tab: tabConfigById[tab.id] ?? { id: tab.id, label: tab.label, tiers: [] }, total, matches };
+    });
+  });
 
-  const focusTokenAddress = useCallback((address: TokenAddress) => {
+  const focusTokenAddress = (address: TokenAddress) => {
     const row = panelRef.current ? scrollToTokenRow(panelRef.current, address) : null;
     const focusSelector = 'input:not([type="hidden"]), select, textarea, [role="button"]';
     const focusTarget = row?.matches(focusSelector)
       ? row
       : row?.querySelector<HTMLElement>(focusSelector);
     focusTarget?.focus();
-  }, []);
+  };
 
-  const handleCommandToken = useCallback((address: TokenAddress) => {
+  const handleCommandToken = (address: TokenAddress) => {
     // A secondary cluster is rendered inside the primary Color tab, not as a
     // selectable tab of its own. The address stays intact for row navigation.
     const targetTab = address.tabId === 'color-secondary' ? 'color' : address.tabId;
-    setSearchQuery('');
-    setActiveTab(targetTab);
-    if (address.tabId === 'palette') {
-      setPendingJumpAddress(address);
-      return;
-    }
+    batch(() => {
+      searchQuery.value = '';
+      activeTab.value = targetTab;
+      if (address.tabId === 'palette') pendingJumpAddress.value = address;
+    });
+    if (address.tabId === 'palette') return;
     window.requestAnimationFrame(() => focusTokenAddress(address));
-  }, [focusTokenAddress]);
+  };
 
-  const handlePaletteJumpHandled = useCallback((address: TokenAddress) => {
-    setPendingJumpAddress(null);
+  const handlePaletteJumpHandled = (address: TokenAddress) => {
+    pendingJumpAddress.value = null;
     window.requestAnimationFrame(() => focusTokenAddress(address));
-  }, [focusTokenAddress]);
+  };
 
-  const commandActions = useMemo<readonly CommandPaletteAction[]>(() => {
-    const actions: CommandPaletteAction[] = [
-      { id: 'export', label: 'Export', onSelect: () => setShowExport(true) },
-      { id: 'import', label: 'Load from JSON…', onSelect: () => setShowImport(true) },
-      {
-        id: 'apply',
-        label: 'Apply',
-        onSelect: () => setShowApply(true),
-        disabled: !applyConfigured,
-        disabledReason: !applyConfigured ? APPLY_DISABLED_REASON : undefined,
-      },
-    ];
-    for (const tab of activeTabs) {
-      if (tab.id === 'notes' || tab.id === 'color-secondary') continue;
-      actions.push({
+  const commandActions: readonly CommandPaletteAction[] = [
+    ...panelActions.slice(0, 3),
+    ...activeTabs
+      .filter((tab) => tab.id !== 'notes' && tab.id !== 'color-secondary')
+      .map((tab) => ({
         id: `reset-${tab.id}`,
         label: `Reset ${tab.label}`,
         onSelect: () => handleResetTab(tab.id),
-      });
-    }
-    for (const tab of activeTabs) {
-      if (tab.id === 'color-secondary') continue;
-      actions.push({
+      })),
+    ...activeTabs
+      .filter((tab) => tab.id !== 'color-secondary')
+      .map((tab) => ({
         id: `goto-${tab.id}`,
         label: `Go to ${tab.label}`,
-        onSelect: () => setActiveTab(tab.id),
-      });
-    }
-    actions.push({
+        onSelect: () => {
+          activeTab.value = tab.id;
+        },
+      })),
+    {
       id: 'highlight-settings',
       label: 'Highlight settings',
-      onSelect: () => setShowHighlightSettings(true),
-    });
-    return actions;
-  }, [activeTabs, applyConfigured, handleResetTab]);
+      onSelect: () => {
+        showHighlightSettings.value = true;
+      },
+    },
+  ];
 
-  const shellRegionItems = useMemo(
-    (): Partial<
-      Record<'header-actions' | 'header-right' | 'tabbar-extras' | 'footer', readonly ShellRegionItem[]>
-    > => ({
-      'header-actions': [
-        {
-          id: 'search-filter',
-          order: -1,
-          render: () => (
-            <SearchHeader
-              query={searchQuery}
-              onQueryChange={setSearchQuery}
-              onOpenPalette={() => setShowCommandPalette(true)}
-            />
-          ),
-        },
-        ...panelActions.map(
-          (action, index): ShellRegionItem => ({
-            id: `panel-action-${action.id}`,
-            order: index,
-            compactAction: action,
-            render: () => (
-              <RoleButton
-                onClick={action.onSelect}
-                className="tokenpanel-action-link"
-                aria-disabled={action.disabled}
-                title={action.disabledReason}
-                data-zdtp-action={action.id}
-              >
-                {action.label}
-              </RoleButton>
-            ),
-          }),
+  // --- Shell regions ---
+
+  const footerItem: ShellRegionItem = {
+    id: 'changed-state-footer',
+    render: () => (
+      <ChangedFooterContent
+        index={searchIndex}
+        state={computed(() => state.value!)}
+        baseline={changedBaseline}
+        cfg={instanceConfig}
+        onRevertAll={handleResetAll}
+      />
+    ),
+  };
+  const staticItems: Omit<RegionItems, 'footer'> = {
+    'header-actions': [
+      {
+        id: 'search-filter',
+        order: -1,
+        render: () => (
+          <SearchHeader
+            query={searchQuery}
+            onQueryChange={(query) => {
+              searchQuery.value = query;
+            }}
+            onOpenPalette={() => {
+              showCommandPalette.value = true;
+            }}
+            shortcuts={shortcuts}
+            layerActive={layers.active}
+          />
         ),
-        {
-          id: 'dom-tweaker-diff',
-          order: panelActions.length,
-          renderInCompactMenu: true,
-          render: ({ compact, closeCompactMenu }) => (
-            <DomTweakerDiffActionLink
-              instanceConfig={instanceConfig}
-              onSelected={compact ? closeCompactMenu : undefined}
-            />
-          ),
-        },
-        {
-          id: 'dock-modes-compact',
-          order: panelActions.length + 1,
-          renderInCompactMenu: true,
-          render: ({ compact, closeCompactMenu }) =>
-            compact ? (
-              <DockModeSwitch
-                value={dockMode}
-                onChange={(mode) => {
-                  handleDockModeChange(mode);
-                  closeCompactMenu();
-                }}
-                compact
-              />
-            ) : null,
-        },
-        {
-          id: 'ghost-idle-compact',
-          order: panelActions.length + 2,
-          renderInCompactMenu: true,
-          render: ({ compact }) =>
-            compact ? (
-              <GhostIdleToggle
-                enabled={ghostIdle}
-                onChange={handleGhostIdleChange}
-                compact
-              />
-            ) : null,
-        },
-        {
-          id: 'density-compact',
-          order: panelActions.length + 3,
-          renderInCompactMenu: true,
-          render: ({ compact }) =>
-            compact ? (
-              <label className="tokenpanel-density is-compact">
-                <span className="tokenpanel-density-label">Density</span>
-                <input
-                  type="range"
-                  min={0}
-                  max={2}
-                  step={1}
-                  value={density}
-                  onInput={(event) => {
-                    const raw = Number((event.currentTarget as HTMLInputElement).value);
-                    if (raw === 0 || raw === 1 || raw === 2) handleDensityChange(raw);
-                  }}
-                  className="tokenpanel-density-slider"
-                  aria-label="Tab grid density"
-                />
-              </label>
-            ) : null,
-        },
-        {
-          id: 'changed-only-compact',
-          order: panelActions.length + 4,
-          renderInCompactMenu: true,
-          render: ({ compact }) =>
-            compact ? (
-              <ChangedOnlyToggle
-                enabled={changedOnly}
-                count={changedOnlyCount}
-                onChange={setChangedOnly}
-              />
-            ) : null,
-        },
-      ],
-      'header-right': [
-        {
-          id: 'apply-sync-status',
-          order: -2,
-          renderInCompactMenu: true,
+      },
+      ...panelActions.map(
+        (action, index): ShellRegionItem => ({
+          id: `panel-action-${action.id}`,
+          order: index,
+          compactAction: action,
           render: () => (
-            <div className={`tokenpanel-apply-sync${unsaved.length > 0 ? ' is-unsaved' : ''}`} role="status">
-              {unsaved.length > 0 ? `● ${unsaved.length} unsaved` : '✓ in sync'}
-            </div>
+            <RoleButton
+              onClick={action.onSelect}
+              class="tokenpanel-action-link"
+              aria-disabled={action.disabled ?? null}
+              title={action.disabledReason ?? null}
+              data-zdtp-action={action.id}
+            >
+              {action.label}
+            </RoleButton>
           ),
-        },
-        {
-          id: 'dock-modes',
-          order: -1,
-          render: () => (
+        }),
+      ),
+      {
+        id: 'dom-tweaker-diff',
+        order: panelActions.length,
+        renderInCompactMenu: true,
+        render: ({ compact, closeCompactMenu }) => (
+          <DomTweakerDiffActionLink
+            instanceConfig={instanceConfig}
+            controller={domTweaker}
+            onSelected={compact ? closeCompactMenu : undefined}
+          />
+        ),
+      },
+      {
+        id: 'dock-modes-compact',
+        order: panelActions.length + 1,
+        renderInCompactMenu: true,
+        render: ({ compact, closeCompactMenu }) =>
+          compact ? (
             <DockModeSwitch
               value={dockMode}
-              onChange={handleDockModeChange}
+              onChange={(mode) => {
+                handleDockModeChange(mode);
+                closeCompactMenu();
+              }}
+              compact
             />
-          ),
+          ) : null,
+      },
+      {
+        id: 'ghost-idle-compact',
+        order: panelActions.length + 2,
+        renderInCompactMenu: true,
+        render: ({ compact }) =>
+          compact ? (
+            <GhostIdleToggle enabled={ghostIdle} onChange={handleGhostIdleChange} compact />
+          ) : null,
+      },
+      {
+        id: 'density-compact',
+        order: panelActions.length + 3,
+        renderInCompactMenu: true,
+        render: ({ compact }) =>
+          compact ? (
+            <label class="tokenpanel-density is-compact">
+              <span class="tokenpanel-density-label">Density</span>
+              <DensitySlider density={density} onDensityChange={handleDensityChange} />
+            </label>
+          ) : null,
+      },
+      {
+        id: 'changed-only-compact',
+        order: panelActions.length + 4,
+        renderInCompactMenu: true,
+        render: ({ compact }) =>
+          compact ? (
+            <ChangedOnlyToggle
+              enabled={changedOnly}
+              count={changedOnlyCount}
+              onChange={(enabled) => {
+                changedOnly.value = enabled;
+              }}
+            />
+          ) : null,
+      },
+    ],
+    'header-right': [
+      historyRegionItem({
+        history: historySnapshot,
+        railOpen: historyRailOpen,
+        onUndo: handleUndo,
+        onRedo: handleRedo,
+        onToggleRail: () => {
+          historyRailOpen.value = !historyRailOpen.value;
         },
-        {
-          id: 'element-path',
-          order: 0,
-          renderInCompactMenu: true,
-          render: ({ compact }) => <ElementPathToggleButton compact={compact} />,
-        },
-        {
-          id: 'element-inspect',
-          order: 1,
-          renderInCompactMenu: true,
-          render: ({ compact }) => <ElementInspectToggleButton compact={compact} />,
-        },
-        ...(instanceConfig.domTweaker !== undefined
-          ? [
-              {
-                id: 'dom-tweaker',
-                order: 2,
-                renderInCompactMenu: true,
-                render: ({ compact }) => <DomTweakerToggleButton compact={compact} />,
-              } satisfies ShellRegionItem,
-            ]
-          : []),
-        {
-          id: 'highlight-settings',
-          order: 3,
-          render: () => (
+      }),
+      {
+        id: 'apply-sync-status',
+        order: -2,
+        renderInCompactMenu: true,
+        render: () => (
+          <div
+            class={computed(() => `tokenpanel-apply-sync${unsavedCount.value > 0 ? ' is-unsaved' : ''}`)}
+            role="status"
+          >
+            {computed(() => (unsavedCount.value > 0 ? `● ${unsavedCount.value} unsaved` : '✓ in sync'))}
+          </div>
+        ),
+      },
+      {
+        id: 'dock-modes',
+        order: -1,
+        render: () => <DockModeSwitch value={dockMode} onChange={handleDockModeChange} />,
+      },
+      {
+        id: 'element-path',
+        order: 0,
+        renderInCompactMenu: true,
+        render: ({ compact }) => <ElementPathToggleButton controller={elementPath} compact={compact} />,
+      },
+      {
+        id: 'element-inspect',
+        order: 1,
+        renderInCompactMenu: true,
+        render: ({ compact }) => (
+          <ElementInspectToggleButton controller={elementInspect} shortcuts={shortcuts} compact={compact} />
+        ),
+      },
+      ...(instanceConfig.domTweaker !== undefined
+        ? [
+            {
+              id: 'dom-tweaker',
+              order: 2,
+              renderInCompactMenu: true,
+              render: ({ compact }) => <DomTweakerToggleButton controller={domTweaker} compact={compact} />,
+            } satisfies ShellRegionItem,
+          ]
+        : []),
+      {
+        id: 'highlight-settings',
+        order: 3,
+        render: () => {
+          const toggleSettings = () => {
+            showHighlightSettings.value = !showHighlightSettings.value;
+          };
+          return (
             <div
               ref={gearBtnRef}
               role="button"
-              tabIndex={0}
-              className="tokenpanel-gear-btn"
+              tabindex={0}
+              class="tokenpanel-gear-btn"
               aria-label="Highlight outline settings"
               aria-expanded={showHighlightSettings}
               aria-haspopup="dialog"
-              onClick={() => setShowHighlightSettings((value) => !value)}
-              onKeyDown={(event) => {
+              on:click={toggleSettings}
+              on:keydown={(event: KeyboardEvent) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                   event.preventDefault();
-                  setShowHighlightSettings((value) => !value);
+                  toggleSettings();
                 }
               }}
             >
@@ -1525,198 +1408,313 @@ export default function DesignTokenTweakPanel({
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
                 aria-hidden="true"
               >
                 <circle cx="12" cy="12" r="3" />
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
               </svg>
             </div>
-          ),
+          );
         },
-        {
-          id: 'close',
-          order: 4,
-          render: () => (
-            <RoleButton
-              onClick={closePanel}
-              className="tokenpanel-close-btn"
-              aria-label="Close panel"
+      },
+      {
+        id: 'close',
+        order: 4,
+        render: () => (
+          <RoleButton
+            onClick={closePanel}
+            class="tokenpanel-close-btn"
+            aria-label="Close panel"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M18 6 6 18" />
-                <path d="m6 6 12 12" />
-              </svg>
-            </RoleButton>
-          ),
-        },
-      ],
-      'tabbar-extras': [
-        {
-          id: 'ghost-idle',
-          order: 0,
-          render: () => (
-            <GhostIdleToggle enabled={ghostIdle} onChange={handleGhostIdleChange} />
-          ),
-        },
-        {
-          id: 'changed-only',
-          order: 1,
-          render: () => (
-            <ChangedOnlyToggle
-              enabled={changedOnly}
-              count={changedOnlyCount}
-              onChange={setChangedOnly}
-            />
-          ),
-        },
-      ],
-      footer: state ? [
-        {
-          id: 'changed-state-footer',
-          render: () => (
-            <ChangedFooterContent
-              index={searchIndex}
-              state={state}
-              baseline={changedBaseline}
-              cfg={instanceConfig}
-              onRevertAll={handleResetAll}
-            />
-          ),
-        },
-      ] : [],
-    }),
-    [
-      activeTab,
-      changedBaseline,
-      changedOnly,
-      changedOnlyCount,
-      changedTokenCounts,
-      density,
-      dockMode,
-      ghostIdle,
-      handleDensityChange,
-      handleDockModeChange,
-      handleGhostIdleChange,
-      handleResetAll,
-      instanceConfig,
-      panelActions,
-      searchQuery,
-      searchIndex,
-      showHighlightSettings,
-      state,
-      unsaved.length,
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </RoleButton>
+        ),
+      },
     ],
+    'tabbar-extras': [
+      {
+        id: 'ghost-idle',
+        order: 0,
+        render: () => <GhostIdleToggle enabled={ghostIdle} onChange={handleGhostIdleChange} />,
+      },
+      {
+        id: 'changed-only',
+        order: 1,
+        render: () => (
+          <ChangedOnlyToggle
+            enabled={changedOnly}
+            count={changedOnlyCount}
+            onChange={(enabled) => {
+              changedOnly.value = enabled;
+            }}
+          />
+        ),
+      },
+    ],
+  };
+  const hasState = computed(() => state.value !== null);
+  const regions = createShellRegions(
+    computed(() => ({ ...staticItems, footer: hasState.value ? [footerItem] : [] })),
   );
 
-  return (
-    <LayerActivityProvider>
-    <ShortcutProvider shellRef={shortcutRootRef} enabled={open}>
-    <ShellRegionsProvider initialItems={shellRegionItems}>
-    <DockShortcuts value={dockMode} onChange={handleDockModeChange} />
-    <PanelLayerRegistrations
-      exportOpen={showExport}
-      importOpen={showImport}
-      applyOpen={showApply}
-      highlightSettingsOpen={showHighlightSettings}
-    />
-    <HistoryButtons
-      history={historySnapshot}
-      railOpen={historyRailOpen}
-      onUndo={handleUndo}
-      onRedo={handleRedo}
-      onToggleRail={() => setHistoryRailOpen((openState) => !openState)}
-    />
-    <HistoryShortcuts
-      enabled={open}
-      onUndo={handleUndo}
-      onRedo={handleRedo}
-      onFlipSnapshots={handleFlipSnapshots}
-    />
-    {open && <PanelEscapeShortcut onClose={closePanel} />}
-    <HighlightOrchestrator instanceConfig={instanceConfig}>
-    <ElementPathOrchestrator>
-    <ElementInspectOrchestrator
-      instanceConfig={instanceConfig}
-      state={state}
-      commitTweakState={commitTweakState}
-      onInspectTabOpen={openInspectTab}
-      onInspectTabClear={clearInspectTab}
-      onJumpToColorTab={jumpToColorTab}
-      panelOpen={open}
-    >
-      <DomTweakerOrchestrator instanceConfig={instanceConfig}>
-      <TokenChainProvider instanceConfig={instanceConfig} state={state}>
-      <TooltipProvider>
-      {open && (() => {
-        const { width: panelW, height: panelH } = computePanelSize(size);
+  // --- Layers and shortcuts ---
 
-        const effectiveDockMode = dockMode === 'mini' ? 'float' : dockMode;
-        const panelPos =
-          effectiveDockMode === 'right'
-            ? { position: 'fixed' as const, top: 0, right: 0, bottom: 0, left: 'auto' }
-            : effectiveDockMode === 'bottom'
-              ? { position: 'fixed' as const, top: 'auto', right: 0, bottom: 0, left: 0 }
-              : { position: 'fixed' as const, top: position.top, left: position.left };
-        const renderedWidth =
-          effectiveDockMode === 'right'
-            ? dockSize.right
-            : effectiveDockMode === 'bottom'
-              ? '100vw'
-              : panelW;
-        const renderedHeight =
-          effectiveDockMode === 'bottom'
-            ? dockSize.bottom
-            : effectiveDockMode === 'right'
-              ? '100vh'
-              : panelH;
+  useLayerRegistration(layers, 'export-modal', showExport);
+  useLayerRegistration(layers, 'import-modal', showImport);
+  useLayerRegistration(layers, 'apply-modal', showApply);
+  useLayerRegistration(layers, 'highlight-settings', showHighlightSettings);
 
-        return (
-          <>
-            {dockMode === 'mini' ? (
-              <MiniPill
-                rootRef={shortcutRootRef}
-                onApply={() => setShowApply(true)}
-                applyDisabled={!applyConfigured}
-                applyDisabledReason={!applyConfigured ? APPLY_DISABLED_REASON : undefined}
-                onExpand={() => handleDockModeChange(lastFullDockModeRef.current)}
-                changedCount={changedTotal > 0 ? changedTotal : undefined}
-                undo={
-                  <HistoryUndoButton
-                    canUndo={historySnapshot.canUndo}
-                    onUndo={handleUndo}
-                  />
-                }
+  // The dispatcher routes keys only while the shell (or mini pill) is open.
+  scope.effect(() => {
+    if (!open.value) return;
+    return shortcuts.attach(() => shortcutRootRef.current);
+  });
+
+  const selectMode = (mode: DockMode, event: KeyboardEvent) => {
+    if (mode === dockModeNow) return;
+    event.preventDefault();
+    handleDockModeChange(mode);
+  };
+  useShortcut(shortcuts, { key: '1', altKey: true }, (event) => selectMode('float', event));
+  useShortcut(shortcuts, { key: '2', altKey: true }, (event) => selectMode('right', event));
+  useShortcut(shortcuts, { key: '3', altKey: true }, (event) => selectMode('bottom', event));
+  useShortcut(shortcuts, { key: '4', altKey: true }, (event) => selectMode('mini', event));
+
+  useHistoryShortcuts({
+    shortcuts,
+    enabled: open,
+    onUndo: handleUndo,
+    onRedo: handleRedo,
+    onFlipSnapshots: handleFlipSnapshots,
+  });
+
+  useShortcut(
+    shortcuts,
+    { key: 'Escape' },
+    (event) => {
+      if (event.defaultPrevented || layers.active.value) return;
+      event.preventDefault();
+      closePanel();
+    },
+    open,
+  );
+
+  // --- Rendering ---
+
+  const presentState = computed(() => state.value!);
+
+  function TabBody({ tab }: { tab: { id: string; label: string } }) {
+    const config = tabConfigById[tab.id];
+    if (tab.id === ELEMENT_INSPECT_TAB_ID) {
+      return <ElementInspectView inspect={elementInspect} onJumpToColorTab={jumpToColorTab} />;
+    }
+    // No state/persist props — the notes tab carries no token overrides
+    // (#515): it's excluded from state.tabs, apply routing, and
+    // export/import serde by construction.
+    if (tab.id === 'notes') return config ? <NotesTab tab={config} /> : null;
+    if (!config) return null;
+    return (
+      <Show when={hasState}>
+        {() => {
+          if (tab.id === 'color') {
+            return (
+              <ColorTab
+                tab={config}
+                state={computed(() => presentState.value.color)}
+                persistColor={persistColor}
+                secondaryTab={tabConfigById['color-secondary'] ?? null}
+                secondaryState={computed(() =>
+                  presentState.value.secondary ?? initSecondaryFromConfig(instanceConfig) ?? null)}
+                persistSecondary={persistSecondary}
+                instanceConfig={instanceConfig}
+                tabOverrides={computed(() => presentState.value.tabs ?? {})}
+                searchQuery={searchQuery}
+                isChanged={isTokenChanged}
+                changedOnly={changedOnly}
+                onRevert={handleRevertAddress}
+                services={services}
               />
-            ) : (
-        <div
-        ref={setPanelRef}
-        className={`tokenpanel-shell${effectiveDockMode === 'right' ? ' is-docked-right' : ''}${effectiveDockMode === 'bottom' ? ' is-docked-bottom' : ''}${historyRailOpen ? ' is-history-open' : ''}`}
-        style={{
-          ...panelPos,
-          width: renderedWidth,
-          height: renderedHeight,
-          maxHeight: effectiveDockMode === 'float' ? 'calc(100vh - 32px)' : 'none',
-          // `--tokenpanel-grid-min` is read by .tokenpanel-tab-grid /
-          // .tokenpanel-tab-advanced-grid; switching the variable rewires the
-          // min-card-width without re-rendering the grids.
-          ['--tokenpanel-grid-min' as string]: densityToGridMin(density),
+            );
+          }
+          if (tab.id === 'spacing') {
+            return (
+              <SpacingTab
+                tab={config}
+                state={computed(() => presentState.value.spacing)}
+                persistSpacing={persistSpacing}
+                searchQuery={searchQuery}
+                onBulkApply={handleSpacingBulkApply}
+                changed={changedRowOptions}
+                changedOnly={changedOnly}
+                services={services}
+              />
+            );
+          }
+          if (tab.id === 'font') {
+            return (
+              <FontTab
+                tab={config}
+                state={computed(() => presentState.value.typography)}
+                persistFont={persistFont}
+                instanceConfig={instanceConfig}
+                renderOnPage={renderSpecimenOnPage}
+                onRenderOnPageChange={handleRenderSpecimenOnPageChange}
+                searchQuery={searchQuery}
+                onBulkApply={handleFontBulkApply}
+                changed={changedRowOptions}
+                changedOnly={changedOnly}
+                services={services}
+              />
+            );
+          }
+          if (tab.id === 'size') {
+            return (
+              <SizeTab
+                tab={config}
+                state={computed(() => presentState.value.size)}
+                persistSize={persistSize}
+                searchQuery={searchQuery}
+                onBulkApply={handleSizeBulkApply}
+                changed={changedRowOptions}
+                changedOnly={changedOnly}
+                services={services}
+              />
+            );
+          }
+          if (tab.id === 'palette') {
+            return (
+              <PaletteTab
+                tab={config}
+                overrides={computed(() => presentState.value.tabs?.['palette'] ?? {})}
+                onChange={(tierId, itemId, next) =>
+                  persistTab('palette', (prev) => ({
+                    ...prev,
+                    [tierId]: { ...prev[tierId], [itemId]: next },
+                  }))
+                }
+                onCommitBatch={(tierId, patch) =>
+                  // One drag gesture = ONE persistTab call: merge the whole
+                  // { [itemId]: oklch } patch for the tier in a single
+                  // updater so the DOM apply + localStorage write happen
+                  // once, not once per drag frame.
+                  persistTab('palette', (prev) => ({
+                    ...prev,
+                    [tierId]: { ...prev[tierId], ...patch },
+                  }))
+                }
+                searchQuery={searchQuery}
+                changedOnly={changedOnly}
+                isChanged={isTokenChanged}
+                jumpAddress={pendingJumpAddress}
+                onJumpAddressHandled={handlePaletteJumpHandled}
+                services={services}
+              />
+            );
+          }
+          if ((RESERVED_TAB_IDS as readonly string[]).includes(tab.id)) return null;
+          return (
+            <GenericTab
+              tab={config}
+              overrides={computed(() => presentState.value.tabs?.[tab.id] ?? {})}
+              searchQuery={searchQuery}
+              onBulkApply={(patch) => handleGenericBulkApply(tab.id, patch)}
+              changed={changedRowOptions}
+              changedOnly={changedOnly}
+              services={services}
+              onChange={(tierId, itemId, next) => {
+                // `next === undefined` (ref-tier "Literal…" pick, #470)
+                // means drop the stored override entirely so the item
+                // reverts to its tier's default ref, matching the
+                // font/spacing/size tabs' delete-the-key behavior.
+                persistTab(tab.id, (prev) => {
+                  if (next === undefined) {
+                    const tierPrev = { ...prev[tierId] };
+                    delete tierPrev[itemId];
+                    return { ...prev, [tierId]: tierPrev };
+                  }
+                  return {
+                    ...prev,
+                    [tierId]: {
+                      ...prev[tierId],
+                      [itemId]: next,
+                    },
+                  };
+                });
+              }}
+            />
+          );
         }}
+      </Show>
+    );
+  }
+
+  const shellStyle = computed(() => {
+    const effectiveDockMode = dockMode.value === 'mini' ? 'float' : dockMode.value;
+    const { width: panelW, height: panelH } = computePanelSize(size.value);
+    const panelPos =
+      effectiveDockMode === 'right'
+        ? { position: 'fixed', top: 0, right: 0, bottom: 0, left: 'auto' }
+        : effectiveDockMode === 'bottom'
+          ? { position: 'fixed', top: 'auto', right: 0, bottom: 0, left: 0 }
+          : { position: 'fixed', top: position.value.top, left: position.value.left };
+    return toZrStyle({
+      ...panelPos,
+      width:
+        effectiveDockMode === 'right'
+          ? dockSize.value.right
+          : effectiveDockMode === 'bottom'
+            ? '100vw'
+            : panelW,
+      height:
+        effectiveDockMode === 'bottom'
+          ? dockSize.value.bottom
+          : effectiveDockMode === 'right'
+            ? '100vh'
+            : panelH,
+      maxHeight: effectiveDockMode === 'float' ? 'calc(100vh - 32px)' : 'none',
+      // `--tokenpanel-grid-min` is read by .tokenpanel-tab-grid /
+      // .tokenpanel-tab-advanced-grid; switching the variable rewires the
+      // min-card-width without re-rendering the grids.
+      '--tokenpanel-grid-min': densityToGridMin(density.value),
+    });
+  });
+  const effectiveMode = computed(() => (dockMode.value === 'mini' ? 'float' : dockMode.value));
+
+  function Shell() {
+    const shellRef = {
+      get current() {
+        return panelRef.current;
+      },
+      set current(element: HTMLDivElement | null) {
+        panelRef.current = element;
+        shortcutRootRef.current = element;
+      },
+    };
+    useGhostIdle(panelRef, ghostIdle, layers.active);
+    return (
+      <div
+        ref={shellRef}
+        class={computed(() =>
+          `tokenpanel-shell${effectiveMode.value === 'right' ? ' is-docked-right' : ''}${effectiveMode.value === 'bottom' ? ' is-docked-bottom' : ''}${historyRailOpen.value ? ' is-history-open' : ''}`)}
+        style={shellStyle}
       >
-        <GhostIdleBehavior enabled={ghostIdle} targetRef={panelRef} />
-        <ShellHeader onMouseDown={handleDragStart} />
+        <ShellHeader onMouseDown={handleDragStart} regions={regions} layers={layers} />
         <ShellTabBar
           tabs={activeTabs}
           activeTab={activeTab}
@@ -1725,168 +1723,52 @@ export default function DesignTokenTweakPanel({
           tabRefs={tabRefs}
           density={density}
           onDensityChange={handleDensityChange}
-          open={open}
           changedCounts={changedTokenCounts}
+          regions={regions}
+          shortcuts={shortcuts}
+          layers={layers}
         />
         <SearchMatchBar
           query={searchQuery}
           activeTabId={activeTab}
           counts={searchCounts}
-          onSelectTab={setActiveTab}
+          onSelectTab={(tabId) => {
+            activeTab.value = tabId;
+          }}
         />
 
         {/* Tab panels — reserved ids dispatch to their dedicated components;
             non-reserved ids dispatch to GenericTab. */}
-        <div className="tokenpanel-body">
-          {activeTabs.map((tab) => {
-            const isSelected = activeTab === tab.id;
-            const isReserved = (RESERVED_TAB_IDS as readonly string[]).includes(tab.id);
-            return (
-              <div
-                key={tab.id}
-                role="tabpanel"
-                id={`dtp-panel-${ariaIdScope}-${tab.id}`}
-                aria-labelledby={`dtp-tab-${ariaIdScope}-${tab.id}`}
-                tabIndex={0}
-                hidden={!isSelected}
-              >
-                {tab.id === ELEMENT_INSPECT_TAB_ID && (
-                  <ElementInspectView onJumpToColorTab={jumpToColorTab} />
-                )}
-                {tab.id === 'color' && state && tabConfigById['color'] && (
-                  <ColorTab
-                    tab={tabConfigById['color']}
-                    state={state.color}
-                    persistColor={persistColor}
-                    secondaryTab={tabConfigById['color-secondary'] ?? null}
-                    secondaryState={state.secondary ?? initSecondaryFromConfig(instanceConfig) ?? null}
-                    persistSecondary={persistSecondary}
-                    instanceConfig={instanceConfig}
-                    tabOverrides={state.tabs ?? {}}
-                    searchQuery={searchQuery}
-                    isChanged={isTokenChanged}
-                    changedOnly={changedOnly}
-                    onRevert={handleRevertAddress}
-                  />
-                )}
-                {tab.id === 'spacing' && state && tabConfigById['spacing'] && (
-                  <SpacingTab
-                    tab={tabConfigById['spacing']}
-                    state={state.spacing}
-                    persistSpacing={persistSpacing}
-                    searchQuery={searchQuery}
-                    onBulkApply={handleSpacingBulkApply}
-                    changed={changedRowOptions}
-                    changedOnly={changedOnly}
-                  />
-                )}
-                {tab.id === 'font' && state && tabConfigById['font'] && (
-                  <FontTab
-                    tab={tabConfigById['font']}
-                    state={state.typography}
-                    persistFont={persistFont}
-                    instanceConfig={instanceConfig}
-                    renderOnPage={renderSpecimenOnPage}
-                    onRenderOnPageChange={handleRenderSpecimenOnPageChange}
-                    searchQuery={searchQuery}
-                    onBulkApply={handleFontBulkApply}
-                    changed={changedRowOptions}
-                    changedOnly={changedOnly}
-                  />
-                )}
-                {tab.id === 'size' && state && tabConfigById['size'] && (
-                  <SizeTab
-                    tab={tabConfigById['size']}
-                    state={state.size}
-                    persistSize={persistSize}
-                    searchQuery={searchQuery}
-                    onBulkApply={handleSizeBulkApply}
-                    changed={changedRowOptions}
-                    changedOnly={changedOnly}
-                  />
-                )}
-                {tab.id === 'palette' && state && tabConfigById['palette'] && (
-                  <PaletteTab
-                    tab={tabConfigById['palette']}
-                    overrides={state.tabs?.['palette'] ?? {}}
-                    onChange={(tierId, itemId, next) =>
-                      persistTab('palette', (prev) => ({
-                        ...prev,
-                        [tierId]: { ...prev[tierId], [itemId]: next },
-                      }))
-                    }
-                    onCommitBatch={(tierId, patch) =>
-                      // One drag gesture = ONE persistTab call: merge the whole
-                      // { [itemId]: oklch } patch for the tier in a single
-                      // updater so the DOM apply + localStorage write happen
-                      // once, not once per drag frame.
-                      persistTab('palette', (prev) => ({
-                        ...prev,
-                        [tierId]: { ...prev[tierId], ...patch },
-                      }))
-                    }
-                    searchQuery={searchQuery}
-                    changedOnly={changedOnly}
-                    isChanged={isTokenChanged}
-                    jumpAddress={pendingJumpAddress}
-                    onJumpAddressHandled={handlePaletteJumpHandled}
-                  />
-                )}
-                {tab.id === 'notes' && tabConfigById['notes'] && (
-                  // No state/persist props — the notes tab carries no token
-                  // overrides (#515): it's excluded from state.tabs, apply
-                  // routing, and export/import serde by construction.
-                  <NotesTab tab={tabConfigById['notes']} />
-                )}
-                {!isReserved && tabConfigById[tab.id] && state && (
-                  <GenericTab
-                    tab={tabConfigById[tab.id]}
-                    overrides={state.tabs?.[tab.id] ?? {}}
-                    searchQuery={searchQuery}
-                    onBulkApply={(patch) => handleGenericBulkApply(tab.id, patch)}
-                    changed={changedRowOptions}
-                    changedOnly={changedOnly}
-                    onChange={(tierId, itemId, next) => {
-                      // `next === undefined` (ref-tier "Literal…" pick, #470)
-                      // means drop the stored override entirely so the item
-                      // reverts to its tier's default ref, matching the
-                      // font/spacing/size tabs' delete-the-key behavior.
-                      persistTab(tab.id, (prev) => {
-                        if (next === undefined) {
-                          const tierPrev = { ...prev[tierId] };
-                          delete tierPrev[itemId];
-                          return { ...prev, [tierId]: tierPrev };
-                        }
-                        return {
-                          ...prev,
-                          [tierId]: {
-                            ...prev[tierId],
-                            [itemId]: next,
-                          },
-                        };
-                      });
-                    }}
-                  />
-                )}
-              </div>
-            );
-          })}
+        <div class="tokenpanel-body">
+          {activeTabs.map((tab) => (
+            <div
+              role="tabpanel"
+              id={`dtp-panel-${ariaIdScope}-${tab.id}`}
+              aria-labelledby={`dtp-tab-${ariaIdScope}-${tab.id}`}
+              tabindex={0}
+              hidden={computed(() => activeTab.value !== tab.id)}
+            >
+              <TabBody tab={tab} />
+            </div>
+          ))}
         </div>
 
-        {historyRailOpen && (
-          <HistoryRail
-            history={historySnapshot}
-            snapshots={snapshots}
-            selectedSnapshot={selectedSnapshot}
-            notice={historyNotice ?? historySnapshot.lastSkippedReason}
-            activeIdentity={activeColorIdentity}
-            onSaveSnapshot={handleSaveSnapshot}
-            onSelectSnapshot={handleSelectSnapshot}
-            onJumpTo={handleHistoryJump}
-          />
-        )}
+        <Show when={historyRailOpen}>
+          {() => (
+            <HistoryRail
+              history={historySnapshot}
+              snapshots={snapshots}
+              selectedSnapshot={selectedSnapshot}
+              notice={computed(() => historyNotice.value ?? historySnapshot.value.lastSkippedReason)}
+              activeIdentity={activeColorIdentity}
+              onSaveSnapshot={handleSaveSnapshot}
+              onSelectSnapshot={handleSelectSnapshot}
+              onJumpTo={handleHistoryJump}
+            />
+          )}
+        </Show>
 
-        <ShellFooter />
+        <ShellFooter regions={regions} />
 
         {/* Bottom-right resize grip — available on every viewport width.
 
@@ -1894,81 +1776,121 @@ export default function DesignTokenTweakPanel({
             regions; this grip resizes the panel on both axes, which has no
             standard role. We keep just `aria-label` for SR users — keyboard
             resize is intentionally out of scope. */}
-        {effectiveDockMode === 'float' ? (
-          <div
-            className="tokenpanel-resize-handle"
-            onMouseDown={handleResizeStart}
-            aria-label="Resize panel"
-            title="Drag to resize"
-          />
-        ) : (
-          <div
-            className={`tokenpanel-dock-resize-handle is-${effectiveDockMode}`}
-            onMouseDown={handleDockResizeStart}
-            aria-label={`Resize ${effectiveDockMode}-docked panel`}
-            title="Drag to resize"
-          />
-        )}
+        <Rebuild value={effectiveMode}>
+          {(mode) => (mode === 'float' ? (
+            <div
+              class="tokenpanel-resize-handle"
+              on:mousedown={handleResizeStart}
+              aria-label="Resize panel"
+              title="Drag to resize"
+            />
+          ) : (
+            <div
+              class={`tokenpanel-dock-resize-handle is-${mode}`}
+              on:mousedown={handleDockResizeStart}
+              aria-label={`Resize ${mode}-docked panel`}
+              title="Drag to resize"
+            />
+          ))}
+        </Rebuild>
         <CommandPalette
           open={showCommandPalette}
-          onOpen={() => setShowCommandPalette(true)}
-          onClose={() => setShowCommandPalette(false)}
+          onOpen={() => {
+            showCommandPalette.value = true;
+          }}
+          onClose={() => {
+            showCommandPalette.value = false;
+          }}
           config={instanceConfig}
           state={state}
-          actions={commandActions}
+          actions={signal(commandActions)}
           onSelectToken={handleCommandToken}
+          shortcuts={shortcuts}
+          layers={layers}
         />
-              </div>
-            )}
+      </div>
+    );
+  }
 
-      {showExport && state && (
-        <ExportModal
-          onClose={() => setShowExport(false)}
-          state={state}
-          colorDefaults={colorDefaults}
-          instanceConfig={instanceConfig}
-        />
-      )}
+  function Mini() {
+    return (
+      <MiniPill
+        rootRef={shortcutRootRef}
+        onApply={() => {
+          showApply.value = true;
+        }}
+        applyDisabled={!applyConfigured}
+        applyDisabledReason={!applyConfigured ? APPLY_DISABLED_REASON : undefined}
+        onExpand={() => handleDockModeChange(lastFullDockMode)}
+        changedCount={computed(() => (changedTotal.value > 0 ? changedTotal.value : undefined))}
+        undo={
+          <HistoryUndoButton
+            canUndo={computed(() => historySnapshot.value.canUndo)}
+            onUndo={handleUndo}
+          />
+        }
+      />
+    );
+  }
 
-      {showImport && state && (
-        <ImportModal
-          onClose={() => setShowImport(false)}
-          onLoad={handleLoadFromJson}
-          colorDefaults={initColorFromScheme(getActivePrimaryCluster(instanceConfig), instanceConfig)}
-          current={state}
-          instanceConfig={instanceConfig}
-        />
-      )}
+  const isMini = computed(() => dockMode.value === 'mini');
 
-      {showApply && state && (
-        <ApplyModal
-          state={state}
-          open={showApply}
-          onClose={() => setShowApply(false)}
-          colorDefaults={colorDefaults}
-          onApplied={handleApplied}
-          instanceConfig={instanceConfig}
-        />
-      )}
-
-      {showHighlightSettings && (
-        <HighlightSettingsPopover
-          anchorRef={gearBtnRef}
-          onClose={() => setShowHighlightSettings(false)}
-        />
-      )}
-          </>
-        );
-      })()}
-      </TooltipProvider>
-      </TokenChainProvider>
-      </DomTweakerOrchestrator>
-    </ElementInspectOrchestrator>
-      </ElementPathOrchestrator>
-    </HighlightOrchestrator>
-    </ShellRegionsProvider>
-    </ShortcutProvider>
-    </LayerActivityProvider>
+  return (
+    <Show when={open}>
+      {() => [
+        <Rebuild value={isMini}>{(mini) => (mini ? <Mini /> : <Shell />)}</Rebuild>,
+        <Show when={computed(() => showExport.value && hasState.value)}>
+          {() => (
+            <ExportModal
+              onClose={() => {
+                showExport.value = false;
+              }}
+              state={presentState}
+              colorDefaults={colorDefaults}
+              instanceConfig={instanceConfig}
+            />
+          )}
+        </Show>,
+        <Show when={computed(() => showImport.value && hasState.value)}>
+          {() => (
+            <ImportModal
+              onClose={() => {
+                showImport.value = false;
+              }}
+              onLoad={handleLoadFromJson}
+              colorDefaults={initColorFromScheme(getActivePrimaryCluster(instanceConfig), instanceConfig)}
+              current={presentState}
+              instanceConfig={instanceConfig}
+            />
+          )}
+        </Show>,
+        <Show when={computed(() => showApply.value && hasState.value)}>
+          {() => (
+            <ApplyModal
+              state={presentState}
+              open={showApply}
+              onClose={() => {
+                showApply.value = false;
+              }}
+              colorDefaults={colorDefaults}
+              onApplied={handleApplied}
+              instanceConfig={instanceConfig}
+            />
+          )}
+        </Show>,
+        <Show when={showHighlightSettings}>
+          {() => (
+            <HighlightSettingsPopover
+              anchorRef={gearBtnRef}
+              onClose={() => {
+                showHighlightSettings.value = false;
+              }}
+              highlight={highlight}
+            />
+          )}
+        </Show>,
+      ]}
+    </Show>
   );
 }
 

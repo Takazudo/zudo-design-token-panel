@@ -25,8 +25,8 @@
 
 // ---------------------------------------------------------------------------
 // Safety net: pin no-op RAF/cAF on globalThis so bare-global lookups never
-// see `undefined` even if Preact's deferred setTimeout-scheduled cleanup fires
-// after vi.restoreAllMocks() has removed the per-test mocks.
+// see `undefined` even if a deferred setTimeout-scheduled cleanup fires after
+// vi.restoreAllMocks() has removed the per-test mocks.
 // ---------------------------------------------------------------------------
 globalThis.requestAnimationFrame = (cb: (time: number) => void): number => {
   setTimeout(() => cb(0), 0);
@@ -35,14 +35,10 @@ globalThis.requestAnimationFrame = (cb: (time: number) => void): number => {
 globalThis.cancelAnimationFrame = (): void => { /* no-op safety net */ };
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, h } from 'preact';
-import { act } from '../../zr/test-utils';
-import { useContext } from 'preact/hooks';
+import { getScope, Show, signal, type ReadonlySignal } from '@takazudo/zfb/zudo-react';
+import { act, renderZr, unmountZrIn } from '../../zr/test-utils';
 import { HighlightOrchestrator, tierKindToProbeKind } from '../highlight-orchestrator';
-import {
-  HighlightContext,
-  type HighlightContextValue,
-} from '../highlight-toggle-button-preact';
+import type { HighlightContextValue } from '../highlight-context';
 import {
   configurePanel,
   __resetPanelConfigForTests,
@@ -109,10 +105,10 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  act(() => render(null, container));
-  // Flush Preact's deferred setTimeout-scheduled cleanup before restoring mocks.
-  // Without this, Preact may call cancelAnimationFrame after vi.restoreAllMocks()
-  // has removed the per-test mock, causing a ReferenceError in jsdom.
+  act(() => unmountZrIn(container));
+  // Flush deferred setTimeout-scheduled cleanup before restoring mocks, so
+  // nothing calls cancelAnimationFrame after vi.restoreAllMocks() has removed
+  // the per-test mock (a ReferenceError in jsdom).
   await new Promise((r) => setTimeout(r, 0));
   document.body.removeChild(container);
   vi.restoreAllMocks();
@@ -157,28 +153,31 @@ function makeElement(): HTMLDivElement {
   return el;
 }
 
-/** Consumer component that reads context and exposes it via a ref. */
+/** Consumer component that reports every highlight context value it sees. */
 function ContextCapture({
+  highlight,
   onCtx,
 }: {
+  highlight: ReadonlySignal<HighlightContextValue>;
   onCtx: (ctx: HighlightContextValue | null) => void;
 }) {
-  const ctx = useContext(HighlightContext);
-  onCtx(ctx);
+  getScope().effect(() => {
+    onCtx(highlight.value);
+  });
   return null;
 }
 
 function renderOrchestrator(
   onCtx: (ctx: HighlightContextValue | null) => void,
   instanceConfig?: PanelConfig,
+  root: HTMLElement = container,
 ): void {
   act(() => {
-    render(
-      h(HighlightOrchestrator, { instanceConfig },
-        h(ContextCapture, { onCtx }),
-      ),
-      container,
-    );
+    renderZr(() => (
+      <HighlightOrchestrator instanceConfig={instanceConfig}>
+        {(highlight) => <ContextCapture highlight={highlight} onCtx={onCtx} />}
+      </HighlightOrchestrator>
+    ), root);
   });
 }
 
@@ -381,15 +380,18 @@ describe('panel closed keeps overlays', () => {
 
     let ctx: HighlightContextValue | null = null;
 
-    function App({ show }: { show: boolean }) {
-      return h(HighlightOrchestrator, null,
-        show
-          ? h(ContextCapture, { onCtx: (c) => { ctx = c; } })
-          : null,
-      );
-    }
-
-    act(() => { render(h(App, { show: true }), container); });
+    const show = signal(true);
+    act(() => {
+      renderZr(() => (
+        <HighlightOrchestrator>
+          {(highlight) => (
+            <Show when={show}>
+              {() => <ContextCapture highlight={highlight} onCtx={(c) => { ctx = c; }} />}
+            </Show>
+          )}
+        </HighlightOrchestrator>
+      ), container);
+    });
 
     act(() => { ctx!.toggle('--brand'); });
     act(() => { flushRaf(); });
@@ -398,7 +400,7 @@ describe('panel closed keeps overlays', () => {
     expect(mount!.querySelectorAll('.tokenpanel-highlight-overlay').length).toBeGreaterThanOrEqual(1);
 
     // Simulate panel close — no longer rendering children inside orchestrator
-    act(() => { render(h(App, { show: false }), container); });
+    act(() => { show.value = false; });
     act(() => { flushRaf(); });
 
     // The orchestrator itself still renders the OverlayPortal
@@ -540,20 +542,8 @@ describe('lazy per-token match counts', () => {
       container.append(firstRoot, secondRoot);
       let firstCtx: HighlightContextValue | null = null;
       let secondCtx: HighlightContextValue | null = null;
-      act(() => {
-        render(
-          h(HighlightOrchestrator, { instanceConfig: colorConfig },
-            h(ContextCapture, { onCtx: (value) => { firstCtx = value; } }),
-          ),
-          firstRoot,
-        );
-        render(
-          h(HighlightOrchestrator, { instanceConfig: textConfig },
-            h(ContextCapture, { onCtx: (value) => { secondCtx = value; } }),
-          ),
-          secondRoot,
-        );
-      });
+      renderOrchestrator((value) => { firstCtx = value; }, colorConfig, firstRoot);
+      renderOrchestrator((value) => { secondCtx = value; }, textConfig, secondRoot);
 
       expect(mockFindElements).not.toHaveBeenCalled();
       act(() => {

@@ -1,3 +1,4 @@
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 /**
  * ActionsMenuPopover — narrow-panel replacement for the header action links
  * (Export / Load from JSON… / Apply / Reset), collapsed behind the kebab
@@ -7,13 +8,12 @@
  * role="menu"/menuitem demands arrow-key navigation and focus management,
  * and RoleButton hardcodes role="button" — so this follows the existing
  * gear-settings popover's dialog + outside-click/Escape wiring instead
- * (usePopoverClose, shared with highlight/highlight-settings-popover.tsx).
+ * (bindPopoverClose, shared with highlight/highlight-settings-popover.tsx).
  */
 
-import { useRef } from 'preact/compat';
-import type { ComponentChildren, JSX } from 'preact';
-import { RoleButton } from './role-button-preact';
-import { usePopoverClose } from '../components/color-picker/index';
+import { getScope, type Child } from '@takazudo/zfb/zudo-react';
+import { RoleButton } from './role-button';
+import { bindPopoverClose } from '../components/color-picker/popover';
 
 export interface ActionsMenuAction {
   /** Stable action id, emitted as `data-zdtp-action` on the rendered item.
@@ -30,10 +30,10 @@ interface ActionsMenuPopoverProps {
   /** The kebab trigger element — excluded from the outside-click close so its
    *  own click-to-toggle isn't raced by the popover's pointerdown listener
    *  (mirrors the gear button / HighlightSettingsPopover pairing). */
-  anchorRef: React.RefObject<HTMLElement | null>;
+  anchorRef: { readonly current: HTMLElement | null };
   actions: readonly ActionsMenuAction[];
   onClose: () => void;
-  children?: ComponentChildren;
+  children?: Child;
 }
 
 export function ActionsMenuPopover({
@@ -41,29 +41,28 @@ export function ActionsMenuPopover({
   actions,
   onClose,
   children,
-}: ActionsMenuPopoverProps): JSX.Element {
-  const containerRef = useRef<HTMLDivElement>(null);
+}: ActionsMenuPopoverProps) {
+  const containerRef: { current: HTMLDivElement | null } = { current: null };
 
-  usePopoverClose(containerRef, onClose, anchorRef);
+  getScope().onActivate(() => bindPopoverClose(containerRef, onClose, anchorRef));
 
   return (
     <div
       ref={containerRef}
       role="dialog"
       aria-label="Panel actions"
-      className="tokenpanel-actions-popover"
+      class="tokenpanel-actions-popover"
     >
       {actions.map((action) => (
         <RoleButton
-          key={action.id}
-          aria-disabled={action.disabled}
-          title={action.disabledReason}
+          aria-disabled={action.disabled ?? null}
+          title={action.disabledReason ?? null}
           data-zdtp-action={action.id}
           onClick={() => {
             action.onSelect();
             onClose();
           }}
-          className="tokenpanel-action-link"
+          class="tokenpanel-action-link"
         >
           {action.label}
         </RoleButton>

@@ -1,31 +1,29 @@
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 /**
  * DomTweakerOrchestrator — eager-side scaffold for DOM Tweaker.
  *
  * Responsibilities:
  *   1. Lifts and persists the `enabled` flag.
- *   2. Provides DomTweakerContext to descendants (the header toggle button).
+ *   2. Returns the controller the header toggle button reads.
  *   3. Enforces the document-global single-active-instance guard.
  *   4. Creates the body-level portal mount for the future lazy UI/runtime.
  *   5. Dynamically imports the lazy boundary on first enable and passes only
  *      explicit scalar config values into that boundary.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import type { ComponentChildren, FunctionComponent } from 'preact';
-import { createPortal } from 'preact/compat';
-import {
-  DomTweakerContext,
-  type DomTweakerContextValue,
-  type DomTweakerRuntimeStatus,
-} from './dom-tweaker-context';
+import { getScope, signal, type Child, type Component } from '@takazudo/zfb/zudo-react';
+import type { DomTweakerController, DomTweakerRuntimeStatus } from './dom-tweaker-context';
 import { loadDomTweakerEnabled, saveDomTweakerEnabled } from './dom-tweaker-state';
-import { usePortalMount } from '../utils/use-portal-mount';
+import { useMountPortal } from '../zr/portal';
+import { Rebuild } from '../zr/rebuild';
+import type { Reactive } from '../zr/live';
 import type { PanelConfig } from '../config/panel-config';
 import type { DomTweakerLazyBoundaryProps, DomTweakerLazyBoundaryStaticKeys } from './lazy';
-import { bridgeToPreact } from '../zr/preact-bridge';
 import { DOM_TWEAKER_PORTAL_MOUNT_ID } from '../highlight/find-elements';
 
-type DomTweakerLazyBoundaryComponent = FunctionComponent<DomTweakerLazyBoundaryProps>;
+type DomTweakerLazyBoundaryComponent = Component<
+  Reactive<DomTweakerLazyBoundaryProps, DomTweakerLazyBoundaryStaticKeys>
+>;
 
 const DOM_TWEAKER_OWNER_SYMBOL = Symbol.for('@takazudo/zdtp:dom-tweaker-owner');
 
@@ -70,141 +68,94 @@ function releaseDomTweakerInstance(cfg: PanelConfig): void {
   }
 }
 
-interface LazyPortalProps {
-  enabled: boolean;
-  instanceConfig: PanelConfig;
-  LazyBoundary: DomTweakerLazyBoundaryComponent | null;
-  showDiffExport: boolean;
-  onCloseDiffExport: () => void;
-  onRuntimeStatusChange: (status: DomTweakerRuntimeStatus) => void;
-  onArmingRevoked: () => void;
-}
-
-function LazyPortal({
-  enabled,
-  instanceConfig,
-  LazyBoundary,
-  showDiffExport,
-  onCloseDiffExport,
-  onRuntimeStatusChange,
-  onArmingRevoked,
-}: LazyPortalProps) {
-  const mountNode = usePortalMount(DOM_TWEAKER_PORTAL_MOUNT_ID);
-  if (!mountNode || LazyBoundary === null || instanceConfig.domTweaker === undefined) {
-    return null;
-  }
-  return createPortal(
-    <LazyBoundary
-      enabled={enabled}
-      storagePrefix={instanceConfig.storagePrefix}
-      themeCss={instanceConfig.domTweaker.themeCss}
-      consoleNamespace={instanceConfig.consoleNamespace}
-      modalClassPrefix={instanceConfig.modalClassPrefix}
-      showDiffExport={showDiffExport}
-      onCloseDiffExport={onCloseDiffExport}
-      onRuntimeStatusChange={onRuntimeStatusChange}
-      onArmingRevoked={onArmingRevoked}
-    />,
-    mountNode,
+/**
+ * Run the eager side of DOM Tweaker for the calling component's lifetime: the
+ * persisted enabled bit, the single-instance guard, and the lazy boundary,
+ * imported on first enable and rendered into its body-level portal.
+ */
+export function useDomTweaker(instanceConfig: PanelConfig): DomTweakerController {
+  const domTweaker = instanceConfig.domTweaker;
+  const enabled = signal<boolean>(
+    domTweaker !== undefined &&
+      loadDomTweakerEnabled(instanceConfig) &&
+      acquireDomTweakerInstance(instanceConfig),
   );
-}
+  const LazyBoundary = signal<DomTweakerLazyBoundaryComponent | null>(null);
+  const runtimeStatus = signal<DomTweakerRuntimeStatus>('idle');
+  const showDiffExport = signal(false);
+  let lazyImport: Promise<void> | null = null;
 
-export function DomTweakerOrchestrator({
-  children,
-  instanceConfig,
-}: {
-  children: ComponentChildren;
-  instanceConfig: PanelConfig;
-}) {
-  const [enabled, setEnabledState] = useState<boolean>(() => {
-    if (instanceConfig.domTweaker === undefined) return false;
-    if (!loadDomTweakerEnabled(instanceConfig)) return false;
-    return acquireDomTweakerInstance(instanceConfig);
-  });
-  const [LazyBoundary, setLazyBoundary] = useState<DomTweakerLazyBoundaryComponent | null>(null);
-  const [runtimeStatus, setRuntimeStatus] = useState<DomTweakerRuntimeStatus>('idle');
-  const [showDiffExport, setShowDiffExport] = useState(false);
-  const lazyImportPromiseRef = useRef<Promise<void> | null>(null);
-
-  const setEnabled = useCallback(
-    (next: boolean) => {
-      if (next) {
-        if (instanceConfig.domTweaker === undefined) return;
-        if (!acquireDomTweakerInstance(instanceConfig)) return;
-      } else {
-        releaseDomTweakerInstance(instanceConfig);
-        setShowDiffExport(false);
-      }
-      setEnabledState(next);
-      saveDomTweakerEnabled(next, instanceConfig);
-    },
-    [instanceConfig],
-  );
-
-  const toggle = useCallback(() => {
-    setEnabled(!enabled);
-  }, [enabled, setEnabled]);
-
-  const openDiffExport = useCallback(() => {
-    setShowDiffExport(true);
-  }, []);
-
-  const closeDiffExport = useCallback(() => {
-    setShowDiffExport(false);
-  }, []);
-
-  useEffect(() => {
-    return () => {
+  const setEnabled = (next: boolean) => {
+    if (next) {
+      if (domTweaker === undefined) return;
+      if (!acquireDomTweakerInstance(instanceConfig)) return;
+    } else {
       releaseDomTweakerInstance(instanceConfig);
-    };
-  }, [instanceConfig]);
-
-  useEffect(() => {
-    if ((!enabled && !showDiffExport) || LazyBoundary !== null || lazyImportPromiseRef.current !== null) {
-      return;
+      showDiffExport.value = false;
     }
-    if (enabled) setRuntimeStatus('loading');
-    lazyImportPromiseRef.current = import('./lazy')
+    enabled.value = next;
+    saveDomTweakerEnabled(next, instanceConfig);
+  };
+
+  const toggle = () => setEnabled(!enabled.value);
+  const openDiffExport = () => {
+    showDiffExport.value = true;
+  };
+
+  const scope = getScope();
+  scope.onCleanup(() => releaseDomTweakerInstance(instanceConfig));
+
+  scope.effect(() => {
+    const wanted = enabled.value || showDiffExport.value;
+    if (!wanted || lazyImport !== null) return;
+    const loadingForEnable = enabled.value;
+    if (loadingForEnable) runtimeStatus.value = 'loading';
+    lazyImport = import('./lazy')
       .then((mod) => {
-        // The lazy boundary renders with zudo-react; bridge it into this
-        // Preact orchestrator until the shell moves over (epic #1075).
-        const Bridged = bridgeToPreact<DomTweakerLazyBoundaryProps, DomTweakerLazyBoundaryStaticKeys>(
-          mod.DomTweakerLazyBoundary,
-          {
-            signals: ['enabled', 'showDiffExport'],
-            callbacks: ['onCloseDiffExport', 'onRuntimeStatusChange', 'onArmingRevoked'],
-            statics: ['storagePrefix', 'themeCss', 'consoleNamespace', 'modalClassPrefix'],
-          },
-        );
-        setLazyBoundary(() => Bridged);
+        LazyBoundary.value = mod.DomTweakerLazyBoundary;
       })
       .catch((err: unknown) => {
-        lazyImportPromiseRef.current = null;
-        if (enabled) setRuntimeStatus('error');
+        lazyImport = null;
+        if (enabled.value) runtimeStatus.value = 'error';
         console.warn(
           `[${instanceConfig.consoleNamespace}] [design-token-panel] Failed to load DOM Tweaker lazy boundary.`,
           err,
         );
       });
-  }, [enabled, LazyBoundary, showDiffExport, instanceConfig.consoleNamespace]);
+  });
 
-  const ctxValue = useMemo<DomTweakerContextValue>(
-    () => ({ enabled, setEnabled, toggle, runtimeStatus, openDiffExport }),
-    [enabled, openDiffExport, runtimeStatus, setEnabled, toggle],
-  );
+  if (domTweaker !== undefined) {
+    useMountPortal(DOM_TWEAKER_PORTAL_MOUNT_ID, () => (
+      <Rebuild value={LazyBoundary}>
+        {(Boundary) => (Boundary === null ? null : (
+          <Boundary
+            enabled={enabled}
+            storagePrefix={instanceConfig.storagePrefix}
+            themeCss={domTweaker.themeCss}
+            consoleNamespace={instanceConfig.consoleNamespace}
+            modalClassPrefix={instanceConfig.modalClassPrefix}
+            showDiffExport={showDiffExport}
+            onCloseDiffExport={() => {
+              showDiffExport.value = false;
+            }}
+            onRuntimeStatusChange={(status) => {
+              runtimeStatus.value = status;
+            }}
+            onArmingRevoked={() => setEnabled(false)}
+          />
+        ))}
+      </Rebuild>
+    ));
+  }
 
-  return (
-    <>
-      <DomTweakerContext.Provider value={ctxValue}>{children}</DomTweakerContext.Provider>
-      <LazyPortal
-        enabled={enabled}
-        instanceConfig={instanceConfig}
-        LazyBoundary={LazyBoundary}
-        showDiffExport={showDiffExport}
-        onCloseDiffExport={closeDiffExport}
-        onRuntimeStatusChange={setRuntimeStatus}
-        onArmingRevoked={() => setEnabled(false)}
-      />
-    </>
-  );
+  return { enabled, setEnabled, toggle, runtimeStatus, openDiffExport };
+}
+
+/** Component form of `useDomTweaker`, for isolated use. */
+export function DomTweakerOrchestrator(props: {
+  instanceConfig: PanelConfig;
+  children?: (controller: DomTweakerController) => Child;
+}) {
+  const controller = useDomTweaker(props.instanceConfig);
+  return props.children ? props.children(controller) : null;
 }

@@ -20,7 +20,7 @@
  *   - `attrs`      — a few identifying attributes (id / data-testid / href / …).
  *   - `size`       — rendered width × height in CSS px.
  *
- * Everything here is pure and DOM-only (no Preact), so it unit-tests cleanly
+ * Everything here is pure and DOM-only (no renderer), so it unit-tests cleanly
  * under jsdom.
  */
 

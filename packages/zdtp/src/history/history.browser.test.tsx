@@ -1,8 +1,7 @@
 // @vitest-environment browser
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { render } from 'preact';
-import { act } from '../zr/test-utils';
+import { act, renderZr, unmountZrIn } from '../zr/test-utils';
 import DesignTokenTweakPanel from '../panel';
 import { getOpenKey, getPositionKey, getSizeKey } from '../state/tweak-state';
 import { FIXTURE_PANEL_CONFIG, flushEffects } from '../__tests__/_test-helpers';
@@ -27,7 +26,7 @@ async function mountPanel(width = 700): Promise<void> {
   localStorage.setItem(getSizeKey(FIXTURE_PANEL_CONFIG), JSON.stringify({ width, height: 500 }));
   container = document.createElement('div');
   document.body.appendChild(container);
-  act(() => render(<DesignTokenTweakPanel instanceConfig={FIXTURE_PANEL_CONFIG} />, container));
+  act(() => renderZr(() => <DesignTokenTweakPanel instanceConfig={FIXTURE_PANEL_CONFIG} />, container));
   await flushEffects();
 }
 
@@ -59,7 +58,7 @@ beforeEach(async () => {
 afterEach(async () => {
   await flushEffects();
   if (container) {
-    act(() => render(null, container));
+    act(() => unmountZrIn(container));
     container.remove();
   }
   injectedStyle?.remove();

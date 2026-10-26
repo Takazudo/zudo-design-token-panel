@@ -17,23 +17,21 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act, cleanupZr } from '../../zr/test-utils';
-import { GenericTab } from '../flat-tabs-preact';
-import GenericItemEditor from '../_generic-item-editor';
+import { act, cleanupZr, createTestServices, renderZr, unmountZrIn } from '../../zr/test-utils';
+import GenericTab from '../generic-tab';
 import type { ColorFieldProps } from '../../components/color-picker/color-field';
 import { read } from '../../zr/live';
+import { createPanelServices } from '../../zr/panel-services';
 import type { TabConfig, TierItem } from '../../tokens/tier-model';
 import {
   emitTierItemCssValue,
   resolveTierItemValue,
   type TabOverrides,
 } from '../../apply/tier-resolver';
-import { TooltipProvider } from '../../controls/tooltip-preact';
 
 // Capture ColorField props so pair-commit tests can call onChange without
-// driving ColorPicker (Wave 1 recipe). Both the zudo-react rows and the
-// Preact GenericItemEditor (through its bridge) render this ColorField.
+// driving ColorPicker (Wave 1 recipe). The zudo-react rows render this
+// ColorField.
 const colorFieldProps = vi.hoisted(() => new Map<string, ColorFieldProps>());
 
 vi.mock('../../components/color-picker/color-field', async (importOriginal) => {
@@ -289,10 +287,10 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  // Unmount the Preact tree to clean up portals (e.g. TooltipProvider's
-  // .tokenpanel-tooltip div rendered into document.body).
+  // Unmount the tree and disconnect the test tooltip (its
+  // .tokenpanel-tooltip div lives on document.body).
   act(() => {
-    render(null, container);
+    unmountZrIn(container);
   });
   document.body.removeChild(container);
 });
@@ -301,15 +299,37 @@ async function renderGenericTab(
   tab: TabConfig,
   overrides: TabOverrides = {},
   onChange: (tierId: string, itemId: string, next: string | undefined) => void = () => undefined,
-  withTooltipProvider = false,
+  withTooltip = false,
 ): Promise<void> {
   await act(() => {
-    const content = <GenericTab tab={tab} overrides={overrides} onChange={onChange} />;
-    render(
-      withTooltipProvider ? <TooltipProvider>{content}</TooltipProvider> : content,
+    renderZr(
+      () => (
+        <GenericTab
+          tab={tab}
+          overrides={overrides}
+          onChange={onChange}
+          services={withTooltip ? createTestServices() : createPanelServices()}
+        />
+      ),
       container,
     );
   });
+}
+
+/** Render one item as the only row of a GenericTab, reporting (itemId, value) changes. */
+async function renderItemEditor(
+  item: TierItem,
+  override: string | undefined,
+  onChange: (itemId: string, next: string) => void = () => undefined,
+): Promise<void> {
+  const tab: TabConfig = { id: 'editor', label: 'Editor', tiers: [{ id: 'editor', label: 'Editor', items: [item] }] };
+  await renderGenericTab(
+    tab,
+    override === undefined ? {} : { editor: { [item.id]: override } },
+    (_tierId, itemId, next) => {
+      if (next !== undefined) onChange(itemId, next);
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -525,26 +545,19 @@ describe('GenericTab — manifest mode rows', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it('GenericItemEditor prefers a stored override even when it equals item.default', async () => {
+  it('a single-item row prefers a stored override even when it equals item.default', async () => {
     const item = MODES_TAB.tiers[0].items[0]!;
     const onChange = vi.fn();
-    await act(() => {
-      render(
-        <GenericItemEditor item={item} value={item.default} override={item.default} onChange={onChange} />,
-        container,
-      );
-    });
+    await renderItemEditor(item, item.default, onChange);
 
     expect(colorFieldProps.get(colorFieldKey(item.cssVar, 'light'))?.value).toBe('#222222');
     expect(colorFieldProps.get(colorFieldKey(item.cssVar, 'dark'))?.value).toBe('#222222');
   });
 
-  it('GenericItemEditor commits a ColorField change as a pair', async () => {
+  it('a single-item row commits a ColorField change as a pair', async () => {
     const item = MODES_TAB.tiers[0].items[0]!;
     const onChange = vi.fn();
-    await act(() => {
-      render(<GenericItemEditor item={item} value={item.default} onChange={onChange} />, container);
-    });
+    await renderItemEditor(item, undefined, onChange);
 
     fireColorFieldChange(item.cssVar, 'light', '#00ff00');
     expect(onChange).toHaveBeenCalledWith('mode-color', 'light-dark(#00ff00, #111111)');
@@ -581,8 +594,8 @@ describe('GenericTab — onChange callbacks', () => {
   it('renders text input for text items — aria-label matches item cssVar', async () => {
     // Verifies the input is present and correctly labeled for accessibility.
     // Full onChange wiring is verified at the integration level (panel.tsx test).
-    // jsdom's native event dispatch does not trigger Preact's synthetic onChange,
-    // so we assert element presence + attributes rather than event simulation.
+    // Event-driven onChange is covered by the numeric-input tests below; this
+    // one asserts element presence + attributes.
     const onChange = vi.fn();
     await renderGenericTab(EASING_TAB, {}, onChange);
 
@@ -653,13 +666,12 @@ describe('GenericTab — data-testid wrapper', () => {
 // The same "2 → 22 snaps to 6" bug existed in _generic-item-editor's
 // length/number branch. These tests confirm the fix is in place.
 //
-// Event simulation uses native input/focusout events through Preact compat:
-//  - Object.defineProperty + `new Event('input', { bubbles: true })` for onChange
+// Event simulation uses native input/focusout events:
+//  - Object.defineProperty + `new Event('input', { bubbles: true })` for onInput
 //  - `new FocusEvent('focusout', { bubbles: true })` for onBlur
-//    (Preact-compat maps `onBlur` → `onfocusout`)
 // ---------------------------------------------------------------------------
 
-/** Simulates a native input event on an HTMLInputElement (Preact onChange trigger). */
+/** Simulates a native input event on an HTMLInputElement. */
 function simulateInputEvent(input: HTMLInputElement, newValue: string): void {
   act(() => {
     Object.defineProperty(input, 'value', { value: newValue, writable: true, configurable: true });
@@ -667,14 +679,14 @@ function simulateInputEvent(input: HTMLInputElement, newValue: string): void {
   });
 }
 
-/** Simulates blur via focusout (Preact maps onBlur → onfocusout). */
+/** Simulates blur via focusout. */
 function simulateFocusout(input: HTMLInputElement): void {
   act(() => {
     input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
   });
 }
 
-describe('GenericItemEditor — free numeric input, no clamping (#326)', () => {
+describe('GenericTab — free numeric input, no clamping (#326)', () => {
   it('calls onChange immediately when typing any parseable length value', async () => {
     const onChange = vi.fn();
     await renderGenericTab(MIXED_KINDS_TAB, {}, onChange);
@@ -768,7 +780,7 @@ describe('GenericItemEditor — free numeric input, no clamping (#326)', () => {
 // ---------------------------------------------------------------------------
 
 describe('GenericTab — rich tooltip on token-name labels', () => {
-  it('renders a tokenpanel-tooltip element when wrapped in TooltipProvider', async () => {
+  it('renders a tokenpanel-tooltip element when given a tooltip controller', async () => {
     await renderGenericTab(EASING_TAB, {}, () => undefined, true);
 
     const tooltip = document.querySelector('.tokenpanel-tooltip');
@@ -1233,12 +1245,10 @@ describe('GenericTab — click-to-cycle unit round-trips through persistence + a
 });
 
 // ---------------------------------------------------------------------------
-// GenericItemEditor — direct render (the production call site shared by
-// FontTab / SpacingTab / SizeTab, distinct from GenericTab's duplicated
-// editor above) (#519)
+// Single-item row — click-to-cycle unit suffix (#519)
 // ---------------------------------------------------------------------------
 
-describe('GenericItemEditor — click-to-cycle unit suffix (#519, direct render)', () => {
+describe('Single-item row — click-to-cycle unit suffix (#519)', () => {
   const CYCLABLE_ITEM: TierItem = {
     id: 'editor-cyclable-item',
     cssVar: '--test-editor-cyclable',
@@ -1260,9 +1270,7 @@ describe('GenericItemEditor — click-to-cycle unit suffix (#519, direct render)
     value: string,
     onChange: (itemId: string, next: string) => void = () => undefined,
   ): Promise<void> {
-    await act(() => {
-      render(<GenericItemEditor item={item} value={value} onChange={onChange} />, container);
-    });
+    await renderItemEditor(item, value === item.default ? undefined : value, onChange);
   }
 
   it('renders an interactive role=button unit suffix for an opted-in item', async () => {

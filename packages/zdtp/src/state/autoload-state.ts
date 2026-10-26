@@ -50,7 +50,7 @@
  *   invisible.
  * - **Owner** (flag `'1'` or `'auto'`): Gate #1 fires, the host-adapter fetches
  *   the bundle eagerly, and Gate #2 (`reapplyFromStorage` in `index.tsx`)
- *   mounts the Preact shell CLOSED so the element-path inspector is available
+ *   mounts the panel shell CLOSED so the element-path inspector is available
  *   even while the panel UI is hidden.
  *
  * ## enableAutoload() / disableAutoload() contract (implemented by S2 #419)
@@ -59,14 +59,14 @@
  *   1. Sets `:autoload = '1'` (explicit provenance).
  *   2. Sets `-elpath-enabled = '1'` once (arms the alt+click inspector).
  *   3. Loads the panel bundle (if not already loaded).
- *   4. Mounts the Preact shell CLOSED via `hideInstance`.
+ *   4. Mounts the panel shell CLOSED via `hideInstance`.
  *
  * `disableAutoload()` (console API, wired by S2):
  *   1. Clears `:autoload` (removes the key, whichever value it held).
  *   2. Clears `:visible`.
  *   3. Clears `-elpath-enabled`.
  *   4. Clears the open-state key (`getOpenKey(cfg)` from `state/tweak-state`).
- *   5. Unmounts the Preact shell.
+ *   5. Unmounts the panel shell.
  *
  * ## Auto-remember
  *
@@ -87,7 +87,7 @@
  *
  * `enableAutoload()` arms the element-path inspector by writing
  * `-elpath-enabled = '1'` once. The user can still turn it off later via the
- * in-panel toggle. The inspector overlay requires the Preact shell to be
+ * in-panel toggle. The inspector overlay requires the panel shell to be
  * mounted (it runs inside `ElementPathOrchestrator`), so the CLOSED mount
  * keeps the overlay functional even when the panel UI itself is hidden.
  *
@@ -102,7 +102,7 @@
  * Gate #2 — `index.tsx reapplyFromStorage`: the existing `reapplyFromStorage`
  * function mounts the shell CLOSED when `hasPersistedOverrides(cfg)` or
  * `loadElementPathEnabled()` is true. It MUST also trigger on
- * `shouldAutoload(cfg)` so an owner-mode page load mounts the Preact shell
+ * `shouldAutoload(cfg)` so an owner-mode page load mounts the panel shell
  * (and therefore the element-path inspector) even when no token overrides
  * are persisted yet.
  */

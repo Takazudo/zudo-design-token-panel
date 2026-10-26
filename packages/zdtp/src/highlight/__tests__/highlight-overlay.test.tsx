@@ -11,10 +11,9 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from '../../zr/test-utils';
-import type { HighlightOverlayItem } from '../highlight-overlay';
-import { HighlightOverlay } from '../highlight-overlay-preact';
+import { signal } from '@takazudo/zfb/zudo-react';
+import { act, renderZr, unmountZrIn } from '../../zr/test-utils';
+import { HighlightOverlay, type HighlightOverlayItem } from '../highlight-overlay';
 import { Z } from '../../styles/z-index-tokens';
 
 // ---------------------------------------------------------------------------
@@ -58,7 +57,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => render(null, container));
+  act(() => unmountZrIn(container));
   document.body.removeChild(container);
   vi.restoreAllMocks();
 });
@@ -102,7 +101,7 @@ function makeItem(
 describe('HighlightOverlay', () => {
   it('renders nothing when items array is empty', () => {
     act(() => {
-      render(<HighlightOverlay items={[]} />, container);
+      renderZr(() => <HighlightOverlay items={[]} />, container);
     });
     const overlays = container.querySelectorAll('.tokenpanel-highlight-overlay');
     expect(overlays).toHaveLength(0);
@@ -112,7 +111,7 @@ describe('HighlightOverlay', () => {
     const item = makeItem({ top: 10, left: 20, width: 100, height: 30 }, '#ff0000', 2);
 
     act(() => {
-      render(<HighlightOverlay items={[item]} />, container);
+      renderZr(() => <HighlightOverlay items={[item]} />, container);
     });
 
     const overlays = container.querySelectorAll('.tokenpanel-highlight-overlay');
@@ -123,7 +122,7 @@ describe('HighlightOverlay', () => {
     const item = makeItem({ top: 10, left: 20, width: 100, height: 30 }, '#ff0000', 2);
 
     act(() => {
-      render(<HighlightOverlay items={[item]} />, container);
+      renderZr(() => <HighlightOverlay items={[item]} />, container);
     });
 
     const overlay = container.querySelector('.tokenpanel-highlight-overlay') as HTMLElement;
@@ -137,7 +136,7 @@ describe('HighlightOverlay', () => {
     const item = makeItem({ top: 0, left: 0, width: 50, height: 50 }, '#00ff00', 1);
 
     act(() => {
-      render(<HighlightOverlay items={[item]} />, container);
+      renderZr(() => <HighlightOverlay items={[item]} />, container);
     });
 
     const overlay = container.querySelector('.tokenpanel-highlight-overlay') as HTMLElement;
@@ -148,7 +147,7 @@ describe('HighlightOverlay', () => {
     const item = makeItem({ top: 0, left: 0, width: 50, height: 50 }, '#00ff00', 1);
 
     act(() => {
-      render(<HighlightOverlay items={[item]} />, container);
+      renderZr(() => <HighlightOverlay items={[item]} />, container);
     });
 
     const overlay = container.querySelector('.tokenpanel-highlight-overlay') as HTMLElement;
@@ -159,7 +158,7 @@ describe('HighlightOverlay', () => {
     const item = makeItem({ top: 0, left: 0, width: 50, height: 50 }, '#abcdef', 3);
 
     act(() => {
-      render(<HighlightOverlay items={[item]} />, container);
+      renderZr(() => <HighlightOverlay items={[item]} />, container);
     });
 
     const overlay = container.querySelector('.tokenpanel-highlight-overlay') as HTMLElement;
@@ -170,7 +169,7 @@ describe('HighlightOverlay', () => {
     const item = makeItem({ top: 0, left: 0, width: 50, height: 50 }, '#ff0000', 2);
 
     act(() => {
-      render(<HighlightOverlay items={[item]} />, container);
+      renderZr(() => <HighlightOverlay items={[item]} />, container);
     });
 
     const overlay = container.querySelector('.tokenpanel-highlight-overlay') as HTMLElement;
@@ -185,7 +184,7 @@ describe('HighlightOverlay', () => {
     ];
 
     act(() => {
-      render(<HighlightOverlay items={items} />, container);
+      renderZr(() => <HighlightOverlay items={items} />, container);
     });
 
     const overlays = container.querySelectorAll(
@@ -223,7 +222,7 @@ describe('HighlightOverlay', () => {
     const item: HighlightOverlayItem = { element: el, slot: { color: '#ff0000', outlineWidth: 2 } };
 
     act(() => {
-      render(<HighlightOverlay items={[item]} />, container);
+      renderZr(() => <HighlightOverlay items={[item]} />, container);
     });
 
     const overlay = container.querySelector('.tokenpanel-highlight-overlay') as HTMLElement;
@@ -262,7 +261,7 @@ describe('HighlightOverlay', () => {
     const item: HighlightOverlayItem = { element: el, slot: { color: '#00ff00', outlineWidth: 1 } };
 
     act(() => {
-      render(<HighlightOverlay items={[item]} />, container);
+      renderZr(() => <HighlightOverlay items={[item]} />, container);
     });
 
     const overlay = container.querySelector('.tokenpanel-highlight-overlay') as HTMLElement;
@@ -287,7 +286,7 @@ describe('HighlightOverlay', () => {
     );
 
     act(() => {
-      render(<HighlightOverlay items={items} />, container);
+      renderZr(() => <HighlightOverlay items={items} />, container);
     });
 
     const overlays = container.querySelectorAll('.tokenpanel-highlight-overlay');
@@ -306,11 +305,12 @@ describe('HighlightOverlay', () => {
       makeItem({ top: i, left: 0, width: 10, height: 10 }, '#ff0000', 2),
     );
 
+    const live = signal(items);
     act(() => {
-      render(<HighlightOverlay items={items} />, container);
+      renderZr(() => <HighlightOverlay items={live} />, container);
     });
     act(() => {
-      render(<HighlightOverlay items={items} />, container);
+      live.value = [...items];
     });
 
     expect(warnSpy).toHaveBeenCalledTimes(1);
@@ -320,7 +320,7 @@ describe('HighlightOverlay', () => {
     const item = makeItem({ top: 0, left: 0, width: 50, height: 50 }, '#ff0000', 2);
 
     act(() => {
-      render(<HighlightOverlay items={[item]} />, container);
+      renderZr(() => <HighlightOverlay items={[item]} />, container);
     });
 
     const overlay = container.querySelector('.tokenpanel-highlight-overlay') as HTMLElement;
@@ -331,7 +331,7 @@ describe('HighlightOverlay', () => {
     const item = makeItem({ top: 0, left: 0, width: 50, height: 50 }, '#ff0000', 2);
 
     act(() => {
-      render(<HighlightOverlay items={[item]} />, container);
+      renderZr(() => <HighlightOverlay items={[item]} />, container);
     });
 
     const overlay = container.querySelector('.tokenpanel-highlight-overlay') as HTMLElement;
@@ -353,7 +353,7 @@ describe('HighlightOverlay', () => {
     const item: HighlightOverlayItem = { element: el, slot: { color: '#ff0000', outlineWidth: 2 } };
 
     act(() => {
-      render(<HighlightOverlay items={[item]} />, container);
+      renderZr(() => <HighlightOverlay items={[item]} />, container);
     });
 
     // Flush one tick while element is connected — getBoundingClientRect IS called.

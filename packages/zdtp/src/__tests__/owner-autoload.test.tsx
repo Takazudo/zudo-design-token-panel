@@ -3,12 +3,12 @@
 /**
  * Tests for S3 — owner-autoload wiring in index.tsx:
  *
- *   1. `reapplyFromStorage` mounts the Preact shell CLOSED when the autoload
+ *   1. `reapplyFromStorage` mounts the panel shell CLOSED when the autoload
  *      flag is set (Gate #2 per autoload-state.ts contract).
  *   2. Opening the panel via any path sets `:autoload = 'auto'` (auto-remember),
  *      without downgrading an explicit `'1'` (#576).
  *   3. Package-root `enableAutoload()` and `disableAutoload()` set/clear the
- *      correct localStorage keys and manage the Preact shell mount.
+ *      correct localStorage keys and manage the panel shell mount.
  *   4. `shouldAutoload()` reflects the persisted flag for the active config.
  *   5. Custom `storagePrefix`: autoload flag causes closed mount via the
  *      post-configure hook path (the hook fires `reapplyFromStorage` using
@@ -182,7 +182,7 @@ describe('enableAutoload()', () => {
     expect(localStorage.getItem(ELPATH_ENABLED_KEY)).toBe('1');
   });
 
-  it('mounts the Preact shell in the CLOSED state', async () => {
+  it('mounts the panel shell in the CLOSED state', async () => {
     const { enableAutoload } = await freshImport();
 
     enableAutoload();
@@ -211,7 +211,7 @@ describe('disableAutoload()', () => {
     expect(localStorage.getItem(STORAGE_KEY_VISIBLE)).toBe('0');
     // Open-state key is removed so the next mount starts closed.
     expect(localStorage.getItem(OPEN_KEY)).toBeNull();
-    // Preact shell is unmounted and root element removed.
+    // Panel shell is unmounted and root element removed.
     expect(document.getElementById(PANEL_ROOT_ID)).toBeNull();
   });
 

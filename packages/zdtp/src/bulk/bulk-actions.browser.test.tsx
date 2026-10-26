@@ -5,8 +5,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from '../zr/test-utils';
+import { act, renderZr, unmountZrIn } from '../zr/test-utils';
 import type { PanelConfig } from '../config/panel-config';
 import type { TabConfig } from '../tokens/tier-model';
 import DesignTokenTweakPanel from '../panel';
@@ -59,13 +58,13 @@ describe('bulk action bar transaction', () => {
     localStorage.setItem(getSizeKey(CONFIG), JSON.stringify({ width: 900, height: 560 }));
     container = document.createElement('div');
     document.body.appendChild(container);
-    act(() => render(<DesignTokenTweakPanel instanceConfig={CONFIG} />, container));
+    act(() => renderZr(() => <DesignTokenTweakPanel instanceConfig={CONFIG} />, container));
     await flushEffects();
   });
 
   afterEach(async () => {
     await flushEffects();
-    act(() => render(null, container));
+    act(() => unmountZrIn(container));
     container.remove();
     injectedStyle?.remove();
     injectedStyle = undefined;

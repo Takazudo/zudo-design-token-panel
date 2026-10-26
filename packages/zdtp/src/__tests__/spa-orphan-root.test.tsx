@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
-import { render } from 'preact';
 import { act } from '../zr/test-utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  __unmountRootForTests,
   __OPEN_VERIFY_DELAY_MS_FOR_TESTS,
   __mountedSpawnSlotsForTests,
   __resetInstanceBindingsForTests,
@@ -39,10 +39,10 @@ async function waitForOpenVerification(): Promise<void> {
   await act(() => new Promise<void>((resolve) => setTimeout(resolve, __OPEN_VERIFY_DELAY_MS_FOR_TESTS + 50)));
 }
 
-// Leaves the root connected and still owned, but with no live Preact tree
+// Leaves the root connected and still owned, but with no live zudo-react tree
 // behind it — the state the downstream packed consumer reported (#986).
 function killTreeKeepingRoot(root: HTMLElement): void {
-  render(null, root);
+  __unmountRootForTests(root);
 }
 
 describe('SPA remount root ownership (#992)', () => {

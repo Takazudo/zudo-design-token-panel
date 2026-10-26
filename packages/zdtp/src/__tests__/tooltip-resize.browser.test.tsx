@@ -5,7 +5,7 @@
  * Bug: the tooltip's top/left is computed from `triggerEl.getBoundingClientRect()`
  * inside a render-driven `useEffect` (tooltip-controller.ts). Grip-drag resize
  * (panel.tsx's `handleResizeStart`) writes `.tokenpanel-shell`'s width/height
- * directly to the DOM WITHOUT a Preact re-render (perf choice), so a tooltip
+ * directly to the DOM WITHOUT a re-render (perf choice), so a tooltip
  * that is already visible and never left its trigger (no mouseleave/mouseenter
  * cycle) had no signal telling it to recompute — it just sat at the
  * pre-resize coordinates.
@@ -34,8 +34,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { render } from 'preact';
-import { act } from '../zr/test-utils';
+import { act, renderZr, unmountZrIn } from '../zr/test-utils';
 import DesignTokenTweakPanel from '../panel';
 import { getOpenKey, getPositionKey, getSizeKey } from '../state/tweak-state';
 import { FIXTURE_PANEL_CONFIG, flushEffects } from './_test-helpers';
@@ -103,14 +102,14 @@ beforeEach(() => {
   document.body.appendChild(container);
 
   act(() => {
-    render(<DesignTokenTweakPanel instanceConfig={CFG} />, container);
+    renderZr(() => <DesignTokenTweakPanel instanceConfig={CFG} />, container);
   });
 });
 
 afterEach(async () => {
   await flushEffects();
   act(() => {
-    render(null, container);
+    unmountZrIn(container);
   });
   container.remove();
   localStorage.clear();
@@ -168,7 +167,7 @@ describe('tooltip — hides on actual panel grip-drag resize (#516)', () => {
     fireMouse(document, 'mousemove', 580, 560);
 
     // ResizeObserver callbacks are scheduled by the browser engine, not by
-    // Preact — flushEffects' rAF+rAF+50ms wait covers both.
+    // the panel — flushEffects' rAF+rAF+50ms wait covers both.
     await flushEffects();
 
     expect(isTooltipVisible()).toBe(false);

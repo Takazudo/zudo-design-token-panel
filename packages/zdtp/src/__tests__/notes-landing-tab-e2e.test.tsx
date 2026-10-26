@@ -14,8 +14,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { render } from 'preact';
-import { act } from '../zr/test-utils';
+import { act, renderZr, unmountZrIn } from '../zr/test-utils';
 import DesignTokenTweakPanel from '../panel';
 import { getOpenKey } from '../state/tweak-state';
 import type { PanelConfig } from '../config/panel-config';
@@ -53,7 +52,7 @@ beforeEach(() => {
 
 afterEach(() => {
   act(() => {
-    render(null, container);
+    unmountZrIn(container);
   });
   container.remove();
 });
@@ -64,7 +63,7 @@ describe('panel — initial activeTab lands on the first configured tab (#515)',
     localStorage.setItem(getOpenKey(cfg), '1');
     try {
       act(() => {
-        render(<DesignTokenTweakPanel instanceConfig={cfg} />, container);
+        renderZr(() => <DesignTokenTweakPanel instanceConfig={cfg} />, container);
       });
       await flushEffects();
 
@@ -86,7 +85,7 @@ describe('panel — initial activeTab lands on the first configured tab (#515)',
     localStorage.setItem(getOpenKey(cfg), '1');
     try {
       act(() => {
-        render(<DesignTokenTweakPanel instanceConfig={cfg} />, container);
+        renderZr(() => <DesignTokenTweakPanel instanceConfig={cfg} />, container);
       });
       await flushEffects();
 

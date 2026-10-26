@@ -6,10 +6,9 @@
  * clipboard) for precise human↔AI communication about the page.
  */
 
-export { ElementPathOrchestrator } from './element-path-orchestrator';
+export { ElementPathOrchestrator, useElementPath } from './element-path-orchestrator';
 export { ElementPathToggleButton } from './element-path-toggle-button';
-export { ElementPathContext } from './element-path-context';
-export type { ElementPathContextValue } from './element-path-context';
+export type { ElementPathController } from './element-path-context';
 export {
   buildElementPath,
   buildElementPathString,

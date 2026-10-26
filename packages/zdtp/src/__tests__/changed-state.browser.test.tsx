@@ -3,8 +3,7 @@
 /** Focused browser coverage for the S7 changed-state shell wiring. */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { render } from 'preact';
-import { act } from '../zr/test-utils';
+import { act, renderZr, unmountZrIn } from '../zr/test-utils';
 import DesignTokenTweakPanel from '../panel';
 import { getOpenKey, getPositionKey, getSizeKey } from '../state/tweak-state';
 import { FIXTURE_PANEL_CONFIG, flushEffects } from './_test-helpers';
@@ -29,7 +28,7 @@ async function mountPanel(): Promise<void> {
   container = document.createElement('div');
   document.body.appendChild(container);
   act(() => {
-    render(<DesignTokenTweakPanel instanceConfig={CFG} />, container);
+    renderZr(() => <DesignTokenTweakPanel instanceConfig={CFG} />, container);
   });
   await flushEffects();
 }
@@ -45,7 +44,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await flushEffects();
-  act(() => render(null, container));
+  act(() => unmountZrIn(container));
   container.remove();
   panelStyle.remove();
   localStorage.clear();

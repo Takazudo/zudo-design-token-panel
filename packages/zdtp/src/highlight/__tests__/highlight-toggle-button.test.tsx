@@ -2,10 +2,10 @@
 /** @jsxImportSource @takazudo/zfb/zudo-react */
 
 /**
- * Unit tests for HighlightToggleButton and HighlightContext.
+ * Unit tests for HighlightToggleButton and the highlight context it reads.
  *
  * Tests cover:
- * - Renders nothing when HighlightContext is null (no provider).
+ * - Renders nothing when the highlight context is null.
  * - Renders the eye icon when context is provided.
  * - No <button> elements (hostile-host policy: use div role="button" instead).
  * - Clicking calls context.toggle(cssVar).
@@ -16,19 +16,21 @@
  * - Title attribute content for active vs inactive.
  * - matchCounts included in title when provided.
  * - GenericTab rows expose the eye button.
- * - _generic-item-editor (used by spacing/font/size tabs) rows expose the button.
+ * - Spacing/Font/Size tab rows expose the button.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { h, render } from 'preact';
 import { signal } from '@takazudo/zfb/zudo-react';
-import { act, cleanupZr, renderZr } from '../../zr/test-utils';
+import { act, cleanupZr, renderZr, unmountZrIn } from '../../zr/test-utils';
 import { createPanelServices } from '../../zr/panel-services';
 import { HighlightToggleButton } from '../highlight-toggle-button';
-import { HighlightContext, type HighlightContextValue } from '../highlight-context-preact';
+import type { HighlightContextValue } from '../highlight-context';
 import type { HighlightState } from '../highlight-state';
 import { DEFAULT_HIGHLIGHT_SLOTS } from '../highlight-state';
+import FontTab from '../../tabs/font-tab';
 import GenericTab from '../../tabs/generic-tab';
+import SizeTab from '../../tabs/size-tab';
+import SpacingTab from '../../tabs/spacing-tab';
 import type { TabConfig } from '../../tokens/tier-model';
 
 // ---------------------------------------------------------------------------
@@ -44,7 +46,7 @@ beforeEach(() => {
 
 afterEach(() => {
   act(() => cleanupZr());
-  act(() => render(null, container));
+  act(() => unmountZrIn(container));
   document.body.removeChild(container);
   vi.restoreAllMocks();
 });
@@ -84,7 +86,7 @@ function renderWithCtx(
 // ---------------------------------------------------------------------------
 
 describe('HighlightToggleButton — null context', () => {
-  it('renders nothing when HighlightContext is null (no provider)', () => {
+  it('renders nothing when the highlight context is null', () => {
     act(() => {
       renderZr(() => <HighlightToggleButton cssVar="--my-token" highlight={signal(null)} />, container);
     });
@@ -422,10 +424,9 @@ describe('GenericTab — eye button present on all row types', () => {
 });
 
 // ---------------------------------------------------------------------------
-// _generic-item-editor (spacing/font/size tabs delegate to this)
+// Spacing / Font / Size tab rows
 // ---------------------------------------------------------------------------
 
-import GenericItemEditor from '../../tabs/_generic-item-editor';
 import type { TierItem } from '../../tokens/tier-model';
 
 const SPACING_ITEM: TierItem = {
@@ -452,14 +453,16 @@ const SIZE_ITEM: TierItem = {
   type: { kind: 'length', step: 1, unit: 'px' },
 };
 
-describe('_generic-item-editor — eye button present (spacing/font/size via this editor)', () => {
+describe('Spacing/Font/Size tab rows — eye button present', () => {
   function renderEditor(item: TierItem, ctx: HighlightContextValue): void {
+    const tab: TabConfig = { id: 'editor', label: 'Editor', tiers: [{ id: 'values', label: 'Values', items: [item] }] };
+    const services = createPanelServices({ highlight: signal(ctx) });
     act(() => {
-      // GenericItemEditor is still a Preact component (epic #1075).
-      render(
-        h(HighlightContext.Provider, { value: ctx }, h(GenericItemEditor, { item, value: item.default, onChange: noop })),
-        container,
-      );
+      renderZr(() => {
+        if (item === FONT_ITEM) return <FontTab tab={tab} state={{}} persistFont={noop} services={services} />;
+        if (item === SIZE_ITEM) return <SizeTab tab={tab} state={{}} persistSize={noop} services={services} />;
+        return <SpacingTab tab={tab} state={{}} persistSpacing={noop} services={services} />;
+      }, container);
     });
   }
 

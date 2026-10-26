@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { render } from 'preact';
-import { act } from '../zr/test-utils';
+import { act, renderZr, unmountZrIn } from '../zr/test-utils';
 import DesignTokenTweakPanel from '../panel';
 import { getOpenKey, getPositionKey, getSizeKey } from '../state/tweak-state';
 import type { TabConfig } from '../tokens/tier-model';
@@ -38,7 +37,7 @@ async function mount(width = 400, config = CONFIG): Promise<void> {
   localStorage.setItem(getSizeKey(config), JSON.stringify({ width, height: 400 }));
   container = document.createElement('div');
   document.body.appendChild(container);
-  act(() => render(<DesignTokenTweakPanel instanceConfig={config} />, container));
+  act(() => renderZr(() => <DesignTokenTweakPanel instanceConfig={config} />, container));
   await flushEffects();
 }
 
@@ -77,7 +76,7 @@ beforeEach(async () => {
 afterEach(async () => {
   await flushEffects();
   if (container) {
-    act(() => render(null, container));
+    act(() => unmountZrIn(container));
     container.remove();
   }
   style.remove();
@@ -103,7 +102,7 @@ describe('tab overflow chooser', () => {
     expect(optionLabels()).toEqual(hiddenLabels());
     expect(optionLabels()).toContain('Category 1');
 
-    act(() => render(null, container));
+    act(() => unmountZrIn(container));
     container.remove();
     await mount(800, FEW_TABS_CONFIG);
     expect(trigger()).toBeNull();

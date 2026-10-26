@@ -6,7 +6,7 @@ import { routeTokensToFiles } from './apply/route-tokens-to-files';
 import { getPanelConfig, isApplyConfigured, modalClass, resolveApplyRouting, resolveSecondaryColorCluster, type PanelConfig } from './config/panel-config';
 import { getActivePrimaryCluster, initSecondaryFromConfig, type ColorTweakState, type TweakState } from './state/tweak-state';
 import { serialize } from './utils/design-token-serde';
-import { createDialogBackdropClose } from './controls/use-dialog-backdrop-close';
+import { createDialogBackdropClose } from './controls/dialog-backdrop-close';
 import { RoleButton } from './controls/role-button';
 import { uniqueId } from './utils/unique-id';
 import { read, type Reactive } from './zr/live';

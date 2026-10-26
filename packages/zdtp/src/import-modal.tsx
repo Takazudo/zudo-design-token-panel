@@ -15,7 +15,7 @@
  */
 
 import { computed, For, getScope, Show, signal } from '@takazudo/zfb/zudo-react';
-import { createDialogBackdropClose } from './controls/use-dialog-backdrop-close';
+import { createDialogBackdropClose } from './controls/dialog-backdrop-close';
 import { RoleButton } from './controls/role-button';
 import {
   analyzeDesignTokenJson,

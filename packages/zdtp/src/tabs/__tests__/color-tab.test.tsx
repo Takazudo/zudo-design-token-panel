@@ -25,15 +25,10 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from '../../zr/test-utils';
-import {
-  HighlightContext,
-  type HighlightContextValue,
-} from '../../highlight/highlight-toggle-button-preact';
+import { act, createTestServices, renderZr, unmountZrIn } from '../../zr/test-utils';
+import type { HighlightContextValue } from '../../highlight/highlight-context';
 import { DEFAULT_HIGHLIGHT_SLOTS, type HighlightState } from '../../highlight/highlight-state';
-import ColorTab from '../color-tab-preact';
-import { TooltipProvider } from '../../controls/tooltip-preact';
+import ColorTab from '../color-tab';
 import type { TabConfig } from '../../tokens/tier-model';
 import type { ColorTweakState } from '../../state/tweak-state';
 import type { PersistColor, PersistSecondary } from '../../state/persist';
@@ -62,7 +57,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => render(null, container));
+  act(() => unmountZrIn(container));
   document.body.removeChild(container);
   __resetPanelConfigForTests();
   vi.restoreAllMocks();
@@ -198,10 +193,7 @@ function renderColorTab(
     tabOverrides,
   } = opts;
   act(() => {
-    render(
-      <TooltipProvider>
-        <HighlightContext.Provider value={ctx}>
-          <ColorTab
+    renderZr(() => <ColorTab services={createTestServices(ctx)}
             tab={tab}
             state={colorState}
             persistColor={persistColor}
@@ -210,11 +202,7 @@ function renderColorTab(
             persistSecondary={persistSecondary}
             instanceConfig={instanceConfig}
             tabOverrides={tabOverrides}
-          />
-        </HighlightContext.Provider>
-      </TooltipProvider>,
-      container,
-    );
+          />, container,);
   });
 }
 
@@ -341,19 +329,14 @@ describe('ColorTab — no <button> elements (hostile-host policy)', () => {
   it('renders no <button> elements without HighlightContext (null context)', () => {
     // Render with TooltipProvider but without HighlightContext — toggles should silently not render
     act(() => {
-      render(
-        <TooltipProvider>
-          <ColorTab
+      renderZr(() => <ColorTab services={createTestServices()}
             tab={PRIMARY_COLOR_TAB}
             state={makeColorState()}
             persistColor={noop}
             secondaryTab={null}
             secondaryState={null}
             persistSecondary={noop}
-          />
-        </TooltipProvider>,
-        container,
-      );
+          />, container,);
     });
 
     expect(container.querySelector('button')).toBeNull();
@@ -1585,7 +1568,7 @@ describe('ColorTab — semantic-row cleanup (#544)', () => {
       ),
     ).toBeNull();
 
-    act(() => render(null, container));
+    act(() => unmountZrIn(container));
     installFixturePanelConfig(INSTANCE_A_CONFIG);
     renderColorTab(ctx, {
       tab: INSTANCE_SEMANTIC_COLOR_TAB,

@@ -146,12 +146,12 @@ function staticDashboard(): Plugin {
 /**
  * Vite config for `@takazudo/zdtp`.
  *
- * Three responsibilities:
+ * Two responsibilities:
  *
  * 1. **Lib bundle** — `vite build` emits `dist/index.js`, `dist/astro/index.js`,
  *    `dist/astro/host-adapter.js`, `dist/server/index.js`, and the standalone
- *    bin entry `dist/bin/server.js` (ESM, multi-entry) with Preact externalised
- *    so consumers contribute their own copy via the peerDependency. The CSS
+ *    bin entry `dist/bin/server.js` (ESM, multi-entry). The panel bundles its
+ *    zudo-react runtime, so consumers install nothing extra for it. The CSS
  *    side-effect import in `src/index.tsx` lands as a co-emitted chunk under
  *    `dist/`. Type emission is handled separately by `tsc -p tsconfig.build.json`
  *    (vite-plugin-dts intentionally avoided — explicit tsc gives single-source-
@@ -164,24 +164,12 @@ function staticDashboard(): Plugin {
  *    follows up with `chmod +x dist/bin/server.js` so the file is directly
  *    executable.
  *
- * 2. **resolve.alias for vitest** — kept so `pnpm test` resolves the
- *    alias-smoke test's intentional `from 'react'` import against
- *    preact/compat. Source files no longer rely on this alias —
- *    they import from `'preact/compat'` directly so emitted `.d.ts` files
- *    stay react-free (vite's resolve.alias is a runtime concept; tsc ignores
- *    it).
- *
- * 3. **esbuild jsx config** — `automatic` runtime + `jsxImportSource: 'preact'`
- *    so .tsx files compile against `preact/jsx-runtime` (matches
- *    tsconfig.json). Vite does not auto-pick this up from tsconfig in lib
- *    mode when there is no React-flavoured plugin installed, so we set it
- *    explicitly here.
+ * 2. **esbuild jsx config** — `automatic` runtime +
+ *    `jsxImportSource: '@takazudo/zfb/zudo-react'` so .tsx files compile
+ *    against zudo-react's jsx-runtime (matches tsconfig.json). Vite does not
+ *    auto-pick this up from tsconfig in lib mode, so it is set explicitly.
  */
 const EXTERNAL: ReadonlyArray<string | RegExp> = [
-  'preact',
-  'preact/compat',
-  'preact/hooks',
-  'preact/jsx-runtime',
   // Defensive: never let Vite try to compile a `.astro` file into the
   // lib bundle. The JS `astro/index.js` entry no longer imports the
   // `.astro` component (zdtp#308 — a static `.astro` import crashed
@@ -211,17 +199,9 @@ const EXTERNAL: ReadonlyArray<string | RegExp> = [
 
 export default defineConfig({
   plugins: [assertConstantsEntryIsolation(), staticDashboard()],
-  resolve: {
-    alias: {
-      react: 'preact/compat',
-      'react-dom': 'preact/compat',
-      'react/jsx-runtime': 'preact/jsx-runtime',
-      'react/jsx-dev-runtime': 'preact/jsx-dev-runtime',
-    },
-  },
   esbuild: {
     jsx: 'automatic',
-    jsxImportSource: 'preact',
+    jsxImportSource: '@takazudo/zfb/zudo-react',
   },
   build: {
     lib: {
@@ -246,7 +226,7 @@ export default defineConfig({
         testing: 'src/testing.ts',
         // Leaf constants entry. This must stay independent from the panel
         // runtime so consumers can use storage/event contracts without
-        // pulling in Preact, panel config, or CSS.
+        // pulling in the zudo-react runtime, panel config, or CSS.
         constants: 'src/constants.ts',
         // Static zudo-react renderer. CSS is an independent asset, never imported here.
         'dashboard/index': 'src/dashboard/index.ts',

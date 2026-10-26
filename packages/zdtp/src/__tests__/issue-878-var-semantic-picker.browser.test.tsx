@@ -9,8 +9,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { render } from 'preact';
-import { act } from '../zr/test-utils';
+import { act, renderZr, unmountZrIn } from '../zr/test-utils';
 
 import DesignTokenTweakPanel from '../panel';
 import { getActivePrimaryCluster, initColorFromScheme, loadPersistedState } from '../state/tweak-state';
@@ -172,13 +171,13 @@ beforeEach(async () => {
   localStorage.setItem(getSizeKey(CONFIG), JSON.stringify({ width: 760, height: 560 }));
   container = document.createElement('div');
   document.body.appendChild(container);
-  act(() => render(<DesignTokenTweakPanel instanceConfig={CONFIG} />, container));
+  act(() => renderZr(() => <DesignTokenTweakPanel instanceConfig={CONFIG} />, container));
   await flushEffects();
 });
 
 afterEach(async () => {
   await flushEffects();
-  act(() => render(null, container));
+  act(() => unmountZrIn(container));
   container.remove();
   panelStyle.remove();
   document.documentElement.removeAttribute('style');

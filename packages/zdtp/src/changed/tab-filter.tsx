@@ -1,8 +1,11 @@
-import type { JSX } from 'preact';
+/** @jsxImportSource @takazudo/zfb/zudo-react */
+import { computed } from '@takazudo/zfb/zudo-react';
+import { Checkbox } from '../zr/form-controls';
+import { read, type MaybeSignal } from '../zr/live';
 
 export interface ChangedOnlyToggleProps {
-  enabled: boolean;
-  count: number;
+  enabled: MaybeSignal<boolean>;
+  count: MaybeSignal<number>;
   onChange: (enabled: boolean) => void;
 }
 
@@ -11,17 +14,16 @@ export function ChangedOnlyToggle({
   enabled,
   count,
   onChange,
-}: ChangedOnlyToggleProps): JSX.Element {
+}: ChangedOnlyToggleProps) {
   return (
-    <label className="tokenpanel-changed-only-toggle">
-      <input
-        type="checkbox"
+    <label class="tokenpanel-changed-only-toggle">
+      <Checkbox
         checked={enabled}
-        onChange={(event) => onChange((event.currentTarget as HTMLInputElement).checked)}
+        onChange={onChange}
         aria-label="Changed only"
-        className="tokenpanel-changed-only-checkbox"
+        class="tokenpanel-changed-only-checkbox"
       />
-      <span>Changed only ({count})</span>
+      <span>{computed(() => `Changed only (${read(count)})`)}</span>
     </label>
   );
 }

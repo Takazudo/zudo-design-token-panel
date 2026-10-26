@@ -40,7 +40,7 @@ Validate with `pnpm --filter playground typecheck` and
 ## Static token dashboard
 
 Open [`/dashboard/`](https://zdtp-playground.zudolab.dev/dashboard/) for a plain
-Preact page using the built `@takazudo/zdtp/dashboard` export. It renders the
+zudo-react page using the built `@takazudo/zdtp/dashboard` export. It renders the
 existing `defaultTabs` twice (74 tokens in each mode) plus a narrow five-token
 spacing instance, plus 16 dashboard-only examples in `config/dashboard-fixtures.ts`.
 These show zero, a 1536px ruler, a local alias, an intentional missing variable,
@@ -71,5 +71,5 @@ include zfb's own development/runtime scripts; the static build is the
 no-client-JavaScript artifact to verify.
 
 The [integration recipe](https://zdtp.zudolab.dev/docs/recipes/static-token-dashboard/)
-shows a small shared-data module, ordinary Preact TSX, and a portable CSS-copy
+shows a small shared-data module, ordinary zudo-react TSX, and a portable CSS-copy
 step for other static hosts.

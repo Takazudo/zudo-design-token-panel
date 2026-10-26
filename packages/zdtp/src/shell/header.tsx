@@ -1,18 +1,22 @@
-import { useEffect, useRef, useState } from 'preact/compat';
-import { Fragment, type JSX } from 'preact';
+/** @jsxImportSource @takazudo/zfb/zudo-react */
+import { computed, getScope, Show, signal } from '@takazudo/zfb/zudo-react';
 import { ActionsMenuPopover } from '../controls/actions-menu-popover';
-import { useLayerRegistration } from './layer-activity';
-import { useShellRegions } from './regions';
+import { useLayerRegistration, type LayerActivity } from './layer-activity';
+import type { ShellRegions } from './regions';
+import { RegionItems } from './region-items';
 
 export function ShellHeader({
   onMouseDown,
+  regions,
+  layers,
 }: {
-  onMouseDown: JSX.MouseEventHandler<HTMLDivElement>;
+  onMouseDown: (event: MouseEvent) => void;
+  regions: ShellRegions;
+  layers: LayerActivity;
 }) {
-  const { items } = useShellRegions();
-  const [showActionsMenu, setShowActionsMenu] = useState(false);
-  const actionsMenuBtnRef = useRef<HTMLDivElement>(null);
-  useLayerRegistration('header-actions-menu', showActionsMenu);
+  const showActionsMenu = signal(false);
+  const actionsMenuBtnRef: { current: HTMLDivElement | null } = { current: null };
+  useLayerRegistration(layers, 'header-actions-menu', showActionsMenu);
 
   const isActionsTriggerRendered = () => {
     const trigger = actionsMenuBtnRef.current;
@@ -21,13 +25,13 @@ export function ShellHeader({
     return width > 0 && height > 0;
   };
 
-  useEffect(() => {
+  getScope().onActivate(() => {
     const trigger = actionsMenuBtnRef.current;
     if (!trigger) return;
     // CSS owns compactness, including the different borders in each dock mode.
     // Observe actual layout so host/container changes need no panel state update.
     const reconcile = () => {
-      if (!isActionsTriggerRendered()) setShowActionsMenu(false);
+      if (!isActionsTriggerRendered()) showActionsMenu.value = false;
     };
     reconcile();
     if (typeof ResizeObserver === 'undefined') return;
@@ -36,38 +40,36 @@ export function ShellHeader({
     const shell = trigger.closest('.tokenpanel-shell');
     if (shell) observer.observe(shell);
     return () => observer.disconnect();
-  }, []);
+  });
 
   const toggleActionsMenu = () => {
-    setShowActionsMenu((value) => !value && isActionsTriggerRendered());
+    showActionsMenu.value = !showActionsMenu.value && isActionsTriggerRendered();
   };
 
-  const closeCompactMenu = () => setShowActionsMenu(false);
-  const compactActions = items['header-actions'].flatMap((item) =>
-    item.compactAction ? [item.compactAction] : [],
+  const closeCompactMenu = () => {
+    showActionsMenu.value = false;
+  };
+  const headerActions = computed(() => regions.items.value['header-actions']);
+  const headerRight = computed(() => regions.items.value['header-right']);
+  const compactRegionItems = computed(() =>
+    [...headerActions.value, ...headerRight.value].filter((item) => item.renderInCompactMenu),
   );
-  const compactRegionItems = [...items['header-actions'], ...items['header-right']].filter(
-    (item) => item.renderInCompactMenu,
-  );
+  const wide = { compact: false, closeCompactMenu };
 
   return (
-    <div className="tokenpanel-header" style={{ cursor: 'move' }} onMouseDown={onMouseDown}>
-      <span className="tokenpanel-title">zdtp</span>
-      {items['header-actions'].map((item) => (
-        <Fragment key={item.id}>
-          {item.render({ compact: false, closeCompactMenu })}
-        </Fragment>
-      ))}
+    <div class="tokenpanel-header" style="cursor: move" on:mousedown={onMouseDown}>
+      <span class="tokenpanel-title">zdtp</span>
+      <RegionItems items={headerActions} context={wide} />
       <div
         ref={actionsMenuBtnRef}
         role="button"
-        tabIndex={0}
-        className="tokenpanel-actions-menu-btn"
+        tabindex={0}
+        class="tokenpanel-actions-menu-btn"
         aria-label="Panel actions"
         aria-expanded={showActionsMenu}
         aria-haspopup="dialog"
-        onClick={toggleActionsMenu}
-        onKeyDown={(event) => {
+        on:click={toggleActionsMenu}
+        on:keydown={(event: KeyboardEvent) => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
             toggleActionsMenu();
@@ -80,25 +82,19 @@ export function ShellHeader({
           <circle cx="12" cy="19" r="2" />
         </svg>
       </div>
-      {showActionsMenu && (
-        <ActionsMenuPopover
-          anchorRef={actionsMenuBtnRef}
-          actions={compactActions}
-          onClose={closeCompactMenu}
-        >
-          {compactRegionItems.map((item) => (
-            <Fragment key={item.id}>
-              {item.render({ compact: true, closeCompactMenu })}
-            </Fragment>
-          ))}
-        </ActionsMenuPopover>
-      )}
-      <div className="tokenpanel-spacer" />
-      {items['header-right'].map((item) => (
-        <Fragment key={item.id}>
-          {item.render({ compact: false, closeCompactMenu })}
-        </Fragment>
-      ))}
+      <Show when={showActionsMenu}>
+        {() => (
+          <ActionsMenuPopover
+            anchorRef={actionsMenuBtnRef}
+            actions={headerActions.value.flatMap((item) => (item.compactAction ? [item.compactAction] : []))}
+            onClose={closeCompactMenu}
+          >
+            <RegionItems items={compactRegionItems} context={{ compact: true, closeCompactMenu }} />
+          </ActionsMenuPopover>
+        )}
+      </Show>
+      <div class="tokenpanel-spacer" />
+      <RegionItems items={headerRight} context={wide} />
     </div>
   );
 }

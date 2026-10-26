@@ -90,7 +90,7 @@ async function bootstrapAdapter(): Promise<void> {
   // The adapter owns the handle it gets from configurePanel(), so recover the
   // stable handle through the idempotent same-config path for teardown. This
   // keeps tests on the real instance lifecycle instead of removing a live
-  // Preact root directly from the document.
+  // panel root directly from the document.
   adapterHandle = configurePanel(getPanelConfig());
 }
 
@@ -109,8 +109,8 @@ describe('host-adapter window.zdtp global alias (#523)', () => {
   });
 
   afterEach(async () => {
-    // Preact schedules useEffect work through requestAnimationFrame with a
-    // setTimeout fallback. Let that work settle while jsdom is still live,
+    // Panel effects schedule follow-up work through requestAnimationFrame and
+    // timers. Let that work settle while jsdom is still live,
     // then destroy the configured instance so its effect cleanups run before
     // the root and document are cleared.
     await flushEffects();

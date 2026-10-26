@@ -6,8 +6,9 @@ sidebar_position: 104
 
 ### 破壊的変更
 
-- 静的ダッシュボードを Preact から zfb の zudo-react ランタイムへ移行しました。`@takazudo/zdtp/dashboard` の `TokenDashboard` は zudo-react コンポーネントになり、zfb のページか `@takazudo/zfb/zudo-react/server` の `renderToString` でレンダリングします。`@takazudo/zdtp/dashboard/client` は zudo-react でマウントし、ホスト内に `display: contents` のラッパーを追加します。ダッシュボードを使う場合は `@takazudo/zfb`（新しい任意の peer、`^5.1.2`）をインストールしてください。パネル本体には影響しません。
+- パネルは Preact を使わなくなりました（[#1075](https://github.com/Takazudo/zudo-design-token-panel/issues/1075)）。zfb の zudo-react ランタイムを自身のバンドルに含めてレンダリングし、`@takazudo/zdtp` の依存関係から `preact` を外しました。ホスト側で追加のインストールは不要ですが、自分のコードのために ZDTP 経由で Preact を入れていたホストは、`preact` を自分で依存関係に追加してください。公開 API、コンソール API、ストレージのキー、CSS の契約は変わりません。
+- 静的ダッシュボードを Preact から zfb の zudo-react ランタイムへ移行しました。`@takazudo/zdtp/dashboard` の `TokenDashboard` は zudo-react コンポーネントになり、zfb のページか `@takazudo/zfb/zudo-react/server` の `renderToString` でレンダリングします。`@takazudo/zdtp/dashboard/client` は zudo-react でマウントし、ホスト内に `display: contents` のラッパーを追加します。ダッシュボードを使う場合は `@takazudo/zfb`（新しい任意の peer、`^5.1.2`）をインストールしてください。
 
 ### その他の変更
 
-- パネルを Preact から zfb の zudo-react ランタイムへ段階的に移行し始めました（[#1075](https://github.com/Takazudo/zudo-design-token-panel/issues/1075)）。パネルは zudo-react を自身のバンドルに含むため、ホスト側で追加のインストールは不要です。これまでにカラーピッカー、カラーフィールドのスウォッチ、エクスポート・インポート・適用の各モーダル、Color タブ、Palette タブ（カーブチャートを含む）、Notes タブ、Spacing・Font・Size とマニフェスト定義の汎用タブ（行、一括操作、スペシメン、トークンチェーンのポップオーバー、ハイライトのトグルを含む）、そしてページ上のオーバーレイ（Alt クリックのピッカー、ハイライトの枠、Element Path のインスペクターとトースト、インスペクトのマーカー、DOM Tweaker の選択表示・クラスエディター・差分モーダル）を移行しました。公開 API は変わりません。移行中は、移行済みの部分が `display: contents` の `.tokenpanel-zr-host` ラッパーの中に入ります。
+- シェル、ヘッダー、タブバー、履歴レール、検索パレット、インスペクターを含むパネルの UI 全体が zudo-react でレンダリングされるようになり、移行中に使っていた `display: contents` の `.tokenpanel-zr-host` ラッパーはなくなりました。body 直下のオーバーレイ用マウント（`#tokenpanel-highlight-mount` など）には、それぞれ `display: contents` のラッパーが 1 つ入ります。

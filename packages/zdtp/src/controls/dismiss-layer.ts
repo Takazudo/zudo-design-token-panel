@@ -28,8 +28,8 @@
  * "Topmost" is resolved by DOM depth, not registration order: the layer whose
  * element is the deepest descendant wins (a nested popover's container is a DOM
  * descendant of its host popover's container). This is robust regardless of the
- * order in which effects register the layers (child effects run before parent
- * effects in Preact), which matters for the ColorPicker-inside-
+ * order in which effects register the layers (a child's effect can run before
+ * its parent's), which matters for the ColorPicker-inside-
  * HighlightSettingsPopover case. When elements are unrelated or unavailable it
  * falls back to the most-recently-registered layer.
  */

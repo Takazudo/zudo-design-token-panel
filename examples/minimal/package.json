@@ -20,8 +20,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@takazudo/zdtp": "workspace:*",
-    "preact": "^10.29.1"
+    "@takazudo/zdtp": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.9.0",

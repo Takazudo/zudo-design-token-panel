@@ -4,10 +4,9 @@
  * outline-px input in the header.
  *
  * Isolation strategy:
- * - HighlightContext is imported from ../highlight-toggle-button (the canonical
- *   location defined by #229) and provided as a stub value.
+ * - The highlight context is passed in as a stub value signal.
  * - No actual HighlightOrchestrator or storage is exercised here.
- * - The ColorPicker positioning (useLayoutEffect + getBoundingClientRect)
+ * - The ColorPicker positioning (getBoundingClientRect)
  *   is stubbed to avoid jsdom layout issues.
  *
  * See also: packages/zdtp/CLAUDE.md for hostile-host policy.
@@ -27,11 +26,10 @@ if (typeof PointerEvent === 'undefined') {
 }
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from '../../zr/test-utils';
-import { h } from 'preact';
+import { signal } from '@takazudo/zfb/zudo-react';
+import { act, renderZr, unmountZrIn } from '../../zr/test-utils';
 import { HighlightSettingsPopover } from '../highlight-settings-popover';
-import { HighlightContext, type HighlightContextValue } from '../highlight-toggle-button-preact';
+import type { HighlightContextValue } from '../highlight-context';
 import type { HighlightState } from '../highlight-state';
 import { DEFAULT_HIGHLIGHT_SLOTS } from '../highlight-state';
 
@@ -74,17 +72,14 @@ function makeCtx(overrides: Partial<HighlightContextValue> = {}): HighlightConte
 
 const anchorRef = { current: document.createElement('div') };
 
-// Render the popover wrapped in a HighlightContext.Provider.
 function renderPopover(
-  ctx: HighlightContextValue,
+  ctx: HighlightContextValue | null,
   container: HTMLDivElement,
   onClose = vi.fn(),
 ) {
   act(() => {
-    render(
-      h(HighlightContext.Provider, { value: ctx },
-        h(HighlightSettingsPopover, { anchorRef, onClose }),
-      ),
+    renderZr(
+      () => <HighlightSettingsPopover anchorRef={anchorRef} onClose={onClose} highlight={signal(ctx)} />,
       container,
     );
   });
@@ -102,7 +97,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => render(null, container));
+  act(() => unmountZrIn(container));
   document.body.removeChild(container);
   vi.restoreAllMocks();
 });
@@ -126,13 +121,8 @@ describe('HighlightSettingsPopover', () => {
       expect(header?.textContent).toContain('Highlight outline settings');
     });
 
-    it('returns null when HighlightContext is not provided', () => {
-      act(() => {
-        render(
-          h(HighlightSettingsPopover, { anchorRef, onClose: vi.fn() }),
-          container,
-        );
-      });
+    it('returns null when the highlight context is null', () => {
+      renderPopover(null, container);
       const dialog = container.querySelector('[role="dialog"]');
       expect(dialog).toBeNull();
     });

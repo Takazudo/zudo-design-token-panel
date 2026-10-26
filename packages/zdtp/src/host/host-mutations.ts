@@ -96,7 +96,7 @@ export function claimHostDock(
  * The node is removed when `releaseHostMutations(owner)` runs.  Keeping this
  * ownership in the same window-level registry as dock declarations makes the
  * cleanup path robust when a panel is destroyed or an Astro swap removes the
- * Preact root before effect cleanups get a chance to run.  Claims are keyed by
+ * panel root before effect cleanups get a chance to run.  Claims are keyed by
  * owner, rather than by node identity, so a single owner can safely recreate
  * its portal during a navigation.
  */
