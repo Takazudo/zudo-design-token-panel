@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 
 /**
  * Unit tests for HelpIcon (issues #520 and #544) — the "?" badge used for
@@ -12,35 +13,34 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { render } from 'preact';
-import { act } from '../../zr/test-utils';
+import { act, cleanupZr, renderZr } from '../../zr/test-utils';
 import { HelpIcon } from '../help-icon';
-import { TooltipProvider } from '../tooltip-preact';
+import { createTooltipController } from '../tooltip-controller';
 
 // ---------------------------------------------------------------------------
 // Setup / teardown
 // ---------------------------------------------------------------------------
 
 let container: HTMLDivElement;
+let disconnect: () => void;
+let tooltip: ReturnType<typeof createTooltipController>;
 
 beforeEach(() => {
   container = document.createElement('div');
   document.body.appendChild(container);
+  tooltip = createTooltipController(document);
+  disconnect = tooltip.connect();
 });
 
 afterEach(() => {
-  act(() => render(null, container));
+  act(() => cleanupZr());
+  disconnect();
   container.remove();
 });
 
 function renderIcon(text = 'Wrapped explainer text.', ariaLabel = 'Literal help'): void {
   act(() => {
-    render(
-      <TooltipProvider>
-        <HelpIcon text={text} ariaLabel={ariaLabel} />
-      </TooltipProvider>,
-      container,
-    );
+    renderZr(() => <HelpIcon text={text} ariaLabel={ariaLabel} tooltip={tooltip} />, container);
   });
 }
 

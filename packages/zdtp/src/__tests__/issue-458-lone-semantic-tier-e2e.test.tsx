@@ -42,7 +42,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'preact';
 import { act } from '../zr/test-utils';
 
-import ColorTab from '../tabs/color-tab';
+import ColorTab from '../tabs/color-tab-preact';
 import {
   __resetPanelConfigForTests,
   configurePanel,

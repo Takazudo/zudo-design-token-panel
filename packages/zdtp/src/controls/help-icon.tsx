@@ -1,3 +1,4 @@
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 /**
  * HelpIcon — small round "?" badge that explains a panel concept via the
  * shared `.tokenpanel-tooltip--help` variant (issues #520 and #544).
@@ -8,7 +9,7 @@
  *
  * Behavior:
  *  - Hover / focus shows the help tooltip transiently, same as any other
- *    `useTooltip` trigger.
+ *    tooltip trigger.
  *  - Click (or Enter/Space) PINS the tooltip open — touch devices have no
  *    hover, so a tap must be able to reveal and hold the tip. A second
  *    activation, or pressing Escape anywhere on the page, unpins it.
@@ -29,9 +30,8 @@
  * visible until the next activation. Same accepted single-tooltip trade-off.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
-import type { JSX } from 'preact';
-import { useTooltip } from './tooltip-preact';
+import { computed, getScope, signal, type Ref } from '@takazudo/zfb/zudo-react';
+import type { TooltipController } from './tooltip-controller';
 
 // ---------------------------------------------------------------------------
 // Copy — single source of truth for the Color tab's section-level semantic
@@ -50,87 +50,60 @@ export interface HelpIconProps {
   text: string;
   /** Accessible name for the icon itself (e.g. "Literal help", "Surface per-mode help"). */
   ariaLabel: string;
+  tooltip: TooltipController | null;
 }
 
-export function HelpIcon({ text, ariaLabel }: HelpIconProps): JSX.Element {
-  // Destructured (rather than keeping the returned object as one `tooltip`
-  // value) so the useCallback deps below are the individually-memoized
-  // handlers/show/hide themselves, not a fresh object literal useTooltip
-  // returns on every render — a dep on the whole object would defeat the
-  // memoization below.
-  const { onMouseEnter, onMouseLeave, onFocusIn, onFocusOut, show, hide } = useTooltip(text, {
-    variant: 'help',
-  });
-  const [pinned, setPinned] = useState(false);
-  const elRef = useRef<HTMLDivElement>(null);
+export function HelpIcon({ text, ariaLabel, tooltip }: HelpIconProps) {
+  const pinned = signal(false);
+  const el: Ref<HTMLDivElement> = { current: null };
+  const show = (target: HTMLElement) => tooltip?.show(target, text, { variant: 'help' });
+  const hide = (target: HTMLElement) => tooltip?.hide(target);
 
-  const handleActivate = useCallback(() => {
-    const el = elRef.current;
-    const next = !pinned;
-    setPinned(next);
-    if (!el) return;
-    if (next) {
-      show(el);
-    } else {
-      hide(el);
-    }
-  }, [pinned, show, hide]);
+  const handleActivate = () => {
+    const next = !pinned.value;
+    pinned.value = next;
+    if (!el.current) return;
+    if (next) show(el.current);
+    else hide(el.current);
+  };
 
-  const handleKeyDown = useCallback(
-    (e: JSX.TargetedKeyboardEvent<HTMLDivElement>) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        handleActivate();
-      }
-    },
-    [handleActivate],
-  );
-
-  // Skip the hide half of hover/focus while pinned — the tooltip should
-  // survive the pointer/focus leaving until the user explicitly unpins.
-  const handleMouseLeave = useCallback(
-    (e: JSX.TargetedMouseEvent<HTMLElement>) => {
-      if (pinned) return;
-      onMouseLeave(e);
-    },
-    [pinned, onMouseLeave],
-  );
-
-  const handleFocusOut = useCallback(
-    (e: JSX.TargetedFocusEvent<HTMLElement>) => {
-      if (pinned) return;
-      onFocusOut(e);
-    },
-    [pinned, onFocusOut],
-  );
-
-  // Escape unpins from anywhere on the page — mirrors TooltipProvider's own
-  // document-level Escape listener, which already hides the visual tooltip;
-  // this keeps this component's local `pinned` state in sync with that even
-  // when focus isn't on the icon itself.
-  useEffect(() => {
-    if (!pinned) return;
+  // Escape unpins from anywhere on the page — mirrors the tooltip
+  // controller's own document-level Escape listener, which already hides the
+  // visual tooltip; this keeps the local `pinned` state in sync with that
+  // even when focus isn't on the icon itself.
+  getScope().onActivate(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') setPinned(false);
+      if (e.key === 'Escape' && pinned.value) pinned.value = false;
     }
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [pinned]);
+  });
 
   return (
     <div
-      ref={elRef}
+      ref={el}
       role="button"
-      tabIndex={0}
-      className={pinned ? 'tokenpanel-help-icon is-pinned' : 'tokenpanel-help-icon'}
+      tabindex={0}
+      class={computed(() => (pinned.value ? 'tokenpanel-help-icon is-pinned' : 'tokenpanel-help-icon'))}
       aria-label={ariaLabel}
       aria-pressed={pinned}
-      onClick={handleActivate}
-      onKeyDown={handleKeyDown}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={handleMouseLeave}
-      onFocusIn={onFocusIn}
-      onFocusOut={handleFocusOut}
+      on:click={handleActivate}
+      on:keydown={(e: KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleActivate();
+        }
+      }}
+      on:mouseenter={(e: MouseEvent) => show(e.currentTarget as HTMLElement)}
+      // Skip the hide half of hover/focus while pinned — the tooltip should
+      // survive the pointer/focus leaving until the user explicitly unpins.
+      on:mouseleave={(e: MouseEvent) => {
+        if (!pinned.value) hide(e.currentTarget as HTMLElement);
+      }}
+      on:focusin={(e: FocusEvent) => show(e.currentTarget as HTMLElement)}
+      on:focusout={(e: FocusEvent) => {
+        if (!pinned.value) hide(e.currentTarget as HTMLElement);
+      }}
     >
       ?
     </div>
