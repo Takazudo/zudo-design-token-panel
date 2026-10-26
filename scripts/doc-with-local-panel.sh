@@ -112,12 +112,12 @@ if (panelPackage.version !== expectedPanelVersion) {
 }
 
 for (const [name, expected] of Object.entries({
-  '@takazudo/zfb': '5.1.4',
-  '@takazudo/zfb-runtime': '5.1.4',
-  '@takazudo/zfb-adapter-cloudflare': '5.1.4',
-  '@takazudo/zfb-md-wasm': '5.1.4',
-  '@takazudo/zudo-doc': '8.1.3',
-  '@takazudo/zudo-doc-history-server': '8.1.3',
+  '@takazudo/zfb': '5.1.5',
+  '@takazudo/zfb-runtime': '5.1.5',
+  '@takazudo/zfb-adapter-cloudflare': '5.1.5',
+  '@takazudo/zfb-md-wasm': '5.1.5',
+  '@takazudo/zudo-doc': '9.0.0',
+  '@takazudo/zudo-doc-history-server': '9.0.0',
 })) {
   const actual = JSON.parse(await readFile(resolve(scratchDoc, 'node_modules', name, 'package.json'), 'utf8')).version;
   if (actual !== expected) throw new Error(`Expected ${name}@${expected}, resolved ${actual}`);
