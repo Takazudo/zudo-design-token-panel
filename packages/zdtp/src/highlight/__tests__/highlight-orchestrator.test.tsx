@@ -42,7 +42,7 @@ import { HighlightOrchestrator, tierKindToProbeKind } from '../highlight-orchest
 import {
   HighlightContext,
   type HighlightContextValue,
-} from '../highlight-toggle-button';
+} from '../highlight-toggle-button-preact';
 import {
   configurePanel,
   __resetPanelConfigForTests,

@@ -17,10 +17,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'preact';
 import { act } from '../../zr/test-utils';
-import SpacingTab from '../spacing-tab';
-import FontTab from '../font-tab';
-import SizeTab from '../size-tab';
-import GenericTab from '../generic-tab';
+import { FontTab, GenericTab, SizeTab, SpacingTab } from '../flat-tabs-preact';
 import type { TabConfig } from '../../tokens/tier-model';
 import type { TokenOverrides } from '../../state/tweak-state';
 import type { TabOverrides } from '../../apply/tier-resolver';

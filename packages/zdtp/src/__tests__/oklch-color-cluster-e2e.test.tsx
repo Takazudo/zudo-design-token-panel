@@ -47,7 +47,7 @@ import {
 import {
   HighlightContext,
   type HighlightContextValue,
-} from '../highlight/highlight-toggle-button';
+} from '../highlight/highlight-toggle-button-preact';
 import { DEFAULT_HIGHLIGHT_SLOTS, type HighlightState } from '../highlight/highlight-state';
 import { TooltipProvider } from '../controls/tooltip-preact';
 import type { TabConfig } from '../tokens/tier-model';

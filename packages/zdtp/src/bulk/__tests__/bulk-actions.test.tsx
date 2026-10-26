@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 
-import { render } from 'preact';
-import { act } from '../../zr/test-utils';
+import { act, cleanupZr, renderZr } from '../../zr/test-utils';
+import { createPanelServices } from '../../zr/panel-services';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TabConfig } from '../../tokens/tier-model';
 import FlatTab from '../../tabs/flat/flat-tab';
@@ -89,7 +90,7 @@ describe('FlatTab bulk contribution', () => {
 
   afterEach(() => {
     if (!container) return;
-    act(() => render(null, container));
+    cleanupZr();
     container.remove();
   });
 
@@ -98,16 +99,16 @@ describe('FlatTab bulk contribution', () => {
     document.body.appendChild(container);
     const onBulkApply = vi.fn<(patch: readonly BulkPatchEntry[]) => void>();
     act(() => {
-      render(
+      renderZr(() => (
         <FlatTab
           tab={TAB}
           getValue={(_address, item) => item.default}
           setValue={vi.fn()}
           deleteValue={vi.fn()}
           onBulkApply={onBulkApply}
-        />,
-        container,
-      );
+          services={createPanelServices({})}
+        />
+      ), container);
     });
 
     const selectAll = container.querySelector<HTMLInputElement>('[data-testid="bulk-select-tier-other"]');

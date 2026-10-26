@@ -9,7 +9,10 @@ type Callback = (...args: never[]) => unknown;
 interface BridgeKeys<P, C extends keyof P> {
   /** Data props, delivered to the zudo-react component as live signals. */
   signals: ReadonlyArray<Exclude<keyof P, C>>;
-  /** Function props, delivered as stable wrappers that call the latest prop. */
+  /**
+   * Function props, delivered as stable wrappers that call the latest prop.
+   * Presence is fixed at mount.
+   */
   callbacks?: ReadonlyArray<C>;
   /** Props read once at mount (e.g. an instance config or a controller). */
   statics?: ReadonlyArray<C>;
@@ -42,6 +45,9 @@ export function bridgeToPreact<P extends object, C extends keyof P = never>(
       }
       for (const key of keys.statics ?? []) live[key as PropertyKey] = props[key];
       for (const key of keys.callbacks ?? []) {
+        // An optional callback absent at mount stays absent, since components
+        // branch on its presence (e.g. bulk controls only with onBulkApply).
+        if (typeof props[key] !== 'function') continue;
         live[key as PropertyKey] = (...args: never[]) => {
           const callback = latest.current[key] as Callback | undefined;
           return typeof callback === 'function' ? callback(...args) : undefined;
@@ -58,8 +64,19 @@ export function bridgeToPreact<P extends object, C extends keyof P = never>(
     });
 
     useLayoutEffect(() => {
-      let root: RootHandle | null = mountOwnedRoot(host.current!, component, state.current!.live);
+      const element = host.current!;
+      let root: RootHandle | null = null;
+      let retry = 0;
+      // zudo-react only mounts into a connected root, while Preact may render
+      // into a detached container that is attached later.
+      const tryMount = () => {
+        retry = 0;
+        if (element.isConnected) root = mountOwnedRoot(element, component, state.current!.live);
+        else retry = setTimeout(tryMount, 16) as unknown as number;
+      };
+      tryMount();
       return () => {
+        clearTimeout(retry);
         root?.unmount();
         root = null;
       };

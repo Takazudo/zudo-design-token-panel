@@ -20,7 +20,7 @@ import { createPortal } from 'preact/compat';
 import {
   HighlightContext,
   type HighlightContextValue,
-} from './highlight-toggle-button';
+} from './highlight-toggle-button-preact';
 import {
   loadHighlightState,
   saveHighlightState,

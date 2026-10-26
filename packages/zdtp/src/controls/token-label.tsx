@@ -1,10 +1,14 @@
-import { memo } from 'preact/compat';
-import { useTooltip } from './tooltip-preact';
+/** @jsxImportSource @takazudo/zfb/zudo-react */
+import { computed, Show } from '@takazudo/zfb/zudo-react';
+import { read, type MaybeSignal } from '../zr/live';
+import type { TooltipController } from './tooltip-controller';
+import { tooltipTrigger } from './tooltip';
 
 export interface TokenLabelProps {
-  cssVar: string;
-  label?: string;
-  className?: string;
+  cssVar: MaybeSignal<string>;
+  label?: MaybeSignal<string | undefined>;
+  class?: string;
+  tooltip: TooltipController | null;
 }
 
 /**
@@ -15,17 +19,23 @@ export interface TokenLabelProps {
  * The optional `label` sub-label is shown only when it differs from `cssVar`
  * (avoids redundant repetition for tokens whose label IS the cssVar).
  */
-function TokenLabelInner({ cssVar, label, className }: TokenLabelProps) {
-  const tooltipProps = useTooltip(cssVar, { anchor: 'text' });
+export function TokenLabel(props: TokenLabelProps) {
+  const cssVar = computed(() => read(props.cssVar));
+  const sub = computed(() => {
+    const label = read(props.label);
+    return label && label !== cssVar.value ? label : '';
+  });
   return (
-    <span className={className ?? 'tokenpanel-row-label'} {...tooltipProps}>
+    <span
+      class={props.class ?? 'tokenpanel-row-label'}
+      {...tooltipTrigger(props.tooltip, cssVar, { anchor: 'text' })}
+    >
       {cssVar}
-      {label && label !== cssVar && (
-        <span className="tokenpanel-row-label-sub">{label}</span>
-      )}
+      <Show when={computed(() => sub.value !== '')}>
+        {() => <span class="tokenpanel-row-label-sub">{sub}</span>}
+      </Show>
     </span>
   );
 }
 
-export const TokenLabel = memo(TokenLabelInner);
 export default TokenLabel;

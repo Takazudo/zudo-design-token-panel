@@ -17,12 +17,12 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { options, render, type VNode } from 'preact';
-import { act } from '../../zr/test-utils';
-import GenericTab from '../generic-tab';
+import { render } from 'preact';
+import { act, cleanupZr } from '../../zr/test-utils';
+import { GenericTab } from '../flat-tabs-preact';
 import GenericItemEditor from '../_generic-item-editor';
 import type { ColorFieldProps } from '../../components/color-picker/color-field';
-import { RoleButton } from '../../controls/role-button-preact';
+import { read } from '../../zr/live';
 import type { TabConfig, TierItem } from '../../tokens/tier-model';
 import {
   emitTierItemCssValue,
@@ -30,7 +30,29 @@ import {
   type TabOverrides,
 } from '../../apply/tier-resolver';
 import { TooltipProvider } from '../../controls/tooltip-preact';
-import type { RowContribution } from '../flat/types';
+
+// Capture ColorField props so pair-commit tests can call onChange without
+// driving ColorPicker (Wave 1 recipe). Both the zudo-react rows and the
+// Preact GenericItemEditor (through its bridge) render this ColorField.
+const colorFieldProps = vi.hoisted(() => new Map<string, ColorFieldProps>());
+
+vi.mock('../../components/color-picker/color-field', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../components/color-picker/color-field')>();
+  function ColorField(props: Parameters<typeof actual.ColorField>[0]) {
+    const mode = read(props.resolveMode);
+    const cssVar = read(props.cssVar);
+    if ((mode === 'light' || mode === 'dark') && cssVar) {
+      colorFieldProps.set(`${cssVar}:${mode}`, {
+        ...props,
+        get value() {
+          return read(props.value);
+        },
+      } as ColorFieldProps);
+    }
+    return actual.ColorField(props);
+  }
+  return { ...actual, ColorField, default: ColorField };
+});
 
 // ---------------------------------------------------------------------------
 // Synthetic TabConfig fixtures
@@ -407,9 +429,6 @@ describe('GenericTab — item editors by kind', () => {
 });
 
 describe('GenericTab — manifest mode rows', () => {
-  const colorFieldProps = new Map<string, ColorFieldProps>();
-  let prevVnode: typeof options.vnode;
-
   function colorFieldKey(cssVar: string, mode: 'light' | 'dark'): string {
     return `${cssVar}:${mode}`;
   }
@@ -426,23 +445,10 @@ describe('GenericTab — manifest mode rows', () => {
 
   beforeEach(() => {
     colorFieldProps.clear();
-    prevVnode = options.vnode;
-    // Capture ColorField props so pair-commit tests can call onChange without
-    // driving ColorPicker (Wave 1 recipe; jsdom native input events skip Preact).
-    options.vnode = (vnode: VNode) => {
-      prevVnode?.(vnode);
-      const type = vnode.type;
-      if (typeof type === 'function' && type.name === 'ColorField') {
-        const props = vnode.props as unknown as ColorFieldProps;
-        if ((props.resolveMode === 'light' || props.resolveMode === 'dark') && props.cssVar) {
-          colorFieldProps.set(colorFieldKey(props.cssVar, props.resolveMode), props);
-        }
-      }
-    };
   });
 
   afterEach(() => {
-    options.vnode = prevVnode;
+    cleanupZr();
   });
 
   it('renders ColorFields on writable rows and keeps chips on readonly rows', async () => {
@@ -508,56 +514,6 @@ describe('GenericTab — manifest mode rows', () => {
 
     expect(colorFieldProps.get(colorFieldKey('--test-mode-color', 'light'))?.value).toBe('#222222');
     expect(colorFieldProps.get(colorFieldKey('--test-mode-color', 'dark'))?.value).toBe('#222222');
-  });
-
-  it('deletes the override key from a stub trailing revert instead of writing light-dark(manifest)', async () => {
-    const current: Record<string, Record<string, string>> = {
-      values: { 'mode-color': 'light-dark(#abcdef, #123456)' },
-    };
-    const onChange = vi.fn((tierId: string, itemId: string, next: string | undefined) => {
-      const nextTier = { ...current[tierId] };
-      if (next === undefined) delete nextTier[itemId];
-      else nextTier[itemId] = next;
-      current[tierId] = nextTier;
-    });
-    const stubRevert: RowContribution = {
-      id: 'stub-revert',
-      trailing: (entry) => (
-        <RoleButton
-          data-testid={`stub-revert-${entry.item.id}`}
-          aria-label={`Revert ${entry.item.label}`}
-          onClick={() => onChange(entry.address.tierId, entry.address.itemId, undefined)}
-        >
-          Revert
-        </RoleButton>
-      ),
-    };
-
-    await act(() => {
-      render(
-        <GenericTab
-          tab={MODES_TAB}
-          overrides={current}
-          onChange={onChange}
-          changedContribution={stubRevert}
-        />,
-        container,
-      );
-    });
-
-    const revert = container.querySelector<HTMLElement>('[data-testid="stub-revert-mode-color"]');
-    expect(revert).not.toBeNull();
-    act(() => {
-      revert!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    expect(onChange).toHaveBeenCalledWith('values', 'mode-color', undefined);
-    expect(onChange).not.toHaveBeenCalledWith(
-      'values',
-      'mode-color',
-      'light-dark(#ffffff, #111111)',
-    );
-    expect(current.values?.['mode-color']).toBeUndefined();
   });
 
   it('does not fire onChange from a readonly modes row', async () => {

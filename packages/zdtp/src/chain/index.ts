@@ -1,12 +1,11 @@
 export {
   ChainButton,
   ChainPopover,
-  TOKEN_CHAIN_CONTRIBUTION,
   TokenChainButton,
   TokenChainPopover,
   type TokenChainButtonProps,
   type TokenChainPopoverProps,
-} from './token-chain-popover';
+} from './token-chain-popover-preact';
 export {
   TokenChainProvider,
   useTokenChainContext,

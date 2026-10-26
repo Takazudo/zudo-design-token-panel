@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 
 /**
  * Unit tests for TierRefSelector — the grouped ref-or-literal control (S9,
@@ -18,8 +19,8 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from '../../zr/test-utils';
+import type { Child } from '@takazudo/zfb/zudo-react';
+import { act, cleanupZr, renderZr } from '../../zr/test-utils';
 import TierRefSelector, {
   type TierRefSelectorValue,
   type TierRefTarget,
@@ -137,15 +138,18 @@ const ALL_TABS: readonly TabConfig[] = [GROUPED_COLOR_TAB, RAMP_PALETTE_TAB];
 
 let container: HTMLDivElement;
 
+function render(node: Child, host: HTMLElement): void {
+  cleanupZr();
+  renderZr(() => node, host);
+}
+
 beforeEach(() => {
   container = document.createElement('div');
   document.body.appendChild(container);
 });
 
 afterEach(() => {
-  act(() => {
-    render(null, container);
-  });
+  cleanupZr();
   container.remove();
 });
 

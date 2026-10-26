@@ -53,14 +53,11 @@ import { CommandPalette, type CommandPaletteAction } from './search/command-pale
 import { buildTokenIndex, tokenAddressKey, type TokenAddress } from './utils/token-index';
 import { matchesTokenEntry } from './search/token-search';
 import { scrollToTokenRow } from './tabs/flat/scroll-to-token-row';
-import { changedContribution } from './changed/contribution';
+import type { ChangedContributionOptions } from './changed/contribution';
 import { ChangedFooterContent } from './changed/footer-content';
 import { ChangedOnlyToggle } from './changed/tab-filter';
 import ColorTab from './tabs/color-tab';
-import FontTab from './tabs/font-tab';
-import SizeTab from './tabs/size-tab';
-import SpacingTab from './tabs/spacing-tab';
-import GenericTab from './tabs/generic-tab';
+import { FontTab, GenericTab, SizeTab, SpacingTab } from './tabs/flat-tabs-preact';
 import PaletteTab from './tabs/palette/palette-tab';
 import NotesTab from './tabs/notes-tab';
 import type { BulkPatchEntry } from './bulk';
@@ -1254,16 +1251,16 @@ export default function DesignTokenTweakPanel({
       address: tokenAddressKey(address),
     });
   }, [changedBaseline, commitTweakState, instanceConfig, searchIndex, state]);
-  const changedRowContribution = useMemo(
+  const changedRowOptions = useMemo<ChangedContributionOptions | undefined>(
     () => state
-      ? changedContribution({
+      ? {
           index: searchIndex,
           state,
           baseline: changedBaseline,
           cfg: instanceConfig,
           changedOnly,
           onRevert: handleRevertAddress,
-        })
+        }
       : undefined,
     [changedBaseline, changedOnly, handleRevertAddress, instanceConfig, searchIndex, state],
   );
@@ -1779,7 +1776,7 @@ export default function DesignTokenTweakPanel({
                     persistSpacing={persistSpacing}
                     searchQuery={searchQuery}
                     onBulkApply={handleSpacingBulkApply}
-                    changedContribution={changedRowContribution}
+                    changed={changedRowOptions}
                     changedOnly={changedOnly}
                   />
                 )}
@@ -1793,7 +1790,7 @@ export default function DesignTokenTweakPanel({
                     onRenderOnPageChange={handleRenderSpecimenOnPageChange}
                     searchQuery={searchQuery}
                     onBulkApply={handleFontBulkApply}
-                    changedContribution={changedRowContribution}
+                    changed={changedRowOptions}
                     changedOnly={changedOnly}
                   />
                 )}
@@ -1804,7 +1801,7 @@ export default function DesignTokenTweakPanel({
                     persistSize={persistSize}
                     searchQuery={searchQuery}
                     onBulkApply={handleSizeBulkApply}
-                    changedContribution={changedRowContribution}
+                    changed={changedRowOptions}
                     changedOnly={changedOnly}
                   />
                 )}
@@ -1847,7 +1844,7 @@ export default function DesignTokenTweakPanel({
                     overrides={state.tabs?.[tab.id] ?? {}}
                     searchQuery={searchQuery}
                     onBulkApply={(patch) => handleGenericBulkApply(tab.id, patch)}
-                    changedContribution={changedRowContribution}
+                    changed={changedRowOptions}
                     changedOnly={changedOnly}
                     onChange={(tierId, itemId, next) => {
                       // `next === undefined` (ref-tier "Literal…" pick, #470)

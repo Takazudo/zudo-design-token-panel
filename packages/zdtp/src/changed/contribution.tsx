@@ -1,3 +1,4 @@
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 /**
  * Changed-state row contribution.
  *
@@ -14,8 +15,10 @@ import {
   type ColorBaseline,
 } from '../utils/token-diff';
 import type { TokenIndex, TokenAddress } from '../utils/token-index';
-import type { RowContribution } from '../tabs/flat/types';
-import { RoleButton } from '../controls/role-button-preact';
+import { computed, Show, type ReadonlySignal } from '@takazudo/zfb/zudo-react';
+import type { FlatTabEntry, RowContribution } from '../tabs/flat/types';
+import { RoleButton } from '../controls/role-button';
+import { read, type MaybeSignal } from '../zr/live';
 
 export interface ChangedContributionOptions {
   index: TokenIndex;
@@ -37,17 +40,17 @@ function entryChanged(
 }
 
 /** A stable text-only ghost line that survives hostile host styles. */
-function ChangedTail({ defaultValue, currentValue }: { defaultValue: string; currentValue: string }) {
+function ChangedTail({ defaultValue, currentValue }: { defaultValue: string; currentValue: ReadonlySignal<string> }) {
   return (
     <span
-      className="tokenpanel-changed-tail"
+      class="tokenpanel-changed-tail"
       data-testid="tokenpanel-changed-tail"
-      title={`default ${defaultValue} → ${currentValue}`}
+      title={computed(() => `default ${defaultValue} → ${currentValue.value}`)}
     >
-      <span className="tokenpanel-changed-tail-prefix">default </span>
-      <span className="tokenpanel-changed-tail-old">{defaultValue}</span>
-      <span className="tokenpanel-changed-tail-arrow"> → </span>
-      <span className="tokenpanel-changed-tail-new">{currentValue}</span>
+      <span class="tokenpanel-changed-tail-prefix">default </span>
+      <span class="tokenpanel-changed-tail-old">{defaultValue}</span>
+      <span class="tokenpanel-changed-tail-arrow"> → </span>
+      <span class="tokenpanel-changed-tail-new">{currentValue}</span>
     </span>
   );
 }
@@ -63,7 +66,7 @@ function RevertControl({
 }) {
   return (
     <RoleButton
-      className="tokenpanel-changed-revert"
+      class="tokenpanel-changed-revert"
       aria-label={`Revert ${label}`}
       title="Revert to default"
       onClick={() => onRevert(address)}
@@ -74,9 +77,9 @@ function RevertControl({
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
         aria-hidden="true"
       >
         <path d="M3 12a9 9 0 1 0 3-6.7" />
@@ -89,26 +92,43 @@ function RevertControl({
 /**
  * Build the contribution used by FlatTab-based token lists.  `revertEntry`
  * remains in the shell callback rather than here so this presentation seam
- * never mutates state directly.
+ * never mutates state directly. The options may be a signal so one
+ * contribution follows the shell's state for the tab's whole lifetime; with
+ * no options every row reads as unchanged.
  */
-export function changedContribution(options: ChangedContributionOptions): RowContribution {
-  const changed = (entry: Parameters<NonNullable<RowContribution['filter']>>[0]): boolean =>
-    entryChanged(entry.address, options);
+export function changedContribution(
+  source: MaybeSignal<ChangedContributionOptions | undefined>,
+): RowContribution {
+  const changed = (entry: FlatTabEntry): boolean => {
+    const options = read(source);
+    return options ? entryChanged(entry.address, options) : false;
+  };
 
   return {
     id: 'changed-state',
-    filter: (entry) => !options.changedOnly || changed(entry),
+    filter: (entry) => !read(source)?.changedOnly || changed(entry),
     className: (entry) => changed(entry) ? 'is-changed' : undefined,
-    trailing: (entry) => changed(entry) ? (
-      <RevertControl
-        address={entry.address}
-        label={entry.item.cssVar}
-        onRevert={options.onRevert}
-      />
-    ) : null,
-    tail: (entry) => changed(entry) ? (
-      <ChangedTail defaultValue={entry.item.default} currentValue={entry.value} />
-    ) : null,
+    trailing: (entry) => (
+      <Show when={computed(() => changed(entry.value))}>
+        {() => (
+          <RevertControl
+            address={entry.value.address}
+            label={entry.value.item.cssVar}
+            onRevert={(address) => read(source)?.onRevert(address)}
+          />
+        )}
+      </Show>
+    ),
+    tail: (entry) => (
+      <Show when={computed(() => changed(entry.value))}>
+        {() => (
+          <ChangedTail
+            defaultValue={entry.value.item.default}
+            currentValue={computed(() => entry.value.value)}
+          />
+        )}
+      </Show>
+    ),
   };
 }
 

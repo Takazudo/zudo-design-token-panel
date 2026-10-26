@@ -14,7 +14,7 @@ import { render } from 'preact';
 import { act } from '../zr/test-utils';
 import { useState } from 'preact/hooks';
 import type { JSX } from 'preact';
-import { TokenLabel } from '../controls/token-label';
+import { TokenLabel } from '../controls/token-label-preact';
 import { TooltipProvider, useTooltip } from '../controls/tooltip-preact';
 import { flushEffects } from './_test-helpers';
 

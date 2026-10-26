@@ -33,6 +33,11 @@ export function useLayerActivity(): boolean {
   return value.active;
 }
 
+/** The layer setter, or null outside a provider (for zudo-react subtrees). */
+export function useLayerActiveSetter(): ((id: string, active: boolean) => void) | null {
+  return useContext(LayerActivityContext)?.setLayerActive ?? null;
+}
+
 export function useLayerRegistration(id: string, active: boolean): void {
   const value = useContext(LayerActivityContext);
   if (!value) throw new Error('useLayerRegistration must be used within LayerActivityProvider');

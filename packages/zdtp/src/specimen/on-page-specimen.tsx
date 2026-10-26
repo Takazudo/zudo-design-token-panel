@@ -1,6 +1,5 @@
-import { createPortal } from 'preact/compat';
-import { useEffect, useState } from 'preact/hooks';
-import type { CSSProperties } from 'preact/compat';
+/** @jsxImportSource @takazudo/zfb/zudo-react */
+import { computed, getScope } from '@takazudo/zfb/zudo-react';
 import type { PanelConfig } from '../config/panel-config';
 import { claimHostNode, releaseHostMutations } from '../host/host-mutations';
 import { isDocumentUsable } from '../utils/document-liveness';
@@ -9,7 +8,10 @@ import {
   findLineHeightBasePx,
   resolvePreviewLength,
 } from './specimen-values';
-import { specimenFontStyle } from './specimen-tab-body';
+import { specimenFontStyle, type ValueFor } from './specimen-tab-body';
+import { read, type MaybeSignal } from '../zr/live';
+import { Rebuild } from '../zr/rebuild';
+import { mountOwnedRoot, type RootHandle } from '../zr/root';
 import type { SpecimenState } from './specimen-state';
 
 /** The host-mutation owner suffix for a panel's page-level specimen node. */
@@ -18,10 +20,10 @@ export function onPageSpecimenMutationOwner(cfg: PanelConfig): string {
 }
 
 interface OnPageSpecimenProps {
-  enabled: boolean;
+  enabled: MaybeSignal<boolean>;
   tab: TabConfig;
-  state: SpecimenState;
-  valueFor: (item: TierItem) => string;
+  state: MaybeSignal<SpecimenState>;
+  valueFor: MaybeSignal<ValueFor>;
   instanceConfig: PanelConfig;
 }
 
@@ -56,7 +58,7 @@ function sortedSizeEntries(tab: TabConfig, valueFor: (item: TierItem) => string)
 }
 
 function createMount(owner: string): HTMLDivElement | null {
-  // The portal is host-facing DOM.  Do not let a late Preact effect create it
+  // The mount is host-facing DOM.  Do not let a late effect create it
   // against a document that Astro has already torn down or swapped.
   if (!isDocumentUsable() || !document.body) return null;
   const node = document.createElement('div');
@@ -69,37 +71,33 @@ function createMount(owner: string): HTMLDivElement | null {
   return node;
 }
 
-function OnPageSpecimenContent({ tab, state, valueFor }: Omit<OnPageSpecimenProps, 'enabled' | 'instanceConfig'>) {
+function OnPageSpecimenContent({ tab, state, valueFor }: { tab: TabConfig; state: SpecimenState; valueFor: ValueFor }) {
   const fontStyle = specimenFontStyle(tab, valueFor);
   const sizes = sortedSizeEntries(tab, valueFor);
   const lineHeightTiers = tab.tiers.filter((tier) => tier.preview === 'line-height');
 
   return (
     <>
-      <div className="tokenpanel-on-page-specimen-heading" role="heading" aria-level={3}>
+      <div class="tokenpanel-on-page-specimen-heading" role="heading" aria-level={3}>
         <span>zdtp · type specimen (rendered in the page)</span>
         <span>edit values in the panel</span>
       </div>
       {sizes.length > 0 && (
-        <div className="tokenpanel-on-page-specimen-section">
-          <div className="tokenpanel-on-page-specimen-section-label">Scale</div>
-          {sizes.map(({ tier, item, px, value }) => (
+        <div class="tokenpanel-on-page-specimen-section">
+          <div class="tokenpanel-on-page-specimen-section-label">Scale</div>
+          {sizes.map(({ item, px, value }) => (
             <div
-              key={`size-${tier.id}-${item.id}`}
-              className="tokenpanel-on-page-specimen-row"
+              class="tokenpanel-on-page-specimen-row"
               data-testid={`on-page-specimen-size-${item.id}`}
               data-css-var={item.cssVar}
             >
-              <span className="tokenpanel-on-page-specimen-meta">
+              <span class="tokenpanel-on-page-specimen-meta">
                 <span>{item.cssVar}</span>
                 <span>{item.id} · {displayPx(px)}</span>
               </span>
               <span
-                className="tokenpanel-on-page-specimen-size-text"
-                style={{
-                  ...fontStyle,
-                  fontSize: value,
-                }}
+                class="tokenpanel-on-page-specimen-size-text"
+                style={{ ...fontStyle, 'font-size': value }}
               >
                 {state.text || '…'}
               </span>
@@ -110,30 +108,31 @@ function OnPageSpecimenContent({ tab, state, valueFor }: Omit<OnPageSpecimenProp
       {lineHeightTiers.map((tier) => {
         const basePx = findLineHeightBasePx(tab, tier, valueFor);
         return (
-          <div key={tier.id} className="tokenpanel-on-page-specimen-section">
-            <div className="tokenpanel-on-page-specimen-section-label">Line height</div>
+          <div class="tokenpanel-on-page-specimen-section">
+            <div class="tokenpanel-on-page-specimen-section-label">Line height</div>
             {tier.items.map((item) => {
               const lineHeight = valueFor(item);
               const linePx = basePx * parseFloat(lineHeight);
-              const style = {
-                ...fontStyle,
-                fontSize: `${basePx}px`,
-                lineHeight,
-                width: `${state.width}px`,
-                '--tokenpanel-specimen-line': `${linePx}px`,
-              } as CSSProperties;
               return (
                 <div
-                  key={`line-height-${item.id}`}
-                  className="tokenpanel-on-page-specimen-row is-line-height"
+                  class="tokenpanel-on-page-specimen-row is-line-height"
                   data-testid={`on-page-specimen-line-height-${item.id}`}
                   data-css-var={item.cssVar}
                 >
-                  <span className="tokenpanel-on-page-specimen-meta">
+                  <span class="tokenpanel-on-page-specimen-meta">
                     <span>{item.cssVar}</span>
                     <span>{item.id} · {Number(linePx.toFixed(1))}px line at {Number(basePx.toFixed(1))}px</span>
                   </span>
-                  <span className="tokenpanel-on-page-specimen-line-height-text" style={style}>
+                  <span
+                    class="tokenpanel-on-page-specimen-line-height-text"
+                    style={{
+                      ...fontStyle,
+                      'font-size': `${basePx}px`,
+                      'line-height': lineHeight,
+                      width: `${state.width}px`,
+                      '--tokenpanel-specimen-line': `${linePx}px`,
+                    }}
+                  >
                     {(state.text ? `${state.text} ${state.text}` : '…')}
                   </span>
                 </div>
@@ -149,29 +148,33 @@ function OnPageSpecimenContent({ tab, state, valueFor }: Omit<OnPageSpecimenProp
 /**
  * Render the read-only font specimen into the host document while enabled.
  * The mount itself is registry-owned, so destroy/Astro cleanup can remove it
- * even when the Preact tree no longer has a live root to run effect cleanup.
+ * even when the panel tree no longer has a live root to run effect cleanup.
  */
 export default function OnPageSpecimen(props: OnPageSpecimenProps) {
-  const { enabled, instanceConfig } = props;
+  const { tab, instanceConfig } = props;
   const owner = onPageSpecimenMutationOwner(instanceConfig);
-  const [mount, setMount] = useState<HTMLDivElement | null>(null);
+  const enabled = computed(() => read(props.enabled));
+  const content = computed(() => ({ state: read(props.state), valueFor: read(props.valueFor) }));
 
-  useEffect(() => {
-    if (!enabled) return;
+  getScope().effect(() => {
+    if (!enabled.value) return;
     const node = createMount(owner);
     if (!node) return;
-    setMount(node);
+    let root: RootHandle | null = mountOwnedRoot(node, function OnPageSpecimenRoot() {
+      return (
+        <Rebuild value={content}>
+          {({ state, valueFor }) => <OnPageSpecimenContent tab={tab} state={state} valueFor={valueFor} />}
+        </Rebuild>
+      );
+    }, {});
     return () => {
+      root?.unmount();
+      root = null;
       releaseHostMutations(owner);
       // `releaseHostMutations` removes the node. Keep the explicit remove as
       // a defense for a mixed-version registry that cannot see this claim.
       node.remove();
     };
-  }, [enabled, owner]);
-
-  if (!enabled || !mount || !mount.isConnected) return null;
-  return createPortal(
-    <OnPageSpecimenContent tab={props.tab} state={props.state} valueFor={props.valueFor} />,
-    mount,
-  );
+  });
+  return null;
 }

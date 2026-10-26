@@ -53,7 +53,7 @@ import PaletteReadout from './palette-readout';
 import type { TokenAddress } from '../flat/types';
 import { tokenAddressKey } from '../flat/types';
 import { matchesSearchFields } from '../../search/token-search';
-import { ModesRow, resolveModeRowSides } from '../modes-row';
+import { ModesRow, resolveModeRowSides } from '../modes-row-preact';
 
 // ---------------------------------------------------------------------------
 // Props

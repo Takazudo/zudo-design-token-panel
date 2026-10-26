@@ -1,104 +1,86 @@
-import { Fragment } from 'preact';
-import { memo, useCallback, useEffect, useRef, useState } from 'preact/compat';
+/** @jsxImportSource @takazudo/zfb/zudo-react */
+import { computed, getScope, Show, signal, type Child, type ReadonlySignal } from '@takazudo/zfb/zudo-react';
 import type { TabOverrides } from '../../apply/tier-resolver';
 import { resolveTierItemValue } from '../../apply/tier-resolver';
-import ColorField from '../../components/color-picker/color-picker-preact';
-import { RoleButton } from '../../controls/role-button-preact';
+import { ColorField } from '../../components/color-picker/color-field';
+import { RoleButton } from '../../controls/role-button';
 import TierRefSelector, { type TierRefSelectorValue } from '../../controls/tier-ref-selector';
 import TokenLabel from '../../controls/token-label';
 import { HighlightToggleButton } from '../../highlight/highlight-toggle-button';
 import { deriveCyclableUnit, nextCyclableUnit } from '../../utils/unit-cycle';
+import { Checkbox, ControlledSelect, TextInput } from '../../zr/form-controls';
+import type { PanelServices } from '../../zr/panel-services';
 import { ModesRow, resolveModeRowSides } from '../modes-row';
 import type { FlatTabEntry, RowContribution, TokenAddress } from './types';
 import { tokenAddressKey } from './types';
 
 export interface TokenRowProps {
-  entry: FlatTabEntry;
-  overrides: TabOverrides;
+  entry: ReadonlySignal<FlatTabEntry>;
+  overrides: ReadonlySignal<TabOverrides>;
   contributions?: readonly RowContribution[];
   onChange: (address: TokenAddress, next: string) => void;
   onDelete: (address: TokenAddress) => void;
+  services: PanelServices;
 }
 
-function TokenRowInner({
-  entry,
-  overrides,
-  contributions = [],
-  onChange,
-  onDelete,
-}: TokenRowProps) {
-  const { tab, tier, item, value } = entry;
+function TokenRowInner(props: TokenRowProps) {
+  const { entry, overrides, onChange, onDelete, services } = props;
+  const contributions = props.contributions ?? [];
+  // The row's token is fixed for its lifetime (FlatTab keys rows by item id);
+  // only the value moves.
+  const { tab, tier, item, address } = entry.value;
+  const value = computed(() => entry.value.value);
   const type = item.type;
   const isReadonly = item.readonly === true;
   const pill = item.pill;
   const pillValue = pill?.value ?? '';
   const customDefault = pill?.customDefault ?? '';
-  const isPill = pill ? value === pillValue : false;
-  const lastCustomRef = useRef(isPill ? customDefault : value);
-  const numeric = parseFloat(value);
-  const numericForDraft = Number.isFinite(numeric) ? numeric : 0;
-  const [numDraft, setNumDraft] = useState(String(numericForDraft));
-  const [selectDraft, setSelectDraft] = useState(value);
+  const isPill = computed(() => (pill ? value.value === pillValue : false));
 
-  useEffect(() => {
-    if (!isPill) lastCustomRef.current = value;
-  }, [isPill, value]);
-
-  useEffect(() => {
-    setNumDraft(String(Number.isFinite(parseFloat(value)) ? parseFloat(value) : 0));
-  }, [value]);
-
-  useEffect(() => {
-    setSelectDraft(value);
-  }, [value]);
-
-  const handleTogglePill = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      onChange(entry.address, event.currentTarget.checked
-        ? pillValue
-        : lastCustomRef.current || customDefault);
-    },
-    [customDefault, entry.address, onChange, pillValue],
-  );
-
-  const address = tokenAddressKey(entry.address);
-  const contributionClassNames = contributions
-    .map((contribution) => contribution.className?.(entry))
-    .filter((className): className is string => Boolean(className));
-  const rowClass = (base: string) => [base, ...contributionClassNames].join(' ');
-  const region = (name: 'leading' | 'trailing' | 'tail') => (
-    <Fragment>
-      {contributions.map((contribution) => {
-        const render = contribution[name];
-        return render ? <Fragment key={contribution.id}>{render(entry)}</Fragment> : null;
-      })}
-    </Fragment>
-  );
+  const rowClass = (base: string) => computed(() => [
+    base,
+    ...contributions
+      .map((contribution) => contribution.className?.(entry.value))
+      .filter((className): className is string => Boolean(className)),
+  ].join(' '));
+  const region = (name: 'leading' | 'trailing' | 'tail'): Child =>
+    contributions.map((contribution) => contribution[name]?.(entry) ?? null);
   const rowData = {
     'data-css-var': item.cssVar,
-    'data-address': address,
+    'data-address': tokenAddressKey(address),
   };
+  const label = () => <TokenLabel cssVar={item.cssVar} label={item.label} tooltip={services.tooltip} />;
+  const actions = () => (
+    <div class="tokenpanel-card-actions">
+      {region('trailing')}
+      <HighlightToggleButton cssVar={item.cssVar} highlight={services.highlight} />
+    </div>
+  );
 
   // Keep this branch ahead of reference-tier dispatch: an item's explicit
   // pair has precedence over whatever value its tier would otherwise select.
   if (item.modes !== undefined) {
-    const override = overrides[tier.id]?.[item.id];
+    const sides = computed(() => {
+      const override = overrides.value[tier.id]?.[item.id];
+      return resolveModeRowSides(item, override, override !== undefined);
+    });
     return (
       <ModesRow
         item={item}
-        sides={resolveModeRowSides(item, override, override !== undefined)}
-        className={rowClass('')}
+        sides={sides}
+        class={rowClass('')}
         dataTestId={`tier-item-${item.id}`}
-        address={entry.address}
+        address={address}
+        tooltip={services.tooltip}
         leading={region('leading')}
         trailing={
           <>
             {region('trailing')}
-            <HighlightToggleButton cssVar={item.cssVar} />
+            <HighlightToggleButton cssVar={item.cssVar} highlight={services.highlight} />
           </>
         }
         tail={region('tail')}
-        onChange={(next) => onChange(entry.address, next)}
+        onChange={(next) => onChange(address, next)}
       />
     );
   }
@@ -106,36 +88,36 @@ function TokenRowInner({
   if (tier.referencesTier !== undefined) {
     const refTierId = tier.referencesTier;
     const handleTierRefChange = (_itemId: string, next: TierRefSelectorValue) => {
-      if ('literal' in next) onDelete(entry.address);
-      else onChange(entry.address, next.ref.item);
+      if ('literal' in next) onDelete(address);
+      else onChange(address, next.ref.item);
     };
     return (
       <div
-        className={rowClass('tokenpanel-row')}
+        class={rowClass('tokenpanel-row')}
         data-testid={`tier-ref-row-${item.id}`}
         {...rowData}
       >
-        <div className="tokenpanel-card-label">
+        <div class="tokenpanel-card-label">
           {region('leading')}
-          <TokenLabel cssVar={item.cssVar} label={item.label} />
+          {label()}
         </div>
-        <div className="tokenpanel-card-editor">
+        <div class="tokenpanel-card-editor">
           <TierRefSelector
             tab={tab}
             tierId={tier.id}
             itemId={item.id}
-            value={{ ref: { tier: refTierId, item: value } }}
+            value={computed(() => ({ ref: { tier: refTierId, item: value.value } }))}
             onChange={handleTierRefChange}
-            previewValueFor={(ref) => {
-              const result = resolveTierItemValue(tab, refTierId, ref.item, overrides);
-              return result.kind === 'literal' ? result.value : result.targetCssVar;
-            }}
+            previewValueFor={computed(() => {
+              const current = overrides.value;
+              return (ref: { item: string }) => {
+                const result = resolveTierItemValue(tab, refTierId, ref.item, current);
+                return result.kind === 'literal' ? result.value : result.targetCssVar;
+              };
+            })}
           />
         </div>
-        <div className="tokenpanel-card-actions">
-          {region('trailing')}
-          <HighlightToggleButton cssVar={item.cssVar} />
-        </div>
+        {actions()}
         {region('tail')}
       </div>
     );
@@ -145,69 +127,80 @@ function TokenRowInner({
     case 'length':
     case 'number': {
       const unit = type.kind === 'length' ? type.unit : (type.unit ?? '');
-      const { cyclableUnits, isCyclableUnit, effectiveUnit, parsedMagnitude } = deriveCyclableUnit(
-        unit,
-        type.kind === 'length' ? type.units : undefined,
-        value,
-      );
-      const effectiveReadonly = isReadonly || (pill !== undefined && isPill);
-      const handleNumber = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const raw = event.currentTarget.value;
-        setNumDraft(raw);
+      const units = type.kind === 'length' ? type.units : undefined;
+      const cycle = computed(() => deriveCyclableUnit(unit, units, value.value));
+      const numericForDraft = () => {
+        const numeric = parseFloat(value.value);
+        return Number.isFinite(numeric) ? numeric : 0;
+      };
+      const numDraft = signal(String(numericForDraft()));
+      const lastCustom = { current: isPill.value ? customDefault : value.value };
+      const scope = getScope();
+      scope.effect(() => {
+        const current = value.value;
+        if (!isPill.value) lastCustom.current = current;
+      });
+      scope.effect(() => {
+        void value.value;
+        numDraft.value = String(numericForDraft());
+      });
+      const effectiveReadonly = computed(() => isReadonly || (pill !== undefined && isPill.value));
+      const handleNumber = (raw: string) => {
+        numDraft.value = raw;
         const next = parseFloat(raw);
         if (Number.isFinite(next)) {
-          onChange(entry.address, effectiveUnit ? `${next}${effectiveUnit}` : String(next));
+          const effectiveUnit = cycle.value.effectiveUnit;
+          onChange(address, effectiveUnit ? `${next}${effectiveUnit}` : String(next));
         }
       };
       const handleNumberBlur = () => {
-        if (!Number.isFinite(parseFloat(numDraft))) setNumDraft(String(numericForDraft));
+        if (!Number.isFinite(parseFloat(numDraft.value))) numDraft.value = String(numericForDraft());
       };
       const handleCycleUnit = () => {
+        const { cyclableUnits, effectiveUnit, parsedMagnitude } = cycle.value;
         if (!cyclableUnits || cyclableUnits.length < 2) return;
         const next = nextCyclableUnit(cyclableUnits, effectiveUnit);
-        onChange(entry.address, `${parsedMagnitude ?? numericForDraft}${next}`);
+        onChange(address, `${parsedMagnitude ?? numericForDraft()}${next}`);
       };
       const numberRow = (
         <div
-          className={pill ? 'tokenpanel-row--stacked' : rowClass('tokenpanel-row--stacked')}
+          class={pill ? 'tokenpanel-row--stacked' : rowClass('tokenpanel-row--stacked')}
           {...(!pill ? { 'data-testid': `tier-item-${item.id}` } : {})}
           {...(!pill ? rowData : {})}
         >
-          <div className="tokenpanel-row-head">
-            <div className="tokenpanel-card-label">
+          <div class="tokenpanel-row-head">
+            <div class="tokenpanel-card-label">
               {region('leading')}
-              <TokenLabel cssVar={item.cssVar} label={item.label} />
+              {label()}
             </div>
-            <div className="tokenpanel-card-editor">
-              <div className="tokenpanel-row-input-group">
-                <input
-                  type="text"
-                  inputMode="decimal"
+            <div class="tokenpanel-card-editor">
+              <div class="tokenpanel-row-input-group">
+                <TextInput
                   value={numDraft}
-                  onChange={handleNumber}
+                  onInput={handleNumber}
                   onBlur={handleNumberBlur}
                   disabled={effectiveReadonly}
-                  className="tokenpanel-row-number-input"
-                  aria-label={`${item.cssVar} value`}
+                  class="tokenpanel-row-number-input"
+                  attrs={{ inputmode: 'decimal', 'aria-label': `${item.cssVar} value` }}
                 />
-                {isCyclableUnit ? (
-                  <RoleButton
-                    onClick={handleCycleUnit}
-                    className="tokenpanel-row-unit tokenpanel-row-unit--interactive"
-                    aria-disabled={effectiveReadonly}
-                    aria-label={`${item.cssVar} unit`}
-                  >
-                    {effectiveUnit}
-                  </RoleButton>
-                ) : (
-                  unit && <span className="tokenpanel-row-unit">{unit}</span>
-                )}
+                <Show
+                  when={computed(() => cycle.value.isCyclableUnit)}
+                  fallback={() => (unit ? <span class="tokenpanel-row-unit">{unit}</span> : null)}
+                >
+                  {() => (
+                    <RoleButton
+                      onClick={handleCycleUnit}
+                      class="tokenpanel-row-unit tokenpanel-row-unit--interactive"
+                      aria-disabled={effectiveReadonly}
+                      aria-label={`${item.cssVar} unit`}
+                    >
+                      {computed(() => cycle.value.effectiveUnit)}
+                    </RoleButton>
+                  )}
+                </Show>
               </div>
             </div>
-            <div className="tokenpanel-card-actions">
-              {region('trailing')}
-              <HighlightToggleButton cssVar={item.cssVar} />
-            </div>
+            {actions()}
             {region('tail')}
           </div>
         </div>
@@ -215,19 +208,20 @@ function TokenRowInner({
       if (!pill) return numberRow;
       return (
         <div
-          className={rowClass('tokenpanel-row--column')}
+          class={rowClass('tokenpanel-row--column')}
           data-testid={`tier-item-${item.id}`}
           {...rowData}
         >
-          <label className="tokenpanel-pill-toggle">
-            <input
-              type="checkbox"
+          <label class="tokenpanel-pill-toggle">
+            <Checkbox
               checked={isPill}
-              onChange={handleTogglePill}
-              className="tokenpanel-pill-toggle-checkbox"
+              onChange={(checked) => onChange(address, checked
+                ? pillValue
+                : lastCustom.current || customDefault)}
+              class="tokenpanel-pill-toggle-checkbox"
               aria-label={`${item.cssVar} pill toggle`}
             />
-            <span className="tokenpanel-pill-toggle-text">Pill ({pillValue})</span>
+            <span class="tokenpanel-pill-toggle-text">Pill ({pillValue})</span>
           </label>
           {numberRow}
         </div>
@@ -236,29 +230,23 @@ function TokenRowInner({
 
     case 'select': {
       return (
-        <div className={rowClass('tokenpanel-row')} data-testid={`tier-item-${item.id}`} {...rowData}>
-          <div className="tokenpanel-card-label">
+        <div class={rowClass('tokenpanel-row')} data-testid={`tier-item-${item.id}`} {...rowData}>
+          <div class="tokenpanel-card-label">
             {region('leading')}
-            <TokenLabel cssVar={item.cssVar} label={item.label} />
+            {label()}
           </div>
-          <div className="tokenpanel-card-editor">
-            <select
-              value={selectDraft}
-              onChange={(event) => {
-                setSelectDraft(event.currentTarget.value);
-                onChange(entry.address, event.currentTarget.value);
-              }}
+          <div class="tokenpanel-card-editor">
+            <ControlledSelect
+              value={value}
+              onChange={(next) => onChange(address, next)}
               disabled={isReadonly}
-              className="tokenpanel-row-select"
+              class="tokenpanel-row-select"
               aria-label={`${item.cssVar} value`}
             >
-              {type.options.map((option) => <option key={option} value={option}>{option}</option>)}
-            </select>
+              {type.options.map((option) => <option value={option}>{option}</option>)}
+            </ControlledSelect>
           </div>
-          <div className="tokenpanel-card-actions">
-            {region('trailing')}
-            <HighlightToggleButton cssVar={item.cssVar} />
-          </div>
+          {actions()}
           {region('tail')}
         </div>
       );
@@ -269,29 +257,27 @@ function TokenRowInner({
     case 'content':
     case 'mask-image': {
       return (
-        <div className={rowClass('tokenpanel-row')} data-testid={`tier-item-${item.id}`} {...rowData}>
-          <div className="tokenpanel-card-label">
+        <div class={rowClass('tokenpanel-row')} data-testid={`tier-item-${item.id}`} {...rowData}>
+          <div class="tokenpanel-card-label">
             {region('leading')}
-            <TokenLabel cssVar={item.cssVar} label={item.label} />
+            {label()}
           </div>
-          <div className="tokenpanel-card-editor">
-            <input
-              type="text"
+          <div class="tokenpanel-card-editor">
+            <TextInput
               value={value}
-              onChange={(event) => onChange(entry.address, event.currentTarget.value)}
+              onInput={(next) => onChange(address, next)}
               disabled={isReadonly}
-              className="tokenpanel-row-text-input"
-              aria-label={`${item.cssVar} value`}
-              spellcheck={false}
-              autoCapitalize="off"
-              autoCorrect="off"
-              autoComplete="off"
+              class="tokenpanel-row-text-input"
+              attrs={{
+                'aria-label': `${item.cssVar} value`,
+                spellcheck: 'false',
+                autocapitalize: 'off',
+                autocomplete: 'off',
+              }}
+              rawAttrs={{ autocorrect: 'off' }}
             />
           </div>
-          <div className="tokenpanel-card-actions">
-            {region('trailing')}
-            <HighlightToggleButton cssVar={item.cssVar} />
-          </div>
+          {actions()}
           {region('tail')}
         </div>
       );
@@ -301,33 +287,30 @@ function TokenRowInner({
       const editor = type.format === 'oklch' ? (
         <ColorField
           value={value}
-          onChange={(next) => onChange(entry.address, next)}
+          onChange={(next) => onChange(address, next)}
           valueFormat="oklch"
           label={item.label}
           cssVar={item.cssVar}
           readonly={isReadonly}
         />
       ) : (
-        <input
+        <TextInput
           type="color"
           value={value}
-          onChange={(event) => onChange(entry.address, event.currentTarget.value)}
+          onInput={(next) => onChange(address, next)}
           disabled={isReadonly}
-          className="tokenpanel-row-color-input"
-          aria-label={`${item.cssVar} value`}
+          class="tokenpanel-row-color-input"
+          attrs={{ 'aria-label': `${item.cssVar} value` }}
         />
       );
       return (
-        <div className={rowClass('tokenpanel-row')} data-testid={`tier-item-${item.id}`} {...rowData}>
-          <div className="tokenpanel-card-label">
+        <div class={rowClass('tokenpanel-row')} data-testid={`tier-item-${item.id}`} {...rowData}>
+          <div class="tokenpanel-card-label">
             {region('leading')}
-            <TokenLabel cssVar={item.cssVar} label={item.label} />
+            {label()}
           </div>
-          <div className="tokenpanel-card-editor">{editor}</div>
-          <div className="tokenpanel-card-actions">
-            {region('trailing')}
-            <HighlightToggleButton cssVar={item.cssVar} />
-          </div>
+          <div class="tokenpanel-card-editor">{editor}</div>
+          {actions()}
           {region('tail')}
         </div>
       );
@@ -341,21 +324,8 @@ function TokenRowInner({
 
 /** The grid allocates this box; the row inside may query it without
  * containing an intrinsically sized editor or nesting pill containers. */
-function TokenRow(props: TokenRowProps) {
-  return <div className="tokenpanel-card"><TokenRowInner {...props} /></div>;
+export function TokenRow(props: TokenRowProps) {
+  return <div class="tokenpanel-card"><TokenRowInner {...props} /></div>;
 }
 
-export default memo(TokenRow, (previous, next) => (
-  previous.entry.item === next.entry.item
-  && previous.entry.value === next.entry.value
-  && previous.contributions === next.contributions
-  && previous.onChange === next.onChange
-  && previous.onDelete === next.onDelete
-  && (
-    previous.overrides === next.overrides
-    || (
-      previous.entry.tier.referencesTier === undefined
-      && previous.entry.item.modes === undefined
-    )
-  )
-));
+export default TokenRow;

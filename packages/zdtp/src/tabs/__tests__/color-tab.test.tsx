@@ -30,7 +30,7 @@ import { act } from '../../zr/test-utils';
 import {
   HighlightContext,
   type HighlightContextValue,
-} from '../../highlight/highlight-toggle-button';
+} from '../../highlight/highlight-toggle-button-preact';
 import { DEFAULT_HIGHLIGHT_SLOTS, type HighlightState } from '../../highlight/highlight-state';
 import ColorTab from '../color-tab';
 import { TooltipProvider } from '../../controls/tooltip-preact';

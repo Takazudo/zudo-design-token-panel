@@ -8,7 +8,7 @@ import { oklchaToHex, staticCssColorToOklcha, type Oklcha } from '../../utils/co
 import { matchesSearchFields } from '../../search/token-search';
 import type { TokenAddress } from '../flat/types';
 import { tokenAddressKey } from '../flat/types';
-import { ModesEditorFields, ModesValuePair, resolveModeRowSides, type ModeSides } from '../modes-row';
+import { ModesEditorFields, ModesValuePair, resolveModeRowSides, type ModeSides } from '../modes-row-preact';
 
 const CHIP_COLOR_AAA = '#1a7a3f';
 const CHIP_COLOR_AA = '#8a6200';

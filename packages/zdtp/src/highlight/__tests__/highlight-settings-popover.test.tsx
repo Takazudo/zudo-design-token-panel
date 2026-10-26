@@ -31,7 +31,7 @@ import { render } from 'preact';
 import { act } from '../../zr/test-utils';
 import { h } from 'preact';
 import { HighlightSettingsPopover } from '../highlight-settings-popover';
-import { HighlightContext, type HighlightContextValue } from '../highlight-toggle-button';
+import { HighlightContext, type HighlightContextValue } from '../highlight-toggle-button-preact';
 import type { HighlightState } from '../highlight-state';
 import { DEFAULT_HIGHLIGHT_SLOTS } from '../highlight-state';
 

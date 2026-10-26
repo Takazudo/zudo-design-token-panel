@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 
 /**
  * Unit tests for HighlightToggleButton and HighlightContext.
@@ -19,13 +20,12 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from '../../zr/test-utils';
-import {
-  HighlightToggleButton,
-  HighlightContext,
-  type HighlightContextValue,
-} from '../highlight-toggle-button';
+import { h, render } from 'preact';
+import { signal } from '@takazudo/zfb/zudo-react';
+import { act, cleanupZr, renderZr } from '../../zr/test-utils';
+import { createPanelServices } from '../../zr/panel-services';
+import { HighlightToggleButton } from '../highlight-toggle-button';
+import { HighlightContext, type HighlightContextValue } from '../highlight-context-preact';
 import type { HighlightState } from '../highlight-state';
 import { DEFAULT_HIGHLIGHT_SLOTS } from '../highlight-state';
 import GenericTab from '../../tabs/generic-tab';
@@ -43,6 +43,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  act(() => cleanupZr());
   act(() => render(null, container));
   document.body.removeChild(container);
   vi.restoreAllMocks();
@@ -74,12 +75,7 @@ function renderWithCtx(
   ctx: HighlightContextValue,
 ): void {
   act(() => {
-    render(
-      <HighlightContext.Provider value={ctx}>
-        <HighlightToggleButton cssVar={cssVar} />
-      </HighlightContext.Provider>,
-      container,
-    );
+    renderZr(() => <HighlightToggleButton cssVar={cssVar} highlight={signal(ctx)} />, container);
   });
 }
 
@@ -90,9 +86,10 @@ function renderWithCtx(
 describe('HighlightToggleButton — null context', () => {
   it('renders nothing when HighlightContext is null (no provider)', () => {
     act(() => {
-      render(<HighlightToggleButton cssVar="--my-token" />, container);
+      renderZr(() => <HighlightToggleButton cssVar="--my-token" highlight={signal(null)} />, container);
     });
-    expect(container.innerHTML).toBe('');
+    expect(container.children).toHaveLength(0);
+    expect(container.textContent).toBe('');
   });
 });
 
@@ -357,16 +354,14 @@ function noop() {}
 describe('GenericTab — eye button present on all row types', () => {
   function renderGenericTab(ctx: HighlightContextValue): void {
     act(() => {
-      render(
-        <HighlightContext.Provider value={ctx}>
-          <GenericTab
-            tab={GENERIC_TAB_CONFIG}
-            overrides={{}}
-            onChange={noop}
-          />
-        </HighlightContext.Provider>,
-        container,
-      );
+      renderZr(() => (
+        <GenericTab
+          tab={GENERIC_TAB_CONFIG}
+          overrides={{}}
+          onChange={noop}
+          services={createPanelServices({ highlight: signal(ctx) })}
+        />
+      ), container);
     });
   }
 
@@ -460,10 +455,9 @@ const SIZE_ITEM: TierItem = {
 describe('_generic-item-editor — eye button present (spacing/font/size via this editor)', () => {
   function renderEditor(item: TierItem, ctx: HighlightContextValue): void {
     act(() => {
+      // GenericItemEditor is still a Preact component (epic #1075).
       render(
-        <HighlightContext.Provider value={ctx}>
-          <GenericItemEditor item={item} value={item.default} onChange={noop} />
-        </HighlightContext.Provider>,
+        h(HighlightContext.Provider, { value: ctx }, h(GenericItemEditor, { item, value: item.default, onChange: noop })),
         container,
       );
     });

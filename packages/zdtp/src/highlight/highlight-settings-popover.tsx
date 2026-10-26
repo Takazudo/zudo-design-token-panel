@@ -19,7 +19,7 @@ import type { JSX } from 'preact';
 import { RoleButton } from '../controls/role-button-preact';
 import { getFixedPopoverStyle, usePopoverClose } from '../components/color-picker/index';
 import { ColorPicker } from '../components/color-picker/color-picker-preact';
-import { HighlightContext } from './highlight-toggle-button';
+import { HighlightContext } from './highlight-toggle-button-preact';
 import { Z } from '../styles/z-index-tokens';
 
 // ---------------------------------------------------------------------------

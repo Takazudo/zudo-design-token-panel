@@ -1,31 +1,36 @@
 // @vitest-environment jsdom
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 
 /**
  * Unit tests for the TokenLabel component.
  *
  * Acceptance criteria:
  *  1. Renders cssVar text.
- *  2. Attaches useTooltip: mouseenter → .tokenpanel-tooltip shows the cssVar text.
+ *  2. Attaches the shared tooltip: mouseenter → .tokenpanel-tooltip shows the cssVar text.
  *  3. Renders sub-label only when label !== cssVar.
  *  4. Uses default className 'tokenpanel-row-label' when className omitted.
  *  5. Accepts a custom className override.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { render } from 'preact';
-import { act } from '../../zr/test-utils';
-import { TooltipProvider } from '../tooltip-preact';
+import { act, cleanupZr, renderZr } from '../../zr/test-utils';
+import { createTooltipController } from '../tooltip-controller';
 import TokenLabel from '../token-label';
 
 let container: HTMLDivElement;
+let disconnect: () => void;
+let tooltip: ReturnType<typeof createTooltipController>;
 
 beforeEach(() => {
   container = document.createElement('div');
   document.body.appendChild(container);
+  tooltip = createTooltipController(document);
+  disconnect = tooltip.connect();
 });
 
 afterEach(() => {
-  act(() => render(null, container));
+  act(() => cleanupZr());
+  disconnect();
   document.body.removeChild(container);
 });
 
@@ -35,12 +40,7 @@ function renderLabel(
   className?: string,
 ): void {
   act(() => {
-    render(
-      <TooltipProvider>
-        <TokenLabel cssVar={cssVar} label={label} className={className} />
-      </TooltipProvider>,
-      container,
-    );
+    renderZr(() => <TokenLabel cssVar={cssVar} label={label} class={className} tooltip={tooltip} />, container);
   });
 }
 
@@ -71,12 +71,7 @@ describe('TokenLabel — renders cssVar text', () => {
 
   it('accepts a custom className', () => {
     act(() => {
-      render(
-        <TooltipProvider>
-          <TokenLabel cssVar="--my-token" className="custom-class" />
-        </TooltipProvider>,
-        container,
-      );
+      renderZr(() => <TokenLabel cssVar="--my-token" class="custom-class" tooltip={tooltip} />, container);
     });
     const span = container.querySelector('.custom-class') as HTMLElement;
     expect(span).not.toBeNull();
@@ -88,7 +83,7 @@ describe('TokenLabel — renders cssVar text', () => {
 // 2. Tooltip via useTooltip — mouseenter shows the cssVar text
 // ---------------------------------------------------------------------------
 
-describe('TokenLabel — useTooltip integration', () => {
+describe('TokenLabel — shared tooltip integration', () => {
   it('tooltip element is present after render', () => {
     renderLabel('--test-tooltip');
     expect(getTooltip()).not.toBeNull();

@@ -31,7 +31,7 @@ import { HighlightSettingsPopover } from '../highlight/highlight-settings-popove
 import {
   HighlightContext,
   type HighlightContextValue,
-} from '../highlight/highlight-toggle-button';
+} from '../highlight/highlight-toggle-button-preact';
 import { DEFAULT_HIGHLIGHT_SLOTS, type HighlightState } from '../highlight/highlight-state';
 import { __resetDismissLayersForTests } from '../controls/dismiss-layer';
 
