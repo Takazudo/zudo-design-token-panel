@@ -1,14 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
 import { createPortal } from 'preact/compat';
-import {
-  AltClickPicker,
-  ELEMENT_INSPECT_PICKER_FEATURE_ID,
-  type AltClickPickerHandle,
-} from '../picker';
-import { PANEL_EXCLUSION_SELECTOR } from '../highlight/find-elements';
+import type { AltClickPickerHandle } from '../picker';
 import { usePortalMount } from '../utils/use-portal-mount';
-import { buildSummary } from '../element-path/build-element-path';
 import { buildTokenIndex, type TokenIndex } from '../utils/token-index';
 import type { PanelConfig } from '../config/panel-config';
 import type { TweakState } from '../state/tweak-state';
@@ -21,11 +15,8 @@ import {
   ElementInspectContext,
   type ElementInspectContextValue,
 } from './element-inspect-context';
-import {
-  ELEMENT_INSPECT_PICKER_CLASS_NAMES,
-  ELEMENT_INSPECT_PORTAL_MOUNT_ID,
-  ElementInspectOverlay,
-} from './element-inspect-overlay';
+import { ELEMENT_INSPECT_PORTAL_MOUNT_ID } from './element-inspect-overlay';
+import { ElementInspectLayer } from './element-inspect-layer-preact';
 
 type CommitTweakState = (
   reason: string,
@@ -152,19 +143,14 @@ function ElementInspectPortal({
   }, [armed, mountNode, pickerRef]);
   if (!mountNode) return null;
   return createPortal(
-    <>
-      <AltClickPicker
-        ref={pickerRef}
-        enabled={armed}
-        featureId={ELEMENT_INSPECT_PICKER_FEATURE_ID}
-        onElementPicked={onElementPicked}
-        onArmingRevoked={onArmingRevoked}
-        classNames={ELEMENT_INSPECT_PICKER_CLASS_NAMES}
-        excludeSelector={PANEL_EXCLUSION_SELECTOR}
-        getLabelText={buildSummary}
-      />
-      <ElementInspectOverlay pinned={pinned} onPinnedDetached={onPinnedDetached} />
-    </>,
+    <ElementInspectLayer
+      armed={armed}
+      pinned={pinned}
+      pickerHandle={pickerRef}
+      onElementPicked={onElementPicked}
+      onPinnedDetached={onPinnedDetached}
+      onArmingRevoked={onArmingRevoked}
+    />,
     mountNode,
   );
 }

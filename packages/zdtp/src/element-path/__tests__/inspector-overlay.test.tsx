@@ -13,7 +13,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'preact';
 import { act } from '../../zr/test-utils';
-import { InspectorOverlay } from '../inspector-overlay';
+import { InspectorOverlay } from '../inspector-overlay-preact';
 
 // ---------------------------------------------------------------------------
 // Setup / teardown

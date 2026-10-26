@@ -1,4 +1,5 @@
 // @vitest-environment browser
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 /**
  * F33 + F24: Hostile-host CSS isolation — Level-5 automated browser gate.
  *
@@ -23,9 +24,8 @@
  * reset.
  */
 
-import { render } from 'preact';
-import type { ComponentChild } from 'preact';
-import { act } from '../zr/test-utils';
+import type { Child } from '@takazudo/zfb/zudo-react';
+import { act, cleanupZr, renderZr } from '../zr/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PanelConfig } from '../config/panel-config';
 import { __resetDismissLayersForTests } from '../controls/dismiss-layer';
@@ -37,7 +37,7 @@ import {
   PinnedSelectionOverlay,
 } from '../dom-tweaker/lazy/pinned-selection-overlay';
 import { DOM_TWEAKER_STYLE_ID } from '../dom-tweaker/lazy/style-injection';
-import { ModesRow } from '../tabs/modes-row-preact';
+import { ModesRow } from '../tabs/modes-row';
 import type { TierItem } from '../tokens/tier-model';
 
 // ---------------------------------------------------------------------------
@@ -115,12 +115,12 @@ function createSvgInside(parent: HTMLElement): SVGSVGElement {
   return svg;
 }
 
-function renderInDomTweakerMount(children: ComponentChild): HTMLDivElement {
+function renderInDomTweakerMount(children: () => Child): HTMLDivElement {
   const mount = createElement('') as HTMLDivElement;
   mount.id = DOM_TWEAKER_PORTAL_MOUNT_ID;
   renderedContainers.push(mount);
   act(() => {
-    render(children, mount);
+    renderZr(children, mount);
   });
   return mount;
 }
@@ -168,11 +168,7 @@ async function injectPanelCss(): Promise<void> {
 }
 
 function cleanupAll(): void {
-  for (const container of renderedContainers) {
-    act(() => {
-      render(null, container);
-    });
-  }
+  cleanupZr();
   renderedContainers = [];
   __resetDismissLayersForTests();
   document.getElementById(DOM_TWEAKER_STYLE_ID)?.remove();
@@ -441,7 +437,7 @@ describe('F33 — panel chrome survives full hostile CSS environment', () => {
       const onRemoveClass = vi.fn();
       const onClose = vi.fn();
 
-      renderInDomTweakerMount(
+      renderInDomTweakerMount(() => (
         <>
           <PinnedSelectionOverlay target={target} />
           <EditIconButton target={target} onOpenEditor={onOpenEditor} />
@@ -454,8 +450,8 @@ describe('F33 — panel chrome survives full hostile CSS environment', () => {
             onRemoveClass={onRemoveClass}
             onClose={onClose}
           />
-        </>,
-      );
+        </>
+      ));
       await frame();
 
       const overlay = document.querySelector<HTMLElement>(
@@ -546,15 +542,15 @@ describe('F33 — panel chrome survives full hostile CSS environment', () => {
       const onResetAll = vi.fn();
       const onClose = vi.fn();
 
-      renderInDomTweakerMount(
+      renderInDomTweakerMount(() => (
         <DiffExportModal
           diffText={diffText}
           onCopy={onCopy}
           onResetAll={onResetAll}
           onClose={onClose}
           instanceConfig={domTweakerTestConfig()}
-        />,
-      );
+        />
+      ));
       await frame();
 
       const dialog = document.querySelector<HTMLDialogElement>(
@@ -620,7 +616,7 @@ describe('F33 — panel chrome survives full hostile CSS environment', () => {
       const shell = createElement('tokenpanel-shell') as HTMLDivElement;
       renderedContainers.push(shell);
       act(() => {
-        render(<ModesRow item={MODE_ITEM} onChange={onChange} />, shell);
+        renderZr(() => <ModesRow item={MODE_ITEM} tooltip={null} onChange={onChange} />, shell);
       });
       return shell;
     }

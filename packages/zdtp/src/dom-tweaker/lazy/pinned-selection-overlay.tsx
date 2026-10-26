@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
-import type { JSX } from 'preact';
+/** @jsxImportSource @takazudo/zfb/zudo-react */
+import { computed, getScope, Show, signal, type ReadonlySignal } from '@takazudo/zfb/zudo-react';
+import { read, type MaybeSignal, type Reactive } from '../../zr/live';
 import { ensureDomTweakerStyles } from './style-injection';
 
 export interface TrackedElementRect {
@@ -54,43 +55,44 @@ function rectsEqual(a: TrackedElementRect | null, b: TrackedElementRect): boolea
   );
 }
 
-export function useTrackedElementRect(
-  target: Element | null,
-  visible = true,
+/**
+ * Track `target`'s viewport rect every frame while visible; null while hidden,
+ * absent, or detached. Call during component setup.
+ */
+export function trackElementRect(
+  target: MaybeSignal<Element | null>,
+  visible: MaybeSignal<boolean | undefined>,
   onTargetDisconnected?: () => void,
-): TrackedElementRect | null {
-  const [rect, setRect] = useState<TrackedElementRect | null>(null);
-  const rectRef = useRef<TrackedElementRect | null>(null);
-  const disconnectedNotifiedRef = useRef(false);
-  rectRef.current = rect;
+): ReadonlySignal<TrackedElementRect | null> {
+  const rect = signal<TrackedElementRect | null>(null);
 
-  useEffect(() => {
-    if (!visible || !target) {
-      setRect(null);
-      disconnectedNotifiedRef.current = false;
+  getScope().effect(() => {
+    const trackedTarget = read(target);
+    if ((read(visible) ?? true) === false || !trackedTarget) {
+      rect.value = null;
       return;
     }
 
-    const trackedTarget = target;
     let rafId = 0;
     let cancelled = false;
-    disconnectedNotifiedRef.current = false;
+    let disconnectedNotified = false;
+    let current: TrackedElementRect | null = null;
 
     function tick(): void {
       if (cancelled) return;
-      if (!trackedTarget.isConnected) {
-        setRect(null);
-        if (!disconnectedNotifiedRef.current) {
-          disconnectedNotifiedRef.current = true;
+      if (!trackedTarget!.isConnected) {
+        rect.value = null;
+        if (!disconnectedNotified) {
+          disconnectedNotified = true;
           onTargetDisconnected?.();
         }
         return;
       }
 
-      const next = rectFromDomRect(trackedTarget.getBoundingClientRect());
-      if (!rectsEqual(rectRef.current, next)) {
-        rectRef.current = next;
-        setRect(next);
+      const next = rectFromDomRect(trackedTarget!.getBoundingClientRect());
+      if (!rectsEqual(current, next)) {
+        current = next;
+        rect.value = next;
       }
       rafId = window.requestAnimationFrame(tick);
     }
@@ -100,12 +102,12 @@ export function useTrackedElementRect(
       cancelled = true;
       window.cancelAnimationFrame(rafId);
     };
-  }, [target, visible, onTargetDisconnected]);
+  });
 
   return rect;
 }
 
-export function rectToFixedStyle(rect: TrackedElementRect): JSX.CSSProperties {
+export function rectToFixedStyle(rect: TrackedElementRect): Record<string, string> {
   return {
     left: `${rect.left}px`,
     top: `${rect.top}px`,
@@ -114,7 +116,7 @@ export function rectToFixedStyle(rect: TrackedElementRect): JSX.CSSProperties {
   };
 }
 
-function editButtonStyle(rect: TrackedElementRect): JSX.CSSProperties {
+function editButtonStyle(rect: TrackedElementRect): Record<string, string> {
   const size = 28;
   const inset = 10;
   return {
@@ -123,40 +125,36 @@ function editButtonStyle(rect: TrackedElementRect): JSX.CSSProperties {
   };
 }
 
-export function PinnedSelectionOverlay({
-  target,
-  visible = true,
-  onTargetDisconnected,
-}: PinnedSelectionOverlayProps): JSX.Element | null {
-  useEffect(() => {
+export function PinnedSelectionOverlay(
+  props: Reactive<PinnedSelectionOverlayProps, 'onTargetDisconnected'>,
+) {
+  getScope().onActivate(() => {
     ensureDomTweakerStyles();
-  }, []);
+  });
 
-  const rect = useTrackedElementRect(target, visible, onTargetDisconnected);
-  if (!rect) return null;
+  const rect = trackElementRect(props.target, props.visible, props.onTargetDisconnected);
 
   return (
-    <div
-      aria-hidden="true"
-      className="tokenpanel-domtweaker-pinned-box"
-      data-zdtp-dom-tweaker-overlay=""
-      style={rectToFixedStyle(rect)}
-    />
+    <Show when={computed(() => rect.value !== null)}>
+      {() => (
+        <div
+          aria-hidden="true"
+          class="tokenpanel-domtweaker-pinned-box"
+          data-zdtp-dom-tweaker-overlay=""
+          style={computed(() => (rect.value ? rectToFixedStyle(rect.value) : {}))}
+        />
+      )}
+    </Show>
   );
 }
 
-export function EditIconButton({
-  target,
-  visible = true,
-  onOpenEditor,
-  label = 'Edit classes for selected element',
-}: EditIconButtonProps): JSX.Element | null {
-  useEffect(() => {
+export function EditIconButton(props: Reactive<EditIconButtonProps, 'onOpenEditor' | 'label'>) {
+  const { onOpenEditor, label = 'Edit classes for selected element' } = props;
+  getScope().onActivate(() => {
     ensureDomTweakerStyles();
-  }, []);
+  });
 
-  const rect = useTrackedElementRect(target, visible);
-  if (!rect) return null;
+  const rect = trackElementRect(props.target, props.visible);
 
   function handleKeyDown(e: KeyboardEvent): void {
     if (e.key !== 'Enter' && e.key !== ' ') return;
@@ -165,17 +163,21 @@ export function EditIconButton({
   }
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      className="tokenpanel-domtweaker-edit-button"
-      aria-label={label}
-      title={label}
-      onClick={onOpenEditor}
-      onKeyDown={handleKeyDown}
-      style={editButtonStyle(rect)}
-    >
-      ✎
-    </div>
+    <Show when={computed(() => rect.value !== null)}>
+      {() => (
+        <div
+          role="button"
+          tabindex={0}
+          class="tokenpanel-domtweaker-edit-button"
+          aria-label={label}
+          title={label}
+          on:click={onOpenEditor}
+          on:keydown={handleKeyDown}
+          style={computed(() => (rect.value ? editButtonStyle(rect.value) : {}))}
+        >
+          ✎
+        </div>
+      )}
+    </Show>
   );
 }

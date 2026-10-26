@@ -13,7 +13,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'preact';
 import { act } from '../../zr/test-utils';
-import { HighlightOverlay, type HighlightOverlayItem } from '../highlight-overlay';
+import type { HighlightOverlayItem } from '../highlight-overlay';
+import { HighlightOverlay } from '../highlight-overlay-preact';
 import { Z } from '../../styles/z-index-tokens';
 
 // ---------------------------------------------------------------------------
