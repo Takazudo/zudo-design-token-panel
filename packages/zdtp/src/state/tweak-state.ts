@@ -1840,6 +1840,8 @@ export function applyFullState(state: TweakState, cfg?: PanelConfig) {
   applyNonColorSlicesImpl(state, config);
 }
 
+const BUILTIN_TAB_IDS = new Set(['color', 'color-secondary', 'spacing', 'font', 'size']);
+
 /**
  * Apply the non-color slices (spacing / typography / size / generic-tab
  * overrides), plus explicit manifest color mode defaults. Dense scheme seeds
@@ -1870,7 +1872,7 @@ function applyNonColorSlicesImpl(state: TweakState, config: PanelConfig) {
   // `applyTabOverridesFlat` takes a flat `TokenOverrides` (itemId → value),
   // so we flatten each tab's tier map before passing it through.
   for (const tab of config.tabs) {
-    if (['color', 'color-secondary', 'spacing', 'font', 'size'].includes(tab.id)) continue;
+    if (BUILTIN_TAB_IDS.has(tab.id)) continue;
     const modesOnly = state.tabs?.[tab.id] === undefined;
     if (modesOnly && !hasManifestModes([tab])) continue;
     const flatOverrides: TokenOverrides = {};
@@ -1881,6 +1883,44 @@ function applyNonColorSlicesImpl(state: TweakState, config: PanelConfig) {
     }
     applyTabOverridesFlat(config.tabs, tab.id, flatOverrides, sink, config.storagePrefix, modesOnly);
   }
+}
+
+/**
+ * Clear the inline vars a generic tab's full apply pass wrote when the tab
+ * drops out of `state.tabs` between two states (undo, revert, replace import).
+ * The next apply treats that tab as never stored (`modesOnly`) and skips every
+ * item without `modes`, so without this the previous override (and any
+ * reference-tier `var()` write) would stay on `:root`. Mode-pair items are left
+ * for that pass to re-write.
+ */
+export function clearDroppedGenericTabOverrides(
+  previous: TweakState,
+  next: TweakState,
+  cfg?: PanelConfig,
+) {
+  const config = cfg ?? getPanelConfig();
+  const names: string[] = [];
+  for (const tab of config.tabs) {
+    if (BUILTIN_TAB_IDS.has(tab.id)) continue;
+    if (previous.tabs?.[tab.id] === undefined || next.tabs?.[tab.id] !== undefined) continue;
+    for (const tier of tab.tiers) {
+      for (const item of tier.items) {
+        if (!item.readonly && !item.modes) names.push(item.cssVar);
+      }
+    }
+  }
+  if (names.length === 0) return;
+  const sink = config.applySink;
+  if (sink) {
+    try {
+      sink.clear(names);
+    } catch (err) {
+      console.warn('[design-token-panel] applySink.clear threw; falling back silently.', err);
+    }
+    return;
+  }
+  const root = document.documentElement;
+  for (const name of names) root.style.removeProperty(name);
 }
 
 /**

@@ -4,6 +4,7 @@ import { createTweakHistory, type TweakHistory } from './history';
 import {
   applyFullState,
   clearAppliedColorStyles,
+  clearDroppedGenericTabOverrides,
   getActiveColorIdentity,
   getActivePrimaryCluster,
   savePersistedState,
@@ -81,9 +82,15 @@ export function createTweakStateTransaction({
   setState,
   history = createTweakHistory(),
 }: TweakStateTransactionOptions): TweakStateTransaction {
-  const restore = (next: TweakState) => {
-    clearAppliedColorStyles(undefined, undefined, cfg);
+  const applyTransition = (previous: TweakState | null, next: TweakState) => {
+    if (previous) clearDroppedGenericTabOverrides(previous, next, cfg);
     applyFullState(next, cfg);
+  };
+
+  const restore = (next: TweakState) => {
+    const previous = getState();
+    clearAppliedColorStyles(undefined, undefined, cfg);
+    applyTransition(previous, next);
     savePersistedState(next, undefined, cfg);
     setState(next);
   };
@@ -101,7 +108,8 @@ export function createTweakStateTransaction({
       typeof updaterOrState === 'function' ? updaterOrState(before as TweakState) : updaterOrState;
 
     opts.beforeApply?.();
-    if (opts.apply !== false) (opts.apply ?? ((value) => applyFullState(value, cfg)))(next);
+    if (opts.apply === undefined) applyTransition(before, next);
+    else if (opts.apply !== false) opts.apply(next);
     if (opts.save !== false)
       (opts.save ?? ((value) => savePersistedState(value, undefined, cfg)))(next);
     setState(next);
