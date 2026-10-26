@@ -85,7 +85,7 @@ try {
   evidence.tarball = { name: tarballs[0], sha256: hash(await readFile(tarball)) };
   await cp(join(root, 'scripts/fixtures/dashboard-consumer'), scratch, { recursive: true });
   await writeFile(join(scratch, 'package.json'), JSON.stringify({ private: true, type: 'module', scripts: { build: 'tsc -p tsconfig.json && node build.mjs' } }, null, 2));
-  const peers = ['preact', 'preact-render-to-string', 'typescript'];
+  const peers = ['@takazudo/zfb', 'typescript'];
   evidence.versions = Object.fromEntries(await Promise.all(peers.map(async (name) => [name, JSON.parse(await readFile(join(panel, 'node_modules', name, 'package.json'), 'utf8')).version])));
   await run('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--package-lock=false', tarball,
     ...peers.map((name) => `${name}@${evidence.versions[name]}`)], scratch);
@@ -98,9 +98,8 @@ try {
   evidence.resolutions.compiler = compiler;
   for (const [name, path] of Object.entries(evidence.resolutions)) assert.ok(path.startsWith(join(scratch, 'node_modules') + sep), `${name} escaped isolated installation`);
   assert.deepEqual(await readFile(join(scratch, 'dist/dashboard.css')), await readFile(evidence.resolutions.styles), 'Copied public CSS bytes');
-  // require/import conditions legitimately select different files in Preact.
   // Compare package identity while retaining both entry paths as evidence.
-  assert.equal(evidence.resolutions.dashboardPreactPackage, evidence.resolutions.preactPackage, 'Dashboard and app share Preact');
+  assert.equal(evidence.resolutions.dashboardZfbPackage, evidence.resolutions.zfbPackage, 'Dashboard and app share zudo-react');
   evidence.cssSha256 = hash(await readFile(evidence.resolutions.styles));
   const require = createRequire(join(panel, 'package.json'));
   const { chromium } = require('playwright');

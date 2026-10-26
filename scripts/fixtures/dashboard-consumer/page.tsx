@@ -4,7 +4,7 @@ import { tokenTabs, previewOverrides, previewText } from './token-data.js';
 export default function Page({ theme = 'light' }: { theme?: 'light' | 'dark' }) {
   return <html lang="en" data-theme={theme}>
     <head>
-      <meta charSet="utf-8" />
+      <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>External dashboard consumer</title>
       <link rel="stylesheet" href="./host.css" />
