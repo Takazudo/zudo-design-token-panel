@@ -16,13 +16,13 @@
  * Callers must never nest this inside a `<label>`, where activating the icon
  * would also toggle the label's control.
  *
- * Known trade-off: `tooltip.tsx` renders a single shared tooltip DOM node,
+ * Known trade-off: `tooltip-controller.ts` renders a single shared tooltip DOM node,
  * so pinning icon A then hovering/pinning icon B silently replaces A's
  * visible content with B's — A's `pinned`/`is-pinned` state persists until
  * A is next clicked or Escape is pressed, even though its tooltip is no
  * longer the one on screen. Acceptable for this panel's single-tooltip
  * architecture; not worth a cross-instance pin registry for a "?" hint.
- * The same applies to a panel/window resize: `tooltip.tsx` hides the shared
+ * The same applies to a panel/window resize: `tooltip-controller.ts` hides the shared
  * tooltip on resize (its ResizeObserver + window-resize handlers), but this
  * component's local `pinned` state only clears on click/Escape — so after a
  * resize the icon may briefly keep `is-pinned`/`aria-pressed` with no tooltip
@@ -31,7 +31,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
-import { useTooltip } from './tooltip';
+import { useTooltip } from './tooltip-preact';
 
 // ---------------------------------------------------------------------------
 // Copy — single source of truth for the Color tab's section-level semantic

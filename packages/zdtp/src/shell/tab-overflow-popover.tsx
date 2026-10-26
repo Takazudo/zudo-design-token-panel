@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/compat';
 import type { JSX } from 'preact';
 import { usePopoverClose } from '../components/color-picker';
-import { RoleButton } from '../controls/role-button';
+import { RoleButton } from '../controls/role-button-preact';
 import { useLayerRegistration } from './layer-activity';
 import type { ShellTab } from './tab-bar';
 

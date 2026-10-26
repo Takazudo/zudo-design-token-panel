@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'preact/compat';
 import type { ComponentChildren } from 'preact';
-import { RoleButton } from '../controls/role-button';
+import { RoleButton } from '../controls/role-button-preact';
 import type { TierConfig } from '../tokens/tier-model';
 import {
   add,

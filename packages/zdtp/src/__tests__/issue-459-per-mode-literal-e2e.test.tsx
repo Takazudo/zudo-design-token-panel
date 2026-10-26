@@ -55,7 +55,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../zr/test-utils';
 
 import ColorTab from '../tabs/color-tab';
 import DesignTokenTweakPanel from '../panel';
@@ -100,7 +100,7 @@ import {
   type HighlightContextValue,
 } from '../highlight/highlight-toggle-button';
 import { DEFAULT_HIGHLIGHT_SLOTS, type HighlightState } from '../highlight/highlight-state';
-import { TooltipProvider } from '../controls/tooltip';
+import { TooltipProvider } from '../controls/tooltip-preact';
 import type { TabConfig } from '../tokens/tier-model';
 import type { PersistColor, PersistSecondary } from '../state/persist';
 import { FIXTURE_TABS, FIXTURE_PANEL_CONFIG, flushEffects } from './_test-helpers';

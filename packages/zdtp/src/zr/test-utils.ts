@@ -1,4 +1,5 @@
 import { flush, type Child } from '@takazudo/zfb/zudo-react';
+import { act as preactAct } from 'preact/test-utils';
 import { mountOwnedRoot, type RootHandle } from './root';
 
 export { flush } from '@takazudo/zfb/zudo-react';
@@ -37,4 +38,46 @@ export function cleanupZr(): void {
 export async function settle(): Promise<void> {
   await flush();
   await flush();
+}
+
+/**
+ * Run `run` and synchronously settle both runtimes, like Preact's `act`.
+ * zudo-react schedules its flush with the global `queueMicrotask`, so the
+ * microtasks queued meanwhile are captured and drained inline, with Preact's
+ * render queue flushed after each round in case a callback set Preact state.
+ */
+function settleSync(run: () => void): void {
+  const queue: VoidFunction[] = [];
+  const original = globalThis.queueMicrotask;
+  globalThis.queueMicrotask = (callback) => {
+    queue.push(callback);
+  };
+  try {
+    preactAct(run);
+    while (queue.length > 0) {
+      preactAct(() => {
+        while (queue.length > 0) queue.shift()!();
+      });
+    }
+  } finally {
+    globalThis.queueMicrotask = original;
+  }
+}
+
+/**
+ * Test-only `act` covering both Preact and zudo-react: DOM updates from
+ * signal writes inside `fn` are applied before `act` returns (or resolves).
+ */
+export function act(fn: () => void): void;
+export function act(fn: () => Promise<unknown>): Promise<void>;
+export function act(fn: () => void | Promise<unknown>): void | Promise<void> {
+  let pending: Promise<unknown> | undefined;
+  settleSync(() => {
+    const result = fn();
+    if (result && typeof (result as Promise<unknown>).then === 'function') {
+      pending = result as Promise<unknown>;
+    }
+  });
+  if (!pending) return;
+  return pending.then(() => settleSync(() => {}));
 }

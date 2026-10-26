@@ -44,7 +44,7 @@ import {
   staticCssColorToOklcha,
 } from '../../utils/color-oklch';
 import { isCssExpression, resolveCssColorInHost } from '../../utils/resolve-css-color';
-import { RoleButton } from '../../controls/role-button';
+import { RoleButton } from '../../controls/role-button-preact';
 import { CustomSlider as CustomSliderZr, type CustomSliderProps, type SliderConfig } from './custom-slider';
 import { bridgeToPreact } from '../../zr/preact-bridge';
 

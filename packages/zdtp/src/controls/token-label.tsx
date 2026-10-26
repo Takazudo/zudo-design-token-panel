@@ -1,5 +1,5 @@
 import { memo } from 'preact/compat';
-import { useTooltip } from './tooltip';
+import { useTooltip } from './tooltip-preact';
 
 export interface TokenLabelProps {
   cssVar: string;

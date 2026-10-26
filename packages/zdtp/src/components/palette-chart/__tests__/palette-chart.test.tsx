@@ -32,7 +32,7 @@ if (typeof PointerEvent === 'undefined') {
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../../../zr/test-utils';
 import { PaletteChart } from '../palette-chart';
 import type { Channel } from '../palette-chart';
 import type { Oklcha } from '../../../utils/color-oklch';

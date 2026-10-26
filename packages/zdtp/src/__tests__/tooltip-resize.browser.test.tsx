@@ -3,14 +3,14 @@
  * panel resize.
  *
  * Bug: the tooltip's top/left is computed from `triggerEl.getBoundingClientRect()`
- * inside a render-driven `useEffect` (tooltip.tsx). Grip-drag resize
+ * inside a render-driven `useEffect` (tooltip-controller.ts). Grip-drag resize
  * (panel.tsx's `handleResizeStart`) writes `.tokenpanel-shell`'s width/height
  * directly to the DOM WITHOUT a Preact re-render (perf choice), so a tooltip
  * that is already visible and never left its trigger (no mouseleave/mouseenter
  * cycle) had no signal telling it to recompute — it just sat at the
  * pre-resize coordinates.
  *
- * Fix under test: while a tooltip is visible, tooltip.tsx observes the
+ * Fix under test: while a tooltip is visible, tooltip-controller.ts observes the
  * trigger's `.tokenpanel-shell` ancestor via a real ResizeObserver and also
  * listens for window 'resize' — both hide the tooltip (same UX as the
  * existing scroll-hide behavior), so a stale position is never shown; the
@@ -18,7 +18,7 @@
  *
  * Caveat that shaped these tests: ResizeObserver always delivers one
  * "initial" callback right after `observe()`, even with zero actual resize
- * (no prior size to diff against). tooltip.tsx guards against that with a
+ * (no prior size to diff against). tooltip-controller.ts guards against that with a
  * `primed` flag so a bare hover doesn't hide the tooltip it just showed —
  * the first test below is the regression test for that guard.
  *
@@ -35,7 +35,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../zr/test-utils';
 import DesignTokenTweakPanel from '../panel';
 import { getOpenKey, getPositionKey, getSizeKey } from '../state/tweak-state';
 import { FIXTURE_PANEL_CONFIG, flushEffects } from './_test-helpers';
@@ -123,7 +123,7 @@ describe('tooltip — hides on actual panel grip-drag resize (#516)', () => {
     // size to diff the newly-observed target against. A naive
     // `new ResizeObserver(() => hideAll())` would hide the tooltip on every
     // hover, not just on a real resize. This is the regression test for
-    // that bug: it fails without the guard in tooltip.tsx and passes with
+    // that bug: it fails without the guard in tooltip-controller.ts and passes with
     // it. Real Chromium is required here — the initial delivery is
     // asynchronous (fires ~1 frame after observe()), so a synchronous
     // assertion right after mouseenter (as in the tests below) would not
@@ -226,7 +226,7 @@ describe('tooltip — hides on actual panel grip-drag resize (#516)', () => {
     const tipRect = tooltip.getBoundingClientRect();
 
     // Correct-position assertion: the tip must be immediately adjacent
-    // (within the 6px gap tooltip.tsx uses, plus a little slack for
+    // (within the 6px gap tooltip-controller.ts uses, plus a little slack for
     // sub-pixel rounding) to the trigger's CURRENT (post-resize) rect —
     // either directly above or directly below it. If the fix regressed and
     // the tooltip re-showed at a cached pre-resize rect instead of a fresh

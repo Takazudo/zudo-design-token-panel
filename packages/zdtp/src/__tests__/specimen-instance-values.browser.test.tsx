@@ -1,6 +1,6 @@
 /** Real Chromium regression for #861: overlapping host variables and an iframe sink. */
 
-import { act } from 'preact/test-utils';
+import { act } from '../zr/test-utils';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { __resetInstanceBindingsForTests } from '../index';
 import { configurePanel, __resetPanelConfigForTests, panelRootId, type PanelConfig } from '../config/panel-config';

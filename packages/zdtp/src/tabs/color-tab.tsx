@@ -60,9 +60,9 @@ import { resolveColorClusterFromTab } from '../config/cluster-config';
 import type { TabConfig, TierConfig, TierItem } from '../tokens/tier-model';
 import type { PersistColor, PersistSecondary } from '../state/persist';
 import { HighlightToggleButton } from '../highlight/highlight-toggle-button';
-import { RoleButton } from '../controls/role-button';
+import { RoleButton } from '../controls/role-button-preact';
 import { TokenLabel } from '../controls/token-label';
-import { useTooltip } from '../controls/tooltip';
+import { useTooltip } from '../controls/tooltip-preact';
 import { HelpIcon, SEMANTIC_TOKENS_HELP_TEXT } from '../controls/help-icon';
 import TierRefSelector, {
   type TierRefSelectorValue,

@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback, useRef, useId, useMemo } from 'preact/compat';
 import type { RefObject } from 'preact';
-import { ExportModal } from './export-modal';
-import { ImportModal } from './import-modal';
-import { ApplyModal, flattenApplyOverrides } from './apply-modal';
+import { ApplyModal, ExportModal, ImportModal } from './modals-preact';
+import { flattenApplyOverrides } from './apply-modal';
 import { loadLastApplied, saveLastApplied, unsavedCssVars } from './apply/last-applied';
 import { reconcileApplied } from './apply/reconcile-applied';
-import { RoleButton } from './controls/role-button';
+import { RoleButton } from './controls/role-button-preact';
 import { HighlightSettingsPopover } from './highlight/highlight-settings-popover';
 import { HighlightOrchestrator } from './highlight/highlight-orchestrator';
 import { TokenChainProvider } from './chain';
@@ -65,7 +64,7 @@ import GenericTab from './tabs/generic-tab';
 import PaletteTab from './tabs/palette/palette-tab';
 import NotesTab from './tabs/notes-tab';
 import type { BulkPatchEntry } from './bulk';
-import { TooltipProvider } from './controls/tooltip';
+import { TooltipProvider } from './controls/tooltip-preact';
 import {
   getPanelConfig,
   isApplyConfigured,

@@ -14,7 +14,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../zr/test-utils';
 import GenericTab from '../tabs/generic-tab';
 import type { TabConfig } from '../tokens/tier-model';
 import type { TabOverrides } from '../apply/tier-resolver';

@@ -15,7 +15,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { options, render, type VNode } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../../zr/test-utils';
 import PaletteCheckView from '../palette/palette-check-view';
 import type { ColorFieldProps } from '../../components/color-picker/color-field';
 import type { TabConfig } from '../../tokens/tier-model';

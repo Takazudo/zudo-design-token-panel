@@ -10,7 +10,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { options, type VNode } from 'preact';
 import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../../zr/test-utils';
 import type { ColorFieldProps } from '../../components/color-picker/color-field';
 import type { TierItem } from '../../tokens/tier-model';
 import {

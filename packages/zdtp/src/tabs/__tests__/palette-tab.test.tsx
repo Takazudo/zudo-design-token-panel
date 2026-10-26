@@ -16,7 +16,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../../zr/test-utils';
 import PaletteTab from '../palette/palette-tab';
 import { flattenPaletteTiers, groupPaletteTiers } from '../palette/palette-tab';
 import { assertValidPanelConfig } from '../../config/panel-config';

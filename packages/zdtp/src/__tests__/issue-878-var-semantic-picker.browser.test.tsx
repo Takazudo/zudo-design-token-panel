@@ -10,7 +10,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../zr/test-utils';
 
 import DesignTokenTweakPanel from '../panel';
 import { getActivePrimaryCluster, initColorFromScheme, loadPersistedState } from '../state/tweak-state';

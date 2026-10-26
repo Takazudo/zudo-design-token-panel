@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../test-utils';
 import { bridgeToPreact } from '../preact-bridge';
 import { settle } from '../test-utils';
 import { Widget, widgetCleanups, type WidgetProps } from './zr-widget';

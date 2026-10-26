@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act } from 'preact/test-utils';
+import { act } from '../../zr/test-utils';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { __resetInstanceBindingsForTests } from '../../index';
 import { configurePanel, __resetPanelConfigForTests, panelRootId, type PanelConfig } from '../../config/panel-config';

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 
 /**
  * ApplyModal dismissal contract (#446 F13).
@@ -11,8 +12,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act, cleanupZr, renderZr } from '../zr/test-utils';
 import { ApplyModal } from '../apply-modal';
 import { __resetPanelConfigForTests } from '../config/panel-config';
 import { installFixturePanelConfig, FIXTURE_CLUSTER, FIXTURE_TABS } from './_test-helpers';
@@ -92,16 +92,14 @@ function primaryButton(): HTMLElement {
 
 async function renderAndSucceed(onClose: () => void, onApplied: () => void): Promise<void> {
   act(() => {
-    render(
-      <ApplyModal
+    renderZr(() => <ApplyModal
         state={stateWithTweak()}
         colorDefaults={colorDefaults()}
         open={true}
         onClose={onClose}
         onApplied={onApplied}
       />,
-      container,
-    );
+      container, );
   });
   // Confirmation is unavailable until the exact dry-run preview settles.
   await flush();
@@ -121,7 +119,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => render(null, container));
+  act(() => cleanupZr());
   container.remove();
   __resetPanelConfigForTests();
   globalThis.fetch = originalFetch;
@@ -210,16 +208,14 @@ describe('ApplyModal applying phase — cannot be dismissed mid-fetch', () => {
 
   async function renderAndStartApplying(onClose: () => void): Promise<void> {
     act(() => {
-      render(
-        <ApplyModal
+      renderZr(() => <ApplyModal
           state={stateWithTweak()}
           colorDefaults={colorDefaults()}
           open={true}
           onClose={onClose}
           onApplied={vi.fn()}
         />,
-        container,
-      );
+        container, );
     });
     await flush();
     await act(async () => {

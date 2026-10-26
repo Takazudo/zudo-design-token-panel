@@ -1,10 +1,10 @@
 // @vitest-environment browser
 
 import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../../zr/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PanelConfig } from '../../config/panel-config';
-import { RoleButton } from '../../controls/role-button';
+import { RoleButton } from '../../controls/role-button-preact';
 import FontTab from '../../tabs/font-tab';
 import type { RowContribution } from '../../tabs/flat/types';
 import type { TabConfig } from '../../tokens/tier-model';

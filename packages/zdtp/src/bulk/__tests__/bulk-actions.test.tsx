@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../../zr/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { TabConfig } from '../../tokens/tier-model';
 import FlatTab from '../../tabs/flat/flat-tab';

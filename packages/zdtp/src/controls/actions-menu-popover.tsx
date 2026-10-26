@@ -12,7 +12,7 @@
 
 import { useRef } from 'preact/compat';
 import type { ComponentChildren, JSX } from 'preact';
-import { RoleButton } from './role-button';
+import { RoleButton } from './role-button-preact';
 import { usePopoverClose } from '../components/color-picker/index';
 
 export interface ActionsMenuAction {

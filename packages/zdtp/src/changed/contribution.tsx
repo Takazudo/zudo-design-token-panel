@@ -15,7 +15,7 @@ import {
 } from '../utils/token-diff';
 import type { TokenIndex, TokenAddress } from '../utils/token-index';
 import type { RowContribution } from '../tabs/flat/types';
-import { RoleButton } from '../controls/role-button';
+import { RoleButton } from '../controls/role-button-preact';
 
 export interface ChangedContributionOptions {
   index: TokenIndex;

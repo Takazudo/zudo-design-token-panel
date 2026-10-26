@@ -1,5 +1,5 @@
 import { useRef } from 'preact/compat';
-import { RoleButton } from '../controls/role-button';
+import { RoleButton } from '../controls/role-button-preact';
 import { useLayerActivity } from '../shell/layer-activity';
 import { useShortcut } from '../shell/shortcut-dispatcher';
 

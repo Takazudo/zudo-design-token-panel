@@ -1,3 +1,4 @@
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 /**
  * Export modal — renders the current `TweakState` as a design-tokens JSON
  * document (`serialize()` emits `SCHEMA_V2` or opportunistically `SCHEMA_V3`
@@ -23,9 +24,12 @@
  * `close` event — and thus `onClose` — fires exactly once per dismissal.
  */
 
-import { useState, useEffect, useMemo, useRef, useId } from 'preact/compat';
-import { useDialogBackdropClose } from './controls/use-dialog-backdrop-close';
+import { computed, getScope, signal } from '@takazudo/zfb/zudo-react';
+import { createDialogBackdropClose } from './controls/use-dialog-backdrop-close';
+import { RoleButton } from './controls/role-button';
 import { serialize } from './utils/design-token-serde';
+import { uniqueId } from './utils/unique-id';
+import { read, type Reactive } from './zr/live';
 import {
   type ColorTweakState,
   type TweakState,
@@ -51,6 +55,7 @@ export interface ExportModalProps {
    * the modal derives its filename hint + modal classes + title id from THIS
    * instance rather than the active default instance. Omitted (e.g. a direct
    * test render) → `getPanelConfig()`, preserving the single-panel path.
+   * Read once at mount.
    */
   instanceConfig?: PanelConfig;
 }
@@ -69,39 +74,40 @@ function resolveColorDefaults(
   return fallback;
 }
 
-export function ExportModal({ onClose, state, colorDefaults, instanceConfig }: ExportModalProps) {
-  const [copyLabel, setCopyLabel] = useState('Copy');
-  const [includeDefaults, setIncludeDefaults] = useState(false);
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const copyButtonRef = useRef<HTMLDivElement>(null);
-  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+export function ExportModal(props: Reactive<ExportModalProps, 'onClose' | 'instanceConfig'>) {
+  const copyLabel = signal('Copy');
+  const includeDefaults = signal(false);
+  const dialogRef: { current: HTMLDialogElement | null } = { current: null };
+  const copyButtonRef: { current: HTMLDivElement | null } = { current: null };
+  let copyTimer: ReturnType<typeof setTimeout> | null = null;
   // Resolve THIS instance's config (multi-instance, #357); a prop-less test
   // render falls back to the active default instance.
-  const cfg = instanceConfig ?? getPanelConfig();
+  const cfg = props.instanceConfig ?? getPanelConfig();
   const exportFilenameHint = exportFilename(cfg);
 
-  // Memo the serialized JSON so flipping the toggle doesn't rebuild on every
-  // re-render; `exportedAt` intentionally refreshes when the toggle flips so
-  // the displayed timestamp reflects "when you clicked copy".
-  const code = useMemo(() => {
-    const baseline = resolveColorDefaults(state.color, colorDefaults);
+  const code = computed(() => {
+    const state = read(props.state);
+    const baseline = resolveColorDefaults(state.color, read(props.colorDefaults));
     // Thread THIS instance's config (multi-instance, #361) so the export JSON
     // is built from the mounted panel's OWN tab manifest + color cluster, not
     // the active default instance's.
     const json = serialize(
       state,
       {
-        includeDefaults,
+        includeDefaults: includeDefaults.value,
         colorDefaults: baseline,
       },
       cfg,
     );
     return JSON.stringify(json, null, 2);
-  }, [state, colorDefaults, includeDefaults, cfg]);
+  });
 
-  useEffect(() => {
+  const scope = getScope();
+  scope.onActivate(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
+    const handleClose = () => props.onClose();
+    dialog.addEventListener('close', handleClose);
     dialog.showModal();
     // Focus the primary action so keyboard users land on the most likely
     // target on open. Native <dialog>.close() restores focus to the trigger
@@ -110,34 +116,21 @@ export function ExportModal({ onClose, state, colorDefaults, instanceConfig }: E
       copyButtonRef.current?.focus();
     });
     return () => {
+      dialog.removeEventListener('close', handleClose);
+      if (copyTimer) clearTimeout(copyTimer);
       if (dialog.open) dialog.close();
     };
-  }, []);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    function handleClose() {
-      onClose();
-    }
-    dialog.addEventListener('close', handleClose);
-    return () => dialog.removeEventListener('close', handleClose);
-  }, [onClose]);
-
-  useEffect(() => {
-    return () => {
-      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-    };
-  }, []);
+  });
 
   // Gesture-aware backdrop close (F14): only a press+release that BOTH land on
   // the backdrop dismiss the modal, so selecting the exported JSON with a drag
   // that ends outside the dialog no longer closes it.
-  const backdropHandlers = useDialogBackdropClose(dialogRef, () => {
+  const backdrop = createDialogBackdropClose(dialogRef, () => {
     dialogRef.current?.close();
   });
 
   async function handleCopy() {
+    const text = code.value;
     let ok = false;
     // Primary: navigator.clipboard.writeText. The pre-fix code used the
     // deprecated `document.execCommand('copy')` as the primary path and
@@ -146,7 +139,7 @@ export function ExportModal({ onClose, state, colorDefaults, instanceConfig }: E
     // browsers that reject `clipboard.writeText` (insecure context, denied
     // permission, focus issues inside Safari's <dialog> focus trap, etc.).
     try {
-      await navigator.clipboard.writeText(code);
+      await navigator.clipboard.writeText(text);
       ok = true;
     } catch (err: unknown) {
       // Swallow — `err` is captured but unused. Common rejection reasons:
@@ -163,7 +156,7 @@ export function ExportModal({ onClose, state, colorDefaults, instanceConfig }: E
       if (dialog) {
         try {
           const textarea = document.createElement('textarea');
-          textarea.value = code;
+          textarea.value = text;
           textarea.style.cssText = 'position:fixed;opacity:0;left:-9999px';
           textarea.tabIndex = -1;
           textarea.setAttribute('aria-hidden', 'true');
@@ -177,78 +170,56 @@ export function ExportModal({ onClose, state, colorDefaults, instanceConfig }: E
         }
       }
     }
-    setCopyLabel(ok ? 'Copied!' : 'Failed');
-    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-    copyTimerRef.current = setTimeout(() => setCopyLabel('Copy'), 2000);
+    if (scope.abortSignal.aborted) return;
+    copyLabel.value = ok ? 'Copied!' : 'Failed';
+    if (copyTimer) clearTimeout(copyTimer);
+    copyTimer = setTimeout(() => {
+      copyLabel.value = 'Copy';
+    }, 2000);
   }
 
-  // Instance-scoped id for aria-labelledby. Using useId() ensures that two
-  // panels mounted in the same document each get a unique title id.
-  // Native <dialog>.showModal() implies aria-modal=true, so only the title
-  // pointer is needed.
-  const _uid = useId();
-  const titleId = `${cfg.modalClassPrefix}-export-title-${_uid}`;
+  // Instance-scoped id for aria-labelledby, unique when two panels are
+  // mounted in the same document. Native <dialog>.showModal() implies
+  // aria-modal=true, so only the title pointer is needed.
+  const titleId = `${cfg.modalClassPrefix}-export-title-${uniqueId()}`;
 
   return (
     <dialog
       ref={dialogRef}
-      onMouseDown={backdropHandlers.onMouseDown}
-      onClick={backdropHandlers.onClick}
+      on:mousedown={backdrop.onMouseDown}
+      on:click={backdrop.onClick}
       aria-labelledby={titleId}
-      className={`${modalClass(cfg, '')} ${modalClass(cfg, '--export')}`}
+      class={`${modalClass(cfg, '')} ${modalClass(cfg, '--export')}`}
       data-design-token-panel-modal=""
       data-design-token-panel-modal-variant="export"
     >
-      <div id={titleId} role="heading" aria-level={2} className={modalClass(cfg, '__title')}>
+      <div id={titleId} role="heading" aria-level={2} class={modalClass(cfg, '__title')}>
         Export Design Tokens
       </div>
 
-      <div className={modalClass(cfg, '__hint')}>
-        Save as <span className="tokenpanel-code">{exportFilenameHint}</span> to feed this blob
+      <div class={modalClass(cfg, '__hint')}>
+        Save as <span class="tokenpanel-code">{exportFilenameHint}</span> to feed this blob
         back into the panel (or hand to an AI assistant).
       </div>
 
-      <label className={modalClass(cfg, '__toggle')}>
-        <input
-          type="checkbox"
-          checked={includeDefaults}
-          onChange={(e) => setIncludeDefaults(e.currentTarget.checked)}
-        />
+      <label class={modalClass(cfg, '__toggle')}>
+        <input type="checkbox" modelChecked={includeDefaults} />
         Show defaults too
       </label>
 
-      <div role="none" className={modalClass(cfg, '__json')}>{code}</div>
+      <div role="none" class={modalClass(cfg, '__json')}>{code}</div>
 
-      <div className={modalClass(cfg, '__actions')}>
-        <div
+      <div class={modalClass(cfg, '__actions')}>
+        <RoleButton
           ref={copyButtonRef}
-          role="button"
-          tabIndex={0}
-          onClick={handleCopy}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              void handleCopy();
-            }
-          }}
-          className={`${modalClass(cfg, '__button')} ${modalClass(cfg, '__button--primary')}`}
+          onClick={() => void handleCopy()}
+          class={`${modalClass(cfg, '__button')} ${modalClass(cfg, '__button--primary')}`}
         >
           {copyLabel}
-        </div>
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={() => dialogRef.current?.close()}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              dialogRef.current?.close();
-            }
-          }}
-          className={modalClass(cfg, '__button')}
-        >
+        </RoleButton>
+        <RoleButton onClick={() => dialogRef.current?.close()} class={modalClass(cfg, '__button')}>
           Close
-        </div>
+        </RoleButton>
       </div>
     </dialog>
   );

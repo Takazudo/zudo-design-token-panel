@@ -1,6 +1,6 @@
 import { Fragment } from 'preact';
 import type { TabConfig } from '../tokens/tier-model';
-import { RoleButton } from '../controls/role-button';
+import { RoleButton } from '../controls/role-button-preact';
 
 export interface SearchTabCount {
   tab: TabConfig;

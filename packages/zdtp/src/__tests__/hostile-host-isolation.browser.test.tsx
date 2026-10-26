@@ -25,7 +25,7 @@
 
 import { render } from 'preact';
 import type { ComponentChild } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../zr/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PanelConfig } from '../config/panel-config';
 import { __resetDismissLayersForTests } from '../controls/dismiss-layer';

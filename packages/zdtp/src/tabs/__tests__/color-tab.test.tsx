@@ -26,14 +26,14 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../../zr/test-utils';
 import {
   HighlightContext,
   type HighlightContextValue,
 } from '../../highlight/highlight-toggle-button';
 import { DEFAULT_HIGHLIGHT_SLOTS, type HighlightState } from '../../highlight/highlight-state';
 import ColorTab from '../color-tab';
-import { TooltipProvider } from '../../controls/tooltip';
+import { TooltipProvider } from '../../controls/tooltip-preact';
 import type { TabConfig } from '../../tokens/tier-model';
 import type { ColorTweakState } from '../../state/tweak-state';
 import type { PersistColor, PersistSecondary } from '../../state/persist';

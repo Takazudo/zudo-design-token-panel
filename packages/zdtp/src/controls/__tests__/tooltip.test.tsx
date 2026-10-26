@@ -12,9 +12,9 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act } from '../../zr/test-utils';
 import type { JSX } from 'preact';
-import { TooltipProvider, useTooltip } from '../tooltip';
+import { TooltipProvider, useTooltip } from '../tooltip-preact';
 
 // ---------------------------------------------------------------------------
 // Fixture component — a single trigger wired to useTooltip
@@ -225,7 +225,7 @@ describe('useTooltip — panel-shell ResizeObserver hides tooltip', () => {
   // after observe() — even when nothing has actually resized — because it
   // has no prior size to diff the newly-observed target against. `observe()`
   // below fires that delivery synchronously so tests exercise the same
-  // initial-callback shape tooltip.tsx's `primed` guard has to survive.
+  // initial-callback shape tooltip-controller.ts's `primed` guard has to survive.
   class MockResizeObserver {
     static instances: MockResizeObserver[] = [];
     callback: ResizeObserverCallback;

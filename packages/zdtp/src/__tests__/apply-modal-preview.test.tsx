@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 
+import { signal, type Signal } from '@takazudo/zfb/zudo-react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from 'preact/test-utils';
+import { act, cleanupZr, renderZr } from '../zr/test-utils';
 import { ApplyModal } from '../apply-modal';
 import { __resetPanelConfigForTests } from '../config/panel-config';
 import type { TweakState } from '../state/tweak-state';
@@ -46,8 +47,16 @@ const threeTokenTwoFilePreview = () => ({ ok: true, dryRun: true, files: [
 ], rejected: [], rejectedReasons: [] });
 
 async function flush() { await act(async () => { vi.runAllTimers(); await Promise.resolve(); await Promise.resolve(); }); }
+let props: Signal<TweakState> | null = null;
 function mount(nextState = state()) {
-  act(() => render(<ApplyModal state={nextState} colorDefaults={defaults} open onClose={() => undefined} onApplied={() => undefined} />, container));
+  if (props) {
+    const current = props;
+    act(() => { current.value = nextState; });
+    return;
+  }
+  const live = signal(nextState);
+  props = live;
+  act(() => renderZr(() => <ApplyModal state={live} colorDefaults={defaults} open onClose={() => undefined} onApplied={() => undefined} />, container));
 }
 
 beforeEach(() => {
@@ -56,7 +65,7 @@ beforeEach(() => {
   container = document.createElement('div'); document.body.append(container);
 });
 afterEach(() => {
-  act(() => render(null, container)); container.remove(); globalThis.fetch = originalFetch; vi.useRealTimers(); vi.restoreAllMocks(); __resetPanelConfigForTests();
+  act(() => cleanupZr()); props = null; container.remove(); globalThis.fetch = originalFetch; vi.useRealTimers(); vi.restoreAllMocks(); __resetPanelConfigForTests();
 });
 
 describe('ApplyModal dry-run preview', () => {

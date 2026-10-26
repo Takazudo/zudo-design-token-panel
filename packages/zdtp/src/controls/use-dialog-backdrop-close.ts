@@ -14,15 +14,54 @@
  * BOTH the mousedown and the click landed outside the dialog's content rect, so
  * a drag that began inside the dialog never dismisses it.
  *
- * This is a hook so the mousedown-origin ref is per-modal-instance; the returned
- * handlers are spread onto the `<dialog>` element.
+ * Each call keeps its own mousedown origin, so the state is per modal instance.
  */
 
-import { useCallback, useRef } from 'preact/compat';
+import { useMemo } from 'preact/compat';
 import type { JSX } from 'preact';
 
 function isOutsideRect(rect: DOMRect, x: number, y: number): boolean {
   return x < rect.left || x > rect.right || y < rect.top || y > rect.bottom;
+}
+
+/**
+ * Framework-free core: returns mousedown/click listeners for a `<dialog>`.
+ * The zudo-react modals bind these as `on:mousedown` / `on:click`.
+ *
+ * @param dialogRef  ref to the `<dialog>` element.
+ * @param onBackdrop invoked for a genuine backdrop dismissal (a press+release
+ *                   that both land outside the dialog's content rect).
+ */
+export function createDialogBackdropClose(
+  dialogRef: { current: HTMLDialogElement | null },
+  onBackdrop: () => void,
+): { onMouseDown: (e: MouseEvent) => void; onClick: (e: MouseEvent) => void } {
+  // True when the current gesture's mousedown landed inside the dialog's
+  // content rect. Such a gesture is a drag/selection and must never dismiss.
+  let startedInside = false;
+
+  return {
+    onMouseDown(e) {
+      const dialog = dialogRef.current;
+      if (!dialog) {
+        startedInside = false;
+        return;
+      }
+      const rect = dialog.getBoundingClientRect();
+      startedInside = !isOutsideRect(rect, e.clientX, e.clientY);
+    },
+    onClick(e) {
+      const began = startedInside;
+      startedInside = false;
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      // Gesture began inside the dialog (text selection etc.) — never dismiss,
+      // regardless of where it ended.
+      if (began) return;
+      const rect = dialog.getBoundingClientRect();
+      if (isOutsideRect(rect, e.clientX, e.clientY)) onBackdrop();
+    },
+  };
 }
 
 export interface DialogBackdropHandlers {
@@ -30,48 +69,15 @@ export interface DialogBackdropHandlers {
   onClick: (e: JSX.TargetedMouseEvent<HTMLDialogElement>) => void;
 }
 
-/**
- * @param dialogRef  ref to the `<dialog>` element.
- * @param onBackdrop invoked for a genuine backdrop dismissal (a press+release
- *                   that both land outside the dialog's content rect).
- */
+/** Preact adapter over `createDialogBackdropClose`. */
 export function useDialogBackdropClose(
   dialogRef: { current: HTMLDialogElement | null },
   onBackdrop: () => void,
 ): DialogBackdropHandlers {
-  // True when the current gesture's mousedown landed inside the dialog's
-  // content rect. Such a gesture is a drag/selection and must never dismiss.
-  const startedInsideRef = useRef(false);
-
-  const onMouseDown = useCallback(
-    (e: JSX.TargetedMouseEvent<HTMLDialogElement>) => {
-      const dialog = dialogRef.current;
-      if (!dialog) {
-        startedInsideRef.current = false;
-        return;
-      }
-      const rect = dialog.getBoundingClientRect();
-      startedInsideRef.current = !isOutsideRect(rect, e.clientX, e.clientY);
-    },
-    [dialogRef],
+  const latest = useMemo(() => ({ onBackdrop }), []);
+  latest.onBackdrop = onBackdrop;
+  return useMemo(
+    () => createDialogBackdropClose(dialogRef, () => latest.onBackdrop()),
+    [dialogRef, latest],
   );
-
-  const onClick = useCallback(
-    (e: JSX.TargetedMouseEvent<HTMLDialogElement>) => {
-      const startedInside = startedInsideRef.current;
-      startedInsideRef.current = false;
-      const dialog = dialogRef.current;
-      if (!dialog) return;
-      // Gesture began inside the dialog (text selection etc.) — never dismiss,
-      // regardless of where it ended.
-      if (startedInside) return;
-      const rect = dialog.getBoundingClientRect();
-      if (isOutsideRect(rect, e.clientX, e.clientY)) {
-        onBackdrop();
-      }
-    },
-    [dialogRef, onBackdrop],
-  );
-
-  return { onMouseDown, onClick };
 }

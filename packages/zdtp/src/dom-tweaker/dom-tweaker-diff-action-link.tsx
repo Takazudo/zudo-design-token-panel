@@ -1,7 +1,7 @@
 import { useContext } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { PanelConfig } from '../config/panel-config';
-import { RoleButton } from '../controls/role-button';
+import { RoleButton } from '../controls/role-button-preact';
 import { DomTweakerContext } from './dom-tweaker-context';
 
 export interface DomTweakerDiffActionLinkProps {

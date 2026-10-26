@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/compat';
 import type { JSX } from 'preact';
-import { RoleButton } from '../controls/role-button';
+import { RoleButton } from '../controls/role-button-preact';
 import type { PanelConfig } from '../config/panel-config';
 import type { ColorBaseline } from '../utils/token-diff';
 import { changedEntries, formatCssDeclarations } from '../utils/token-diff';
