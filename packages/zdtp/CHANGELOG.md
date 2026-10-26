@@ -8,7 +8,12 @@ The format is based on Keep a Changelog, and release notes are generated from th
 
 ### Breaking Changes
 
-- The static dashboard moves from Preact to zfb's zudo-react runtime. `TokenDashboard` from `@takazudo/zdtp/dashboard` is now a zudo-react component: render it from a zfb page or with `renderToString` from `@takazudo/zfb/zudo-react/server`. `@takazudo/zdtp/dashboard/client` mounts through zudo-react and adds a `display: contents` wrapper inside the host. Dashboard users install `@takazudo/zfb` (new optional peer `^5.1.2`). The panel itself is unaffected.
+- The panel no longer uses Preact ([#1075](https://github.com/Takazudo/zudo-design-token-panel/issues/1075)). It renders with its own bundled copy of zfb's zudo-react runtime, and `preact` is no longer a dependency of `@takazudo/zdtp`. Hosts install nothing new, but a host that relied on ZDTP pulling in Preact for its own code must now declare `preact` itself. The public API, console API, storage keys and CSS contract are unchanged.
+- The static dashboard moves from Preact to zfb's zudo-react runtime. `TokenDashboard` from `@takazudo/zdtp/dashboard` is now a zudo-react component: render it from a zfb page or with `renderToString` from `@takazudo/zfb/zudo-react/server`. `@takazudo/zdtp/dashboard/client` mounts through zudo-react and adds a `display: contents` wrapper inside the host. Dashboard users install `@takazudo/zfb` (new optional peer `^5.1.2`).
+
+### Other Changes
+
+- The whole panel UI, including the shell, header, tab bar, history rail, search palette and inspectors, now renders with zudo-react, so the interim `display: contents` `.tokenpanel-zr-host` wrappers are gone. Each body-level overlay mount (such as `#tokenpanel-highlight-mount`) now holds one `display: contents` wrapper.
 
 ## [0.8.7] - 2026-10-26
 
