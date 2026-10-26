@@ -1,3 +1,4 @@
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 /**
  * PaletteEditView — Edit mode: grouped grid navigator + per-group OKLCH curve
  * editor + readout + batched persistence (#395).
@@ -35,7 +36,7 @@
  * wide-gamut display (or a different clamp strategy) loses nothing.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/compat';
+import { computed, For, getScope, Show, signal, type ReadonlySignal } from '@takazudo/zfb/zudo-react';
 import type { TabConfig, TierConfig, TierItem } from '../../tokens/tier-model';
 import type { TabOverrides } from '../../apply/tier-resolver';
 import { groupPaletteTiers } from './palette-tab';
@@ -48,12 +49,15 @@ import {
 } from '../../utils/color-oklch';
 import { clampHueForPersist, type Channel } from '../../utils/palette-curve';
 import { PaletteChart } from '../../components/palette-chart';
-import { ColorField } from '../../components/color-picker/color-picker-preact';
+import { ColorField } from '../../components/color-picker/color-field';
 import PaletteReadout from './palette-readout';
 import type { TokenAddress } from '../flat/types';
 import { tokenAddressKey } from '../flat/types';
 import { matchesSearchFields } from '../../search/token-search';
-import { ModesRow, resolveModeRowSides } from '../modes-row-preact';
+import { ModesRow, resolveModeRowSides } from '../modes-row';
+import { read, type Reactive } from '../../zr/live';
+import { Rebuild } from '../../zr/rebuild';
+import type { PanelServices } from '../../zr/panel-services';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -81,7 +85,14 @@ export interface PaletteEditViewProps {
   isChanged?: (address: TokenAddress) => boolean;
   jumpAddress?: TokenAddress | null;
   onJumpAddressHandled?: (address: TokenAddress) => void;
+  services?: PanelServices;
 }
+
+export type PaletteEditViewStaticKeys =
+  | 'onChange'
+  | 'onCommitBatch'
+  | 'onJumpAddressHandled'
+  | 'services';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -121,8 +132,40 @@ function resolveItemSlot(item: TierItem, tierId: string, overrides: TabOverrides
   return { value, color: item.modes ? null : staticCssColorToOklcha(value) };
 }
 
+function onActivateKey(handler: () => void) {
+  return (e: KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handler();
+    }
+  };
+}
+
 type VisibleChannels = { l: boolean; c: boolean; h: boolean };
 const CHANNEL_ORDER: readonly Channel[] = ['l', 'c', 'h'] as const;
+const NO_COLOR: Oklcha = { l: 0, c: 0, h: 0, a: 100 };
+
+/** Shared state and handlers of one mounted Edit view. */
+interface EditContext {
+  tabId: ReadonlySignal<string>;
+  overrides: ReadonlySignal<TabOverrides>;
+  changedOnly: ReadonlySignal<boolean>;
+  changedFor: ReadonlySignal<(address: TokenAddress) => boolean>;
+  activeTierId: ReadonlySignal<string | null>;
+  selectedIndex: ReadonlySignal<number>;
+  visibleChannels: ReadonlySignal<VisibleChannels>;
+  /** Dense slots for `tier`, overlaying in-flight drag edits on the open group. */
+  slotsFor: (tier: TierConfig) => ColorSlot[];
+  services?: PanelServices;
+  onChange: (tierId: string, itemId: string, next: string) => void;
+  toggleGroup: (tierId: string) => void;
+  selectStep: (tierId: string, index: number) => void;
+  toggleChannel: (channel: Channel) => void;
+  changeStart: () => void;
+  chartChange: (index: number, channel: Channel, value: number) => void;
+  changeEnd: () => void;
+  directEdit: (tierId: string, itemId: string, next: string) => void;
+}
 
 // ---------------------------------------------------------------------------
 // Swatch row
@@ -131,56 +174,53 @@ const CHANNEL_ORDER: readonly Channel[] = ['l', 'c', 'h'] as const;
 interface SwatchProps {
   item: TierItem;
   index: number;
-  slot: ColorSlot;
-  isSelected: boolean;
+  slot: ReadonlySignal<ColorSlot>;
+  isSelected: ReadonlySignal<boolean>;
   onSelect: (index: number) => void;
   address?: TokenAddress;
 }
 
 function Swatch({ item, index, slot, isSelected, onSelect, address }: SwatchProps) {
   // Clamp only for the fill; the underlying value stays raw.
-  const fill = slot.color ? oklchaToHex(slot.color) : undefined;
-  const outOfGamut = slot.color ? !isInSrgbGamut(slot.color) : false;
-
-  const handleClick = useCallback(() => onSelect(index), [index, onSelect]);
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        onSelect(index);
-      }
-    },
-    [index, onSelect],
-  );
+  const fill = computed(() => {
+    const color = slot.value.color;
+    return color ? oklchaToHex(color) : null;
+  });
+  const select = () => onSelect(index);
 
   return (
     <div
       role="button"
-      tabIndex={0}
-      className={
-        `tokenpanel-palette-edit-swatch${isSelected ? ' is-selected' : ''}${item.readonly ? ' is-readonly' : ''}`
-      }
-      style={fill ? { background: fill } : undefined}
-      data-out-of-gamut={outOfGamut || undefined}
-      data-invalid={slot.color ? undefined : true}
+      tabindex={0}
+      class={computed(() =>
+        `tokenpanel-palette-edit-swatch${isSelected.value ? ' is-selected' : ''}${item.readonly ? ' is-readonly' : ''}`)}
+      style={computed(() => (fill.value ? { background: fill.value } : {}))}
+      data-out-of-gamut={computed(() => {
+        const color = slot.value.color;
+        return color && !isInSrgbGamut(color) ? true : null;
+      })}
+      data-invalid={computed(() => (slot.value.color ? null : true))}
       aria-pressed={isSelected}
-      aria-label={`${item.label}: ${slot.value}${slot.color ? '' : ' (invalid color, N/A)'}${item.readonly ? ' (locked, read-only)' : ''}`}
-      onClick={handleClick}
-      onKeyDown={handleKeyDown}
+      aria-label={computed(() => {
+        const current = slot.value;
+        return `${item.label}: ${current.value}${current.color ? '' : ' (invalid color, N/A)'}${item.readonly ? ' (locked, read-only)' : ''}`;
+      })}
+      on:click={select}
+      on:keydown={onActivateKey(select)}
       data-testid={`palette-edit-swatch-${item.id}`}
-      {...(address ? { 'data-address': tokenAddressKey(address) } : {})}
+      data-address={address ? tokenAddressKey(address) : null}
     >
-      <span className="tokenpanel-palette-edit-swatch-idx" aria-hidden="true">
-        {index}
+      <span class="tokenpanel-palette-edit-swatch-idx" aria-hidden="true">
+        {String(index)}
       </span>
-      {item.readonly && (
-        <span className="tokenpanel-palette-edit-swatch-lock" aria-hidden="true">
+      {item.readonly ? (
+        <span class="tokenpanel-palette-edit-swatch-lock" aria-hidden="true">
           <svg viewBox="0 0 16 16" width="12" height="12" fill="none">
             <rect x="3" y="7" width="10" height="7" rx="1.5" />
             <path d="M5 7V5a3 3 0 0 1 6 0v2" />
           </svg>
         </span>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -189,29 +229,30 @@ function Swatch({ item, index, slot, isSelected, onSelect, address }: SwatchProp
 // Group preview chips (collapsed-header color affordance)
 // ---------------------------------------------------------------------------
 
-interface GroupPreviewChipsProps {
-  /** Effective (override + transient) dense slots for the group's steps. */
-  slots: ColorSlot[];
-}
-
 /**
  * Decorative color chips in a group's collapsed header. They keep the group's
  * colors visible while its swatch strip is collapsed (the scoped disclosure
  * exception). aria-hidden + pointer-events:none — the real, labelled swatches
  * live inside the open group; these chips carry no accessible info.
  */
-function GroupPreviewChips({ slots }: GroupPreviewChipsProps) {
+function GroupPreviewChips({ slots }: { slots: ReadonlySignal<ColorSlot[]> }) {
+  const indexes = computed(() => slots.value.map((_, i) => i));
   return (
-    <div className="tokenpanel-palette-edit-group-preview" aria-hidden="true">
-      {slots.map((slot, i) => (
-        <div
-          key={i}
-          className={slot.color
-            ? 'tokenpanel-palette-edit-preview-chip'
-            : 'tokenpanel-palette-edit-preview-chip is-invalid'}
-          style={slot.color ? { background: oklchaToHex(slot.color) } : undefined}
-        />
-      ))}
+    <div class="tokenpanel-palette-edit-group-preview" aria-hidden="true">
+      <For each={indexes} by={(i) => i}>
+        {(entry) => {
+          const i = entry.value;
+          const color = computed(() => slots.value[i]?.color ?? null);
+          return (
+            <div
+              class={computed(() => (color.value
+                ? 'tokenpanel-palette-edit-preview-chip'
+                : 'tokenpanel-palette-edit-preview-chip is-invalid'))}
+              style={computed(() => (color.value ? { background: oklchaToHex(color.value) } : {}))}
+            />
+          );
+        }}
+      </For>
     </div>
   );
 }
@@ -221,34 +262,26 @@ function GroupPreviewChips({ slots }: GroupPreviewChipsProps) {
 // ---------------------------------------------------------------------------
 
 interface ChannelToggleProps {
-  visible: VisibleChannels;
+  visible: ReadonlySignal<VisibleChannels>;
   onToggle: (channel: Channel) => void;
 }
 
 function ChannelToggle({ visible, onToggle }: ChannelToggleProps) {
   return (
-    <div className="tokenpanel-palette-edit-channels" data-testid="palette-edit-channels">
+    <div class="tokenpanel-palette-edit-channels" data-testid="palette-edit-channels">
       {CHANNEL_ORDER.map((channel) => {
-        const on = visible[channel];
-        const handleClick = () => onToggle(channel);
+        const on = computed(() => visible.value[channel]);
+        const toggle = () => onToggle(channel);
         return (
           <div
-            key={channel}
             role="button"
-            tabIndex={0}
-            className={
-              on
-                ? `tokenpanel-palette-edit-channel is-on tokenpanel-palette-edit-channel--${channel}`
-                : `tokenpanel-palette-edit-channel tokenpanel-palette-edit-channel--${channel}`
-            }
+            tabindex={0}
+            class={computed(() => (on.value
+              ? `tokenpanel-palette-edit-channel is-on tokenpanel-palette-edit-channel--${channel}`
+              : `tokenpanel-palette-edit-channel tokenpanel-palette-edit-channel--${channel}`))}
             aria-pressed={on}
-            onClick={handleClick}
-            onKeyDown={(e: KeyboardEvent) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                handleClick();
-              }
-            }}
+            on:click={toggle}
+            on:keydown={onActivateKey(toggle)}
             data-testid={`palette-edit-channel-${channel}`}
           >
             {channel.toUpperCase()}
@@ -263,25 +296,24 @@ function ChannelToggle({ visible, onToggle }: ChannelToggleProps) {
 // PaletteEditView
 // ---------------------------------------------------------------------------
 
-export default function PaletteEditView({
-  tab,
-  overrides,
-  onChange,
-  onCommitBatch,
-  searchQuery = '',
-  changedOnly = false,
-  isChanged,
-  jumpAddress = null,
-  onJumpAddressHandled,
-}: PaletteEditViewProps) {
-  const allTiers = groupPaletteTiers(tab);
-  const query = searchQuery.trim();
-  const changedFor = useCallback(
-    (address: TokenAddress) => isChanged?.(address) ?? false,
-    [isChanged],
-  );
-  const tiers = useMemo(
-    () => allTiers.filter((tier) => {
+export default function PaletteEditView(
+  props: Reactive<PaletteEditViewProps, PaletteEditViewStaticKeys>,
+) {
+  const { onChange, onCommitBatch, onJumpAddressHandled, services } = props;
+  const tabId = computed(() => read(props.tab).id);
+  const allTiers = computed(() => groupPaletteTiers(read(props.tab)));
+  const overrides = computed(() => read(props.overrides));
+  const changedOnly = computed(() => read(props.changedOnly) ?? false);
+  const changedFor = computed(() => {
+    const isChanged = read(props.isChanged);
+    return (address: TokenAddress) => isChanged?.(address) ?? false;
+  });
+  const tiers = computed(() => {
+    const query = (read(props.searchQuery) ?? '').trim();
+    const only = changedOnly.value;
+    const isChanged = changedFor.value;
+    const id = tabId.value;
+    return allTiers.value.filter((tier) => {
       if (query && !matchesSearchFields({
         cssVar: '',
         id: tier.id,
@@ -289,348 +321,334 @@ export default function PaletteEditView({
         value: '',
         tierLabel: tier.label,
       }, query)) return false;
-      if (changedOnly && !tier.items.some((item) => changedFor({
-        tabId: tab.id,
+      if (only && !tier.items.some((item) => isChanged({
+        tabId: id,
         tierId: tier.id,
         itemId: item.id,
       }))) return false;
       return true;
-    }),
-    [allTiers, changedFor, changedOnly, query, tab.id],
-  );
+    });
+  });
 
   // Single-open accordion. `null` = every group collapsed (the initial state):
   // the Edit view opens with ALL groups closed so the boxed headers read as
   // equally expandable (#517). This intentionally collapses the swatch strip too
   // — the documented scoped exception to the no-progressive-disclosure policy
   // (see packages/zdtp/CLAUDE.md). Accordion state is transient — never persisted.
-  const [activeTierId, setActiveTierId] = useState<string | null>(null);
-  const [selectedIndex, setSelectedIndex] = useState<number>(0);
-  const [visibleChannels, setVisibleChannels] = useState<VisibleChannels>({
-    l: true,
-    c: true,
-    h: true,
-  });
+  const activeTierId = signal<string | null>(null);
+  const selectedIndex = signal(0);
+  const visibleChannels = signal<VisibleChannels>({ l: true, c: true, h: true });
 
   // Transient drag accumulator: the LIVE OKLCH per changed item during a single
   // graph gesture. Empty between gestures. Painting reads this first so the
-  // chart + swatches update on every frame WITHOUT persisting.
-  //
-  // Mirrored in a ref so the pointer-up commit reads the final accumulator
-  // synchronously — the single `onCommitBatch` side-effect lives OUTSIDE any
-  // setState updater (updaters must stay pure; a double-invoked updater would
-  // otherwise fire two persists).
-  const [transient, setTransient] = useState<Record<string, Oklcha>>({});
-  const transientRef = useRef<Record<string, Oklcha>>({});
-  const gestureRef = useRef<{ tierId: string; itemIds: string[] } | null>(null);
+  // chart + swatches update on every frame WITHOUT persisting. `transientNow`
+  // mirrors it so the pointer-up commit reads the final accumulator
+  // synchronously.
+  const transient = signal<Record<string, Oklcha>>({});
+  let transientNow: Record<string, Oklcha> = {};
+  let gesture: { tierId: string; itemIds: string[] } | null = null;
 
-  const writeTransient = useCallback((next: Record<string, Oklcha>) => {
-    transientRef.current = next;
-    setTransient(next);
-  }, []);
+  // Editor callbacks can fire after this view unmounts (e.g. a remount for a
+  // new tab config); they must not write through the stale config.
+  let disposed = false;
+  getScope().onActivate(() => () => {
+    disposed = true;
+  });
 
-  const handleToggleChannel = useCallback((channel: Channel) => {
-    setVisibleChannels((prev) => ({ ...prev, [channel]: !prev[channel] }));
-  }, []);
+  const writeTransient = (next: Record<string, Oklcha>) => {
+    transientNow = next;
+    transient.value = next;
+  };
 
-  const activeTier = tiers.find((t) => t.id === activeTierId) ?? null;
+  const activeTier = computed(() => tiers.value.find((t) => t.id === activeTierId.value) ?? null);
 
-  useEffect(() => {
-    if (!jumpAddress || jumpAddress.tabId !== tab.id) return;
-    const targetTier = allTiers.find((tier) => tier.id === jumpAddress.tierId);
+  const slotsFor = (tier: TierConfig): ColorSlot[] => {
+    const live = activeTierId.value === tier.id ? transient.value : {};
+    const current = overrides.value;
+    return tier.items.map((item) => {
+      const color = live[item.id];
+      if (color && !item.readonly) return { value: oklchaToCss(color), color };
+      return resolveItemSlot(item, tier.id, current);
+    });
+  };
+
+  getScope().effect(() => {
+    const jumpAddress = read(props.jumpAddress) ?? null;
+    if (!jumpAddress || jumpAddress.tabId !== tabId.value) return;
+    const targetTier = allTiers.value.find((tier) => tier.id === jumpAddress.tierId);
     const targetIndex = targetTier?.items.findIndex((item) => item.id === jumpAddress.itemId) ?? -1;
     if (!targetTier || targetIndex < 0) return;
-    setActiveTierId(targetTier.id);
-    setSelectedIndex(targetIndex);
-    gestureRef.current = null;
+    activeTierId.value = targetTier.id;
+    selectedIndex.value = targetIndex;
+    gesture = null;
     writeTransient({});
     if (!onJumpAddressHandled) return;
     const frame = window.requestAnimationFrame(() => onJumpAddressHandled(jumpAddress));
     return () => window.cancelAnimationFrame(frame);
-  }, [allTiers, jumpAddress, onJumpAddressHandled, tab.id, writeTransient]);
-  // Direct editor events can outlive the mounted ColorField DOM during a
-  // config update. Read current selection/config through refs so even a stale
-  // event closure cannot write an item that has since become readonly.
-  const activeTierRef = useRef<TierConfig | null>(activeTier);
-  activeTierRef.current = activeTier;
-  const selectedIndexRef = useRef(selectedIndex);
-  selectedIndexRef.current = selectedIndex;
-  const overridesRef = useRef(overrides);
-  overridesRef.current = overrides;
-
-  // Resolve the active group's colors, overlaying any in-flight transient edits.
-  const activeSlots: ColorSlot[] = useMemo(() => {
-    if (!activeTier) return [];
-    return activeTier.items.map((item) => {
-      const live = transient[item.id];
-      if (live && !item.readonly) return { value: oklchaToCss(live), color: live };
-      return resolveItemSlot(item, activeTier.id, overrides);
-    });
-    // overrides + transient + activeTier are the full inputs.
-  }, [activeTier, overrides, transient]);
+  });
 
   // ── Accordion (single-open groups) ──────────────────────────────────────────
 
-  const handleToggleGroup = useCallback((tierId: string) => {
+  const toggleGroup = (tierId: string) => {
     // Re-click closes; a different group switches. Opening OR switching resets
     // the selection to step 0 so an index carried over from a longer group can
     // never be out of range in a shorter one.
-    setActiveTierId((prev) => (prev === tierId ? null : tierId));
-    const tier = tiers.find((candidate) => candidate.id === tierId);
-    setSelectedIndex(tier ? initialSelectionIndex(tier, overrides) : 0);
-    gestureRef.current = null;
+    const tier = tiers.value.find((candidate) => candidate.id === tierId);
+    selectedIndex.value = tier ? initialSelectionIndex(tier, overrides.value) : 0;
+    activeTierId.value = activeTierId.value === tierId ? null : tierId;
+    gesture = null;
     writeTransient({});
-  }, [overrides, tiers, writeTransient]);
-
-  // ── Selection ──────────────────────────────────────────────────────────────
-
-  const handleSelectGroup = useCallback((tierId: string, index: number) => {
-    setActiveTierId(tierId);
-    setSelectedIndex(index);
-  }, []);
-
-  const handleChartSelectIndex = useCallback((index: number) => {
-    setSelectedIndex(index);
-  }, []);
+  };
 
   // ── Batched drag commit ──────────────────────────────────────────────────
 
-  const handleChangeStart = useCallback(() => {
+  const changeStart = () => {
     // Open a fresh transient session for this gesture.
-    gestureRef.current = activeTier
-      ? { tierId: activeTier.id, itemIds: activeTier.items.map((item) => item.id) }
-      : null;
+    const tier = activeTier.value;
+    gesture = tier ? { tierId: tier.id, itemIds: tier.items.map((item) => item.id) } : null;
     writeTransient({});
-  }, [activeTier, writeTransient]);
+  };
 
-  const handleChartChange = useCallback(
-    (index: number, channel: Channel, value: number) => {
-      if (!activeTier) return;
-      const gesture = gestureRef.current;
-      if (gesture?.tierId !== activeTier.id) return;
-      const item = activeTier.items[index];
-      if (!item) return;
-      if (gesture.itemIds[index] !== item.id) return;
-      const resolved = resolveItemSlot(item, activeTier.id, overrides);
-      if (!isWritableSlot(item, resolved)) return;
-      // Build on the live value (prior transient OR the resolved base) so a
-      // multi-channel gesture composes correctly per step. Read the ref so the
-      // accumulator is always current within the gesture.
-      const prev = transientRef.current;
-      const base = prev[item.id] ?? resolved.color;
-      // Cap hue at the commit boundary so a node dragged to the top of the axis
-      // (h=360) survives the oklch() round-trip instead of wrapping back to 0.
-      const safeValue = channel === 'h' ? clampHueForPersist(value) : value;
-      writeTransient({ ...prev, [item.id]: { ...base, [channel]: safeValue } });
-    },
-    [activeTier, overrides, writeTransient],
-  );
+  const chartChange = (index: number, channel: Channel, value: number) => {
+    const tier = activeTier.value;
+    if (!tier || disposed) return;
+    if (gesture?.tierId !== tier.id) return;
+    const item = tier.items[index];
+    if (!item) return;
+    if (gesture.itemIds[index] !== item.id) return;
+    const resolved = resolveItemSlot(item, tier.id, overrides.value);
+    if (!isWritableSlot(item, resolved)) return;
+    // Build on the live value (prior transient OR the resolved base) so a
+    // multi-channel gesture composes correctly per step.
+    const prev = transientNow;
+    const base = prev[item.id] ?? resolved.color!;
+    // Cap hue at the commit boundary so a node dragged to the top of the axis
+    // (h=360) survives the oklch() round-trip instead of wrapping back to 0.
+    const safeValue = channel === 'h' ? clampHueForPersist(value) : value;
+    writeTransient({ ...prev, [item.id]: { ...base, [channel]: safeValue } });
+  };
 
-  const handleChangeEnd = useCallback(() => {
-    // Snapshot the final accumulator from the ref and flush EXACTLY ONE batched
-    // commit — entirely outside any setState updater.
-    const acc = transientRef.current;
+  const changeEnd = () => {
+    // Snapshot the final accumulator and flush EXACTLY ONE batched commit.
+    const acc = transientNow;
     const changedIds = Object.keys(acc);
-    const gesture = gestureRef.current;
+    const tier = activeTier.value;
+    const current = overrides.value;
     const sameIdentityOrder = Boolean(
-      activeTier &&
+      !disposed &&
+      tier &&
       gesture &&
-      activeTier.id === gesture.tierId &&
-      activeTier.items.length === gesture.itemIds.length &&
-      activeTier.items.every((item, index) => item.id === gesture.itemIds[index]),
+      tier.id === gesture.tierId &&
+      tier.items.length === gesture.itemIds.length &&
+      tier.items.every((item, index) => item.id === gesture!.itemIds[index]),
     );
-    if (activeTier && sameIdentityOrder && changedIds.length > 0) {
+    if (tier && sameIdentityOrder && changedIds.length > 0) {
       const patch: Record<string, string> = {};
       for (const id of changedIds) {
-        const item = activeTier.items.find((candidate) => candidate.id === id);
-        if (!isWritableSlot(item, item && resolveItemSlot(item, activeTier.id, overrides))) continue;
+        const item = tier.items.find((candidate) => candidate.id === id);
+        if (!isWritableSlot(item, item && resolveItemSlot(item, tier.id, current))) continue;
         // Persist the RAW OKLCH — never gamut-clamped. Clamping is a render
         // concern (oklchaToHex), not a storage concern.
         patch[id] = oklchaToCss(acc[id]);
       }
       if (Object.keys(patch).length === 0) {
-        gestureRef.current = null;
+        gesture = null;
         writeTransient({});
         return;
       }
       if (onCommitBatch) {
-        onCommitBatch(activeTier.id, patch);
+        onCommitBatch(tier.id, patch);
       } else {
         // Fallback when no batch path is wired: emit per-item changes.
         for (const [id, value] of Object.entries(patch)) {
-          onChange(activeTier.id, id, value);
+          onChange(tier.id, id, value);
         }
       }
     }
-    gestureRef.current = null;
+    gesture = null;
     // Clear the accumulator; the committed values now live in `overrides`.
     writeTransient({});
-  }, [activeTier, onChange, onCommitBatch, overrides, writeTransient]);
+  };
 
   // ── Direct (ColorField) edit of the selected step ─────────────────────────
 
-  const handleDirectEdit = useCallback(
-    (expectedTierId: string, expectedItemId: string, next: string) => {
-      const currentTier = activeTierRef.current;
-      if (!currentTier || currentTier.id !== expectedTierId) return;
-      const item = currentTier.items[selectedIndexRef.current];
-      if (!item || item.id !== expectedItemId) return;
-      if (!isWritableSlot(item, resolveItemSlot(item, currentTier.id, overridesRef.current))) return;
-      onChange(currentTier.id, item.id, next);
-    },
-    [onChange],
-  );
+  // Direct editor events can outlive the mounted ColorField DOM during a
+  // config update, so re-check the current selection/config before writing.
+  const directEdit = (expectedTierId: string, expectedItemId: string, next: string) => {
+    const currentTier = activeTier.value;
+    if (disposed || !currentTier || currentTier.id !== expectedTierId) return;
+    const item = currentTier.items[selectedIndex.value];
+    if (!item || item.id !== expectedItemId) return;
+    if (!isWritableSlot(item, resolveItemSlot(item, currentTier.id, overrides.value))) return;
+    onChange(currentTier.id, item.id, next);
+  };
 
-  // Selected step's raw value for the readout + the ColorField.
-  const selectedItem = activeTier?.items[selectedIndex];
-  const selectedOklcha = activeSlots[selectedIndex]?.color ?? null;
-  const selectedValue = selectedItem
-    ? resolveItemValue(selectedItem, activeTier!.id, overrides)
-    : '';
+  const ctx: EditContext = {
+    tabId,
+    overrides,
+    changedOnly,
+    changedFor,
+    activeTierId,
+    selectedIndex,
+    visibleChannels,
+    slotsFor,
+    services,
+    onChange,
+    toggleGroup,
+    selectStep: (tierId, index) => {
+      activeTierId.value = tierId;
+      selectedIndex.value = index;
+    },
+    toggleChannel: (channel) => {
+      visibleChannels.value = { ...visibleChannels.value, [channel]: !visibleChannels.value[channel] };
+    },
+    changeStart,
+    chartChange,
+    changeEnd,
+    directEdit,
+  };
 
   return (
-    <div className="tokenpanel-palette-edit-view" data-testid="palette-edit-view">
-      {tiers.map((tier) => {
-        const isActive = tier.id === activeTierId;
-        // Chips track live color: the open group overlays in-flight transient
-        // edits; collapsed groups resolve straight from overrides.
-        const chipSlots = isActive
-          ? activeSlots
-          : tier.items.map((item) => resolveItemSlot(item, tier.id, overrides));
-        const changedCount = tier.items.reduce((count, item) => count + (changedFor({
-          tabId: tab.id,
-          tierId: tier.id,
-          itemId: item.id,
-        }) ? 1 : 0), 0);
-        return (
-          <div
-            key={tier.id}
-            className={
-              isActive
-                ? 'tokenpanel-palette-edit-group is-active'
-                : 'tokenpanel-palette-edit-group'
-            }
-            data-testid={`palette-edit-tier-${tier.id}`}
-          >
-            <div
-              role="button"
-              tabIndex={0}
-              aria-expanded={isActive}
-              className="tokenpanel-palette-edit-group-header"
-              onClick={() => handleToggleGroup(tier.id)}
-              onKeyDown={(e: KeyboardEvent) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  handleToggleGroup(tier.id);
-                }
-              }}
-              data-testid={`palette-edit-group-header-${tier.id}`}
-            >
-              <div
-                className={
-                  isActive
-                    ? 'tokenpanel-palette-edit-group-chevron is-open'
-                    : 'tokenpanel-palette-edit-group-chevron'
-                }
-                aria-hidden="true"
-              >
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </div>
-              <div role="heading" aria-level={3} className="tokenpanel-palette-edit-group-heading">
-                {tier.label}
-              </div>
-              <GroupPreviewChips slots={chipSlots} />
-              {changedCount > 0 && (
-                <span
-                  className="tokenpanel-palette-edit-group-changed-count"
-                  data-testid={`palette-edit-changed-count-${tier.id}`}
-                  aria-label={`${changedCount} changed step${changedCount === 1 ? '' : 's'}`}
-                >
-                  {changedCount}
-                </span>
-              )}
-            </div>
-
-            {isActive && (
-              <div className="tokenpanel-palette-edit-group-body">
-                <div
-                  className="tokenpanel-palette-edit-swatches"
-                  data-testid={`palette-edit-swatches-${tier.id}`}
-                >
-                  {tier.items.map((item, index) => {
-                    const address = { tabId: tab.id, tierId: tier.id, itemId: item.id };
-                    if (changedOnly && !changedFor(address)) return null;
-                    if (item.modes !== undefined) return null;
-                    return (
-                      <Swatch
-                        key={item.id}
-                        item={item}
-                        index={index}
-                        slot={activeSlots[index]}
-                        isSelected={index === selectedIndex}
-                        onSelect={(i) => handleSelectGroup(tier.id, i)}
-                        address={{ tabId: tab.id, tierId: tier.id, itemId: item.id }}
-                      />
-                    );
-                  })}
-                </div>
-
-                {tier.items.map((item) => {
-                  if (item.modes === undefined) return null;
-                  const address = { tabId: tab.id, tierId: tier.id, itemId: item.id };
-                  if (changedOnly && !changedFor(address)) return null;
-                  const override = overrides[tier.id]?.[item.id];
-                  return (
-                    <ModesRow
-                      key={`modes-${item.id}`}
-                      item={item}
-                      sides={resolveModeRowSides(item, override, override !== undefined)}
-                      className="tokenpanel-palette-edit-modes-row"
-                      dataTestId={`palette-edit-modes-${item.id}`}
-                      address={address}
-                      onChange={(next) => onChange(tier.id, item.id, next)}
-                    />
-                  );
-                })}
-
-                <ActiveGroupEditor
-                  tier={tier}
-                  colors={activeSlots.map((slot) => slot.color)}
-                  editable={tier.items.map((item, index) =>
-                    isWritableSlot(item, activeSlots[index]),
-                  )}
-                  identities={tier.items.map((item) => item.id)}
-                  selectedIndex={selectedIndex}
-                  visibleChannels={visibleChannels}
-                  selectedItem={selectedItem}
-                  selectedOklcha={selectedOklcha}
-                  selectedValue={selectedValue}
-                  onChartChange={handleChartChange}
-                  onChartSelectIndex={handleChartSelectIndex}
-                  onToggleChannel={handleToggleChannel}
-                  onChangeStart={handleChangeStart}
-                  onChangeEnd={handleChangeEnd}
-                  onDirectEdit={handleDirectEdit}
-                />
-              </div>
-            )}
+    <div class="tokenpanel-palette-edit-view" data-testid="palette-edit-view">
+      <For each={tiers} by={(tier) => tier.id}>
+        {(entry) => (
+          <Rebuild value={entry}>
+            {(tier) => <PaletteGroup tier={tier} ctx={ctx} />}
+          </Rebuild>
+        )}
+      </For>
+      <Show when={computed(() => changedOnly.value && tiers.value.length === 0)}>
+        {() => (
+          <div class="tokenpanel-changed-empty" data-testid="tokenpanel-changed-empty">
+            No changed tokens in this tab — everything is at its manifest default.
           </div>
-        );
-      })}
-      {changedOnly && tiers.length === 0 && (
-        <div className="tokenpanel-changed-empty" data-testid="tokenpanel-changed-empty">
-          No changed tokens in this tab — everything is at its manifest default.
+        )}
+      </Show>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Group (accordion header + open body)
+// ---------------------------------------------------------------------------
+
+function PaletteGroup({ tier, ctx }: { tier: TierConfig; ctx: EditContext }) {
+  const isActive = computed(() => ctx.activeTierId.value === tier.id);
+  // Chips track live color: the open group overlays in-flight transient edits;
+  // collapsed groups resolve straight from overrides.
+  const chipSlots = computed(() => ctx.slotsFor(tier));
+  const changedCount = computed(() => {
+    const isChanged = ctx.changedFor.value;
+    const tabId = ctx.tabId.value;
+    return tier.items.reduce((count, item) => count + (isChanged({
+      tabId,
+      tierId: tier.id,
+      itemId: item.id,
+    }) ? 1 : 0), 0);
+  });
+  const toggle = () => ctx.toggleGroup(tier.id);
+  return (
+    <div
+      class={computed(() => (isActive.value
+        ? 'tokenpanel-palette-edit-group is-active'
+        : 'tokenpanel-palette-edit-group'))}
+      data-testid={`palette-edit-tier-${tier.id}`}
+    >
+      <div
+        role="button"
+        tabindex={0}
+        aria-expanded={isActive}
+        class="tokenpanel-palette-edit-group-header"
+        on:click={toggle}
+        on:keydown={onActivateKey(toggle)}
+        data-testid={`palette-edit-group-header-${tier.id}`}
+      >
+        <div
+          class={computed(() => (isActive.value
+            ? 'tokenpanel-palette-edit-group-chevron is-open'
+            : 'tokenpanel-palette-edit-group-chevron'))}
+          aria-hidden="true"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M6 9l6 6 6-6" />
+          </svg>
         </div>
-      )}
+        <div role="heading" aria-level={3} class="tokenpanel-palette-edit-group-heading">
+          {tier.label}
+        </div>
+        <GroupPreviewChips slots={chipSlots} />
+        <Show when={computed(() => changedCount.value > 0)}>
+          {() => (
+            <span
+              class="tokenpanel-palette-edit-group-changed-count"
+              data-testid={`palette-edit-changed-count-${tier.id}`}
+              aria-label={computed(() => `${changedCount.value} changed step${changedCount.value === 1 ? '' : 's'}`)}
+            >
+              {computed(() => String(changedCount.value))}
+            </span>
+          )}
+        </Show>
+      </div>
+
+      <Show when={isActive}>
+        {() => <GroupBody tier={tier} ctx={ctx} slots={chipSlots} />}
+      </Show>
+    </div>
+  );
+}
+
+function GroupBody({ tier, ctx, slots }: {
+  tier: TierConfig;
+  ctx: EditContext;
+  slots: ReadonlySignal<ColorSlot[]>;
+}) {
+  const addressOf = (item: TierItem): TokenAddress => ({ tabId: ctx.tabId.value, tierId: tier.id, itemId: item.id });
+  const shown = (item: TierItem) => !ctx.changedOnly.value || ctx.changedFor.value(addressOf(item));
+  const swatchIndexes = computed(() => tier.items.flatMap((item, index) =>
+    item.modes === undefined && shown(item) ? [index] : []));
+  const modesItems = computed(() => tier.items.filter((item) => item.modes !== undefined && shown(item)));
+  return (
+    <div class="tokenpanel-palette-edit-group-body">
+      <div class="tokenpanel-palette-edit-swatches" data-testid={`palette-edit-swatches-${tier.id}`}>
+        <For each={swatchIndexes} by={(index) => index}>
+          {(entry) => {
+            const index = entry.value;
+            const item = tier.items[index];
+            return (
+              <Swatch
+                item={item}
+                index={index}
+                slot={computed(() => slots.value[index] ?? { value: '', color: null })}
+                isSelected={computed(() => ctx.selectedIndex.value === index)}
+                onSelect={(i) => ctx.selectStep(tier.id, i)}
+                address={addressOf(item)}
+              />
+            );
+          }}
+        </For>
+      </div>
+
+      <For each={modesItems} by={(item) => item.id}>
+        {(entry) => {
+          const item = entry.value;
+          return (
+            <ModesRow
+              item={item}
+              sides={computed(() => {
+                const override = ctx.overrides.value[tier.id]?.[item.id];
+                return resolveModeRowSides(item, override, override !== undefined);
+              })}
+              class="tokenpanel-palette-edit-modes-row"
+              dataTestId={`palette-edit-modes-${item.id}`}
+              address={addressOf(item)}
+              tooltip={ctx.services?.tooltip ?? null}
+              onChange={(next) => ctx.onChange(tier.id, item.id, next)}
+            />
+          );
+        }}
+      </For>
+
+      <ActiveGroupEditor tier={tier} ctx={ctx} slots={slots} />
     </div>
   );
 }
@@ -639,117 +657,121 @@ export default function PaletteEditView({
 // Active group editor (chart + channel toggle + ColorField + readout)
 // ---------------------------------------------------------------------------
 
-interface ActiveGroupEditorProps {
+function ActiveGroupEditor({ tier, ctx, slots }: {
   tier: TierConfig;
-  colors: Array<Oklcha | null>;
-  editable: boolean[];
-  identities: string[];
-  selectedIndex: number;
-  visibleChannels: VisibleChannels;
-  selectedItem: TierItem | undefined;
-  selectedOklcha: Oklcha | null;
-  selectedValue: string;
-  onChartChange: (index: number, channel: Channel, value: number) => void;
-  onChartSelectIndex: (index: number) => void;
-  onToggleChannel: (channel: Channel) => void;
-  onChangeStart: () => void;
-  onChangeEnd: () => void;
-  onDirectEdit: (tierId: string, itemId: string, next: string) => void;
-}
-
-function ActiveGroupEditor({
-  tier,
-  colors,
-  editable,
-  identities,
-  selectedIndex,
-  visibleChannels,
-  selectedItem,
-  selectedOklcha,
-  selectedValue,
-  onChartChange,
-  onChartSelectIndex,
-  onToggleChannel,
-  onChangeStart,
-  onChangeEnd,
-  onDirectEdit,
-}: ActiveGroupEditorProps) {
-  const hasWritableColor = editable.some(Boolean);
-  const hasValidColor = colors.some(Boolean);
+  ctx: EditContext;
+  slots: ReadonlySignal<ColorSlot[]>;
+}) {
+  const colors = computed(() => slots.value.map((slot) => slot.color));
+  const editable = computed(() => tier.items.map((item, index) => isWritableSlot(item, slots.value[index])));
+  const identities = tier.items.map((item) => item.id);
+  const hasWritableColor = computed(() => editable.value.some(Boolean));
   const allItemsReadonly = tier.items.length > 0 && tier.items.every((item) => item.readonly);
-  const selectedReadonly = Boolean(selectedItem?.readonly);
+  const selectedItem = computed(() => tier.items[ctx.selectedIndex.value]);
+  const selectedOklcha = computed(() => slots.value[ctx.selectedIndex.value]?.color ?? null);
+  const selectedValue = computed(() => {
+    const item = selectedItem.value;
+    return item ? resolveItemValue(item, tier.id, ctx.overrides.value) : '';
+  });
+  const selectedReadonly = computed(() => Boolean(selectedItem.value?.readonly));
+  const title = computed(() => (hasWritableColor.value
+    ? 'Curve editor · drag node = step, drag line = writable ramp steps'
+    : allItemsReadonly
+      ? 'Static curve · all steps are locked'
+      : colors.value.some(Boolean)
+        ? 'Static curve · no writable colors'
+        : 'Curve unavailable · no supported colors'));
+  const directItemId = computed(() => {
+    const item = selectedItem.value;
+    return item && selectedOklcha.value && !item.readonly ? item.id : null;
+  });
+  const hint = computed(() => (selectedReadonly.value
+    ? 'Locked · read-only inspection'
+    : selectedOklcha.value
+      ? 'edit selected step exactly'
+      : 'N/A · unsupported color is read-only'));
+  const readoutKind = computed((): 'valid' | 'invalid' | 'none' => {
+    if (!selectedItem.value) return 'none';
+    return selectedOklcha.value ? 'valid' : 'invalid';
+  });
+  const selectedCssVar = computed(() => selectedItem.value?.cssVar ?? '');
+
   return (
-    <div className="tokenpanel-palette-edit-editor" data-testid={`palette-edit-editor-${tier.id}`}>
-      <div className="tokenpanel-palette-edit-editor-bar">
-        <div className="tokenpanel-palette-edit-editor-title">
-          {hasWritableColor
-            ? 'Curve editor · drag node = step, drag line = writable ramp steps'
-            : allItemsReadonly
-              ? 'Static curve · all steps are locked'
-              : hasValidColor
-                ? 'Static curve · no writable colors'
-                : 'Curve unavailable · no supported colors'}
-        </div>
-        {hasWritableColor && (
-          <ChannelToggle visible={visibleChannels} onToggle={onToggleChannel} />
-        )}
+    <div class="tokenpanel-palette-edit-editor" data-testid={`palette-edit-editor-${tier.id}`}>
+      <div class="tokenpanel-palette-edit-editor-bar">
+        <div class="tokenpanel-palette-edit-editor-title">{title}</div>
+        <Show when={hasWritableColor}>
+          {() => <ChannelToggle visible={ctx.visibleChannels} onToggle={ctx.toggleChannel} />}
+        </Show>
       </div>
 
       <PaletteChart
         colors={colors}
         editable={editable}
         identities={identities}
-        selectedIndex={selectedIndex}
-        visibleChannels={visibleChannels}
-        onChange={onChartChange}
-        onSelectIndex={onChartSelectIndex}
-        onToggleChannel={onToggleChannel}
-        onChangeStart={onChangeStart}
-        onChangeEnd={onChangeEnd}
+        selectedIndex={ctx.selectedIndex}
+        visibleChannels={ctx.visibleChannels}
+        onChange={ctx.chartChange}
+        onSelectIndex={(index) => ctx.selectStep(tier.id, index)}
+        onToggleChannel={ctx.toggleChannel}
+        onChangeStart={ctx.changeStart}
+        onChangeEnd={ctx.changeEnd}
       />
 
-      <div className="tokenpanel-palette-edit-direct" data-testid="palette-edit-direct">
-        {selectedItem && selectedOklcha && !selectedReadonly && (
-          <ColorField
-            key={`${tier.id}:${selectedItem.id}`}
-            value={selectedValue}
-            onChange={(next) => onDirectEdit(tier.id, selectedItem.id, next)}
-            valueFormat="oklch"
-            label={selectedItem.label}
-            cssVar={selectedItem.cssVar}
-          />
-        )}
-        <div className="tokenpanel-palette-edit-direct-hint">
-          {selectedReadonly
-            ? 'Locked · read-only inspection'
-            : selectedOklcha
-              ? 'edit selected step exactly'
-              : 'N/A · unsupported color is read-only'}
-        </div>
+      <div class="tokenpanel-palette-edit-direct" data-testid="palette-edit-direct">
+        <Rebuild value={directItemId}>
+          {(itemId) => {
+            const item = itemId === null ? undefined : tier.items.find((candidate) => candidate.id === itemId);
+            if (!item) return null;
+            return (
+              <ColorField
+                value={selectedValue}
+                onChange={(next) => ctx.directEdit(tier.id, item.id, next)}
+                valueFormat="oklch"
+                label={item.label}
+                cssVar={item.cssVar}
+              />
+            );
+          }}
+        </Rebuild>
+        <div class="tokenpanel-palette-edit-direct-hint">{hint}</div>
       </div>
 
-      {selectedItem && selectedOklcha ? (
-        <PaletteReadout
-          oklcha={selectedOklcha}
-          cssVar={selectedItem.cssVar}
-          outOfGamut={!isInSrgbGamut(selectedOklcha)}
-        />
-      ) : selectedItem ? (
-        <div className="tokenpanel-palette-readout is-invalid" data-testid="palette-readout-invalid">
-          <div className="tokenpanel-palette-readout-swatch is-invalid" aria-hidden="true" />
-          <div className="tokenpanel-palette-readout-rows">
-            <div className="tokenpanel-palette-readout-row" data-testid="palette-readout-token">
-              <span className="tokenpanel-palette-readout-key">token</span>
-              <span className="tokenpanel-palette-readout-val">{selectedItem.cssVar}</span>
-            </div>
-            <div className="tokenpanel-palette-readout-row" data-testid="palette-readout-invalid-value">
-              <span className="tokenpanel-palette-readout-key">value</span>
-              <span className="tokenpanel-palette-readout-val">{selectedValue}</span>
-            </div>
-            <div className="tokenpanel-palette-readout-gamut">N/A · unsupported contextual color</div>
-          </div>
-        </div>
-      ) : null}
+      <Rebuild value={readoutKind}>
+        {(kind) => {
+          if (kind === 'valid') {
+            return (
+              <PaletteReadout
+                oklcha={computed(() => selectedOklcha.value ?? NO_COLOR)}
+                cssVar={selectedCssVar}
+                outOfGamut={computed(() => {
+                  const color = selectedOklcha.value;
+                  return color ? !isInSrgbGamut(color) : false;
+                })}
+              />
+            );
+          }
+          if (kind === 'invalid') {
+            return (
+              <div class="tokenpanel-palette-readout is-invalid" data-testid="palette-readout-invalid">
+                <div class="tokenpanel-palette-readout-swatch is-invalid" aria-hidden="true" />
+                <div class="tokenpanel-palette-readout-rows">
+                  <div class="tokenpanel-palette-readout-row" data-testid="palette-readout-token">
+                    <span class="tokenpanel-palette-readout-key">token</span>
+                    <span class="tokenpanel-palette-readout-val">{selectedCssVar}</span>
+                  </div>
+                  <div class="tokenpanel-palette-readout-row" data-testid="palette-readout-invalid-value">
+                    <span class="tokenpanel-palette-readout-key">value</span>
+                    <span class="tokenpanel-palette-readout-val">{selectedValue}</span>
+                  </div>
+                  <div class="tokenpanel-palette-readout-gamut">N/A · unsupported contextual color</div>
+                </div>
+              </div>
+            );
+          }
+          return null;
+        }}
+      </Rebuild>
     </div>
   );
 }

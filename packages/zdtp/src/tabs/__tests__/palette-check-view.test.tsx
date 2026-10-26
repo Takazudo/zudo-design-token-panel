@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 
 /**
  * Unit tests for PaletteCheckView (#394).
@@ -14,14 +15,35 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { options, render, type VNode } from 'preact';
-import { act } from '../../zr/test-utils';
+import { act, cleanupZr, renderZr } from '../../zr/test-utils';
 import PaletteCheckView from '../palette/palette-check-view';
 import type { ColorFieldProps } from '../../components/color-picker/color-field';
+import { read } from '../../zr/live';
 import type { TabConfig } from '../../tokens/tier-model';
 import type { TabOverrides } from '../../apply/tier-resolver';
 import { contrastRatio, contrastScore } from '../../utils/wcag-contrast';
 import { cssToOklcha, oklchaToHex } from '../../utils/color-oklch';
+
+// Capture the ModesEditorFields ColorField props per resolve mode so pair
+// commits can call onChange without driving ColorPicker.
+const colorFieldProps = vi.hoisted(() => new Map<'light' | 'dark', ColorFieldProps>());
+
+vi.mock('../../components/color-picker/color-field', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../components/color-picker/color-field')>();
+  function ColorField(props: Parameters<typeof actual.ColorField>[0]) {
+    const mode = read(props.resolveMode);
+    if (mode === 'light' || mode === 'dark') {
+      colorFieldProps.set(mode, {
+        ...props,
+        get value() {
+          return read(props.value);
+        },
+      } as ColorFieldProps);
+    }
+    return actual.ColorField(props);
+  }
+  return { ...actual, ColorField, default: ColorField };
+});
 
 // ---------------------------------------------------------------------------
 // Fixture
@@ -113,9 +135,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => {
-    render(null, container);
-  });
+  cleanupZr();
   document.body.removeChild(container);
 });
 
@@ -125,9 +145,9 @@ async function renderCheckView(
   onChange: (tierId: string, itemId: string, next: string) => void = () => undefined,
 ): Promise<void> {
   await act(() => {
-    render(
+    renderZr(() => 
       <PaletteCheckView tab={tab} overrides={overrides} onChange={onChange} />,
-      container,
+      container
     );
   });
 }
@@ -229,26 +249,8 @@ describe('PaletteCheckView — grouped mode', () => {
 });
 
 describe('PaletteCheckView — manifest mode rows', () => {
-  const colorFieldProps = new Map<'light' | 'dark', ColorFieldProps>();
-  let prevVnode: typeof options.vnode;
-
   beforeEach(() => {
     colorFieldProps.clear();
-    prevVnode = options.vnode;
-    options.vnode = (vnode: VNode) => {
-      prevVnode?.(vnode);
-      const type = vnode.type;
-      if (typeof type === 'function' && type.name === 'ColorField') {
-        const props = vnode.props as unknown as ColorFieldProps;
-        if (props.resolveMode === 'light' || props.resolveMode === 'dark') {
-          colorFieldProps.set(props.resolveMode, props);
-        }
-      }
-    };
-  });
-
-  afterEach(() => {
-    options.vnode = prevVnode;
   });
 
   function fireColorFieldChange(resolveMode: 'light' | 'dark', next: string): void {
@@ -422,13 +424,13 @@ describe('PaletteCheckView — base selection', () => {
     });
 
     // The Aa sample for any candidate should have background = warm2 color.
-    // JSDOM normalizes hex colors in inline styles to rgb() notation.
+    // JSDOM normalizes hex colors to rgb() in the parsed inline style.
     const warm2RgbStr = hexToRgbString(warm2Hex);
     const cool1CandidateRow = container.querySelector(
       `[data-testid="palette-check-candidate-row-cool-1"]`,
     );
     const aaSample = cool1CandidateRow?.querySelector('.tokenpanel-palette-check-aa-sample');
-    const inlineStyle = (aaSample as HTMLElement)?.getAttribute('style') ?? '';
+    const inlineStyle = (aaSample as HTMLElement | null)?.style.cssText ?? '';
     expect(inlineStyle).toContain(warm2RgbStr);
   });
 
@@ -494,7 +496,7 @@ describe('PaletteCheckView — contrast chips', () => {
   it('chips use fixed semantic background colors (not theme tokens)', async () => {
     await renderCheckView();
     const allItems = PALETTE_TAB_FIXTURE.tiers.flatMap((t) => t.items);
-    // JSDOM normalizes hex colors to rgb() in inline styles — use rgb equivalents
+    // JSDOM normalizes hex colors to rgb() in the parsed inline style — use rgb equivalents
     const validBgRgb = new Set([
       hexToRgbString('#1a7a3f'), // AAA
       hexToRgbString('#8a6200'), // AA
@@ -505,7 +507,7 @@ describe('PaletteCheckView — contrast chips', () => {
       const chip = container.querySelector<HTMLElement>(
         `[data-testid="palette-check-chip-${item.id}"]`,
       );
-      const style = chip?.getAttribute('style') ?? '';
+      const style = chip?.style.cssText ?? '';
       const hasValidColor = [...validBgRgb].some((c) => style.includes(c));
       expect(hasValidColor).toBe(true);
     }

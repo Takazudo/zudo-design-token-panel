@@ -1,8 +1,8 @@
-import { useMemo } from 'preact/compat';
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 import type { TabConfig } from '../tokens/tier-model';
 import { sanitizeHtml } from '../utils/sanitize-html';
 
-interface NotesTabProps {
+export interface NotesTabProps {
   tab: TabConfig;
 }
 
@@ -12,7 +12,7 @@ interface NotesTabProps {
  * Renders `tab.notesExtras.title` as a section heading
  * (`div[role="heading"][aria-level=3]`, NEVER an hN tag — see
  * packages/zdtp/CLAUDE.md "Panel DOM hygiene") and `tab.notesExtras.html` as
- * sanitized HTML via `dangerouslySetInnerHTML` — the package's first and only
+ * sanitized HTML via zudo-react's `rawHtml` — the package's first and only
  * use of it. `sanitizeHtml` (utils/sanitize-html.ts) is the security
  * boundary, an allowlist parser, not this component and not the CSS below.
  *
@@ -27,23 +27,14 @@ interface NotesTabProps {
  */
 export default function NotesTab({ tab }: NotesTabProps) {
   const notesExtras = tab.notesExtras;
-  // panel.tsx keeps every tab body mounted (hidden, not unmounted) while
-  // inactive, so DesignTokenTweakPanel's frequent re-renders (drag, resize,
-  // density, any OTHER tab's token tweak) would otherwise re-run the
-  // DOMParser walk on every one of them. `notesExtras.html` is a fixed
-  // config string, so memoize on it.
-  const safeHtml = useMemo(
-    () => (notesExtras ? sanitizeHtml(notesExtras.html) : ''),
-    [notesExtras],
-  );
   if (!notesExtras) return null;
 
   return (
-    <div className="tokenpanel-tab-content tokenpanel-notes-tab">
-      <div role="heading" aria-level={3} className="tokenpanel-notes-heading">
+    <div class="tokenpanel-tab-content tokenpanel-notes-tab">
+      <div role="heading" aria-level={3} class="tokenpanel-notes-heading">
         {notesExtras.title}
       </div>
-      <div className="tokenpanel-notes-body" dangerouslySetInnerHTML={{ __html: safeHtml }} />
+      <div class="tokenpanel-notes-body" rawHtml={sanitizeHtml(notesExtras.html)} />
     </div>
   );
 }

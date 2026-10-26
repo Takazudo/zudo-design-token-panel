@@ -1,3 +1,4 @@
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 /**
  * PaletteTab — thin shell for the palette tab.
  *
@@ -14,12 +15,15 @@
  *   - groupPaletteTiers(tab): returns tiers in declaration order (alias for tab.tiers)
  */
 
-import { useState, useCallback, useEffect } from 'preact/compat';
+import { computed, getScope, signal } from '@takazudo/zfb/zudo-react';
 import type { TabConfig, TierConfig, TierItem } from '../../tokens/tier-model';
 import type { TabOverrides } from '../../apply/tier-resolver';
 import PaletteEditView from './palette-edit-view';
 import PaletteCheckView from './palette-check-view';
 import type { TokenAddress } from '../flat/types';
+import { read, type Reactive } from '../../zr/live';
+import { Rebuild } from '../../zr/rebuild';
+import type { PanelServices } from '../../zr/panel-services';
 
 // ---------------------------------------------------------------------------
 // Shared helpers (exported for #394 / #395 view implementations)
@@ -74,109 +78,86 @@ export interface PaletteTabProps {
   jumpAddress?: TokenAddress | null;
   /** Called after the Edit view has opened and selected the requested step. */
   onJumpAddressHandled?: (address: TokenAddress) => void;
+  services?: PanelServices;
 }
+
+export type PaletteTabStaticKeys =
+  | 'onChange'
+  | 'onCommitBatch'
+  | 'onJumpAddressHandled'
+  | 'services';
 
 // ---------------------------------------------------------------------------
 // PaletteTab
 // ---------------------------------------------------------------------------
 
-export default function PaletteTab({
-  tab,
-  overrides,
-  onChange,
-  onCommitBatch,
-  searchQuery = '',
-  changedOnly = false,
-  isChanged,
-  jumpAddress = null,
-  onJumpAddressHandled,
-}: PaletteTabProps) {
-  const [mode, setMode] = useState<PaletteMode>('edit');
+export default function PaletteTab(props: Reactive<PaletteTabProps, PaletteTabStaticKeys>) {
+  const { onChange, onCommitBatch, onJumpAddressHandled, services } = props;
+  const mode = signal<PaletteMode>('edit');
 
-  useEffect(() => {
-    if (jumpAddress) setMode('edit');
-  }, [jumpAddress]);
+  getScope().effect(() => {
+    if (read(props.jumpAddress)) mode.value = 'edit';
+  });
 
-  const handleSetEdit = useCallback(() => {
-    setMode('edit');
-  }, []);
-
-  const handleSetCheck = useCallback(() => {
-    setMode('check');
-  }, []);
-
-  const handleEditKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      setMode('edit');
-    }
-  }, []);
-
-  const handleCheckKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      setMode('check');
-    }
-  }, []);
+  const modeButton = (target: PaletteMode, label: string) => {
+    const active = computed(() => mode.value === target);
+    const select = () => {
+      mode.value = target;
+    };
+    return (
+      <div
+        role="button"
+        tabindex={0}
+        class={computed(() => (active.value
+          ? 'tokenpanel-palette-mode-btn is-active'
+          : 'tokenpanel-palette-mode-btn'))}
+        aria-pressed={active}
+        on:click={select}
+        on:keydown={(e: KeyboardEvent) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            select();
+          }
+        }}
+        data-testid={`palette-mode-${target}`}
+      >
+        {label}
+      </div>
+    );
+  };
 
   return (
-    <div className="tokenpanel-tab-content tokenpanel-palette-tab" data-testid="palette-tab">
-      <div className="tokenpanel-palette-mode-toggle" data-testid="palette-mode-toggle">
-        <div
-          role="button"
-          tabIndex={0}
-          className={
-            mode === 'edit'
-              ? 'tokenpanel-palette-mode-btn is-active'
-              : 'tokenpanel-palette-mode-btn'
-          }
-          aria-pressed={mode === 'edit'}
-          onClick={handleSetEdit}
-          onKeyDown={handleEditKeyDown}
-          data-testid="palette-mode-edit"
-        >
-          Edit
-        </div>
-        <div
-          role="button"
-          tabIndex={0}
-          className={
-            mode === 'check'
-              ? 'tokenpanel-palette-mode-btn is-active'
-              : 'tokenpanel-palette-mode-btn'
-          }
-          aria-pressed={mode === 'check'}
-          onClick={handleSetCheck}
-          onKeyDown={handleCheckKeyDown}
-          data-testid="palette-mode-check"
-        >
-          Check
-        </div>
+    <div class="tokenpanel-tab-content tokenpanel-palette-tab" data-testid="palette-tab">
+      <div class="tokenpanel-palette-mode-toggle" data-testid="palette-mode-toggle">
+        {modeButton('edit', 'Edit')}
+        {modeButton('check', 'Check')}
       </div>
 
-      {mode === 'edit' && (
-        <PaletteEditView
-          tab={tab}
-          overrides={overrides}
-          onChange={onChange}
-          onCommitBatch={onCommitBatch}
-          searchQuery={searchQuery}
-          changedOnly={changedOnly}
-          isChanged={isChanged}
-          jumpAddress={jumpAddress}
-          onJumpAddressHandled={onJumpAddressHandled}
-        />
-      )}
-      {mode === 'check' && (
-        <PaletteCheckView
-          tab={tab}
-          overrides={overrides}
-          onChange={onChange}
-          searchQuery={searchQuery}
-          changedOnly={changedOnly}
-          isChanged={isChanged}
-        />
-      )}
+      <Rebuild value={mode}>
+        {(current) => (current === 'edit' ? (
+          <PaletteEditView
+            tab={props.tab}
+            overrides={props.overrides}
+            onChange={onChange}
+            onCommitBatch={onCommitBatch}
+            searchQuery={props.searchQuery ?? ''}
+            changedOnly={props.changedOnly ?? false}
+            isChanged={props.isChanged}
+            jumpAddress={props.jumpAddress ?? null}
+            onJumpAddressHandled={onJumpAddressHandled}
+            services={services}
+          />
+        ) : (
+          <PaletteCheckView
+            tab={props.tab}
+            overrides={props.overrides}
+            onChange={onChange}
+            searchQuery={props.searchQuery ?? ''}
+            changedOnly={props.changedOnly ?? false}
+            isChanged={props.isChanged}
+          />
+        ))}
+      </Rebuild>
     </div>
   );
 }

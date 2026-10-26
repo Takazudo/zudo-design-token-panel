@@ -1,3 +1,4 @@
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 /**
  * PaletteReadout — the per-step color readout shown beneath the active group's
  * curve editor (#395).
@@ -11,16 +12,17 @@
  * monospace styling is carried by the companion CSS class, not a <code>/<pre>.
  */
 
+import { computed, Show, type ReadonlySignal } from '@takazudo/zfb/zudo-react';
 import type { Oklcha } from '../../utils/color-oklch';
 import { oklchaToHex } from '../../utils/color-oklch';
 
 export interface PaletteReadoutProps {
   /** The selected step's raw OKLCH value (never gamut-clamped). */
-  oklcha: Oklcha;
+  oklcha: ReadonlySignal<Oklcha>;
   /** CSS custom-property name of the selected step (e.g. `--palette-gray-3`). */
-  cssVar: string;
+  cssVar: ReadonlySignal<string>;
   /** True when the raw OKLCH value falls outside the sRGB gamut. */
-  outOfGamut: boolean;
+  outOfGamut: ReadonlySignal<boolean>;
 }
 
 /** Parse a #rrggbb / #rrggbbaa hex string to an `rgb(r, g, b)` display string. */
@@ -46,42 +48,44 @@ function formatOklch(o: Oklcha): string {
 export default function PaletteReadout({ oklcha, cssVar, outOfGamut }: PaletteReadoutProps) {
   // Hex/RGB are the CLAMPED rendering of the raw value — oklchaToHex maps
   // through sRGB, so these notations show what the swatch actually paints.
-  const hex = oklchaToHex(oklcha);
-  const rgb = hexToRgbString(hex);
-  const oklch = formatOklch(oklcha);
+  const hex = computed(() => oklchaToHex(oklcha.value));
+  const rgb = computed(() => hexToRgbString(hex.value));
+  const oklch = computed(() => formatOklch(oklcha.value));
 
   return (
-    <div className="tokenpanel-palette-readout" data-testid="palette-readout">
+    <div class="tokenpanel-palette-readout" data-testid="palette-readout">
       <div
-        className="tokenpanel-palette-readout-swatch"
-        style={{ background: hex }}
+        class="tokenpanel-palette-readout-swatch"
+        style={computed(() => ({ background: hex.value }))}
         aria-hidden="true"
       />
-      <div className="tokenpanel-palette-readout-rows">
-        <div className="tokenpanel-palette-readout-row" data-testid="palette-readout-token">
-          <span className="tokenpanel-palette-readout-key">token</span>
-          <span className="tokenpanel-palette-readout-val">{cssVar}</span>
+      <div class="tokenpanel-palette-readout-rows">
+        <div class="tokenpanel-palette-readout-row" data-testid="palette-readout-token">
+          <span class="tokenpanel-palette-readout-key">token</span>
+          <span class="tokenpanel-palette-readout-val">{cssVar}</span>
         </div>
-        <div className="tokenpanel-palette-readout-row" data-testid="palette-readout-oklch">
-          <span className="tokenpanel-palette-readout-key">OKLCH</span>
-          <span className="tokenpanel-palette-readout-val">{oklch}</span>
+        <div class="tokenpanel-palette-readout-row" data-testid="palette-readout-oklch">
+          <span class="tokenpanel-palette-readout-key">OKLCH</span>
+          <span class="tokenpanel-palette-readout-val">{oklch}</span>
         </div>
-        <div className="tokenpanel-palette-readout-row" data-testid="palette-readout-hex">
-          <span className="tokenpanel-palette-readout-key">Hex</span>
-          <span className="tokenpanel-palette-readout-val">{hex}</span>
+        <div class="tokenpanel-palette-readout-row" data-testid="palette-readout-hex">
+          <span class="tokenpanel-palette-readout-key">Hex</span>
+          <span class="tokenpanel-palette-readout-val">{hex}</span>
         </div>
-        <div className="tokenpanel-palette-readout-row" data-testid="palette-readout-rgb">
-          <span className="tokenpanel-palette-readout-key">RGB</span>
-          <span className="tokenpanel-palette-readout-val">{rgb}</span>
+        <div class="tokenpanel-palette-readout-row" data-testid="palette-readout-rgb">
+          <span class="tokenpanel-palette-readout-key">RGB</span>
+          <span class="tokenpanel-palette-readout-val">{rgb}</span>
         </div>
-        {outOfGamut && (
-          <div
-            className="tokenpanel-palette-readout-gamut"
-            data-testid="palette-readout-gamut"
-          >
-            out of sRGB gamut — Hex/RGB are clamped; the saved OKLCH is exact
-          </div>
-        )}
+        <Show when={outOfGamut}>
+          {() => (
+            <div
+              class="tokenpanel-palette-readout-gamut"
+              data-testid="palette-readout-gamut"
+            >
+              out of sRGB gamut — Hex/RGB are clamped; the saved OKLCH is exact
+            </div>
+          )}
+        </Show>
       </div>
     </div>
   );

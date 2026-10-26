@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 
 /**
  * Unit tests for NotesTab (#515).
@@ -15,8 +16,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { render } from 'preact';
-import { act } from '../../zr/test-utils';
+import { act, cleanupZr, renderZr } from '../../zr/test-utils';
 import NotesTab from '../notes-tab';
 import type { TabConfig } from '../../tokens/tier-model';
 
@@ -38,16 +38,14 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => {
-    render(null, container);
-  });
+  cleanupZr();
   container.remove();
 });
 
 describe('NotesTab', () => {
   it('renders the title as div[role=heading][aria-level=3], never an hN tag', () => {
     act(() => {
-      render(<NotesTab tab={NOTES_TAB} />, container);
+      renderZr(() => <NotesTab tab={NOTES_TAB} />, container);
     });
     const heading = container.querySelector('[role="heading"]');
     expect(heading).not.toBeNull();
@@ -58,7 +56,7 @@ describe('NotesTab', () => {
 
   it('renders sanitized HTML in the body — allowed markup survives, script payload is stripped', () => {
     act(() => {
-      render(<NotesTab tab={NOTES_TAB} />, container);
+      renderZr(() => <NotesTab tab={NOTES_TAB} />, container);
     });
     const body = container.querySelector('.tokenpanel-notes-body');
     expect(body).not.toBeNull();
@@ -70,8 +68,10 @@ describe('NotesTab', () => {
   it('renders nothing when notesExtras is absent', () => {
     const bareTab: TabConfig = { id: 'notes', label: 'Notes', tiers: [] };
     act(() => {
-      render(<NotesTab tab={bareTab} />, container);
+      renderZr(() => <NotesTab tab={bareTab} />, container);
     });
-    expect(container.innerHTML).toBe('');
+    // zudo-react keeps comment anchors for an empty root; no elements or text render.
+    expect(container.children).toHaveLength(0);
+    expect(container.textContent).toBe('');
   });
 });

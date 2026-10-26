@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 
 /**
  * Unit tests for PaletteTab shell (#390).
@@ -15,8 +16,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { render } from 'preact';
-import { act } from '../../zr/test-utils';
+import { act, cleanupZr, renderZr } from '../../zr/test-utils';
 import PaletteTab from '../palette/palette-tab';
 import { flattenPaletteTiers, groupPaletteTiers } from '../palette/palette-tab';
 import { assertValidPanelConfig } from '../../config/panel-config';
@@ -92,9 +92,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => {
-    render(null, container);
-  });
+  cleanupZr();
   document.body.removeChild(container);
 });
 
@@ -104,7 +102,7 @@ async function renderPaletteTab(
   onChange: (tierId: string, itemId: string, next: string) => void = () => undefined,
 ): Promise<void> {
   await act(() => {
-    render(<PaletteTab tab={tab} overrides={overrides} onChange={onChange} />, container);
+    renderZr(() => <PaletteTab tab={tab} overrides={overrides} onChange={onChange} />, container);
   });
 }
 
