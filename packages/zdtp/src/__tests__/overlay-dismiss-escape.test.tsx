@@ -26,7 +26,7 @@ import { render } from 'preact';
 import { act } from '../zr/test-utils';
 import { useRef } from 'preact/compat';
 import type { JSX } from 'preact';
-import { ColorField } from '../components/color-picker/color-field';
+import { ColorField } from '../components/color-picker/color-picker-preact';
 import { HighlightSettingsPopover } from '../highlight/highlight-settings-popover';
 import {
   HighlightContext,

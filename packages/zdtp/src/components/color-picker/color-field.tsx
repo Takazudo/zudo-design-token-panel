@@ -1,3 +1,4 @@
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 /**
  * ColorField — swatch-button that opens a ColorPicker popover.
  *
@@ -8,7 +9,8 @@
  * no banned semantic tags — hostile-host policy (CLAUDE.md).
  */
 
-import { useCallback, useRef, useState } from 'preact/compat';
+import { computed, Show, signal, type Ref } from '@takazudo/zfb/zudo-react';
+import { read, toSignal, type Reactive } from '../../zr/live';
 import { ColorPicker } from './color-picker';
 import type { ColorPickerValueFormat } from './color-picker';
 
@@ -40,58 +42,60 @@ export interface ColorFieldProps {
  *
  * Readonly items show the swatch but do not open the picker on interaction.
  */
-export function ColorField({
-  value,
-  onChange,
-  valueFormat = 'hex',
-  resolveMode,
-  label,
-  cssVar,
-  readonly: isReadonly = false,
-}: ColorFieldProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const buttonRef = useRef<HTMLDivElement>(null);
+export function ColorField(props: Reactive<ColorFieldProps, 'onChange'>) {
+  const { onChange } = props;
+  const isOpen = signal(false);
+  const buttonRef: Ref<HTMLDivElement> = { current: null };
+  const isReadonly = () => read(props.readonly) ?? false;
 
-  const handleClose = useCallback(() => setIsOpen(false), []);
+  const handleClose = () => {
+    isOpen.value = false;
+  };
 
-  const handleToggle = useCallback(() => {
-    if (isReadonly) return;
-    setIsOpen((prev) => !prev);
-  }, [isReadonly]);
+  const handleToggle = () => {
+    if (isReadonly()) return;
+    isOpen.value = !isOpen.value;
+  };
 
-  const ariaLabel = cssVar ? `${label}: ${cssVar}` : label;
+  const ariaLabel = computed(() => {
+    const label = read(props.label);
+    const cssVar = read(props.cssVar);
+    return cssVar ? `${label}: ${cssVar}` : label;
+  });
 
   return (
-    <div className="tokenpanel-color-field">
+    <div class="tokenpanel-color-field">
       <div
         ref={buttonRef}
         role="button"
-        tabIndex={0}
-        className="tokenpanel-color-field-swatch"
-        style={{ backgroundColor: value }}
-        onClick={handleToggle}
-        onKeyDown={(e: KeyboardEvent) => {
+        tabindex={0}
+        class="tokenpanel-color-field-swatch"
+        style={computed(() => ({ 'background-color': read(props.value) }))}
+        on:click={handleToggle}
+        on:keydown={(e: KeyboardEvent) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             handleToggle();
           }
         }}
         aria-label={ariaLabel}
-        aria-expanded={isReadonly ? undefined : isOpen}
-        aria-disabled={isReadonly || undefined}
+        aria-expanded={computed(() => (isReadonly() ? null : isOpen.value))}
+        aria-disabled={computed(() => (isReadonly() ? true : null))}
         data-testid="color-field-swatch"
       />
-      {isOpen && (
-        <ColorPicker
-          color={value}
-          onChange={onChange}
-          valueFormat={valueFormat}
-          resolveMode={resolveMode}
-          label={label}
-          anchorRef={buttonRef}
-          onClose={handleClose}
-        />
-      )}
+      <Show when={isOpen}>
+        {() => (
+          <ColorPicker
+            color={toSignal(props.value)}
+            onChange={onChange}
+            valueFormat={read(props.valueFormat) ?? 'hex'}
+            resolveMode={toSignal(props.resolveMode)}
+            label={toSignal(props.label)}
+            anchorRef={buttonRef}
+            onClose={handleClose}
+          />
+        )}
+      </Show>
     </div>
   );
 }

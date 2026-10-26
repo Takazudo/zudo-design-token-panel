@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 
 /**
  * Unit tests for ColorPicker.
@@ -31,10 +32,8 @@ if (typeof PointerEvent === 'undefined') {
 }
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from '../../../zr/test-utils';
-import { useRef } from 'preact/compat';
-import type { JSX } from 'preact';
+import { act, cleanupZr, renderZr } from '../../../zr/test-utils';
+import { computed, signal } from '@takazudo/zfb/zudo-react';
 import { ColorField } from '../color-field';
 import { resolveCssColorInHost } from '../../../utils/resolve-css-color';
 
@@ -66,46 +65,51 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => render(null, container));
+  act(() => cleanupZr());
   container.remove();
 });
 
-/**
- * Wrapper component that owns an anchorRef and renders ColorPicker with it.
- * This mirrors real usage: parent keeps ref to its trigger element.
- */
-function PickerWrapper(props: Omit<ColorPickerProps, 'anchorRef' | 'onClose'> & {
+type PickerProps = Omit<ColorPickerProps, 'anchorRef' | 'onClose'> & {
   onClose?: () => void;
-}): JSX.Element {
-  const anchorRef = useRef<HTMLDivElement>(null);
+};
+
+// One picker per test container; later calls replace its props, standing in
+// for a parent re-render.
+const pickerProps = signal<PickerProps>({ color: '#ff0000', onChange: () => {} });
+let pickerHost: HTMLElement | null = null;
+
+function PickerHost() {
+  const anchorRef: { current: HTMLDivElement | null } = { current: null };
+  const initial = pickerProps.value;
   return (
     <div>
-      <div ref={anchorRef} style={{ width: 40, height: 40 }} />
+      <div ref={anchorRef} style={{ width: '40px', height: '40px' }} />
       <ColorPicker
-        {...props}
-        anchorRef={anchorRef as React.RefObject<HTMLElement | null>}
-        onClose={props.onClose ?? (() => {})}
+        color={computed(() => pickerProps.value.color)}
+        resolveMode={computed(() => pickerProps.value.resolveMode)}
+        label={computed(() => pickerProps.value.label)}
+        valueFormat={initial.valueFormat}
+        defaultMode={initial.defaultMode}
+        onChange={(value) => pickerProps.value.onChange(value)}
+        anchorRef={anchorRef}
+        onClose={() => pickerProps.value.onClose?.()}
       />
     </div>
   );
+}
+
+function mountPicker(props: PickerProps): void {
+  pickerProps.value = props;
+  if (pickerHost === container) return;
+  pickerHost = container;
+  renderZr(() => <PickerHost />, container);
 }
 
 function renderPicker(
   partial: Partial<ColorPickerProps> & { onClose?: () => void } = {},
 ): void {
   act(() => {
-    render(
-      <PickerWrapper
-        color={partial.color ?? '#ff0000'}
-        onChange={partial.onChange ?? vi.fn()}
-        valueFormat={partial.valueFormat}
-        resolveMode={partial.resolveMode}
-        label={partial.label}
-        defaultMode={partial.defaultMode}
-        onClose={partial.onClose ?? (() => {})}
-      />,
-      container,
-    );
+    mountPicker({ color: partial.color ?? '#ff0000', onChange: partial.onChange ?? vi.fn(), valueFormat: partial.valueFormat, resolveMode: partial.resolveMode, label: partial.label, defaultMode: partial.defaultMode, onClose: partial.onClose ?? (() => {}) });
   });
 }
 
@@ -471,10 +475,7 @@ describe('ColorPicker — hex input', () => {
     renderPicker({ color: '#ff0000' });
     // Re-render with a new color
     act(() => {
-      render(
-        <PickerWrapper color="#0000ff" onChange={vi.fn()} />,
-        container,
-      );
+      mountPicker({ color: "#0000ff", onChange: vi.fn() });
     });
     const input = container.querySelector<HTMLInputElement>(
       '.tokenpanel-color-picker-hex-input',
@@ -584,7 +585,7 @@ describe('ColorPicker — useSyncedHex', () => {
   it('syncs internal hex when the color prop changes while not dragging', () => {
     renderPicker({ color: '#ff0000' });
     act(() => {
-      render(<PickerWrapper color="#00ff00" onChange={vi.fn()} />, container);
+      mountPicker({ color: "#00ff00", onChange: vi.fn() });
     });
     const input = container.querySelector<HTMLInputElement>(
       '.tokenpanel-color-picker-hex-input',
@@ -607,7 +608,7 @@ describe('ColorPicker — useSyncedHex', () => {
 
     // Re-render with a new external color — the drag gate should suppress sync.
     act(() => {
-      render(<PickerWrapper color="#00ff00" onChange={vi.fn()} />, container);
+      mountPicker({ color: "#00ff00", onChange: vi.fn() });
     });
 
     // Hex input must still show the original value — drag is still in flight.
@@ -750,7 +751,7 @@ describe('ColorPicker — hex input not clobbered mid-typing (H2 regression)', (
     // Sanity: partial input should not have called onChange.
     // Now re-render with a different external color.
     act(() => {
-      render(<PickerWrapper color="#999999" onChange={vi.fn()} />, container);
+      mountPicker({ color: "#999999", onChange: vi.fn() });
     });
 
     // The input field must still show the in-progress value.
@@ -877,14 +878,7 @@ describe('ColorPicker — defaultMode is initial-only', () => {
 
     // Re-render with a different defaultMode.
     act(() => {
-      render(
-        <PickerWrapper
-          color="#ff0000"
-          onChange={vi.fn()}
-          defaultMode="hsl"
-        />,
-        container,
-      );
+      mountPicker({ color: "#ff0000", onChange: vi.fn(), defaultMode: "hsl" });
     });
 
     // Mode should still be OKLCH — defaultMode is initial-only.
@@ -1092,14 +1086,7 @@ describe('ColorPicker — valueFormat=oklch (S3a)', () => {
     });
     // External prop change mid-drag — must be ignored.
     act(() => {
-      render(
-        <PickerWrapper
-          color="oklch(0.2 0.05 30 / 1)"
-          valueFormat="oklch"
-          onChange={onChange}
-        />,
-        container,
-      );
+      mountPicker({ color: "oklch(0.2 0.05 30 / 1)", valueFormat: "oklch", onChange: onChange });
     });
     // Chroma slider must still reflect the original 0.25, not the new 0.05.
     const rows = container.querySelectorAll('.tokenpanel-color-picker-slider-row');
@@ -1579,7 +1566,7 @@ describe('ColorPicker — expression conversion', () => {
 
   it('re-arms after convert without editing, close and reopen through ColorField', () => {
     const onChange = vi.fn();
-    act(() => render(<ColorField value={source} resolveMode="dark" valueFormat="oklch" label="Brand" onChange={onChange} />, container));
+    act(() => renderZr(() => <ColorField value={source} resolveMode="dark" valueFormat="oklch" label="Brand" onChange={onChange} />, container));
     const swatch = container.querySelector('[data-testid="color-field-swatch"]')!;
     fireClick(swatch);
     expect(resolveCssColorInHost).toHaveBeenLastCalledWith(source, 'dark');

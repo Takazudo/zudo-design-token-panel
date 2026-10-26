@@ -2,7 +2,7 @@ import { Fragment } from 'preact';
 import { memo, useCallback, useEffect, useRef, useState } from 'preact/compat';
 import type { TabOverrides } from '../../apply/tier-resolver';
 import { resolveTierItemValue } from '../../apply/tier-resolver';
-import ColorField from '../../components/color-picker/color-field';
+import ColorField from '../../components/color-picker/color-picker-preact';
 import { RoleButton } from '../../controls/role-button-preact';
 import TierRefSelector, { type TierRefSelectorValue } from '../../controls/tier-ref-selector';
 import TokenLabel from '../../controls/token-label';

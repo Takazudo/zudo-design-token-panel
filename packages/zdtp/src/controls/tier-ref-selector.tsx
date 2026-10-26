@@ -1,6 +1,6 @@
 import { memo } from 'preact/compat';
 import type { TabConfig, TierConfig, TierItem } from '../tokens/tier-model';
-import ColorField from '../components/color-picker/color-field';
+import ColorField from '../components/color-picker/color-picker-preact';
 import { resolvePerModeLiteral } from '../state/tweak-state';
 
 // ---------------------------------------------------------------------------
