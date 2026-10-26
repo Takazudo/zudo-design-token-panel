@@ -32,8 +32,8 @@ The authoritative API spec is [`PORTABLE-CONTRACT.md`](./PORTABLE-CONTRACT.md). 
   partial reconciliation, and JSON export/import when disk apply is not
   configured.
 - Owner autoload for developer-only loading across page visits.
-- A separate Preact `TokenDashboard` for a static, read-only token inventory
-  (available from v0.6.1).
+- A separate zudo-react `TokenDashboard` for a static, read-only token inventory
+  (available from v0.6.1; rendered with Preact through v0.8.7).
 
 See the [Panel UX tour](/docs/recipes/panel-ux-tour) for a feature-by-feature
 walkthrough and the shortcut table.
@@ -43,7 +43,11 @@ walkthrough and the shortcut table.
 ## Static token dashboard
 
 Import `TokenDashboard` from `@takazudo/zdtp/dashboard` to render the same tab
-manifest on a plain page. This entry is available from v0.6.1. The [live workspace demo](https://zdtp-playground.zudolab.dev/dashboard/)
+manifest on a plain page. This entry is available from v0.6.1. After v0.8.7 it is a
+zudo-react component: render it from a zfb page (or with
+`@takazudo/zfb/zudo-react/server`'s `renderToString`) and install `@takazudo/zfb`
+(an optional peer, `^5.1.2`) yourself. Releases through v0.8.7 shipped a Preact
+component instead. The [live workspace demo](https://zdtp-playground.zudolab.dev/dashboard/)
 shows both modes and a compact embedded instance.
 
 ```tsx
@@ -128,8 +132,10 @@ Arbitrary notes HTML and URL/mask assets are not rendered or loaded.
 ### Optional client mount
 
 The `@takazudo/zdtp/dashboard/client` leaf (available from v0.8.7) lets a host
-without its own Preact renderer mount the same component into a dedicated empty
-element. Include the public dashboard stylesheet explicitly.
+mount the same component into a dedicated empty element without its own renderer
+setup. After v0.8.7 it uses zudo-react's caller-owned `mount`, so the host must
+install `@takazudo/zfb`; the API adds a `display: contents` wrapper inside the
+host. Include the public dashboard stylesheet explicitly.
 
 ```ts
 import '@takazudo/zdtp/dashboard/styles.css';
@@ -149,7 +155,7 @@ stale handle cannot remove its replacement; disposal is idempotent and retains
 the host element and attributes. Separate hosts remain independent. When a host
 loads this leaf with `import()`, cancel an abandoned load in the host before it
 calls `mountTokenDashboard`; the synchronous API does not manage that promise.
-The static Preact renderer keeps its Node SSR and no-client-JavaScript behavior.
+The static renderer keeps its Node SSR and no-client-JavaScript behavior.
 
 An HTML-export API/CLI, React adapter, and automatic panel-state
 synchronization are outside this scope.
@@ -226,9 +232,10 @@ pnpm add @takazudo/zdtp
 
 ZDTP's public declarations still use Preact types; its regular dependency makes
 those types available to TypeScript without a host-level Preact dependency.
-Preact hosts and users of the Preact `./dashboard` renderer should keep their own
-Preact dependency for their JSX and rendering code. A compatible installed copy
-can still be shared; ZDTP does not bundle a private Preact runtime.
+Preact hosts should keep their own Preact dependency for their JSX and rendering
+code. A compatible installed copy can still be shared; ZDTP does not bundle a
+private Preact runtime. The `./dashboard` entries instead render with the host's
+zudo-react from `@takazudo/zfb`, an optional peer that only dashboard users need.
 
 For ZFB 3 to 5, load ZDTP inside the host island's activation callback and mount
 it through `configurePanel()`. Keep ZDTP's Preact tree separate from zudo-react's

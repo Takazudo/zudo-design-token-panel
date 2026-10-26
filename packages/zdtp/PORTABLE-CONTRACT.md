@@ -1392,9 +1392,9 @@ window.zdtp.toggle = () => void | Promise<void>;  // toggle the panel
 The panel owns Preact as a regular package dependency. Imperative hosts, including
 ZFB 3 to 5 zudo-react islands, can install only `@takazudo/zdtp`; lazy-load it inside
 activation and keep its mounted tree separate from the host renderer. Public
-Preact declaration imports resolve through that dependency. The Preact dashboard
-renderer remains Preact-specific; a host rendering it directly still owns its JSX
-and server-rendering dependencies. No private Preact copy is bundled.
+Preact declaration imports resolve through that dependency. No private Preact copy
+is bundled. The dashboard entries are not Preact: after v0.8.7 they render with the
+host's zudo-react, so their users install `@takazudo/zfb` (optional peer `^5.1.2`).
 
 ### 7.1 Panel-private namespace
 
@@ -1753,7 +1753,8 @@ on across a release bump.
 This entry is available from v0.6.1. It does not change the
 `configurePanel` or persistence contracts above.
 
-`@takazudo/zdtp/dashboard` exports the Preact `TokenDashboard` component and
+`@takazudo/zdtp/dashboard` exports the `TokenDashboard` component (zudo-react after
+v0.8.7; Preact through v0.8.7) and
 `TokenDashboardProps`, `DashboardMode`, `DashboardInclude`, `DashboardChrome`,
 `DashboardPreviewKind`, `TabConfig`, `TierConfig`, and `TierItem` types. The
 internal value model is not a public API.
@@ -1789,9 +1790,12 @@ another API mount on the same host replaces the old one, and an old disposer
 cannot remove a newer mount. Disposal is idempotent, releases ownership and
 leaves the host intact. Different hosts are independent. The call is synchronous;
 a host using a late dynamic import must cancel an abandoned load before mounting.
-The leaf does not add hydration, update, renderer or peer-dependency contracts.
+The leaf does not add hydration or update contracts. After v0.8.7 it mounts with
+zudo-react's caller-owned `mount` inside a `display: contents` wrapper appended to
+the host, so it shares the dashboard's optional `@takazudo/zfb` peer.
 
-- Ordinary Preact rendering and server rendering are supported. The component
+- Ordinary zudo-react rendering (a zfb page) and server rendering through
+  `@takazudo/zfb/zudo-react/server` are supported. The component
   has no browser-global, panel-runtime, persistence, host-adapter, bin-server,
   or browser Tailwind compiler dependency. No hydration is required.
 - `@takazudo/zdtp/dashboard/styles.css` is a separate public asset. Dashboard
