@@ -9,24 +9,25 @@ The foundation shell exposes three small seams for later features:
 
 ## Shell chrome
 
-`DesignTokenTweakPanel` already mounts `ShellRegionsProvider` and
-`ShortcutProvider`. A feature rendered inside the panel can register one stable
-item with `useRegisterRegionItem`:
+`DesignTokenTweakPanel` creates the shell's region registry
+(`createShellRegions`) and shortcut dispatcher (`createShortcutDispatcher`) and
+passes them down explicitly — zudo-react has no context. A feature rendered
+inside the panel registers one item for its lifetime with
+`useRegisterRegionItem`, called during component setup:
 
 ```tsx
-import { useMemo } from 'preact/compat';
 import { RoleButton } from '../controls/role-button';
-import { useRegisterRegionItem, type ShellRegionItem } from './regions';
+import { useRegisterRegionItem, type ShellRegions } from './regions';
 
-function FeatureChrome({ onOpen }: { onOpen: () => void }) {
-  const item = useMemo<ShellRegionItem>(() => ({
+function FeatureChrome({ regions, onOpen }: { regions: ShellRegions; onOpen: () => void }) {
+  useRegisterRegionItem(regions, 'header-actions', {
     id: 'feature-open',
     order: 20,
     // header-actions are visible in the wide header; compactAction supplies
     // the same command to the narrow-panel actions popover.
     render: () => (
       <RoleButton
-        className="tokenpanel-feature-action"
+        class="tokenpanel-feature-action"
         onClick={onOpen}
         data-zdtp-action="feature-open"
       >
@@ -34,18 +35,17 @@ function FeatureChrome({ onOpen }: { onOpen: () => void }) {
       </RoleButton>
     ),
     compactAction: { id: 'feature-open', label: 'Feature', onSelect: onOpen },
-  }), [onOpen]);
-
-  useRegisterRegionItem('header-actions', item);
+  });
   return null;
 }
 ```
 
 The available regions are `header-actions`, `header-right`, `tabbar-extras`,
 and `footer`. `order` is ascending, and an identical `id` replaces a previous
-registration. Keep the item object memoised so its effect does not unregister
-and re-register on every render. `render` may inspect `{ compact,
-closeCompactMenu }` when a feature needs different compact markup. Use the
+registration, and the item is removed when the registering component unmounts.
+`render` runs once per mount of the region, so read signals inside it for live
+values; it may inspect `{ compact, closeCompactMenu }` when a feature needs
+different compact markup. Use the
 `RoleButton` primitive for every button-like control so the panel's DOM and
 keyboard contract stays intact.
 
@@ -58,12 +58,14 @@ header-actions row and the container query only hides it with `display: none`,
 so while the compact popover is open **two** elements share the id — the hidden
 header control and the popover item. See `PORTABLE-CONTRACT.md` §7.6.
 
-Register shortcuts with `useShortcut` from the same subtree. The dispatcher
-routes a shortcut to the last-interacted open shell, ignores editable targets
-outside that shell, and removes the registration on unmount:
+Register shortcuts with `useShortcut`, passing the panel's dispatcher. The
+dispatcher routes a shortcut to the last-interacted open shell, ignores editable
+targets outside that shell, and removes the registration on unmount (or while
+the optional `enabled` signal is false):
 
 ```tsx
 useShortcut(
+  shortcuts,
   { key: 'k', when: (event) => (event.metaKey || event.ctrlKey) && !event.shiftKey },
   (event) => {
     event.preventDefault();
@@ -81,8 +83,8 @@ Filters combine with AND; keep contribution `id`s stable and append them in the
 desired render order. Do not add a second heading inside a tier.
 
 When a contribution changes panel state, call the transaction hook supplied by
-the panel integration rather than calling `setState`, `usePersist`, or a state
-slice helper directly:
+the panel integration rather than writing the state signal, calling the persist
+helpers, or calling a state slice helper directly:
 
 ```tsx
 commitTweakState(

@@ -1,10 +1,13 @@
-import { useContext, useMemo, useState, useEffect } from 'preact/hooks';
-import type { JSX } from 'preact';
-import { RoleButton } from '../controls/role-button-preact';
-import { useTokenController } from '../tabs/flat/token-controller';
+/** @jsxImportSource @takazudo/zfb/zudo-react */
+import { computed, signal, type Child, type ReadonlySignal } from '@takazudo/zfb/zudo-react';
+import { RoleButton } from '../controls/role-button';
+import { ControlledSelect, TextInput } from '../zr/form-controls';
+import { Rebuild } from '../zr/rebuild';
+import { toZrStyle } from '../zr/style';
+import { getTokenController, type TokenController } from '../tabs/flat/token-controller';
 import { tokenAddressKey as flatTokenAddressKey, type TokenAddress } from '../tabs/flat/types';
-import type { ElementTokenMatch } from './find-tokens-for-element';
-import { ElementInspectContext } from './element-inspect-context';
+import type { ElementTokenMatch, FindTokensForElementResult } from './find-tokens-for-element';
+import type { ElementInspectController } from './element-inspect-context';
 import { buildBreadcrumb, buildSummary } from '../element-path/build-element-path';
 
 function ancestorChain(element: Element): Element[] {
@@ -28,244 +31,215 @@ function tokenAddressFor(match: ElementTokenMatch): TokenAddress | null {
 }
 
 function InspectorValue({
-  match,
+  controller,
   onJumpToColorTab,
 }: {
-  match: ElementTokenMatch;
+  controller: ReadonlySignal<TokenController>;
   onJumpToColorTab: () => void;
-}): JSX.Element {
-  const address = tokenAddressFor(match);
-  if (!address) return <span className="tokenpanel-element-inspect-value-empty">unavailable</span>;
-  return <InspectorValueForAddress address={address} onJumpToColorTab={onJumpToColorTab} />;
-}
+}): Child {
+  const initial = controller.value;
+  const { entry } = initial;
+  const isReadonly = initial.readonly || entry.item.readonly === true;
+  const value = computed(() => controller.value.value);
 
-function InspectorValueForAddress({
-  address,
-  onJumpToColorTab,
-}: {
-  address: TokenAddress;
-  onJumpToColorTab: () => void;
-}): JSX.Element {
-  const controller = useTokenController(address);
-  const { entry } = controller;
-  const isReadonly = controller.readonly || entry.item.readonly === true;
-  const [draft, setDraft] = useState(() => parseNumber(controller.value));
-
-  useEffect(() => setDraft(parseNumber(controller.value)), [controller.value]);
-
-  if (controller.readonly) {
-    const jumpToColorTab = controller.jumpTo ?? onJumpToColorTab;
+  if (initial.readonly) {
+    const jumpToColorTab = initial.jumpTo ?? onJumpToColorTab;
     return (
-      <div className="tokenpanel-element-inspect-color-value">
+      <div class="tokenpanel-element-inspect-color-value">
         <span
-          className="tokenpanel-element-inspect-swatch"
+          class="tokenpanel-element-inspect-swatch"
           aria-hidden="true"
-          style={{ backgroundColor: controller.value }}
+          style={computed(() => toZrStyle({ backgroundColor: value.value }))}
         />
-        <span className="tokenpanel-element-inspect-resolved-value">{controller.value || 'unresolved'}</span>
-        {jumpToColorTab && (
+        <span class="tokenpanel-element-inspect-resolved-value">
+          {computed(() => value.value || 'unresolved')}
+        </span>
+        {jumpToColorTab ? (
           <RoleButton
-            className="tokenpanel-element-inspect-jump"
+            class="tokenpanel-element-inspect-jump"
             onClick={jumpToColorTab}
             aria-label={`Jump to Color tab for ${entry.item.cssVar}`}
           >
             jump to Color tab
           </RoleButton>
-        )}
+        ) : null}
       </div>
     );
   }
 
   const kind = entry.item.type.kind;
-  if (kind === 'length' || kind === 'number') {
-    const unit = kind === 'length' ? entry.item.type.unit : '';
+  if (entry.item.type.kind === 'length' || kind === 'number') {
+    const unit = entry.item.type.kind === 'length' ? entry.item.type.unit : '';
+    const draft = signal(parseNumber(value.value));
+    let lastValue = value.value;
+    const shown = computed(() => {
+      // Re-seed the draft when the stored value changes from outside.
+      const current = value.value;
+      if (current !== lastValue) {
+        lastValue = current;
+        draft.value = parseNumber(current);
+      }
+      return draft.value;
+    });
     return (
-      <div className="tokenpanel-element-inspect-edit-value">
-        <input
-          type="text"
-          inputMode="decimal"
-          value={draft}
+      <div class="tokenpanel-element-inspect-edit-value">
+        <TextInput
+          value={shown}
           disabled={isReadonly}
-          className="tokenpanel-element-inspect-number-input"
-          aria-label={`${entry.item.cssVar} value`}
-          onInput={(event) => {
-            const raw = event.currentTarget.value;
-            setDraft(raw);
+          class="tokenpanel-element-inspect-number-input"
+          attrs={{ inputmode: 'decimal', 'aria-label': `${entry.item.cssVar} value` }}
+          onInput={(raw) => {
+            draft.value = raw;
             if (!raw.trim()) return;
             const parsed = Number(raw);
-            if (Number.isFinite(parsed)) controller.setValue(unit ? `${parsed}${unit}` : String(parsed));
+            if (Number.isFinite(parsed)) controller.value.setValue(unit ? `${parsed}${unit}` : String(parsed));
           }}
           onBlur={() => {
-            if (!draft.trim() || !Number.isFinite(Number(draft))) {
-              setDraft(parseNumber(controller.value));
+            if (!draft.value.trim() || !Number.isFinite(Number(draft.value))) {
+              draft.value = parseNumber(controller.value.value);
             }
           }}
         />
-        {unit && <span className="tokenpanel-element-inspect-unit">{unit}</span>}
+        {unit ? <span class="tokenpanel-element-inspect-unit">{unit}</span> : null}
       </div>
     );
   }
 
-  if (kind === 'select') {
+  if (entry.item.type.kind === 'select') {
     return (
-      <select
-        value={controller.value}
+      <ControlledSelect
+        value={value}
         disabled={isReadonly}
-        className="tokenpanel-element-inspect-select"
+        class="tokenpanel-element-inspect-select"
         aria-label={`${entry.item.cssVar} value`}
-        onChange={(event) => controller.setValue(event.currentTarget.value)}
+        onChange={(next) => controller.value.setValue(next)}
       >
-        {entry.item.type.options.map((option) => <option key={option} value={option}>{option}</option>)}
-      </select>
+        {entry.item.type.options.map((option) => <option value={option}>{option}</option>)}
+      </ControlledSelect>
     );
   }
 
   return (
-    <input
-      type="text"
-      value={controller.value}
+    <TextInput
+      value={value}
       disabled={isReadonly}
-      className="tokenpanel-element-inspect-text-input"
-      aria-label={`${entry.item.cssVar} value`}
-      spellcheck={false}
-      autoCapitalize="off"
-      autoCorrect="off"
-      autoComplete="off"
-      onInput={(event) => controller.setValue(event.currentTarget.value)}
+      class="tokenpanel-element-inspect-text-input"
+      attrs={{ 'aria-label': `${entry.item.cssVar} value`, spellcheck: false }}
+      rawAttrs={{ autocapitalize: 'off', autocorrect: 'off', autocomplete: 'off' }}
+      onInput={(next) => controller.value.setValue(next)}
     />
   );
 }
 
 function InspectorTokenRow({
   match,
+  address,
+  inspect,
   onJumpToColorTab,
 }: {
   match: ElementTokenMatch;
+  address: TokenAddress;
+  inspect: ElementInspectController;
   onJumpToColorTab: () => void;
-}): JSX.Element | null {
-  const address = tokenAddressFor(match);
-  if (!address) return null;
-  const controller = useTokenController(address);
+}): Child {
+  const controller = computed(() => getTokenController(inspect.tokens.value, address));
+  const { item } = controller.value.entry;
   const from = match.inheritedFrom ? ` · from ${buildSummary(match.inheritedFrom)}` : '';
   return (
     <div
-      className={match.confirmed
+      class={match.confirmed
         ? 'tokenpanel-element-inspect-row'
         : 'tokenpanel-element-inspect-row is-unconfirmed'}
       data-testid="element-inspect-token-row"
-      data-css-var={controller.entry.item.cssVar}
+      data-css-var={item.cssVar}
       data-address={flatTokenAddressKey(address)}
       data-confirmed={String(match.confirmed)}
     >
-      <div className="tokenpanel-element-inspect-token-label">
-        <span className="tokenpanel-element-inspect-token-var">{controller.entry.item.cssVar}</span>
-        <span className="tokenpanel-element-inspect-token-id">{controller.entry.item.label}</span>
+      <div class="tokenpanel-element-inspect-token-label">
+        <span class="tokenpanel-element-inspect-token-var">{item.cssVar}</span>
+        <span class="tokenpanel-element-inspect-token-id">{item.label}</span>
       </div>
-      <div className="tokenpanel-element-inspect-property">
-        <span className="tokenpanel-element-inspect-property-name">{match.property}</span>
-        <span className="tokenpanel-element-inspect-expression" title={match.expression}>
-          {match.expression}{from}
+      <div class="tokenpanel-element-inspect-property">
+        <span class="tokenpanel-element-inspect-property-name">{match.property}</span>
+        <span class="tokenpanel-element-inspect-expression" title={match.expression}>
+          {`${match.expression}${from}`}
         </span>
-        {!match.confirmed && <span className="tokenpanel-element-inspect-not-confirmed">not confirmed</span>}
+        {!match.confirmed ? <span class="tokenpanel-element-inspect-not-confirmed">not confirmed</span> : null}
       </div>
-      <InspectorValue match={match} onJumpToColorTab={onJumpToColorTab} />
+      <InspectorValue controller={controller} onJumpToColorTab={onJumpToColorTab} />
     </div>
   );
-}
-
-function MatchRows({
-  matches,
-  onJumpToColorTab,
-}: {
-  matches: readonly ElementTokenMatch[];
-  onJumpToColorTab: () => void;
-}): JSX.Element[] {
-  return matches.flatMap((match) => {
-    const address = tokenAddressFor(match);
-    return address
-      ? [<InspectorTokenRow
-          key={`${match.property}-${match.cssVar}-${match.selector}-${match.expression}-${flatTokenAddressKey(address)}`}
-          match={match}
-          onJumpToColorTab={onJumpToColorTab}
-        />]
-      : [];
-  });
 }
 
 function MatchSection({
   title,
   groups,
   emptyMessage,
+  inspect,
   onJumpToColorTab,
 }: {
   title: string;
-  groups: readonly { property: string; matches: readonly ElementTokenMatch[] }[];
+  groups: FindTokensForElementResult['own'];
   emptyMessage?: string;
+  inspect: ElementInspectController;
   onJumpToColorTab: () => void;
-}): JSX.Element {
-  const rows = groups.flatMap((group) => MatchRows({ matches: group.matches, onJumpToColorTab }));
+}): Child {
+  const rows = groups.flatMap((group) =>
+    group.matches.flatMap((match) => {
+      const address = tokenAddressFor(match);
+      return address
+        ? [<InspectorTokenRow match={match} address={address} inspect={inspect} onJumpToColorTab={onJumpToColorTab} />]
+        : [];
+    }),
+  );
   return (
-    <div className="tokenpanel-element-inspect-section">
-      <div role="heading" aria-level={3} className="tokenpanel-element-inspect-section-heading">{title}</div>
+    <div class="tokenpanel-element-inspect-section">
+      <div role="heading" aria-level={3} class="tokenpanel-element-inspect-section-heading">{title}</div>
       {rows.length > 0
-        ? <div className="tokenpanel-element-inspect-rows">{rows}</div>
-        : <div className="tokenpanel-element-inspect-empty">{emptyMessage ?? 'No token-backed declarations found.'}</div>}
+        ? <div class="tokenpanel-element-inspect-rows">{rows}</div>
+        : <div class="tokenpanel-element-inspect-empty">{emptyMessage ?? 'No token-backed declarations found.'}</div>}
     </div>
   );
 }
 
-export interface ElementInspectViewProps {
-  /** Invoked when the Color-tab jump link is selected. */
+function PinnedView({
+  pinned,
+  result,
+  inspect,
+  onJumpToColorTab,
+}: {
+  pinned: Element;
+  result: FindTokensForElementResult;
+  inspect: ElementInspectController;
   onJumpToColorTab: () => void;
-}
-
-export function ElementInspectView({ onJumpToColorTab }: ElementInspectViewProps): JSX.Element {
-  const context = useContext(ElementInspectContext);
-  const pinned = context?.pinned ?? null;
-  const chain = useMemo(() => (pinned ? ancestorChain(pinned) : []), [pinned]);
-  const breadcrumb = pinned ? buildBreadcrumb(pinned) : '';
-
-  if (context === null) {
-    return <div className="tokenpanel-element-inspect-empty">Element inspect is unavailable.</div>;
-  }
-
-  const { result, pin, clear } = context;
-  if (!pinned || !result) {
-    return (
-      <div className="tokenpanel-element-inspect-view">
-        <div className="tokenpanel-element-inspect-empty tokenpanel-element-inspect-empty--start">
-          Press <span className="tokenpanel-element-inspect-kbd">I</span> or click the inspect icon, then click any element on the page.
-        </div>
-      </div>
-    );
-  }
-
+}): Child {
+  const chain = ancestorChain(pinned);
+  const breadcrumb = buildBreadcrumb(pinned);
   return (
-    <div className="tokenpanel-element-inspect-view">
+    <div class="tokenpanel-element-inspect-view">
       <div
-        className="tokenpanel-element-inspect-breadcrumb"
+        class="tokenpanel-element-inspect-breadcrumb"
         aria-label={`Ancestor breadcrumb: ${breadcrumb}`}
       >
-        <span className="tokenpanel-element-inspect-pinned-label">Pinned</span>
-        {chain.map((element, index) => {
+        <span class="tokenpanel-element-inspect-pinned-label">Pinned</span>
+        {chain.map((element) => {
           const isPinned = element === pinned;
           return (
             <RoleButton
-              key={`${buildSummary(element)}-${index}`}
-              className={isPinned
+              class={isPinned
                 ? 'tokenpanel-element-inspect-crumb is-pinned'
                 : 'tokenpanel-element-inspect-crumb'}
               ariaProps={isPinned ? { 'aria-current': 'location' } : undefined}
               title={isPinned ? breadcrumb : `Pin ${buildSummary(element)}`}
-              onClick={() => pin(element)}
+              onClick={() => inspect.pin(element)}
             >
               {buildSummary(element)}
             </RoleButton>
           );
         })}
         <RoleButton
-          className="tokenpanel-element-inspect-clear"
-          onClick={clear}
+          class="tokenpanel-element-inspect-clear"
+          onClick={inspect.clear}
           aria-label="Clear inspected element"
           title="Clear inspected element"
         >
@@ -277,20 +251,55 @@ export function ElementInspectView({ onJumpToColorTab }: ElementInspectViewProps
         title={`Tokens read by ${buildSummary(pinned)}`}
         groups={result.own}
         emptyMessage="This element has no token-backed declarations of its own — check the ancestors below."
+        inspect={inspect}
         onJumpToColorTab={onJumpToColorTab}
       />
-      {result.inherited.length > 0 && (
+      {result.inherited.length > 0 ? (
         <MatchSection
           title="Inherited from ancestors"
           groups={result.inherited}
+          inspect={inspect}
           onJumpToColorTab={onJumpToColorTab}
         />
-      )}
-      {result.warnings.length > 0 && (
-        <div className="tokenpanel-element-inspect-warning" role="status">
+      ) : null}
+      {result.warnings.length > 0 ? (
+        <div class="tokenpanel-element-inspect-warning" role="status">
           {result.warnings.join(' ')}
         </div>
-      )}
+      ) : null}
     </div>
+  );
+}
+
+export interface ElementInspectViewProps {
+  inspect: ElementInspectController | null;
+  /** Invoked when the Color-tab jump link is selected. */
+  onJumpToColorTab: () => void;
+}
+
+export function ElementInspectView({ inspect, onJumpToColorTab }: ElementInspectViewProps): Child {
+  if (inspect === null) {
+    return <div class="tokenpanel-element-inspect-empty">Element inspect is unavailable.</div>;
+  }
+  const view = computed(() => ({ pinned: inspect.pinned.value, result: inspect.result.value }));
+  let last: { pinned: Element | null; result: FindTokensForElementResult | null } | null = null;
+  const stable = computed(() => {
+    const next = view.value;
+    if (last && last.pinned === next.pinned && last.result === next.result) return last;
+    last = next;
+    return next;
+  });
+  return (
+    <Rebuild value={stable}>
+      {({ pinned, result }) => (!pinned || !result ? (
+        <div class="tokenpanel-element-inspect-view">
+          <div class="tokenpanel-element-inspect-empty tokenpanel-element-inspect-empty--start">
+            Press <span class="tokenpanel-element-inspect-kbd">I</span> or click the inspect icon, then click any element on the page.
+          </div>
+        </div>
+      ) : (
+        <PinnedView pinned={pinned} result={result} inspect={inspect} onJumpToColorTab={onJumpToColorTab} />
+      ))}
+    </Rebuild>
   );
 }

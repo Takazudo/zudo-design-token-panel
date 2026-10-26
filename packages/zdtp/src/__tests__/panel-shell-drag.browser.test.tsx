@@ -18,7 +18,7 @@
  *
  * Deflaking contract (deflaking-recipe.mdx §4):
  *  - No fixed sleeps. The only timed wait is flushEffects() which is keyed
- *    to Preact's documented rAF + setTimeout(35) scheduler path.
+ *    to the panel's rAF + short-timer effect follow-up path.
  *  - Mouse events are dispatched synchronously; DOM writes from the handlers
  *    are also synchronous. Assertions after dispatch are immediate.
  *  - Persistence (localStorage) is synchronous in savePosition/saveSize —
@@ -26,8 +26,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { render } from 'preact';
-import { act } from '../zr/test-utils';
+import { act, renderZr, unmountZrIn } from '../zr/test-utils';
 import DesignTokenTweakPanel from '../panel';
 import { getOpenKey, getPositionKey, getSizeKey, VISIBLE_MIN, MIN_PANEL_WIDTH, MIN_PANEL_HEIGHT } from '../state/tweak-state';
 import { FIXTURE_PANEL_CONFIG } from './_test-helpers';
@@ -56,11 +55,11 @@ const SEED_SIZE = { width: 200, height: 200 };
 let container: HTMLDivElement;
 
 /**
- * Wait for Preact's effect scheduler to settle.
+ * Wait for the panel's effects and their rAF follow-up work to settle.
  *
- * Wait-ok: the 50ms constant covers Preact's rAF + setTimeout(35) flush
- * path. There is no observable "all effects done" signal from outside Preact
- * internals, so a duration wait is the accepted technique here (mirrors
+ * Wait-ok: the 50ms constant covers the panel's rAF + short-timer follow-up
+ * path. There is no observable "all effects done" signal from outside the
+ * runtime, so a duration wait is the accepted technique here (mirrors
  * _test-helpers.ts::flushEffects).
  */
 async function flushEffects(): Promise<void> {
@@ -137,7 +136,7 @@ beforeEach(() => {
 
   // Render and let mount effects settle.
   act(() => {
-    render(<DesignTokenTweakPanel instanceConfig={CFG} />, container);
+    renderZr(() => <DesignTokenTweakPanel instanceConfig={CFG} />, container);
   });
 });
 
@@ -145,7 +144,7 @@ afterEach(async () => {
   // Flush any pending effects before unmounting to avoid stale listeners.
   await flushEffects();
   act(() => {
-    render(null, container);
+    unmountZrIn(container);
   });
   container.remove();
   localStorage.clear();
@@ -328,13 +327,13 @@ describe('panel drag-to-move — persistence across remount', () => {
 
     // Unmount the panel.
     act(() => {
-      render(null, container);
+      unmountZrIn(container);
     });
     await flushEffects();
 
     // Re-mount with the same config (same storage prefix → reads the same keys).
     act(() => {
-      render(<DesignTokenTweakPanel instanceConfig={CFG} />, container);
+      renderZr(() => <DesignTokenTweakPanel instanceConfig={CFG} />, container);
     });
     await flushEffects();
 
@@ -522,12 +521,12 @@ describe('panel resize-grip — persistence across remount', () => {
     expect(stored).not.toBeNull();
 
     act(() => {
-      render(null, container);
+      unmountZrIn(container);
     });
     await flushEffects();
 
     act(() => {
-      render(<DesignTokenTweakPanel instanceConfig={CFG} />, container);
+      renderZr(() => <DesignTokenTweakPanel instanceConfig={CFG} />, container);
     });
     await flushEffects();
 

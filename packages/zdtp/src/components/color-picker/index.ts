@@ -6,5 +6,4 @@ export {
   bindPopoverClose,
   getFixedPopoverStyle,
 } from './color-picker';
-export { usePopoverClose } from './popover-preact';
 export { default } from './color-picker';

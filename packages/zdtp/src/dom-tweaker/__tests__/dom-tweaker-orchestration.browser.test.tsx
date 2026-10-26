@@ -1,9 +1,8 @@
 // @vitest-environment browser
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from '../../zr/test-utils';
-import type { ComponentChildren } from 'preact';
+import { act, renderZr, unmountZrIn } from '../../zr/test-utils';
+import type { Child } from '@takazudo/zfb/zudo-react';
 import DesignTokenTweakPanel from '../../panel';
 import type { PanelConfig } from '../../config/panel-config';
 import { getOpenKey, saveSize } from '../../state/tweak-state';
@@ -15,6 +14,7 @@ import {
 } from '../../picker/arming-coordinator';
 import { DOM_TWEAKER_PORTAL_MOUNT_ID, ELPATH_PORTAL_MOUNT_ID } from '../../highlight/find-elements';
 import { DomTweakerOrchestrator } from '../dom-tweaker-orchestrator';
+import type { DomTweakerController } from '../dom-tweaker-context';
 import { DomTweakerToggleButton } from '../dom-tweaker-toggle-button';
 import { resetAll } from '../lazy/edit-session';
 import { DOM_TWEAKER_STYLE_ID } from '../lazy/style-injection';
@@ -85,14 +85,13 @@ function createFixtureElement(className = 'px-2 rounded-md'): HTMLElement {
 
 function renderDomTweakerHarness(
   cfg: PanelConfig,
-  children: ComponentChildren = <DomTweakerToggleButton />,
+  children: (controller: DomTweakerController) => Child = (controller) => (
+    <DomTweakerToggleButton controller={controller} />
+  ),
 ): HTMLDivElement {
   const container = createContainer();
   act(() => {
-    render(
-      <DomTweakerOrchestrator instanceConfig={cfg}>{children}</DomTweakerOrchestrator>,
-      container,
-    );
+    renderZr(() => <DomTweakerOrchestrator instanceConfig={cfg}>{children}</DomTweakerOrchestrator>, container);
   });
   return container;
 }
@@ -100,15 +99,18 @@ function renderDomTweakerHarness(
 function renderMutualExclusionHarness(cfg: PanelConfig): HTMLDivElement {
   const container = createContainer();
   act(() => {
-    render(
+    renderZr(() => (
       <ElementPathOrchestrator>
-        <DomTweakerOrchestrator instanceConfig={cfg}>
-          <ElementPathToggleButton />
-          <DomTweakerToggleButton />
-        </DomTweakerOrchestrator>
-      </ElementPathOrchestrator>,
-      container,
-    );
+        {(elementPath) => (
+          <DomTweakerOrchestrator instanceConfig={cfg}>
+            {(domTweaker) => [
+              <ElementPathToggleButton controller={elementPath} />,
+              <DomTweakerToggleButton controller={domTweaker} />,
+            ]}
+          </DomTweakerOrchestrator>
+        )}
+      </ElementPathOrchestrator>
+    ), container);
   });
   return container;
 }
@@ -261,7 +263,7 @@ beforeEach(() => {
 afterEach(async () => {
   for (const container of containers) {
     act(() => {
-      render(null, container);
+      unmountZrIn(container);
     });
     container.remove();
   }
@@ -556,7 +558,7 @@ describe.sequential('DOM Tweaker orchestration', () => {
     const container = createContainer();
 
     act(() => {
-      render(<DesignTokenTweakPanel instanceConfig={cfg} />, container);
+      renderZr(() => <DesignTokenTweakPanel instanceConfig={cfg} />, container);
     });
     await flushEffects();
 

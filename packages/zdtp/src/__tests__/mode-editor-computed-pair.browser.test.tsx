@@ -8,8 +8,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { render } from 'preact';
-import { act } from '../zr/test-utils';
+import { act, renderZr, unmountZrIn } from '../zr/test-utils';
 import DesignTokenTweakPanel from '../panel';
 import {
   __resetPanelConfigForTests,
@@ -114,7 +113,7 @@ beforeEach(async () => {
   container = document.createElement('div');
   document.body.appendChild(container);
   act(() => {
-    render(<DesignTokenTweakPanel instanceConfig={CFG} />, container);
+    renderZr(() => <DesignTokenTweakPanel instanceConfig={CFG} />, container);
   });
   await flushEffects();
 });
@@ -122,7 +121,7 @@ beforeEach(async () => {
 afterEach(async () => {
   restoreSetProperty?.();
   await flushEffects();
-  act(() => render(null, container));
+  act(() => unmountZrIn(container));
   container.remove();
   sample.remove();
   panelStyle.remove();

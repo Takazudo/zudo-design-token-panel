@@ -113,7 +113,7 @@ async function bootstrapAdapter(cfg: PanelConfig = CFG): Promise<void> {
   reset();
   await import('../astro/host-adapter');
   // Keep the adapter's instance handle so teardown can use the same lifecycle
-  // path as a host instead of removing a live Preact root from the document.
+  // path as a host instead of removing a live panel root from the document.
   // `getPanelConfig()` returns the adapter's normalized config (including the
   // Astro legacy-id map), so this is the idempotent same-config lookup.
   adapterHandles.push(configurePanel(getPanelConfig()));

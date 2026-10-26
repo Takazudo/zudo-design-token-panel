@@ -22,9 +22,8 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from '../zr/test-utils';
-import ColorTab from '../tabs/color-tab-preact';
+import { act, createTestServices, renderZr, unmountZrIn } from '../zr/test-utils';
+import ColorTab from '../tabs/color-tab';
 import {
   initColorFromSchemeData,
   applyColorState,
@@ -44,12 +43,8 @@ import {
   getPanelConfig,
   type PanelConfig,
 } from '../config/panel-config';
-import {
-  HighlightContext,
-  type HighlightContextValue,
-} from '../highlight/highlight-toggle-button-preact';
+import type { HighlightContextValue } from '../highlight/highlight-context';
 import { DEFAULT_HIGHLIGHT_SLOTS, type HighlightState } from '../highlight/highlight-state';
-import { TooltipProvider } from '../controls/tooltip-preact';
 import type { TabConfig } from '../tokens/tier-model';
 import type { ColorScheme } from '../config/color-schemes';
 import type { PersistColor, PersistSecondary } from '../state/persist';
@@ -317,7 +312,7 @@ beforeEach(() => {
 
 afterEach(() => {
   act(() => {
-    render(null, container);
+    unmountZrIn(container);
   });
   document.body.removeChild(container);
   document.documentElement.removeAttribute('style');
@@ -345,21 +340,14 @@ function renderColorTab(
   } = opts;
   const ctx = makeCtx(makeHighlightState(), vi.fn());
   act(() => {
-    render(
-      <TooltipProvider>
-        <HighlightContext.Provider value={ctx}>
-          <ColorTab
+    renderZr(() => <ColorTab services={createTestServices(ctx)}
             tab={PRIMARY_COLOR_TAB}
             state={colorState}
             persistColor={persistColor}
             secondaryTab={secondaryTab}
             secondaryState={secondaryState}
             persistSecondary={persistSecondary}
-          />
-        </HighlightContext.Provider>
-      </TooltipProvider>,
-      container,
-    );
+          />, container,);
   });
 }
 

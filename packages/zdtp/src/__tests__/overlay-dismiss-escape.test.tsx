@@ -22,16 +22,11 @@ if (typeof PointerEvent === 'undefined') {
 }
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from '../zr/test-utils';
-import { useRef } from 'preact/compat';
-import type { JSX } from 'preact';
-import { ColorField } from '../components/color-picker/color-picker-preact';
+import { signal, type Child, type Ref } from '@takazudo/zfb/zudo-react';
+import { act, renderZr, unmountZrIn } from '../zr/test-utils';
+import { ColorField } from '../components/color-picker/color-field';
 import { HighlightSettingsPopover } from '../highlight/highlight-settings-popover';
-import {
-  HighlightContext,
-  type HighlightContextValue,
-} from '../highlight/highlight-toggle-button-preact';
+import type { HighlightContextValue } from '../highlight/highlight-context';
 import { DEFAULT_HIGHLIGHT_SLOTS, type HighlightState } from '../highlight/highlight-state';
 import { __resetDismissLayersForTests } from '../controls/dismiss-layer';
 
@@ -55,7 +50,7 @@ beforeEach(() => {
 
 afterEach(() => {
   document.removeEventListener('keydown', panelKeyDown);
-  act(() => render(null, container));
+  act(() => unmountZrIn(container));
   container.remove();
   __resetDismissLayersForTests();
 });
@@ -84,7 +79,7 @@ describe('F10 — Escape layer arbitration', () => {
   it('one Escape closes the popover WITHOUT reaching the panel base', () => {
     const onChange = vi.fn();
     act(() => {
-      render(<ColorField value="#ff0000" onChange={onChange} label="Test" />, container);
+      renderZr(() => <ColorField value="#ff0000" onChange={onChange} label="Test" />, container);
     });
     const swatch = container.querySelector('[data-testid="color-field-swatch"]') as HTMLElement;
     act(() => swatch.click());
@@ -99,7 +94,7 @@ describe('F10 — Escape layer arbitration', () => {
 
   it('Escape reaches the panel base when no popover is open', () => {
     act(() => {
-      render(<ColorField value="#ff0000" onChange={vi.fn()} label="Test" />, container);
+      renderZr(() => <ColorField value="#ff0000" onChange={vi.fn()} label="Test" />, container);
     });
     // Picker closed — no dismiss layer registered.
     fireEscape();
@@ -111,8 +106,8 @@ describe('F10 — Escape layer arbitration', () => {
 // F10 (nested) — ColorPicker inside HighlightSettingsPopover
 // ---------------------------------------------------------------------------
 
-function HighlightWrapper({ onClose }: { onClose: () => void }): JSX.Element {
-  const gearRef = useRef<HTMLDivElement>(null);
+function HighlightWrapper({ onClose }: { onClose: () => void }): Child {
+  const gearRef: Ref<HTMLDivElement> = { current: null };
   const ctx: HighlightContextValue = {
     state: makeHighlightState(),
     toggle: vi.fn(),
@@ -124,12 +119,7 @@ function HighlightWrapper({ onClose }: { onClose: () => void }): JSX.Element {
   return (
     <div>
       <div ref={gearRef} />
-      <HighlightContext.Provider value={ctx}>
-        <HighlightSettingsPopover
-          anchorRef={gearRef as React.RefObject<HTMLElement | null>}
-          onClose={onClose}
-        />
-      </HighlightContext.Provider>
+      <HighlightSettingsPopover anchorRef={gearRef} onClose={onClose} highlight={signal(ctx)} />
     </div>
   );
 }
@@ -137,7 +127,7 @@ function HighlightWrapper({ onClose }: { onClose: () => void }): JSX.Element {
 describe('F10 — nested popover (ColorPicker inside HighlightSettingsPopover)', () => {
   it('one Escape closes ONLY the inner picker; a second closes the popover', () => {
     const onClose = vi.fn();
-    act(() => render(<HighlightWrapper onClose={onClose} />, container));
+    act(() => renderZr(() => <HighlightWrapper onClose={onClose} />, container));
 
     const popover = () => container.querySelector('.tokenpanel-highlight-settings-popover');
     const picker = () => container.querySelector('.tokenpanel-color-picker');
@@ -171,7 +161,7 @@ describe('F10 — nested popover (ColorPicker inside HighlightSettingsPopover)',
 describe('F11 — trigger toggle closes an open popover', () => {
   it('clicking the swatch trigger while open closes it (does not reopen)', () => {
     act(() => {
-      render(<ColorField value="#ff0000" onChange={vi.fn()} label="Test" />, container);
+      renderZr(() => <ColorField value="#ff0000" onChange={vi.fn()} label="Test" />, container);
     });
     const swatch = container.querySelector('[data-testid="color-field-swatch"]') as HTMLElement;
 
@@ -192,7 +182,7 @@ describe('F11 — trigger toggle closes an open popover', () => {
 
   it('an outside pointerdown still closes the popover', () => {
     act(() => {
-      render(<ColorField value="#ff0000" onChange={vi.fn()} label="Test" />, container);
+      renderZr(() => <ColorField value="#ff0000" onChange={vi.fn()} label="Test" />, container);
     });
     const swatch = container.querySelector('[data-testid="color-field-swatch"]') as HTMLElement;
     act(() => swatch.click());

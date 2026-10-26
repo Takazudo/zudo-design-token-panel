@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'preact/hooks';
-import type { RefObject } from 'preact';
+import { getScope } from '@takazudo/zfb/zudo-react';
+import { read, type MaybeSignal } from '../zr/live';
 
 /** Time the pointer must stay outside the shell before it becomes translucent. */
 export const GHOST_IDLE_DELAY_MS = 700;
@@ -47,16 +47,18 @@ export function saveGhostIdle(storagePrefix: string, enabled: boolean): void {
  * keyboard focus.
  */
 export function useGhostIdle<T extends HTMLElement>(
-  targetRef: RefObject<T>,
-  enabled: boolean,
-  layerActive: boolean,
+  targetRef: { readonly current: T | null },
+  enabledProp: MaybeSignal<boolean>,
+  layerActiveProp: MaybeSignal<boolean>,
   delayMs = GHOST_IDLE_DELAY_MS,
 ): void {
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const focusFrameRef = useRef<number | null>(null);
-  const pointerOutsideRef = useRef(true);
+  const timerRef: { current: ReturnType<typeof setTimeout> | null } = { current: null };
+  const focusFrameRef: { current: number | null } = { current: null };
+  const pointerOutsideRef = { current: true };
 
-  useEffect(() => {
+  getScope().effect(() => {
+    const enabled = read(enabledProp);
+    const layerActive = read(layerActiveProp);
     const target = targetRef.current;
     if (!target || !enabled) {
       if (timerRef.current !== null) {
@@ -169,5 +171,5 @@ export function useGhostIdle<T extends HTMLElement>(
       }
       target.classList.remove(GHOST_IDLE_CLASS);
     };
-  }, [delayMs, enabled, layerActive, targetRef]);
+  });
 }

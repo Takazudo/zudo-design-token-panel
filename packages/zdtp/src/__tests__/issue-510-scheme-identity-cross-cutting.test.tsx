@@ -140,10 +140,10 @@ describe('#506 x #509 — scheme toggle with a host-owned inline color-scheme', 
   });
 
   afterEach(async () => {
-    // Removing the root DOM directly leaves Preact's mounted tree and deferred
+    // Removing the root DOM directly leaves the panel's mounted tree and deferred
     // effects alive after Vitest disposes this test's jsdom environment.
     // Destroy through the public lifecycle while `document` still exists, then
-    // let Preact finish the unmount cleanups before resetting module state.
+    // let the panel finish the unmount cleanups before resetting module state.
     act(() => handle?.destroy());
     handle = undefined;
     await flushEffects();

@@ -56,24 +56,21 @@ export interface PlaywrightLocatorLike {
 
 /**
  * Set a value on a panel numeric text input (`type="text"`) and trigger the
- * commit in Preact's event pipeline.
+ * commit through its native `input` listener.
  *
  * ## Why this helper exists
  *
- * The panel's spacing/font/size tabs render their numeric editor via
- * `_generic-item-editor.tsx`, which attaches a Preact `onChange` handler to the
- * text input. Preact-compat re-maps `onChange` to the **native `input` event**
- * (not `change`) for `<input type="text">`.
+ * The panel's numeric editors listen for the **native `input` event** (not
+ * `change`) on `<input type="text">`.
  *
  * `locator.fill(value)` dispatches a native `input` event, so it **does** fire
- * Preact's `onChange` handler — including in headless Chromium. You do NOT need
+ * that listener — including in headless Chromium. You do NOT need
  * `dispatchEvent('change')` or the native-setter trick for text inputs.
  *
  * This helper calls `fill()` and then dispatches an additional `input` event as
  * a defensive measure in case the Playwright version or the Chromium headless
- * build does not synthesize an `input` event with the expected `isTrusted=false`
- * flag that older Preact builds relied on. In practice both steps work; the
- * double-dispatch is harmless.
+ * build does not synthesize an `input` event during `fill()`. In practice both
+ * steps work; the double-dispatch is harmless.
  *
  * ## Range sliders (`type="range"`)
  *
@@ -109,11 +106,11 @@ export async function setPanelInputValue(
   value: string,
 ): Promise<void> {
   // fill() clears the input and types the value, dispatching a native 'input'
-  // event that Preact-compat routes to the onChange handler.
+  // event that the panel's input listener handles.
   await locator.fill(value);
   // Defensive second dispatch: ensures the handler fires even if the Playwright
   // version or browser build omits the 'input' event during fill().
-  // Preact-compat maps onChange → 'input'; the 'change' event is intentionally
-  // NOT dispatched here because the handler only listens to 'input'.
+  // The 'change' event is intentionally NOT dispatched here because the
+  // handler only listens to 'input'.
   await locator.dispatchEvent('input');
 }

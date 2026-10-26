@@ -13,8 +13,7 @@ import viteConfig from './vite.config';
  * - browser: Playwright Chromium for *.browser.test.ts files, where real CSS
  *   computed-style resolution (e.g. var() expansion) is required.
  *
- * Both projects inherit the Preact compat alias from vite.config so that test
- * files importing `from "react"` resolve against `preact/compat`.
+ * Both projects inherit vite.config's zudo-react JSX setup.
  */
 export default mergeConfig(
   viteConfig,

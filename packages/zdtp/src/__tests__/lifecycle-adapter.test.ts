@@ -31,7 +31,7 @@
  * Approach: rather than spy on the (private) internal handlers, we observe
  * a public side effect that we know fires from `reapplyFromStorage`:
  * when the panel's visibility flag is `'1'`, a page-load triggers a
- * Preact mount and the panel root element appears in the DOM. We toggle
+ * panel mount and the panel root element appears in the DOM. We toggle
  * visibility between phases and assert mount / no-mount behaviour. This
  * keeps the test coupled to user-observable behaviour, not private symbols.
  *
@@ -223,7 +223,7 @@ describe('design-token-panel lifecycle adapter (#50)', () => {
    * Partial-adapter behaviour — codex side-by-side review (P2) and codex
    * adversarial review (medium) flagged that registering only one of
    * `{onBeforeSwap, onPageLoad}` would silently drop the other channel
-   * and leak the Preact tree on body-swapping routers (zfb, custom SSGs).
+   * and leak the panel tree on body-swapping routers (zfb, custom SSGs).
    * The fix retains the astro fallback for the unregistered channel and
    * emits a `console.warn` so authors notice the silent gap.
    */

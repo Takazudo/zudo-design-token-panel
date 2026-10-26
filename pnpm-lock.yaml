@@ -81,9 +81,6 @@ importers:
       '@takazudo/zdtp':
         specifier: workspace:*
         version: link:../../packages/zdtp
-      preact:
-        specifier: ^10.29.1
-        version: 10.29.1
     devDependencies:
       typescript:
         specifier: ^5.9.0
@@ -100,9 +97,6 @@ importers:
       culori:
         specifier: ^4.0.2
         version: 4.0.2
-      preact:
-        specifier: ^10.29.1
-        version: 10.29.1
       tailwind-merge:
         specifier: 3.6.0
         version: 3.6.0

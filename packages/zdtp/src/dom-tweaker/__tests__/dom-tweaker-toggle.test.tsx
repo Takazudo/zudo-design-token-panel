@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render } from 'preact';
+import { renderZr, unmountZrIn } from '../../zr/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import DesignTokenTweakPanel from '../../panel';
 import { DomTweakerOrchestrator } from '../dom-tweaker-orchestrator';
@@ -29,7 +29,7 @@ async function renderOpenPanel(cfg: PanelConfig): Promise<HTMLElement> {
   const container = document.createElement('div');
   document.body.appendChild(container);
   mountedContainers.push(container);
-  render(<DesignTokenTweakPanel instanceConfig={cfg} />, container);
+  renderZr(() => <DesignTokenTweakPanel instanceConfig={cfg} />, container);
   await flushEffects();
   return container;
 }
@@ -48,7 +48,7 @@ beforeEach(() => {
 
 afterEach(() => {
   for (const container of mountedContainers) {
-    render(null, container);
+    unmountZrIn(container);
     container.remove();
   }
   mountedContainers.length = 0;
@@ -98,17 +98,14 @@ describe('DomTweakerOrchestrator single-active-instance guard', () => {
     document.body.appendChild(container);
     mountedContainers.push(container);
 
-    render(
-      <div>
+    renderZr(() => <div>
         <DomTweakerOrchestrator instanceConfig={cfgA}>
-          <DomTweakerToggleButton />
+          {(controller) => <DomTweakerToggleButton controller={controller} />}
         </DomTweakerOrchestrator>
         <DomTweakerOrchestrator instanceConfig={cfgB}>
-          <DomTweakerToggleButton />
+          {(controller) => <DomTweakerToggleButton controller={controller} />}
         </DomTweakerOrchestrator>
-      </div>,
-      container,
-    );
+      </div>, container,);
 
     const toggles = container.querySelectorAll<HTMLElement>('.tokenpanel-domtweaker-toggle');
     expect(toggles).toHaveLength(2);

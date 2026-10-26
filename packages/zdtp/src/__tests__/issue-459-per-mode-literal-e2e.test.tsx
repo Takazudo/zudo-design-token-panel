@@ -54,10 +54,9 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from '../zr/test-utils';
+import { act, createTestServices, renderZr, unmountZrIn } from '../zr/test-utils';
 
-import ColorTab from '../tabs/color-tab-preact';
+import ColorTab from '../tabs/color-tab';
 import DesignTokenTweakPanel from '../panel';
 import {
   __resetPanelConfigForTests,
@@ -95,12 +94,8 @@ import {
   SCHEMA_V3,
   type DesignTokenJsonV3,
 } from '../utils/design-token-serde';
-import {
-  HighlightContext,
-  type HighlightContextValue,
-} from '../highlight/highlight-toggle-button-preact';
+import type { HighlightContextValue } from '../highlight/highlight-context';
 import { DEFAULT_HIGHLIGHT_SLOTS, type HighlightState } from '../highlight/highlight-state';
-import { TooltipProvider } from '../controls/tooltip-preact';
 import type { TabConfig } from '../tokens/tier-model';
 import type { PersistColor, PersistSecondary } from '../state/persist';
 import { FIXTURE_TABS, FIXTURE_PANEL_CONFIG, flushEffects } from './_test-helpers';
@@ -254,7 +249,7 @@ beforeEach(() => {
 
 afterEach(() => {
   act(() => {
-    render(null, container);
+    unmountZrIn(container);
   });
   document.body.removeChild(container);
   document.documentElement.removeAttribute('style');
@@ -272,21 +267,14 @@ function renderColorTab(
   const { persistColor = vi.fn(), persistSecondary = vi.fn() } = opts;
   const ctx = makeCtx(makeHighlightState(), vi.fn());
   act(() => {
-    render(
-      <TooltipProvider>
-        <HighlightContext.Provider value={ctx}>
-          <ColorTab
+    renderZr(() => <ColorTab services={createTestServices(ctx)}
             tab={tab}
             state={state}
             persistColor={persistColor}
             secondaryTab={null}
             secondaryState={null}
             persistSecondary={persistSecondary}
-          />
-        </HighlightContext.Provider>
-      </TooltipProvider>,
-      container,
-    );
+          />, container,);
   });
 }
 
@@ -1174,7 +1162,7 @@ describe('10. handleLoadFromJson-style import clears color cluster vars before a
       // "no saved state" branch) — the step-1 paint stays exactly as applied.
       localStorage.setItem(getOpenKey(PER_MODE_PANEL_CONFIG), '1');
       act(() => {
-        render(<DesignTokenTweakPanel instanceConfig={PER_MODE_PANEL_CONFIG} />, container);
+        renderZr(() => <DesignTokenTweakPanel instanceConfig={PER_MODE_PANEL_CONFIG} />, container);
       });
       await flushEffects();
 
@@ -1213,7 +1201,7 @@ describe('10. handleLoadFromJson-style import clears color cluster vars before a
       expect(document.documentElement.style.getPropertyValue('--zd-brand')).toBe('');
     } finally {
       act(() => {
-        render(null, container);
+        unmountZrIn(container);
       });
       delete (HTMLDialogElement.prototype as { showModal?: unknown }).showModal;
       delete (HTMLDialogElement.prototype as { close?: unknown }).close;

@@ -25,7 +25,7 @@
  */
 
 import { computed, getScope, signal } from '@takazudo/zfb/zudo-react';
-import { createDialogBackdropClose } from './controls/use-dialog-backdrop-close';
+import { createDialogBackdropClose } from './controls/dialog-backdrop-close';
 import { RoleButton } from './controls/role-button';
 import { serialize } from './utils/design-token-serde';
 import { uniqueId } from './utils/unique-id';

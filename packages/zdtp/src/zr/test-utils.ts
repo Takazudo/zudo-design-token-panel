@@ -1,5 +1,7 @@
-import { flush, type Child } from '@takazudo/zfb/zudo-react';
-import { act as preactAct } from 'preact/test-utils';
+import { flush, signal, type Child } from '@takazudo/zfb/zudo-react';
+import { createTooltipController } from '../controls/tooltip-controller';
+import type { HighlightContextValue } from '../highlight/highlight-context';
+import { createPanelServices, type PanelServices } from './panel-services';
 import { mountOwnedRoot, type RootHandle } from './root';
 
 export { flush } from '@takazudo/zfb/zudo-react';
@@ -12,8 +14,12 @@ export interface ZrTestRender {
 
 const mounted = new Set<ZrTestRender>();
 
-/** Mount `render()`'s result into a fresh connected container (test-only). */
+/**
+ * Mount `render()`'s result into `container` (replacing what `renderZr`
+ * mounted there before) or into a fresh connected container (test-only).
+ */
 export function renderZr(render: () => Child, container?: HTMLElement): ZrTestRender {
+  if (container) for (const entry of mounted) if (entry.container === container) entry.unmount();
   const host = container ?? document.body.appendChild(document.createElement('div'));
   const root = mountOwnedRoot(host, function TestRoot() { return render(); }, {});
   const result: ZrTestRender = {
@@ -29,9 +35,34 @@ export function renderZr(render: () => Child, container?: HTMLElement): ZrTestRe
   return result;
 }
 
+const disconnects: Array<() => void> = [];
+
+/**
+ * Panel services with a connected tooltip controller and, optionally, a
+ * highlight context — what the mounted panel hands its tabs.
+ */
+export function createTestServices(
+  highlight: HighlightContextValue | null = null,
+  partial: Partial<PanelServices> = {},
+): PanelServices {
+  const tooltip = createTooltipController(document);
+  disconnects.push(tooltip.connect());
+  return createPanelServices({ tooltip, highlight: signal(highlight), ...partial });
+}
+
+/**
+ * Unmount whatever `renderZr` mounted into `container`, and disconnect the
+ * tooltips `createTestServices` attached.
+ */
+export function unmountZrIn(container: HTMLElement): void {
+  for (const entry of mounted) if (entry.container === container) entry.unmount();
+  for (const disconnect of disconnects.splice(0)) disconnect();
+}
+
 /** Unmount everything `renderZr` mounted; call from `afterEach`. */
 export function cleanupZr(): void {
   for (const entry of mounted) entry.unmount();
+  for (const disconnect of disconnects.splice(0)) disconnect();
 }
 
 /** Flush zudo-react's microtask scheduler twice so chained writes settle. */
@@ -41,10 +72,9 @@ export async function settle(): Promise<void> {
 }
 
 /**
- * Run `run` and synchronously settle both runtimes, like Preact's `act`.
- * zudo-react schedules its flush with the global `queueMicrotask`, so the
- * microtasks queued meanwhile are captured and drained inline, with Preact's
- * render queue flushed after each round in case a callback set Preact state.
+ * Run `run` and synchronously drain zudo-react's scheduler. zudo-react
+ * schedules its flush with the global `queueMicrotask`, so the microtasks
+ * queued meanwhile are captured and drained inline.
  */
 function settleSync(run: () => void): void {
   const queue: VoidFunction[] = [];
@@ -53,20 +83,16 @@ function settleSync(run: () => void): void {
     queue.push(callback);
   };
   try {
-    preactAct(run);
-    while (queue.length > 0) {
-      preactAct(() => {
-        while (queue.length > 0) queue.shift()!();
-      });
-    }
+    run();
+    while (queue.length > 0) queue.shift()!();
   } finally {
     globalThis.queueMicrotask = original;
   }
 }
 
 /**
- * Test-only `act` covering both Preact and zudo-react: DOM updates from
- * signal writes inside `fn` are applied before `act` returns (or resolves).
+ * Test-only `act`: DOM updates from signal writes inside `fn` are applied
+ * before `act` returns (or resolves).
  */
 export function act(fn: () => void): void;
 export function act(fn: () => Promise<unknown>): Promise<void>;

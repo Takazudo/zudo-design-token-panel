@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 
-import { render } from 'preact';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { __resetInstanceBindingsForTests, __resetSpawnSlotsForTests } from '../index';
+import { __resetInstanceBindingsForTests, __resetSpawnSlotsForTests, __unmountRootForTests } from '../index';
 import { __resetPanelConfigForTests, configurePanel, type PanelConfig, type PanelInstanceHandle } from '../config/panel-config';
 
 const config: PanelConfig = {
@@ -149,7 +148,7 @@ it('cancels only the closing prefix while a genuinely dead sibling recovers', as
   create('sibling').open();
   await vi.advanceTimersByTimeAsync(248);
   expect(root('sibling').querySelector('.tokenpanel-shell')).not.toBeNull();
-  render(null, root('sibling'));
+  __unmountRootForTests(root('sibling'));
   closeClick();
   await vi.advanceTimersByTimeAsync(400);
   expectClosed();

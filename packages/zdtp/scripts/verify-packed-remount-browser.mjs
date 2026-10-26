@@ -332,7 +332,7 @@ async function assertPanelState(page, visible, label) {
     check(diagnostics.rootChildren > 0 && diagnostics.rootHtmlLength > 0,
       `${label}: expected a populated panel root; ${JSON.stringify(diagnostics)}`);
     check(diagnostics.mountedPrefixes === null || diagnostics.rootOwned,
-      `${label}: connected root is not the root owned by the active Preact mount; ${JSON.stringify(diagnostics)}`);
+      `${label}: connected root is not the root owned by the active panel mount; ${JSON.stringify(diagnostics)}`);
     check(diagnostics.shellCount === 1 && diagnostics.shellConnected,
       `${label}: expected exactly one connected panel shell; ${JSON.stringify(diagnostics)}`);
   } else {
@@ -371,7 +371,7 @@ async function assertPageLoadSnapshot(page, expectedPath, label, { populated = t
     check(mounted.rootCount === 1 && mounted.rootConnected && mounted.rootChildren > 0,
       `${label}: zfb:page-load did not leave one connected populated root: ${JSON.stringify(mounted)}`);
     check(mounted.mountedPrefixes === null || mounted.rootOwned,
-      `${label}: zfb:page-load root identity is not owned by the active Preact mount: ${JSON.stringify(mounted)}`);
+      `${label}: zfb:page-load root identity is not owned by the active panel mount: ${JSON.stringify(mounted)}`);
     check(mounted.shellCount === 1 && mounted.shellConnected,
       `${label}: zfb:page-load did not leave exactly one connected shell: ${JSON.stringify(mounted)}`);
     if (visible !== undefined) {

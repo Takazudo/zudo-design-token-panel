@@ -1,7 +1,6 @@
 // @vitest-environment browser
 
-import { render } from 'preact';
-import { act } from '../../zr/test-utils';
+import { act, renderZr, unmountZrIn } from '../../zr/test-utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import DesignTokenTweakPanel from '../../panel';
 import { getOpenKey, getPositionKey, getSizeKey } from '../../state/tweak-state';
@@ -53,7 +52,7 @@ async function mountPanel(): Promise<void> {
   container = document.createElement('div');
   document.body.appendChild(container);
   act(() => {
-    render(<DesignTokenTweakPanel instanceConfig={FIXTURE_PANEL_CONFIG} />, container);
+    renderZr(() => <DesignTokenTweakPanel instanceConfig={FIXTURE_PANEL_CONFIG} />, container);
   });
   await flushEffects();
 }
@@ -103,7 +102,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   if (container) {
-    act(() => render(null, container));
+    act(() => unmountZrIn(container));
     container.remove();
   }
   target?.remove();

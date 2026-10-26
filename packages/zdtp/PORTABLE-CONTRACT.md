@@ -8,7 +8,7 @@ that pins the surface it touches.
 
 The package extracts every project-specific identifier behind a single
 configure-once init (`configurePanel({...})`) so the same package can ship
-into any Preact-supporting Astro / Vite / Next.js / Rust-SSG consumer. Storage
+into any browser-based Astro / Vite / Next.js / Rust-SSG consumer. Storage
 keys, console namespace, modal class prefixes, schema id, and the entire tab
 configuration (tiers, items, color cluster extras) are all host-supplied.
 
@@ -160,7 +160,7 @@ export interface PanelInstanceHandle {
   toggle(): void;
   /**
    * Deregister this instance from the registry. Unmounts the instance's
-   * Preact tree, removes its DOM root, and unbinds its toggle-event listener.
+   * panel tree, removes its DOM root, and unbinds its toggle-event listener.
    * After `destroy()` the prefix can be re-configured by calling
    * `configurePanel` again.
    */
@@ -1196,12 +1196,12 @@ if (
   downstream host that wants to distinguish the two populations can
   test `=== '1'` directly — see "Auto-remember on open" for the caveat.
 - `loadElementPathEnabled()` — reads the element-path inspector's persistence
-  key. Returns `true` when the inspector was left enabled. Ensures the Preact
+  key. Returns `true` when the inspector was left enabled. Ensures the panel
   shell is mounted (the inspector runs inside it) even when the panel UI is
   hidden and no token overrides are persisted.
 - `loadDomTweakerEnabled()` — reads the DOM Tweaker persistence key. Returns
   `true` when `PanelConfig.domTweaker` is present and the tweaker was left
-  enabled. Ensures the Preact shell is mounted and the lazy boundary is
+  enabled. Ensures the panel shell is mounted and the lazy boundary is
   imported even when the panel UI is hidden.
 
 When none of the six signals is present — the common case for first-time
@@ -1246,7 +1246,7 @@ that decision.
 2. Sets `${storagePrefix}-elpath-enabled = '1'` once (arms the Alt+click
    element-path inspector).
 3. Loads the panel bundle (if not already loaded).
-4. Mounts the Preact shell CLOSED so the element-path inspector is active
+4. Mounts the panel shell CLOSED so the element-path inspector is active
    without opening the panel UI.
 
 `disableAutoload()`:
@@ -1255,7 +1255,7 @@ that decision.
 2. Sets `${storagePrefix}:visible` to `'0'`.
 3. Sets `${storagePrefix}-elpath-enabled` to `'0'`.
 4. Removes the open-state key (`${storagePrefix}-open`).
-5. Unmounts the Preact shell (drives effect cleanups, removes root).
+5. Unmounts the panel shell (drives effect cleanups, removes root).
 
 #### Auto-remember on open
 
@@ -1308,7 +1308,7 @@ and the host-page specimen are excluded from all three pickers.
 The adapter's existing `astro:before-swap` and `astro:page-load` listeners
 stay. They are Astro-specific and only register when `document` is available:
 
-- `astro:before-swap` → unmount the Preact tree, remove the host node, snapshot/restore visibility intent.
+- `astro:before-swap` → unmount the panel tree, remove the host node, snapshot/restore visibility intent.
 - `astro:page-load` → re-apply persisted overrides + re-materialise the shell when any of the six gate signals (§6.2) is true.
 
 ### 6.4 Console API
@@ -1389,12 +1389,13 @@ window.zdtp.toggle = () => void | Promise<void>;  // toggle the panel
 
 ## 7. CSS contract
 
-The panel owns Preact as a regular package dependency. Imperative hosts, including
-ZFB 3 to 5 zudo-react islands, can install only `@takazudo/zdtp`; lazy-load it inside
+The panel bundles its own zudo-react runtime and has no renderer dependency
+(releases through v0.8.7 depended on Preact). Imperative hosts, including ZFB 3
+to 5 zudo-react islands, can install only `@takazudo/zdtp`; lazy-load it inside
 activation and keep its mounted tree separate from the host renderer. Public
-Preact declaration imports resolve through that dependency. No private Preact copy
-is bundled. The dashboard entries are not Preact: after v0.8.7 they render with the
-host's zudo-react, so their users install `@takazudo/zfb` (optional peer `^5.1.2`).
+declarations reference no renderer types. The dashboard entries instead render
+with the host's zudo-react, so their users install `@takazudo/zfb` (optional peer
+`^5.1.2`).
 
 ### 7.1 Panel-private namespace
 
@@ -1865,7 +1866,7 @@ There is no built-in editable text workbench or connection to panel state.
   display values without animated/visual samples. A resolved `previewBase`
   token can supply font size for a line-height sample. Subsets must include
   referenced tiers to retain resolved samples.
-- Preact escapes text. URL/mask assets and unsafe resource-bearing expressions
+- zudo-react escapes text. URL/mask assets and unsafe resource-bearing expressions
   are not automatically loaded through samples.
 
 Keep shared token definitions in a build-safe data module using type-only
@@ -1906,7 +1907,7 @@ Cross-reference table — what each section pins down.
 | `data-zdtp-action` stable header-action hook (ids stable, labels not; two matches while the compact popover is open) | §7.6 |
 | v4 envelope precedence, v1/v2/v3 storage migration, and typography-id rename map             | §2, §8.3, §8.4 |
 | JSON export/import schemas v1/v2/v3 (serde)                                                  | §9            |
-| Static Preact dashboard props, defaults, previews, isolation, and CSS export | §12 |
+| Static zudo-react dashboard props, defaults, previews, isolation, and CSS export | §12 |
 | Out-of-scope / deferred concerns                                                            | §10           |
 | Versioning promise, breaking-change signalling, and consumer guidance for mirroring the eager-load gate registries | §11 |
 | Feature walkthrough and shortcut table                                                     | [Panel UX tour](/docs/recipes/panel-ux-tour) |

@@ -8,7 +8,7 @@
  *
  * Plumbing approach
  * -----------------
- * Module-level registry (NOT Preact context), keyed by `storagePrefix`. Each
+ * Module-level registry (NOT a component context), keyed by `storagePrefix`. Each
  * distinct prefix owns one panel *instance* — its config, its post-configure
  * hooks, its returned handle. Every read site is happy to pay a function call
  * to read the current config. Historically this was a single global singleton;
@@ -262,7 +262,7 @@ export interface PanelConfig {
  * default path keeps working end-to-end; Z2 replaces the bodies with
  * per-instance event dispatch keyed by `instanceId`. `destroy()` deregisters
  * the instance from the registry (model-level cleanup); Z2 extends it to also
- * unmount the instance's Preact tree and remove its DOM root.
+ * unmount the instance's panel tree and remove its DOM root.
  *
  * @see RECONFIGURE_RULE for the same-prefix-different-config behaviour.
  */
@@ -279,7 +279,7 @@ export interface PanelInstanceHandle {
    * Deregister this instance. Removes it from the registry so its prefix can be
    * re-configured with a fresh config (and so it stops being the default
    * instance `getPanelConfig()` resolves to). Z2 extends this to also unmount
-   * the instance's Preact tree and remove its DOM root.
+   * the instance's panel tree and remove its DOM root.
    */
   destroy(): void;
 }
@@ -479,7 +479,7 @@ function makeHandle(prefix: string): PanelInstanceHandle {
     },
     destroy() {
       // Model-level cleanup: drop the instance from the registry. Z2 extends
-      // this via the `destroy` lifecycle hook to also unmount the Preact tree
+      // this via the `destroy` lifecycle hook to also unmount the panel tree
       // and remove the DOM root.
       getRegistry().lifecycleHooks.destroy?.(prefix);
       const registry = getRegistry();
@@ -701,8 +701,8 @@ export function getPanelConfig(): PanelConfig {
  * Used by the Astro lifecycle handlers (unmountForSwap / reapplyFromStorage)
  * to loop every mounted instance rather than only the default one. Without
  * this, non-default panels have their DOM roots removed by Astro's body swap
- * WITHOUT `render(null, root)` being called, so their useEffect cleanups never
- * fire and window/document listeners accumulate per soft navigation.
+ * WITHOUT being unmounted, so their effect cleanups never fire and
+ * window/document listeners accumulate per soft navigation.
  */
 export function getAllPanelConfigs(): PanelConfig[] {
   return [...getRegistry().instances.values()].map((r) => r.config);
@@ -953,7 +953,7 @@ export function storageKey_autoload(cfg: PanelConfig): string {
   return `${cfg.storagePrefix}:autoload`;
 }
 
-/** DOM id of the root element the Preact panel tree mounts into. */
+/** DOM id of the root element the panel tree mounts into. */
 export function panelRootId(cfg: PanelConfig): string {
   return `${cfg.storagePrefix}-root`;
 }

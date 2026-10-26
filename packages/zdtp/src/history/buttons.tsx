@@ -1,35 +1,29 @@
-import { useMemo } from 'preact/hooks';
+/** @jsxImportSource @takazudo/zfb/zudo-react */
+import { computed, type ReadonlySignal } from '@takazudo/zfb/zudo-react';
 
-import { RoleButton } from '../controls/role-button-preact';
+import { RoleButton } from '../controls/role-button';
 import type { TweakHistorySnapshot } from '../state/history';
-import { useRegisterRegionItem, type ShellRegionItem } from '../shell/regions';
-import { useShortcut } from '../shell/shortcut-dispatcher';
+import { useRegisterRegionItem, type ShellRegionItem, type ShellRegions } from '../shell/regions';
+import { useShortcut, type ShortcutDispatcher } from '../shell/shortcut-dispatcher';
+import { read, type MaybeSignal } from '../zr/live';
 
 function UndoIcon({ redo = false }: { redo?: boolean }) {
   return (
     <svg
-      className="tokenpanel-history-icon"
+      class="tokenpanel-history-icon"
       width="15"
       height="15"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
       aria-hidden="true"
     >
-      {redo ? (
-        <>
-          <path d="M21 7v6h-6" />
-          <path d="M3 17a9 9 0 0 1 15-6.7L21 13" />
-        </>
-      ) : (
-        <>
-          <path d="M3 7v6h6" />
-          <path d="M21 17a9 9 0 0 0-15-6.7L3 13" />
-        </>
-      )}
+      {redo
+        ? [<path d="M21 7v6h-6" />, <path d="M3 17a9 9 0 0 1 15-6.7L21 13" />]
+        : [<path d="M3 7v6h6" />, <path d="M21 17a9 9 0 0 0-15-6.7L3 13" />]}
     </svg>
   );
 }
@@ -37,15 +31,15 @@ function UndoIcon({ redo = false }: { redo?: boolean }) {
 function HistoryIcon() {
   return (
     <svg
-      className="tokenpanel-history-icon"
+      class="tokenpanel-history-icon"
       width="15"
       height="15"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
       aria-hidden="true"
     >
       <circle cx="12" cy="12" r="9" />
@@ -55,7 +49,7 @@ function HistoryIcon() {
 }
 
 export interface HistoryButtonProps {
-  canUndo: boolean;
+  canUndo: MaybeSignal<boolean>;
   onUndo: () => void;
 }
 
@@ -63,9 +57,9 @@ export interface HistoryButtonProps {
 export function HistoryUndoButton({ canUndo, onUndo }: HistoryButtonProps) {
   return (
     <RoleButton
-      className={`tokenpanel-history-button${canUndo ? '' : ' is-disabled'}`}
+      class={computed(() => `tokenpanel-history-button${read(canUndo) ? '' : ' is-disabled'}`)}
       onClick={() => onUndo()}
-      aria-disabled={!canUndo}
+      aria-disabled={computed(() => !read(canUndo))}
       aria-label="Undo"
       title="Undo (⌘Z / Ctrl+Z)"
     >
@@ -74,12 +68,12 @@ export function HistoryUndoButton({ canUndo, onUndo }: HistoryButtonProps) {
   );
 }
 
-export function HistoryRedoButton({ canRedo, onRedo }: { canRedo: boolean; onRedo: () => void }) {
+export function HistoryRedoButton({ canRedo, onRedo }: { canRedo: MaybeSignal<boolean>; onRedo: () => void }) {
   return (
     <RoleButton
-      className={`tokenpanel-history-button${canRedo ? '' : ' is-disabled'}`}
+      class={computed(() => `tokenpanel-history-button${read(canRedo) ? '' : ' is-disabled'}`)}
       onClick={() => onRedo()}
-      aria-disabled={!canRedo}
+      aria-disabled={computed(() => !read(canRedo))}
       aria-label="Redo"
       title="Redo (⌘⇧Z / Ctrl+Shift+Z / Ctrl+Y)"
     >
@@ -89,51 +83,42 @@ export function HistoryRedoButton({ canRedo, onRedo }: { canRedo: boolean; onRed
 }
 
 export interface HistoryButtonsProps {
-  history: TweakHistorySnapshot;
-  railOpen: boolean;
+  history: ReadonlySignal<TweakHistorySnapshot>;
+  railOpen: ReadonlySignal<boolean>;
   onUndo: () => void;
   onRedo: () => void;
   onToggleRail: () => void;
 }
 
-/** Register the header right-cluster undo/redo/count/rail controls through S18. */
-export function HistoryButtons({
+/** The header right-cluster undo/redo/count/rail controls, as an S18 region item. */
+export function historyRegionItem({
   history,
   railOpen,
   onUndo,
   onRedo,
   onToggleRail,
-}: HistoryButtonsProps) {
-  const item = useMemo<ShellRegionItem>(
-    () => ({
-      id: 'history-controls',
-      order: -3,
-      renderInCompactMenu: true,
-      render: ({ compact, closeCompactMenu }) => (
-        <div className="tokenpanel-history-controls" role="group" aria-label="History controls">
-          <HistoryUndoButton
-            canUndo={history.canUndo}
-            onUndo={() => {
-              onUndo();
-              if (compact) closeCompactMenu();
-            }}
-          />
-          <HistoryRedoButton
-            canRedo={history.canRedo}
-            onRedo={() => {
-              onRedo();
-              if (compact) closeCompactMenu();
-            }}
-          />
-          <span className="tokenpanel-history-count" aria-label="History position">
-            {history.entries.length > 0 ? `${history.cursor}/${history.entries.length}` : '0/0'}
+}: HistoryButtonsProps): ShellRegionItem {
+  return {
+    id: 'history-controls',
+    order: -3,
+    renderInCompactMenu: true,
+    render: ({ compact, closeCompactMenu }) => {
+      const afterCompact = (run: () => void) => () => {
+        run();
+        if (compact) closeCompactMenu();
+      };
+      return (
+        <div class="tokenpanel-history-controls" role="group" aria-label="History controls">
+          <HistoryUndoButton canUndo={computed(() => history.value.canUndo)} onUndo={afterCompact(onUndo)} />
+          <HistoryRedoButton canRedo={computed(() => history.value.canRedo)} onRedo={afterCompact(onRedo)} />
+          <span class="tokenpanel-history-count" aria-label="History position">
+            {computed(() => (history.value.entries.length > 0
+              ? `${history.value.cursor}/${history.value.entries.length}`
+              : '0/0'))}
           </span>
           <RoleButton
-            className={`tokenpanel-history-toggle${railOpen ? ' is-active' : ''}`}
-            onClick={() => {
-              onToggleRail();
-              if (compact) closeCompactMenu();
-            }}
+            class={computed(() => `tokenpanel-history-toggle${railOpen.value ? ' is-active' : ''}`)}
+            onClick={afterCompact(onToggleRail)}
             aria-label="History rail"
             title="Toggle history rail"
             ariaProps={{ 'aria-expanded': railOpen }}
@@ -141,12 +126,14 @@ export function HistoryButtons({
             <HistoryIcon />
           </RoleButton>
         </div>
-      ),
-    }),
-    [history, onRedo, onToggleRail, onUndo, railOpen],
-  );
+      );
+    },
+  };
+}
 
-  useRegisterRegionItem('header-right', item);
+/** Register the history controls in `regions` for the calling component's lifetime. */
+export function HistoryButtons(props: HistoryButtonsProps & { regions: ShellRegions }) {
+  useRegisterRegionItem(props.regions, 'header-right', historyRegionItem(props));
   return null;
 }
 
@@ -160,20 +147,23 @@ function isEditableTarget(event: KeyboardEvent): boolean {
 }
 
 export interface HistoryShortcutsProps {
-  enabled: boolean;
+  shortcuts: ShortcutDispatcher;
+  enabled: MaybeSignal<boolean>;
   onUndo: () => void;
   onRedo: () => void;
   onFlipSnapshots: () => void;
 }
 
 /** Register keyboard commands with S18's active-shell dispatcher. */
-export function HistoryShortcuts({
+export function useHistoryShortcuts({
+  shortcuts,
   enabled,
   onUndo,
   onRedo,
   onFlipSnapshots,
-}: HistoryShortcutsProps) {
+}: HistoryShortcutsProps): void {
   useShortcut(
+    shortcuts,
     {
       key: ['z', 'Z'],
       when: (event) =>
@@ -188,6 +178,7 @@ export function HistoryShortcuts({
     enabled,
   );
   useShortcut(
+    shortcuts,
     {
       key: ['z', 'Z'],
       when: (event) =>
@@ -202,6 +193,7 @@ export function HistoryShortcuts({
     enabled,
   );
   useShortcut(
+    shortcuts,
     {
       key: ['y', 'Y'],
       when: (event) =>
@@ -217,6 +209,7 @@ export function HistoryShortcuts({
     enabled,
   );
   useShortcut(
+    shortcuts,
     {
       key: '\\',
       when: (event) =>
@@ -232,6 +225,10 @@ export function HistoryShortcuts({
     },
     enabled,
   );
+}
 
+/** Component form of `useHistoryShortcuts`. */
+export function HistoryShortcuts(props: HistoryShortcutsProps) {
+  useHistoryShortcuts(props);
   return null;
 }

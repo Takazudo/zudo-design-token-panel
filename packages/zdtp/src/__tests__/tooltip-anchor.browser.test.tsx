@@ -10,12 +10,11 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { render } from 'preact';
-import { act } from '../zr/test-utils';
-import { useState } from 'preact/hooks';
-import type { JSX } from 'preact';
-import { TokenLabel } from '../controls/token-label-preact';
-import { TooltipProvider, useTooltip } from '../controls/tooltip-preact';
+import { signal, type Child } from '@takazudo/zfb/zudo-react';
+import { act, renderZr, unmountZrIn } from '../zr/test-utils';
+import { TokenLabel } from '../controls/token-label';
+import { tooltipTrigger } from '../controls/tooltip';
+import { createTooltipController, type TooltipController } from '../controls/tooltip-controller';
 import { flushEffects } from './_test-helpers';
 
 // @ts-ignore — ?inline is a Vite-specific query not typed in tsconfig
@@ -26,54 +25,37 @@ const TRUNCATED_TOKEN = '--zfb-radius-super-extraordinarily-long-token-name-for-
 
 let container: HTMLDivElement;
 let panelStyle: HTMLStyleElement;
+let disconnectTooltip: () => void;
 
-function TooltipFixture(): JSX.Element {
-  const boxTooltip = useTooltip('box trigger tooltip');
-  const longTooltip = useTooltip(LONG_TOOLTIP_TEXT);
-  const [reusedText, setReusedText] = useState('short tooltip near the right edge');
-  const reusedTooltip = useTooltip(reusedText);
+function TooltipFixture({ tooltip }: { tooltip: TooltipController }): Child {
+  const boxTooltip = tooltipTrigger(tooltip, 'box trigger tooltip');
+  const longTooltip = tooltipTrigger(tooltip, LONG_TOOLTIP_TEXT);
+  const reusedText = signal('short tooltip near the right edge');
+  const reusedTooltip = tooltipTrigger(tooltip, reusedText);
 
   return (
     <>
       <div
         data-testid="text-anchor-row"
-        className="tokenpanel-row"
-        style={{
-          position: 'fixed',
-          left: '300px',
-          top: '200px',
-          width: '900px',
-          height: '30px',
-        }}
+        class="tokenpanel-row"
+        style="position: fixed; left: 300px; top: 200px; width: 900px; height: 30px"
       >
-        <TokenLabel cssVar="--zfb-radius-md" />
-        <span style={{ flex: '0 0 450px' }}>trailing content</span>
+        <TokenLabel cssVar="--zfb-radius-md" tooltip={tooltip} />
+        <span style="flex: 0 0 450px">trailing content</span>
       </div>
 
       <div
         data-testid="truncated-text-anchor-row"
-        className="tokenpanel-row"
-        style={{
-          position: 'fixed',
-          left: '300px',
-          top: '0px',
-          width: '500px',
-          height: '32px',
-        }}
+        class="tokenpanel-row"
+        style="position: fixed; left: 300px; top: 0px; width: 500px; height: 32px"
       >
-        <TokenLabel cssVar={TRUNCATED_TOKEN} label="Radius medium" />
-        <span style={{ flex: '0 0 180px' }}>trailing content</span>
+        <TokenLabel cssVar={TRUNCATED_TOKEN} label="Radius medium" tooltip={tooltip} />
+        <span style="flex: 0 0 180px">trailing content</span>
       </div>
 
       <div
         data-testid="box-trigger"
-        style={{
-          position: 'fixed',
-          left: '650px',
-          top: '300px',
-          width: '180px',
-          height: '24px',
-        }}
+        style="position: fixed; left: 650px; top: 300px; width: 180px; height: 24px"
         {...boxTooltip}
       >
         box trigger
@@ -81,13 +63,7 @@ function TooltipFixture(): JSX.Element {
 
       <div
         data-testid="long-trigger"
-        style={{
-          position: 'fixed',
-          left: '20px',
-          top: '0px',
-          width: '100px',
-          height: '780px',
-        }}
+        style="position: fixed; left: 20px; top: 0px; width: 100px; height: 780px"
         {...longTooltip}
       >
         long trigger
@@ -95,14 +71,10 @@ function TooltipFixture(): JSX.Element {
 
       <div
         data-testid="reused-trigger"
-        style={{
-          position: 'fixed',
-          left: '1120px',
-          top: '300px',
-          width: '100px',
-          height: '24px',
+        style="position: fixed; left: 1120px; top: 300px; width: 100px; height: 24px"
+        on:click={() => {
+          reusedText.value = LONG_TOOLTIP_TEXT;
         }}
-        onClick={() => setReusedText(LONG_TOOLTIP_TEXT)}
         {...reusedTooltip}
       >
         reused trigger
@@ -166,20 +138,18 @@ beforeEach(async () => {
 
   container = document.createElement('div');
   document.body.appendChild(container);
+  const tooltip = createTooltipController(document);
+  disconnectTooltip = tooltip.connect();
   act(() => {
-    render(
-      <TooltipProvider>
-        <TooltipFixture />
-      </TooltipProvider>,
-      container,
-    );
+    renderZr(() => <TooltipFixture tooltip={tooltip} />, container);
   });
   await flushEffects();
 });
 
 afterEach(async () => {
   await flushEffects();
-  act(() => render(null, container));
+  act(() => unmountZrIn(container));
+  disconnectTooltip();
   container.remove();
   panelStyle.remove();
 });

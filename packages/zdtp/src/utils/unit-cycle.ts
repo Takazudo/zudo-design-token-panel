@@ -3,8 +3,7 @@
  * rows (#519). Pure, DOM-free — safe to import from any editor component.
  *
  * `deriveCyclableUnit` is the single source of the opt-in/divergence policy;
- * both editor call sites (`tabs/_generic-item-editor.tsx` and
- * `tabs/generic-tab.tsx`) call it instead of re-deriving the same state.
+ * `tabs/flat/token-row.tsx` calls it instead of re-deriving the same state.
  */
 
 /**

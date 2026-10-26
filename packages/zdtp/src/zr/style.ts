@@ -14,7 +14,7 @@ const UNITLESS = new Set([
 ]);
 
 /**
- * Convert a React/Preact-style style object (camelCase keys, bare numbers as
+ * Convert a React-style style object (camelCase keys, bare numbers as
  * px) into zudo-react's form (kebab-case keys, explicit units).
  */
 export function toZrStyle(style: Readonly<Record<string, string | number | null | undefined>>): CSSProperties {

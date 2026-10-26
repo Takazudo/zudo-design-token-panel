@@ -34,7 +34,7 @@ try {
   assert.equal(manifest.dependencies.preact, undefined, 'Host must not declare Preact');
   const installed = join(scratch, 'node_modules/@takazudo/zdtp');
   const packed = JSON.parse(await readFile(join(installed, 'package.json'), 'utf8'));
-  assert.ok(packed.dependencies.preact, 'Package must own Preact');
+  assert.equal(packed.dependencies.preact, undefined, 'Package must not depend on Preact');
   assert.equal(packed.peerDependencies?.preact, undefined);
   // The dashboard client renders with the host's zudo-react, an optional zfb peer.
   assert.equal(packed.peerDependenciesMeta?.['@takazudo/zfb']?.optional, true);

@@ -4,7 +4,7 @@
  * One controller per mounted panel owns a `.tokenpanel-tooltip` element on
  * `document.body` (so panel overflow clipping cannot hide it), positions it
  * over the current trigger, and hides it on Escape, scroll, and resize.
- * Both the Preact `TooltipProvider` and zudo-react triggers drive it.
+ * zudo-react triggers drive it through `tooltipTrigger` (`tooltip.ts`).
  */
 
 /**

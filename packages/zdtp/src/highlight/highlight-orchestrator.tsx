@@ -1,26 +1,29 @@
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 /**
  * HighlightOrchestrator — integration layer for the highlight feature.
  *
  * Responsibilities:
  * 1. Lifts and persists HighlightState.
- * 2. Provides HighlightContext to all descendants.
+ * 2. Returns the highlight context signal the panel passes to its rows.
  * 3. Mounts an overlay portal at document.body (above the panel-closed gate).
  * 4. Observes document.head for stylesheet changes so newly injected CSS is
  *    picked up by re-resolving elements.
  * 5. Handles astro:after-swap — recreates the portal mount and re-attaches the
  *    MutationObserver when Astro replaces the body/head.
  *
- * Self-contained — panel.tsx wraps its existing JSX in this component so the
- * overlay persists even when the panel is closed.
+ * `panel.tsx` calls `useHighlightController` during setup, outside its
+ * open gate, so the overlay persists even when the panel is closed.
  */
 
-import { useState, useCallback, useMemo, useEffect, useRef } from 'preact/hooks';
-import type { ComponentChildren } from 'preact';
-import { createPortal } from 'preact/compat';
 import {
-  HighlightContext,
-  type HighlightContextValue,
-} from './highlight-toggle-button-preact';
+  batch,
+  computed,
+  getScope,
+  signal,
+  type Child,
+  type ReadonlySignal,
+} from '@takazudo/zfb/zudo-react';
+import type { HighlightContextValue } from './highlight-context';
 import {
   loadHighlightState,
   saveHighlightState,
@@ -35,9 +38,10 @@ import {
 import { findElementsUsingToken, HIGHLIGHT_PORTAL_MOUNT_ID } from './find-elements';
 import type { FindElementsResult } from './find-elements';
 import type { HighlightOverlayItem } from './highlight-overlay';
-import { HighlightOverlay } from './highlight-overlay-preact';
+import { HighlightOverlay } from './highlight-overlay';
 import { getPanelConfig, type PanelConfig } from '../config/panel-config';
-import { usePortalMount } from '../utils/use-portal-mount';
+import { peekable } from '../zr/live';
+import { useMountPortal } from '../zr/portal';
 import { isDocumentUsable } from '../utils/document-liveness';
 import type { TierValueKind } from '../tokens/tier-model';
 import { buildTokenIndex, tokenAddressKey, type TokenAddress, type TokenIndex } from '../utils/token-index';
@@ -114,106 +118,66 @@ function isDifferentialEligible(tierKind: TierValueKind | undefined): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Portal mount
+// Controller
 // ---------------------------------------------------------------------------
 
-interface OverlayPortalProps {
-  items: ReadonlyArray<HighlightOverlayItem>;
-}
-
-function OverlayPortal({ items }: OverlayPortalProps) {
-  const mountNode = usePortalMount(HIGHLIGHT_PORTAL_MOUNT_ID);
-  if (!mountNode) return null;
-  return createPortal(<HighlightOverlay items={items} />, mountNode);
-}
-
-// ---------------------------------------------------------------------------
-// HighlightOrchestrator
-// ---------------------------------------------------------------------------
-
-export interface HighlightOrchestratorProps {
-  children?: ComponentChildren;
-  /** Config for the mounted panel instance; omitted for the default path. */
-  instanceConfig?: PanelConfig;
-}
-
-export function HighlightOrchestrator({
-  children,
-  instanceConfig: instanceConfigProp,
-}: HighlightOrchestratorProps) {
+/**
+ * Lift and persist this instance's highlight state, observe stylesheet and
+ * theme changes, and render the overlay rings into the body-level portal for
+ * the calling component's lifetime. Returns the highlight service the panel's
+ * rows read.
+ */
+export function useHighlightController(
+  instanceConfigProp?: PanelConfig,
+): ReadonlySignal<HighlightContextValue> {
   // Keep all probe-kind and cssVar resolution tied to this mounted instance.
   // Looking up the global active config here causes two panels to probe with
   // whichever manifest happened to be configured last.
   const instanceConfig = instanceConfigProp ?? getPanelConfig();
-  const tokenIndex = useMemo(() => buildTokenIndex(instanceConfig), [instanceConfig]);
-  const cssVarKindIndex = useMemo(
-    () => buildCssVarKindIndex(instanceConfig, tokenIndex),
-    [instanceConfig, tokenIndex],
-  );
-  const [state, setState] = useState<HighlightState>(() => loadHighlightState(instanceConfig));
+  const tokenIndex = buildTokenIndex(instanceConfig);
+  const cssVarKindIndex = buildCssVarKindIndex(instanceConfig, tokenIndex);
+  const state = signal<HighlightState>(loadHighlightState(instanceConfig));
 
-  // Track stylesheet version for cache-busting when new sheets are injected.
-  const [stylesheetVersion, setStylesheetVersion] = useState(0);
-
-  // Track theme version for cache-busting when <html data-theme> or class changes.
-  const [themeVersion, setThemeVersion] = useState(0);
+  // Bumped to bust the match cache when stylesheets or the theme change.
+  const stylesheetVersion = peekable(0);
+  const themeVersion = peekable(0);
 
   // Per-cssVar match cache keyed by (cssVar, stylesheetVersion, themeVersion).
-  const matchCacheRef = useRef<Map<CacheKey, CacheEntry>>(new Map());
-  const [requestedMatchCounts, setRequestedMatchCounts] = useState<Record<string, number>>({});
-
-  // A mounted orchestrator can be reused with another instance config by a
-  // host during a view transition. Drop both DOM results and address counts
-  // when that instance identity changes; otherwise a same-cssVar token could
-  // inherit the previous instance's probe result.
-  useEffect(() => {
-    matchCacheRef.current.clear();
-    setRequestedMatchCounts({});
-  }, [instanceConfig.storagePrefix]);
+  const matchCache = new Map<CacheKey, CacheEntry>();
+  const requestedMatchCounts = peekable<Record<string, number>>({});
 
   // -------------------------------------------------------------------------
   // State mutation helpers
   // -------------------------------------------------------------------------
 
-  const toggle = useCallback((cssVar: string) => {
-    setState((s) => {
-      const next = toggleHighlight(s, cssVar);
-      saveHighlightState(next, instanceConfig);
-      return next;
-    });
-  }, [instanceConfig]);
+  function update(change: (current: HighlightState) => HighlightState): void {
+    const next = change(state.value);
+    saveHighlightState(next, instanceConfig);
+    state.value = next;
+  }
 
-  const setSlot = useCallback((index: number, partial: Partial<HighlightSlotSpec>) => {
-    setState((s) => {
-      const next = setSlotHelper(s, index, partial);
-      saveHighlightState(next, instanceConfig);
-      return next;
-    });
-  }, [instanceConfig]);
+  const toggle = (cssVar: string) => update((s) => toggleHighlight(s, cssVar));
+  const setSlot = (index: number, partial: Partial<HighlightSlotSpec>) =>
+    update((s) => setSlotHelper(s, index, partial));
+  const setOutlineWidth = (width: number) => update((s) => setOutlineWidthHelper(s, width));
+  const reset = () => update(resetSlots);
+  const disableAll = () => update(clearAllActive);
 
-  const setOutlineWidth = useCallback((width: number) => {
-    setState((s) => {
-      const next = setOutlineWidthHelper(s, width);
-      saveHighlightState(next, instanceConfig);
-      return next;
+  function invalidate(version: typeof stylesheetVersion): void {
+    // Clear the cache so stale entries (holding detached Element refs) are not
+    // returned on the next re-probe. Version-stamped keys make old entries
+    // unreachable anyway, but clearing prevents the Map from growing
+    // unboundedly in HMR / styled-components hosts that inject many <style>
+    // nodes over time (F26). Previously requested counts are likewise stale,
+    // but remain lazy: the next open/request repopulates them.
+    matchCache.clear();
+    batch(() => {
+      version.value += 1;
+      requestedMatchCounts.value = {};
     });
-  }, [instanceConfig]);
+  }
 
-  const reset = useCallback(() => {
-    setState((s) => {
-      const next = resetSlots(s);
-      saveHighlightState(next, instanceConfig);
-      return next;
-    });
-  }, [instanceConfig]);
-
-  const disableAll = useCallback(() => {
-    setState((s) => {
-      const next = clearAllActive(s);
-      saveHighlightState(next, instanceConfig);
-      return next;
-    });
-  }, [instanceConfig]);
+  const scope = getScope();
 
   // -------------------------------------------------------------------------
   // Stylesheet MutationObserver — bumps stylesheetVersion when <style> or
@@ -221,33 +185,17 @@ export function HighlightOrchestrator({
   // Re-attaches on astro:after-swap if head is replaced.
   // -------------------------------------------------------------------------
 
-  useEffect(() => {
+  scope.onActivate(() => {
     let observer: MutationObserver | null = null;
 
     function attachObserver() {
-      // Preact flushes effects on rAF/setTimeout, so this can run after a
-      // test environment tore down the document (zudolab/zudo-doc#3344) —
-      // bail instead of observing a corpse's missing head.
       if (!isDocumentUsable() || !document.head) return;
       if (observer) observer.disconnect();
       observer = new MutationObserver((mutations) => {
         for (const mutation of mutations) {
-          for (const node of mutation.addedNodes) {
+          for (const node of [...mutation.addedNodes, ...mutation.removedNodes]) {
             if (isStylesheetNode(node)) {
-              // Clear the cache so stale entries (holding detached Element refs)
-              // are not returned on the next re-probe. Version-stamped keys make
-              // old entries unreachable anyway, but clearing prevents the Map from
-              // growing unboundedly in HMR / styled-components hosts that inject
-              // many <style> nodes over time (F26).
-              matchCacheRef.current.clear();
-              setStylesheetVersion((v) => v + 1);
-              return;
-            }
-          }
-          for (const node of mutation.removedNodes) {
-            if (isStylesheetNode(node)) {
-              matchCacheRef.current.clear();
-              setStylesheetVersion((v) => v + 1);
+              invalidate(stylesheetVersion);
               return;
             }
           }
@@ -259,59 +207,44 @@ export function HighlightOrchestrator({
     attachObserver();
 
     function handleAfterSwap() {
-      // Re-attach observer to the new head after Astro swaps the page.
+      // Re-attach observer to the new head after Astro swaps the page. Astro
+      // view transitions replace document.body, so every previously matched
+      // Element reference is now detached (F26).
       attachObserver();
-      // Astro view transitions replace document.body, so every previously matched
-      // Element reference is now detached. Clear the cache to release those
-      // references and avoid drawing stale overlays (F26).
-      matchCacheRef.current.clear();
-      // Bump version to cause a cache miss on the next re-probe.
-      setStylesheetVersion((v) => v + 1);
+      invalidate(stylesheetVersion);
     }
-    if (typeof window !== 'undefined') {
-      window.addEventListener('astro:after-swap', handleAfterSwap);
-    }
+    window.addEventListener('astro:after-swap', handleAfterSwap);
 
     return () => {
       observer?.disconnect();
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('astro:after-swap', handleAfterSwap);
-      }
+      window.removeEventListener('astro:after-swap', handleAfterSwap);
     };
-  }, []);
+  });
 
   // -------------------------------------------------------------------------
   // documentElement attribute observer — bumps themeVersion when
   // <html data-theme="..."> or <html class="..."> changes (theme toggles).
   // -------------------------------------------------------------------------
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return; // SSR safety
-    // Liveness probe (zudolab/zudo-doc#3344): this effect can flush after a
-    // test environment tore down the document, whose stand-in carries a
-    // non-Node documentElement — observe() would throw.
+  scope.onActivate(() => {
     if (!isDocumentUsable()) return;
-    const observer = new MutationObserver(() => {
-      setThemeVersion((v) => v + 1);
-      matchCacheRef.current.clear();
-    });
+    const observer = new MutationObserver(() => invalidate(themeVersion));
     observer.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ['data-theme', 'class'],
     });
     return () => observer.disconnect();
-  }, []);
+  });
 
   // -------------------------------------------------------------------------
-  // Resolve items + matchCounts via useMemo.
-  // Inner lookupOrProbe consults the per-cssVar cache keyed by
-  // (cssVar, stylesheetVersion, themeVersion) so slot edits — which change
-  // only state.slots — do not re-probe the DOM.
+  // Resolve items + matchCounts. lookupOrProbe consults the per-cssVar cache
+  // keyed by (cssVar, stylesheetVersion, themeVersion) so slot edits — which
+  // change only state.slots — do not re-probe the DOM.
   // -------------------------------------------------------------------------
 
-  const lookupOrProbe = useCallback((cssVar: string): CacheEntry => {
-    const key: CacheKey = `${instanceConfig.storagePrefix}|${cssVar}|${stylesheetVersion}|${themeVersion}`;
-    const cached = matchCacheRef.current.get(key);
+  function lookupOrProbe(cssVar: string, versions: readonly [number, number]): CacheEntry {
+    const key: CacheKey = `${instanceConfig.storagePrefix}|${cssVar}|${versions[0]}|${versions[1]}`;
+    const cached = matchCache.get(key);
     if (cached) {
       // F26: Evict the entry if any element has been detached from the DOM
       // since it was cached (e.g. SPA re-render without a version bump).
@@ -320,127 +253,119 @@ export function HighlightOrchestrator({
       if (cached.elements.every((el) => el.isConnected)) {
         return cached;
       }
-      matchCacheRef.current.delete(key);
+      matchCache.delete(key);
     }
 
     const tierKind = cssVarKindIndex.get(cssVar);
     const kind = tierKindToProbeKind(tierKind);
     const kindOpt = kind ? { kind } : {};
 
-    let elements: Element[];
-    let warnings: string[];
+    // F31 (option a): differential-eligible kinds skip the separate equality
+    // pass — differential's A/B comparison already detects direct consumers,
+    // halving the style-recalculation cost for the most common token kinds.
+    // String-only kinds (text, cursor, content, mask-image) run a single
+    // equality probe, since differential mode is not applicable to them.
+    const result = isDifferentialEligible(tierKind)
+      ? findElementsUsingToken(cssVar, { ...kindOpt, mode: 'differential' })
+      : findElementsUsingToken(cssVar, kindOpt);
 
-    if (isDifferentialEligible(tierKind)) {
-      // F31 (option a): Skip the separate equality pass for differential-eligible
-      // kinds. Differential's A/B comparison already detects direct consumers —
-      // any element whose computed longhand equals sentinelA in phase A will
-      // produce a different value in phase B (where sentinelB ≠ sentinelA).
-      // This reduces the DOM walk from 3 (equality + differential A + B) to 2
-      // (differential A + B), halving the style-recalculation cost for the most
-      // common token kinds (color, length, number, auto-detect).
-      const diffResult = findElementsUsingToken(cssVar, { ...kindOpt, mode: 'differential' });
-      elements = diffResult.elements;
-      warnings = diffResult.warnings;
-    } else {
-      // String-only kinds (text, cursor, content, mask-image): differential mode
-      // is not applicable. Run a single equality probe.
-      const eqResult = findElementsUsingToken(cssVar, kindOpt);
-      elements = eqResult.elements;
-      warnings = eqResult.warnings;
-    }
-
-    const entry: CacheEntry = { elements, warnings };
-    matchCacheRef.current.set(key, entry);
+    const entry: CacheEntry = { elements: result.elements, warnings: result.warnings };
+    matchCache.set(key, entry);
     return entry;
-  }, [cssVarKindIndex, instanceConfig.storagePrefix, stylesheetVersion, themeVersion]);
+  }
 
-  const logProbeWarnings = useCallback((result: CacheEntry) => {
-    if (result.warnings.length === 0) return;
+  function logProbeWarnings(result: CacheEntry): void {
     for (const warning of result.warnings) {
       console.warn('[zudo-design-token-panel] highlight:', warning);
     }
-  }, []);
+  }
 
-  const requestMatchCount = useCallback((address: TokenAddress): number | undefined => {
+  const versions = (): readonly [number, number] => [stylesheetVersion.value, themeVersion.value];
+
+  function requestMatchCount(address: TokenAddress): number | undefined {
     const entry = tokenIndex.entry(address);
     if (!entry) return undefined;
-    const result = lookupOrProbe(entry.cssVar);
+    const result = lookupOrProbe(entry.cssVar, [stylesheetVersion.peek(), themeVersion.peek()]);
     logProbeWarnings(result);
     const count = result.elements.length;
     const key = tokenAddressKey(address);
-    setRequestedMatchCounts((previous) => {
-      // Keep the historical cssVar lookup available to existing consumers
-      // while also retaining an address key for same-cssVar tokens in one
-      // manifest. The chain UI uses the address key; the highlight toggle
-      // continues to read the cssVar key.
-      if (previous[key] === count && previous[entry.cssVar] === count) return previous;
-      return { ...previous, [key]: count, [entry.cssVar]: count };
-    });
+    const previous = requestedMatchCounts.peek();
+    // Keep the historical cssVar lookup available to existing consumers while
+    // also retaining an address key for same-cssVar tokens in one manifest.
+    // The chain UI uses the address key; the highlight toggle continues to
+    // read the cssVar key.
+    if (previous[key] !== count || previous[entry.cssVar] !== count) {
+      requestedMatchCounts.value = { ...previous, [key]: count, [entry.cssVar]: count };
+    }
     return count;
-  }, [logProbeWarnings, lookupOrProbe, tokenIndex]);
+  }
 
-  const { items, matchCounts: activeMatchCounts } = useMemo(() => {
-
-    const resolvedItems: HighlightOverlayItem[] = [];
+  let lastResolved: { state: HighlightState; versions: readonly [number, number]; value: Resolved } | null = null;
+  const resolved = computed((): Resolved => {
+    const current = state.value;
+    const currentVersions = versions();
+    if (
+      lastResolved &&
+      lastResolved.state === current &&
+      lastResolved.versions[0] === currentVersions[0] &&
+      lastResolved.versions[1] === currentVersions[1]
+    ) {
+      return lastResolved.value;
+    }
+    const items: HighlightOverlayItem[] = [];
     const counts: Record<string, number> = {};
 
-    for (const [cssVar, slotIdx] of Object.entries(state.active)) {
-      const result = lookupOrProbe(cssVar);
+    for (const [cssVar, slotIdx] of Object.entries(current.active)) {
+      const result = lookupOrProbe(cssVar, currentVersions);
       logProbeWarnings(result);
+      counts[cssVar] = result.elements.length;
 
-      const elements = result.elements;
-      counts[cssVar] = elements.length;
-
-      const slot = state.slots[slotIdx];
+      const slot = current.slots[slotIdx];
       if (!slot) continue;
 
-      for (const element of elements) {
-        // Stamp the global outlineWidth onto each overlay item so HighlightOverlay
-        // receives a complete HighlightSlotSpec (color + outlineWidth) without
-        // needing to know about the global-width concept itself.
-        resolvedItems.push({ element, slot: { color: slot.color, outlineWidth: state.outlineWidth } });
+      for (const element of result.elements) {
+        // Stamp the global outlineWidth onto each overlay item so
+        // HighlightOverlay receives a complete HighlightSlotSpec.
+        items.push({ element, slot: { color: slot.color, outlineWidth: current.outlineWidth } });
       }
     }
 
-    return { items: resolvedItems, matchCounts: counts };
-  }, [logProbeWarnings, lookupOrProbe, state.active, state.outlineWidth, state.slots]);
+    const value = { items, matchCounts: counts };
+    lastResolved = { state: current, versions: currentVersions, value };
+    return value;
+  });
 
-  // A stylesheet/theme change invalidates the DOM cache. Previously requested
-  // counts are likewise stale, but remain lazy: the next open/request probes
-  // the new cache entry and repopulates them.
-  useEffect(() => {
-    setRequestedMatchCounts({});
-  }, [stylesheetVersion, themeVersion]);
+  const items = computed(() => resolved.value.items);
 
-  const matchCounts = useMemo(
-    () => ({ ...requestedMatchCounts, ...activeMatchCounts }),
-    [activeMatchCounts, requestedMatchCounts],
-  );
+  useMountPortal(HIGHLIGHT_PORTAL_MOUNT_ID, () => <HighlightOverlay items={items} />);
 
-  // -------------------------------------------------------------------------
-  // Context value
-  // -------------------------------------------------------------------------
+  return computed<HighlightContextValue>(() => ({
+    state: state.value,
+    toggle,
+    setSlot,
+    setOutlineWidth,
+    reset,
+    disableAll,
+    matchCounts: { ...requestedMatchCounts.value, ...resolved.value.matchCounts },
+    requestMatchCount,
+  }));
+}
 
-  const ctxValue = useMemo<HighlightContextValue>(
-    () => ({
-      state,
-      toggle,
-      setSlot,
-      setOutlineWidth,
-      reset,
-      disableAll,
-      matchCounts,
-      requestMatchCount,
-    }),
-    [state, toggle, setSlot, setOutlineWidth, reset, disableAll, matchCounts, requestMatchCount],
-  );
+interface Resolved {
+  items: HighlightOverlayItem[];
+  matchCounts: Record<string, number>;
+}
 
-  return (
-    <>
-      <HighlightContext.Provider value={ctxValue}>{children}</HighlightContext.Provider>
-      <OverlayPortal items={items} />
-    </>
-  );
+export interface HighlightOrchestratorProps {
+  /** Config for the mounted panel instance; omitted for the default path. */
+  instanceConfig?: PanelConfig;
+  children?: (highlight: ReadonlySignal<HighlightContextValue>) => Child;
+}
+
+/** Component form of `useHighlightController`, for isolated use. */
+export function HighlightOrchestrator(props: HighlightOrchestratorProps) {
+  const highlight = useHighlightController(props.instanceConfig);
+  return props.children ? props.children(highlight) : null;
 }
 
 // ---------------------------------------------------------------------------

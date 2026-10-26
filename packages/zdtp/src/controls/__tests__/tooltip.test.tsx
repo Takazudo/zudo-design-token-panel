@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 /**
- * Unit tests for the TooltipProvider + useTooltip hook.
+ * Unit tests for the tooltip controller driven by `tooltipTrigger` listeners.
  *
  * Tests: show/hide on mouseenter/mouseleave, focusin/focusout, Escape key,
  * scroll-capture, and aria-hidden attribute toggling.
@@ -11,23 +11,22 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { render } from 'preact';
-import { act } from '../../zr/test-utils';
-import type { JSX } from 'preact';
-import { TooltipProvider, useTooltip } from '../tooltip-preact';
+import type { Child } from '@takazudo/zfb/zudo-react';
+import { act, renderZr, unmountZrIn } from '../../zr/test-utils';
+import { tooltipTrigger } from '../tooltip';
+import { createTooltipController, type TooltipController } from '../tooltip-controller';
 
 // ---------------------------------------------------------------------------
-// Fixture component — a single trigger wired to useTooltip
+// Fixture component — a single trigger wired to tooltipTrigger
 // ---------------------------------------------------------------------------
 
-function TriggerFixture({ label }: { label: string }): JSX.Element {
-  const tooltipProps = useTooltip(label);
+function TriggerFixture({ label, tooltip }: { label: string; tooltip: TooltipController }): Child {
   return (
     <div
       data-testid="trigger"
-      className="test-trigger"
-      tabIndex={0}
-      {...tooltipProps}
+      class="test-trigger"
+      tabindex={0}
+      {...tooltipTrigger(tooltip, label)}
     >
       hover me
     </div>
@@ -39,6 +38,13 @@ function TriggerFixture({ label }: { label: string }): JSX.Element {
 // ---------------------------------------------------------------------------
 
 let container: HTMLDivElement;
+let disconnectTooltip: (() => void) | null = null;
+
+function connectTooltip(): TooltipController {
+  const tooltip = createTooltipController(document);
+  disconnectTooltip = tooltip.connect();
+  return tooltip;
+}
 
 beforeEach(() => {
   container = document.createElement('div');
@@ -46,18 +52,16 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => render(null, container));
+  act(() => unmountZrIn(container));
+  disconnectTooltip?.();
+  disconnectTooltip = null;
   document.body.removeChild(container);
 });
 
 function renderFixture(label = '--test-token'): void {
   act(() => {
-    render(
-      <TooltipProvider>
-        <TriggerFixture label={label} />
-      </TooltipProvider>,
-      container,
-    );
+    const tooltip = connectTooltip();
+    renderZr(() => <TriggerFixture label={label} tooltip={tooltip} />, container);
   });
 }
 
@@ -73,7 +77,7 @@ function getTrigger(): HTMLElement {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('TooltipProvider — tooltip element is in the DOM', () => {
+describe('tooltip controller — tooltip element is in the DOM', () => {
   it('renders a .tokenpanel-tooltip element via portal', () => {
     renderFixture();
     expect(getTooltip()).not.toBeNull();
@@ -95,7 +99,7 @@ describe('TooltipProvider — tooltip element is in the DOM', () => {
   });
 });
 
-describe('useTooltip — mouseenter / mouseleave', () => {
+describe('tooltipTrigger — mouseenter / mouseleave', () => {
   it('shows tooltip on mouseenter', () => {
     renderFixture('--my-token');
     act(() => {
@@ -132,7 +136,7 @@ describe('useTooltip — mouseenter / mouseleave', () => {
   });
 });
 
-describe('useTooltip — focusin / focusout', () => {
+describe('tooltipTrigger — focusin / focusout', () => {
   it('shows tooltip on focusin', () => {
     renderFixture('--focus-token');
     act(() => {
@@ -161,7 +165,7 @@ describe('useTooltip — focusin / focusout', () => {
   });
 });
 
-describe('useTooltip — Escape key', () => {
+describe('tooltipTrigger — Escape key', () => {
   it('hides tooltip on Escape', () => {
     renderFixture('--esc-token');
     act(() => {
@@ -190,7 +194,7 @@ describe('useTooltip — Escape key', () => {
 // Resize hides the tooltip (issue #516)
 // ---------------------------------------------------------------------------
 
-describe('useTooltip — window resize hides tooltip', () => {
+describe('tooltipTrigger — window resize hides tooltip', () => {
   it('hides tooltip on window resize while visible', () => {
     renderFixture('--resize-token');
     act(() => {
@@ -214,7 +218,7 @@ describe('useTooltip — window resize hides tooltip', () => {
   });
 });
 
-describe('useTooltip — panel-shell ResizeObserver hides tooltip', () => {
+describe('tooltipTrigger — panel-shell ResizeObserver hides tooltip', () => {
   // jsdom does not implement ResizeObserver (confirmed: `typeof ResizeObserver`
   // is `undefined` under jsdom), so the shell-resize path is exercised here
   // with a hand-rolled stand-in that records `observe`/`disconnect` calls and
@@ -269,14 +273,12 @@ describe('useTooltip — panel-shell ResizeObserver hides tooltip', () => {
 
   function renderShellFixture(label = '--shell-token'): void {
     act(() => {
-      render(
-        <TooltipProvider>
-          <div className="tokenpanel-shell">
-            <TriggerFixture label={label} />
-          </div>
-        </TooltipProvider>,
-        container,
-      );
+      const tooltip = connectTooltip();
+      renderZr(() => (
+        <div class="tokenpanel-shell">
+          <TriggerFixture label={label} tooltip={tooltip} />
+        </div>
+      ), container);
     });
   }
 

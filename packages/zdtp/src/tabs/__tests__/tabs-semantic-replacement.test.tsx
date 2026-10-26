@@ -15,9 +15,11 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from '../../zr/test-utils';
-import { FontTab, GenericTab, SizeTab, SpacingTab } from '../flat-tabs-preact';
+import { act, createTestServices, renderZr } from '../../zr/test-utils';
+import FontTab from '../font-tab';
+import GenericTab from '../generic-tab';
+import SizeTab from '../size-tab';
+import SpacingTab from '../spacing-tab';
 import type { TabConfig } from '../../tokens/tier-model';
 import type { TokenOverrides } from '../../state/tweak-state';
 import type { TabOverrides } from '../../apply/tier-resolver';
@@ -159,10 +161,7 @@ async function renderSpacingTab(
   persistSpacing: (updater: (prev: TokenOverrides) => TokenOverrides) => void = noop,
 ): Promise<void> {
   await act(() => {
-    render(
-      <SpacingTab tab={tab} state={state} persistSpacing={persistSpacing} />,
-      container,
-    );
+    renderZr(() => <SpacingTab services={createTestServices()} tab={tab} state={state} persistSpacing={persistSpacing} />, container,);
   });
 }
 
@@ -172,10 +171,7 @@ async function renderFontTab(
   persistFont: (updater: (prev: TokenOverrides) => TokenOverrides) => void = noop,
 ): Promise<void> {
   await act(() => {
-    render(
-      <FontTab tab={tab} state={state} persistFont={persistFont} />,
-      container,
-    );
+    renderZr(() => <FontTab services={createTestServices()} tab={tab} state={state} persistFont={persistFont} />, container,);
   });
 }
 
@@ -185,10 +181,7 @@ async function renderSizeTab(
   persistSize: (updater: (prev: TokenOverrides) => TokenOverrides) => void = noop,
 ): Promise<void> {
   await act(() => {
-    render(
-      <SizeTab tab={tab} state={state} persistSize={persistSize} />,
-      container,
-    );
+    renderZr(() => <SizeTab services={createTestServices()} tab={tab} state={state} persistSize={persistSize} />, container,);
   });
 }
 
@@ -198,10 +191,7 @@ async function renderGenericTab(
   onChange: (tierId: string, itemId: string, next: string | undefined) => void = noop,
 ): Promise<void> {
   await act(() => {
-    render(
-      <GenericTab tab={tab} overrides={overrides} onChange={onChange} />,
-      container,
-    );
+    renderZr(() => <GenericTab services={createTestServices()} tab={tab} overrides={overrides} onChange={onChange} />, container,);
   });
 }
 

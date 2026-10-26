@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from '../zr/test-utils';
+import { act, renderZr, unmountZrIn } from '../zr/test-utils';
 import DesignTokenTweakPanel from '../panel';
 import { __resetInstanceBindingsForTests, reapplyPersistedOverrides } from '../index';
 import {
@@ -59,7 +58,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => render(null, container));
+  act(() => unmountZrIn(container));
   container.remove();
   __resetInstanceBindingsForTests();
   __resetPanelConfigForTests();
@@ -275,7 +274,7 @@ describe('#946 — panel lifecycle', () => {
     configurePanel(cfg);
     localStorage.setItem(getOpenKey(cfg), '1');
     document.documentElement.style.setProperty('--host', 'keep');
-    await act(async () => render(<DesignTokenTweakPanel instanceConfig={cfg} />, container));
+    await act(async () => renderZr(() => <DesignTokenTweakPanel instanceConfig={cfg} />, container));
     expect(read('--mode-surface')).toBe(CSS_PAIR);
     const reset = Array.from(container.querySelectorAll<HTMLElement>('[role="button"]'))
       .find((element) => element.textContent === 'Reset');

@@ -16,7 +16,7 @@ export interface FixedPopoverStyle {
  * top edge (top = pad) and given a max-height + overflow: auto so it scrolls
  * rather than clips.
  *
- * Returns camelCase keys with px numbers (Preact style); zudo-react callers
+ * Returns camelCase keys with px numbers (React style); zudo-react callers
  * pass the result through `toZrStyle`.
  */
 export function getFixedPopoverStyle(

@@ -11,9 +11,8 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from '../../zr/test-utils';
-import { InspectorOverlay } from '../inspector-overlay-preact';
+import { act, renderZr, unmountZrIn } from '../../zr/test-utils';
+import { InspectorOverlay } from '../inspector-overlay';
 
 // ---------------------------------------------------------------------------
 // Setup / teardown
@@ -48,7 +47,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  render(null, container);
+  unmountZrIn(container);
   container.remove();
   target.remove();
   vi.restoreAllMocks();
@@ -82,7 +81,7 @@ describe('InspectorOverlay', () => {
 
   it('renders no highlight box until Alt is held and the pointer moves', () => {
     act(() => {
-      render(<InspectorOverlay enabled={true} />, container);
+      renderZr(() => <InspectorOverlay enabled={true} />, container);
     });
     expect(document.querySelector('.tokenpanel-elpath-box')).toBeNull();
 
@@ -93,7 +92,7 @@ describe('InspectorOverlay', () => {
 
   it('highlights the element already under the cursor as soon as Alt is pressed', () => {
     act(() => {
-      render(<InspectorOverlay enabled={true} />, container);
+      renderZr(() => <InspectorOverlay enabled={true} />, container);
     });
     // Move first (records position) — no box yet because not armed.
     act(() => moveOverTarget());
@@ -105,7 +104,7 @@ describe('InspectorOverlay', () => {
 
   it('shows the element label with the summary descriptor', () => {
     act(() => {
-      render(<InspectorOverlay enabled={true} />, container);
+      renderZr(() => <InspectorOverlay enabled={true} />, container);
     });
     act(() => pressAlt());
     act(() => moveOverTarget());
@@ -115,7 +114,7 @@ describe('InspectorOverlay', () => {
 
   it('does nothing while disabled, even with Alt + mousemove', () => {
     act(() => {
-      render(<InspectorOverlay enabled={false} />, container);
+      renderZr(() => <InspectorOverlay enabled={false} />, container);
     });
     act(() => pressAlt());
     act(() => moveOverTarget());
@@ -124,7 +123,7 @@ describe('InspectorOverlay', () => {
 
   it('clears the highlight when Alt is released', () => {
     act(() => {
-      render(<InspectorOverlay enabled={true} />, container);
+      renderZr(() => <InspectorOverlay enabled={true} />, container);
     });
     act(() => pressAlt());
     act(() => moveOverTarget());
@@ -136,7 +135,7 @@ describe('InspectorOverlay', () => {
 
   it('copies the annotated path and shows a toast on inspect-click', async () => {
     act(() => {
-      render(<InspectorOverlay enabled={true} />, container);
+      renderZr(() => <InspectorOverlay enabled={true} />, container);
     });
     act(() => pressAlt());
     act(() => moveOverTarget());
@@ -162,7 +161,7 @@ describe('InspectorOverlay', () => {
     target.addEventListener('click', hostClick);
 
     act(() => {
-      render(<InspectorOverlay enabled={true} />, container);
+      renderZr(() => <InspectorOverlay enabled={true} />, container);
     });
     act(() => pressAlt());
     act(() => moveOverTarget());

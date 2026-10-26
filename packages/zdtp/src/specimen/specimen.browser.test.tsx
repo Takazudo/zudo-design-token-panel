@@ -1,9 +1,8 @@
-import { render } from 'preact';
-import { act } from '../zr/test-utils';
+import { act, createTestServices, renderZr, unmountZrIn } from '../zr/test-utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { PanelConfig } from '../config/panel-config';
 import type { TabConfig } from '../tokens/tier-model';
-import { FontTab } from '../tabs/flat-tabs-preact';
+import FontTab from '../tabs/font-tab';
 
 const TAB: TabConfig = {
   id: 'font',
@@ -39,7 +38,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => render(null, container));
+  act(() => unmountZrIn(container));
   container.remove();
   document.documentElement.style.removeProperty('--spec-large');
   document.documentElement.style.removeProperty('--spec-small');
@@ -48,10 +47,7 @@ afterEach(() => {
 
 describe('font specimen browser rendering', () => {
   it('uses token values as computed font sizes and sorts unresolved values last', async () => {
-    await act(() => render(
-      <FontTab tab={TAB} state={{}} persistFont={() => undefined} instanceConfig={CFG} />,
-      container,
-    ));
+    await act(() => renderZr(() => <FontTab services={createTestServices()} tab={TAB} state={{}} persistFont={() => undefined} instanceConfig={CFG} />, container,));
     const specimens = Array.from(container.querySelectorAll<HTMLElement>('[data-testid^="specimen-size-"]'));
     expect(specimens.map((element) => element.dataset.testid)).toEqual([
       'specimen-size-small',
@@ -63,10 +59,7 @@ describe('font specimen browser rendering', () => {
   });
 
   it('re-renders every specimen row when Japanese preview text is typed and persists it', async () => {
-    await act(() => render(
-      <FontTab tab={TAB} state={{}} persistFont={() => undefined} instanceConfig={CFG} />,
-      container,
-    ));
+    await act(() => renderZr(() => <FontTab services={createTestServices()} tab={TAB} state={{}} persistFont={() => undefined} instanceConfig={CFG} />, container,));
     const input = container.querySelector<HTMLInputElement>('[aria-label="Preview text"]');
     expect(input).not.toBeNull();
     await act(() => {
@@ -85,10 +78,7 @@ describe('font specimen browser rendering', () => {
       ...TAB,
       tiers: TAB.tiers.map(({ preview: _preview, ...tier }) => tier),
     };
-    await act(() => render(
-      <FontTab tab={legacyTab} state={{}} persistFont={() => undefined} instanceConfig={CFG} />,
-      container,
-    ));
+    await act(() => renderZr(() => <FontTab services={createTestServices()} tab={legacyTab} state={{}} persistFont={() => undefined} instanceConfig={CFG} />, container,));
     expect(container.querySelector('.tokenpanel-specimen-toolbar')).toBeNull();
     expect(container.querySelector('[data-testid^="specimen-size-"]')).toBeNull();
     expect(localStorage.getItem('specimen-browser-specimen')).toBeNull();

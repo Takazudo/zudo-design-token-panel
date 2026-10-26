@@ -1,7 +1,7 @@
 /**
  * Cross-tier reference resolver and CSS value emitter.
  *
- * Pure module — no DOM, no Preact, no IO. Safe to import in any environment.
+ * Pure module — no DOM, no renderer, no IO. Safe to import in any environment.
  *
  * ## TabOverrides shape
  *

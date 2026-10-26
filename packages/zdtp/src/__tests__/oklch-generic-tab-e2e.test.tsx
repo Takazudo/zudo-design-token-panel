@@ -13,9 +13,8 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from 'preact';
-import { act } from '../zr/test-utils';
-import { GenericTab } from '../tabs/flat-tabs-preact';
+import { act, createTestServices, renderZr, unmountZrIn } from '../zr/test-utils';
+import GenericTab from '../tabs/generic-tab';
 import type { TabConfig } from '../tokens/tier-model';
 import type { TabOverrides } from '../apply/tier-resolver';
 import { resolveTierItemValue, emitTierItemCssValue } from '../apply/tier-resolver';
@@ -91,7 +90,7 @@ beforeEach(() => {
 
 afterEach(() => {
   act(() => {
-    render(null, container);
+    unmountZrIn(container);
   });
   document.body.removeChild(container);
 });
@@ -102,7 +101,7 @@ async function renderGenericTab(
   onChange: (tierId: string, itemId: string, next: string | undefined) => void = () => undefined,
 ): Promise<void> {
   await act(() => {
-    render(<GenericTab tab={tab} overrides={overrides} onChange={onChange} />, container);
+    renderZr(() => <GenericTab services={createTestServices()} tab={tab} overrides={overrides} onChange={onChange} />, container);
   });
 }
 

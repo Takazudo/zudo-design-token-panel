@@ -8,44 +8,45 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { options, type VNode } from 'preact';
-import { render } from 'preact';
-import { act } from '../../zr/test-utils';
+import { act, renderZr, unmountZrIn } from '../../zr/test-utils';
 import type { ColorFieldProps } from '../../components/color-picker/color-field';
 import type { TierItem } from '../../tokens/tier-model';
-import {
-  commitModePair,
-  ModesEditorFields,
-  ModesRow,
-  resolveModeRowSides,
-} from '../modes-row-preact';
+import { read } from '../../zr/live';
+import { commitModePair, resolveModeRowSides } from '../mode-sides';
+import { ModesEditorFields, ModesRow } from '../modes-row';
+
+type CapturedColorFieldProps = Pick<ColorFieldProps, 'onChange' | 'valueFormat' | 'resolveMode'>;
+
+// Capture ColorField props so pair-commit tests can call onChange without
+// driving ColorPicker (#971).
+const colorFieldProps = vi.hoisted(() => new Map<'light' | 'dark', CapturedColorFieldProps>());
+
+vi.mock('../../components/color-picker/color-field', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../components/color-picker/color-field')>();
+  function ColorField(props: Parameters<typeof actual.ColorField>[0]) {
+    const resolveMode = read(props.resolveMode);
+    if (resolveMode === 'light' || resolveMode === 'dark') {
+      colorFieldProps.set(resolveMode, {
+        onChange: props.onChange,
+        valueFormat: read(props.valueFormat),
+        resolveMode,
+      });
+    }
+    return actual.ColorField(props);
+  }
+  return { ...actual, ColorField, default: ColorField };
+});
 
 let container: HTMLDivElement;
-const colorFieldProps = new Map<'light' | 'dark', ColorFieldProps>();
-let prevVnode: typeof options.vnode;
 
 beforeEach(() => {
   container = document.createElement('div');
   document.body.appendChild(container);
   colorFieldProps.clear();
-  prevVnode = options.vnode;
-  // Capture ColorField props so pair-commit tests can call onChange without
-  // driving ColorPicker (#971).
-  options.vnode = (vnode: VNode) => {
-    prevVnode?.(vnode);
-    const type = vnode.type;
-    if (typeof type === 'function' && type.name === 'ColorField') {
-      const props = vnode.props as unknown as ColorFieldProps;
-      if (props.resolveMode === 'light' || props.resolveMode === 'dark') {
-        colorFieldProps.set(props.resolveMode, props);
-      }
-    }
-  };
 });
 
 afterEach(() => {
-  options.vnode = prevVnode;
-  act(() => render(null, container));
+  act(() => unmountZrIn(container));
   container.remove();
 });
 
@@ -72,7 +73,7 @@ function renderFields(
   sides = item.modes ? { ...item.modes } : { light: item.default, dark: item.default },
 ): void {
   act(() => {
-    render(<ModesEditorFields item={item} sides={sides} onChange={onChange} />, container);
+    renderZr(() => <ModesEditorFields item={item} sides={sides} onChange={onChange} />, container);
   });
 }
 
@@ -81,7 +82,7 @@ function renderRow(
   props: Partial<{ onChange: (next: string) => void; sides: { light: string; dark: string } }> = {},
 ): void {
   act(() => {
-    render(<ModesRow item={item} {...props} />, container);
+    renderZr(() => <ModesRow item={item} tooltip={null} {...props} />, container);
   });
 }
 

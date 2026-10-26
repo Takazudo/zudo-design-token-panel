@@ -188,13 +188,11 @@ EXPECTED_PANEL_VERSION="$EXPECTED_PANEL_VERSION" \
 SCRATCH_DOC_DIR="$SCRATCH_DOC" \
 node --input-type=module <<'NODE'
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
-import { readFile, realpath } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 
 const scratchDoc = process.env.SCRATCH_DOC_DIR;
 const expectedPanelVersion = process.env.EXPECTED_PANEL_VERSION;
-const scratchRequire = createRequire(resolve(scratchDoc, 'package.json'));
 async function packageVersion(name) {
   const packagePath = resolve(scratchDoc, 'node_modules', name, 'package.json');
   return JSON.parse(await readFile(packagePath, 'utf8')).version;
@@ -216,17 +214,10 @@ for (const name of ['@takazudo/zfb', '@takazudo/zfb-runtime',
   console.log(`Resolved ${name}@${actual}`);
 }
 
-// Only the legacy host renders with Preact. The current zudo-react host must
-// keep the panel's package-owned Preact tree opaque rather than share VNodes.
-if (legacy) {
-  const panelPreact = await realpath(
-    scratchRequire.resolve('preact/package.json', { paths: [dirname(panelPackagePath)] }),
-  );
-  const docPreact = await realpath(scratchRequire.resolve('preact/package.json'));
-  assert.equal(panelPreact, docPreact,
-    `Panel and legacy zudo-doc resolved different Preact installations (${panelPreact} vs ${docPreact})`);
-  console.log(`Resolved one shared legacy Preact installation: ${docPreact}`);
-}
+// The panel bundles its own zudo-react runtime, so it shares no renderer with
+// either host — including the legacy host's own Preact.
+assert.equal(panelPackage.dependencies?.preact, undefined, 'Panel must not depend on Preact');
+assert.equal(panelPackage.peerDependencies?.preact, undefined, 'Panel must not require a host Preact');
 console.log(`Resolved ${process.env.CONSUMER_HOST} host with @takazudo/zdtp@${panelPackage.version}`);
 NODE
 

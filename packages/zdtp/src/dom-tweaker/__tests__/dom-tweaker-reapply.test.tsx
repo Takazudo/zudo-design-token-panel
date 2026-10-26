@@ -5,7 +5,7 @@
  *
  * The Astro host adapter can decide to fetch the panel bundle from the
  * persisted `-domtweaker-enabled` bit, but the package-root adapter still has
- * to mount the Preact shell CLOSED so DomTweakerOrchestrator can run and load
+ * to mount the panel shell CLOSED so DomTweakerOrchestrator can run and load
  * the lazy boundary.
  */
 
@@ -38,7 +38,7 @@ describe('adapter — DOM Tweaker mounts the shell while closed', () => {
   });
 
   afterEach(async () => {
-    // Removing DOM nodes alone leaves Preact effects and the lazy Tweaker
+    // Removing DOM nodes alone leaves panel effects and the lazy Tweaker
     // boundary alive after Vitest disposes this test's jsdom environment.
     handle?.destroy();
     handle = undefined;

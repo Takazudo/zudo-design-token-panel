@@ -6,9 +6,4 @@ export {
   type TokenChainButtonProps,
   type TokenChainPopoverProps,
 } from './token-chain-popover';
-export {
-  TokenChainProvider,
-  useTokenChainContext,
-  type TokenChainContextValue,
-  type TokenChainProviderProps,
-} from './token-chain-context';
+export { tokenChainSignal, type TokenChainContextValue } from './token-chain-context';

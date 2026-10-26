@@ -25,8 +25,8 @@
  *     `setOpen((prev) => !prev)`.
  *
  * After mount the toggle relied entirely on the in-component
- * handler. That listener is only attached after Preact flushes
- * effects on `requestAnimationFrame`, and host wrappers (deferred
+ * handler. That listener was only attached after Preact (the renderer
+ * at the time) flushed effects on `requestAnimationFrame`, and host wrappers (deferred
  * Islands, SSR shims, SPA-nav bridges) can detach it in subtle
  * ways. Whenever the listener is missing, the click is silently
  * dropped.

@@ -36,8 +36,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
-import { render } from 'preact';
-import { act } from '../zr/test-utils';
+import { act, renderZr, unmountZrIn } from '../zr/test-utils';
 import DesignTokenTweakPanel from '../panel';
 import {
   getDockKey,
@@ -150,7 +149,7 @@ async function mountPanelAtWidth(
   document.body.appendChild(container);
 
   act(() => {
-    render(<DesignTokenTweakPanel instanceConfig={cfg} />, container);
+    renderZr(() => <DesignTokenTweakPanel instanceConfig={cfg} />, container);
   });
   await flushEffects();
 }
@@ -170,7 +169,7 @@ async function mountPanelDockedRight(
   document.body.appendChild(container);
 
   act(() => {
-    render(<DesignTokenTweakPanel instanceConfig={cfg} />, container);
+    renderZr(() => <DesignTokenTweakPanel instanceConfig={cfg} />, container);
   });
   await flushEffects();
 }
@@ -597,7 +596,7 @@ afterEach(async () => {
   await flushEffects();
   if (container) {
     act(() => {
-      render(null, container);
+      unmountZrIn(container);
     });
     container.remove();
   }
@@ -639,7 +638,7 @@ describe('wide panel (>1135px container width)', () => {
     disabledApply?.click();
     expect(container.querySelector('[data-design-token-panel-modal-variant="apply"]')).toBeNull();
 
-    act(() => render(null, container));
+    act(() => unmountZrIn(container));
     container.remove();
     const configured = {
       ...CFG,
@@ -1026,7 +1025,7 @@ describe('rendered CSS actions-menu boundary', () => {
       await expect.poll(() => getPopover() !== null).toBe(true);
       expect(trigger.getAttribute('aria-expanded')).toBe('true');
 
-      // No pointer event and no Preact width update: only ResizeObserver can
+      // No pointer event and no panel width update: only ResizeObserver can
       // reconcile the still-open menu with this actual CSS layout change.
       getShell().style.width = `${compactWidth + 1}px`;
       expectShellWidth(compactWidth + 1, borders);

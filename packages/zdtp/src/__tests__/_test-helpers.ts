@@ -177,15 +177,15 @@ export function installFixturePanelConfig(overrides: Partial<PanelConfig> = {}):
 }
 
 /**
- * Wait until Preact has flushed pending effects. Preact uses
- * requestAnimationFrame to flush effects (with a setTimeout(35) fallback
- * inside its scheduler), so we wait long enough for either path to fire and
- * then yield to any further macrotasks.
+ * Wait until the panel has flushed pending effects. zudo-react flushes its
+ * scheduler on microtasks, but panel effects schedule follow-up work on
+ * requestAnimationFrame and short timers, so we wait two frames and then
+ * yield to any further macrotasks.
  *
- * Wait-ok: the 50ms constant is not an arbitrary guess — it covers Preact's
- * own rAF + setTimeout(35) effect-flush path. This cannot be expressed as a
- * condition poll because "all Preact effects done" is not observable from
- * outside Preact internals without coupling to private scheduler APIs.
+ * Wait-ok: the 50ms constant covers the panel's rAF + short-timer follow-up
+ * work. This cannot be expressed as a condition poll because "all effects
+ * done" is not observable from outside the runtime without coupling to
+ * private scheduler APIs.
  */
 export async function flushEffects(): Promise<void> {
   await new Promise<void>((resolve) =>

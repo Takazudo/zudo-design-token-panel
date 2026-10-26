@@ -1,5 +1,5 @@
 /**
- * useDialogBackdropClose — gesture-aware backdrop dismissal for native
+ * createDialogBackdropClose — gesture-aware backdrop dismissal for native
  * `<dialog>` modals (#446, finding F14).
  *
  * The naive backdrop check tests only the *click* coordinates against the
@@ -16,9 +16,6 @@
  *
  * Each call keeps its own mousedown origin, so the state is per modal instance.
  */
-
-import { useMemo } from 'preact/compat';
-import type { JSX } from 'preact';
 
 function isOutsideRect(rect: DOMRect, x: number, y: number): boolean {
   return x < rect.left || x > rect.right || y < rect.top || y > rect.bottom;
@@ -62,22 +59,4 @@ export function createDialogBackdropClose(
       if (isOutsideRect(rect, e.clientX, e.clientY)) onBackdrop();
     },
   };
-}
-
-export interface DialogBackdropHandlers {
-  onMouseDown: (e: JSX.TargetedMouseEvent<HTMLDialogElement>) => void;
-  onClick: (e: JSX.TargetedMouseEvent<HTMLDialogElement>) => void;
-}
-
-/** Preact adapter over `createDialogBackdropClose`. */
-export function useDialogBackdropClose(
-  dialogRef: { current: HTMLDialogElement | null },
-  onBackdrop: () => void,
-): DialogBackdropHandlers {
-  const latest = useMemo(() => ({ onBackdrop }), []);
-  latest.onBackdrop = onBackdrop;
-  return useMemo(
-    () => createDialogBackdropClose(dialogRef, () => latest.onBackdrop()),
-    [dialogRef, latest],
-  );
 }

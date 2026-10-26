@@ -20,7 +20,7 @@ export default function DashboardPage() {
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Static token dashboard — zdtp playground</title>
-        <meta name="description" content="A static Preact token inventory with light, dark, and compact examples using the same playground manifest." />
+        <meta name="description" content="A static zudo-react token inventory with light, dark, and compact examples using the same playground manifest." />
         <link rel="stylesheet" href="/_generated/zdtp-dashboard.css" />
         <link rel="stylesheet" href="/dashboard-page.css" />
       </head>
@@ -124,7 +124,7 @@ export default function DashboardPage() {
                 referenced tiers too when choosing a subset of an aliased token family.
               </p>
               <p>
-                Render it as ordinary Preact TSX during your site build and include the
+                Render it as ordinary zudo-react TSX during your site build and include the
                 separate dashboard stylesheet. This page needs no client island or panel setup.
               </p>
             </div>
@@ -135,7 +135,7 @@ export default function DashboardPage() {
         </main>
         <footer class="dashboard-page__footer">
           <a href="/">Back to the interactive playground</a>
-          <span>Workspace build · Preact dashboard · static HTML and CSS</span>
+          <span>Workspace build · zudo-react dashboard · static HTML and CSS</span>
         </footer>
       </body>
     </html>

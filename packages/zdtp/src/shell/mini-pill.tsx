@@ -1,16 +1,18 @@
-import type { ComponentChildren, JSX, RefObject } from 'preact';
-import { RoleButton } from '../controls/role-button-preact';
+/** @jsxImportSource @takazudo/zfb/zudo-react */
+import { computed, type Child, type Ref } from '@takazudo/zfb/zudo-react';
+import { RoleButton } from '../controls/role-button';
+import { read, type MaybeSignal } from '../zr/live';
 
 /** Slots intentionally stay small so changed-state and history features can
  * add their own controls without making the dock-mode shell depend on them. */
 export interface MiniPillProps {
-  rootRef?: RefObject<HTMLDivElement>;
+  rootRef?: Ref<HTMLDivElement>;
   onApply: () => void;
   applyDisabled?: boolean;
   applyDisabledReason?: string;
   onExpand: () => void;
-  changedCount?: number | undefined;
-  undo?: ComponentChildren;
+  changedCount?: MaybeSignal<number | undefined>;
+  undo?: Child;
 }
 
 /**
@@ -29,38 +31,42 @@ export function MiniPill({
   onExpand,
   changedCount,
   undo,
-}: MiniPillProps): JSX.Element {
-  const count = changedCount ?? 0;
+}: MiniPillProps) {
+  const count = computed(() => read(changedCount) ?? 0);
 
   return (
-    <div ref={rootRef} className="tokenpanel-mini-pill" data-testid="tokenpanel-mini-pill">
-      <span className="tokenpanel-mini-pill-brand">zdtp</span>
+    <div
+      {...(rootRef ? { ref: rootRef } : {})}
+      class="tokenpanel-mini-pill"
+      data-testid="tokenpanel-mini-pill"
+    >
+      <span class="tokenpanel-mini-pill-brand">zdtp</span>
       <span
-        className="tokenpanel-mini-pill-changed-count"
+        class="tokenpanel-mini-pill-changed-count"
         data-mini-pill-slot="changed-count"
         aria-label="Changed token count"
       >
-        {count}
+        {computed(() => String(count.value))}
       </span>
-      <span className="tokenpanel-mini-pill-changes">
-        {' '}{count === 1 ? 'change' : 'changes'}
+      <span class="tokenpanel-mini-pill-changes">
+        {computed(() => ` ${count.value === 1 ? 'change' : 'changes'}`)}
       </span>
-      <span className="tokenpanel-mini-pill-divider" aria-hidden="true" />
-      <span className="tokenpanel-mini-pill-undo" data-mini-pill-slot="undo">
-        {undo}
+      <span class="tokenpanel-mini-pill-divider" aria-hidden="true" />
+      <span class="tokenpanel-mini-pill-undo" data-mini-pill-slot="undo">
+        {undo ?? null}
       </span>
       <RoleButton
-        className="tokenpanel-mini-pill-apply"
+        class="tokenpanel-mini-pill-apply"
         onClick={() => onApply()}
-        aria-disabled={applyDisabled}
+        aria-disabled={applyDisabled ?? null}
         aria-label="Apply changes"
-        title={applyDisabledReason}
+        title={applyDisabledReason ?? null}
       >
         Apply
       </RoleButton>
-      <span className="tokenpanel-mini-pill-divider" aria-hidden="true" />
+      <span class="tokenpanel-mini-pill-divider" aria-hidden="true" />
       <RoleButton
-        className="tokenpanel-mini-pill-expand"
+        class="tokenpanel-mini-pill-expand"
         onClick={() => onExpand()}
         aria-label="Expand panel"
         title="Expand panel"
@@ -71,9 +77,9 @@ export function MiniPill({
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
           aria-hidden="true"
         >
           <rect x="3" y="3" width="18" height="18" rx="2" />

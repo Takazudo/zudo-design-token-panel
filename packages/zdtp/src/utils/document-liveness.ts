@@ -4,7 +4,7 @@
  * Why these exist (zudolab/zudo-doc#3344): the panel's deferred surfaces —
  * dynamic-import continuations in the Astro host adapter, host code calling
  * the public API right after `await import('@takazudo/zdtp')` resolves, and
- * Preact's rAF/setTimeout effect flush — can resume AFTER the environment
+ * the renderer's deferred effect flush — can resume AFTER the environment
  * that scheduled them is gone. Under vitest, the jsdom environment is torn
  * down (or swapped for the next test file) while such a continuation is
  * still in flight; the global `document` then either disappears or is

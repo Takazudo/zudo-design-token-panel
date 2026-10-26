@@ -1,12 +1,15 @@
-import { useRef } from 'preact/compat';
-import { RoleButton } from '../controls/role-button-preact';
-import { useLayerActivity } from '../shell/layer-activity';
-import { useShortcut } from '../shell/shortcut-dispatcher';
+/** @jsxImportSource @takazudo/zfb/zudo-react */
+import type { ReadonlySignal } from '@takazudo/zfb/zudo-react';
+import { RoleButton } from '../controls/role-button';
+import { TextInput } from '../zr/form-controls';
+import { useShortcut, type ShortcutDispatcher } from '../shell/shortcut-dispatcher';
 
 export interface SearchHeaderProps {
-  query: string;
+  query: ReadonlySignal<string>;
   onQueryChange: (query: string) => void;
   onOpenPalette: () => void;
+  shortcuts: ShortcutDispatcher;
+  layerActive: ReadonlySignal<boolean>;
 }
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -16,59 +19,58 @@ function isEditableTarget(target: EventTarget | null): boolean {
 }
 
 /** Header-region search control. The compact affordance opens the palette. */
-export function SearchHeader({ query, onQueryChange, onOpenPalette }: SearchHeaderProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const layerActive = useLayerActivity();
+export function SearchHeader({ query, onQueryChange, onOpenPalette, shortcuts, layerActive }: SearchHeaderProps) {
+  const control: { current: HTMLDivElement | null } = { current: null };
+  const input = () => control.current?.querySelector<HTMLInputElement>('.tokenpanel-search-input') ?? null;
   const openPalette = () => {
-    if (!layerActive) onOpenPalette();
+    if (!layerActive.value) onOpenPalette();
   };
 
   useShortcut(
+    shortcuts,
     {
       key: '/',
-      when: (event) => !layerActive && !isEditableTarget(event.target),
+      when: (event) => !layerActive.value && !isEditableTarget(event.target),
     },
     (event) => {
       event.preventDefault();
-      const input = inputRef.current;
-      if (!input || getComputedStyle(input).display === 'none') {
+      const element = input();
+      if (!element || getComputedStyle(element).display === 'none') {
         onOpenPalette();
       } else {
-        input.focus();
+        element.focus();
       }
     },
   );
 
   return (
-    <div className="tokenpanel-search-control">
-      <span className="tokenpanel-search-glyph" aria-hidden="true">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <div ref={control} class="tokenpanel-search-control">
+      <span class="tokenpanel-search-glyph" aria-hidden="true">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="11" cy="11" r="7" />
           <path d="m20 20-4.3-4.3" />
         </svg>
       </span>
-      <input
-        ref={inputRef}
+      <TextInput
         value={query}
-        placeholder="Filter tokens…"
-        aria-label="Filter tokens"
-        className="tokenpanel-search-input"
-        onInput={(event) => onQueryChange(event.currentTarget.value)}
+        class="tokenpanel-search-input"
+        attrs={{ placeholder: 'Filter tokens…', 'aria-label': 'Filter tokens' }}
+        onInput={onQueryChange}
         onKeyDown={(event) => {
           if (event.key !== 'Escape') return;
           event.preventDefault();
           onQueryChange('');
-          inputRef.current?.blur();
+          input()?.blur();
         }}
       />
-      <span className="tokenpanel-search-key" aria-hidden="true">/</span>
+      <span class="tokenpanel-search-key" aria-hidden="true">/</span>
       <RoleButton
-        className="tokenpanel-search-compact-btn"
+        class="tokenpanel-search-compact-btn"
         aria-label="Search tokens"
         title="Search tokens (⌘K / Ctrl+K)"
         onClick={openPalette}
       >
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <circle cx="11" cy="11" r="7" />
           <path d="m20 20-4.3-4.3" />
         </svg>

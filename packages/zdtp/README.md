@@ -85,8 +85,8 @@ export const tokenTabs: readonly TabConfig[] = [{
 
 Also pass `tokenTabs` as `tabs` in your panel's config. Keep panel initialization
 and browser/storage code out of this data module.
-The component requires Preact and can render during the host's static build
-without hydration; no panel initialization is needed.
+The component renders with zudo-react during the host's static build without
+hydration; no panel initialization is needed.
 
 Include **`@takazudo/zdtp/dashboard/styles.css`** separately. The dashboard JS
 does not import CSS and does not need the panel stylesheet. A CSS-emitting
@@ -194,7 +194,7 @@ The **host adapter** import (`@takazudo/zdtp/astro/host-adapter`) is a separate 
 
 ## 1. What it is
 
-A Preact-rendered side panel that:
+A zudo-react-rendered side panel that:
 
 - Reads a host-supplied **tab configuration** (`PanelConfig.tabs`) — an array of `TabConfig` entries where each tab owns one or more `TierConfig` objects, each holding an array of `TierItem` entries. Sliders (`length` / `number`), selects, text inputs, color pickers, and pill toggles are all supported via a discriminated `TierValueKind`.
 - Supports **abstract tier references**: a `TierConfig` can carry `referencesTier` to point at a base tier; the apply pipeline emits `var(--base-cssvar)` for each ref-tier item, encoding semantic → base token aliasing in the config data model.
@@ -204,7 +204,7 @@ A Preact-rendered side panel that:
 - Exposes a small console API (`window.<namespace>.showDesignPanel()` etc.) so a developer can pop the panel without it being mounted on every page.
 - Plugs into Astro's view-transition lifecycle (`astro:before-swap` / `astro:page-load`) so soft navigation does not double-mount the panel.
 
-The package builds against Preact (installed as its own regular dependency) and ships its own bundled CSS scoped under the `--tokentweak-*` namespace. **It does not require Tailwind** in the consumer; see §11.
+The package bundles its own zudo-react runtime and ships its own bundled CSS scoped under the `--tokentweak-*` namespace. **It does not require Tailwind** in the consumer; see §11.
 
 > Visual: a screenshot or short capture would go here. Skipped in the v1 README — a placeholder is worse than nothing. See the external example repos linked in §15 for live demos.
 
@@ -214,8 +214,10 @@ The package builds against Preact (installed as its own regular dependency) and 
 
 ## 2. Install
 
-Install the panel from npm. Preact is a regular dependency owned by ZDTP, so
-an imperative host does not need to declare Preact or use it as its JSX runtime.
+Install the panel from npm. ZDTP bundles its own zudo-react runtime, so an
+imperative host does not need to declare a renderer or use one as its JSX
+runtime. Releases through v0.8.7 rendered with Preact, installed as a regular
+dependency.
 
 ```sh
 pnpm add @takazudo/zdtp
@@ -230,16 +232,14 @@ pnpm add @takazudo/zdtp
 }
 ```
 
-ZDTP's public declarations still use Preact types; its regular dependency makes
-those types available to TypeScript without a host-level Preact dependency.
-Preact hosts should keep their own Preact dependency for their JSX and rendering
-code. A compatible installed copy can still be shared; ZDTP does not bundle a
-private Preact runtime. The `./dashboard` entries instead render with the host's
-zudo-react from `@takazudo/zfb`, an optional peer that only dashboard users need.
+ZDTP's public declarations reference no renderer types, so TypeScript needs no
+host-level renderer dependency. The `./dashboard` entries instead render with
+the host's zudo-react from `@takazudo/zfb`, an optional peer that only dashboard
+users need.
 
 For ZFB 3 to 5, load ZDTP inside the host island's activation callback and mount
-it through `configurePanel()`. Keep ZDTP's Preact tree separate from zudo-react's
-VNode tree. The panel injects its CSS on mount, so no static CSS import is needed;
+it through `configurePanel()`. The panel's bundled runtime is separate from the
+host's zudo-react, so never pass VNodes between the two trees. The panel injects its CSS on mount, so no static CSS import is needed;
 `@takazudo/zdtp/styles.css` remains an optional public CSS export for hosts that
 want a static stylesheet. The static dashboard instead requires its separate
 `@takazudo/zdtp/dashboard/styles.css` asset.
@@ -523,7 +523,7 @@ The `./styles` (alias `./styles.css`) sub-export still resolves to `./dist/zdtp.
 import '@takazudo/zdtp/styles';
 ```
 
-If the panel looks unstyled after mounting, the most likely cause is that the panel module itself failed to load (network error, bundler misconfiguration, missing `preact` peer). The stylesheet is self-injected by the same JS that mounts the panel — if the JS ran, the CSS is present. See §12 for further notes on bundler behaviour.
+If the panel looks unstyled after mounting, the most likely cause is that the panel module itself failed to load (network error, bundler misconfiguration). The stylesheet is self-injected by the same JS that mounts the panel — if the JS ran, the CSS is present. See §12 for further notes on bundler behaviour.
 
 ### 4.1.5 Why the host-adapter import lives in your wrapper
 
@@ -698,7 +698,7 @@ export interface PanelInstanceHandle {
   close(): void;  // hide this instance's panel
   toggle(): void; // toggle open/closed
   /**
-   * Deregister this instance. Unmounts Preact tree, removes DOM root,
+   * Deregister this instance. Unmounts the panel tree, removes DOM root,
    * unbinds toggle-event listener. Prefix can then be re-configured.
    */
   destroy(): void;
@@ -1136,7 +1136,7 @@ Astro stringifies props at render time. **Functions, class instances, and `undef
 
 When the consumer site renders Astro's `<ClientRouter />`, the panel's host adapter automatically wires:
 
-- `astro:before-swap` → unmount the Preact tree (`render(null, root)`), remove the host node, snapshot visibility intent so the remount decision survives the body swap.
+- `astro:before-swap` → unmount the panel tree, remove the host node, snapshot visibility intent so the remount decision survives the body swap.
 - `astro:page-load` → re-apply persisted overrides + re-materialise the shell when any visibility, autoload, enabled-feature, or non-empty persisted-state signal is set.
 
 No additional wiring needed in your layout beyond importing `<ClientRouter />` from `astro:transitions`.
@@ -1366,7 +1366,7 @@ Opening the panel by any means — `showDesignPanel()`, `toggleDesignPanel()`, t
 
 #### Element-path coupling
 
-`enableAutoload()` arms the Alt+click element-path inspector by writing `-elpath-enabled = '1'`. The inspector runs inside the Preact shell; mounting the shell CLOSED (rather than unmounted) keeps the inspector functional even while the panel UI is hidden. You can still turn the inspector off via the in-panel toggle — `disableAutoload()` writes `'0'` as part of full teardown.
+`enableAutoload()` arms the Alt+click element-path inspector by writing `-elpath-enabled = '1'`. The inspector runs inside the panel shell; mounting the shell CLOSED (rather than unmounted) keeps the inspector functional even while the panel UI is hidden. You can still turn the inspector off via the in-panel toggle — `disableAutoload()` writes `'0'` as part of full teardown.
 
 #### Auto-remember footgun
 
@@ -1570,7 +1570,7 @@ This recipe walks through wiring the panel into a project that does not currentl
 1. **Install the package.**
 
    ```sh
-   pnpm add @takazudo/zdtp preact
+   pnpm add @takazudo/zdtp
    ```
 
 2. **Define your `PanelConfig` literals.**
@@ -1635,7 +1635,7 @@ For edge cases hit during the migration, see CONTRIBUTING and the doc-site refer
 The canonical worked examples live in five dedicated sibling repos. Each is an independent consumer app that demonstrates the panel against a different host framework. Each renders a tiny page with cards, buttons, and palette swatches whose styles reference its own demo CSS variables, and each ships a Playwright spec at `tests/e2e/apply-roundtrip.spec.ts` that asserts the live-apply pipeline.
 
 - [`zudo-design-token-panel-example-astro`](https://github.com/Takazudo/zudo-design-token-panel-example-astro) — Astro + Preact island. Uses `storagePrefix: 'astro-example-tokens'`, `consoleNamespace: 'astro'`, and explicit `TierItem.cssVar` names such as `--astro-palette-0`.
-- [`zudo-design-token-panel-example-vite-react`](https://github.com/Takazudo/zudo-design-token-panel-example-vite-react) — Vite + React (panel mounted as a Preact island, React tree untouched). Uses the `vr` namespace.
+- [`zudo-design-token-panel-example-vite-react`](https://github.com/Takazudo/zudo-design-token-panel-example-vite-react) — Vite + React (panel mounted as its own island, React tree untouched). Uses the `vr` namespace.
 - [`zudo-design-token-panel-example-nextjs`](https://github.com/Takazudo/zudo-design-token-panel-example-nextjs) — Next.js (App Router) + React, panel as a `'use client'` boundary. Uses the `nx` namespace.
 - [`zudo-design-token-panel-example-zfb`](https://github.com/Takazudo/zudo-design-token-panel-example-zfb) — [zfb](https://github.com/Takazudo/zudo-front-builder) (Preact host). Uses the `devMiddleware` plugin hook for the apply proxy.
 - [`zudo-design-token-panel-example-zfb-tailwind`](https://github.com/Takazudo/zudo-design-token-panel-example-zfb-tailwind) — zfb + Tailwind v4. Extends the zfb example by registering panel tokens into Tailwind's design-system namespaces via an `@theme` block.
