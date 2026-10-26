@@ -1,4 +1,5 @@
 // @vitest-environment browser
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 /**
  * #943: static dashboard isolation from host-global CSS.
  *
@@ -18,7 +19,7 @@
  *   - None. The dashboard's existing scoped resets cover these selectors.
  */
 
-import { renderToString } from 'preact-render-to-string';
+import { renderToString } from '@takazudo/zfb/zudo-react/server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { TokenDashboard } from '../dashboard';
 import type { TabConfig } from '../tokens/tier-model';

@@ -1,6 +1,7 @@
 // @vitest-environment browser
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { renderToString } from 'preact-render-to-string';
+import { renderToString } from '@takazudo/zfb/zudo-react/server';
 import { TokenDashboard } from '../dashboard';
 import type { TabConfig, TierItem } from '../tokens/tier-model';
 // @ts-ignore — Vite supplies stylesheet text for browser verification.

@@ -1,4 +1,5 @@
-import type { JSX } from 'preact';
+/** @jsxImportSource @takazudo/zfb/zudo-react */
+import type { CSSProperties } from '@takazudo/zfb/zudo-react';
 import type { TabConfig, TierConfig } from '../tokens/tier-model';
 import { buildDashboardModel } from './model';
 import type { DashboardChrome, DashboardInclude, DashboardMode, DashboardModel, DashboardRow, DashboardTier } from './types';
@@ -77,14 +78,14 @@ function Preview({ row, tier, kind, model, previewText, colorScheme }: {
 }) {
   if (kind === 'bar') {
     const length = rulerLength(row, model);
-    if (length === null) return <div className="zdtp-dashboard__preview-unavailable">Ruler unavailable: requires a nonnegative px/rem length or a resolved direct alias.</div>;
-    return <div className="zdtp-dashboard__ruler-wrap">
-      <div className="zdtp-dashboard__ruler-caption">Actual size · ticks every 8 CSS px · major ticks every 64 CSS px</div>
-      <div className="zdtp-dashboard__scroll zdtp-dashboard__ruler-scroll" role="region" tabIndex={0} aria-label={`${row.label} (${row.cssVar}) actual-size ruler`}>
-        <div className="zdtp-dashboard__ruler" style={{ inlineSize: `max(100%, ${length})` }}>
-          <div className="zdtp-dashboard__ruler-origin">0</div>
-          <div className="zdtp-dashboard__specimen" style={{ colorScheme }}>
-            <span className="zdtp-dashboard__sample zdtp-dashboard__sample--bar" style={{ inlineSize: length }} aria-hidden="true" />
+    if (length === null) return <div class="zdtp-dashboard__preview-unavailable">Ruler unavailable: requires a nonnegative px/rem length or a resolved direct alias.</div>;
+    return <div class="zdtp-dashboard__ruler-wrap">
+      <div class="zdtp-dashboard__ruler-caption">Actual size · ticks every 8 CSS px · major ticks every 64 CSS px</div>
+      <div class="zdtp-dashboard__scroll zdtp-dashboard__ruler-scroll" role="region" tabindex={0} aria-label={`${row.label} (${row.cssVar}) actual-size ruler`}>
+        <div class="zdtp-dashboard__ruler" style={{ 'inline-size': `max(100%, ${length})` }}>
+          <div class="zdtp-dashboard__ruler-origin">0</div>
+          <div class="zdtp-dashboard__specimen" style={{ 'color-scheme': colorScheme }}>
+            <span class="zdtp-dashboard__sample zdtp-dashboard__sample--bar" style={{ 'inline-size': length }} aria-hidden="true" />
           </div>
         </div>
       </div>
@@ -105,27 +106,27 @@ function Preview({ row, tier, kind, model, previewText, colorScheme }: {
     if (/^[+-]?(?:\d*\.)?\d+$/.test(resolved) && Number(resolved) !== 0) return null;
   }
   const value = row.cssValue;
-  let style: JSX.CSSProperties;
+  let style: CSSProperties;
   switch (kind) {
-    case 'color': style = { backgroundColor: value }; break;
-    case 'radius': style = { borderRadius: value }; break;
-    case 'shadow': style = { boxShadow: value }; break;
-    case 'size': style = { fontSize: value }; break;
-    case 'family': style = { fontFamily: value }; break;
-    case 'weight': style = { fontWeight: value }; break;
+    case 'color': style = { 'background-color': value }; break;
+    case 'radius': style = { 'border-radius': value }; break;
+    case 'shadow': style = { 'box-shadow': value }; break;
+    case 'size': style = { 'font-size': value }; break;
+    case 'family': style = { 'font-family': value }; break;
+    case 'weight': style = { 'font-weight': value }; break;
     case 'line-height': {
       const base = model.rows.find((candidate) => candidate.cssVar === tier.previewBase);
-      style = { lineHeight: value, ...(base?.cssValue !== null && base?.resolvedValue != null ? { fontSize: `var(${base.cssVar})` } : {}) };
+      style = { 'line-height': value, ...(base?.cssValue !== null && base?.resolvedValue != null ? { 'font-size': `var(${base.cssVar})` } : {}) };
       break;
     }
   }
   const typography = isTypography(kind);
   return (
-    <div className={`zdtp-dashboard__preview zdtp-dashboard__preview--${kind}${typography ? ' zdtp-dashboard__preview--typography zdtp-dashboard__scroll' : ''}`}
+    <div class={`zdtp-dashboard__preview zdtp-dashboard__preview--${kind}${typography ? ' zdtp-dashboard__preview--typography zdtp-dashboard__scroll' : ''}`}
       aria-hidden={typography ? undefined : 'true'} role={typography ? 'region' : undefined}
-      tabIndex={typography ? 0 : undefined} aria-label={typography ? `${row.label} (${row.cssVar}) typography specimen` : undefined}>
-      <div className="zdtp-dashboard__specimen" style={{ colorScheme }}>
-        <span className={`zdtp-dashboard__sample zdtp-dashboard__sample--${kind}`} style={style}>
+      tabindex={typography ? 0 : undefined} aria-label={typography ? `${row.label} (${row.cssVar}) typography specimen` : undefined}>
+      <div class="zdtp-dashboard__specimen" style={{ 'color-scheme': colorScheme }}>
+        <span class={`zdtp-dashboard__sample zdtp-dashboard__sample--${kind}`} style={style}>
           {typography ? previewText : ''}
         </span>
       </div>
@@ -134,7 +135,7 @@ function Preview({ row, tier, kind, model, previewText, colorScheme }: {
 }
 
 /**
- * A complete, read-only inventory of declared defaults. Works with Preact's
+ * A complete, read-only inventory of declared defaults. Works with zudo-react's
  * server renderer without hydration, browser globals, or panel configuration.
  * Include @takazudo/zdtp/dashboard/styles.css through the host's CSS pipeline.
  */
@@ -157,56 +158,56 @@ export function TokenDashboard({
   ].filter((region) => region.tabs.length > 0);
 
   return (
-    <div id={id} className="zdtp-dashboard" role="region" aria-label={title} data-mode={mode} data-include={include} data-chrome={chrome}>
-      <div className="zdtp-dashboard__header">
-        <div role="heading" aria-level={2} className="zdtp-dashboard__title">{title}</div>
-        <div className="zdtp-dashboard__summary">
-          <span className="zdtp-dashboard__count">{visibleRows.length} tokens</span>
+    <div id={id} class="zdtp-dashboard" role="region" aria-label={title} data-mode={mode} data-include={include} data-chrome={chrome}>
+      <div class="zdtp-dashboard__header">
+        <div role="heading" aria-level={2} class="zdtp-dashboard__title">{title}</div>
+        <div class="zdtp-dashboard__summary">
+          <span class="zdtp-dashboard__count">{visibleRows.length} tokens</span>
           <span>Declared defaults · {mode} mode{include !== 'all' ? ` · ${include} only` : ''}</span>
           {diagnosticRows > 0 && <span>{diagnosticRows} with diagnostics</span>}
         </div>
       </div>
       {/* One local graph per instance keeps expressions intact without repeating
           every declaration per row. Chrome never reads inventory variables. */}
-      <div className="zdtp-dashboard__inventory" style={model.declarations}>
-        {visibleRows.length === 0 && <div className="zdtp-dashboard__empty" style={{ colorScheme: chrome === 'host' ? 'inherit' : chrome }}>
+      <div class="zdtp-dashboard__inventory" style={{ ...model.declarations }}>
+        {visibleRows.length === 0 && <div class="zdtp-dashboard__empty" style={{ 'color-scheme': chrome === 'host' ? 'inherit' : chrome }}>
           {model.rows.length === 0 ? 'No tokens declared.' : 'No tokens match this view.'}
         </div>}
         {regions.map((region) => (
-          <div key={region.key} className="zdtp-dashboard__region" data-scheme={region.scheme}>
+          <div class="zdtp-dashboard__region" data-scheme={region.scheme}>
             {region.tabs.map((tab) => (
-              <div key={tab.key} className="zdtp-dashboard__tab" role="group" aria-label={tab.label}>
-                <div className="zdtp-dashboard__tab-header">
-                  <div role="heading" aria-level={3} className="zdtp-dashboard__tab-title">{tab.label}</div>
-                  <span className="zdtp-dashboard__tab-count">
+              <div class="zdtp-dashboard__tab" role="group" aria-label={tab.label}>
+                <div class="zdtp-dashboard__tab-header">
+                  <div role="heading" aria-level={3} class="zdtp-dashboard__tab-title">{tab.label}</div>
+                  <span class="zdtp-dashboard__tab-count">
                     {tab.tiers.reduce((count, tier) => count + tier.rows.length, 0)} tokens
                   </span>
                 </div>
                 {tab.tiers.map((tier) => (
-                  <div key={tier.key} className="zdtp-dashboard__tier">
-                    <div role="heading" aria-level={4} className="zdtp-dashboard__tier-title">{tier.label}</div>
-                    <div className={tier.palette ? 'zdtp-dashboard__scroll zdtp-dashboard__palette-scroll' : undefined} role={tier.palette ? 'region' : undefined} tabIndex={tier.palette ? 0 : undefined} aria-label={tier.palette ? `${tier.label} palette stops` : undefined}>
-                      <div className={`zdtp-dashboard__grid${tier.palette ? ' zdtp-dashboard__palette' : ''}`} role="list" aria-label={tier.label}>
+                  <div class="zdtp-dashboard__tier">
+                    <div role="heading" aria-level={4} class="zdtp-dashboard__tier-title">{tier.label}</div>
+                    <div class={tier.palette ? 'zdtp-dashboard__scroll zdtp-dashboard__palette-scroll' : undefined} role={tier.palette ? 'region' : undefined} tabindex={tier.palette ? 0 : undefined} aria-label={tier.palette ? `${tier.label} palette stops` : undefined}>
+                      <div class={`zdtp-dashboard__grid${tier.palette ? ' zdtp-dashboard__palette' : ''}`} role="list" aria-label={tier.label}>
                         {tier.rows.map((row) => {
                           const kind = previewKind(row, tier, previewOverrides);
                           const wide = !tier.palette && (kind === 'bar' || isTypography(kind));
                           return (
-                            <div key={row.key} className={`zdtp-dashboard__token${wide ? ' zdtp-dashboard__token--wide' : ''}`} role="listitem" data-css-var={row.cssVar}>
+                            <div class={`zdtp-dashboard__token${wide ? ' zdtp-dashboard__token--wide' : ''}`} role="listitem" data-css-var={row.cssVar}>
                               <Preview row={row} tier={tier} kind={kind} model={model} previewText={previewText} colorScheme={region.scheme === 'host' ? 'inherit' : region.scheme} />
-                              <div className="zdtp-dashboard__token-content">
-                                <div className="zdtp-dashboard__name">{row.label}</div>
-                                <div className="zdtp-dashboard__variable">{row.cssVar}</div>
-                                <div className="zdtp-dashboard__value">{row.declaredValue || '(empty)'}</div>
+                              <div class="zdtp-dashboard__token-content">
+                                <div class="zdtp-dashboard__name">{row.label}</div>
+                                <div class="zdtp-dashboard__variable">{row.cssVar}</div>
+                                <div class="zdtp-dashboard__value">{row.declaredValue || '(empty)'}</div>
                                 {row.cssValue !== null && row.cssValue !== row.declaredValue && (
-                                  <div className="zdtp-dashboard__reference">CSS: {row.cssValue}</div>
+                                  <div class="zdtp-dashboard__reference">CSS: {row.cssValue}</div>
                                 )}
                                 {row.references.length > 0 && (
-                                  <div className="zdtp-dashboard__reference">
+                                  <div class="zdtp-dashboard__reference">
                                     References: {row.references.map((reference) => reference.cssVar).join(', ')}
                                   </div>
                                 )}
-                                {row.diagnostics.map((diagnostic, index) => (
-                                  <div key={index} className="zdtp-dashboard__diagnostic" data-diagnostic={diagnostic.code}>
+                                {row.diagnostics.map((diagnostic) => (
+                                  <div class="zdtp-dashboard__diagnostic" data-diagnostic={diagnostic.code}>
                                     {diagnostic.severity === 'error' ? 'Unavailable' : 'Context needed'}: {diagnostic.message}
                                   </div>
                                 ))}

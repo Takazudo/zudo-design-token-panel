@@ -11,6 +11,13 @@ const dashboardStyles = fileURLToPath(new URL('./src/dashboard/styles.css', impo
 // the dashboard bundle to panel/runtime dependencies.
 const modeDependenceSource = fileURLToPath(new URL('./src/tokens/mode-dependence.ts', import.meta.url));
 
+// The dashboard renders with the host's zudo-react runtime (an optional peer).
+const ZUDO_REACT = '@takazudo/zfb/zudo-react';
+
+function isZudoReact(source: string): boolean {
+  return source === ZUDO_REACT || source.startsWith(`${ZUDO_REACT}/`);
+}
+
 function normalizeModuleId(id: string): string {
   return id.split('?')[0];
 }
@@ -96,7 +103,7 @@ function staticDashboard(): Plugin {
       if (!normalizeModuleId(moduleInfo.id).startsWith(dashboardDirectory)) return;
       for (const id of [...moduleInfo.importedIds, ...moduleInfo.dynamicallyImportedIds]) {
         const source = normalizeModuleId(id);
-        if (source === 'preact' || source.startsWith('preact/')) continue;
+        if (isZudoReact(source)) continue;
         if (isAllowedDashboardSource(source)) continue;
         // Check before extraction/tree-shaking too: an imported stylesheet can
         // disappear from chunk.modules while still polluting legacy panel CSS.
@@ -119,14 +126,14 @@ function staticDashboard(): Plugin {
           const source = normalizeModuleId(id);
           if (source === dashboardClientSource || !isAllowedDashboardSource(source)) {
             this.error(
-              `Static dashboard must contain only its renderer source, the pure mode helper, and external Preact; found ${id}.`,
+              `Static dashboard must contain only its renderer source, the pure mode helper, and external zudo-react; found ${id}.`,
             );
           }
         }
         for (const imported of [...chunk.imports, ...chunk.dynamicImports]) {
           const dependency = bundle[imported];
           if (dependency?.type === 'chunk') pending.push(dependency);
-          else if (imported !== 'preact' && !imported.startsWith('preact/')) {
+          else if (!isZudoReact(imported)) {
             this.error(`Unexpected dashboard dependency: ${imported}.`);
           }
         }
@@ -208,7 +215,7 @@ export default defineConfig({
         // runtime so consumers can use storage/event contracts without
         // pulling in Preact, panel config, or CSS.
         constants: 'src/constants.ts',
-        // Static Preact renderer. CSS is an independent asset, never imported here.
+        // Static zudo-react renderer. CSS is an independent asset, never imported here.
         'dashboard/index': 'src/dashboard/index.ts',
         'dashboard/client': 'src/dashboard/client.ts',
       },
@@ -224,6 +231,7 @@ export default defineConfig({
         'preact/compat',
         'preact/hooks',
         'preact/jsx-runtime',
+        /^@takazudo\/zfb\/zudo-react(?:\/|$)/,
         // Defensive: never let Vite try to compile a `.astro` file into the
         // lib bundle. The JS `astro/index.js` entry no longer imports the
         // `.astro` component (zdtp#308 — a static `.astro` import crashed
