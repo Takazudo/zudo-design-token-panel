@@ -16,7 +16,7 @@ concurrency:
 jobs:
   zudo-doc-manifest:
     name: Latest zudo-doc manifest contract
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Playwright 1.60 has no Chromium for ubuntu-latest (26.04)
     timeout-minutes: 25
     steps:
       - name: Checkout
@@ -153,7 +153,7 @@ jobs:
     # matrix manual and informational until follow-up #733 refreshes them;
     # that issue then tracks making this matrix scheduled and blocking.
     continue-on-error: true
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # Playwright 1.60 has no Chromium for ubuntu-latest (26.04)
     timeout-minutes: 30
     strategy:
       fail-fast: false

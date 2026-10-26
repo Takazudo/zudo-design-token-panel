@@ -82,15 +82,10 @@ try {
 import type { PanelConfig as AstroPanelConfig } from '@takazudo/zdtp/astro';
 import * as server from '@takazudo/zdtp/server';
 import * as testing from '@takazudo/zdtp/testing';
-import type { TokenDashboardProps } from '@takazudo/zdtp/dashboard';
-import { mountTokenDashboard, type TokenDashboardHandle, type TokenDashboardProps as ClientProps } from '@takazudo/zdtp/dashboard/client';
 const config: PanelConfig = { storagePrefix: 'isolated', consoleNamespace: 'isolated',
   modalClassPrefix: 'isolated-modal', schemaId: 'isolated/v1', exportFilenameBase: 'isolated', tabs: [] };
 const astroConfig: AstroPanelConfig = config;
-const props: TokenDashboardProps = { tabs: [] };
-const clientProps: ClientProps = props;
-export const mountDashboard = (host: HTMLElement): TokenDashboardHandle => mountTokenDashboard(host, clientProps);
-export { astroConfig, props, server, testing };
+export { astroConfig, server, testing };
 export const mount = () => configurePanel(config);
 `);
   for (const mode of ['bundler', 'node16', 'nodenext']) {
@@ -102,9 +97,9 @@ export const mount = () => configurePanel(config);
     run('node', [join(panel, 'node_modules/typescript/bin/tsc'), '-p', join(scratch, 'tsconfig.imperative.json')], scratch);
     console.log(`Packed imperative consumer without host Preact: ${mode}, strict, skipLibCheck=false: PASS`);
   }
-  // Preact dashboard users still own the framework used by their JSX/SSR code.
+  // Dashboard users supply zudo-react through their own zfb install (optional peer).
   run('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--package-lock=false', tarball,
-    `preact@${version('preact')}`, `preact-render-to-string@${version('preact-render-to-string')}`], scratch);
+    `@takazudo/zfb@${version('@takazudo/zfb')}`], scratch);
   const installed = join(scratch, 'node_modules/@takazudo/zdtp');
   const index = join(installed, 'dist/index.d.ts');
   const original = readFileSync(index, 'utf8');
@@ -116,6 +111,7 @@ import * as astro from '@takazudo/zdtp/astro';
 import * as server from '@takazudo/zdtp/server';
 import * as testing from '@takazudo/zdtp/testing';
 import { TokenDashboard, type DashboardChrome, type TokenDashboardProps, type TabConfig } from '@takazudo/zdtp/dashboard';
+import { mountTokenDashboard, type TokenDashboardHandle, type TokenDashboardProps as ClientProps } from '@takazudo/zdtp/dashboard/client';
 const tabs: readonly TabConfig[] = [{ id: 'colors', label: 'Colors', tiers: [{
   id: 'palette', label: 'Palette', items: [{ id: 'blue', label: 'Blue', cssVar: '--blue',
     default: '#2563eb', type: { kind: 'color' } }],
@@ -123,6 +119,8 @@ const tabs: readonly TabConfig[] = [{ id: 'colors', label: 'Colors', tiers: [{
 const chrome: DashboardChrome = 'host';
 const props: TokenDashboardProps = { tabs, mode: 'dark', chrome, previewText: 'Custom specimen 日本語', previewOverrides: { '--blue': 'color' } };
 export const dashboard = <TokenDashboard {...props} title="Declared tokens" id="tokens" />;
+const clientProps: ClientProps = props;
+export const mountDashboard = (host: HTMLElement): TokenDashboardHandle => mountTokenDashboard(host, clientProps);
 export { panel, astro, server, testing };
 `);
   function typecheck(mode, allowFailure = false) {
@@ -130,7 +128,7 @@ export { panel, astro, server, testing };
       target: 'ES2022', module: mode === 'bundler' ? 'ESNext' : mode,
       moduleResolution: mode, strict: true, skipLibCheck: false, noEmit: true,
       noUncheckedSideEffectImports: true, types: [], lib: ['ES2022', 'DOM', 'DOM.Iterable'],
-      jsx: 'react-jsx', jsxImportSource: 'preact',
+      jsx: 'react-jsx', jsxImportSource: '@takazudo/zfb/zudo-react',
     }, files: ['consumer.tsx'] }));
     return run('node', [join(panel, 'node_modules/typescript/bin/tsc'), '-p', join(scratch, 'tsconfig.json')], scratch, allowFailure);
   }
@@ -142,8 +140,8 @@ export { panel, astro, server, testing };
   // the installed tarball, without workspace aliases or browser globals.
   writeFileSync(join(scratch, 'dashboard-ssr.mjs'), `import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { h } from 'preact';
-import { renderToString } from 'preact-render-to-string';
+import { h } from '@takazudo/zfb/zudo-react';
+import { renderToString } from '@takazudo/zfb/zudo-react/server';
 import { TokenDashboard } from '@takazudo/zdtp/dashboard';
 assert.equal(typeof window, 'undefined');
 assert.equal(typeof document, 'undefined');

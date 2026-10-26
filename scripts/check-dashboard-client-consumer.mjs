@@ -28,13 +28,16 @@ try {
   await writeFile(join(scratch, 'package.json'), JSON.stringify({ private: true, type: 'module' }));
   const version = async (name) => JSON.parse(await readFile(join(panel, 'node_modules', name, 'package.json'), 'utf8')).version;
   run('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--package-lock=false',
-    join(scratch, tarballs[0]), `vite@${await version('vite')}`, `typescript@${await version('typescript')}`], scratch);
+    join(scratch, tarballs[0]), `@takazudo/zfb@${await version('@takazudo/zfb')}`,
+    `vite@${await version('vite')}`, `typescript@${await version('typescript')}`], scratch);
   const manifest = JSON.parse(await readFile(join(scratch, 'package.json'), 'utf8'));
   assert.equal(manifest.dependencies.preact, undefined, 'Host must not declare Preact');
   const installed = join(scratch, 'node_modules/@takazudo/zdtp');
   const packed = JSON.parse(await readFile(join(installed, 'package.json'), 'utf8'));
   assert.ok(packed.dependencies.preact, 'Package must own Preact');
   assert.equal(packed.peerDependencies?.preact, undefined);
+  // The dashboard client renders with the host's zudo-react, an optional zfb peer.
+  assert.equal(packed.peerDependenciesMeta?.['@takazudo/zfb']?.optional, true);
   const require = createRequire(join(scratch, 'package.json'));
   for (const entry of ['./dashboard/client', './dashboard/styles.css']) {
     const target = packed.exports[entry];

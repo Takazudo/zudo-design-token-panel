@@ -4,4 +4,6 @@ description: "次回リリースに向けた変更。まだ npm には公開さ�
 sidebar_position: 104
 ---
 
-未リリースの変更はまだありません。
+### 破壊的変更
+
+- 静的ダッシュボードを Preact から zfb の zudo-react ランタイムへ移行しました。`@takazudo/zdtp/dashboard` の `TokenDashboard` は zudo-react コンポーネントになり、zfb のページか `@takazudo/zfb/zudo-react/server` の `renderToString` でレンダリングします。`@takazudo/zdtp/dashboard/client` は zudo-react でマウントし、ホスト内に `display: contents` のラッパーを追加します。ダッシュボードを使う場合は `@takazudo/zfb`（新しい任意の peer、`^5.1.2`）をインストールしてください。パネル本体には影響しません。

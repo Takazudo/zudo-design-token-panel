@@ -6,7 +6,9 @@ The format is based on Keep a Changelog, and release notes are generated from th
 
 ## [Unreleased]
 
-No unreleased changes yet.
+### Breaking Changes
+
+- The static dashboard moves from Preact to zfb's zudo-react runtime. `TokenDashboard` from `@takazudo/zdtp/dashboard` is now a zudo-react component: render it from a zfb page or with `renderToString` from `@takazudo/zfb/zudo-react/server`. `@takazudo/zdtp/dashboard/client` mounts through zudo-react and adds a `display: contents` wrapper inside the host. Dashboard users install `@takazudo/zfb` (new optional peer `^5.1.2`). The panel itself is unaffected.
 
 ## [0.8.7] - 2026-10-26
 

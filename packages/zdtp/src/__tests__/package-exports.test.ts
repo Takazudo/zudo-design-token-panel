@@ -72,8 +72,8 @@ describe('dashboard package boundary', () => {
   it('imports and server-renders the built dashboard in plain Node without browser globals', () => {
     if (!existsSync(`${packageRoot}/dist`)) return;
     const result = spawnSync(process.execPath, ['--input-type=module', '-e', `
-      import { h } from 'preact';
-      import { renderToString } from 'preact-render-to-string';
+      import { h } from '@takazudo/zfb/zudo-react';
+      import { renderToString } from '@takazudo/zfb/zudo-react/server';
       import { TokenDashboard } from '@takazudo/zdtp/dashboard';
       if (typeof window !== 'undefined' || typeof document !== 'undefined') throw new Error('Expected Node');
       const html = renderToString(h(TokenDashboard, { tabs: [] }));

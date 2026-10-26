@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
+/** @jsxImportSource @takazudo/zfb/zudo-react */
 import { describe, expect, it, vi } from 'vitest';
-import { renderToString } from 'preact-render-to-string';
+import { renderToString } from '@takazudo/zfb/zudo-react/server';
 import { TokenDashboard, type DashboardChrome, type DashboardInclude, type DashboardMode, type DashboardPreviewKind, type TokenDashboardProps } from '../index';
 import type { TabConfig, TierConfig, TierItem } from '../../tokens/tier-model';
 

@@ -1,4 +1,4 @@
-import { StaticTokenDashboard as TokenDashboard } from '../components/static-token-dashboard';
+import { TokenDashboard } from '@takazudo/zdtp/dashboard';
 import {
   dashboardFixtureTabs,
   dashboardPreviewText,

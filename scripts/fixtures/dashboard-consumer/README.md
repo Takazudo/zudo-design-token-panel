@@ -7,7 +7,7 @@ pnpm check:dashboard-consumer --keep --output-dir test-results/dashboard-consume
 ```
 
 The command builds the current package, packs it, and installs that exact tarball
-with the locally resolved exact Preact, SSR renderer and TypeScript versions in a
+with the locally resolved exact zfb (zudo-react) and TypeScript versions in a
 unique OS temporary directory outside the workspace. The installed compiler emits
 this TSX fixture; plain Node renders the HTML and copies the stylesheet resolved
 through `@takazudo/zdtp/dashboard/styles.css`. No source aliases, panel bootstrap,
@@ -39,7 +39,7 @@ assertion, then a restored fresh page must pass. Network failures are checked
 separately, so a random browser error cannot satisfy that control.
 Local launches honor the existing machine-wide Playwright guard when available.
 
-This proves the generic Preact/static HTML boundary, not a particular host
+This proves the generic zudo-react/static HTML boundary, not a particular host
 framework, actual app configuration, live editing, or published npm availability.
 The package's model/renderer tests own token edge-case matrices; existing packed
 consumer checks own declaration modes. Add a new browser step only for a new
