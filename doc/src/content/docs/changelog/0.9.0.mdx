@@ -1,0 +1,21 @@
+---
+title: "0.9.0"
+description: Release notes for 0.9.0.
+sidebar_position: 115
+---
+
+Released: 2026-10-27
+
+### Breaking Changes
+
+- The panel no longer uses Preact ([#1075](https://github.com/Takazudo/zudo-design-token-panel/issues/1075)). It renders with its own bundled copy of zfb's zudo-react runtime, and `preact` is no longer a dependency of `@takazudo/zdtp`. Hosts install nothing new. The public API, console API, storage keys and CSS contract are unchanged. **Migration**: a host that relied on ZDTP pulling in Preact for its own code must add `preact` to its own dependencies. (f71e8ff)
+- The static dashboard moves from Preact to zfb's zudo-react runtime. `TokenDashboard` from `@takazudo/zdtp/dashboard` is now a zudo-react component, and `@takazudo/zdtp/dashboard/client` mounts through zudo-react and adds a `display: contents` wrapper inside the host. **Migration**: install `@takazudo/zfb` (new optional peer `^5.1.2`), then render `TokenDashboard` from a zfb page or with `renderToString` from `@takazudo/zfb/zudo-react/server` instead of Preact. (f11145f)
+
+### Fixed
+
+- Undoing an edit on a generic (manifest) tab now removes the edited value from `:root` when the earlier state had no overrides for that tab ([#1086](https://github.com/Takazudo/zudo-design-token-panel/issues/1086)). Before, the history count and the input reverted but the inline custom property stayed until reload. The same fix covers reverting the tab's last override, replace-mode import and snapshot switches. (b2e4e05)
+
+### Other Changes
+
+- The whole panel UI, including the shell, header, tab bar, history rail, search palette and inspectors, now renders with zudo-react, so the interim `display: contents` `.tokenpanel-zr-host` wrappers are gone. Each body-level overlay mount (such as `#tokenpanel-highlight-mount`) now holds one `display: contents` wrapper. (f71e8ff)
+- chore(deps): bump zfb 5.1.5 family and zudo-doc 9.0.0 (5dd01e9)

@@ -4,15 +4,4 @@ description: "次回リリースに向けた変更。まだ npm には公開さ�
 sidebar_position: 104
 ---
 
-### 破壊的変更
-
-- パネルは Preact を使わなくなりました（[#1075](https://github.com/Takazudo/zudo-design-token-panel/issues/1075)）。zfb の zudo-react ランタイムを自身のバンドルに含めてレンダリングし、`@takazudo/zdtp` の依存関係から `preact` を外しました。ホスト側で追加のインストールは不要ですが、自分のコードのために ZDTP 経由で Preact を入れていたホストは、`preact` を自分で依存関係に追加してください。公開 API、コンソール API、ストレージのキー、CSS の契約は変わりません。
-- 静的ダッシュボードを Preact から zfb の zudo-react ランタイムへ移行しました。`@takazudo/zdtp/dashboard` の `TokenDashboard` は zudo-react コンポーネントになり、zfb のページか `@takazudo/zfb/zudo-react/server` の `renderToString` でレンダリングします。`@takazudo/zdtp/dashboard/client` は zudo-react でマウントし、ホスト内に `display: contents` のラッパーを追加します。ダッシュボードを使う場合は `@takazudo/zfb`（新しい任意の peer、`^5.1.2`）をインストールしてください。
-
-### バグ修正
-
-- 汎用（マニフェスト）タブの編集を元に戻すと、直前の状態にそのタブの上書きがなかった場合でも、編集した値が `:root` から消えるようになりました（[#1086](https://github.com/Takazudo/zudo-design-token-panel/issues/1086)）。以前は履歴の件数と入力欄だけが戻り、インラインのカスタムプロパティは再読み込みまで残っていました。タブ最後の上書きを個別に戻した場合、置き換えモードのインポート、スナップショットの切り替えも同じ修正の対象です。
-
-### その他の変更
-
-- シェル、ヘッダー、タブバー、履歴レール、検索パレット、インスペクターを含むパネルの UI 全体が zudo-react でレンダリングされるようになり、移行中に使っていた `display: contents` の `.tokenpanel-zr-host` ラッパーはなくなりました。body 直下のオーバーレイ用マウント（`#tokenpanel-highlight-mount` など）には、それぞれ `display: contents` のラッパーが 1 つ入ります。
+未リリースの変更はまだありません。
