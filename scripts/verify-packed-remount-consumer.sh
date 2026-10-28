@@ -204,7 +204,7 @@ assert.equal(panelPackage.version, expectedPanelVersion,
   `Expected @takazudo/zdtp@${expectedPanelVersion}, resolved @takazudo/zdtp@${panelPackage.version}`);
 const legacy = process.env.CONSUMER_HOST === 'legacy';
 const expectedZfbVersion = legacy ? '2.20.3' : '5.1.5';
-const expectedDocVersion = legacy ? '5.27.0' : '9.0.0';
+const expectedDocVersion = legacy ? '5.27.0' : '9.1.0';
 for (const name of ['@takazudo/zfb', '@takazudo/zfb-runtime',
   '@takazudo/zfb-adapter-cloudflare', '@takazudo/zfb-md-wasm',
   '@takazudo/zudo-doc', '@takazudo/zudo-doc-history-server']) {
