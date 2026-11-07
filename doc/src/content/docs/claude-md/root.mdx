@@ -148,10 +148,19 @@ templates until materialized outside the checkout; do not add old real
 The scheduled `.github/workflows/consumer-drift.yml` workflow installs the
 latest zudo-doc for the consumer-manifest contract check, on the Node range
 that release declares in `engines.node`, so an upstream engine bump does not
-masquerade as manifest drift. Its five-example
-matrix is manual-dispatch-only and informational while those public examples
-still pin older panel APIs; failures open or update one deduplicated issue per
-job.
+masquerade as manifest drift. Its five-example `cross-example` matrix runs on
+the same weekly schedule (and on dispatch) and is blocking: all five public
+examples pin the published 0.9.1, and each leg rewrites one example's
+dependency to this commit's packed panel, fails unless the installed version
+and `dist/` hash match the tarball, then runs `scripts/cross-example-probe.mjs`
+with `--expect-version` set to the packed version. The same probe is read-only
+and can be pointed at the public demo URLs. It is not a required check on
+ordinary panel PRs, and per-example Apply CI stays in the example repositories.
+Failures open or update one deduplicated issue per job.
+
+The `doc/` workspace pins an exact published `@takazudo/zdtp` version
+(currently 0.9.1). When it or the examples move, update the example pages under
+`getting-started/` only from what the example repositories actually pin.
 
 ## Content Conventions
 
