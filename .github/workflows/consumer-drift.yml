@@ -148,11 +148,11 @@ jobs:
 
   cross-example:
     name: Cross-example (${{ matrix.example }})
-    if: github.event_name == 'workflow_dispatch'
-    # As of 2026-09-05, the five public examples still pin 0.2.x. Keep this
-    # matrix manual and informational until follow-up #733 refreshes them;
-    # that issue then tracks making this matrix scheduled and blocking.
-    continue-on-error: true
+    # As of 2026-11-07 all five public examples pin the published 0.9.1, so this
+    # matrix runs on the weekly schedule (and on dispatch) and blocks: each leg
+    # builds one example against this commit's packed panel. It is not a
+    # required check on ordinary panel PRs; per-example Apply CI stays in the
+    # example repositories.
     runs-on: ubuntu-24.04 # Playwright 1.60 has no Chromium for ubuntu-latest (26.04)
     timeout-minutes: 30
     strategy:
@@ -196,80 +196,89 @@ jobs:
             echo "The panel pack command did not produce a tarball" >&2
             exit 1
           fi
-          echo "tarball=$panel_tarball" >> "$GITHUB_OUTPUT"
+
+          extract_dir="$RUNNER_TEMP/zdtp-panel-extract"
+          mkdir -p "$extract_dir"
+          tar -xzf "$panel_tarball" -C "$extract_dir"
+          panel_version="$(node -p 'require(process.argv[1]).version' "$extract_dir/package/package.json")"
+          dist_hash="$(cd "$extract_dir/package/dist" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)"
+          echo "Packed @takazudo/zdtp ${panel_version}, dist sha256 ${dist_hash}"
+          {
+            echo "tarball=$panel_tarball"
+            echo "version=$panel_version"
+            echo "dist-hash=$dist_hash"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Clone the public consumer example
         env:
           EXAMPLE: ${{ matrix.example }}
         run: git clone --depth=1 "https://github.com/Takazudo/zudo-design-token-panel-example-${EXAMPLE}.git" "$RUNNER_TEMP/example"
 
-      - name: Add the disposable packed-panel override
+      # A direct dependency rewrite works the same under the pnpm version each
+      # example pins; the install step below proves which bytes were resolved.
+      - name: Point the disposable consumer at the packed panel
         env:
-          EXAMPLE_DIR: ${{ runner.temp }}/example
-          PANEL_TARBALL: ${{ steps.panel.outputs.tarball }}
-        shell: bash
+          EXAMPLE_PACKAGE_JSON: ${{ runner.temp }}/example/package.json
+          LOCAL_PANEL_TARBALL: ${{ steps.panel.outputs.tarball }}
         run: |
-          set -euo pipefail
-          workspace_file="$EXAMPLE_DIR/pnpm-workspace.yaml"
-          if [ -f "$workspace_file" ]; then
-            cp "$workspace_file" "$workspace_file.original"
-          else
-            : > "$workspace_file"
-          fi
-
-          ROOT_WORKSPACE_FILE="$workspace_file" \
-          LOCAL_PANEL_TARBALL="$PANEL_TARBALL" \
           node --input-type=module <<'NODE'
           import { readFile, writeFile } from 'node:fs/promises';
 
-          const workspaceFile = process.env.ROOT_WORKSPACE_FILE;
+          const packageJsonPath = process.env.EXAMPLE_PACKAGE_JSON;
           const panelTarball = process.env.LOCAL_PANEL_TARBALL;
-          const source = await readFile(workspaceFile, 'utf8');
-          const override = `  "@takazudo/zdtp": ${JSON.stringify(`file:${panelTarball}`)}\n`;
-          const marker = '\noverrides:\n';
-          const markerIndex = source.indexOf(marker);
-
-          if (markerIndex >= 0) {
-            const insertAt = markerIndex + marker.length;
-            await writeFile(
-              workspaceFile,
-              `${source.slice(0, insertAt)}${override}${source.slice(insertAt)}`,
-              'utf8',
-            );
-          } else if (source.trim().length > 0) {
-            await writeFile(
-              workspaceFile,
-              `${source.trimEnd()}\n\noverrides:\n${override}`,
-              'utf8',
-            );
-          } else {
-            await writeFile(
-              workspaceFile,
-              `packages:\n  - "."\n\nautoInstallPeers: true\nstrictPeerDependencies: false\nminimumReleaseAge: 0\nallowBuilds:\n  esbuild: true\n  lefthook: true\n  sharp: true\n  workerd: true\n\noverrides:\n${override}`,
-              'utf8',
-            );
+          const manifest = JSON.parse(await readFile(packageJsonPath, 'utf8'));
+          const field = ['dependencies', 'devDependencies'].find(
+            (name) => manifest[name]?.['@takazudo/zdtp'] !== undefined,
+          );
+          if (!field) {
+            console.error('The example does not declare @takazudo/zdtp');
+            process.exit(1);
           }
+          console.log(`${field}["@takazudo/zdtp"]: ${manifest[field]['@takazudo/zdtp']} -> file:${panelTarball}`);
+          manifest[field]['@takazudo/zdtp'] = `file:${panelTarball}`;
+          await writeFile(packageJsonPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
           NODE
 
-      - name: Install and build the consumer example
+      - name: Install the consumer example and verify the installed panel
         env:
           EXAMPLE_DIR: ${{ runner.temp }}/example
-        run: |
-          pnpm --dir "$EXAMPLE_DIR" install --no-frozen-lockfile
-          pnpm --dir "$EXAMPLE_DIR" build
-
-      - name: Serve the consumer example and verify the panel
-        env:
-          EXAMPLE_DIR: ${{ runner.temp }}/example
+          PANEL_VERSION: ${{ steps.panel.outputs.version }}
+          PANEL_DIST_HASH: ${{ steps.panel.outputs.dist-hash }}
         shell: bash
         run: |
           set -euo pipefail
-          if [ -d "$EXAMPLE_DIR/dist" ]; then
-            output_dir="$EXAMPLE_DIR/dist"
-          elif [ -d "$EXAMPLE_DIR/out" ]; then
-            output_dir="$EXAMPLE_DIR/out"
-          else
-            echo "The example build produced neither dist/ nor out/" >&2
+          pnpm --dir "$EXAMPLE_DIR" install --no-frozen-lockfile
+
+          installed="$(readlink -f "$EXAMPLE_DIR/node_modules/@takazudo/zdtp")"
+          installed_version="$(node -p 'require(process.argv[1]).version' "$installed/package.json")"
+          installed_hash="$(cd "$installed/dist" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)"
+          echo "Installed ${installed}"
+          echo "Installed @takazudo/zdtp ${installed_version}, dist sha256 ${installed_hash}"
+          if [ "$installed_version" != "$PANEL_VERSION" ] || [ "$installed_hash" != "$PANEL_DIST_HASH" ]; then
+            echo "The example did not install the packed panel (expected ${PANEL_VERSION} / ${PANEL_DIST_HASH})" >&2
+            exit 1
+          fi
+
+      - name: Build the consumer example
+        env:
+          EXAMPLE_DIR: ${{ runner.temp }}/example
+        run: pnpm --dir "$EXAMPLE_DIR" build
+
+      - name: Serve the consumer example and probe the panel
+        env:
+          EXAMPLE: ${{ matrix.example }}
+          EXAMPLE_DIR: ${{ runner.temp }}/example
+          PANEL_VERSION: ${{ steps.panel.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Next uses a static export to out/; the other four build to dist/.
+          case "$EXAMPLE" in
+            nextjs) output_dir="$EXAMPLE_DIR/out" ;;
+            *) output_dir="$EXAMPLE_DIR/dist" ;;
+          esac
+          if [ ! -f "$output_dir/index.html" ]; then
+            echo "The example build did not produce ${output_dir}/index.html" >&2
             exit 1
           fi
 
@@ -294,44 +303,10 @@ jobs:
             sleep 1
           done
 
-          pnpm --filter @takazudo/zdtp exec node --input-type=module <<'NODE'
-          import { chromium } from 'playwright';
-
-          const browser = await chromium.launch({ headless: true });
-          const page = await browser.newPage();
-          const errors = [];
-          page.on('console', (message) => {
-            if (message.type() === 'error') {
-              errors.push(`console: ${message.text()}`);
-            }
-          });
-          page.on('pageerror', (error) => {
-            errors.push(`pageerror: ${error.message}`);
-          });
-
-          try {
-            await page.goto('http://127.0.0.1:4321/', { waitUntil: 'domcontentloaded' });
-            const trigger = page.getByRole('button', {
-              name: /open design token panel/i,
-            }).first();
-            await trigger.waitFor({ state: 'visible', timeout: 15_000 });
-            await trigger.click();
-            await page
-              .locator('.tokenpanel-shell, [data-design-token-panel-modal]')
-              .first()
-              .waitFor({ state: 'visible', timeout: 15_000 });
-
-            const tabs = await page.locator('[role="tab"]').count();
-            if (tabs === 0) {
-              throw new Error('The mounted panel did not expose any tabs');
-            }
-            if (errors.length > 0) {
-              throw new Error(`Cross-example smoke emitted browser errors:\n${errors.join('\n')}`);
-            }
-          } finally {
-            await browser.close();
-          }
-          NODE
+          node scripts/cross-example-probe.mjs \
+            --url http://127.0.0.1:4321/ \
+            --example "$EXAMPLE" \
+            --expect-version "$PANEL_VERSION"
 
       - name: Open or update the cross-example drift issue
         if: ${{ failure() }}
@@ -348,10 +323,12 @@ jobs:
             const body = `${marker}
             ## Cross-example panel drift
 
-            The manual cross-example consumer smoke failed for \`${example}\`.
+            The weekly scheduled cross-example consumer smoke failed for \`${example}\` (trigger: \`${context.eventName}\`). It builds the example's current \`main\` against this commit's packed panel and opens the panel through the example's own trigger.
 
             - Run: ${runUrl}
             - Commit: \`${context.sha}\`
+
+            Check the failing step first: an install, packed-panel verification or build failure stops the job before the browser probe runs.
 
             This issue is deduplicated by the marker above and will be updated by the next failed run.`;
 

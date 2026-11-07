@@ -1,54 +1,54 @@
 ---
 title: Frameworks Comparison
-description: Side-by-side wiring for Astro, Vite + React, Next.js, zfb, and zfb + Tailwind v4 — what changes, what stays the same.
+description: Side-by-side wiring for Astro, Vite + React, Next.js, ZFB, and ZFB + Wind — what changes, what stays the same.
 sidebar_position: 4
 ---
 
-The panel's public surface is a single `configurePanel({...})` call plus a Preact-rendered shell, so the wiring shape is the same across hosts. The only differences are *who* calls `configurePanel`, *how* the host interacts with view-transitions, and *how* the apply proxy is registered. The styles import is not a differentiator — the panel self-injects its stylesheet on first mount (no consumer CSS import required in any framework).
+The panel's public surface is a single `configurePanel({...})` call plus a self-rendering shell, so the wiring has the same shape on every host. Since 0.9.0 the shell renders with the panel's own bundled zudo-react runtime, not Preact. It never shares a runtime with the host's React, Preact or zudo-react tree, so no host needs a Preact install or a compat alias for the panel. What differs between hosts is *who* calls `configurePanel`, *how* the host navigates, and *how* the dev-time Apply proxy is registered. The styles import does not differ: the panel injects its stylesheet on first mount, so no framework needs a consumer CSS import.
 
-This page is the side-by-side overview. For full code, see the [Examples](./examples.mdx) page — each framework's live demo and source repo are linked there.
+This page is the side-by-side overview. For full code, see the [Examples](./examples.mdx) page, which links each framework's live demo and source repository. All five examples pin the published `@takazudo/zdtp` 0.9.1 exactly.
 
 ## Comparison
 
-| Step | Astro | Vite + React | Next.js (App Router) | zfb | zfb + Tailwind v4 |
+| Step | Astro | Vite + React | Next.js (App Router) | ZFB | ZFB + Wind |
 | --- | --- | --- | --- | --- | --- |
-| Install package | `pnpm add @takazudo/zdtp` | same | same | same | same + `tailwindcss` |
+| Install package | `pnpm add @takazudo/zdtp` (plus `@astrojs/preact` for the host's own islands) | same, no Preact | same, no Preact | same, no Preact | same, no Preact and no `tailwindcss` |
 | Define `PanelConfig` | one TS file, host-side | same | same | same | same |
-| Mount the host | `<DesignTokenPanelHost>` in layout | call `configurePanel(...)` from entry | call `configurePanel(...)` from a `'use client'` module | call `configurePanel(...)` in `onActivate()` | same as zfb |
-| Side-effect script | `void import('.../astro/host-adapter')` next to the host | not required | not required | not required (native activation) | same as zfb |
-| Styles import | not required (self-injected) | not required (self-injected) | not required (self-injected) | not required (self-injected) | not required (self-injected); tokens also registered via `@theme` block |
-| Tailwind integration | n/a | n/a | n/a | n/a | tokens registered into Tailwind namespaces via `@theme`; utility classes like `text-body` and `p-hsp-md` resolve to panel custom properties |
-| View-transition lifecycle | wired automatically by the host adapter when `<ClientRouter />` is present | n/a | n/a | n/a | n/a |
-| Apply proxy (dev) | Vite dev server proxy config | Vite dev server proxy config | Next.js `rewrites` | zfb plugin's `devMiddleware` hook | same as zfb |
-| Apply-endpoint URL | bare relative path (`api/dev/apply`) | bare relative path | bare relative path | bare relative path | bare relative path |
-| Apply-pipeline bin | spawn via `concurrently` in dev script | spawn via `concurrently` in dev script | spawn via `concurrently` in dev script | spawn via `concurrently` in dev script | spawn via `concurrently` in dev script |
+| Mount the host | `<DesignTokenPanelHost>` in the layout | `mountPanel()` from a `useEffect`; a local adapter lazy-imports the panel and calls `configurePanel(...)` | `mountPanel()` from a `'use client'` `useEffect` component in the root layout | client-only `<Island>`; `getScope().onActivate()` mounts the adapter | same as ZFB |
+| Side-effect script | `import('@takazudo/zdtp/astro/host-adapter')` in a layout script | not required | not required | not required (native activation) | same as ZFB |
+| Styles import | not required (self-injected) | not required (self-injected) | not required (self-injected) | not required (self-injected) | not required (self-injected) |
+| Navigation | `<ClientRouter />` view transitions; the host adapter re-mounts the panel across swaps | `HashRouter` inside one document; `prose.html` is a separate full-page entry | App Router client navigation | native multi-page loads (no `<ClientRouter />`) | native ZFB `<ClientRouter />` |
+| Utility CSS | n/a | n/a | n/a | n/a (`wind: false`) | built-in Wind; `wind.tokens` maps utilities to the authored `--zfbtw-*` values |
+| Apply proxy (dev) | Vite `server.proxy` in `astro.config.ts` | Vite `server.proxy` | dev-only route `app/api/dev/apply/route.dev.ts` | plugin registering `devMiddleware` and `previewMiddleware` | same as ZFB |
+| Apply-endpoint URL | `/api/dev/apply` | `/api/dev/apply` | `/api/dev/apply/` (trailing slash) | `/api/dev/apply` | `/api/dev/apply` |
+| Apply-pipeline bin | `zdtp-server` via `concurrently` in the dev script | same | same | same, launched by `scripts/launch.mjs` | same as ZFB |
 
 What stays the same:
 
 - The `PanelConfig` shape and all of its fields.
-- The console API — `window.<consoleNamespace>.{show,hide,toggle}DesignPanel()` — installed identically by every host.
-- The fixed-name `window.zdtp.{show,hide,toggle}()` global — a `consoleNamespace`-agnostic alias installed identically by every host, layered on top of the namespaced console API.
+- The console API, `window.<consoleNamespace>.{show,hide,toggle}DesignPanel()`, installed by every host. Each example's topbar button calls it.
+- The fixed-name `window.zdtp.{show,hide,toggle}()` global, a `consoleNamespace`-agnostic alias layered on top of the namespaced console API.
 - Storage-key derivation under `storagePrefix`.
-- Apply-pipeline behaviour — POST to `applyEndpoint` is identical regardless of host.
+- Apply-pipeline behaviour: the POST to `applyEndpoint` is the same on every host.
+- The [`data-zdtp-version`](../reference/configure-panel.mdx#lifecycle-helpers-build-version-marker-data-zdtp-version) marker. While the panel is open, `document.querySelector('.tokenpanel-shell')?.dataset.zdtpVersion` reads `"0.9.1"` on every demo.
 
 What differs:
 
-- Whether **you** call `configurePanel(...)` (Vite, Next.js, zfb, zfb-tailwind) or the **host adapter** calls it for you (Astro).
-- Whether the page goes through Astro's `<ClientRouter />` view-transition lifecycle (only Astro).
-- How the apply proxy is registered: Vite/Next use built-in proxy or rewrite config; zfb and zfb-tailwind use a plugin's `devMiddleware` hook.
-- Whether tokens are also registered into Tailwind v4's design-system namespaces via an `@theme` block (zfb-tailwind only).
+- Whether **you** call `configurePanel(...)` (Vite + React, Next.js, ZFB, ZFB + Wind), or the Astro **host adapter** calls it for you.
+- Navigation: Astro's `<ClientRouter />` (the host adapter handles the swap lifecycle), Vite + React's `HashRouter`, Next's App Router, ZFB's native multi-page loads, or Wind's native ZFB `<ClientRouter />`.
+- How the Apply proxy is registered: Vite's `server.proxy` (Astro and Vite + React), a dev-only Next route, or a ZFB plugin's `devMiddleware` / `previewMiddleware` hooks.
+- Whether utility classes resolve to panel tokens through ZFB's built-in Wind `wind.tokens` mapping (ZFB + Wind only).
 
 ## Astro
 
-The Astro entry handles mounting for you. Drop `<DesignTokenPanelHost>` into a shared layout and pair it with the host-adapter script tag; panel styles are self-injected. That's the entire integration.
+The Astro entry handles mounting for you. Put `<DesignTokenPanelHost>` in a shared layout and load the host adapter from a layout script. The panel injects its own styles. The example also uses `@astrojs/preact` for its own interactive islands, but those are host code: the panel does not use the host's Preact.
 
 ```astro
 ---
 // src/layouts/Layout.astro
 import { ClientRouter } from 'astro:transitions';
 import DesignTokenPanelHost from '@takazudo/zdtp/astro/DesignTokenPanelHost.astro';
-import '@takazudo/zdtp/styles';
-import { myPanelConfig } from '../lib/my-panel-config';
+import { panelConfig } from '../config/panel-config';
 ---
 
 <!doctype html>
@@ -58,55 +58,88 @@ import { myPanelConfig } from '../lib/my-panel-config';
   </head>
   <body>
     <slot />
-    <DesignTokenPanelHost config={myPanelConfig} />
+    <DesignTokenPanelHost config={panelConfig} />
   </body>
 </html>
 
 <script>
-  void import('@takazudo/zdtp/astro/host-adapter');
+  // A dynamic import, so the bundler keeps this side-effect load.
+  const adapterReady = import('@takazudo/zdtp/astro/host-adapter');
+
+  // The topbar button waits for the adapter before toggling.
+  document.addEventListener('click', (event) => {
+    if (!(event.target instanceof Element) || !event.target.closest('[data-design-panel-toggle]')) return;
+    void adapterReady.then(() => window.astro?.toggleDesignPanel?.());
+  });
 </script>
 ```
 
-Worked example: [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-astro).
+During `astro dev`, the Vite server in `astro.config.ts` proxies `/api/dev/apply` to the bin. Worked example: [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-astro).
 
 ## Vite + React
 
-Vite hosts call `configurePanel(...)` themselves at app boot. The panel mounts as a Preact island — your React tree is untouched.
+The Vite + React example is a real React 18 app with no `react` → `preact/compat` alias and no compat shim. The app shell calls a small local adapter from a `useEffect`. The adapter installs `window.vr.*` and lazy-imports the panel, so the panel stays out of the initial chunk. It then calls `configurePanel(...)` on the loaded module.
 
 ```tsx
-// src/main.tsx
-import React from 'react';
-import { createRoot } from 'react-dom/client';
-import { configurePanel } from '@takazudo/zdtp';
-import '@takazudo/zdtp/styles';
-import { App } from './App';
-import { myPanelConfig } from './lib/my-panel-config';
+// src/components/AppShell.tsx (excerpt)
+import { useEffect } from 'react';
+import { mountPanel } from '../lib/mount-panel';
 
-configurePanel(myPanelConfig);
-
-createRoot(document.getElementById('root')!).render(<App />);
+export function AppShell({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    mountPanel(); // idempotent; StrictMode-safe
+  }, []);
+  return (
+    <>
+      <button type="button" onClick={() => window.vr?.toggleDesignPanel?.()}>
+        Open Design Token Panel
+      </button>
+      {children}
+    </>
+  );
+}
 ```
 
-Open devtools, run `window.myapp.toggleDesignPanel()` (or the namespace-agnostic `zdtp.toggle()`), and the panel mounts.
+```ts
+// src/lib/mount-panel.ts (shape)
+import { panelConfig } from '../config/panel-config';
+
+let modulePromise: Promise<typeof import('@takazudo/zdtp')> | null = null;
+
+function loadPanel() {
+  modulePromise ??= import('@takazudo/zdtp').then((mod) => {
+    mod.configurePanel(panelConfig);
+    return mod;
+  });
+  return modulePromise;
+}
+
+export function mountPanel(): void {
+  window.vr = {
+    toggleDesignPanel: async () => (await loadPanel()).toggleDesignPanel(),
+    // showDesignPanel / hideDesignPanel follow the same pattern
+  };
+}
+```
+
+In-app routes use `HashRouter`. A hash change never replaces the document, so the panel needs no lifecycle adapter. The prose page is a separate Vite entry, `prose.html`, and moving between it and the app is a full page load. During `vite` dev, `server.proxy` forwards `/api/dev/apply` to the bin.
 
 Worked example: [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-vite-react).
 
 ## Next.js (App Router)
 
-Next.js needs a `'use client'` boundary so `configurePanel(...)` runs in the browser. The cleanest shape is a tiny client component you mount in your root layout.
+Next.js needs a `'use client'` boundary so the panel loads only in the browser. The example renders a tiny client component once in the root layout. It calls the same kind of lazy adapter from a `useEffect`, and the topbar button calls `window.nx.toggleDesignPanel()`.
 
 ```tsx
-// app/_panel/install-panel.tsx
+// app/_components/PanelBootstrap.tsx
 'use client';
 
 import { useEffect } from 'react';
-import { configurePanel } from '@takazudo/zdtp';
-import '@takazudo/zdtp/styles';
-import { myPanelConfig } from '@/lib/my-panel-config';
+import { mountPanel } from '../../src/lib/mount-panel';
 
-export function InstallPanel(): null {
+export default function PanelBootstrap() {
   useEffect(() => {
-    configurePanel(myPanelConfig);
+    mountPanel();
   }, []);
   return null;
 }
@@ -114,14 +147,14 @@ export function InstallPanel(): null {
 
 ```tsx
 // app/layout.tsx
-import { InstallPanel } from './_panel/install-panel';
+import PanelBootstrap from './_components/PanelBootstrap';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
         {children}
-        <InstallPanel />
+        <PanelBootstrap />
       </body>
     </html>
   );
@@ -129,20 +162,46 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 ```
 
 <Note title="Why a useEffect?">
-  `configurePanel(...)` is synchronous and idempotent at the same value. Calling it from `useEffect` avoids running it during a server render and lets you keep the install module otherwise inert. If you'd rather call it inline at module init, you can — just make sure the file is reachable only from the client bundle.
+  `configurePanel(...)` is synchronous and idempotent at the same value. Calling the adapter from `useEffect` keeps it out of the server render and keeps the install module otherwise inert. If you call it at module init instead, make sure the file is reachable only from the client bundle.
 </Note>
+
+**Apply route.** The App Router has no dev-server proxy setting like Vite's `server.proxy`. Instead, the example ships a dev-only API route at `app/api/dev/apply/route.dev.ts`, which forwards the POST to the bin. The panel posts to `/api/dev/apply/`; the trailing slash is canonical because `trailingSlash: true` is set. `pnpm build` sets `NEXT_BUILD_TARGET=export` to produce a static export in `out/`. In that mode `pageExtensions` keeps the defaults, so the exporter never sees the `.dev.ts` file:
+
+```ts
+// next.config.ts (excerpt)
+const isExportBuild = process.env.NEXT_BUILD_TARGET === 'export';
+
+const nextConfig = {
+  trailingSlash: true,
+  pageExtensions: isExportBuild
+    ? ['ts', 'tsx', 'mdx']
+    : ['ts', 'tsx', 'dev.ts', 'dev.tsx', 'mdx'],
+  ...(isExportBuild ? { output: 'export' as const } : {}),
+};
+```
+
+The route also returns 404 when `NODE_ENV === 'production'`, as defence in depth.
 
 Worked example: [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-nextjs).
 
-## zfb
+## ZFB
 
-[zfb](https://github.com/Takazudo/zudo-front-builder) is a WIP build orchestrator the author is developing in a separate repo (`Takazudo/zudo-front-builder`). The zfb example shows how to drop the panel into a zfb project.
+[ZFB](https://github.com/Takazudo/zudo-front-builder) (zudo-front-builder) is a build orchestrator the author develops in a separate repository. The ZFB example shows how to add the panel to a ZFB project.
 
-ZFB 3 to 5 use zudo-react islands. Keep the panel as an opaque Preact widget: lazy-import `@takazudo/zdtp` inside `getScope().onActivate()`, configure it there, cancel late imports after disposal and destroy the handle during cleanup. The panel owns Preact; the host does not need a Preact JSX configuration.
+ZFB 3 to 5 use zudo-react islands. Keep the panel as an opaque, self-rendering widget. Lazy-import `@takazudo/zdtp` inside `getScope().onActivate()` and configure it there. Cancel late imports after disposal, and destroy the handle during cleanup. The panel brings its own runtime, so the host needs neither Preact nor a Preact JSX configuration. The example pins ZFB and zfb-runtime 4.3.0 and mounts the adapter in a client-only island:
 
-This documentation site uses zudo-doc 9.1.0 on ZFB 5.1.5, with native zudo-react rendering and Wind CSS. Its embedded panel remains the pinned npm release; the playground and minimal demo consume the workspace panel build. The older ZFB 2 integration used Preact islands and the Astro host adapter; its remount regression is retained in an independent ZFB 2.20.3 / zudo-doc 5.27.0 fixture, rather than repinning the current docs.
+```tsx
+// components/app-shell.tsx (excerpt)
+<Island when="load" ssrFallback={null}>
+  <PanelMount />
+</Island>
+```
 
-The key difference from the other three examples is how the dev-time apply proxy is wired up. Vite and Next.js have built-in proxy/rewrite config; zfb exposes a `devMiddleware` plugin hook instead. Register the proxy in a plugin:
+The plain ZFB example does not use `<ClientRouter />`, so every navigation, including back and forward, is a native full document load. Its `zfb.config.ts` also sets `wind: false`.
+
+This documentation site uses zudo-doc 9.1.0 on ZFB 5.1.5, with native zudo-react rendering and Wind CSS. Its embedded panel is the pinned npm release; the playground and minimal demo use the workspace panel build. The older ZFB 2 integration used Preact islands and the Astro host adapter. Its remount regression test lives on in an independent ZFB 2.20.3 / zudo-doc 5.27.0 fixture, so the current docs did not have to be repinned.
+
+The dev-time Apply proxy is wired up differently here. Vite has `server.proxy` and Next has a dev-only route. ZFB exposes plugin hooks instead, and the example registers one handler for both `zfb dev` and `zfb preview`:
 
 ```ts
 // zfb.config.ts
@@ -150,43 +209,70 @@ import { defineConfig } from '@takazudo/zfb/config';
 
 export default defineConfig({
   base: '/',
-  plugins: [
-    { name: './plugins/dev-apply-proxy.mjs' },
-  ],
+  wind: false,
+  plugins: [{ name: './plugins/dev-apply-proxy.mjs' }],
 });
 ```
 
 ```js
 // plugins/dev-apply-proxy.mjs
+function registerApplyProxy(ctx) {
+  // The handler returns { status, headers, body }; register a full request path.
+  ctx.register('/api/dev/apply', proxyHandler);
+}
+
 export default {
   name: 'dev-apply-proxy',
-  devMiddleware(ctx) {
-    // The handler returns { status, headers, body }; register a full request path.
-    ctx.register('/api/dev/apply', proxyHandler);
-  },
+  devMiddleware: registerApplyProxy, // zfb dev
+  previewMiddleware: registerApplyProxy, // zfb preview
 };
 ```
 
-**Apply-endpoint URL.** The zfb demo configures `base: '/'` (matching the other examples) and uses the bare path `/api/dev/apply`. Because zfb [#229](https://github.com/Takazudo/zudo-front-builder/issues/229) scopes `devMiddleware`-registered paths under `base`, the bare path resolves correctly when `base` is `/`. If you deploy the same wiring under a non-root `base` value, the apply path must be prefixed with that same `base` so the dev server can match the proxy. See [`PROBE-REPORT.md`](https://github.com/Takazudo/zudo-design-token-panel-example-zfb/blob/main/PROBE-REPORT.md) for the full historical rationale.
+Neither hook runs during `zfb build`, so the deployed static output never contains the proxy.
+
+**Apply-endpoint URL.** ZFB [#229](https://github.com/Takazudo/zudo-front-builder/issues/229) scopes registered middleware paths under `base`. The example uses `base: '/'`, so the bare `/api/dev/apply` path is already the base-prefixed path. If you deploy the same wiring under a non-root `base`, prefix the Apply path with that `base`. The repository's [`PROBE-REPORT.md`](https://github.com/Takazudo/zudo-design-token-panel-example-zfb/blob/main/PROBE-REPORT.md) is a historical report from a May 9, 2026 probe, written when the example lived under a non-root `base`. Read it for background only.
 
 Worked example: [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-zfb).
 
-## zfb + Tailwind v4
+## ZFB + Wind
 
-The zfb + Tailwind v4 example extends the zfb integration with Tailwind CSS v4. It shares the same panel wiring and `devMiddleware`-based apply proxy as the plain zfb example. The distinguishing feature is that design tokens are also registered into Tailwind's design-system namespaces via an `@theme` block, so utility classes like `text-body`, `p-hsp-md`, and `rounded-radius-sm` resolve to the panel's CSS custom properties at build time.
+The ZFB + Wind example shares the plain ZFB example's island wiring and its `devMiddleware` / `previewMiddleware` Apply proxy. It differs in three ways:
+
+- **Navigation.** It uses the native ZFB `<ClientRouter fallback="animate" />` from `@takazudo/zfb-runtime`. The topbar and sidenav persist across swaps through `data-zfb-transition-persist`.
+- **Utility CSS.** It uses ZFB's built-in Wind. There is no `tailwindcss` dependency and no `@theme` block.
+- **Token mapping.** The authored `--zfbtw-*` custom properties on `:root` in `styles/global.css` stay the source of truth for panel edits and Apply. `wind.tokens` in `zfb.config.ts` maps utility names to those properties.
 
 ```css
-/* styles/tokens.css */
-@theme {
-  --font-size-body: var(--zfbtw-text-body);
-  --spacing-hsp-md: var(--zfbtw-hsp-md);
-  --color-primary: var(--zfbtw-color-primary);
+/* styles/global.css (excerpt): the values the panel edits and Apply rewrites */
+:root {
+  --zfbtw-palette-1: #2d6cdf;
+  --zfbtw-color-primary: var(--zfbtw-palette-1);
+  --zfbtw-hsp-md: 1rem;
+  --zfbtw-scale-base: 1rem;
+  --zfbtw-text-body: var(--zfbtw-scale-base);
 }
 ```
 
-With that `@theme` block in place, Tailwind utility classes and panel tokens stay in sync automatically: tweaking `--zfbtw-text-body` in the panel updates every element using `text-body`.
+```ts
+// zfb.config.ts (excerpt)
+export default defineConfig({
+  base: '/',
+  plugins: [{ name: './plugins/dev-apply-proxy.mjs' }],
+  wind: {
+    spec: 1,
+    reset: 'owned-v1',
+    tokens: {
+      colors: { primary: 'var(--zfbtw-color-primary)' },
+      spacing: { 'hsp-md': 'var(--zfbtw-hsp-md)' },
+      fontSizes: { body: { size: 'var(--zfbtw-text-body)' } },
+    },
+  },
+});
+```
 
-The apply-endpoint URL follows the same shape as the plain zfb example — the bare path `/api/dev/apply` with `base: '/'`.
+Because each Wind token resolves to a `var(--zfbtw-*)` reference, utilities like `bg-primary`, `px-hsp-md` and `text-body` follow panel edits live. For example, tweaking `--zfbtw-text-body` in the panel updates every element that uses `text-body`. The prose page styles its elements in `@layer components` against the same `--zfbtw-*` tokens.
+
+The Apply-endpoint URL is the same as in the plain ZFB example: the bare `/api/dev/apply` with `base: '/'`.
 
 Worked example: [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-zfb-tailwind).
 
