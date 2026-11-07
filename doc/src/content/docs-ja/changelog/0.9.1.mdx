@@ -1,0 +1,16 @@
+---
+title: "0.9.1"
+description: "0.9.1 のリリースノート。"
+sidebar_position: 116
+---
+
+Released: 2026-11-07
+
+### 機能
+
+- マウントされたすべての `.tokenpanel-shell` に、そのシェルを生成した `@takazudo/zdtp` ビルドの完全なバージョンを示す、見た目に影響しない `data-zdtp-version` 属性が付くようになりました（[#1072](https://github.com/Takazudo/zudo-design-token-panel/issues/1072)）。値はビルド時にパッケージ自身の `package.json` から埋め込まれ、利用側の本番バンドルでも失われないため、デプロイ済みのページがどのパッケージバージョンを読み込んだかを確認できます。示すのは宣言されたバージョンだけで、バイトが公開済みの成果物と一致するかどうかは示しません。また、フルシェルがマウントされている間だけ存在します。JavaScript のエクスポート、ストレージのキー、CSS の契約は変わりません。(00a89df)
+
+### その他の変更
+
+- chore(deps): zudo-doc 9.1.0 に更新し、doc のパネルを zdtp 0.9.0 に更新 (d5839ff)
+- chore(deps): コンシューマーチェックとドキュメントを zudo-doc 9.1.0 に向ける (0cae113)

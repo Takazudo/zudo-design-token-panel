@@ -31,6 +31,7 @@ import {
   type PanelConfig,
 } from '../config/panel-config';
 import { flushEffects } from './_test-helpers';
+import packageJson from '../../package.json';
 
 const OPEN_PANEL_HEADER_TEXT = 'zdtp';
 const DEFAULT_TOGGLE_EVENT = 'toggle-design-token-panel';
@@ -239,5 +240,49 @@ describe('multi-instance lifecycle (#354)', () => {
     expect(aText, 'A does not leak B label').not.toContain('Beta Size');
     expect(bText, 'B renders its own tab label').toContain('Beta Size');
     expect(bText, 'B does not leak A label').not.toContain('Alpha Size');
+  });
+
+  it('every mounted shell carries its own build version across open, remount, and destroy', async () => {
+    await import('../index');
+
+    const shellVersions = (): Array<string | undefined> =>
+      Array.from(document.querySelectorAll<HTMLElement>('.tokenpanel-shell')).map(
+        (shell) => shell.dataset.zdtpVersion,
+      );
+
+    expect(packageJson.version).toMatch(/^\d+\.\d+\.\d+/);
+    const cfgA = makeConfig('alpha');
+    const cfgB = makeConfig('beta');
+    const handleA = configurePanel(cfgA);
+    const handleB = configurePanel(cfgB);
+
+    handleA.open();
+    handleB.open();
+    await flushEffects();
+    expect(shellVersions()).toEqual([packageJson.version, packageJson.version]);
+
+    handleA.close();
+    await flushEffects();
+    expect(rootFor(cfgA)?.querySelector('.tokenpanel-shell') ?? null).toBeNull();
+    handleA.open();
+    await flushEffects();
+    expect(
+      rootFor(cfgA)?.querySelector<HTMLElement>('.tokenpanel-shell')?.dataset.zdtpVersion,
+      'reopened shell',
+    ).toBe(packageJson.version);
+
+    handleA.destroy();
+    await flushEffects();
+    expect(shellVersions(), 'only B remains after destroy').toEqual([packageJson.version]);
+
+    const handleA2 = configurePanel(cfgA);
+    handleA2.open();
+    await flushEffects();
+    expect(shellVersions(), 're-configured A remounts with the marker').toEqual([
+      packageJson.version,
+      packageJson.version,
+    ]);
+    handleB.destroy();
+    handleA2.destroy();
   });
 });

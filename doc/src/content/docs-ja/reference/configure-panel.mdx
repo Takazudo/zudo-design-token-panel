@@ -521,6 +521,19 @@ window.zdtp.toggle = () => void | Promise<void>;
 `window.zdtp` は、オーナー自動読み込みの全機能ではなく、open／close の 3 つの動作だけを意図的に反映します。その機能には `window[consoleNamespace].enableAutoload()` / `disableAutoload()`（またはパッケージルートのエクスポート）を使用してください。
 </Tip>
 
+### ビルドバージョンマーカー: `data-zdtp-version`
+
+マウントされた `.tokenpanel-shell` には、そのシェルを生成した `@takazudo/zdtp` のビルドを示す `data-zdtp-version` 属性が付きます。
+
+```js
+document.querySelector('.tokenpanel-shell')?.dataset.zdtpVersion; // 例: "0.9.1"
+```
+
+- **値の出どころ:** パッケージ自身の `package.json` にある `version` 文字列全体を、パッケージのビルド時に埋め込みます。ホストの設定、グローバル変数、ネットワーク、ファイルシステムは参照せず、利用側の本番バンドルでも失われません。
+- **存在するタイミング:** フルシェルがマウントされている間だけです。閉じたパネルやミニピルにはシェルがないため、パネルを展開してから読み取ってください。見た目に影響しない診断用の属性であり、JavaScript のエクスポートではありません。
+- **証明しないこと:** 宣言されたバージョンを示すだけです。ワークスペースやローカルで pack したビルドが、古い npm リリースと同じバージョン文字列を示すことがあるため、公開済みの成果物とバイトが一致する証拠にはなりません。
+- **提供状況:** 0.9.1 で追加されました。それ以前のリリースには付きません。
+
 ### `setLifecycleAdapter(adapter)`
 
 ```ts

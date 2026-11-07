@@ -66,6 +66,7 @@ import { Checkbox } from './zr/form-controls';
 import { Rebuild } from './zr/rebuild';
 import { storeSignal } from './zr/store';
 import { toZrStyle } from './zr/style';
+import { ZDTP_VERSION } from './version';
 import {
   type TweakState,
   type ColorTweakState,
@@ -1713,6 +1714,7 @@ export default function DesignTokenTweakPanel(props: DesignTokenTweakPanelProps 
         class={computed(() =>
           `tokenpanel-shell${effectiveMode.value === 'right' ? ' is-docked-right' : ''}${effectiveMode.value === 'bottom' ? ' is-docked-bottom' : ''}${historyRailOpen.value ? ' is-history-open' : ''}`)}
         style={shellStyle}
+        data-zdtp-version={ZDTP_VERSION}
       >
         <ShellHeader onMouseDown={handleDragStart} regions={regions} layers={layers} />
         <ShellTabBar

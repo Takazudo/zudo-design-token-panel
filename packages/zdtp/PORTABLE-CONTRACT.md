@@ -1746,6 +1746,16 @@ on across a release bump.
   in §6.2, rather than matching a pattern of its own — that way the host's
   assertions self-update on the next storage-format bump instead of silently
   drifting from the package's actual behavior.
+- **Build version marker (`data-zdtp-version`).** Every mounted
+  `.tokenpanel-shell` carries a `data-zdtp-version` attribute whose value is
+  the full `version` string of the `@takazudo/zdtp` `package.json` that built
+  the shell. It is inlined at package build time, so it needs no host config,
+  global, network request, or filesystem access, and it survives a consumer's
+  production bundling. It is a non-visual diagnostic: it is present only while
+  the full shell is mounted (not on the mini pill or a closed panel), and it is
+  not a JavaScript export. It identifies the *declared* version only — a
+  workspace or locally packed build can carry the same version string as an
+  older npm release, so it does not prove the bytes match a published artifact.
 
 ---
 
@@ -1909,5 +1919,5 @@ Cross-reference table — what each section pins down.
 | JSON export/import schemas v1/v2/v3 (serde)                                                  | §9            |
 | Static zudo-react dashboard props, defaults, previews, isolation, and CSS export | §12 |
 | Out-of-scope / deferred concerns                                                            | §10           |
-| Versioning promise, breaking-change signalling, and consumer guidance for mirroring the eager-load gate registries | §11 |
+| Versioning promise, breaking-change signalling, consumer guidance for mirroring the eager-load gate registries, and the `data-zdtp-version` shell marker | §11 |
 | Feature walkthrough and shortcut table                                                     | [Panel UX tour](/docs/recipes/panel-ux-tour) |

@@ -535,6 +535,19 @@ window.zdtp.toggle = () => void | Promise<void>;
 `window.zdtp` deliberately mirrors only the three open/close verbs, not the full owner-autoload surface. Reach for `window[consoleNamespace].enableAutoload()` / `disableAutoload()` (or the package-root exports) for that.
 </Tip>
 
+### Build version marker: `data-zdtp-version`
+
+Every mounted `.tokenpanel-shell` carries a `data-zdtp-version` attribute naming the `@takazudo/zdtp` build that created it:
+
+```js
+document.querySelector('.tokenpanel-shell')?.dataset.zdtpVersion; // e.g. "0.9.1"
+```
+
+- **Source:** the full `version` string from the package's own `package.json`, inlined at package build time. It does not read host configuration, a global, the network, or the filesystem, and it survives a consumer's production bundling.
+- **When it is present:** only while the full shell is mounted. A closed panel or the mini pill has no shell, so expand the panel to read it. It is a non-visual diagnostic, not a JavaScript export.
+- **What it does not prove:** it identifies the *declared* version only. A workspace or locally packed build can report the same version string as an older npm release, so it is not evidence that the bytes match a published artifact.
+- **Availability:** added in 0.9.1; earlier releases do not set it.
+
 ### `setLifecycleAdapter(adapter)`
 
 ```ts
