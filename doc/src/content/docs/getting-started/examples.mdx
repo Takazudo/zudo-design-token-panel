@@ -28,51 +28,82 @@ sidecar.
 
 ## Framework integration references
 
-The following examples predate the current feature set and are kept as wiring
-references for their respective stacks. Each wires the panel against a
-host-supplied `tabs: TabConfig[]` array, plus the companion bin server for
-applying tweaks back to source. Every example also ships a `/prose` page that
-exercises the full range of markdown-generated HTML elements against the demo's
-token namespace.
+Five standalone example repositories wire the panel into real framework hosts.
+All five pin the published `@takazudo/zdtp` **0.9.1** exactly, the same release
+this documentation site pins in `doc/package.json`. Each example supplies its
+own `PanelConfig`, opens the panel from an **Open Design Token Panel** button in
+its topbar, and runs the `zdtp-server` bin next to its dev server so Apply can
+write tweaks back to source. Apply is a dev-only path, so the deployed demos
+cannot write. Each example also ships a prose page that renders the full range
+of Markdown-generated HTML elements against the demo's token namespace.
 
-- **Astro** — pins `@takazudo/zdtp` `0.2.0-next.2`.
+Since 0.9.0 the panel renders with its own bundled zudo-react runtime, not
+Preact. No example needs a Preact install or a compat alias for the panel. The
+panel also injects its own stylesheet, so no example imports the panel CSS.
+Every demo exposes the marker the same way: open the panel, then read
+`document.querySelector('.tokenpanel-shell')?.dataset.zdtpVersion` in the
+browser console. It returns `"0.9.1"`. Each example's browser suite checks
+that this value matches the installed package version. See
+[`data-zdtp-version`](../reference/configure-panel.mdx#lifecycle-helpers-build-version-marker-data-zdtp-version).
+
+- **Astro** — Astro 6 with `@astrojs/preact`.
   [Live demo](https://zdtp-astro.zudolab.dev/)
   · [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-astro)
-  — Drop the panel into an Astro site. Demonstrates host-config wiring with
-  an Astro dev server and the bin apply pipeline.
+  — `<DesignTokenPanelHost>` sits in the shared layout, next to Astro's
+  `<ClientRouter />`, and a layout script dynamically imports
+  `@takazudo/zdtp/astro/host-adapter`. The host's own Preact islands are
+  separate from the panel, which keeps its own runtime. The adapter re-mounts
+  the panel across view-transition swaps. The Vite dev server proxies
+  `/api/dev/apply` to the bin.
   [Prose page](https://zdtp-astro.zudolab.dev/prose/)
   exercises all prose elements against the `--astro-*` token namespace.
-- **Vite + React** — pins `@takazudo/zdtp` `0.2.2`.
+- **Vite + React** — Vite 6 with React 18.
   [Live demo](https://zdtp-vite-react.zudolab.dev/)
   · [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-vite-react)
-  — Use the panel from a Vite + React app. Shows how the Preact runtime
-  coexists with React via the compat shim.
+  — A real React 18 app with no `react` → `preact/compat` alias and no host
+  compat shim. A `useEffect` in the app shell calls a small local adapter
+  (`src/lib/mount-panel.ts`). The adapter lazy-imports the panel, calls
+  `configurePanel(...)` and installs `window.vr.*`. In-app routes use
+  `HashRouter`. The prose page is a separate Vite entry, `prose.html`, which
+  is a full page load. Vite's `server.proxy` forwards `/api/dev/apply` to the
+  bin.
   [Prose page](https://zdtp-vite-react.zudolab.dev/prose)
-  exercises all prose elements against the `--vr-*` token namespace.
-- **Next.js** — pins `@takazudo/zdtp` `0.2.2`.
+  (`prose.html`) exercises all prose elements against the `--vr-*` token
+  namespace.
+- **Next.js** — Next 15 App Router with React 19.
   [Live demo](https://zdtp-nextjs.zudolab.dev/)
   · [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-nextjs)
-  — Wire the panel into a Next.js app router project, including the bin
-  server side-by-side with the Next dev server.
+  — A `'use client'` bootstrap component in the root layout mounts the panel.
+  The production build is a static export to `out/`. Apply goes through the
+  dev-only route `app/api/dev/apply/route.dev.ts`, served at the canonical
+  `/api/dev/apply/`. The `.dev.ts` extension is only picked up by `next dev`,
+  so the static export never contains the route.
   [Prose page](https://zdtp-nextjs.zudolab.dev/prose/)
   exercises all prose elements against the `--nx-*` token namespace.
-- **zfb** — pins `@takazudo/zdtp` `0.2.2`.
+- **ZFB** — [ZFB](https://github.com/Takazudo/zudo-front-builder) 4.3 with zudo-react islands.
   [Live demo](https://zdtp-zfb.zudolab.dev/)
   · [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-zfb)
-  — Integrate the panel into a [zfb](https://github.com/Takazudo/zudo-front-builder) project.
-  Uses the `devMiddleware` plugin hook for the apply proxy (instead of Vite's
-  built-in proxy mechanism). The apply-endpoint URL is fully base-prefixed — see
+  — A client-only `<Island>` activates the panel adapter. The host has no
+  Preact and no `<ClientRouter />`, so navigation is a native multi-page
+  load. One small plugin (`plugins/dev-apply-proxy.mjs`) registers the Apply
+  proxy under both `devMiddleware` (for `zfb dev`) and `previewMiddleware`
+  (for `zfb preview`). With `base: '/'`, the bare `/api/dev/apply` path is
+  already the base-prefixed path. The repository's
   [`PROBE-REPORT.md`](https://github.com/Takazudo/zudo-design-token-panel-example-zfb/blob/main/PROBE-REPORT.md)
-  for context.
+  is a historical probe from May 9, 2026, written when the example was hosted
+  under a non-root base. It does not describe the current setup.
   [Prose page](https://zdtp-zfb.zudolab.dev/prose/)
   exercises all prose elements against the `--zfb-*` token namespace.
-- **zfb + Tailwind v4** — pins `@takazudo/zdtp` `0.2.2`.
+- **ZFB + Wind** — ZFB 4.3 with its built-in Wind utility CSS.
   [Live demo](https://zdtp-zfb-tailwind.zudolab.dev/)
   · [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-zfb-tailwind)
-  — Extends the zfb example with Tailwind v4. Tokens are registered via an
-  `@theme` block into Tailwind's design-system namespaces so utility classes
-  like `text-body` and `p-hsp-md` resolve to the panel's custom properties
-  at build time.
+  — Uses the same island and Apply-proxy wiring as the ZFB example, plus the
+  native ZFB `<ClientRouter />` from `@takazudo/zfb-runtime`. There is no
+  `tailwindcss` dependency and no `@theme` block. The authored `--zfbtw-*`
+  values in `styles/global.css` `:root` stay the source of truth for panel
+  edits and Apply. `wind.tokens` in `zfb.config.ts` maps utility names to
+  them, for example `colors.primary: "var(--zfbtw-color-primary)"`, so
+  utilities like `bg-primary`, `text-body` and `px-hsp-md` follow live panel
+  edits.
   [Prose page](https://zdtp-zfb-tailwind.zudolab.dev/prose/)
-  exercises all prose elements against the `--zfbtw-*` token namespace,
-  with utility classes applied via `@layer components`.
+  exercises all prose elements against the `--zfbtw-*` token namespace.

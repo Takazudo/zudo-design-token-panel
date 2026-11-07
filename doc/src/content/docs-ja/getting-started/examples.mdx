@@ -19,35 +19,37 @@ sidebar_position: 90
 
 ## フレームワーク別の組み込み例
 
-以下のサンプルは現在の機能セットより前に作られたもので、各スタックへ組み込む際の配線を確認するためのリファレンスとして残しています。ホストが提供する `tabs: TabConfig[]` 配列への接続と、変更をソースへ反映する bin サーバーの併用方法を示しています。また、各デモには、そのデモ固有のトークン名前空間で Markdown 由来の HTML 要素を一通り確認できる `/prose` ページがあります。
+5 つの独立したサンプルリポジトリで、実際のフレームワークのホストへパネルを組み込んでいます。5 つすべてが公開済みの `@takazudo/zdtp` **0.9.1** を厳密に固定しています。これは、このドキュメントサイトが `doc/package.json` で固定しているリリースと同じです。各サンプルは独自の `PanelConfig` を持ち、トップバーの **Open Design Token Panel** ボタンからパネルを開きます。また、開発サーバーと並べて `zdtp-server` bin を実行し、Apply で変更をソースへ書き戻せるようにしています。Apply は開発時専用の経路なので、デプロイ済みのデモからは書き込めません。各サンプルには、そのデモのトークン名前空間で Markdown 由来の HTML 要素を一通り確認できる prose ページもあります。
 
-- **Astro** — `@takazudo/zdtp` `0.2.0-next.2` を使用しています。
+0.9.0 以降、パネルは Preact ではなく、同梱の zudo-react ランタイムでレンダリングされます。パネルのために Preact をインストールしたり compat エイリアスを設定したりする必要があるサンプルはありません。パネルはスタイルシートも自己注入するため、パネルの CSS を import しているサンプルもありません。マーカーの確認方法はどのデモでも同じです。パネルを開き、ブラウザーのコンソールで `document.querySelector('.tokenpanel-shell')?.dataset.zdtpVersion` を読むと `"0.9.1"` が返ります。各サンプルのブラウザーテストは、この値がインストール済みパッケージのバージョンと一致することを確認しています。[`data-zdtp-version`](../reference/configure-panel.mdx#ライフサイクルヘルパー-ビルドバージョンマーカー-data-zdtp-version) を参照してください。
+
+- **Astro** — Astro 6 と `@astrojs/preact`。
   [ライブデモ](https://zdtp-astro.zudolab.dev/)
   · [GitHub ソース](https://github.com/Takazudo/zudo-design-token-panel-example-astro)
-  — Astro サイトへパネルを組み込みます。Astro 開発サーバーでのホスト設定と bin の apply パイプラインを示します。
+  — 共有レイアウトで、Astro の `<ClientRouter />` の隣に `<DesignTokenPanelHost>` を置き、レイアウトの script から `@takazudo/zdtp/astro/host-adapter` を動的に import します。ホスト独自の Preact アイランドはパネルとは別物で、パネルは独自のランタイムを使います。アダプターは view transition のスワップのたびにパネルを再マウントします。Vite 開発サーバーが `/api/dev/apply` を bin へプロキシします。
   [Prose ページ](https://zdtp-astro.zudolab.dev/prose/)
   では、`--astro-*` トークン名前空間に対してすべての prose 要素を確認できます。
-- **Vite + React** — `@takazudo/zdtp` `0.2.2` を使用しています。
+- **Vite + React** — Vite 6 と React 18。
   [ライブデモ](https://zdtp-vite-react.zudolab.dev/)
   · [GitHub ソース](https://github.com/Takazudo/zudo-design-token-panel-example-vite-react)
-  — Vite + React アプリからパネルを使います。compat shim により Preact ランタイムと React が共存する構成を示します。
+  — `react` → `preact/compat` のエイリアスもホスト側の compat shim も使わない、本物の React 18 アプリです。アプリシェルの `useEffect` が小さなローカルアダプター（`src/lib/mount-panel.ts`）を呼びます。アダプターはパネルを遅延 import し、`configurePanel(...)` を呼んで `window.vr.*` を追加します。アプリ内のルートは `HashRouter` を使います。prose ページは別の Vite エントリー `prose.html` で、フルページ読み込みになります。Vite の `server.proxy` が `/api/dev/apply` を bin へ転送します。
   [Prose ページ](https://zdtp-vite-react.zudolab.dev/prose)
-  では、`--vr-*` トークン名前空間に対してすべての prose 要素を確認できます。
-- **Next.js** — `@takazudo/zdtp` `0.2.2` を使用しています。
+  （`prose.html`）では、`--vr-*` トークン名前空間に対してすべての prose 要素を確認できます。
+- **Next.js** — Next 15 App Router と React 19。
   [ライブデモ](https://zdtp-nextjs.zudolab.dev/)
   · [GitHub ソース](https://github.com/Takazudo/zudo-design-token-panel-example-nextjs)
-  — Next.js App Router プロジェクトへパネルを組み込み、Next 開発サーバーと bin サーバーを並行実行します。
+  — ルートレイアウトの `'use client'` ブートストラップコンポーネントがパネルをマウントします。本番ビルドは `out/` への静的エクスポートです。Apply は開発専用ルート `app/api/dev/apply/route.dev.ts` を通り、正規の URL `/api/dev/apply/` で提供されます。`.dev.ts` 拡張子は `next dev` だけが認識するため、静的エクスポートにこのルートは含まれません。
   [Prose ページ](https://zdtp-nextjs.zudolab.dev/prose/)
   では、`--nx-*` トークン名前空間に対してすべての prose 要素を確認できます。
-- **zfb** — `@takazudo/zdtp` `0.2.2` を使用しています。
+- **ZFB** — [ZFB](https://github.com/Takazudo/zudo-front-builder) 4.3 と zudo-react アイランド。
   [ライブデモ](https://zdtp-zfb.zudolab.dev/)
   · [GitHub ソース](https://github.com/Takazudo/zudo-design-token-panel-example-zfb)
-  — [zfb](https://github.com/Takazudo/zudo-front-builder) プロジェクトへパネルを組み込みます。Vite 組み込みのプロキシ機構ではなく、`devMiddleware` プラグインフックを apply プロキシに使います。apply エンドポイント URL には base プレフィックス全体が必要です。経緯は [`PROBE-REPORT.md`](https://github.com/Takazudo/zudo-design-token-panel-example-zfb/blob/main/PROBE-REPORT.md) を参照してください。
+  — クライアント専用の `<Island>` がパネルアダプターを有効化します。ホストには Preact も `<ClientRouter />` もないため、ナビゲーションはネイティブなマルチページ読み込みです。小さなプラグイン（`plugins/dev-apply-proxy.mjs`）1 つが、Apply プロキシを `devMiddleware`（`zfb dev` 用）と `previewMiddleware`（`zfb preview` 用）の両方に登録します。`base: '/'` なので、プレフィックスなしの `/api/dev/apply` がそのまま base プレフィックス付きのパスになります。リポジトリの [`PROBE-REPORT.md`](https://github.com/Takazudo/zudo-design-token-panel-example-zfb/blob/main/PROBE-REPORT.md) は、サンプルがルート以外の base で配信されていた 2026 年 5 月 9 日の過去の調査記録で、現在の構成を説明するものではありません。
   [Prose ページ](https://zdtp-zfb.zudolab.dev/prose/)
   では、`--zfb-*` トークン名前空間に対してすべての prose 要素を確認できます。
-- **zfb + Tailwind v4** — `@takazudo/zdtp` `0.2.2` を使用しています。
+- **ZFB + Wind** — ZFB 4.3 と組み込みの Wind ユーティリティ CSS。
   [ライブデモ](https://zdtp-zfb-tailwind.zudolab.dev/)
   · [GitHub ソース](https://github.com/Takazudo/zudo-design-token-panel-example-zfb-tailwind)
-  — zfb サンプルを Tailwind v4 対応に拡張します。`@theme` ブロックで Tailwind のデザインシステム名前空間にトークンを登録するため、`text-body` や `p-hsp-md` のようなユーティリティクラスがビルド時にパネルのカスタムプロパティへ解決されます。
+  — ZFB サンプルと同じアイランド構成と Apply プロキシに加えて、`@takazudo/zfb-runtime` の ZFB ネイティブ `<ClientRouter />` を使います。`tailwindcss` 依存も `@theme` ブロックもありません。`styles/global.css` の `:root` に記述した `--zfbtw-*` 値が、パネルでの編集と Apply の基準のままです。`zfb.config.ts` の `wind.tokens` がユーティリティ名をそれらへ対応付けます（例: `colors.primary: "var(--zfbtw-color-primary)"`）。そのため、`bg-primary`、`text-body`、`px-hsp-md` などのユーティリティはパネルでの編集にそのまま追従します。
   [Prose ページ](https://zdtp-zfb-tailwind.zudolab.dev/prose/)
-  では、`@layer components` 経由でユーティリティクラスを適用し、`--zfbtw-*` トークン名前空間に対してすべての prose 要素を確認できます。
+  では、`--zfbtw-*` トークン名前空間に対してすべての prose 要素を確認できます。
