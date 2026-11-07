@@ -8,6 +8,17 @@ The format is based on Keep a Changelog, and release notes are generated from th
 
 No unreleased changes yet.
 
+## [0.9.1] - 2026-11-07
+
+### Features
+
+- Every mounted `.tokenpanel-shell` now carries a non-visual `data-zdtp-version` attribute with the full version of the `@takazudo/zdtp` build that created it ([#1072](https://github.com/Takazudo/zudo-design-token-panel/issues/1072)). The value is inlined from the package's own `package.json` at build time and survives consumer production bundling, so a deployed page can report which package version it loaded. It identifies the declared version only, not whether the bytes match a published artifact, and it is present only while the full shell is mounted. No JavaScript export, storage key or CSS contract changed. (00a89df)
+
+### Other Changes
+
+- chore(deps): bump zudo-doc 9.1.0 and doc's panel to zdtp 0.9.0 (d5839ff)
+- chore(deps): point consumer checks and docs at zudo-doc 9.1.0 (0cae113)
+
 ## [0.9.0] - 2026-10-27
 
 ### Breaking Changes
