@@ -2,6 +2,12 @@ import { defineConfig, type Plugin } from 'vite';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 
+// One source of truth for the shipped version: the package manifest this build
+// belongs to. Inlined as a string literal so the minified bundle carries it.
+const packageVersion: string = JSON.parse(
+  readFileSync(new URL('./package.json', import.meta.url), 'utf8'),
+).version;
+
 const constantsSource = fileURLToPath(new URL('./src/constants.ts', import.meta.url));
 const dashboardDirectory = fileURLToPath(new URL('./src/dashboard/', import.meta.url));
 const dashboardClientSource = fileURLToPath(new URL('./src/dashboard/client.ts', import.meta.url));
@@ -199,6 +205,9 @@ const EXTERNAL: ReadonlyArray<string | RegExp> = [
 
 export default defineConfig({
   plugins: [assertConstantsEntryIsolation(), staticDashboard()],
+  define: {
+    __ZDTP_VERSION__: JSON.stringify(packageVersion),
+  },
   esbuild: {
     jsx: 'automatic',
     jsxImportSource: '@takazudo/zfb/zudo-react',

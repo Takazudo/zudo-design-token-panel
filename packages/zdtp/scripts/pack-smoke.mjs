@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { createServer } from 'vite';
+import { build as viteBuild, createServer, preview as vitePreview } from 'vite';
 import { verifyCloseRecovery, writeCloseRecoveryFixture } from './close-recovery-smoke.mjs';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -128,6 +128,18 @@ for (const file of await readdir(join(packageRoot, 'dist'), { recursive: true, w
   assert.deepEqual(await readFile(join(installedPanel, 'dist', relative)), await readFile(source), relative);
 }
 console.log(`Packed candidate installed and every dist file byte-verified: ${installedPanel}`);
+// The marker must match the manifest that was actually installed from the
+// tarball, not the workspace source manifest.
+const installedVersion = JSON.parse(await readFile(join(installedPanel, 'package.json'), 'utf8')).version;
+assert.ok(typeof installedVersion === 'string' && installedVersion.length > 0, 'installed version');
+
+async function assertShellVersion(page, label) {
+  const shells = page.locator('.tokenpanel-shell');
+  await shells.first().waitFor({ state: 'visible' });
+  const versions = await shells.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-zdtp-version')));
+  assert.deepEqual(versions, [installedVersion], `${label}: data-zdtp-version on the mounted shell`);
+  console.log(`${label}: shell data-zdtp-version=${versions[0]} matches the installed tarball manifest`);
+}
 await writeCloseRecoveryFixture(appDir);
 
 await cp(constantsFixtureDir, constantsAppDir, { recursive: true });
@@ -216,6 +228,7 @@ try {
   page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
   await page.goto(`http://127.0.0.1:${address.port}/`);
   await page.locator('.tokenpanel-shell').waitFor({ state: 'visible' });
+  await assertShellVersion(page, 'Packed Vite dev consumer');
   const smoke = await page.evaluate(() => window.__zdtpSmoke);
   if (!smoke?.entry.includes('configurePanel')) throw new Error('Package entry did not import');
   if (smoke?.astro?.setPanelColorPresets !== 'function') {
@@ -232,6 +245,28 @@ try {
   }
   console.log('Packed Vite module graph: no eager DOM Tweaker/Tailwind modules or compiler nodes; self-injected CSS: PASS');
   if (errors.length > 0) throw new Error(`Packed browser smoke emitted errors:\n${errors.join('\n')}`);
+
+  // Production bundle: minification must not drop or rename the marker.
+  const productionOutDir = join(scratchRoot, 'app-dist');
+  await viteBuild({ root: appDir, logLevel: 'error', build: { outDir: productionOutDir, emptyOutDir: true } });
+  const productionServer = await vitePreview({
+    root: appDir,
+    logLevel: 'error',
+    build: { outDir: productionOutDir },
+    preview: { host: '127.0.0.1', port: 0, strictPort: false },
+  });
+  try {
+    const productionAddress = productionServer.httpServer?.address();
+    if (!productionAddress || typeof productionAddress === 'string') {
+      throw new Error('Vite preview did not expose a TCP port');
+    }
+    errors.length = 0;
+    await page.goto(`http://127.0.0.1:${productionAddress.port}/`);
+    await assertShellVersion(page, 'Packed Vite production consumer');
+    if (errors.length > 0) throw new Error(`Packed production smoke emitted errors:\n${errors.join('\n')}`);
+  } finally {
+    await new Promise((resolve) => productionServer.httpServer.close(resolve));
+  }
 
   await constantsVite.listen();
   const constantsAddress = constantsVite.httpServer?.address();

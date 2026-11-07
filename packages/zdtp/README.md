@@ -1322,6 +1322,18 @@ zdtp.toggle(); // toggle open/closed
 
 See `PORTABLE-CONTRACT.md` §6.5 for the full install-site and no-clobber/no-double-install contract.
 
+### Build version marker: `data-zdtp-version`
+
+The mounted panel shell exposes which package build created it:
+
+```js
+document.querySelector('.tokenpanel-shell')?.dataset.zdtpVersion; // e.g. "0.9.1"
+```
+
+- The value is the full `version` from the `@takazudo/zdtp` `package.json` that built the shell, inlined at package build time. It needs no host configuration, global, network request, or filesystem access, and it survives your production bundler's minification.
+- It is a non-visual diagnostic, present only while the full shell is mounted. A closed panel or the mini pill has no shell; expand the panel to read it. It is not a JavaScript export.
+- It identifies the **declared** version, not a published artifact: a workspace or locally packed build can carry the same version string as an older npm release.
+
 ### Backward-compatible: the on-demand flow is unchanged
 
 The pre-existing on-demand usage — calling `window.<consoleNamespace>.showDesignPanel()` / `hideDesignPanel()` / `toggleDesignPanel()` to lazy-import and initialize the panel — is **unchanged and fully supported**. Owner-autoload (§10.1) is an opt-in layered on top, not a replacement. If you never call `enableAutoload()`, the panel behaves exactly as it always did: nothing loads for any visitor until the first console call.

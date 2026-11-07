@@ -17,6 +17,7 @@ import {
 } from '../state/tweak-state';
 import { __resetHostMutationsForTests } from '../host/host-mutations';
 import { FIXTURE_TABS } from './_test-helpers';
+import packageJson from '../../package.json';
 
 const CFG: PanelConfig = {
   storagePrefix: 'dock-mode-browser',
@@ -204,6 +205,7 @@ describe('dock modes', () => {
     await settle();
 
     expect(shell().classList.contains('is-docked-right')).toBe(true);
+    expect(shell().dataset.zdtpVersion).toBe(packageJson.version);
     expect(shell().getBoundingClientRect().width).toBe(440);
     expect(shell().getBoundingClientRect().right).toBe(window.innerWidth);
     expect(document.body.style.marginRight).toBe('440px');
@@ -247,6 +249,7 @@ describe('dock modes', () => {
     await settle();
     expect(localStorage.getItem(getDockKey(CFG))).toBe('bottom');
     expect(shell().classList.contains('is-docked-bottom')).toBe(true);
+    expect(shell().dataset.zdtpVersion).toBe(packageJson.version);
     expect(shell().getBoundingClientRect().height).toBe(340);
     expect(shell().getBoundingClientRect().bottom).toBe(window.innerHeight);
     expect(document.body.style.getPropertyValue('margin-right')).toBe('11px');
@@ -256,6 +259,7 @@ describe('dock modes', () => {
     selectMode('Float panel');
     await settle();
     expect(shell().classList.contains('is-docked-bottom')).toBe(false);
+    expect(shell().dataset.zdtpVersion).toBe(packageJson.version);
     expect(shell().getBoundingClientRect().left).toBe(47);
     expect(shell().getBoundingClientRect().top).toBe(31);
     expect(shell().getBoundingClientRect().width).toBe(700);
@@ -270,6 +274,9 @@ describe('dock modes', () => {
     document.querySelector<HTMLElement>('[aria-label="Expand panel"]')!.click();
     await settle();
     expect(localStorage.getItem(getDockKey(CFG))).toBe('float');
+    expect(shell().dataset.zdtpVersion, 'mini expand remounts the marked shell').toBe(
+      packageJson.version,
+    );
     expect(shell().getBoundingClientRect().left).toBe(47);
 
     selectMode('Dock panel right');
@@ -285,6 +292,9 @@ describe('dock modes', () => {
     handle.open();
     await settle();
     expect(shell().classList.contains('is-docked-right')).toBe(true);
+    expect(shell().dataset.zdtpVersion, 'reopened shell keeps the marker').toBe(
+      packageJson.version,
+    );
     expect(document.body.style.marginRight).toBe('500px');
 
     document.dispatchEvent(new CustomEvent('astro:before-swap'));
