@@ -23,13 +23,13 @@ const browserLog = [];
 let serverOutput = '';
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
-async function ready(url) {
+async function ready(url, { announced } = {}) {
   const deadline = Date.now() + 120_000;
   while (Date.now() < deadline) {
     if (processes.some((child) => child.exitCode !== null)) throw new Error(`Dev process exited:\n${serverOutput}`);
     try {
       const response = await fetch(url, { signal: AbortSignal.timeout(1_000) });
-      if (response.ok) return;
+      if (response.ok && (!announced || announced.test(serverOutput))) return;
     } catch { /* Wait for the actual server to listen. */ }
     await sleep(200);
   }
@@ -271,7 +271,10 @@ try {
     // boot setting that keeps native HTML and client transport identities aligned.
     start(['dev:zfb', '--host', '127.0.0.1', '--port', '4327'], resolve(dev));
     origin = 'http://127.0.0.1:4327';
-    await ready(origin);
+    // zfb dev serves routes with 200 while its boot render is still finishing,
+    // then prints "ready on" and broadcasts a livereload `page` reload. Probing
+    // before that line lets the broadcast reload the page mid-assertion (#1094).
+    await ready(origin, { announced: /ready on http:\/\/127\.0\.0\.1:4327/ });
   }
   browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
