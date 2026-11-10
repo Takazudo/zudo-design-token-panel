@@ -8,6 +8,26 @@ The format is based on Keep a Changelog, and release notes are generated from th
 
 No unreleased changes yet.
 
+## [0.9.2] - 2026-11-10
+
+### Features
+
+- feat(scripts): add the read-only cross-example panel probe (fdaebd7)
+
+### Fixed
+
+- fix(ci): expect zfb 5.2.2 and zudo-doc 9.1.5 in current-host checks (d3aeb04)
+- fix(ci): wait for zfb dev 'ready on' before the current-host dev probe (e240539)
+
+### Other Changes
+
+- chore(deps): sync vendored zudo-doc 9.1.5 artifacts and pin v9.1.5 (1de2361)
+- chore(deps): bump zfb family to 5.2.2 and zudo-doc to 9.1.5 (968b6b6)
+- docs(examples): reconcile the example and comparison pages with zdtp 0.9.1 (c6d865e)
+- docs(claude-md): describe the blocking cross-example drift matrix and 0.9.1 pins (d143e05)
+- ci(consumer-drift): run the cross-example matrix weekly and blocking (3dad5b5)
+- chore(doc): pin the published @takazudo/zdtp 0.9.1 (0699626)
+
 ## [0.9.1] - 2026-11-07
 
 ### Features
