@@ -4,7 +4,9 @@ import { extname, relative, resolve, sep } from 'node:path';
 import { chromium } from 'playwright';
 
 const TRIGGER_SELECTOR = '#design-token-trigger';
-const PANEL_STORAGE_PREFIX = 'zudo-doc-tweak';
+const PANEL_STORAGE_PREFIX = process.argv.includes('--native-host')
+  ? 'zudo-doc-tweak--graphite'
+  : 'zudo-doc-tweak';
 const PANEL_ROOT_ID = `${PANEL_STORAGE_PREFIX}-root`;
 const PANEL_CHUNK_MARKER = 'tokenpanel-shell';
 const TIMEOUT_MS = 15_000;

@@ -189,7 +189,7 @@ async function pendingNavigationClicks(page) {
 
 async function panelInvariant(page) {
   return page.evaluate(() => {
-    const prefix = 'zudo-doc-tweak';
+    const prefix = 'zudo-doc-tweak--graphite';
     const roots = [...document.querySelectorAll(`#${prefix}-root`)];
     const bindings = window.__zudoDesignTokenPanelInstanceBindings;
     return {
@@ -239,7 +239,7 @@ async function lateImportCancellation() {
       })]);
     } finally { clearTimeout(deadline); }
     await page.evaluate(() => {
-      window.__lateRoot = document.getElementById('zudo-doc-tweak-root');
+      window.__lateRoot = document.getElementById('zudo-doc-tweak--graphite-root');
       window.__lateSwap = false;
       document.addEventListener('zfb:after-swap', () => { window.__lateSwap = true; }, { once: true });
     });
