@@ -53,18 +53,18 @@ else
 fi
 
 # ── Steps 3–4: Public demo deploy builds ────────
-step "Step 3/7: Build playground deploy artifact"
-if (cd "$ROOT_DIR" && heavy pnpm --filter playground build:deploy); then
-  pass "Playground deploy build passed"
+step "Step 3/7: Build Wind demo deploy artifact"
+if (cd "$ROOT_DIR" && heavy pnpm --filter demo-zudowind build:deploy); then
+  pass "Wind demo deploy build passed"
 else
-  fail "Playground deploy build"
+  fail "Wind demo deploy build"
 fi
 
-step "Step 4/7: Build minimal deploy artifact"
-if (cd "$ROOT_DIR" && heavy pnpm --filter minimal build:deploy); then
-  pass "Minimal deploy build passed"
+step "Step 4/7: Build CSS Modules demo deploy artifact"
+if (cd "$ROOT_DIR" && heavy pnpm --filter demo-cssmodules build:deploy); then
+  pass "CSS Modules demo deploy build passed"
 else
-  fail "Minimal deploy build"
+  fail "CSS Modules demo deploy build"
 fi
 
 # ── Step 5: Tests ───────────────────────────────

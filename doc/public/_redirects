@@ -1,7 +1,14 @@
 # The doc site is served at the domain root, so no root→base redirect is
-# needed. Only the renamed-page 301s remain.
-# three-frameworks was renamed to four-frameworks, then to frameworks-comparison
-/docs/getting-started/three-frameworks  /docs/getting-started/frameworks-comparison  301
-/docs/getting-started/three-frameworks/  /docs/getting-started/frameworks-comparison/  301
-/docs/getting-started/four-frameworks  /docs/getting-started/frameworks-comparison  301
-/docs/getting-started/four-frameworks/  /docs/getting-started/frameworks-comparison/  301
+# needed. Former comparison URLs resolve to the ZFB integration guide.
+/docs/getting-started/three-frameworks  /docs/getting-started/zfb  301
+/docs/getting-started/three-frameworks/  /docs/getting-started/zfb/  301
+/docs/getting-started/four-frameworks  /docs/getting-started/zfb  301
+/docs/getting-started/four-frameworks/  /docs/getting-started/zfb/  301
+/docs/getting-started/frameworks-comparison  /docs/getting-started/zfb  301
+/docs/getting-started/frameworks-comparison/  /docs/getting-started/zfb/  301
+/ja/docs/getting-started/three-frameworks  /ja/docs/getting-started/zfb  301
+/ja/docs/getting-started/three-frameworks/  /ja/docs/getting-started/zfb/  301
+/ja/docs/getting-started/four-frameworks  /ja/docs/getting-started/zfb  301
+/ja/docs/getting-started/four-frameworks/  /ja/docs/getting-started/zfb/  301
+/ja/docs/getting-started/frameworks-comparison  /ja/docs/getting-started/zfb  301
+/ja/docs/getting-started/frameworks-comparison/  /ja/docs/getting-started/zfb/  301

@@ -1,0 +1,119 @@
+---
+title: ZFB integration
+description: Mount the design-token panel in a ZFB app and choose zudo-wind or CSS Modules.
+sidebar_position: 4
+---
+
+`@takazudo/zdtp` is a live design-token panel for [ZFB](https://github.com/Takazudo/zudo-front-builder). The host page keeps authored CSS custom properties. The panel edits those properties in the browser. A local `zdtp-server` sidecar can write the same values back to the source stylesheet.
+
+Import `PanelConfig` and `configurePanel` from `@takazudo/zdtp`. Mount the panel from a client island with `getScope().onActivate`, and destroy the handle when that scope ends.
+
+## Authored tokens
+
+Keep the editable values in a real stylesheet, for example `styles/tokens.css`, and import it from `styles/global.css`:
+
+```css
+/* styles/tokens.css */
+:root {
+  --demo-surface: light-dark(#f4f1ec, #1c1917);
+  --demo-ink: light-dark(#1c1917, #f4f1ec);
+  --demo-space-card: 1.25rem;
+  --demo-radius-card: 0.75rem;
+}
+```
+
+```css
+/* styles/global.css */
+@import "./tokens.css";
+```
+
+ZFB includes `styles/global.css` for every page. Do not import that file from TSX.
+
+## Wind
+
+Name the tokens in `zfb.config.ts`. The values point at the authored properties:
+
+```ts
+import { defineConfig } from '@takazudo/zfb/config';
+
+export default defineConfig({
+  wind: {
+    spec: 1,
+    tokens: {
+      spacing: { card: 'var(--demo-space-card)' },
+      radii: { card: 'var(--demo-radius-card)' },
+      colors: {
+        surface: 'var(--demo-surface)',
+        ink: 'var(--demo-ink)',
+      },
+    },
+  },
+});
+```
+
+Use the complete utilities in components: `bg-surface`, `text-ink`, `p-card`, `rounded-card`. Wind emits `--zw-spacing-card: var(--demo-space-card)`, and `p-card` reads that variable. A panel edit of `--demo-space-card` updates the computed padding. Numeric utilities such as `p-4` are available when `spacingUnit` is set, and they are for fixed decoration.
+
+The Wind demo is [`demos/zudowind`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/demos/zudowind) and [https://zdtp-demo-zudowind.zudolab.dev/](https://zdtp-demo-zudowind.zudolab.dev/).
+
+## CSS Modules
+
+Set `wind: false` and style components with `*.module.css`:
+
+```css
+/* components/card.module.css */
+.card {
+  background: var(--demo-surface);
+  color: var(--demo-ink);
+  padding: var(--demo-space-card);
+  border-radius: var(--demo-radius-card);
+}
+```
+
+```tsx
+import styles from './card.module.css';
+
+export function Card() {
+  return <article class={styles.card}>Token card</article>;
+}
+```
+
+Use a default import and static access such as `styles.card`. Two components can both declare `.card`; the build rewrites each class to its own scoped name. Keep shared token and reset rules in `styles/global.css`.
+
+The CSS Modules demo is [`demos/cssmodules`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/demos/cssmodules) and [https://zdtp-demo-cssmodules.zudolab.dev/](https://zdtp-demo-cssmodules.zudolab.dev/).
+
+## Mount and dispose
+
+```tsx
+"use client";
+
+import { getScope } from '@takazudo/zfb/zudo-react';
+import type { PanelInstanceHandle } from '@takazudo/zdtp';
+import { panelConfig } from '../config/panel-config';
+
+export default function PanelControls() {
+  getScope().onActivate(() => {
+    let disposed = false;
+    let handle: PanelInstanceHandle | undefined;
+    void import('@takazudo/zdtp').then((zdtp) => {
+      if (disposed) return;
+      handle = zdtp.configurePanel(panelConfig);
+      if (disposed) {
+        handle.destroy();
+        return;
+      }
+      zdtp.reapplyPersistedOverrides();
+    });
+    return () => {
+      disposed = true;
+      handle?.destroy();
+    };
+  });
+  return <button type="button" on:click={() => { /* toggle via the handle */ }}>Open token panel</button>;
+}
+```
+
+Give each app its own `storagePrefix`, `schemaId`, and `exportFilenameBase`. The cleanup function has to run if the dynamic import resolves after the page has already moved on, so a stale import does not recreate a disposed panel.
+
+## Local Apply
+
+Development builds set `applyEndpoint` to `/api/dev/apply` and `applyRouting` to the authored token file. A ZFB dev plugin forwards that POST to `zdtp-server`, which checks the file digest and writes `styles/tokens.css`. Production builds omit `applyEndpoint` and `applyRouting`. Browser edits, reset, and export still work. The static host does not write source files.

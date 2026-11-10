@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 // Run playground typecheck/build first to generate its build-info module; CI builds it before tests.
-import { panelConfig } from '../../../../playground/config/panel-config';
+import { panelConfig } from '../../../../demos/zudowind/config/panel-config';
 
 const packageRoot = fileURLToPath(new URL('../..', import.meta.url));
 
@@ -15,7 +15,7 @@ describe('playground grouped palette config', () => {
       console.log('validated');
     `], { cwd: packageRoot, encoding: 'utf8' });
     expect(output.trim()).toBe('validated');
-    expect(panelConfig.storagePrefix).toBe('zfb-playground-tokens-v2');
+    expect(panelConfig.storagePrefix).toBe('zdtp-demo-zudowind-tokens-v1');
   });
 
   it('keeps semantic defaults connected to declared immutable ramps', () => {
@@ -49,7 +49,7 @@ describe('playground grouped palette config', () => {
       }
       expect(override.literal.light).toBe(`var(${tokensByRef.get(item.default)})`);
       for (const value of [override.literal.light, override.literal.dark]) {
-        expect(value).toMatch(/^var\(--zfb-palette-[a-z]+-\d+\)$/);
+        expect(value).toMatch(/^var\(--demo-palette-[a-z]+-\d+\)$/);
         expect(rampVars.has(value.slice(4, -1))).toBe(true);
       }
     }

@@ -3,19 +3,20 @@
 Project-scoped rules that apply across the whole monorepo. Subdirectories may have their own `CLAUDE.md` (e.g. `doc/CLAUDE.md` for the docs site) which adds rules specific to that workspace.
 
 For how the npm-pinned docs panel relates to this repo's unpublished
-`packages/zdtp` build—and when to use the workspace-linked `playground/`—see
+`packages/zdtp` build—and when to use the workspace-linked demos—see
 the "zdtp ↔ zudo-doc relationship" section in `doc/CLAUDE.md`.
 
 ## Public live demo split
 
-The public surfaces have a deliberate three-site split: `doc/` runs the pinned
-npm release, while `examples/minimal/` and `playground/` run the workspace build
+The public surfaces have a deliberate split: `doc/` runs the pinned npm
+release, while `demos/zudowind/` and `demos/cssmodules/` run the workspace build
 and therefore lead it. The two first-party demo hostnames are:
 
-- `https://zdtp-minimal.zudolab.dev/` (`examples/minimal/`) — minimal =
-  "the smallest wiring that works".
-- `https://zdtp-playground.zudolab.dev/` (`playground/`) — playground =
-  "full size, plus the real vendored zudo-doc `PanelConfig` and prose pages".
+- `https://zdtp-demo-zudowind.zudolab.dev/` (`demos/zudowind/`) — ZFB with
+  zudo-wind, plus the vendored zudo-doc `PanelConfig`, prose pages, and the
+  static token dashboard.
+- `https://zdtp-demo-cssmodules.zudolab.dev/` (`demos/cssmodules/`) — ZFB with
+  CSS Modules and `wind: false`.
 
 The provenance badge on each demo is a load-bearing honesty mechanism. Removing
 or weakening it is a regression. `PROVENANCE` is derived from git tag position,

@@ -1,0 +1,35 @@
+{
+  "name": "demo-zudowind",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24 <25" },
+  "scripts": {
+    "generate:build-info": "node ../../scripts/generate-example-build-info.mjs --out config/build-info.generated.ts",
+    "generate:build-info:deploy": "node ../../scripts/generate-example-build-info.mjs --out config/build-info.generated.ts --deploy",
+    "prepare:panel": "pnpm run generate:build-info && bash ../../scripts/build-panel-once.sh",
+    "prepare:deploy": "pnpm run generate:build-info:deploy && bash ../../scripts/build-panel-once.sh",
+    "predev": "pnpm run prepare:panel",
+    "dev": "concurrently -k -n zfb,tokens-bin -c blue,green \"pnpm run dev:zfb\" \"pnpm run dev:tokens-bin\"",
+    "predev:zfb": "pnpm run prepare:panel",
+    "dev:zfb": "zfb dev --scratch-dir .zfb-build/dev --port 44331",
+    "dev:tokens-bin": "node ../../packages/zdtp/dist/bin/server.js --write-root . --routing scaffold.routing.json --port 24691 --allow-origin http://localhost:44331",
+    "prebuild": "pnpm run prepare:panel",
+    "build": "zfb build",
+    "prebuild:deploy": "pnpm run prepare:deploy",
+    "build:deploy": "zfb build",
+    "preview": "zfb preview",
+    "pretypecheck": "pnpm run prepare:panel",
+    "typecheck": "zfb check"
+  },
+  "dependencies": {
+    "@takazudo/zdtp": "workspace:*",
+    "@takazudo/zfb": "6.0.1",
+    "@takazudo/zfb-runtime": "6.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "concurrently": "^9.2.5",
+    "typescript": "^5.9.0"
+  }
+}

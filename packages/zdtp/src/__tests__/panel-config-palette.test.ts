@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { assertValidPanelConfig, DEFAULT_PANEL_CONFIG } from '../config/panel-config';
-import { zudoDocConfigs } from '../../../../playground/config/zudo-doc-manifest.generated';
+import { zudoDocConfigs } from '../../../../demos/zudowind/config/zudo-doc-manifest.generated';
 
 function config(cssVars = ['--warm-0', '--warm-1']) {
   return {

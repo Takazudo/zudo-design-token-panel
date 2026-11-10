@@ -1,0 +1,26 @@
+.card {
+  background: var(--demo-surface);
+  color: var(--demo-ink);
+  padding: var(--demo-space-card);
+  border-radius: var(--demo-radius-card);
+  border: 1px solid var(--demo-color-border);
+}
+
+.title {
+  margin: 0;
+  color: var(--demo-ink);
+  font-size: var(--demo-text-section-title);
+  font-weight: var(--demo-weight-heading);
+  line-height: var(--demo-leading-tight);
+}
+
+.body {
+  margin: var(--demo-vsp-md) 0 0;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--demo-color-muted);
+  font-size: var(--demo-text-annotation);
+  font-weight: var(--demo-weight-heading);
+}

@@ -3,107 +3,33 @@ title: Examples
 sidebar_position: 90
 ---
 
-Start with one of the first-party demos below. Both run the current in-repo
-build of `zudo-design-token-panel`, which may be ahead of the published release.
-Each page shows the exact version it is running. Apply is disabled on these
-public sites because writing changes back to source requires a local development
-sidecar.
+Two demos in this repository run the workspace build of `@takazudo/zdtp` on ZFB. Each page shows build provenance from the git tag position and the source SHA. Apply is omitted on the public sites because writing source files needs the local sidecar.
 
-## First-party demos
+## Wind
 
-- **[Minimal setup](https://zdtp-minimal.zudolab.dev/)** — The smallest
-  wiring that works: one HTML file, one entry module, one token stylesheet, and
-  one `PanelConfig`. **Start here.**
-  [View the source in `examples/minimal/`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples/minimal/).
-- **[Full playground](https://zdtp-playground.zudolab.dev/)** — Explore
-  every control kind, prose pages, and
-  [`?manifest=zudo-doc`](https://zdtp-playground.zudolab.dev/?manifest=zudo-doc),
-  which runs the real vendored zudo-doc `PanelConfig`.
-  [View the source in `playground/`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/playground/).
+[https://zdtp-demo-zudowind.zudolab.dev/](https://zdtp-demo-zudowind.zudolab.dev/) — zudo-wind utilities backed by authored custom properties. Card padding, radius, surface, and ink use `p-card`, `rounded-card`, `bg-surface`, and `text-ink`.
 
-- **[Static token dashboard](https://zdtp-playground.zudolab.dev/dashboard/)** —
-  A plain Preact page listing the shared manifest in light and dark mode, with
-  a compact embedded example. It shows declared defaults independently of panel
-  edits. [Integration recipe](../recipes/static-token-dashboard.mdx).
+Source: [`demos/zudowind`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/demos/zudowind).
 
-## Framework integration references
+Interactive pages accept [`?manifest=zudo-doc`](https://zdtp-demo-zudowind.zudolab.dev/?manifest=zudo-doc) to load the vendored zudo-doc `PanelConfig`. English and Japanese prose pages exercise the same tokens in longer content.
 
-Five standalone example repositories wire the panel into real framework hosts.
-All five pin the published `@takazudo/zdtp` **0.9.1** exactly, the same release
-this documentation site pins in `doc/package.json`. Each example supplies its
-own `PanelConfig`, opens the panel from an **Open Design Token Panel** button in
-its topbar, and runs the `zdtp-server` bin next to its dev server so Apply can
-write tweaks back to source. Apply is a dev-only path, so the deployed demos
-cannot write. Each example also ships a prose page that renders the full range
-of Markdown-generated HTML elements against the demo's token namespace.
+## CSS Modules
 
-Since 0.9.0 the panel renders with its own bundled zudo-react runtime, not
-Preact. No example needs a Preact install or a compat alias for the panel. The
-panel also injects its own stylesheet, so no example imports the panel CSS.
-Every demo exposes the marker the same way: open the panel, then read
-`document.querySelector('.tokenpanel-shell')?.dataset.zdtpVersion` in the
-browser console. It returns `"0.9.1"`. Each example's browser suite checks
-that this value matches the installed package version. See
-[`data-zdtp-version`](../reference/configure-panel.mdx#lifecycle-helpers-build-version-marker-data-zdtp-version).
+[https://zdtp-demo-cssmodules.zudolab.dev/](https://zdtp-demo-cssmodules.zudolab.dev/) — the same authored properties, with `wind: false` and component `*.module.css` files.
 
-- **Astro** — Astro 6 with `@astrojs/preact`.
-  [Live demo](https://zdtp-astro.zudolab.dev/)
-  · [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-astro)
-  — `<DesignTokenPanelHost>` sits in the shared layout, next to Astro's
-  `<ClientRouter />`, and a layout script dynamically imports
-  `@takazudo/zdtp/astro/host-adapter`. The host's own Preact islands are
-  separate from the panel, which keeps its own runtime. The adapter re-mounts
-  the panel across view-transition swaps. The Vite dev server proxies
-  `/api/dev/apply` to the bin.
-  [Prose page](https://zdtp-astro.zudolab.dev/prose/)
-  exercises all prose elements against the `--astro-*` token namespace.
-- **Vite + React** — Vite 6 with React 18.
-  [Live demo](https://zdtp-vite-react.zudolab.dev/)
-  · [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-vite-react)
-  — A real React 18 app with no `react` → `preact/compat` alias and no host
-  compat shim. A `useEffect` in the app shell calls a small local adapter
-  (`src/lib/mount-panel.ts`). The adapter lazy-imports the panel, calls
-  `configurePanel(...)` and installs `window.vr.*`. In-app routes use
-  `HashRouter`. The prose page is a separate Vite entry, `prose.html`, which
-  is a full page load. Vite's `server.proxy` forwards `/api/dev/apply` to the
-  bin.
-  [Prose page](https://zdtp-vite-react.zudolab.dev/prose)
-  (`prose.html`) exercises all prose elements against the `--vr-*` token
-  namespace.
-- **Next.js** — Next 15 App Router with React 19.
-  [Live demo](https://zdtp-nextjs.zudolab.dev/)
-  · [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-nextjs)
-  — A `'use client'` bootstrap component in the root layout mounts the panel.
-  The production build is a static export to `out/`. Apply goes through the
-  dev-only route `app/api/dev/apply/route.dev.ts`, served at the canonical
-  `/api/dev/apply/`. The `.dev.ts` extension is only picked up by `next dev`,
-  so the static export never contains the route.
-  [Prose page](https://zdtp-nextjs.zudolab.dev/prose/)
-  exercises all prose elements against the `--nx-*` token namespace.
-- **ZFB** — [ZFB](https://github.com/Takazudo/zudo-front-builder) 4.3 with zudo-react islands.
-  [Live demo](https://zdtp-zfb.zudolab.dev/)
-  · [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-zfb)
-  — A client-only `<Island>` activates the panel adapter. The host has no
-  Preact and no `<ClientRouter />`, so navigation is a native multi-page
-  load. One small plugin (`plugins/dev-apply-proxy.mjs`) registers the Apply
-  proxy under both `devMiddleware` (for `zfb dev`) and `previewMiddleware`
-  (for `zfb preview`). With `base: '/'`, the bare `/api/dev/apply` path is
-  already the base-prefixed path. The repository's
-  [`PROBE-REPORT.md`](https://github.com/Takazudo/zudo-design-token-panel-example-zfb/blob/main/PROBE-REPORT.md)
-  is a historical probe from May 9, 2026, written when the example was hosted
-  under a non-root base. It does not describe the current setup.
-  [Prose page](https://zdtp-zfb.zudolab.dev/prose/)
-  exercises all prose elements against the `--zfb-*` token namespace.
-- **ZFB + Wind** — ZFB 4.3 with its built-in Wind utility CSS.
-  [Live demo](https://zdtp-zfb-tailwind.zudolab.dev/)
-  · [GitHub source](https://github.com/Takazudo/zudo-design-token-panel-example-zfb-tailwind)
-  — Uses the same island and Apply-proxy wiring as the ZFB example, plus the
-  native ZFB `<ClientRouter />` from `@takazudo/zfb-runtime`. There is no
-  `tailwindcss` dependency and no `@theme` block. The authored `--zfbtw-*`
-  values in `styles/global.css` `:root` stay the source of truth for panel
-  edits and Apply. `wind.tokens` in `zfb.config.ts` maps utility names to
-  them, for example `colors.primary: "var(--zfbtw-color-primary)"`, so
-  utilities like `bg-primary`, `text-body` and `px-hsp-md` follow live panel
-  edits.
-  [Prose page](https://zdtp-zfb-tailwind.zudolab.dev/prose/)
-  exercises all prose elements against the `--zfbtw-*` token namespace.
+Source: [`demos/cssmodules`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/demos/cssmodules).
+
+## Static token dashboard
+
+[https://zdtp-demo-zudowind.zudolab.dev/dashboard/](https://zdtp-demo-zudowind.zudolab.dev/dashboard/) lists the Wind demo manifest with `TokenDashboard`. It is a page of that demo, not a separate application. Saved panel edits do not change the static inventory. See the [static token dashboard recipe](../recipes/static-token-dashboard.mdx).
+
+## Documentation site
+
+This site, [https://zdtp.zudolab.dev/](https://zdtp.zudolab.dev/), installs the published `@takazudo/zdtp` release named in `doc/package.json`. The two demos above follow the workspace package and can be ahead of that release. The provenance line on each demo says which one you are looking at.
+
+Local development:
+
+```sh
+pnpm demo:wind
+pnpm demo:cssmodules
+```

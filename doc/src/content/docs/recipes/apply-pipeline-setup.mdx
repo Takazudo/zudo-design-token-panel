@@ -128,7 +128,7 @@ to match.
 
 ## 5. Vite-only host wiring (no Astro)
 
-A Vite host (or any non-Astro host) does not get the `<DesignTokenPanelHost>`
+A ZFB host calls `configurePanel` from a client island. It does not use a separate host component. The sentence below still applies:
 SSR component. Call `configurePanel` directly at app boot, then import the
 panel module so its side-effects register:
 

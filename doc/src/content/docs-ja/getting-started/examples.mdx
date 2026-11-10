@@ -3,53 +3,33 @@ title: サンプル
 sidebar_position: 90
 ---
 
-まずは、以下の公式デモで `zudo-design-token-panel` を試してみてください。どちらも、このリポジトリにある現行ビルドで動作するため、公開済みのリリースより先の機能を含む場合があります。実際に動作しているバージョンは各ページに表示されます。ソースへの書き戻しにはローカル開発用のサイドカーが必要なため、公開サイトでは Apply を無効にしています。
+このリポジトリの二つのデモは、ZFB 上で `@takazudo/zdtp` のワークスペースビルドを動かします。各ページは git タグの位置とソース SHA から作った出自を表示します。公開サイトでは Apply を出していません。ソースへ書き戻すにはローカルのサイドカーが必要です。
 
-## 公式デモ
+## Wind
 
-- **[最小構成](https://zdtp-minimal.zudolab.dev/)** — HTML、エントリーモジュール、トークンのスタイルシート、`PanelConfig` を 1 ファイルずつ用意した、動作に必要な最小限の構成です。**初めて試す場合はこちらから始めてください。**
-  [`examples/minimal/` のソースを見る](https://github.com/Takazudo/zudo-design-token-panel/tree/main/examples/minimal/)
-- **[フルプレイグラウンド](https://zdtp-playground.zudolab.dev/)** — すべてのコントロール種別と prose ページをまとめて確認できます。[`?manifest=zudo-doc`](https://zdtp-playground.zudolab.dev/?manifest=zudo-doc) では、実際の zudo-doc から取り込んだ `PanelConfig` が動作します。
-  [`playground/` のソースを見る](https://github.com/Takazudo/zudo-design-token-panel/tree/main/playground/)
+[https://zdtp-demo-zudowind.zudolab.dev/](https://zdtp-demo-zudowind.zudolab.dev/) — 自分で書いたカスタムプロパティを zudo-wind のユーティリティが参照します。カードの余白、角丸、面、文字色は `p-card`、`rounded-card`、`bg-surface`、`text-ink` です。
 
-- **[静的トークンダッシュボード](https://zdtp-playground.zudolab.dev/dashboard/)** —
-  共有マニフェストのライト・ダーク両モードの一覧と、小さな埋め込み例を表示する通常の Preact ページです。
-  パネルの編集状態とは独立した宣言済みの既定値を確認できます。
-  [組み込みレシピ](../recipes/static-token-dashboard.mdx)。
+ソースは [`demos/zudowind`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/demos/zudowind) です。
 
-## フレームワーク別の組み込み例
+対話ページでは [`?manifest=zudo-doc`](https://zdtp-demo-zudowind.zudolab.dev/?manifest=zudo-doc) を付けると、取り込んだ zudo-doc の `PanelConfig` を読みます。英語と日本語の prose ページは、同じトークンを長い文章で確認します。
 
-5 つの独立したサンプルリポジトリで、実際のフレームワークのホストへパネルを組み込んでいます。5 つすべてが公開済みの `@takazudo/zdtp` **0.9.1** を厳密に固定しています。これは、このドキュメントサイトが `doc/package.json` で固定しているリリースと同じです。各サンプルは独自の `PanelConfig` を持ち、トップバーの **Open Design Token Panel** ボタンからパネルを開きます。また、開発サーバーと並べて `zdtp-server` bin を実行し、Apply で変更をソースへ書き戻せるようにしています。Apply は開発時専用の経路なので、デプロイ済みのデモからは書き込めません。各サンプルには、そのデモのトークン名前空間で Markdown 由来の HTML 要素を一通り確認できる prose ページもあります。
+## CSS Modules
 
-0.9.0 以降、パネルは Preact ではなく、同梱の zudo-react ランタイムでレンダリングされます。パネルのために Preact をインストールしたり compat エイリアスを設定したりする必要があるサンプルはありません。パネルはスタイルシートも自己注入するため、パネルの CSS を import しているサンプルもありません。マーカーの確認方法はどのデモでも同じです。パネルを開き、ブラウザーのコンソールで `document.querySelector('.tokenpanel-shell')?.dataset.zdtpVersion` を読むと `"0.9.1"` が返ります。各サンプルのブラウザーテストは、この値がインストール済みパッケージのバージョンと一致することを確認しています。[`data-zdtp-version`](../reference/configure-panel.mdx#ライフサイクルヘルパー-ビルドバージョンマーカー-data-zdtp-version) を参照してください。
+[https://zdtp-demo-cssmodules.zudolab.dev/](https://zdtp-demo-cssmodules.zudolab.dev/) — 同じカスタムプロパティを、`wind: false` とコンポーネントの `*.module.css` で使います。
 
-- **Astro** — Astro 6 と `@astrojs/preact`。
-  [ライブデモ](https://zdtp-astro.zudolab.dev/)
-  · [GitHub ソース](https://github.com/Takazudo/zudo-design-token-panel-example-astro)
-  — 共有レイアウトで、Astro の `<ClientRouter />` の隣に `<DesignTokenPanelHost>` を置き、レイアウトの script から `@takazudo/zdtp/astro/host-adapter` を動的に import します。ホスト独自の Preact アイランドはパネルとは別物で、パネルは独自のランタイムを使います。アダプターは view transition のスワップのたびにパネルを再マウントします。Vite 開発サーバーが `/api/dev/apply` を bin へプロキシします。
-  [Prose ページ](https://zdtp-astro.zudolab.dev/prose/)
-  では、`--astro-*` トークン名前空間に対してすべての prose 要素を確認できます。
-- **Vite + React** — Vite 6 と React 18。
-  [ライブデモ](https://zdtp-vite-react.zudolab.dev/)
-  · [GitHub ソース](https://github.com/Takazudo/zudo-design-token-panel-example-vite-react)
-  — `react` → `preact/compat` のエイリアスもホスト側の compat shim も使わない、本物の React 18 アプリです。アプリシェルの `useEffect` が小さなローカルアダプター（`src/lib/mount-panel.ts`）を呼びます。アダプターはパネルを遅延 import し、`configurePanel(...)` を呼んで `window.vr.*` を追加します。アプリ内のルートは `HashRouter` を使います。prose ページは別の Vite エントリー `prose.html` で、フルページ読み込みになります。Vite の `server.proxy` が `/api/dev/apply` を bin へ転送します。
-  [Prose ページ](https://zdtp-vite-react.zudolab.dev/prose)
-  （`prose.html`）では、`--vr-*` トークン名前空間に対してすべての prose 要素を確認できます。
-- **Next.js** — Next 15 App Router と React 19。
-  [ライブデモ](https://zdtp-nextjs.zudolab.dev/)
-  · [GitHub ソース](https://github.com/Takazudo/zudo-design-token-panel-example-nextjs)
-  — ルートレイアウトの `'use client'` ブートストラップコンポーネントがパネルをマウントします。本番ビルドは `out/` への静的エクスポートです。Apply は開発専用ルート `app/api/dev/apply/route.dev.ts` を通り、正規の URL `/api/dev/apply/` で提供されます。`.dev.ts` 拡張子は `next dev` だけが認識するため、静的エクスポートにこのルートは含まれません。
-  [Prose ページ](https://zdtp-nextjs.zudolab.dev/prose/)
-  では、`--nx-*` トークン名前空間に対してすべての prose 要素を確認できます。
-- **ZFB** — [ZFB](https://github.com/Takazudo/zudo-front-builder) 4.3 と zudo-react アイランド。
-  [ライブデモ](https://zdtp-zfb.zudolab.dev/)
-  · [GitHub ソース](https://github.com/Takazudo/zudo-design-token-panel-example-zfb)
-  — クライアント専用の `<Island>` がパネルアダプターを有効化します。ホストには Preact も `<ClientRouter />` もないため、ナビゲーションはネイティブなマルチページ読み込みです。小さなプラグイン（`plugins/dev-apply-proxy.mjs`）1 つが、Apply プロキシを `devMiddleware`（`zfb dev` 用）と `previewMiddleware`（`zfb preview` 用）の両方に登録します。`base: '/'` なので、プレフィックスなしの `/api/dev/apply` がそのまま base プレフィックス付きのパスになります。リポジトリの [`PROBE-REPORT.md`](https://github.com/Takazudo/zudo-design-token-panel-example-zfb/blob/main/PROBE-REPORT.md) は、サンプルがルート以外の base で配信されていた 2026 年 5 月 9 日の過去の調査記録で、現在の構成を説明するものではありません。
-  [Prose ページ](https://zdtp-zfb.zudolab.dev/prose/)
-  では、`--zfb-*` トークン名前空間に対してすべての prose 要素を確認できます。
-- **ZFB + Wind** — ZFB 4.3 と組み込みの Wind ユーティリティ CSS。
-  [ライブデモ](https://zdtp-zfb-tailwind.zudolab.dev/)
-  · [GitHub ソース](https://github.com/Takazudo/zudo-design-token-panel-example-zfb-tailwind)
-  — ZFB サンプルと同じアイランド構成と Apply プロキシに加えて、`@takazudo/zfb-runtime` の ZFB ネイティブ `<ClientRouter />` を使います。`tailwindcss` 依存も `@theme` ブロックもありません。`styles/global.css` の `:root` に記述した `--zfbtw-*` 値が、パネルでの編集と Apply の基準のままです。`zfb.config.ts` の `wind.tokens` がユーティリティ名をそれらへ対応付けます（例: `colors.primary: "var(--zfbtw-color-primary)"`）。そのため、`bg-primary`、`text-body`、`px-hsp-md` などのユーティリティはパネルでの編集にそのまま追従します。
-  [Prose ページ](https://zdtp-zfb-tailwind.zudolab.dev/prose/)
-  では、`--zfbtw-*` トークン名前空間に対してすべての prose 要素を確認できます。
+ソースは [`demos/cssmodules`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/demos/cssmodules) です。
+
+## 静的トークンダッシュボード
+
+[https://zdtp-demo-zudowind.zudolab.dev/dashboard/](https://zdtp-demo-zudowind.zudolab.dev/dashboard/) は Wind デモのマニフェストを `TokenDashboard` で一覧します。別のアプリケーションではなく、そのデモの一ページです。保存したパネルの編集は、この静的な一覧を変えません。[静的トークンダッシュボードのレシピ](../recipes/static-token-dashboard.mdx)を参照してください。
+
+## ドキュメントサイト
+
+このサイト [https://zdtp.zudolab.dev/](https://zdtp.zudolab.dev/) は、`doc/package.json` に書いた公開版の `@takazudo/zdtp` を使います。上の二つのデモはワークスペースのパッケージに追従するため、公開版より新しいことがあります。どちらかは、各デモの出自表示で分かります。
+
+ローカルでは次を実行します。
+
+```sh
+pnpm demo:wind
+pnpm demo:cssmodules
+```

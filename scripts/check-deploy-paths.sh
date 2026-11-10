@@ -60,7 +60,7 @@ cd "$ROOT_DIR"
 START=$(date +%s)
 
 # Workspaces in print order.
-WORKSPACES=("doc" "playground" "minimal")
+WORKSPACES=("doc" "zudowind" "cssmodules")
 
 # Per-workspace pass/fail tracker.
 declare -A WS_FAILS=()
@@ -156,16 +156,16 @@ build_one "@takazudo/zdtp" "@takazudo/zdtp"
 
 build_one "doc" "doc"
 
-build_one "playground" "playground" "build:deploy"
+build_one "zudowind" "demo-zudowind" "build:deploy"
 
-build_one "minimal" "minimal" "build:deploy"
+build_one "cssmodules" "demo-cssmodules" "build:deploy"
 
 # ── Audit phase ──────────────────────────────────
 section "Step 2/2: Audit each emitted bundle"
 
 audit_workspace "doc" "doc/dist"
-audit_workspace "playground" "playground/dist"
-audit_workspace "minimal" "examples/minimal/dist"
+audit_workspace "zudowind" "demos/zudowind/dist"
+audit_workspace "cssmodules" "demos/cssmodules/dist"
 
 # ── Summary ──────────────────────────────────────
 END=$(date +%s)

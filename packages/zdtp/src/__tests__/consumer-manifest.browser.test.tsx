@@ -1,6 +1,6 @@
 import { act, renderZr, unmountZrIn } from '../zr/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { zudoDocConfigs } from '../../../../playground/config/zudo-doc-manifest.generated';
+import { zudoDocConfigs } from '../../../../demos/zudowind/config/zudo-doc-manifest.generated';
 import DesignTokenTweakPanel from '../panel';
 import { assertValidPanelConfig, type PanelConfig } from '../config/panel-config';
 import { getOpenKey } from '../state/tweak-state';

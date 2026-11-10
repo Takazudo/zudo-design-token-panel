@@ -4,7 +4,7 @@ description: Install @takazudo/zdtp into any pnpm, npm, yarn, or bun project.
 sidebar_position: 2
 ---
 
-`@takazudo/zdtp` is a regular npm package. It works in browser hosts such as Astro, Vite + React, Next.js, plain Vite and ZFB 3 to 5. The `configurePanel({...})` call mounts a separate Preact-rendered shell; the host keeps its own renderer.
+`@takazudo/zdtp` is the live design-token panel for ZFB. Install it next to `@takazudo/zfb` and `@takazudo/zfb-runtime`. `configurePanel({...})` mounts the panel in its own zudo-react tree.
 
 This page covers installing the package itself. For wiring it into your layout, see [Quickstart](./quickstart.mdx).
 
@@ -44,9 +44,9 @@ bun add @takazudo/zdtp
 
 Once the install completes, the package exposes three things you can sanity-check from your project root:
 
-- The library entry — `@takazudo/zdtp` (calls `configurePanel`, renders the panel).
-- The Astro entries — `@takazudo/zdtp/astro/DesignTokenPanelHost.astro` (the `<DesignTokenPanelHost>` component, imported directly so Astro compiles it) and `@takazudo/zdtp/astro` (config types plus helpers). The host adapter is the side-effect import `@takazudo/zdtp/astro/host-adapter`.
-- The CLI bin — `zdtp-server`, used by the apply pipeline (see below).
+- The library entry — `@takazudo/zdtp` (`configurePanel` and the panel runtime).
+- The dashboard entry — `@takazudo/zdtp/dashboard` for a static `TokenDashboard`.
+- The CLI bin — `zdtp-server`, used by the local Apply pipeline (see below).
 
 You can confirm the bin is on the path inside your project with:
 
@@ -79,7 +79,7 @@ npx zdtp-server \
 
 ZDTP installs Preact, `@tailwindcss/browser`, `tailwind-merge` and `culori` as regular dependencies. The Tailwind compiler is behind the DOM Tweaker's lazy activation boundary: ordinary panel opening does not load or execute it. This is not a Tailwind-free installation; a companion package or optional entry would be a separate compatibility decision. Moving dependencies to `optionalDependencies` would still install them by default.
 
-For ZFB 3 to 5, import the panel in `getScope().onActivate()` and cancel a pending import when the island is disposed. Configure and destroy the returned handle inside that lifecycle. Do not pass Preact VNodes to the host's zudo-react renderer.
+On ZFB, import the panel inside `getScope().onActivate()` and ignore the result when the island is already disposed. Configure the returned handle in that callback and destroy it in the cleanup function. Do not pass the panel's nodes into the host's zudo-react tree.
 
 <Info>
   The panel's CSS is self-contained. It ships its own bundled stylesheet under the panel-private `--tokentweak-*` namespace. **Tailwind is not required in your project** to consume the panel.
@@ -91,4 +91,4 @@ For ZFB 3 to 5, import the panel in `getScope().onActivate()` and cancel a pendi
 
 ## Next step
 
-You're installed. Head to [Quickstart](./quickstart.mdx) for the smallest end-to-end wiring, or to [Frameworks Comparison](./frameworks-comparison.mdx) for a side-by-side comparison of Astro / Vite + React / Next.js setups.
+You're installed. Continue with the [quickstart](./quickstart.mdx) and the [ZFB integration guide](./zfb.mdx).

@@ -1,0 +1,5 @@
+.zfb/
+.zfb-build/
+dist/
+config/build-info.generated.ts
+public/_generated/

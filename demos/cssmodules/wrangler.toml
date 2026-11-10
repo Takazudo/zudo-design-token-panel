@@ -1,0 +1,14 @@
+# Cloudflare Workers Static Assets configuration for the CSS Modules demo.
+
+name = "zdtp-demo-cssmodules"
+compatibility_date = "2026-09-05"
+
+preview_urls = true
+workers_dev = false
+
+[assets]
+directory = "./dist"
+
+[[routes]]
+pattern = "zdtp-demo-cssmodules.zudolab.dev"
+custom_domain = true

@@ -1,0 +1,119 @@
+---
+title: ZFB への組み込み
+description: ZFB アプリにデザイントークンパネルを載せ、zudo-wind と CSS Modules のどちらでトークンを使うかを選びます。
+sidebar_position: 4
+---
+
+`@takazudo/zdtp` は [ZFB](https://github.com/Takazudo/zudo-front-builder) 向けのライブなデザイントークンパネルです。ホストページは自分で書いた CSS カスタムプロパティを持ち、パネルはブラウザ上でその値を編集します。ローカルの `zdtp-server` サイドカーは、同じ値をソースのスタイルシートへ書き戻せます。
+
+`PanelConfig` と `configurePanel` は `@takazudo/zdtp` から読みます。パネルはクライアントアイランドの `getScope().onActivate` でマウントし、そのスコープが終わるときにハンドルを破棄します。
+
+## 自分で書くトークン
+
+編集対象の値は、たとえば `styles/tokens.css` に置き、`styles/global.css` から読みます。
+
+```css
+/* styles/tokens.css */
+:root {
+  --demo-surface: light-dark(#f4f1ec, #1c1917);
+  --demo-ink: light-dark(#1c1917, #f4f1ec);
+  --demo-space-card: 1.25rem;
+  --demo-radius-card: 0.75rem;
+}
+```
+
+```css
+/* styles/global.css */
+@import "./tokens.css";
+```
+
+ZFB は `styles/global.css` を全ページへ含めます。このファイルを TSX から import しないでください。
+
+## Wind
+
+`zfb.config.ts` で名前付きトークンの値を、上のカスタムプロパティに向けます。
+
+```ts
+import { defineConfig } from '@takazudo/zfb/config';
+
+export default defineConfig({
+  wind: {
+    spec: 1,
+    tokens: {
+      spacing: { card: 'var(--demo-space-card)' },
+      radii: { card: 'var(--demo-radius-card)' },
+      colors: {
+        surface: 'var(--demo-surface)',
+        ink: 'var(--demo-ink)',
+      },
+    },
+  },
+});
+```
+
+コンポーネントでは完全なユーティリティ `bg-surface`、`text-ink`、`p-card`、`rounded-card` を使います。Wind は `--zw-spacing-card: var(--demo-space-card)` を出し、`p-card` はその変数を読みます。パネルで `--demo-space-card` を変えると、計算済みの padding が追従します。`spacingUnit` を設定したときの `p-4` のような数値ユーティリティは、固定の装飾向けです。
+
+Wind デモは [`demos/zudowind`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/demos/zudowind) と [https://zdtp-demo-zudowind.zudolab.dev/](https://zdtp-demo-zudowind.zudolab.dev/) です。
+
+## CSS Modules
+
+`wind: false` にし、コンポーネントは `*.module.css` で書きます。
+
+```css
+/* components/card.module.css */
+.card {
+  background: var(--demo-surface);
+  color: var(--demo-ink);
+  padding: var(--demo-space-card);
+  border-radius: var(--demo-radius-card);
+}
+```
+
+```tsx
+import styles from './card.module.css';
+
+export function Card() {
+  return <article class={styles.card}>Token card</article>;
+}
+```
+
+デフォルト import と `styles.card` のような静的な参照を使います。二つのコンポーネントがどちらも `.card` を宣言しても、ビルドはそれぞれ別のスコープ付きクラス名へ書き換えます。トークンとリセットは `styles/global.css` に置きます。
+
+CSS Modules デモは [`demos/cssmodules`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/demos/cssmodules) と [https://zdtp-demo-cssmodules.zudolab.dev/](https://zdtp-demo-cssmodules.zudolab.dev/) です。
+
+## マウントと破棄
+
+```tsx
+"use client";
+
+import { getScope } from '@takazudo/zfb/zudo-react';
+import type { PanelInstanceHandle } from '@takazudo/zdtp';
+import { panelConfig } from '../config/panel-config';
+
+export default function PanelControls() {
+  getScope().onActivate(() => {
+    let disposed = false;
+    let handle: PanelInstanceHandle | undefined;
+    void import('@takazudo/zdtp').then((zdtp) => {
+      if (disposed) return;
+      handle = zdtp.configurePanel(panelConfig);
+      if (disposed) {
+        handle.destroy();
+        return;
+      }
+      zdtp.reapplyPersistedOverrides();
+    });
+    return () => {
+      disposed = true;
+      handle?.destroy();
+    };
+  });
+  return <button type="button">Open token panel</button>;
+}
+```
+
+アプリごとに `storagePrefix`、`schemaId`、`exportFilenameBase` を分けます。ページ遷移のあとで遅延 import が解決しても、破棄済みのパネルを作り直さないように、クリーンアップ側で `disposed` を見てください。
+
+## ローカル Apply
+
+開発ビルドは `applyEndpoint` を `/api/dev/apply` に、`applyRouting` を自分で書いたトークンファイルに向けます。ZFB の開発プラグインがその POST を `zdtp-server` へ転送し、サーバーはファイルのダイジェストを確認して `styles/tokens.css` を更新します。本番ビルドは `applyEndpoint` と `applyRouting` を持ちません。ブラウザ上の編集、リセット、エクスポートは動きます。静的ホストはソースファイルを書きません。

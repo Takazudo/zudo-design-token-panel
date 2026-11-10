@@ -70,14 +70,24 @@ jobs:
           path: test-results/dashboard-consumer/
           if-no-files-found: warn
 
-      - name: Build playground deploy bundle
-        run: pnpm --filter playground build:deploy
+      - name: Build Wind demo deploy bundle
+        run: pnpm --filter demo-zudowind build:deploy
 
-      - name: Verify playground Apply proxy and stylesheet persistence
-        run: node scripts/check-playground-apply.mjs
+      - name: Build CSS Modules demo deploy bundle
+        run: pnpm --filter demo-cssmodules build:deploy
 
-      - name: Build minimal deploy bundle
-        run: pnpm --filter minimal build:deploy
+      - name: Verify demo Apply proxy and stylesheet persistence
+        run: node scripts/check-demo-apply.mjs
+
+      - name: Verify production bundles omit Apply
+        run: |
+          set -euo pipefail
+          for dist in demos/zudowind/dist demos/cssmodules/dist; do
+            if grep -R -n -F '/api/dev/apply' "$dist" --include='*.js' --include='*.html' --include='*.css'; then
+              echo "$dist still references /api/dev/apply" >&2
+              exit 1
+            fi
+          done
 
       - name: Test
         run: pnpm test
@@ -90,7 +100,7 @@ jobs:
         # review PNG diff in the PR, then commit the updated baselines.
         run: pnpm --filter @takazudo/zdtp test:vrt --output=test-results/vrt
 
-      - name: Playground walking-skeleton E2E
+      - name: Demo lifecycle and walking-skeleton E2E
         run: pnpm --filter @takazudo/zdtp test:e2e
 
       - name: Packed-tarball smoke
@@ -140,9 +150,10 @@ jobs:
       - name: Build the panel package
         run: pnpm --config.engine-strict=false --filter @takazudo/zdtp build
 
-      - name: Generate playground build info
-        working-directory: playground
-        run: node ../scripts/generate-example-build-info.mjs --out config/build-info.generated.ts
+      - name: Generate demo build info for package unit tests
+        run: |
+          node scripts/generate-example-build-info.mjs --out demos/zudowind/config/build-info.generated.ts
+          node scripts/generate-example-build-info.mjs --out demos/cssmodules/config/build-info.generated.ts
 
       - name: Unit tests
         run: pnpm --config.engine-strict=false --filter @takazudo/zdtp test:unit
@@ -193,7 +204,7 @@ jobs:
           PANEL_TARBALL: ${{ steps.panel.outputs.tarball }}
         run: bash scripts/verify-packed-remount-consumer.sh --host legacy --panel-tarball "$PANEL_TARBALL"
 
-      - name: Current host — ZFB 5.2 / zudo-doc 9 packed remount
+      - name: Current host — ZFB 6 / zudo-doc 10 packed remount
         if: ${{ !cancelled() && steps.panel.outcome == 'success' }}
         env:
           PANEL_TARBALL: ${{ steps.panel.outputs.tarball }}

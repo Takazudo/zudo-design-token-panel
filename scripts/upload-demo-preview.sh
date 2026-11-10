@@ -8,7 +8,7 @@ worker="${2:?worker name required}"
 alias="${3:?preview alias required}"
 message="${4:?version message required}"
 case "$workspace:$worker" in
-  playground:zdtp-playground|examples/minimal:zdtp-minimal) ;;
+  demos/zudowind:zdtp-demo-zudowind|demos/cssmodules:zdtp-demo-cssmodules) ;;
   *) echo 'Unsupported demo workspace/Worker pair' >&2; exit 2 ;;
 esac
 

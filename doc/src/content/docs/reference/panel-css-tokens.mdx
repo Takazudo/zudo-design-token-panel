@@ -204,7 +204,7 @@ The panel is a developer tool that ships inside a host page. If the panel inheri
 ## Host-adapter side-effect import (paired-unit obligation)
 
 The consumer MUST own a side-effect import for the host-adapter, paired with
-`<DesignTokenPanelHost>`. The `./styles` import is optional because the panel
+`configurePanel`. The `./styles` import is optional because the panel
 entry self-injects its stylesheet; use it only when the host wants a static CSS
 pipeline. The component AND a sibling `<script>` block loading
 `@takazudo/zdtp/astro/host-adapter` are a single unit — both lines are

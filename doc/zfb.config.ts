@@ -15,8 +15,8 @@ export default defineConfig(
       png16: "/favicon-16x16.png",
     },
     home: { wide: true },
-    // zudo-doc 9 switched the unset default to Graphite; keep the Classic look this site was designed against.
-    themePack: "default",
+    // zudo-doc 10 uses "default" as an alias of Graphite. "classic" keeps this site's Classic pack.
+    themePack: "classic",
     locales: {
       ja: {
         label: "JA",

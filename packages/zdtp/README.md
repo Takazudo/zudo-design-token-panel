@@ -1,8 +1,8 @@
 # @takazudo/zdtp
 
-A live-tweak design-token panel for Astro sites. Drop a single `<DesignTokenPanelHost>` component into your layout, hand it a `PanelConfig`, and your users get an in-page UI for adjusting CSS custom properties (spacing, typography, sizing, color palette + semantic roles). Changes apply instantly to the default `:root` target (or to a configured `applySink`), persist to `localStorage`, and survive view transitions and hard reloads.
+A live design-token panel for ZFB. Hand `configurePanel` a `PanelConfig`, and the page gets an in-page UI for adjusting CSS custom properties (spacing, typography, sizing, color palette, and semantic roles). Changes apply instantly to the default `:root` target (or to a configured `applySink`), persist to `localStorage`, and survive in-app navigation and hard reloads.
 
-The package is portable: every project-specific identifier is driven by the host's `PanelConfig`. Storage keys, console namespace, modal class prefix, schema id, and the entire tab configuration (tiers, items, color cluster extras) are all configured by the consumer. Every config field except the function-valued `applySink` is JSON-serializable, so the configuration crosses the Astro frontmatter → client island boundary without losing fidelity.
+Every project-specific identifier is driven by the host's `PanelConfig`. Storage keys, console namespace, modal class prefix, schema id, and the tab configuration are configured by the consumer. Every config field except the function-valued `applySink` is JSON-serializable.
 
 The panel uses an **abstract token tier model**: all token categories — spacing, typography, size, and color — are expressed as `TabConfig` / `TierConfig` / `TierItem` structures on `PanelConfig.tabs`. A "ref tier" mechanism lets semantic tokens reference base tokens, and the apply pipeline emits `var(--base-cssvar)` for ref-tier items. See `PORTABLE-CONTRACT.md` §3 for the full tier model spec.
 
@@ -47,7 +47,7 @@ manifest on a plain page. This entry is available from v0.6.1. After v0.8.7 it i
 zudo-react component: render it from a zfb page (or with
 `@takazudo/zfb/zudo-react/server`'s `renderToString`) and install `@takazudo/zfb`
 (an optional peer, `^5.1.2 || ^6.0.0`) yourself. Releases through v0.8.7 shipped a Preact
-component instead. The [live workspace demo](https://zdtp-playground.zudolab.dev/dashboard/)
+component instead. The [Wind demo dashboard](https://zdtp-demo-zudowind.zudolab.dev/dashboard/)
 shows both modes and a compact embedded instance.
 
 ```tsx
@@ -539,7 +539,7 @@ For the regression-guard tests that pin this contract, see `package-exports.test
 
 The Astro recipe above shows the case where a host owns the config import and the host-adapter side-effect import. For non-Astro hosts (Vite SPA, Rust SSG, custom framework) the pattern is the same, just without Astro-specific syntax.
 
-**Worked example:** the [Astro](https://github.com/Takazudo/zudo-design-token-panel-example-astro), [Vite + React](https://github.com/Takazudo/zudo-design-token-panel-example-vite-react), and [Next.js](https://github.com/Takazudo/zudo-design-token-panel-example-nextjs) example repos prove the contract end-to-end. Each ships:
+**Worked example:** [`demos/zudowind`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/demos/zudowind) and [`demos/cssmodules`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/demos/cssmodules) prove the contract on ZFB. Each ships:
 
 - A host-side config file with deliberately different names (e.g. explicit `--astro-palette-0` / `--astro-palette-1` items, `astro` namespace).
 - A routing JSON file at the example's root.
@@ -1108,50 +1108,15 @@ export const myPanelConfig: PanelConfig = {
 
 ---
 
-## 8. Astro wiring
+## 8. ZFB wiring
 
-```astro
----
-import DesignTokenPanelHost from '@takazudo/zdtp/astro/DesignTokenPanelHost.astro';
-import { myPanelConfig } from '../lib/my-panel-config';
----
+Call `configurePanel` from a client island's `getScope().onActivate` callback and `handle.destroy()` from the cleanup function. Import `PanelConfig` from `@takazudo/zdtp`. The two maintained demos are `demos/zudowind` (zudo-wind) and `demos/cssmodules` (`wind: false` and CSS Modules).
 
-<DesignTokenPanelHost config={myPanelConfig} />
-```
+`PanelConfig` is JSON-serializable except for the function-valued `applySink`. Design configs so `JSON.parse(JSON.stringify(config))` round-trips. Every `TierItem.cssVar` is a plain string.
 
-### 8.1 The `config` prop
+### Soft navigation (`setLifecycleAdapter`)
 
-`<DesignTokenPanelHost>` accepts the full `PanelConfig` from §5. The component renders two sibling `<script>` blocks:
-
-1. An inline `<script type="application/json" id="tokenpanel-config">` carrying `JSON.stringify(config)` (with `<` defensively escaped to `<` for HTML-parsing safety).
-2. An Astro `<script>` that imports the host adapter side-effect-style. The consumer's Astro toolchain bundles this into the page's client JS.
-
-The adapter reads the JSON, calls `configurePanel(...)`, installs the console API, and gates the lazy import.
-
-### 8.2 JSON-serializability constraint
-
-Astro stringifies props at render time. **Functions, class instances, and `undefined` values silently disappear** when the config crosses the SSR → client boundary. Always design your `PanelConfig` with `JSON.parse(JSON.stringify(config))` round-trip in mind. Every `TierItem.cssVar` field must be a plain string — no template-function patterns survive the JSON boundary.
-
-### 8.3 View-transition lifecycle
-
-When the consumer site renders Astro's `<ClientRouter />`, the panel's host adapter automatically wires:
-
-- `astro:before-swap` → unmount the panel tree, remove the host node, snapshot visibility intent so the remount decision survives the body swap.
-- `astro:page-load` → re-apply persisted overrides + re-materialise the shell when any visibility, autoload, enabled-feature, or non-empty persisted-state signal is set.
-
-No additional wiring needed in your layout beyond importing `<ClientRouter />` from `astro:transitions`.
-
-### 8.4 Where to mount
-
-The conventional placement is **at the end of `<body>`** in your shared layout. Mounting it earlier still works but the render order looks better when the panel is the last child of `<body>`.
-
-### 8.5 Non-Astro hosts (Vite-only)
-
-The `./astro` sub-export is the only place that imports anything Astro-flavoured. The package's main entry (`@takazudo/zdtp`) is framework-agnostic: call `configurePanel(...)` yourself, then `import('@takazudo/zdtp')` to materialise the panel. The `astro:before-swap` / `astro:page-load` listeners no-op outside an Astro context but the storage / mount / apply paths work identically.
-
-#### Soft-nav lifecycle for non-Astro hosts (`setLifecycleAdapter`)
-
-For hosts that own a client-side router (zfb, custom SPA, etc.), persisted overrides need to re-apply after every soft navigation. Register a `LifecycleAdapter` so the panel's internal handlers route through your router's hooks instead of Astro's document events:
+Persisted overrides need to re-apply after a ZFB soft navigation. Register a `LifecycleAdapter` so the panel's handlers use the router's events:
 
 ```ts
 import {
@@ -1179,9 +1144,9 @@ Each installer must return a cleanup fn that unbinds the listener — the panel 
 
 Behaviour notes:
 
-- When NO adapter is registered (initial state, or after `setLifecycleAdapter(null)`), the panel falls back to its built-in `astro:before-swap` / `astro:page-load` document listeners. Backwards-compatible — existing Astro consumers see zero behaviour change.
-- When an adapter IS registered, the astro fallback is **actively unbound** so the internal handlers never double-fire on hosts that emit both event sets.
-- `setLifecycleAdapter(null)` re-installs the astro fallback. Useful for tests and re-init scenarios.
+- When no adapter is registered, the panel listens for `astro:before-swap` and `astro:page-load` on `document`.
+- Registering an adapter removes those listeners.
+- `setLifecycleAdapter(null)` installs those default listeners again.
 - Re-registration (calling `setLifecycleAdapter` twice with different adapters) drains the previous adapter's cleanup fns before binding the new one — no listener leaks.
 
 ---
@@ -1644,23 +1609,12 @@ For edge cases hit during the migration, see CONTRIBUTING and the doc-site refer
 
 ## 15. Worked examples
 
-The canonical worked examples live in five dedicated sibling repos. Each is an independent consumer app that demonstrates the panel against a different host framework. Each renders a tiny page with cards, buttons, and palette swatches whose styles reference its own demo CSS variables, and each ships a Playwright spec at `tests/e2e/apply-roundtrip.spec.ts` that asserts the live-apply pipeline.
+The maintained demos live in this repository and both run ZFB against the workspace package:
 
-- [`zudo-design-token-panel-example-astro`](https://github.com/Takazudo/zudo-design-token-panel-example-astro) — Astro + Preact island. Uses `storagePrefix: 'astro-example-tokens'`, `consoleNamespace: 'astro'`, and explicit `TierItem.cssVar` names such as `--astro-palette-0`.
-- [`zudo-design-token-panel-example-vite-react`](https://github.com/Takazudo/zudo-design-token-panel-example-vite-react) — Vite + React (panel mounted as its own island, React tree untouched). Uses the `vr` namespace.
-- [`zudo-design-token-panel-example-nextjs`](https://github.com/Takazudo/zudo-design-token-panel-example-nextjs) — Next.js (App Router) + React, panel as a `'use client'` boundary. Uses the `nx` namespace.
-- [`zudo-design-token-panel-example-zfb`](https://github.com/Takazudo/zudo-design-token-panel-example-zfb) — [zfb](https://github.com/Takazudo/zudo-front-builder) (Preact host). Uses the `devMiddleware` plugin hook for the apply proxy.
-- [`zudo-design-token-panel-example-zfb-tailwind`](https://github.com/Takazudo/zudo-design-token-panel-example-zfb-tailwind) — zfb + Tailwind v4. Extends the zfb example by registering panel tokens into Tailwind's design-system namespaces via an `@theme` block.
-
-To run any example locally, clone the repo and follow its README — typically:
+- [`demos/zudowind`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/demos/zudowind) — zudo-wind. Live: https://zdtp-demo-zudowind.zudolab.dev/
+- [`demos/cssmodules`](https://github.com/Takazudo/zudo-design-token-panel/tree/main/demos/cssmodules) — CSS Modules with `wind: false`. Live: https://zdtp-demo-cssmodules.zudolab.dev/
 
 ```sh
-git clone https://github.com/Takazudo/zudo-design-token-panel-example-astro.git
-cd zudo-design-token-panel-example-astro
-pnpm install
-pnpm dev
-# open the printed dev URL
-# in devtools console: window.<consoleNamespace>.toggleDesignPanel()
+pnpm demo:wind
+pnpm demo:cssmodules
 ```
-
-Use the closest example as a copy-paste template when wiring the panel into your own project — they are the smallest end-to-end consumers that exercise every contract surface.

@@ -20,7 +20,7 @@ try {
  if (!published && !process.argv.includes('--skip-build')) run('pnpm', ['--filter', '@takazudo/zdtp', 'build']);
  if (!published) run('pnpm', ['--filter', '@takazudo/zdtp', 'pack', '--pack-destination', pack]);
  const dependency = published ?? `file:${join(pack, readdirSync(pack).find(name => name.endsWith('.tgz')))}`;
- const host = JSON.parse(readFileSync(join(root, 'playground/package.json'), 'utf8'));
+ const host = JSON.parse(readFileSync(join(root, 'demos/zudowind/package.json'), 'utf8'));
  writeFileSync(join(app, 'package.json'), JSON.stringify({ private: true, type: 'module', dependencies: {
   '@takazudo/zdtp': dependency, '@takazudo/zfb': host.dependencies['@takazudo/zfb'],
   '@takazudo/zfb-runtime': host.dependencies['@takazudo/zfb-runtime'],
