@@ -1,16 +1,14 @@
 /**
- * Validation test for the zfb-tailwind default manifest's Spacing tab.
+ * Resolver coverage for a two-tier spacing tab.
  *
- * Exercises the tier-model pipeline with a TabConfig that mirrors the two
- * spacing tiers declared in examples/zfb-tailwind/config/default-manifest.ts:
+ * The TabConfig literal lives in this file:
  *   - hsp-scale: 5 items (xs..xl)
  *   - vsp-scale: 7 items (2xs..2xl)
  *
  * The spacing-scale tier (4 items: xs/sm/md/lg) was removed in #161.
- *
- * Does NOT import from examples/zfb-tailwind to avoid inverting the
- * dependency graph. The TabConfig literal is kept in sync with the manifest
- * by convention — tests assert structural invariants, not specific values.
+ * The live Wind demo's Spacing tab, including its card tier and the
+ * `tokens.css` / `zfb.config.ts` cascade, is asserted in
+ * `playground-config.test.ts`.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -22,7 +20,7 @@ import {
 import type { TabConfig } from '../tokens/tier-model';
 
 // ---------------------------------------------------------------------------
-// Mirror of the spacing tab from examples/zfb-tailwind/config/default-manifest.ts
+// Local two-tier spacing fixture. The Wind demo manifest is a separate file.
 // ---------------------------------------------------------------------------
 
 const ZFBTW_SPACING_TAB: TabConfig = {
@@ -140,7 +138,7 @@ function emit(tab: TabConfig, tierId: string, itemId: string): string {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('zfb-tailwind manifest — Spacing tab: 2-tier structure', () => {
+describe('spacing fixture — 2-tier structure', () => {
   it('has exactly 2 tiers', () => {
     expect(ZFBTW_SPACING_TAB.tiers.length).toBe(2);
   });

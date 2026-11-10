@@ -1,10 +1,9 @@
 /**
  * Panel structural invariants.
  *
- * Static analysis on the panel package's own source — no example manifests
- * are read from this test (those moved out of the monorepo in epic #202
- * Wave 2; the example-side invariants are exercised in each external
- * example repo's CI on a panel SHA bump).
+ * Static analysis on the panel package's own source. The Wind and CSS Modules
+ * demo manifests are covered by `playground-config.test.ts` and the demo e2e
+ * specs, not by this file.
  *
  * Invariants under test:
  *   D. All panel TSX source files (panel.tsx, apply/export/import modals,
@@ -40,19 +39,15 @@
  * manifests) are now enforced by TypeScript at panel-package compile time
  * (`TierItem.group` and `TabConfig.advancedTiers` were removed from the
  * source types in #148; any consumer trying to write those keys gets a
- * type error). Invariants C, E (zfb-tailwind Spacing tab tier count and
- * global.css cascade) were tied to example source files that moved to the
- * external `zudo-design-token-panel-example-zfb-tailwind` repo and are
- * exercised in that repo's CI.
+ * type error). Invariant C (Wind Spacing tier counts) and Invariant E (Wind
+ * `tokens.css` plus `zfb.config.ts` utility references) are asserted in
+ * `playground-config.test.ts`.
  *
- * Browser-based cascade testing is deferred — see procedure in
- * packages/zdtp/CLAUDE.md. For the ramp-native Tier-2 editor specifically,
- * the actual visual cascade (grouped `<optgroup>` picker rendering, the
- * "Per-mode" checkbox expanding into two swatches, `light-dark()` resolving
- * against a real browser's `color-scheme`) can only be confirmed once the
- * five external example repos and zudo-doc pick up this change via a panel
- * SHA bump — that verification pass happens in those repos' own CI /
- * `/verify-ui`, not here.
+ * Browser cascade for the two demos is `tests/e2e/styling-strategies.spec.ts`
+ * and `tests/e2e/panel-walking-skeleton.spec.ts`. The procedure is in
+ * packages/zdtp/CLAUDE.md. The ramp-native Tier-2 editor's visual cascade
+ * (grouped picker, the per-mode checkbox, and `light-dark()`) is exercised
+ * on the Wind demo, including `?manifest=zudo-doc`.
  */
 
 import * as fs from 'node:fs';
