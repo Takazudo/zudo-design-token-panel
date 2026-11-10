@@ -23,13 +23,15 @@ const browserLog = [];
 let serverOutput = '';
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
-async function ready(url, { announced } = {}) {
+async function ready(url, { announced, textIncludes } = {}) {
   const deadline = Date.now() + 120_000;
   while (Date.now() < deadline) {
     if (processes.some((child) => child.exitCode !== null)) throw new Error(`Dev process exited:\n${serverOutput}`);
     try {
       const response = await fetch(url, { signal: AbortSignal.timeout(1_000) });
-      if (response.ok && (!announced || announced.test(serverOutput))) return;
+      const body = textIncludes ? await response.text() : '';
+      if (response.ok && (!announced || announced.test(serverOutput)) &&
+        (!textIncludes || (body.includes(textIncludes) && !body.includes('page not in cache')))) return;
     } catch { /* Wait for the actual server to listen. */ }
     await sleep(200);
   }
@@ -274,7 +276,11 @@ try {
     // zfb dev serves routes with 200 while its boot render is still finishing,
     // then prints "ready on" and broadcasts a livereload `page` reload. Probing
     // before that line lets the broadcast reload the page mid-assertion (#1094).
+    // zfb 6 prints "ready on" while its log still says "routes pending".
+    // A 200 at that moment can be the dev placeholder ("page not in cache"),
+    // so wait until the real getting-started document is being served.
     await ready(origin, { announced: /ready on http:\/\/127\.0\.0\.1:4327/ });
+    await ready(`${origin}/docs/getting-started/`, { textIncludes: 'desktop-sidebar' });
   }
   browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
@@ -311,13 +317,29 @@ try {
     window.addEventListener('toggle-zdtp-doc-host', () => window.__currentDocProbe.toggles++);
   });
 
+  // zfb 6 dev compiles a route on first request and answers 404
+  // "page not in cache" until that render lands. Retry the same URL; the
+  // assertions below still require the real document.
+  async function gotoCached(path) {
+    const deadline = Date.now() + 60_000;
+    let response;
+    while (Date.now() < deadline) {
+      response = await page.goto(`${origin}${path}`, { waitUntil: 'domcontentloaded' });
+      const heading = await page.locator('h1').first().textContent().catch(() => '');
+      if (response?.ok() && !String(heading).includes('page not in cache')) return response;
+      await sleep(400);
+    }
+    assert(response?.ok(), `Direct route failed: ${path}`);
+    return response;
+  }
+
   // Direct loads prove locale route and history wiring separately from SPA.
   for (const [path, language, historyPath] of [
     ['/docs/getting-started/', 'en', '/doc-history/getting-started.json'],
     ['/ja/docs/getting-started/', 'ja', '/doc-history/ja/getting-started.json'],
     ['/ja/docs/getting-started/migration-fallback/', 'ja', '/doc-history/getting-started/migration-fallback.json'],
   ]) {
-    const response = await page.goto(`${origin}${path}`, { waitUntil: 'domcontentloaded' });
+    const response = await gotoCached(path);
     assert(response.ok(), `Direct route failed: ${path}`);
     await settled(page);
     assert.equal(await page.locator('html').getAttribute('lang'), language);
@@ -346,12 +368,32 @@ try {
   await page.getByRole('button', { name: /^Appearance:/ }).click();
   await page.getByRole('menuitemradio', { name: 'Dark', exact: true }).click();
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+  await page.keyboard.press('Escape');
+  // zfb 6 keeps #desktop-sidebar position:fixed below the lg breakpoint while
+  // display:none. The resizer handle is still in the DOM, but its width is 0
+  // until the desktop rule (lg:block at 1024px) applies. Wait for that layout,
+  // then drive the same Home / ArrowRight contract: 192px, then 202px.
+  await page.waitForFunction(() => {
+    const sidebar = document.getElementById('desktop-sidebar');
+    if (!sidebar) return false;
+    const style = getComputedStyle(sidebar);
+    return style.display !== 'none' && style.position === 'fixed' && sidebar.getBoundingClientRect().width > 0;
+  });
   const resizer = page.getByRole('separator', { name: 'Resize sidebar', exact: true });
   await resizer.focus();
+  await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Resize sidebar');
   await resizer.press('Home');
-  await page.waitForFunction(() => Math.abs(document.getElementById('desktop-sidebar').getBoundingClientRect().width - 192) < 1);
+  await page.waitForFunction(() => {
+    const sidebar = document.getElementById('desktop-sidebar');
+    return document.documentElement.style.getPropertyValue('--zd-sidebar-w') === '192px' &&
+      Math.abs(sidebar.getBoundingClientRect().width - 192) < 1;
+  });
   await resizer.press('ArrowRight');
-  await page.waitForFunction(() => Math.abs(document.getElementById('desktop-sidebar').getBoundingClientRect().width - 202) < 1);
+  await page.waitForFunction(() => {
+    const sidebar = document.getElementById('desktop-sidebar');
+    return document.documentElement.style.getPropertyValue('--zd-sidebar-w') === '202px' &&
+      Math.abs(sidebar.getBoundingClientRect().width - 202) < 1;
+  });
   assert.equal(await resizer.getAttribute('aria-valuenow'), '202');
   assert.equal(await page.evaluate(() => localStorage.getItem('zudo-doc-sidebar-width')), '202');
   await page.getByRole('button', { name: 'Hide sidebar', exact: true }).click();

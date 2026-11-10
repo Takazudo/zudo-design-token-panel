@@ -5,7 +5,13 @@ import type { PanelInstanceHandle } from '@takazudo/zdtp';
 import { PANEL_VERSION } from '../config/build-info.generated';
 import { buildProvenanceLabel } from '../config/build-provenance';
 import { panelConfig } from '../config/panel-config';
-import shell from './shell.module.css';
+
+interface DemoControlsProps {
+  controlsClass: string;
+  metaClass: string;
+  buttonClass: string;
+  quietClass: string;
+}
 
 type Mode = 'light' | 'dark';
 
@@ -26,7 +32,7 @@ function readMode(): Mode {
   return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
 }
 
-export default function DemoControls() {
+export default function DemoControls({ controlsClass, metaClass, buttonClass, quietClass }: DemoControlsProps) {
   const mode = signal<Mode>('light');
   let pendingToggle = false;
   const togglePanel = () => {
@@ -87,12 +93,12 @@ export default function DemoControls() {
   };
 
   return (
-    <div class={shell.controls}>
-      <span class={shell.meta} data-build-meta>css modules manifest · <span>{buildProvenanceLabel()}</span></span>
-      <button type="button" class={`${shell.button} ${shell.quiet}`} on:click={toggleTheme}>
+    <div class={controlsClass}>
+      <span class={metaClass} data-build-meta>css modules manifest · <span>{buildProvenanceLabel()}</span></span>
+      <button type="button" class={`${buttonClass} ${quietClass}`} on:click={toggleTheme}>
         {computed(() => mode.value === 'dark' ? 'Light mode' : 'Dark mode')}
       </button>
-      <button type="button" class={shell.button} on:click={togglePanel}>
+      <button type="button" class={buttonClass} on:click={togglePanel}>
         Open token panel
       </button>
     </div>

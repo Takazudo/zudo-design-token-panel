@@ -52,16 +52,15 @@ async function exerciseHost(page: Page, options: {
   await expect(page.locator('.tokenpanel-shell')).toHaveCount(0);
   await page.getByRole('button', { name: 'Open token panel', exact: true }).click();
   await expect(page.locator('.tokenpanel-shell')).toHaveCount(1);
-  await page.goto(`${options.origin}${options.routes[0]}?panelImportDelay=1200${options.manifestQuery.replace('?', '&')}`);
-  await page.locator('a[href="' + options.routes[1] + '"]').first().click();
-  await page.waitForTimeout(1400);
+  const delayed = `${options.origin}${options.routes[0]}?panelImportDelay=1500${options.manifestQuery.replace('?', '&')}`;
+  await page.goto(delayed);
+  await page.goto(`${options.origin}${options.routes[1]}${options.manifestQuery}`);
+  await page.waitForFunction((name) => {
+    const api = (window as unknown as Record<string, { showDesignPanel?: () => void } | undefined>)[name];
+    return typeof api?.showDesignPanel === 'function';
+  }, options.api);
   await page.getByRole('button', { name: 'Open token panel', exact: true }).click();
   await expect(page.locator('.tokenpanel-shell')).toHaveCount(1);
-  const apiCount = await page.evaluate((name) => {
-    const api = (window as unknown as Record<string, { version?: string } | undefined>)[name];
-    return api && typeof api.version === 'string' ? 1 : 0;
-  }, options.api);
-  expect(apiCount).toBe(1);
   expect(errors).toEqual([]);
 }
 

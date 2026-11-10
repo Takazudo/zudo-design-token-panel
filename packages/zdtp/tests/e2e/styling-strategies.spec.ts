@@ -11,12 +11,18 @@ test('wind utilities follow authored tokens', async ({ page }) => {
     document.body.append(probe);
     const style = getComputedStyle(probe);
     const root = getComputedStyle(document.documentElement);
+    const ruleText = [...document.styleSheets].flatMap((sheet) => {
+      try { return [...sheet.cssRules].map((rule) => rule.cssText); }
+      catch { return []; }
+    }).find((text) => text.includes('--zw-spacing-card')) ?? '';
     const windSpace = root.getPropertyValue('--zw-spacing-card').trim();
+    const authored = root.getPropertyValue('--demo-space-card').trim();
     const padding = style.paddingTop;
     probe.remove();
-    return { windSpace, padding };
+    return { ruleText, windSpace, authored, padding };
   });
-  expect(linkage.windSpace).toContain('var(--demo-space-card)');
+  expect(linkage.ruleText).toContain('var(--demo-space-card)');
+  expect(linkage.windSpace).toBe(linkage.authored);
   expect(linkage.padding).toBe('20px');
   await page.evaluate(() => document.documentElement.style.setProperty('--demo-space-card', '40px'));
   await expect(card).toHaveCSS('padding-top', '40px');

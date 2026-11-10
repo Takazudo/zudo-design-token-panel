@@ -29,7 +29,12 @@ export function AppShell({ title, activePath, children }: AppShellProps) {
         <header class={shell.topbar}>
           <a class={shell.brand} href="/">zdtp css modules</a>
           <Island when="load" ssrFallback={<span aria-hidden="true" />}>
-            <DemoControls />
+            <DemoControls
+              controlsClass={shell.controls}
+              metaClass={shell.meta}
+              buttonClass={shell.button}
+              quietClass={shell.quiet}
+            />
           </Island>
         </header>
         <div class={shell.layout}>
