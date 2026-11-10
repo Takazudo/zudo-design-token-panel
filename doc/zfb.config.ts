@@ -15,8 +15,6 @@ export default defineConfig(
       png16: "/favicon-16x16.png",
     },
     home: { wide: true },
-    // zudo-doc 10 uses "default" as an alias of Graphite. "classic" keeps this site's Classic pack.
-    themePack: "classic",
     locales: {
       ja: {
         label: "JA",
