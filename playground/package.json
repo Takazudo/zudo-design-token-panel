@@ -24,8 +24,8 @@
   },
   "dependencies": {
     "@takazudo/zdtp": "workspace:*",
-    "@takazudo/zfb": "5.1.5",
-    "@takazudo/zfb-runtime": "5.1.5"
+    "@takazudo/zfb": "5.2.2",
+    "@takazudo/zfb-runtime": "5.2.2"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

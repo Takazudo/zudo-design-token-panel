@@ -25,16 +25,16 @@
     "setup:doc-skill:both": "bash scripts/setup-doc-skill.sh --target both"
   },
   "dependencies": {
-    "@takazudo/zfb": "5.1.5",
-    "@takazudo/zfb-runtime": "5.1.5",
-    "@takazudo/zfb-adapter-cloudflare": "5.1.5",
-    "@takazudo/zfb-md-wasm": "5.1.5",
-    "@takazudo/zudo-doc": "9.1.0",
+    "@takazudo/zfb": "5.2.2",
+    "@takazudo/zfb-runtime": "5.2.2",
+    "@takazudo/zfb-adapter-cloudflare": "5.2.2",
+    "@takazudo/zfb-md-wasm": "5.2.2",
+    "@takazudo/zudo-doc": "9.1.5",
     "zod": "^4.3.6",
     "diff": "^8.0.3",
     "@takazudo/zdtp": "0.9.1",
     "minisearch": "^7.2.0",
-    "@takazudo/zudo-doc-history-server": "9.1.0"
+    "@takazudo/zudo-doc-history-server": "9.1.5"
   },
   "devDependencies": {
     "typescript": "^5.9.0",
