@@ -59,7 +59,11 @@ async function exerciseHost(page: Page, options: {
     const api = (window as unknown as Record<string, { showDesignPanel?: () => void } | undefined>)[name];
     return typeof api?.showDesignPanel === 'function';
   }, options.api);
-  await page.getByRole('button', { name: 'Open token panel', exact: true }).click();
+  // Show through the console API. A toggle would close a panel that restored
+  // its persisted open state from the previous page.
+  await page.evaluate((name) => {
+    (window as unknown as Record<string, { showDesignPanel(): void }>)[name].showDesignPanel();
+  }, options.api);
   await expect(page.locator('.tokenpanel-shell')).toHaveCount(1);
   expect(errors).toEqual([]);
 }
