@@ -10,7 +10,7 @@ import { loadHighlightState } from '../highlight/highlight-state';
 import type { PanelConfig } from '../config/panel-config';
 import type { TabConfig, TierItem } from '../tokens/tier-model';
 import { densityToGridMin, getDensityKey, getOpenKey, getPositionKey, getSizeKey, type PanelDensity } from '../state/tweak-state';
-import { zudoDocConfigs } from '../../../../playground/config/zudo-doc-manifest.generated';
+import { zudoDocConfigs } from '../../../../demos/zudowind/config/zudo-doc-manifest.generated';
 import { FIXTURE_PANEL_CONFIG, flushEffects } from './_test-helpers';
 
 // @ts-ignore — Vite CSS text import

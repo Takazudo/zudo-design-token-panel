@@ -1,0 +1,15 @@
+.note {
+  margin-top: var(--demo-vsp-md);
+  padding: var(--demo-vsp-sm) var(--demo-hsp-md);
+  color: var(--demo-color-muted);
+  background: var(--demo-bg);
+  border-left: var(--demo-hsp-xs) solid var(--demo-color-accent);
+  border-radius: var(--demo-radius-sm);
+}
+
+.title {
+  margin: 0;
+  color: var(--demo-color-primary);
+  font-size: var(--demo-text-helper);
+  font-weight: var(--demo-weight-heading);
+}

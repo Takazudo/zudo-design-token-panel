@@ -7,17 +7,15 @@ import { expect, test, type Page } from '@playwright/test';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const repositoryRoot = resolve(packageRoot, '../..');
-const playgroundRoot = join(repositoryRoot, 'playground');
-const sidecarPort = 24685;
 
-async function waitForSidecar(process: ChildProcess, output: () => string): Promise<void> {
+async function waitForSidecar(process: ChildProcess, port: number, output: () => string): Promise<void> {
   const deadline = Date.now() + 15_000;
   while (Date.now() < deadline) {
     if (process.exitCode !== null) {
       throw new Error(`zdtp-server exited before becoming ready (${process.exitCode})\n${output()}`);
     }
     try {
-      const response = await fetch(`http://127.0.0.1:${sidecarPort}/`, {
+      const response = await fetch(`http://127.0.0.1:${port}/`, {
         signal: AbortSignal.timeout(500),
       });
       if (response.status < 500) return;
@@ -52,16 +50,31 @@ async function clickPanelAction(page: Page, label: string): Promise<void> {
   await page.locator('.tokenpanel-actions-popover').getByText(label, { exact: true }).click();
 }
 
-test('spacing tweak survives export, reload, import, and real-bin apply', async ({ page, baseURL }) => {
+for (const demo of [
+  {
+    name: 'wind',
+    root: join(repositoryRoot, 'demos/zudowind'),
+    origin: 'http://127.0.0.1:44331',
+    sidecarPort: 24691,
+    api: 'zdtpZudowind',
+  },
+  {
+    name: 'cssmodules',
+    root: join(repositoryRoot, 'demos/cssmodules'),
+    origin: 'http://127.0.0.1:44341',
+    sidecarPort: 24693,
+    api: 'zdtpCssmodules',
+  },
+] as const) {
+test(`${demo.name} card spacing survives export, reload, import, and real-bin apply`, async ({ page }) => {
   test.setTimeout(90_000);
-  if (!baseURL) throw new Error('The E2E baseURL is required');
 
   const writeRoot = await mkdtemp(join(tmpdir(), 'zdtp-e2e-'));
   const stylesDir = join(writeRoot, 'styles');
-  const stylesheetPath = join(stylesDir, 'global.css');
+  const stylesheetPath = join(stylesDir, 'tokens.css');
   await mkdir(stylesDir);
-  await writeFile(stylesheetPath, await readFile(join(playgroundRoot, 'styles/global.css')));
-  await writeFile(join(writeRoot, 'scaffold.routing.json'), '{"zfb":"styles/global.css"}\n');
+  await writeFile(stylesheetPath, await readFile(join(demo.root, 'styles/tokens.css')));
+  await writeFile(join(writeRoot, 'scaffold.routing.json'), '{"demo":"styles/tokens.css"}\n');
 
   let serverOutput = '';
   const sidecar = spawn(
@@ -70,8 +83,8 @@ test('spacing tweak survives export, reload, import, and real-bin apply', async 
       join(packageRoot, 'dist/bin/server.js'),
       '--write-root', writeRoot,
       '--routing', join(writeRoot, 'scaffold.routing.json'),
-      '--port', String(sidecarPort),
-      '--allow-origin', baseURL,
+      '--port', String(demo.sidecarPort),
+      '--allow-origin', demo.origin,
     ],
     { cwd: writeRoot, stdio: ['ignore', 'pipe', 'pipe'] },
   );
@@ -79,24 +92,29 @@ test('spacing tweak survives export, reload, import, and real-bin apply', async 
   sidecar.stderr?.on('data', (chunk) => { serverOutput += String(chunk); });
 
   try {
-    await waitForSidecar(sidecar, () => serverOutput);
-    await page.goto('/');
-    await page.waitForFunction(() => typeof window.zfb?.showDesignPanel === 'function');
-    await page.evaluate(() => window.zfb?.showDesignPanel());
+    await waitForSidecar(sidecar, demo.sidecarPort, () => serverOutput);
+    await page.goto(`${demo.origin}/`);
+    await page.waitForFunction((api) => {
+      const value = (window as unknown as Record<string, { showDesignPanel?: () => void }>)[api];
+      return typeof value?.showDesignPanel === 'function';
+    }, demo.api);
+    await page.evaluate((api) => {
+      (window as unknown as Record<string, { showDesignPanel(): void }>)[api].showDesignPanel();
+    }, demo.api);
 
-    const hostElement = page.locator('.zfb-nav');
-    const input = page.getByLabel('--zfb-hsp-md value');
+    const hostElement = page.locator('[data-token-card]').first();
+    const input = page.getByLabel('--demo-space-card value');
     await expect(input).toBeVisible();
-    await expect(hostElement).toHaveCSS('padding-left', '16px');
-    await input.fill('1.25');
+    await expect(hostElement).toHaveCSS('padding-top', '20px');
+    await input.fill('2');
     await input.dispatchEvent('input');
-    await expect(hostElement).toHaveCSS('padding-left', '20px');
+    await expect(hostElement).toHaveCSS('padding-top', '32px');
 
     await clickPanelAction(page, 'Export');
     const exportDialog = page.locator('[data-design-token-panel-modal-variant="export"]');
     await expect(exportDialog).toBeVisible();
     const exportedJson = await exportDialog.locator('[role="none"]').textContent();
-    expect(exportedJson).toContain('"--zfb-hsp-md": "1.25rem"');
+    expect(exportedJson).toContain('"--demo-space-card": "2rem"');
     await exportDialog.getByText('Close', { exact: true }).click();
 
     // zfb's dev runtime can detach the frame while Playwright waits for the
@@ -104,10 +122,15 @@ test('spacing tweak survives export, reload, import, and real-bin apply', async 
     // full document reload, but lets Playwright observe the new document
     // through its normal goto lifecycle without that race.
     await page.goto(page.url(), { waitUntil: 'domcontentloaded' });
-    await page.waitForFunction(() => typeof window.zfb?.showDesignPanel === 'function');
-    await page.evaluate(() => window.zfb?.showDesignPanel());
-    await expect(hostElement).toHaveCSS('padding-left', '20px');
-    await expect(page.getByLabel('--zfb-hsp-md value')).toHaveValue('1.25');
+    await page.waitForFunction((api) => {
+      const value = (window as unknown as Record<string, { showDesignPanel?: () => void }>)[api];
+      return typeof value?.showDesignPanel === 'function';
+    }, demo.api);
+    await page.evaluate((api) => {
+      (window as unknown as Record<string, { showDesignPanel(): void }>)[api].showDesignPanel();
+    }, demo.api);
+    await expect(hostElement).toHaveCSS('padding-top', '32px');
+    await expect(page.getByLabel('--demo-space-card value')).toHaveValue('2');
 
     await clickPanelAction(page, 'Load from JSON…');
     const importDialog = page.locator('[data-design-token-panel-modal-variant="import"]');
@@ -125,16 +148,11 @@ test('spacing tweak survives export, reload, import, and real-bin apply', async 
     await expect(applyDialog.getByRole('status')).toContainText('Applied successfully.');
 
     await expect.poll(async () => readFile(stylesheetPath, 'utf8')).toContain(
-      '--zfb-hsp-md: 1.25rem;',
+      '--demo-space-card: 2rem;',
     );
   } finally {
     await stopSidecar(sidecar);
     await rm(writeRoot, { recursive: true, force: true });
   }
 });
-
-declare global {
-  interface Window {
-    zfb?: { showDesignPanel(): void };
-  }
 }

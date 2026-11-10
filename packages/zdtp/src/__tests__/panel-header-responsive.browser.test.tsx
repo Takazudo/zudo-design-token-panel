@@ -48,7 +48,7 @@ import {
 } from '../state/tweak-state';
 import { FIXTURE_PANEL_CONFIG, flushEffects } from './_test-helpers';
 import type { TabConfig } from '../tokens/tier-model';
-import { zudoDocConfigs } from '../../../../playground/config/zudo-doc-manifest.generated';
+import { zudoDocConfigs } from '../../../../demos/zudowind/config/zudo-doc-manifest.generated';
 import { SCHEMA_V2 } from '../utils/design-token-serde';
 import { DOM_TWEAKER_PORTAL_MOUNT_ID } from '../highlight/find-elements';
 

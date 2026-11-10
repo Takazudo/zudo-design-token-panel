@@ -1,0 +1,84 @@
+/* Authored project tokens. The panel Apply target. Wind utilities reference these variables. */
+:root {
+  --demo-space-card: 1.25rem;
+  --demo-radius-card: 0.75rem;
+  color-scheme: light;
+  /* Existing editable spacing, typography, shape and motion tokens. */
+  --demo-hsp-xs: 0.25rem;
+  --demo-hsp-sm: 0.5rem;
+  --demo-hsp-md: 1rem;
+  --demo-hsp-lg: 1.5rem;
+  --demo-hsp-xl: 2rem;
+  --demo-vsp-2xs: 0.25rem;
+  --demo-vsp-xs: 0.5rem;
+  --demo-vsp-sm: 0.75rem;
+  --demo-vsp-md: 1rem;
+  --demo-vsp-lg: 1.75rem;
+  --demo-vsp-xl: 2.5rem;
+  --demo-vsp-2xl: 3.5rem;
+  --demo-scale-xs: 0.75rem;
+  --demo-scale-sm: 0.875rem;
+  --demo-scale-base: 1rem;
+  --demo-scale-md: 1.125rem;
+  --demo-scale-lg: 1.25rem;
+  --demo-scale-xl: 1.75rem;
+  --demo-scale-2xl: 2.5rem;
+  --demo-text-page-title: var(--demo-scale-xl);
+  --demo-text-section-title: var(--demo-scale-lg);
+  --demo-text-subsection-title: var(--demo-scale-md);
+  --demo-text-body: var(--demo-scale-base);
+  --demo-text-helper: var(--demo-scale-sm);
+  --demo-text-annotation: var(--demo-scale-xs);
+  --demo-leading-tight: 1.2;
+  --demo-leading-body: 1.6;
+  --demo-leading-relaxed: 1.8;
+  --demo-weight-body: 400;
+  --demo-weight-heading: 700;
+  --demo-font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --demo-font-mono: ui-monospace, "Cascadia Code", Menlo, monospace;
+  --demo-radius-sm: 0.25rem;
+  --demo-radius-md: 0.5rem;
+  --demo-radius-lg: 1rem;
+  --demo-transition-fast: 120ms;
+  --demo-transition-normal: 220ms;
+  --demo-easing-standard: cubic-bezier(0.2, 0, 0, 1);
+  --demo-easing-linear: linear;
+  /* Tier 1: mode-invariant palette, grouped by ramp. */
+  --demo-palette-base-0: oklch(98.5% .003 264);
+  --demo-palette-base-1: oklch(95% .004 264);
+  --demo-palette-base-2: oklch(88% .006 264);
+  --demo-palette-base-3: oklch(62% .010 264);
+  --demo-palette-base-4: oklch(38% .012 264);
+  --demo-palette-base-5: oklch(22% .014 264);
+  --demo-palette-base-6: oklch(13% .012 264);
+  --demo-palette-brand-0: oklch(95% .03 250);
+  --demo-palette-brand-1: oklch(80% .10 250);
+  --demo-palette-brand-2: oklch(58% .19 250);
+  --demo-palette-brand-3: oklch(45% .16 250);
+  --demo-palette-brand-4: oklch(32% .11 250);
+  --demo-palette-accent-0: oklch(95% .035 50);
+  --demo-palette-accent-1: oklch(78% .12 50);
+  --demo-palette-accent-2: oklch(62% .15 50);
+  --demo-palette-accent-3: oklch(45% .12 50);
+  --demo-palette-state-0: oklch(64% .15 150);
+  --demo-palette-state-1: oklch(62% .19 25);
+  --demo-palette-state-2: oklch(76% .14 82);
+  --demo-palette-state-3: oklch(64% .14 245);
+
+  /* Tier 2: semantic roles. Only these mappings choose a mode. */
+  --demo-bg: light-dark(var(--demo-palette-base-0), var(--demo-palette-base-6));
+  --demo-ink: light-dark(var(--demo-palette-base-6), var(--demo-palette-base-0));
+  --demo-surface: light-dark(var(--demo-palette-base-1), var(--demo-palette-base-5));
+  --demo-color-border: light-dark(var(--demo-palette-base-2), var(--demo-palette-base-4));
+  --demo-color-muted: light-dark(var(--demo-palette-base-4), var(--demo-palette-base-2));
+  --demo-color-code-bg: light-dark(var(--demo-palette-base-6), var(--demo-palette-base-1));
+  --demo-color-code-fg: light-dark(var(--demo-palette-base-0), var(--demo-palette-base-6));
+  --demo-color-primary: light-dark(var(--demo-palette-brand-3), var(--demo-palette-brand-1));
+  --demo-color-primary-hover: light-dark(var(--demo-palette-brand-4), var(--demo-palette-brand-0));
+  --demo-color-primary-subtle: light-dark(var(--demo-palette-brand-0), var(--demo-palette-brand-4));
+  --demo-color-accent: light-dark(var(--demo-palette-accent-3), var(--demo-palette-accent-1));
+  --demo-color-success: var(--demo-palette-state-0);
+  --demo-color-danger: var(--demo-palette-state-1);
+  --demo-color-warning: var(--demo-palette-state-2);
+  --demo-color-info: var(--demo-palette-state-3);
+}

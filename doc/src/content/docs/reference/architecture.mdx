@@ -15,7 +15,7 @@ There are three concerns the package keeps in three separate layers:
 3. **Apply-pipeline** — the optional path from the panel's Apply button back to disk. It is the in-package payload builder plus the standalone Node bin server (`zdtp-server`) that owns the file rewrites.
 
 ```
-┌─ Your dev server (Astro / Vite / any host) ──────────────┐
+┌─ Your ZFB dev server ────────────────────────────────────┐
 │                                                          │
 │  ┌─────────────┐    reads     ┌────────────────┐         │
 │  │  Layout     │ ──JSON────▶  │  Host adapter  │         │
@@ -402,7 +402,7 @@ The three-layer split is what keeps the package portable. Each layer crosses its
 - **Panel UI ↔ bin**: a single POST with `application/json`. The bin re-validates origin and routing every time — the browser cannot reach disk without going through the sandbox.
 
 <Warning>
-The host-adapter contract is a **paired-unit contract** — `<DesignTokenPanelHost>` AND a sibling `<script>void import('...host-adapter')</script>` block must appear together in your layout. Omitting the script tag emits the JSON config but never executes the adapter that reads it; the console API throws `ReferenceError`.
+Mount the panel from a ZFB client island: call `configurePanel` inside `getScope().onActivate` and `handle.destroy()` in the cleanup. See the [ZFB integration guide](../getting-started/zfb.mdx).
 </Warning>
 
 ## Cross-references

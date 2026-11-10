@@ -9,17 +9,17 @@ exports, then run the root-level zfb playground:
 
 ```sh
 pnpm --filter @takazudo/zdtp build
-pnpm play
+pnpm demo:wind
 ```
 
-`playground/` uses an explicit `workspace:*` dependency, so it loads the
+`demos/zudowind` uses an explicit `workspace:*` dependency, so it loads the
 unpublished panel rather than the npm-pinned copy used by `doc/`. Check the
 compact consumer manifest first, then add `?manifest=zudo-doc` to exercise the
 vendored real zudo-doc configuration. An Apply in the default manifest should
-rewrite `playground/styles/global.css` through the local sidecar. Use
-`pnpm --filter playground typecheck && pnpm --filter playground build` for the
+rewrite `demos/zudowind/styles/tokens.css` through the local sidecar. Use
+`pnpm --filter demo-zudowind typecheck && pnpm --filter demo-zudowind build` for the
 bounded non-browser gate; browser/UI verification remains a manual manager
-step.
+step. The CSS Modules demo is `pnpm demo:cssmodules`.
 
 ## Panel DOM hygiene — no host-stylable semantic tags
 
@@ -194,9 +194,9 @@ Hostile-host CSS isolation is verified by the automated Level-5 browser gate at 
 
 ### Running the check manually (optional, ad hoc debugging)
 
-1. Start any example app from its sibling repo under `$HOME/repos/zdtp-ex/` (Astro example recommended): `cd $HOME/repos/zdtp-ex/zudo-design-token-panel-example-astro && pnpm dev`. The full list of external example repos is in `README.md` §15.
+1. Start the Wind demo: `pnpm demo:wind` and open the printed URL.
 2. Reproduce the hostile `<style>` injection block from `hostile-host-isolation.browser.test.tsx` in DevTools console.
-3. Toggle the panel: `window.astro.toggleDesignPanel()`
+3. Toggle the panel: `window.zdtpZudowind.toggleDesignPanel()`
 4. Exercise every tab and every modal.
 5. Confirm no panel element inherits the hostile colours/sizes.
 

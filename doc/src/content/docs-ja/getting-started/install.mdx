@@ -4,7 +4,7 @@ description: pnpm、npm、yarn、bun の各プロジェクトへ @takazudo/zdtp 
 sidebar_position: 2
 ---
 
-`@takazudo/zdtp` は通常の npm パッケージです。Astro、Vite + React、Next.js、プレーンな Vite、ZFB 3〜5 などのブラウザーホストで動作します。`configurePanel({...})` が独立した Preact のシェルをマウントし、ホストは自身のレンダラーを使い続けます。
+`@takazudo/zdtp` は ZFB 向けのライブなデザイントークンパネルです。`@takazudo/zfb` と `@takazudo/zfb-runtime` と一緒に入れます。`configurePanel({...})` はパネルを独自の zudo-react ツリーとしてマウントします。
 
 このページではパッケージ自体のインストールを説明します。レイアウトへの組み込みについては[クイックスタート](./quickstart.mdx)を参照してください。
 
@@ -91,4 +91,4 @@ ZFB 3〜5 では `getScope().onActivate()` 内でパネルを import し、ア�
 
 ## 次のステップ
 
-インストールは完了です。最小限の一連の組み込みは[クイックスタート](./quickstart.mdx)、Astro / Vite + React / Next.js の比較は[フレームワーク比較](./frameworks-comparison.mdx)へ進んでください。
+インストールは完了です。最小限の一連の組み込みは[クイックスタート](./quickstart.mdx)、Wind と CSS Modules は[ZFB への組み込み](./zfb.mdx)へ進んでください。

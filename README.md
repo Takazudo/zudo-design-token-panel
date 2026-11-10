@@ -1,6 +1,6 @@
 # zudo-design-token-panel
 
-A live design-token tweak panel and companion bin server for modern web frameworks.
+A live design-token panel for ZFB, with a companion bin server.
 
 ## What it is
 
@@ -10,11 +10,10 @@ public package, it lets designers and developers adjust design tokens (CSS
 custom properties) live in the browser, while the bin process round-trips
 those tweaks back into the source CSS files on disk.
 
-The panel is a self-contained zudo-react island that mounts inside a host web app. The bin is a
-small local server that watches edits from the panel and persists them. It is
-designed to plug into modern host frameworks: Astro, Vite + React, Next.js,
-zfb, and zfb + Tailwind v4 — see the [Examples](https://zdtp.zudolab.dev/docs/getting-started/examples/)
-doc page for live demos and source links.
+The panel is a self-contained zudo-react island that mounts inside a ZFB app. The bin is a
+small local server that watches edits from the panel and persists them.
+See the [Examples](https://zdtp.zudolab.dev/docs/getting-started/examples/)
+page for the Wind and CSS Modules demos.
 
 ## Status
 
@@ -22,11 +21,10 @@ doc page for live demos and source links.
 [zdtp.zudolab.dev](https://zdtp.zudolab.dev/). The public surfaces are split
 deliberately: the docs site runs the pinned npm release, while two live demos
 run this repo's workspace build and therefore lead it —
-[zdtp-minimal.zudolab.dev](https://zdtp-minimal.zudolab.dev/) (the smallest
-wiring that works, from `examples/minimal/`) and
-[zdtp-playground.zudolab.dev](https://zdtp-playground.zudolab.dev/) (full size,
-from `playground/`). Five external example apps (Astro, Vite + React, Next.js,
-zfb, zfb + Tailwind v4) live in dedicated sibling repos; see the
+[zdtp-demo-zudowind.zudolab.dev](https://zdtp-demo-zudowind.zudolab.dev/)
+(`demos/zudowind`, ZFB and zudo-wind) and
+[zdtp-demo-cssmodules.zudolab.dev](https://zdtp-demo-cssmodules.zudolab.dev/)
+(`demos/cssmodules`, ZFB and CSS Modules). See the
 [Examples](https://zdtp.zudolab.dev/docs/getting-started/examples/) doc page.
 Release history is in the package `CHANGELOG.md`.
 
@@ -38,9 +36,9 @@ zdtp/
 │   └── zdtp/                       # panel + bin
 │                                   #   npm: @takazudo/zdtp
 ├── doc/                            # public doc site (zudo-doc framework)
-├── playground/                     # full-size demo on the workspace build
-├── examples/
-│   └── minimal/                    # smallest-wiring demo on the workspace build
+├── demos/
+│   ├── zudowind/                   # ZFB + zudo-wind demo on the workspace build
+│   └── cssmodules/                 # ZFB + CSS Modules demo on the workspace build
 ├── scripts/                        # repo tooling (hooks, deploy audit, vendoring)
 └── LICENSE                         # MIT
 ```
@@ -48,7 +46,7 @@ zdtp/
 - [`packages/`](./packages) — workspace packages (panel + bin).
 - [`doc/`](./doc) — public-facing documentation site, built with the
   [zudo-doc](https://github.com/Takazudo/zudo-doc) framework.
-- [`playground/`](./playground) and [`examples/minimal/`](./examples/minimal) —
+- [`demos/zudowind/`](./demos/zudowind) and [`demos/cssmodules/`](./demos/cssmodules) —
   the two live demos, both consuming the local workspace package.
 
 ## Doc site
@@ -87,8 +85,8 @@ pnpm dev
 ```
 
 The root `pnpm build`, `pnpm test`, `pnpm typecheck`, and `pnpm lint` scripts
-fan out across every workspace (the panel package, the doc site, `playground/`,
-and `examples/minimal/`) via `pnpm -r`.
+fan out across every workspace (the panel package, the doc site, and both demos)
+via `pnpm -r`.
 
 ## Verifying the deploy output
 
@@ -97,8 +95,8 @@ Three workspaces deploy, each served at the root of its own domain:
 | Workspace          | Deploy root | Build output            |
 | ------------------ | ----------- | ----------------------- |
 | `doc`              | `/`         | `doc/dist`              |
-| `playground`       | `/`         | `playground/dist`       |
-| `examples/minimal` | `/`         | `examples/minimal/dist` |
+| `demos/zudowind`   | `/`         | `demos/zudowind/dist`   |
+| `demos/cssmodules` | `/`         | `demos/cssmodules/dist` |
 
 Because each site lives at the root, there is no sub-path for an asset
 reference to escape — root-relative URLs are correct by construction. What
