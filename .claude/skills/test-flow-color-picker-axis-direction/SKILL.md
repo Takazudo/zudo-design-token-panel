@@ -11,15 +11,15 @@ The verdict is per-mode, per-slider, so the report can pinpoint exactly which sl
 
 ## Scenario
 
-1. cd to /home/takazudo/repos/myoss/zdtp.
-2. Confirm the example app dev server is reachable. The canonical example for this test is zfb-tailwind (the one that produced the original bug-report screenshots). Its dev URL is http://localhost:44328.
-   - If port 44328 is already responding, REUSE that server. Do NOT relaunch.
-   - If port 44328 is NOT responding, start the dev server in the background and wait for ready:
-     - `pnpm -F zfb-tailwind-example dev` (also boots a tokens-bin sidecar on 24686)
-     - Wait until http://localhost:44328 returns 200 (poll with a short until loop, max 60s).
-3. Open the page at viewport 1440x900 (a non-zoomed desktop default that matches the bug-report screenshots).
-4. The floating "Design Tokens" panel is visible by default. Switch to the Color tab.
-5. Click the first color swatch in the Palette section (label starts with `--zfbtw-palette-`) to open the ColorPicker popover.
+1. cd to the repository root.
+2. Confirm the Wind demo dev server is reachable at http://localhost:44331.
+   - If port 44331 is already responding, REUSE that server. Do NOT relaunch.
+   - If port 44331 is NOT responding, start the demo in the background and wait for ready:
+     - `pnpm demo:wind` (also boots a tokens-bin sidecar on 24691)
+     - Wait until http://localhost:44331 returns 200 (poll with a short until loop, max 60s).
+3. Open the page at viewport 1440x900.
+4. Press **Open token panel**. Switch to the Palette tab.
+5. Click the first color swatch (its CSS variable starts with `--demo-palette-`) to open the ColorPicker popover.
 6. The popover header shows a mode toggle (OKLCH | HSL). Start in OKLCH mode (the default).
 
 ## Verification — OKLCH mode
@@ -126,7 +126,7 @@ Use `/headless-browser` (Tier 2 Playwright CLI) — this flow requires multi-ste
 
 ## Cleanup
 
-If this test started the dev server (`devServerStartedByThisRun: true`), stop it on exit so it does not leak. Use `lsof -ti:44328 | xargs kill -9 2>/dev/null || true` and `lsof -ti:24686 | xargs kill -9 2>/dev/null || true`. Record `devServerStopped: true` in the output.
+If this test started the dev server (`devServerStartedByThisRun: true`), stop it on exit so it does not leak. Use `lsof -ti:44331 | xargs kill -9 2>/dev/null || true` and `lsof -ti:24691 | xargs kill -9 2>/dev/null || true`. Record `devServerStopped: true` in the output.
 
 If the test reused an already-running server, do NOT stop it (someone else may still want it). Record `devServerStartedByThisRun: false, devServerStopped: false`.
 

@@ -2,9 +2,8 @@
 /**
  * Read-only browser probe for one public zdtp consumer example.
  *
- * Opens the example's home page, waits for that example's own adapter
- * readiness signal, clicks the visible "Open Design Token Panel" trigger in
- * the topbar once, then asserts the mounted panel:
+ * Opens a demo home page, waits for that demo's panel API, clicks the visible
+ * "Open token panel" trigger in the topbar once, then asserts the mounted panel:
  *   - exactly one visible `.tokenpanel-shell`
  *   - at least one `[role="tab"]` inside that shell
  *   - at least one populated form control inside that shell
@@ -16,7 +15,7 @@
  * Prints one JSON line and exits 0 (pass) or 1 (fail); 2 means bad usage.
  *
  * Usage:
- *   node scripts/cross-example-probe.mjs --url <base> --example <id> \
+ *   node scripts/cross-example-probe.mjs --url <base> --example <wind|cssmodules> \
  *     --expect-version <ver> [--executable-path <chromium>] [--timeout <ms>]
  * Env equivalents: PROBE_URL, PROBE_EXAMPLE, PROBE_EXPECT_VERSION,
  * PROBE_EXECUTABLE_PATH, PROBE_TIMEOUT_MS.
@@ -27,20 +26,13 @@
 import { createRequire } from 'node:module';
 import { parseArgs } from 'node:util';
 
-// Readiness and trigger facts come from each example repository's own sources
-// (Takazudo/zudo-design-token-panel-example-*): the topbar button's click
-// handler calls `window.<consoleNamespace>.toggleDesignPanel`, which the host
-// adapter installs asynchronously, so a click before it exists is dropped
-// (Astro queues the click behind its adapter import instead).
+// The two in-repo demos install `window.<namespace>.toggleDesignPanel` from a
+// client island. The topbar button calls that function, so the probe waits
+// until the function exists and then clicks "Open token panel".
 const EXAMPLES = {
-  astro: { namespace: 'astro', region: '.astro-topbar' },
-  'vite-react': { namespace: 'vr', region: '.vr-topbar' },
-  nextjs: { namespace: 'nx', region: 'header.nx-topbar' },
-  zfb: { namespace: 'zfb', region: 'header.zfb-topbar' },
-  'zfb-tailwind': { namespace: 'zfbTw', region: 'header[data-zfb-transition-persist="topbar"]' },
+  wind: { namespace: 'zdtpZudowind', region: 'header.zfb-topbar', trigger: 'Open token panel' },
+  cssmodules: { namespace: 'zdtpCssmodules', region: 'header', trigger: 'Open token panel' },
 };
-
-const TRIGGER_NAME = 'Open Design Token Panel';
 const CONTROL_SELECTOR = 'input, select, textarea, [role="slider"], [role="combobox"]';
 
 function usage(message) {
@@ -72,7 +64,7 @@ if (!example || !(example in EXAMPLES)) {
 if (!expectVersion) usage('--expect-version <version> is required');
 if (!Number.isFinite(timeout) || timeout <= 0) usage('--timeout must be a positive number');
 
-const { namespace, region } = EXAMPLES[example];
+const { namespace, region, trigger } = EXAMPLES[example];
 const requireFromPanel = createRequire(new URL('../packages/zdtp/package.json', import.meta.url));
 const { chromium } = requireFromPanel('playwright');
 
@@ -137,7 +129,7 @@ try {
 
   const triggers = page
     .locator(region)
-    .getByRole('button', { name: TRIGGER_NAME, exact: true });
+    .getByRole('button', { name: trigger, exact: true });
   await triggers.first().waitFor({ state: 'visible', timeout });
   result.triggers = await triggers.count();
   if (result.triggers !== 1) throw new Error(`expected 1 trigger in ${region}, found ${result.triggers}`);

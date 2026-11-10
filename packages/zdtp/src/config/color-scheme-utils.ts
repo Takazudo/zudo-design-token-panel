@@ -45,9 +45,9 @@ export const panelSettings = {
  * Default mapping: semantic token name → palette index.
  *
  * Mirrors the `--zd-semantic-*: var(--zd-pN)` declarations a host
- * design-system tokens file is expected to ship. See the external Astro
- * example repo for a working integration:
- * https://github.com/Takazudo/zudo-design-token-panel-example-astro
+ * design-system tokens file is expected to ship. The Wind demo authors its
+ * own names in `demos/zudowind/styles/tokens.css` and
+ * `demos/zudowind/config/default-manifest.ts` (`--demo-ink`, `--demo-surface`).
  */
 export const SEMANTIC_DEFAULTS_ZD: Record<string, number> = {
   bg: 9,
@@ -119,9 +119,9 @@ export const SEMANTIC_CSS_NAMES_SECONDARY: Record<string, string> = {
  * Semantic token name → CSS custom property in this package's example
  * design system.
  *
- * Source of truth: the `tokens.css` shipped by a host consumer. See the
- * external Astro example repo for the canonical shape:
- * https://github.com/Takazudo/zudo-design-token-panel-example-astro
+ * Source of truth for these package example names: the `--zd-semantic-*`
+ * custom properties. A host uses its own names; the Wind demo's map is
+ * `demos/zudowind/config/default-manifest.ts`.
  */
 export const SEMANTIC_CSS_NAMES: Record<string, string> = {
   bg: '--zd-semantic-bg',

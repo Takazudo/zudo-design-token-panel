@@ -206,7 +206,7 @@ A zudo-react-rendered side panel that:
 
 The package bundles its own zudo-react runtime and ships its own bundled CSS scoped under the `--tokentweak-*` namespace. **It does not require Tailwind** in the consumer; see §11.
 
-> Visual: a screenshot or short capture would go here. Skipped in the v1 README — a placeholder is worse than nothing. See the external example repos linked in §15 for live demos.
+> Visual: a screenshot or short capture would go here. Skipped in the v1 README — a placeholder is worse than nothing. The live demos are the Wind and CSS Modules apps in §15.
 
 **Browser floor:** the panel's own header/tabbar chrome adapts to the panel's *width* (not the viewport) via CSS container queries, which are Baseline 2023 (Safari 16+). The panel is a developer tool used on evergreen browsers, so older browsers simply keep the wide-layout chrome with no JS fallback.
 
@@ -447,8 +447,8 @@ export const myPanelConfig: PanelConfig = {
 };
 ```
 
-For a full worked color tab example (palette tier + semantic tier +
-`colorExtras`), see the external example repos linked in §15.
+For a full worked color tab (palette tiers, semantic roles, and
+`colorExtras`), see the Wind demo manifest in §15.
 
 ### 4.1.2 Drop the host into your layout
 
@@ -1536,7 +1536,7 @@ For the regression-guard tests that pin this contract, see `package-exports.test
 
 **Symptom:** after a panel-package change, you want to confirm the live-apply pipeline (storage → adapter → default `:root` or `applySink`) is unbroken end-to-end.
 
-**Resolution:** the canonical regression test is each external example repo's `apply-roundtrip.spec.ts` Playwright spec under `tests/e2e/`. It boots the example's preview build, seeds a compatible state envelope under the example's storage prefix, hard-reloads, and asserts the adapter rehydrated and applied the override against the example's palette and semantic CSS variable names. The contract: storage prefix, `TierItem.cssVar` names, semantic CSS names — change one of those and this spec fails first. See §15 for links to the five external example repos.
+**Resolution:** the canonical regression tests are `packages/zdtp/tests/e2e/panel-walking-skeleton.spec.ts` and `packages/zdtp/tests/e2e/styling-strategies.spec.ts`. They boot the Wind and CSS Modules demos from §15, edit `--demo-space-card`, and assert the card's computed padding. The walking skeleton also reloads and checks that the saved override is still applied. The contract is the demo storage prefix, the `TierItem.cssVar` names, and the authored custom properties — change one of those and these specs fail first.
 
 ---
 
@@ -1601,7 +1601,7 @@ This recipe walks through wiring the panel into a project that does not currentl
 
 7. **Run the live-apply e2e spec.**
 
-   Use any of the external example repos' Playwright spec at `tests/e2e/apply-roundtrip.spec.ts` (see §15 for the five repo links) as a template: seed a compatible `${storagePrefix}-state-v4` payload, hard-reload, and assert your palette and semantic CSS variables on the default `:root` (or your configured `applySink`) reflect the seeded values.
+   Use `packages/zdtp/tests/e2e/panel-walking-skeleton.spec.ts` as the template. It edits a token in the Wind and CSS Modules demos (§15), reloads, and asserts the authored custom property on `:root` still drives the card. For a host with `applySink`, assert that sink's target instead of `:root`.
 
 For edge cases hit during the migration, see CONTRIBUTING and the doc-site reference pages for each `PanelConfig` field.
 

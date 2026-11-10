@@ -204,9 +204,9 @@ Hostile-host CSS isolation is verified by the automated Level-5 browser gate at 
 
 None as of the Panel Hardening epic merge. The two `<pre>` blocks originally found by #151 (export-modal `__json` and apply-modal `jsonBlock`) were swapped to `<div role="none">` with `white-space: pre; font-family: monospace` carried by the companion CSS.
 
-## Cross-example cascade verification
+## Demo cascade verification
 
-After merging changes that affect the tier model, manifest structure, or token namespace (e.g. #147/#148/#153 panel-hardening waves), confirm the changes cascade correctly across all five example consumer apps. The example apps now live in dedicated sibling repos — see §15 of `README.md` for the five repo URLs.
+After merging changes that affect the tier model, manifest structure, or token namespace (e.g. #147/#148/#153 panel-hardening waves), confirm the changes cascade through the two in-repo demos in §15 of `README.md`: `demos/zudowind` and `demos/cssmodules`.
 
 ### Static analysis (in this repo)
 
@@ -216,29 +216,29 @@ After merging changes that affect the tier model, manifest structure, or token n
 - **Invariant F** — the panel CSS sources (`panel-tokens.css` and `panel.css`) do not read host `--color-*` or `--font-mono` vars, and declare their baked-in dark `--tokentweak-*` chrome tokens.
 - **Invariant H** (#459/#475) — the ramp-native Tier-2 example manifest (`_example-ramp-native-tier2.ts`) is a real, `configurePanel`-valid `PanelConfig`; `semantic: true`, `referencesRamps`, and every `SemanticValue` shape (index-free `{ ref }`, `{ literal }`, and a runtime-built per-mode `{ literal: { light, dark } }`) resolve and emit correctly.
 
-> **Historical note — Invariants A, B, C, E.** Earlier waves asserted Invariant A (`TierItem.group` removed in #148) and Invariant B (`TabConfig.advancedTiers` removed in #148) by grepping every example manifest source for those object-keys. After the panel types removed those fields, TypeScript at panel-compile time covers both. Invariant C (zfb-tailwind Spacing tab tier count) and Invariant E (`examples/zfb-tailwind/styles/global.css` re-exports spacing variables as Tailwind theme tokens) were exercised by reading example source files directly. After the Wave-2 example-move (epic #202) those files left this monorepo, so Invariants C and E are now exercised in the external [`zudo-design-token-panel-example-zfb-tailwind`](https://github.com/Takazudo/zudo-design-token-panel-example-zfb-tailwind) repo's own CI on each panel SHA bump.
+> **Invariants A, B, C, E.** Invariants A (`TierItem.group`) and B (`TabConfig.advancedTiers`) were removed from the panel types in #148, so TypeScript rejects those keys at compile time. Invariant C is the Wind demo Spacing tab: one card tier, a 5-step horizontal scale, and a 7-step vertical scale, with no `spacing-scale` tier. Invariant E is the Wind cascade: `demos/zudowind/styles/tokens.css` declares the same custom properties, and `demos/zudowind/zfb.config.ts` points the named utilities (`p-card`, `rounded-card`, `bg-surface`, `text-ink`) at `var(--demo-*)`. Both are asserted in `src/__tests__/playground-config.test.ts`. `tests/e2e/styling-strategies.spec.ts` checks that `p-card` padding follows `--demo-space-card`.
 
 ### Build + typecheck (panel + doc, in this repo)
 
 ```sh
 pnpm typecheck    # 0 errors across the remaining workspaces (panel + doc)
 pnpm build        # builds the panel and the doc workspace
+pnpm --filter demo-zudowind build
+pnpm --filter demo-cssmodules build
 ```
 
-For cross-example build verification, clone each external example repo under `$HOME/repos/zdtp-ex/` and run its own `pnpm build` (see `README.md` §15 for the five repos).
+### Browser cascade
 
-### Browser-cascade testing (deferred to manager)
+`tests/e2e/styling-strategies.spec.ts` and `tests/e2e/panel-walking-skeleton.spec.ts` boot the two demos. The walking skeleton opens the panel, edits `--demo-space-card`, and checks the card's computed padding, including after reload. On the deployed sites the same check is manual:
 
-The static checks above cannot verify that CSS variable changes actually reach computed styles in the browser. After this PR lands, the manager should dispatch a one-shot agent with `/verify-ui` against each example repo's deployed live demo to:
+1. Open https://zdtp-demo-zudowind.zudolab.dev/ and https://zdtp-demo-cssmodules.zudolab.dev/.
+2. Open the token panel and confirm Spacing lists Card spacing, Horizontal spacing, and Vertical spacing.
+3. Change Card padding and confirm the card's computed padding follows `--demo-space-card`.
 
-1. Open the `zfb-tailwind` example live demo and confirm the Spacing tab shows its expected sections (Horizontal spacing / Vertical spacing, post-#161).
-2. Tweak a spacing token in the panel and confirm the computed style of a consuming element updates (e.g. a `padding` using `var(--zfbtw-hsp-md)`).
-3. Check the Font, Color, Easing, and Size tabs for regressions in all five example apps.
+### CSS variable consumer map (Wind demo)
 
-### CSS variable consumer map (zfb-tailwind, post-#161)
+`demos/zudowind` is the bridge between panel tokens and zudo-wind utilities:
 
-The `zfb-tailwind` example's `styles/global.css` (now in the external example repo) is the bridge between raw panel tokens and Tailwind theme tokens. The three-step cascade for spacing is:
-
-1. Panel writes `--zfbtw-hsp-*` and `--zfbtw-vsp-*` on `:root`.
-2. `global.css` re-exports these as `--spacing-hsp-*` and `--spacing-vsp-*` (used by Tailwind v4 `@theme`).
-3. Tailwind generates utility classes (`gap-hsp-md`, `px-hsp-sm`, etc.) from those theme tokens.
+1. The panel writes `--demo-*` custom properties on `:root`.
+2. `styles/tokens.css` holds the authored defaults, including `--demo-space-card`, `--demo-hsp-*`, and `--demo-vsp-*`.
+3. `zfb.config.ts` names `card`, `surface`, and `ink` as `var(--demo-space-card)`, `var(--demo-surface)`, and `var(--demo-ink)`. The generated utilities are `p-card`, `rounded-card`, `bg-surface`, and `text-ink`.
