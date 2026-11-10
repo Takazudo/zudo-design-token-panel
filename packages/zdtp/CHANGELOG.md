@@ -8,6 +8,12 @@ The format is based on Keep a Changelog, and release notes are generated from th
 
 No unreleased changes yet.
 
+## [0.9.3] - 2026-11-10
+
+### Other Changes
+
+- chore(deps): build the panel against zfb 6.0.1 (a4fbe78)
+
 ## [0.9.2] - 2026-11-10
 
 ### Features
