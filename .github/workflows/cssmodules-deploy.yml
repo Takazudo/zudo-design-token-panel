@@ -53,11 +53,11 @@ jobs:
           git fetch origin main
           latest="$(git rev-parse origin/main)"
           echo "latest=$latest" >> "$GITHUB_OUTPUT"
-          if [ "$latest" = "${ github.sha }" ]; then
+          if [ "$latest" = "${{ github.sha }}" ]; then
             echo "current=true" >> "$GITHUB_OUTPUT"
           else
             echo "current=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Skipping CSS Modules demo deploy. origin/main is $latest and this run is ${ github.sha }."
+            echo "::notice::Skipping CSS Modules demo deploy. origin/main is $latest and this run is ${{ github.sha }}."
           fi
 
       - name: Deploy CSS Modules demo to Cloudflare Workers (production)
@@ -66,8 +66,8 @@ jobs:
           vars.CF_WORKERS_DEPLOY == 'true' &&
           !contains(github.event.head_commit.message, '[skip site deploy]')
         env:
-          CLOUDFLARE_API_TOKEN: ${ secrets.CLOUDFLARE_API_TOKEN }
-          CLOUDFLARE_ACCOUNT_ID: ${ secrets.CLOUDFLARE_ACCOUNT_ID }
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -o pipefail
           n=0
