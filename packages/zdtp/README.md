@@ -46,7 +46,7 @@ Import `TokenDashboard` from `@takazudo/zdtp/dashboard` to render the same tab
 manifest on a plain page. This entry is available from v0.6.1. After v0.8.7 it is a
 zudo-react component: render it from a zfb page (or with
 `@takazudo/zfb/zudo-react/server`'s `renderToString`) and install `@takazudo/zfb`
-(an optional peer, `^5.1.2`) yourself. Releases through v0.8.7 shipped a Preact
+(an optional peer, `^5.1.2 || ^6.0.0`) yourself. Releases through v0.8.7 shipped a Preact
 component instead. The [live workspace demo](https://zdtp-playground.zudolab.dev/dashboard/)
 shows both modes and a compact embedded instance.
 

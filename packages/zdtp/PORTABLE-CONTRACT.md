@@ -1395,7 +1395,7 @@ to 5 zudo-react islands, can install only `@takazudo/zdtp`; lazy-load it inside
 activation and keep its mounted tree separate from the host renderer. Public
 declarations reference no renderer types. The dashboard entries instead render
 with the host's zudo-react, so their users install `@takazudo/zfb` (optional peer
-`^5.1.2`).
+`^5.1.2 || ^6.0.0`).
 
 ### 7.1 Panel-private namespace
 

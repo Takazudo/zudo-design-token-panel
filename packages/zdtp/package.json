@@ -127,10 +127,10 @@
     "vite": "^7.3.7",
     "vitest": "^4.1.11",
     "oxlint": "^1.0.0",
-    "@takazudo/zfb": "5.2.2"
+    "@takazudo/zfb": "6.0.1"
   },
   "peerDependencies": {
-    "@takazudo/zfb": "^5.1.2"
+    "@takazudo/zfb": "^5.1.2 || ^6.0.0"
   },
   "peerDependenciesMeta": {
     "@takazudo/zfb": {
