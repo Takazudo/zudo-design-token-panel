@@ -25,8 +25,8 @@ configurePanel({
 
 設定すると、`window.<consoleNamespace>` に 3 つの非同期ヘルパー `showDesignPanel()`、`hideDesignPanel()`、`toggleDesignPanel()` が追加されます。どれかを呼ぶとパネルモジュールが遅延 import され、UI がマウントされます。固定名の `window.zdtp` グローバル（`zdtp.show()` / `zdtp.hide()` / `zdtp.toggle()`）も追加されるため、パネルを開くだけなら独自の `consoleNamespace` を覚える必要はありません。全体像は[設定リファレンス](../reference/configure-panel.mdx)を参照してください。
 
-<Info title="Astro ホストでは自動的に呼び出されます">
-  Astro レイアウトへ `<DesignTokenPanelHost config={myPanelConfig} />` を配置すると、ホストアダプターがインライン JSON 設定を読み、代わりに `configurePanel(...)` を呼び出します。手動で呼ぶ必要はありません。Vite + React または Next.js では、パネルモジュールを import する前に自分で呼び出します。
+<Info title="ZFB のアイランドからマウントする">
+  `configurePanel` は `getScope().onActivate` から呼び、そのスコープが終わるときにハンドルを破棄します。Wind と CSS Modules の配線は [ZFB への組み込み](./zfb.mdx) にあります。
 </Info>
 
 ## ステップ 1 — 最小限の `PanelConfig` を定義する
@@ -100,15 +100,13 @@ export const myTabs: readonly TabConfig[] = [
 
 ## ステップ 3 — `configurePanel(...)` を呼び、パネルを切り替える
 
-Astro 以外のホスト（Vite + React、Next.js、独自の Vite SPA）では、通常はエントリモジュールから、アプリ起動時に `configurePanel(...)` を一度呼びます。その後、開発者ツールのコンソールを開きます。
+ZFB のクライアントアイランドでは、スコープが有効になったときに `configurePanel(...)` を呼びます。
 
 ```ts
-// src/main.ts (Vite + React) or app/layout.tsx (Next.js, with 'use client')
 import { configurePanel } from '@takazudo/zdtp';
-import '@takazudo/zdtp/styles';
 import { myPanelConfig } from './lib/my-panel-config';
 
-configurePanel(myPanelConfig);
+const handle = configurePanel(myPanelConfig);
 ```
 
 ブラウザーの開発者ツールコンソールで次を実行します。
@@ -125,30 +123,7 @@ zdtp.toggle();
   3 つのコンソールヘルパーはすべて `async` です。シグネチャは `showDesignPanel(): Promise<void>`、`hideDesignPanel(): Promise<void>`、`toggleDesignPanel(): Promise<void>` です。既存の `window.<consoleNamespace>` オブジェクトへマージされるため、ホストは複数の開発ツールで名前空間を共有できます。
 </Tip>
 
-Astro では `configurePanel(...)` を直接呼びません。レイアウトへホストコンポーネントを配置し、ホストアダプターに接続を任せます。
-
-```astro
----
-// src/layouts/Layout.astro
-import DesignTokenPanelHost from '@takazudo/zdtp/astro/DesignTokenPanelHost.astro';
-import '@takazudo/zdtp/styles';
-import { myPanelConfig } from '../lib/my-panel-config';
----
-
-<!doctype html>
-<html lang="en">
-  <body>
-    <slot />
-    <DesignTokenPanelHost config={myPanelConfig} />
-  </body>
-</html>
-
-<script>
-  void import('@takazudo/zdtp/astro/host-adapter');
-</script>
-```
-
-`<DesignTokenPanelHost>` コンポーネントとホストアダプターの `<script>` ブロックは対になっており、常に両方が必要です。script を省くと JSON 設定ペイロードがページに残り、それを読む JavaScript がありません。
+`handle` はスコープの後始末で破棄します。破棄済みのパネルを遅延 import が作り直さない配線を含め、アイランド全体は [ZFB への組み込み](./zfb.mdx) にあります。
 
 ## パネルのマウントを確認する
 
@@ -158,12 +133,12 @@ import { myPanelConfig } from '../lib/my-panel-config';
 window.myapp.toggleDesignPanel();
 ```
 
-Preact でレンダリングされたサイドパネルが表示されます。スライダーを動かすと、対応する `--myapp-*` CSS 変数が `:root` 上ですぐに更新されます。ページを再読み込みすると、最初の描画前にオーバーライドが再適用され、FOUT は発生しません。
+パネルが表示されます。スライダーを動かすと、対応する `--myapp-*` CSS 変数が `:root` 上ですぐに更新されます。ページを再読み込みすると、最初の描画前にオーバーライドが再適用されます。
 
 <Warning title="パネルにスタイルが適用されていない場合">
-  パネルは初回マウント時にスタイルシートを自己注入するため、`import '@takazudo/zdtp/styles'` は不要です。背景が透明、ページ既定のフォントが使われるなど UI が欠けている場合は、パネルモジュール自体の読み込みに失敗しています。バンドラー設定を確認し、ZDTP の通常の依存関係である `preact` がインストールされていることを確認してください。
+  パネルは初回マウント時にスタイルシートを自己注入します。見た目が欠けているときは、パネルモジュールの読み込みに失敗しています。ブラウザーコンソールと ZFB のクライアントバンドルを確認してください。
 </Warning>
 
 ## 次のステップ
 
-ここまでで「パネルが描画され、CSS 変数が更新される」状態になりました。`PanelConfig` の全体とタブマニフェストの詳細は [`configurePanel` リファレンス](../reference/configure-panel.mdx)へ、フレームワーク別のスニペットは[フレームワーク比較](./zfb.mdx)へ進んでください。
+ここまでで「パネルが描画され、CSS 変数が更新される」状態になりました。`PanelConfig` の全体は [`configurePanel` リファレンス](../reference/configure-panel.mdx)へ、Wind と CSS Modules は [ZFB への組み込み](./zfb.mdx) へ進んでください。

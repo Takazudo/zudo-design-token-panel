@@ -44,9 +44,9 @@ bun add @takazudo/zdtp
 
 インストール後、パッケージはプロジェクトルートから確認できる次の 3 種類を公開します。
 
-- ライブラリエントリ — `@takazudo/zdtp`（`configurePanel` を呼び出し、パネルをレンダリングします）。
-- Astro エントリ — `@takazudo/zdtp/astro/DesignTokenPanelHost.astro`（Astro がコンパイルできるよう直接 import する `<DesignTokenPanelHost>` コンポーネント）と `@takazudo/zdtp/astro`（設定型とヘルパー）。ホストアダプターは副作用 import の `@takazudo/zdtp/astro/host-adapter` です。
-- CLI bin — apply パイプラインで使う `zdtp-server`。
+- ライブラリエントリ — `@takazudo/zdtp`（`configurePanel` とパネル本体）。
+- ダッシュボードエントリ — 静的な `TokenDashboard` 用の `@takazudo/zdtp/dashboard`。
+- CLI bin — ローカルの Apply パイプラインで使う `zdtp-server`。
 
 プロジェクト内の PATH から bin を実行できるか、次のコマンドで確認できます。
 
