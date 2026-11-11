@@ -373,7 +373,8 @@ Exit `3` with `CI_PENDING` prints the exact run to watch:
 `gh run watch <id> --exit-status`. Then re-run the gate. `ci.yml` cancels
 in-progress runs per ref, so a later push to `main` can cancel the candidate's
 run. The gate then reports `cancelled` with the exact `gh run rerun <id>`
-command; re-run that run, don't make a new commit. If CI genuinely fails, fix the
+command. Re-run that run once `main`'s current `ci.yml` run has finished
+(re-running it earlier cancels the tip's run); don't make a new commit. If CI genuinely fails, fix the
 problem through a new commit. That is a new candidate, so it means a new bump
 only if the release files must change; otherwise re-freeze `$SHA` at the fix
 commit, which still carries `<version>`, and re-gate.

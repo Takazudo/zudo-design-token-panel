@@ -470,6 +470,13 @@ describe('published npm version with failed GitHub Release finalization', () => 
     assert.equal(good.ok, true);
   });
 
+  test('unreadable attestations are inconclusive, not a mismatch', async () => {
+    const p = publishedDoc('0.9.5');
+    const io = fakeIo({ registry: { versions: ['0.9.5'], distTags: { latest: '0.9.5' }, docs: { '0.9.5': p.doc } } });
+    const r = await cmd.verifyRegistry(io, { version: '0.9.5', sha: SHA, attempts: 2, intervalMs: 0 });
+    assert.equal(r.inconclusive, true);
+  });
+
   test('provenance for a different source commit fails verification', async () => {
     const p = publishedDoc('0.9.5', { sha: OTHER });
     const io = fakeIo({ registry: { versions: ['0.9.5'], distTags: { latest: '0.9.5' }, docs: { '0.9.5': p.doc } }, attestations: { [p.attUrl]: p.att } });
@@ -532,6 +539,14 @@ describe('run correlation and release notes', () => {
     io.state.releaseRuns.push({ id: 5, path: '.github/workflows/release.yml', head_branch: 'v0.9.5', head_sha: SHA, event: 'push', created_at: '2026-11-12T09:59:30Z' });
     const run = await cmd.findRun(io, { ref: 'v0.9.5', sha: SHA, since: '2026-11-12T09:59:00.000Z', event: 'push' });
     assert.equal(run.id, 5);
+  });
+
+  test('ambiguity and bad input surface as themselves, not as "run not found"', async () => {
+    const io = fakeIo({ remoteTags: { 'v0.9.5': SHA } });
+    const base = { path: '.github/workflows/release.yml', head_branch: 'v0.9.5', head_sha: SHA, event: 'push' };
+    io.state.releaseRuns.push({ ...base, id: 1, created_at: '2026-11-12T10:00:01Z' }, { ...base, id: 2, created_at: '2026-11-12T10:00:02Z' });
+    await assert.rejects(cmd.findRun(io, { ref: 'v0.9.5', sha: SHA, since: '2026-11-12T10:00:00Z', waitAttempts: 3, intervalMs: 0 }), { code: 'AMBIGUOUS_RUN' });
+    await assert.rejects(cmd.findRun(io, { ref: 'v0.9.5', sha: SHA, since: 'garbage', waitAttempts: 3, intervalMs: 0 }), { code: 'USAGE' });
   });
 
   test('a branch named like a version still resolves for a dry-run dispatch', async () => {

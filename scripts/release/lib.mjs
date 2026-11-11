@@ -368,6 +368,8 @@ export async function retry(fn, { attempts = 10, intervalMs = 15000, sleep = def
       error = null;
       if (last?.done) return { ok: true, value: last.value, attempts: i };
     } catch (e) {
+      // Definite refusals (ambiguity, mismatch, usage) are never retried away.
+      if (e instanceof ReleaseError) throw e;
       // A transient registry/network failure is retried like propagation lag.
       error = e;
     }

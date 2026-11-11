@@ -72,7 +72,7 @@ export async function gateCandidate(io, { sha, tagName, requireCi = true, requir
 
   const ci = selectCiRun(await readCiRuns(io, sha), sha);
   if (requireCi && ci.state !== 'success') {
-    const hint = ci.state === 'cancelled' ? ` It was cancelled (likely superseded by a later push to ${MAIN_BRANCH}); re-run it: gh run rerun ${ci.run.id}` : '';
+    const hint = ci.state === 'cancelled' ? ` It was cancelled (likely superseded by a later push to ${MAIN_BRANCH}); re-run it once main's current ci.yml run has finished (ci.yml cancels in-progress runs per ref): gh run rerun ${ci.run.id}` : '';
     throw new ReleaseError(
       `${CI_WORKFLOW_PATH} has no successful push run on ${MAIN_BRANCH} for ${sha} (state: ${ci.state}${ci.run ? `, run ${ci.run.id}` : ''}).${hint}`,
       { code: ci.state === 'pending' ? 'CI_PENDING' : 'CI_NOT_GREEN', details: ci },
@@ -179,7 +179,11 @@ export async function verifyRegistry(io, { version, sha, publishedRunId, attempt
       },
       { attempts: Math.min(attempts, 6), intervalMs, sleep: io.sleep },
     );
-    attest = a.ok ? a.value : null;
+    if (!a.ok) {
+      const why = a.error ? ` Last error: ${a.error.message}.` : '';
+      return { inconclusive: true, message: `Provenance attestations for ${PKG}@${version} were not readable after ${a.attempts} tries.${why} Inconclusive; re-run later.` };
+    }
+    attest = a.value;
   }
   const prov = attest
     ? analyzeProvenance(attest, { version, sha, integrity })
