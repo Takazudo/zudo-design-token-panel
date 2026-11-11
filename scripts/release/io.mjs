@@ -1,5 +1,5 @@
 // Real side-effecting I/O for the release helpers. Tests replace this object.
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { appendFileSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -19,7 +19,10 @@ function tryExec(cmd, args, opts) {
 
 let ghUsable;
 function hasGh() {
-  if (ghUsable === undefined) ghUsable = tryExec('gh', ['auth', 'status']).ok || Boolean(process.env.GH_TOKEN);
+  if (ghUsable === undefined) {
+    // GH_TOKEN alone is not enough: the gh binary must exist too (Cloud images may lack it).
+    ghUsable = tryExec('gh', ['--version']).ok && (Boolean(process.env.GH_TOKEN) || tryExec('gh', ['auth', 'status']).ok);
+  }
   return ghUsable;
 }
 
@@ -72,6 +75,27 @@ export function createIo() {
       return res.json();
     },
 
+    /** All pages of a list endpoint that returns a JSON array (e.g. releases). */
+    async githubGetAll(path) {
+      if (hasGh()) {
+        const r = tryExec('gh', ['api', '--paginate', '--slurp', '-H', 'Accept: application/vnd.github+json', path]);
+        if (!r.ok) throw new Error(`gh api --paginate ${path} failed: ${r.err.split('\n')[0]}`);
+        return JSON.parse(r.out || '[]').flat();
+      }
+      const all = [];
+      for (let page = 1; page <= 20; page++) {
+        const sep = path.includes('?') ? '&' : '?';
+        const res = await fetch(`https://api.github.com/${path}${sep}page=${page}`, {
+          headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'zdtp-release-helper' },
+        });
+        if (!res.ok) throw new Error(`GET api.github.com/${path} → HTTP ${res.status}`);
+        const items = await res.json();
+        all.push(...items);
+        if (items.length === 0 || !/rel="next"/.test(res.headers.get('link') ?? '')) break;
+      }
+      return all;
+    },
+
     gh: (args) => exec('gh', args),
 
     /** Full packument: versions, dist-tags and per-version _npmUser. Public read, no auth. */
@@ -92,12 +116,22 @@ export function createIo() {
       return res.json();
     },
 
-    /** Run a command, streaming its output while also capturing it. */
+    /** Run a command, streaming its output live while also capturing it. */
     run(cmd, args, { cwd, env } = {}) {
-      const r = spawnSync(cmd, args, { cwd, env: env ?? process.env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-      if (r.stdout) process.stdout.write(r.stdout);
-      if (r.stderr) process.stderr.write(r.stderr);
-      return { status: r.status ?? 1, output: `${r.stdout ?? ''}\n${r.stderr ?? ''}` };
+      return new Promise((resolve) => {
+        const child = spawn(cmd, args, { cwd, env: env ?? process.env, stdio: ['ignore', 'pipe', 'pipe'] });
+        let output = '';
+        child.stdout.on('data', (d) => {
+          output += d;
+          process.stdout.write(d);
+        });
+        child.stderr.on('data', (d) => {
+          output += d;
+          process.stderr.write(d);
+        });
+        child.on('error', (e) => resolve({ status: 1, output: `${output}\n${e.message}` }));
+        child.on('close', (code) => resolve({ status: code ?? 1, output }));
+      });
     },
 
     readFile: (p) => readFileSync(p, 'utf8'),

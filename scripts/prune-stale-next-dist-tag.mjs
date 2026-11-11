@@ -88,12 +88,36 @@ export function decidePrune(tags) {
   return { action: 'keep', message: `Keeping '${PKG}@next' (${next}) — not behind latest (${latest}).` };
 }
 
+/**
+ * Unfinished release.yml runs. GitHub concurrency groups cancel *pending* jobs,
+ * so this workflow does not share a group with release publishes (it could
+ * displace a queued release). Instead it refuses to mutate while one is live.
+ */
+export function unfinishedReleaseRuns(runs) {
+  return (runs ?? []).filter((r) => r.path === '.github/workflows/release.yml' && r.status !== 'completed');
+}
+
+function readReleaseRuns() {
+  const out = execFileSync(
+    'gh',
+    ['api', 'repos/Takazudo/zudo-design-token-panel/actions/workflows/release.yml/runs?per_page=30', '--jq', '.workflow_runs'],
+    { encoding: 'utf8' },
+  );
+  return JSON.parse(out || '[]');
+}
+
 function main() {
   const decision = decidePrune(readDistTags());
   console.log(decision.message);
   if (decision.action !== 'drop') return;
   if (DRY_RUN) {
     console.log('--dry-run: skipping `npm dist-tag rm`.');
+    return;
+  }
+  const live = unfinishedReleaseRuns(readReleaseRuns());
+  if (live.length) {
+    console.error(`Refusing to change dist-tags while release.yml runs are unfinished: ${live.map((r) => r.html_url).join(', ')}. Re-run after they complete.`);
+    process.exitCode = 1;
     return;
   }
   execFileSync('npm', ['dist-tag', 'rm', PKG, 'next'], { stdio: 'inherit' });

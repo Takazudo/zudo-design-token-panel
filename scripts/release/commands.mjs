@@ -8,6 +8,7 @@ import {
   PKG_JSON_PATH,
   RELEASE_WORKFLOW_PATH,
   REPO,
+  RUN_CORRELATION_SKEW_MS,
   ReleaseError,
   analyzeProvenance,
   analyzePublishOutput,
@@ -25,6 +26,7 @@ import {
   selectCiRun,
   selectWorkflowRun,
   shouldMarkLatest,
+  versionFromTagRef,
 } from './lib.mjs';
 
 const SHA_RE = /^[0-9a-f]{40}$/;
@@ -70,8 +72,9 @@ export async function gateCandidate(io, { sha, tagName, requireCi = true, requir
 
   const ci = selectCiRun(await readCiRuns(io, sha), sha);
   if (requireCi && ci.state !== 'success') {
+    const hint = ci.state === 'cancelled' ? ` It was cancelled (likely superseded by a later push to ${MAIN_BRANCH}); re-run it: gh run rerun ${ci.run.id}` : '';
     throw new ReleaseError(
-      `${CI_WORKFLOW_PATH} has no successful push run on ${MAIN_BRANCH} for ${sha} (state: ${ci.state}${ci.run ? `, run ${ci.run.id}` : ''}).`,
+      `${CI_WORKFLOW_PATH} has no successful push run on ${MAIN_BRANCH} for ${sha} (state: ${ci.state}${ci.run ? `, run ${ci.run.id}` : ''}).${hint}`,
       { code: ci.state === 'pending' ? 'CI_PENDING' : 'CI_NOT_GREEN', details: ci },
     );
   }
@@ -123,7 +126,7 @@ export async function publish(io, { version, distTag }) {
     return;
   }
 
-  const res = io.run('pnpm', ['--filter', PKG, 'publish', '--tag', distTag, '--no-git-checks', '--access', 'public', '--provenance']);
+  const res = await io.run('pnpm', ['--filter', PKG, 'publish', '--tag', distTag, '--no-git-checks', '--access', 'public', '--provenance']);
   const a = analyzePublishOutput(res.output);
   if (a.oidcSkipped) {
     throw new ReleaseError(
@@ -161,7 +164,8 @@ export async function verifyRegistry(io, { version, sha, publishedRunId, attempt
     { attempts, intervalMs, sleep: io.sleep },
   );
   if (!seen.ok) {
-    return { inconclusive: true, message: `${PKG}@${version} not visible on the registry after ${seen.attempts} reads. This is inconclusive, not proof it was not published.` };
+    const why = seen.error ? ` Last error: ${seen.error.message}.` : '';
+    return { inconclusive: true, message: `${PKG}@${version} not visible on the registry after ${seen.attempts} reads.${why} This is inconclusive, not proof it was not published.` };
   }
   const { reg, doc } = seen.value;
   const integrity = doc.dist.integrity;
@@ -191,8 +195,9 @@ export async function verifyRegistry(io, { version, sha, publishedRunId, attempt
   const warnings = [];
   if (tagNow !== version) warnings.push(`dist-tag ${cls.distTag} currently points at ${tagNow} (not ${version}).`);
 
-  if (auditSignatures) {
-    const audit = auditInstalledSignatures(io, version, integrity);
+  if (auditSignatures && !problems.length) {
+    const audit = await auditInstalledSignatures(io, version, integrity, { attempts: Math.min(attempts, 6), intervalMs });
+    if (audit.inconclusive) return { inconclusive: true, message: audit.message };
     if (!audit.ok) problems.push(audit.message);
   }
 
@@ -210,24 +215,38 @@ export async function verifyRegistry(io, { version, sha, publishedRunId, attempt
   return { ok: true, evidence, warnings };
 }
 
-/** Cryptographic check with existing tooling: install the exact version and run `npm audit signatures`. */
-function auditInstalledSignatures(io, version, integrity) {
+/**
+ * Cryptographic check with existing tooling: install the exact version and run
+ * `npm audit signatures`. An install that keeps failing (CDN metadata lag,
+ * network) is inconclusive, not a mismatch.
+ */
+async function auditInstalledSignatures(io, version, integrity, { attempts, intervalMs }) {
   const dir = io.mkTemp('zdtp-audit-');
   const opts = { cwd: dir };
   io.writeFile(io.join(dir, 'package.json'), JSON.stringify({ name: 'zdtp-audit', private: true }));
-  const inst = io.run('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--save-exact', `${PKG}@${version}`], opts);
-  if (inst.status !== 0) return { ok: false, message: 'npm install of the exact version failed' };
+  const installed = await retry(
+    async () => {
+      const r = await io.run('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--prefer-online', '--save-exact', `${PKG}@${version}`], opts);
+      return { done: r.status === 0 };
+    },
+    { attempts, intervalMs, sleep: io.sleep },
+  );
+  if (!installed.ok) {
+    return { ok: false, inconclusive: true, message: `npm install of ${PKG}@${version} kept failing (${installed.attempts} attempts); signature audit is inconclusive, not a mismatch. Re-run later.` };
+  }
   const lock = JSON.parse(io.readFile(io.join(dir, 'package-lock.json')));
-  const installed = lock.packages?.[`node_modules/${PKG}`]?.integrity;
-  if (installed !== integrity) return { ok: false, message: `installed integrity ${installed} differs from registry ${integrity}` };
-  const audit = io.run('npm', ['audit', 'signatures'], opts);
+  const installedIntegrity = lock.packages?.[`node_modules/${PKG}`]?.integrity;
+  if (installedIntegrity !== integrity) {
+    return { ok: false, message: `installed integrity ${installedIntegrity} differs from registry ${integrity}` };
+  }
+  const audit = await io.run('npm', ['audit', 'signatures'], opts);
   if (audit.status !== 0) return { ok: false, message: '`npm audit signatures` failed' };
   return { ok: true };
 }
 
 async function listReleases(io) {
-  const page = (await io.githubGet(`repos/${REPO}/releases?per_page=100`)) ?? [];
-  return page.map((r) => ({ tagName: r.tag_name, isDraft: r.draft, isPrerelease: r.prerelease, url: r.html_url }));
+  const all = (await io.githubGetAll(`repos/${REPO}/releases?per_page=100`)) ?? [];
+  return all.map((r) => ({ tagName: r.tag_name, isDraft: r.draft, isPrerelease: r.prerelease, url: r.html_url }));
 }
 
 /** Create (or confirm) the GitHub Release for an already-published version. */
@@ -277,7 +296,7 @@ export async function createTag(io, { sha, via = 'git' }) {
   if (g.decision.action === 'skip-publish') {
     throw new ReleaseError(`${PKG}@${g.version} is already on npm but ${g.tag} is missing. Investigate before tagging.`, { code: 'ANOMALY' });
   }
-  const since = new Date(io.now().getTime() - 5000).toISOString();
+  const since = new Date(io.now().getTime() - RUN_CORRELATION_SKEW_MS).toISOString();
   if (via === 'api') {
     io.gh(['api', '-X', 'POST', `repos/${REPO}/git/refs`, '-f', `ref=refs/tags/${g.tag}`, '-f', `sha=${sha}`]);
   } else {
@@ -292,8 +311,8 @@ export async function createTag(io, { sha, via = 'git' }) {
 }
 
 async function resolveRefSha(io, ref) {
-  if (/^v\d/.test(ref)) return io.remoteTagSha(ref);
-  return io.remoteHeadSha(ref);
+  // A branch may look like a version (e.g. v2-redesign): try both namespaces.
+  return versionFromTagRef(ref) ? (io.remoteTagSha(ref) ?? io.remoteHeadSha(ref)) : (io.remoteHeadSha(ref) ?? io.remoteTagSha(ref));
 }
 
 /** Correlate a release.yml run by workflow path, ref, SHA and (optionally) start time. */
@@ -323,7 +342,7 @@ export async function dispatch(io, { ref, dryRun }) {
   }
   const sha = await resolveRefSha(io, ref);
   if (!sha) throw new ReleaseError(`Cannot resolve ${ref} on the remote.`, { code: 'USAGE' });
-  const since = new Date(io.now().getTime() - 5000).toISOString();
+  const since = new Date(io.now().getTime() - RUN_CORRELATION_SKEW_MS).toISOString();
   io.gh(['workflow', 'run', 'release.yml', '--repo', REPO, '--ref', ref, '-f', `dry_run=${dryRun ? 'true' : 'false'}`]);
   return findRun(io, { ref, sha, since, event: 'workflow_dispatch', waitAttempts: 12, intervalMs: 5000 });
 }

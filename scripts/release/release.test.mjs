@@ -175,8 +175,15 @@ function fakeIo(over = {}) {
       }
       throw new Error(`unexpected gh ${args.join(' ')}`);
     },
+    async githubGetAll(path) {
+      return this.githubGet(path);
+    },
     async readRegistry() {
       calls.registryReads++;
+      if (s.registryErrors > 0) {
+        s.registryErrors--;
+        throw new Error('HTTP 503');
+      }
       return structuredClone(s.registry);
     },
     async fetchJson(url) {
@@ -193,12 +200,17 @@ function fakeIo(over = {}) {
         }
         return s.publishResult;
       }
+      if (c === 'npm' && args[0] === 'install') {
+        if (s.installFails) return { status: 1, output: 'ETARGET' };
+        calls.installed = true;
+        return { status: 0, output: '' };
+      }
       return { status: 0, output: '' };
     },
     mkTemp: () => '/tmp/fake',
     join: (...p) => p.join('/'),
     writeFile: (p, c) => (calls.written = { ...(calls.written ?? {}), [p]: c }),
-    readFile: () => '{}',
+    readFile: () => JSON.stringify({ packages: { 'node_modules/@takazudo/zdtp': { integrity: tarball('0.9.5').integrity } } }),
     exists: () => true,
   };
   return io;
@@ -224,6 +236,12 @@ describe('exact CI workflow/SHA selection', () => {
   test('a green deploy workflow or a green run for another commit is not CI evidence', () => {
     const runs = [ciRun({ path: '.github/workflows/main-deploy.yml' }), ciRun({ head_sha: OTHER })];
     assert.equal(selectCiRun(runs, SHA).state, 'missing');
+  });
+
+  test('a cancelled candidate run is reported with a re-run hint, not as "fix with a new commit"', async () => {
+    assert.equal(selectCiRun([ciRun({ conclusion: 'cancelled' })], SHA).state, 'cancelled');
+    const io = fakeIo({ ciRuns: [ciRun({ id: 42, conclusion: 'cancelled' })] });
+    await assert.rejects(cmd.gateCandidate(io, { sha: SHA }), (e) => e.code === 'CI_NOT_GREEN' && /gh run rerun 42/.test(e.message));
   });
 
   test('pending and failed states are reported, never treated as success', () => {
@@ -433,6 +451,25 @@ describe('published npm version with failed GitHub Release finalization', () => 
     assert.match(r.message, /inconclusive/);
   });
 
+  test('transient registry errors are retried, and exhausted retries are inconclusive', async () => {
+    const p = publishedDoc('0.9.5');
+    const ok = fakeIo({ registryErrors: 2, registry: { versions: ['0.9.5'], distTags: { latest: '0.9.5' }, docs: { '0.9.5': p.doc } }, attestations: { [p.attUrl]: p.att } });
+    assert.equal((await cmd.verifyRegistry(ok, { version: '0.9.5', sha: SHA, attempts: 3, intervalMs: 0 })).ok, true);
+    const bad = fakeIo({ registryErrors: 99 });
+    const r = await cmd.verifyRegistry(bad, { version: '0.9.5', sha: SHA, attempts: 3, intervalMs: 0 });
+    assert.equal(r.inconclusive, true);
+    assert.match(r.message, /HTTP 503/);
+  });
+
+  test('a signature-audit install that keeps failing is inconclusive, not a mismatch', async () => {
+    const p = publishedDoc('0.9.5');
+    const base = { registry: { versions: ['0.9.5'], distTags: { latest: '0.9.5' }, docs: { '0.9.5': p.doc } }, attestations: { [p.attUrl]: p.att } };
+    const lag = await cmd.verifyRegistry(fakeIo({ ...base, installFails: true }), { version: '0.9.5', sha: SHA, attempts: 2, intervalMs: 0, auditSignatures: true });
+    assert.equal(lag.inconclusive, true);
+    const good = await cmd.verifyRegistry(fakeIo(base), { version: '0.9.5', sha: SHA, attempts: 2, intervalMs: 0, auditSignatures: true });
+    assert.equal(good.ok, true);
+  });
+
   test('provenance for a different source commit fails verification', async () => {
     const p = publishedDoc('0.9.5', { sha: OTHER });
     const io = fakeIo({ registry: { versions: ['0.9.5'], distTags: { latest: '0.9.5' }, docs: { '0.9.5': p.doc } }, attestations: { [p.attUrl]: p.att } });
@@ -488,6 +525,19 @@ describe('run correlation and release notes', () => {
     ];
     assert.throws(() => selectWorkflowRun(runs, { ref: 'v0.9.5', sha: SHA, since: '2026-11-12T10:00:00Z' }), { code: 'AMBIGUOUS_RUN' });
     assert.equal(selectWorkflowRun(runs.slice(1), { ref: 'v0.9.5', sha: SHA, since: '2026-11-12T10:00:00Z' }).run.id, 2);
+  });
+
+  test('a run created slightly "before" a fast local clock is still correlated (skew tolerance)', async () => {
+    const io = fakeIo({ remoteTags: { 'v0.9.5': SHA } });
+    io.state.releaseRuns.push({ id: 5, path: '.github/workflows/release.yml', head_branch: 'v0.9.5', head_sha: SHA, event: 'push', created_at: '2026-11-12T09:59:30Z' });
+    const run = await cmd.findRun(io, { ref: 'v0.9.5', sha: SHA, since: '2026-11-12T09:59:00.000Z', event: 'push' });
+    assert.equal(run.id, 5);
+  });
+
+  test('a branch named like a version still resolves for a dry-run dispatch', async () => {
+    const io = fakeIo({ remoteHeads: { 'v2-redesign': OTHER } });
+    const run = await cmd.dispatch(io, { ref: 'v2-redesign', dryRun: true });
+    assert.equal(run.head_sha, OTHER);
   });
 
   test('extractReleaseNotes strips frontmatter and the Released marker', () => {

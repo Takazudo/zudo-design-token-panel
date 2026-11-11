@@ -370,7 +370,10 @@ not about to be regressed (`latest`/`next` would move backwards → refuse;
 already published → finalize-only).
 
 Exit `3` with `CI_PENDING` prints the exact run to watch:
-`gh run watch <id> --exit-status`. Then re-run the gate. If CI fails, fix the
+`gh run watch <id> --exit-status`. Then re-run the gate. `ci.yml` cancels
+in-progress runs per ref, so a later push to `main` can cancel the candidate's
+run. The gate then reports `cancelled` with the exact `gh run rerun <id>`
+command; re-run that run, don't make a new commit. If CI genuinely fails, fix the
 problem through a new commit. That is a new candidate, so it means a new bump
 only if the release files must change; otherwise re-freeze `$SHA` at the fix
 commit, which still carries `<version>`, and re-gate.
@@ -437,7 +440,8 @@ gh run view <run-id> --log-failed
 | observed state | action |
 | --- | --- |
 | publint/CI failure before tagging | fix through a normal commit; re-freeze and re-gate. Nothing was published |
-| `tagged-unpublished`, a run is still active | wait for it; registry mutations are serialized, never cancel an active publish |
+| `tagged-unpublished`, a run is still active | wait for it. Real publishes are serialized across tags; never cancel an active publish |
+| `tagged-unpublished`, the publish job shows `cancelled` without anyone cancelling it | GitHub keeps one *pending* job per concurrency group, so a third concurrent release displaced it. `release.mjs dispatch --ref v<version>` once the others finish |
 | `tagged-unpublished`, run failed in **gate** (e.g. CI not green at tag time) | fix the cause (e.g. let CI finish), then `release.mjs dispatch --ref v<version>` or re-run the failed jobs |
 | `tagged-unpublished`, run failed at **publish** with `OIDC_FAILED` | fix the trusted-publisher config ([Troubleshooting OIDC](#troubleshooting-oidc)), then re-run the failed jobs. Never add a token |
 | `tagged-unpublished` but the tagged commit itself is broken | do **not** move the tag. Cut a new patch version from a fixed commit; the broken tag stays as an unpublished marker |
@@ -474,7 +478,10 @@ two-factor authentication and disallow tokens**; trusted publishers keep
 working.
 
 `prune-stale-next-dist-tag.yml` pins npm 11.21.0 because OIDC for
-`npm dist-tag` starts there. `release.yml` publishes with pnpm 11.3.0, which
+`npm dist-tag` starts there. It refuses to change dist-tags while any
+`release.yml` run is unfinished. It deliberately does not share the release
+publish concurrency group, because joining that group could cancel a queued
+release publish. `release.yml` publishes with pnpm 11.3.0, which
 performs the OIDC exchange itself.
 
 ### Troubleshooting OIDC

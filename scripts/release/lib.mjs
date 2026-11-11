@@ -114,6 +114,9 @@ export function selectCiRun(runs, sha) {
   if (ok) return { state: 'success', run: ok };
   const active = byNewest.find((r) => r.status !== 'completed');
   if (active) return { state: 'pending', run: active };
+  // ci.yml cancels in-progress runs per ref, so a quick follow-up merge on main
+  // cancels the candidate's run; it must be re-run, not replaced by a new commit.
+  if (byNewest.length && byNewest[0].conclusion === 'cancelled') return { state: 'cancelled', run: byNewest[0] };
   if (byNewest.length) return { state: 'failed', run: byNewest[0] };
   return { state: 'missing', run: null };
 }
@@ -124,6 +127,8 @@ export function selectCiRun(runs, sha) {
  * Returns { run, candidates } and throws when the correlation is ambiguous.
  */
 export function selectWorkflowRun(runs, { workflowPath = RELEASE_WORKFLOW_PATH, ref, sha, event, since }) {
+  const sinceMs = since ? Date.parse(since) : null;
+  if (since && Number.isNaN(sinceMs)) throw new ReleaseError(`Invalid --since timestamp: ${since}`, { code: 'USAGE' });
   const candidates = (runs ?? [])
     .filter(
       (r) =>
@@ -131,9 +136,9 @@ export function selectWorkflowRun(runs, { workflowPath = RELEASE_WORKFLOW_PATH, 
         r.head_branch === ref &&
         r.head_sha === sha &&
         (!event || r.event === event) &&
-        (!since || String(r.created_at) >= since),
+        (sinceMs === null || Date.parse(r.created_at) >= sinceMs),
     )
-    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
   if (since && candidates.length > 1) {
     throw new ReleaseError(
       `Ambiguous: ${candidates.length} ${workflowPath} runs for ${ref}@${sha} since ${since}: ${candidates.map((r) => r.id).join(', ')}`,
@@ -347,15 +352,28 @@ export function decideResume({ version, candidateSha, tagSha, published, release
   return { state: 'complete', next: 'Nothing to do.' };
 }
 
-/** Bounded retry. A timeout is reported as inconclusive, never as "not published". */
+/** Allowed clock skew between the caller and GitHub when correlating a new run. */
+export const RUN_CORRELATION_SKEW_MS = 60_000;
+
+/**
+ * Bounded retry. Exhaustion — including repeated thrown errors — is reported as
+ * inconclusive, never as "not published".
+ */
 export async function retry(fn, { attempts = 10, intervalMs = 15000, sleep = defaultSleep } = {}) {
   let last;
+  let error = null;
   for (let i = 1; i <= attempts; i++) {
-    last = await fn(i);
-    if (last?.done) return { ok: true, value: last.value, attempts: i };
+    try {
+      last = await fn(i);
+      error = null;
+      if (last?.done) return { ok: true, value: last.value, attempts: i };
+    } catch (e) {
+      // A transient registry/network failure is retried like propagation lag.
+      error = e;
+    }
     if (i < attempts) await sleep(intervalMs);
   }
-  return { ok: false, inconclusive: true, value: last?.value, attempts };
+  return { ok: false, inconclusive: true, value: last?.value, error, attempts };
 }
 
 function defaultSleep(ms) {
