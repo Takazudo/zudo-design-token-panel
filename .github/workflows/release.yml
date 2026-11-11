@@ -1,28 +1,43 @@
 # release.yml
 #
-# Publishes the npm package(s) in this workspace on a v* tag push. Only the
-# panel (@takazudo/zdtp) is non-private, so it is the only package published;
-# the root and `doc` workspaces are private and pnpm skips them.
+# Publishes @takazudo/zdtp to npm on a v* tag and finalizes its GitHub Release.
+# The full procedure (version choice, changelog, candidate gate, tagging,
+# monitoring, recovery) is docs/releasing.md; the rules it shares with this
+# workflow live in scripts/release/.
 #
-# IMPORTANT: NPM_TOKEN must be an Automation-type token (bypasses 2FA).
-# A standard user token fails in unattended CI publish because npm requires
-# 2FA for scoped publish unless the token type is "Automation".
-# Create one at https://www.npmjs.com/settings/<user>/tokens, type "Automation".
+# ── npm authentication: trusted publishing (OIDC) only ───────────────────────
+# There is NO npm token. The publish job gets a short-lived credential from npm
+# by exchanging this job's GitHub OIDC identity (`id-token: write`). npm
+# accepts it because @takazudo/zdtp has a trusted publisher for:
+#   owner Takazudo · repo zudo-design-token-panel · workflow release.yml ·
+#   no environment · allowed action: npm publish
+# Keep this filename stable — it is part of that identity. Do not add an
+# NPM_TOKEN / NODE_AUTH_TOKEN secret back: the publish step refuses one.
+# (setup-node's `registry-url` writes a literal XXXXX placeholder into
+# NODE_AUTH_TOKEN; that is not a credential.)
+# If publishing fails with `Skipped OIDC` / ENEEDAUTH / E404 on PUT, see
+# "Troubleshooting OIDC" in docs/releasing.md.
 #
 # ── dist-tag policy ──────────────────────────────────────────────────────────
-#   Tag matching *-next.*, *-beta.*, or *-rc.*  → npm dist-tag "next"
-#   All other v* tags                           → npm dist-tag "latest"
-# Prerelease consumers opt in with `pnpm add @takazudo/zdtp@next`.
+#   *-next.N, *-beta.N, *-rc.N → npm dist-tag "next" (GitHub prerelease)
+#   clean X.Y.Z                → npm dist-tag "latest"
+#   any other prerelease suffix is refused.
+# Stale-`next` cleanup stays out-of-band in prune-stale-next-dist-tag.yml.
 #
-# Stale-`next` cleanup (#345) is handled out-of-band by
-# .github/workflows/prune-stale-next-dist-tag.yml (manual dispatch) — registry
-# dist-tag mutation is kept OUT of this publish job so a prune hiccup can never
-# mark a successful release as failed.
+# ── jobs ─────────────────────────────────────────────────────────────────────
+#   gate     (read-only) re-checks the release identity in Actions: tag ==
+#            package.json version at this SHA, SHA on main, ci.yml green for
+#            exactly this SHA, no dist-tag regression, already-published →
+#            finalize only. Branch dry runs skip all of it.
+#   publish  (id-token: write) dry run: build + pack listing, nothing else.
+#            real: OIDC publish with provenance, skipped when already published.
+#   finalize (contents: write, ephemeral GITHUB_TOKEN) registry read-back +
+#            provenance/signature checks, then creates — or confirms — the
+#            GitHub Release from the tagged changelog page. Never on dry runs.
 #
-# The pre-publish test gate lives upstream in ci.yml (the panel's test suite
-# needs Playwright Chromium for browser tests; ci.yml runs on every PR and
-# every push to main). `prepublishOnly` here runs `pnpm build` only — it
-# freshens dist/ but does not re-run browser tests.
+# A red run does NOT imply npm was not published (pnpm can fail after the PUT
+# landed, or a re-run can hit "cannot publish over"). Always read the registry:
+#   node scripts/release/release.mjs status --version <version>
 #
 # Action SHAs are pinned to immutable commits (OpenSSF best practice); the
 # trailing comment names the release for human readability.
@@ -36,27 +51,66 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Build only; skip the npm publish step"
+        description: "Build only; no npm publication and no GitHub Release"
         type: boolean
         default: false
 
-permissions:
-  contents: read
+permissions: {}
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
+  gate:
+    name: Release gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read # read ci.yml runs for the exact commit
+    outputs:
+      mode: ${{ steps.gate.outputs.mode }}
+      version: ${{ steps.gate.outputs.version }}
+      dist_tag: ${{ steps.gate.outputs.dist_tag }}
+      publish: ${{ steps.gate.outputs.publish }}
+      finalize: ${{ steps.gate.outputs.finalize }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Gate release identity
+        id: gate
+        run: node scripts/release/release.mjs actions-gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry_run == true }}
+
   publish:
-    name: Publish to npm
+    name: ${{ needs.gate.outputs.mode == 'dry-run' && 'Build (dry run)' || 'Publish to npm' }}
+    needs: gate
+    if: needs.gate.outputs.mode == 'dry-run' || needs.gate.outputs.publish == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
-      # id-token: write enables npm OIDC-attested provenance via --provenance.
-      # Each published tarball carries a signed attestation linking to this run.
-      id-token: write
+      id-token: write # npm trusted publishing (OIDC) + provenance
+    # Serialize registry mutations for this package with the dist-tag
+    # maintenance workflow; never cancel an active publish. Dry runs get a
+    # private group so they never queue behind (or displace) a real release.
+    concurrency:
+      group: ${{ needs.gate.outputs.mode == 'release' && 'npm-registry-takazudo-zdtp' || format('release-dry-run-{0}', github.run_id) }}
+      cancel-in-progress: false
+    outputs:
+      published: ${{ steps.publish.outputs.published }}
     steps:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
@@ -74,47 +128,62 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Determine dist-tag
+      - name: DRY RUN — build and list the package (no publish)
+        if: needs.gate.outputs.mode == 'dry-run'
         shell: bash
         run: |
-          TAG="${GITHUB_REF#refs/tags/}"
-          if [[ "$TAG" =~ -next\. ]] || [[ "$TAG" =~ -beta\. ]] || [[ "$TAG" =~ -rc\. ]]; then
-            DIST_TAG="next"
-          else
-            DIST_TAG="latest"
-          fi
-          echo "DIST_TAG=$DIST_TAG" >> "$GITHUB_ENV"
-          echo "Resolved dist-tag: $DIST_TAG (from ref: $GITHUB_REF)"
+          set -euo pipefail
+          pnpm --filter @takazudo/zdtp build
+          pnpm --filter @takazudo/zdtp pack --pack-destination "$RUNNER_TEMP/pack"
+          tar -tzf "$RUNNER_TEMP"/pack/*.tgz | sort
+          echo "DRY RUN — built @takazudo/zdtp@${{ needs.gate.outputs.version }}; nothing was published and no GitHub Release was created."
 
-      # Real publishes build via prepublishOnly (pnpm build) inside `pnpm publish`,
-      # so this explicit build runs only on dry_run — otherwise "Build only" would
-      # install, tag-resolve, and exit without ever exercising the build.
-      - name: Build (dry-run smoke test)
-        if: ${{ inputs.dry_run == true }}
-        run: pnpm build
+      # Real publishes build via prepublishOnly (pnpm build) inside pnpm publish.
+      - name: Publish to npm (OIDC)
+        id: publish
+        if: needs.gate.outputs.mode == 'release'
+        run: >-
+          node scripts/release/release.mjs publish
+          --version "${{ needs.gate.outputs.version }}"
+          --dist-tag "${{ needs.gate.outputs.dist_tag }}"
 
-      - name: DRY RUN — skip publish
-        if: ${{ inputs.dry_run == true }}
-        shell: bash
-        run: |
-          echo "DRY RUN — built successfully; would have published with dist-tag '$DIST_TAG'."
-          echo "Set dry_run=false on a real v* tag push to publish."
+  finalize:
+    name: Verify registry and finalize GitHub Release
+    needs: [gate, publish]
+    # Runs when the gate chose a real release and publication either succeeded
+    # or was skipped because the version is already on npm. Never on dry runs.
+    if: >-
+      always() && needs.gate.result == 'success' &&
+      needs.gate.outputs.finalize == 'true' &&
+      (needs.publish.result == 'success' || needs.publish.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # create the GitHub Release (ephemeral GITHUB_TOKEN)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0
 
-      # Guard: a manual workflow_dispatch on a branch (not a v* tag) must not
-      # accidentally publish. dry_run=true is the only safe way to exercise this
-      # workflow from a branch.
-      - name: Verify publish context (tag ref required)
-        if: ${{ inputs.dry_run != true }}
-        shell: bash
-        run: |
-          if [[ ! "$GITHUB_REF" =~ ^refs/tags/v ]]; then
-            echo "::error::Publish requires a v* tag ref. Got: $GITHUB_REF."
-            echo "::error::For manual smoke tests, re-run workflow_dispatch with dry_run=true."
-            exit 1
-          fi
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
 
-      - name: Publish to npm
-        if: ${{ inputs.dry_run != true && startsWith(github.ref, 'refs/tags/v') }}
-        run: pnpm -r publish --tag "$DIST_TAG" --no-git-checks --access public --provenance
+      - name: Verify the exact version on the registry
+        run: >-
+          node scripts/release/release.mjs verify-registry
+          --version "${{ needs.gate.outputs.version }}"
+          --sha "${{ github.sha }}"
+          --audit-signatures
+          ${{ needs.publish.outputs.published == 'true' && format('--published-run-id {0}', github.run_id) || '' }}
+
+      - name: Create or confirm the GitHub Release
+        run: >-
+          node scripts/release/release.mjs finalize
+          --version "${{ needs.gate.outputs.version }}"
+          --sha "${{ github.sha }}"
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
