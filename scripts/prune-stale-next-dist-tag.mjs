@@ -11,9 +11,11 @@
 // failed in CI with "semver: not found". This uses only `npm` (bundled with
 // Node) plus a self-contained semver-precedence comparator.
 //
-// Auth: `npm dist-tag rm` needs a writable registry token. In CI that comes from
-// NODE_AUTH_TOKEN + the .npmrc that actions/setup-node writes. Pass --dry-run to
-// print the decision without mutating the registry (works without auth).
+// Auth: `npm dist-tag rm` authenticates through npm trusted publishing (OIDC) —
+// the workflow grants `id-token: write` and pins npm >= 11.21.0, the first npm
+// with OIDC dist-tag support. There is no long-lived npm token, and none should
+// be added. Reading tags of this public package needs no auth, so --dry-run (and
+// the no-op paths) work anywhere. See docs/releasing.md.
 
 import { execFileSync } from 'node:child_process';
 
@@ -70,30 +72,32 @@ function readDistTags() {
   return tags;
 }
 
-function main() {
-  const tags = readDistTags();
-  const next = tags.next;
-  const latest = tags.latest;
-
-  if (!next) {
-    console.log(`No 'next' dist-tag on ${PKG} — nothing to prune.`);
-    return;
-  }
+/**
+ * Pure decision for a set of dist-tags. Returns { action: 'noop' | 'keep' | 'drop', message }.
+ * `next` is dropped only when it is strictly behind `latest`.
+ */
+export function decidePrune(tags) {
+  const { next, latest } = tags;
+  if (!next) return { action: 'noop', message: `No 'next' dist-tag on ${PKG} — nothing to prune.` };
   if (!latest) {
-    console.log(`No 'latest' dist-tag on ${PKG} — refusing to prune 'next' (${next}).`);
-    return;
+    return { action: 'noop', message: `No 'latest' dist-tag on ${PKG} — refusing to prune 'next' (${next}).` };
   }
   if (next !== latest && comparePrecedence(next, latest) < 0) {
-    console.log(`Dropping stale '${PKG}@next' (${next} < latest ${latest})…`);
-    if (DRY_RUN) {
-      console.log('--dry-run: skipping `npm dist-tag rm`.');
-      return;
-    }
-    execFileSync('npm', ['dist-tag', 'rm', PKG, 'next'], { stdio: 'inherit' });
-    console.log(`Dropped '${PKG}@next'.`);
-  } else {
-    console.log(`Keeping '${PKG}@next' (${next}) — not behind latest (${latest}).`);
+    return { action: 'drop', message: `Dropping stale '${PKG}@next' (${next} < latest ${latest})…` };
   }
+  return { action: 'keep', message: `Keeping '${PKG}@next' (${next}) — not behind latest (${latest}).` };
+}
+
+function main() {
+  const decision = decidePrune(readDistTags());
+  console.log(decision.message);
+  if (decision.action !== 'drop') return;
+  if (DRY_RUN) {
+    console.log('--dry-run: skipping `npm dist-tag rm`.');
+    return;
+  }
+  execFileSync('npm', ['dist-tag', 'rm', PKG, 'next'], { stdio: 'inherit' });
+  console.log(`Dropped '${PKG}@next'.`);
 }
 
 // Only run when invoked directly (not when imported for testing).

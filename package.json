@@ -10,6 +10,7 @@
     "deploy:wind": "pnpm --filter demo-zudowind build:deploy && pnpm --dir demos/zudowind exec wrangler deploy",
     "deploy:cssmodules": "pnpm --filter demo-cssmodules build:deploy && pnpm --dir demos/cssmodules exec wrangler deploy",
     "test": "pnpm -r --if-present test",
+    "test:release": "node --test 'scripts/release/*.test.mjs' scripts/prune-stale-next-dist-tag.test.mjs",
     "typecheck": "pnpm -r --if-present typecheck",
     "lint": "pnpm -r --if-present lint",
     "b4push": "bash scripts/run-b4push.sh",
