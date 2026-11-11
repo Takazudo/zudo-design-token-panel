@@ -125,6 +125,24 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+  release-tooling:
+    name: Release helper tests
+    # scripts/release/ and the prune script are dependency-free; no install needed.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Release helper and dist-tag prune tests
+        run: node --test 'scripts/release/*.test.mjs' scripts/prune-stale-next-dist-tag.test.mjs
+
   zdtp-node22:
     name: Published package on Node 22 (build and unit tests)
     # The workspace needs Node 24 (zudo-doc 7+ engines + engineStrict), but the
