@@ -19,5 +19,8 @@ the rules here.
 - Never add npm credentials (no `NPM_TOKEN`, no `.npmrc` auth, no `npm login`).
   Publication happens only in GitHub Actions through OIDC trusted publishing.
 - Never force-move or recreate a `v*` tag, and never bypass git hooks.
+- When the environment cannot push tags (e.g. Claude Code Cloud, or a Cloud
+  task without tag rights), tag through `release-coordinator.yml` ("Step 8
+  (Route C)" in `docs/releasing.md`) instead of adding credentials.
 - In Codex Cloud, see "Codex Cloud environment" in `docs/releasing.md`. A local
   run is not Cloud acceptance evidence.

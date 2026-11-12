@@ -39,6 +39,9 @@
 # landed, or a re-run can hit "cannot publish over"). Always read the registry:
 #   node scripts/release/release.mjs status --version <version>
 #
+# Callers that cannot push tags use release-coordinator.yml, which creates the
+# tag with GITHUB_TOKEN and dispatches this workflow at it (ref = the tag).
+#
 # Action SHAs are pinned to immutable commits (OpenSSF best practice); the
 # trailing comment names the release for human readability.
 

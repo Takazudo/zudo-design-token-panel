@@ -22,7 +22,12 @@ const USAGE = `usage: node scripts/release/release.mjs <command> [options]
   actions-gate                           uses GITHUB_REF, GITHUB_SHA, DRY_RUN
   publish --version V --dist-tag T
   verify-registry --version V --sha SHA [--published-run-id ID] [--audit-signatures]
-  finalize --version V --sha SHA`;
+  finalize --version V --sha SHA
+
+  Actions-only (release-coordinator.yml; uses GITHUB_REF):
+  coordinate-gate --version V --sha SHA       read-only checks before tagging
+  coordinate-tag --version V --sha SHA        create v<V> at SHA via the API (idempotent)
+  coordinate-dispatch --version V --sha SHA   dispatch release.yml at v<V> unless a run is active/succeeded`;
 
 const { positionals, values } = parseArgs({
   allowPositionals: true,
@@ -108,6 +113,35 @@ async function main() {
     case 'finalize':
       print(await cmd.finalize(io, { version: values.version, sha: values.sha }));
       return 0;
+    case 'coordinate-gate': {
+      try {
+        const g = await cmd.coordinateGate(io, { version: values.version, sha: values.sha });
+        io.setOutput('tag', g.tag);
+        io.setOutput('tag_state', g.tagState);
+        io.setOutput('decision', g.decision.action);
+        io.summary(`### Coordinator gate\n- version: \`${g.version}\` → dist-tag \`${g.distTag}\`\n- commit: \`${g.sha}\`\n- ci.yml run: ${g.ci.run.html_url ?? g.ci.run.id}\n- tag: \`${g.tag}\` (${g.tagState})\n- registry: ${g.decision.reason}`);
+        print({ ok: true, version: g.version, tag: g.tag, tagState: g.tagState, distTag: g.distTag, ciRun: g.ci.run.html_url ?? g.ci.run.id, decision: g.decision });
+        return 0;
+      } catch (e) {
+        if (e.code === 'CI_PENDING') {
+          console.error(`${e.message}\nWait for that run, then dispatch the coordinator again.`);
+          return 3;
+        }
+        throw e;
+      }
+    }
+    case 'coordinate-tag': {
+      const r = await cmd.coordinateTag(io, { version: values.version, sha: values.sha });
+      io.summary(`### Tag\n- \`${r.tag}\` ${r.created ? 'created' : 'already present'} at \`${values.sha}\``);
+      print(r);
+      return 0;
+    }
+    case 'coordinate-dispatch': {
+      const r = await cmd.coordinateDispatch(io, { version: values.version, sha: values.sha });
+      io.summary(`### Release run\n- ${r.reason} ${r.run.html_url ?? r.run.id}`);
+      print({ dispatched: r.dispatched, reason: r.reason, id: r.run.id, url: r.run.html_url });
+      return 0;
+    }
     default:
       console.error(USAGE);
       return values.help ? 0 : 2;

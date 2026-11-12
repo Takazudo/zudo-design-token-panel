@@ -1,0 +1,133 @@
+# release-coordinator.yml
+#
+# Tag-and-dispatch coordinator for callers that cannot push release tags
+# themselves (e.g. Claude Code Cloud, whose git proxy refuses tag pushes).
+# Procedure: "Route C: release coordinator" in docs/releasing.md.
+#
+# Dispatch it on `main` with the exact version and the frozen candidate SHA:
+#   version = packages/zdtp/package.json version at that SHA (no "v")
+#   sha     = the full 40-character integrated commit on main
+#
+#   gate     (read-only) version == package.json at SHA, SHA reachable from
+#            main, ci.yml push run on main green for exactly SHA, tag absent or
+#            already at SHA (elsewhere → fail), registry readable and not
+#            regressed. A registry/network error fails the run; it is never
+#            read as "not published". dry_run stops here.
+#   tag      (contents: write) creates v<version> at SHA through the REST API
+#            with this run's GITHUB_TOKEN. An identical existing tag is a
+#            no-op (safe resume); a tag at another commit fails. Never moves or
+#            deletes a tag.
+#   dispatch (actions: write) a GITHUB_TOKEN tag does not start push-triggered
+#            workflows, so this job dispatches release.yml at the tag
+#            (workflow_dispatch is the documented exception). An active or
+#            successful release.yml run for the same tag + SHA is reused.
+#
+# Publication stays in release.yml: its publish job alone holds id-token:
+# write, and the npm trusted publisher (workflow release.yml, no environment)
+# is unchanged. This workflow never touches npm and holds no npm credential.
+
+name: Release coordinator
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, e.g. 0.9.6 (must equal packages/zdtp/package.json at sha)"
+        required: true
+        type: string
+      sha:
+        description: "Full 40-character commit SHA on main to tag"
+        required: true
+        type: string
+      dry_run:
+        description: "Run the read-only gate only (no tag, no dispatch)"
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: release-coordinator
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: Coordinator gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read # read ci.yml runs for the exact commit
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Gate version, commit, CI, tag and registry
+        run: node scripts/release/release.mjs coordinate-gate --version "$VERSION" --sha "$SHA"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          SHA: ${{ inputs.sha }}
+
+  tag:
+    name: Create release tag
+    needs: gate
+    if: inputs.dry_run != true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # create refs/tags/v<version> (ephemeral GITHUB_TOKEN)
+      actions: read # the gate is re-run here right before the write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Create or confirm the tag
+        run: node scripts/release/release.mjs coordinate-tag --version "$VERSION" --sha "$SHA"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          SHA: ${{ inputs.sha }}
+
+  dispatch:
+    name: Dispatch release.yml at the tag
+    needs: tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write # workflow_dispatch of release.yml
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Start (or reuse) the Release run
+        run: node scripts/release/release.mjs coordinate-dispatch --version "$VERSION" --sha "$SHA"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          SHA: ${{ inputs.sha }}

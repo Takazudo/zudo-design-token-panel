@@ -177,12 +177,22 @@ function fakeIo(over = {}) {
         return '';
       }
       if (args[0] === 'workflow' && args[1] === 'run') {
+        if (s.dispatchFails > 0) {
+          s.dispatchFails--;
+          throw new Error('HTTP 500: dispatch failed');
+        }
         const ref = args[args.indexOf('--ref') + 1];
         s.releaseRuns.push({ id: 900 + s.releaseRuns.length, path: '.github/workflows/release.yml', head_branch: ref, head_sha: s.remoteTags[ref] ?? s.remoteHeads[ref], event: 'workflow_dispatch', created_at: NOW.toISOString() });
         return '';
       }
       if (args[0] === 'api' && args.includes('POST')) {
         const ref = args.find((a) => a.startsWith('ref=')).slice(4).replace('refs/tags/', '');
+        // Simulated races / refusals: another writer created the tag first, or the token lacks rights.
+        if (s.tagPostRace) {
+          s.remoteTags[ref] = s.tagPostRace;
+          throw new Error('HTTP 422: Reference already exists');
+        }
+        if (s.tagPostDenied) throw new Error('HTTP 403: Resource not accessible by integration');
         s.remoteTags[ref] = args.find((a) => a.startsWith('sha=')).slice(4);
         return '';
       }
@@ -661,5 +671,158 @@ describe('run correlation and release notes', () => {
 
   test('extractReleaseNotes strips frontmatter and the Released marker', () => {
     assert.equal(extractReleaseNotes(MDX), '### Fixed\n\n- fix something (abc1234)\n');
+  });
+});
+
+describe('release coordinator (release-coordinator.yml)', () => {
+  const MAIN = { GITHUB_REF: 'refs/heads/main' };
+  const coord = (over = {}) => fakeIo({ env: MAIN, ...over });
+  const tagWrites = (io) => io.calls.gh.filter((a) => a[0] === 'api' && a.includes('POST'));
+  const dispatches = (io) => io.calls.gh.filter((a) => a[0] === 'workflow' && a[1] === 'run');
+
+  test('happy path: gate → tag at the exact SHA → dispatch release.yml at the tag', async () => {
+    const io = coord();
+    const g = await cmd.coordinateGate(io, { version: '0.9.5', sha: SHA });
+    assert.equal(g.tagState, 'absent');
+    assert.equal(g.decision.action, 'publish');
+    const t = await cmd.coordinateTag(io, { version: '0.9.5', sha: SHA });
+    assert.deepEqual(t, { tag: 'v0.9.5', created: true });
+    assert.equal(io.state.remoteTags['v0.9.5'], SHA);
+    const d = await cmd.coordinateDispatch(io, { version: '0.9.5', sha: SHA });
+    assert.equal(d.dispatched, true);
+    const run = dispatches(io)[0];
+    assert.equal(run[run.indexOf('--ref') + 1], 'v0.9.5');
+    assert.ok(run.includes('dry_run=false'));
+    assert.equal(d.run.head_sha, SHA);
+    assert.equal(mutations(io).publishes.length, 0, 'the coordinator never publishes itself');
+  });
+
+  test('a version that does not match package.json at the SHA is refused before any write', async () => {
+    const io = coord();
+    await assert.rejects(cmd.coordinateTag(io, { version: '0.9.6', sha: SHA }), { code: 'VERSION_MISMATCH' });
+    assert.equal(tagWrites(io).length, 0);
+  });
+
+  test('a short or malformed SHA is a usage error', async () => {
+    await assert.rejects(cmd.coordinateGate(coord(), { version: '0.9.5', sha: 'abc1234' }), { code: 'USAGE' });
+  });
+
+  test('a SHA that is not on main is refused', async () => {
+    const io = coord({ onMain: new Set(), pkgAt: { [SHA]: '0.9.5' } });
+    await assert.rejects(cmd.coordinateTag(io, { version: '0.9.5', sha: SHA }), { code: 'NOT_ON_MAIN' });
+    assert.equal(tagWrites(io).length, 0);
+  });
+
+  test('CI that is pending, failed or only green for another commit blocks tagging', async () => {
+    for (const ciRuns of [[ciRun({ status: 'in_progress', conclusion: null })], [ciRun({ conclusion: 'failure' })], [ciRun({ head_sha: OTHER })]]) {
+      const io = coord({ ciRuns });
+      await assert.rejects(cmd.coordinateTag(io, { version: '0.9.5', sha: SHA }), (e) => ['CI_PENDING', 'CI_NOT_GREEN'].includes(e.code));
+      assert.equal(tagWrites(io).length, 0);
+    }
+  });
+
+  test('the coordinator refuses to run from a non-main ref', async () => {
+    const io = fakeIo({ env: { GITHUB_REF: 'refs/heads/feat/x' } });
+    await assert.rejects(cmd.coordinateTag(io, { version: '0.9.5', sha: SHA }), { code: 'WRONG_REF' });
+    assert.equal(tagWrites(io).length, 0);
+  });
+
+  test('re-sending the same request resumes: an identical tag is not re-created', async () => {
+    const io = coord({ remoteTags: { 'v0.9.5': SHA } });
+    const t = await cmd.coordinateTag(io, { version: '0.9.5', sha: SHA });
+    assert.deepEqual(t, { tag: 'v0.9.5', created: false });
+    assert.equal(tagWrites(io).length, 0);
+  });
+
+  test('an existing tag at another commit fails and is never moved', async () => {
+    const io = coord({ remoteTags: { 'v0.9.5': OTHER } });
+    await assert.rejects(cmd.coordinateTag(io, { version: '0.9.5', sha: SHA }), { code: 'TAG_CONFLICT' });
+    assert.equal(tagWrites(io).length, 0);
+    assert.equal(io.state.remoteTags['v0.9.5'], OTHER);
+  });
+
+  test('a concurrent writer that created the same tag first is a successful resume', async () => {
+    const io = coord({ tagPostRace: SHA });
+    const t = await cmd.coordinateTag(io, { version: '0.9.5', sha: SHA });
+    assert.equal(t.created, false);
+    assert.equal(io.state.remoteTags['v0.9.5'], SHA);
+  });
+
+  test('a concurrent writer that created the tag at another commit is a conflict', async () => {
+    const io = coord({ tagPostRace: OTHER });
+    await assert.rejects(cmd.coordinateTag(io, { version: '0.9.5', sha: SHA }), { code: 'TAG_CONFLICT' });
+  });
+
+  test('a refused tag write (no contents: write / ruleset) is reported, not retried around', async () => {
+    const io = coord({ tagPostDenied: true });
+    await assert.rejects(cmd.coordinateTag(io, { version: '0.9.5', sha: SHA }), { code: 'TAG_CREATE_FAILED' });
+    assert.equal(io.state.remoteTags['v0.9.5'], undefined);
+  });
+
+  test('an unreadable registry fails the gate; it is never treated as "not published"', async () => {
+    const io = coord({ registryErrors: 1 });
+    await assert.rejects(cmd.coordinateTag(io, { version: '0.9.5', sha: SHA }), /HTTP 503/);
+    assert.equal(tagWrites(io).length, 0);
+  });
+
+  test('a version already on npm without its tag is an anomaly, not a tag request', async () => {
+    const p = publishedDoc('0.9.5');
+    const io = coord({ registry: { versions: ['0.9.4', '0.9.5'], distTags: { latest: '0.9.5' }, docs: { '0.9.5': p.doc } } });
+    await assert.rejects(cmd.coordinateTag(io, { version: '0.9.5', sha: SHA }), { code: 'ANOMALY' });
+    assert.equal(tagWrites(io).length, 0);
+  });
+
+  test('a version already on npm with its tag resumes to finalize-only (dispatch, no republish)', async () => {
+    const p = publishedDoc('0.9.5');
+    const io = coord({ remoteTags: { 'v0.9.5': SHA }, registry: { versions: ['0.9.4', '0.9.5'], distTags: { latest: '0.9.5' }, docs: { '0.9.5': p.doc } } });
+    const g = await cmd.coordinateGate(io, { version: '0.9.5', sha: SHA });
+    assert.equal(g.decision.action, 'skip-publish');
+    const d = await cmd.coordinateDispatch(io, { version: '0.9.5', sha: SHA });
+    assert.equal(d.dispatched, true);
+    assert.equal(mutations(io).publishes.length, 0);
+  });
+
+  test('a dist-tag regression is refused before tagging', async () => {
+    const io = coord({ registry: { versions: ['0.9.4', '0.9.9'], distTags: { latest: '0.9.9' }, docs: {} } });
+    await assert.rejects(cmd.coordinateTag(io, { version: '0.9.5', sha: SHA }), { code: 'DIST_TAG_REGRESSION' });
+    assert.equal(tagWrites(io).length, 0);
+  });
+
+  test('a failed dispatch leaves the tag in place; re-running resumes and dispatches once', async () => {
+    const io = coord({ dispatchFails: 1 });
+    await cmd.coordinateTag(io, { version: '0.9.5', sha: SHA });
+    await assert.rejects(cmd.coordinateDispatch(io, { version: '0.9.5', sha: SHA }), /dispatch failed/);
+    assert.equal(io.state.remoteTags['v0.9.5'], SHA);
+    // Re-run of the whole coordinator with the same inputs.
+    const t = await cmd.coordinateTag(io, { version: '0.9.5', sha: SHA });
+    assert.equal(t.created, false);
+    const d = await cmd.coordinateDispatch(io, { version: '0.9.5', sha: SHA });
+    assert.equal(d.dispatched, true);
+    assert.equal(dispatches(io).length, 2, 'one failed attempt + one successful dispatch');
+    assert.equal(tagWrites(io).length, 1, 'the tag was written exactly once');
+  });
+
+  test('an active or successful release.yml run for the tag is reused, not dispatched again', async () => {
+    const base = { path: '.github/workflows/release.yml', head_branch: 'v0.9.5', head_sha: SHA, event: 'workflow_dispatch', created_at: NOW.toISOString() };
+    for (const run of [{ ...base, id: 1, status: 'in_progress', conclusion: null }, { ...base, id: 2, status: 'completed', conclusion: 'success' }]) {
+      const io = coord({ remoteTags: { 'v0.9.5': SHA }, releaseRuns: [run] });
+      const d = await cmd.coordinateDispatch(io, { version: '0.9.5', sha: SHA });
+      assert.equal(d.dispatched, false);
+      assert.equal(d.run.id, run.id);
+      assert.equal(dispatches(io).length, 0);
+    }
+  });
+
+  test('a failed earlier release.yml run is resumed by a new dispatch', async () => {
+    const failed = { id: 3, path: '.github/workflows/release.yml', head_branch: 'v0.9.5', head_sha: SHA, event: 'workflow_dispatch', status: 'completed', conclusion: 'failure', created_at: '2026-11-12T08:00:00Z' };
+    const io = coord({ remoteTags: { 'v0.9.5': SHA }, releaseRuns: [failed] });
+    const d = await cmd.coordinateDispatch(io, { version: '0.9.5', sha: SHA });
+    assert.equal(d.dispatched, true);
+    assert.notEqual(d.run.id, 3);
+  });
+
+  test('dispatch refuses when the tag is missing or names another commit', async () => {
+    await assert.rejects(cmd.coordinateDispatch(coord(), { version: '0.9.5', sha: SHA }), { code: 'TAG_MISSING' });
+    await assert.rejects(cmd.coordinateDispatch(coord({ remoteTags: { 'v0.9.5': OTHER } }), { version: '0.9.5', sha: SHA }), { code: 'TAG_CONFLICT' });
   });
 });
