@@ -507,7 +507,7 @@ gh run view <run-id> --log-failed
 | --- | --- |
 | publint/CI failure before tagging | fix through a normal commit; re-freeze and re-gate. Nothing was published |
 | coordinator failed in **gate** | nothing was written. Fix the cause (CI pending/failed, wrong version or SHA, registry unreadable) and dispatch it again with the same inputs |
-| coordinator failed in **tag** with `TAG_CREATE_FAILED` | the token could not create the tag (permissions or a ruleset). Report the setting; do not add a PAT. A person can push the tag instead (Step 8) |
+| coordinator failed in **tag** with `TAG_CREATE_FAILED` | the error carries GitHub's own reason. A ruleset or permission refusal: report the setting; do not add a PAT. A `workflows` permission refusal: the candidate's `.github/workflows/` differs from `main`, which `GITHUB_TOKEN` may not write; push the tag from a user credential (Step 8) or release a newer commit. Either way a person can push the tag instead |
 | coordinator failed in **dispatch**, tag present | re-run the coordinator with the same inputs (the tag is kept), or `release.mjs dispatch --ref v<version>` |
 | `tagged-unpublished`, a run is still active | wait for it. Real publishes are serialized across tags; never cancel an active publish |
 | `tagged-unpublished`, the publish job shows `cancelled` without anyone cancelling it | GitHub keeps one *pending* job per concurrency group, so a third concurrent release displaced it. `release.mjs dispatch --ref v<version>` once the others finish |

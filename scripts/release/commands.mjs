@@ -514,7 +514,12 @@ export async function coordinateTag(io, { version, sha, readbackAttempts = 6, in
       return { tag: g.tag, created: false };
     }
     if (now) classifyTag(now, sha, g.tag);
-    throw new ReleaseError(`Creating ${g.tag} failed and the tag is not on the remote: ${e.message.split('\n')[0]}. Check that the workflow has contents: write and that no ruleset blocks tag creation by GitHub Actions.`, { code: 'TAG_CREATE_FAILED' });
+    // execFileSync hides gh's own message (HTTP status + GitHub's reason) in stderr; surface it.
+    const detail = [String(e.stderr ?? '').trim(), e.message.split('\n')[0]].filter(Boolean).join(' | ');
+    const hint = /workflow/i.test(detail)
+      ? ' GitHub refuses GITHUB_TOKEN ref writes that would change .github/workflows/ relative to the default branch (the token cannot hold the `workflows` permission). Tag this commit from a user credential (Step 8), or release a commit whose workflow files match main.'
+      : ' Check that the job has contents: write and that no ruleset blocks tag creation by GitHub Actions.';
+    throw new ReleaseError(`Creating ${g.tag} failed and the tag is not on the remote: ${detail}.${hint}`, { code: 'TAG_CREATE_FAILED', details: { detail } });
   }
   const readBack = await retry(async () => ({ done: Boolean(io.remoteTagSha(g.tag)), value: io.remoteTagSha(g.tag) }), { attempts: readbackAttempts, intervalMs, sleep: io.sleep });
   if (!readBack.ok) throw new ReleaseError(`${g.tag} was created but is not readable yet. Re-run the coordinator; an existing identical tag is a no-op.`, { code: 'READBACK_PENDING', inconclusive: true });
