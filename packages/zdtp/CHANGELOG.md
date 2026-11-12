@@ -8,6 +8,17 @@ The format is based on Keep a Changelog, and release notes are generated from th
 
 No unreleased changes yet.
 
+## [0.9.7] - 2026-11-12
+
+### Fixed
+
+- fix(release): harden the release coordinator after the first real 0.9.6 run ([#1125](https://github.com/Takazudo/zudo-design-token-panel/pull/1125)) (2256da5)
+- fix(release): address review: drafts are not complete, keep definite dispatch refusals, full 403 annotation ([#1125](https://github.com/Takazudo/zudo-design-token-panel/pull/1125)) (a87f7a9)
+
+### Other Changes
+
+- ci: drop duplicate release test step (the release-tooling job already runs it) ([#1125](https://github.com/Takazudo/zudo-design-token-panel/pull/1125)) (e33c7be)
+
 ## [0.9.6] - 2026-11-12
 
 ### Fixed
