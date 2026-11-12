@@ -116,11 +116,24 @@ async function main() {
     case 'coordinate-gate': {
       try {
         const g = await cmd.coordinateGate(io, { version: values.version, sha: values.sha });
+        for (const w of g.warnings) console.log(`::warning title=Release coordinator::${w}`);
         io.setOutput('tag', g.tag);
         io.setOutput('tag_state', g.tagState);
+        io.setOutput('mode', g.mode);
         io.setOutput('decision', g.decision.action);
-        io.summary(`### Coordinator gate\n- version: \`${g.version}\` → dist-tag \`${g.distTag}\`\n- commit: \`${g.sha}\`\n- ci.yml run: ${g.ci.run.html_url ?? g.ci.run.id}\n- tag: \`${g.tag}\` (${g.tagState})\n- registry: ${g.decision.reason}`);
-        print({ ok: true, version: g.version, tag: g.tag, tagState: g.tagState, distTag: g.distTag, ciRun: g.ci.run.html_url ?? g.ci.run.id, decision: g.decision });
+        io.summary(
+          [
+            `### Coordinator gate (${g.mode === 'resume' ? 'resume: tag already at this SHA' : 'new candidate'})`,
+            `- version: \`${g.version}\` → dist-tag \`${g.distTag}\``,
+            `- commit: \`${g.sha}\` (main is \`${g.candidate.mainHead ?? 'unknown'}\`, ${g.candidate.behind ?? '?'} commit(s) ahead)`,
+            `- coordinator: ${io.env.GITHUB_WORKFLOW_REF ?? 'local'} @ \`${io.env.GITHUB_SHA ?? '-'}\`, run ${io.env.GITHUB_RUN_ID ?? '-'} attempt ${io.env.GITHUB_RUN_ATTEMPT ?? '-'}`,
+            `- ci.yml run: ${g.ci.run.html_url ?? g.ci.run.id}`,
+            `- tag: \`${g.tag}\` (${g.tagState})`,
+            `- registry: ${g.decision.reason}`,
+            ...g.warnings.map((w) => `- ⚠️ ${w}`),
+          ].join('\n'),
+        );
+        print({ ok: true, mode: g.mode, version: g.version, tag: g.tag, tagState: g.tagState, distTag: g.distTag, ciRun: g.ci.run.html_url ?? g.ci.run.id, candidate: g.candidate, warnings: g.warnings, decision: g.decision });
         return 0;
       } catch (e) {
         if (e.code === 'CI_PENDING') {
@@ -138,8 +151,12 @@ async function main() {
     }
     case 'coordinate-dispatch': {
       const r = await cmd.coordinateDispatch(io, { version: values.version, sha: values.sha });
-      io.summary(`### Release run\n- ${r.reason} ${r.run.html_url ?? r.run.id}`);
-      print({ dispatched: r.dispatched, reason: r.reason, id: r.run.id, url: r.run.html_url });
+      const run = r.run ? `${r.run.url ?? r.run.id} (run ${r.run.id}, attempt ${r.run.attempt}, \`${r.run.sha}\`)` : 'none';
+      io.summary(
+        `### Release run\n- ${r.reason}\n- release.yml run: ${run}\n- registry/Release state when checked: \`${r.state}\`` +
+          (r.state === 'complete' ? '' : '\n- This coordinator only started or found the run. The release is complete when that run is green and `release.mjs status` reports `complete`.'),
+      );
+      print(r);
       return 0;
     }
     default:
@@ -152,7 +169,9 @@ main().then(
   (code) => process.exit(code),
   (e) => {
     if (e instanceof ReleaseError) {
-      console.error(`::error::[${e.code}] ${e.message}`);
+      // Workflow-command annotations end at a newline; encode it so multi-line diagnostics stay in the annotation.
+      console.error(`::error::[${e.code}] ${e.message.replace(/%/g, '%25').replace(/\r?\n/g, '%0A')}`);
+      if (e.message.includes('\n')) console.error(e.message);
       if (e.details) console.error(JSON.stringify(e.details, null, 2));
       process.exit(e.code === 'USAGE' ? 2 : e.inconclusive ? 3 : 1);
     }

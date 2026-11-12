@@ -12,6 +12,8 @@ export const REPO = 'Takazudo/zudo-design-token-panel';
 export const PKG_JSON_PATH = 'packages/zdtp/package.json';
 export const CI_WORKFLOW_PATH = '.github/workflows/ci.yml';
 export const RELEASE_WORKFLOW_PATH = '.github/workflows/release.yml';
+export const COORDINATOR_WORKFLOW_PATH = '.github/workflows/release-coordinator.yml';
+export const WORKFLOWS_DIR = '.github/workflows/';
 export const MAIN_BRANCH = 'main';
 export const CHANGELOG_EN_DIR = 'doc/src/content/docs/changelog';
 // actions/setup-node writes this literal placeholder into NODE_AUTH_TOKEN when
