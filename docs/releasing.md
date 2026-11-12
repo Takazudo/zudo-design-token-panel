@@ -41,6 +41,7 @@ node scripts/release/release.mjs tag --sha <SHA> [--via git|api] # create v<vers
 node scripts/release/release.mjs find-run --ref v<V> --sha <SHA> [--since ISO] [--wait]
 node scripts/release/release.mjs dispatch --ref <branch> --dry-run   # non-publishing Actions run
 node scripts/release/release.mjs dispatch --ref v<V>                 # resume at an existing tag
+node scripts/release/release.mjs coordinate-gate --version V --sha <SHA>  # Route C pre-check (read-only)
 ```
 
 Exit codes: `0` ok, `1` refused or failed, `2` usage, `3` inconclusive or pending
@@ -389,9 +390,73 @@ node scripts/release/release.mjs tag --sha "$SHA" --via api  # GitHub API ref cr
 `tag` re-runs the gate, creates a lightweight `v<version>` at exactly `$SHA`,
 reads the remote back, and prints `since` (the time before the push). An
 existing identical tag is a no-op, and a conflicting one stops the command. The
-tag push (by a user credential, git or API) triggers `release.yml`. The
-repository's own `GITHUB_TOKEN` never creates release tags, because its events
-would not start workflows.
+tag push (by a user credential, git or API) triggers `release.yml`. A tag made
+by a workflow's own `GITHUB_TOKEN` does not start push-triggered workflows, so
+the only Actions-side tagging path is the coordinator below, which dispatches
+`release.yml` explicitly.
+
+### Step 8 (Route C): release coordinator — Claude Code Cloud and other callers without tag rights
+
+Claude Code Cloud's git proxy refuses tag pushes (HTTP 403), and its `gh` has
+no login. Do **not** work around that with a PAT, an npm token or a second
+credential. Instead, dispatch `.github/workflows/release-coordinator.yml` on
+`main` with the frozen candidate:
+
+| input | value |
+| --- | --- |
+| `version` | `packages/zdtp/package.json` version at `$SHA` (no `v`) |
+| `sha` | the full 40-character `$SHA` from Step 6 |
+| `dry_run` | `true` runs only the read-only gate; `false` tags and dispatches |
+
+Run the same checks locally first (read-only, no credentials needed):
+
+```bash
+node scripts/release/release.mjs coordinate-gate --version <version> --sha "$SHA"
+```
+
+The coordinator's jobs, each with only the permissions it needs:
+
+1. **gate** (`contents: read`, `actions: read`): dispatched from `main`;
+   version equals `package.json` at `$SHA`; `$SHA` reachable from `main`;
+   `ci.yml` push run on `main` green for exactly `$SHA`; tag absent or already
+   at `$SHA` (elsewhere fails); registry readable and not regressed. A registry
+   or network error fails the run; it is never read as "not published". A
+   version already on npm with no tag is an `ANOMALY` and stops.
+2. **tag** (`contents: write`): re-runs the gate, then creates `v<version>`
+   at `$SHA` through the REST API with the run's `GITHUB_TOKEN`. An identical
+   existing tag (a re-sent request, or a concurrent coordinator that won the
+   race) is a no-op; a tag at another commit fails. It never moves or deletes
+   a tag. A 403 here means a repository setting or ruleset blocks Actions from
+   creating tags: report it, do not bypass it.
+3. **dispatch** (`actions: write`): dispatches `release.yml` at `v<version>`
+   (`dry_run=false`). If the newest real `release.yml` run for that tag and SHA
+   is still active or succeeded, it is reused instead of dispatched again. Dry
+   runs (titled `Release v<version> (dry run)`) never count.
+
+`release.yml` then runs exactly as for a pushed tag: its own gate, the OIDC
+publish (the only job with `id-token: write`; trusted publisher `release.yml`,
+no environment, unchanged), registry verification and the GitHub Release. The
+coordinator holds no npm credential and never publishes.
+
+**How to start it.** From the Actions tab: *Release coordinator* → *Run
+workflow* → branch `main` → fill `version` and `sha`. A Cloud agent may start
+it with its GitHub tool (`run_workflow` on `release-coordinator.yml`, ref
+`main`) when that tool has `actions: write`; whether it does is only proven by
+the first dispatch. If the agent cannot dispatch, it stops after Step 7 and
+hands the person the two inputs; it does not create tokens to get around it.
+
+**Resume.** Re-dispatching with the same inputs is always safe: an identical
+tag is kept and an active or successful release run is reused. If the
+dispatch job failed after the tag was created, re-run the coordinator (or
+`release.mjs dispatch --ref v<version>` from a credentialed shell). Then
+continue with Step 9 using `--event workflow_dispatch`; the run is at ref
+`v<version>`.
+
+**What is still not Cloud-only.** Nothing in this package needs a
+platform-specific or local-only build: `release.yml` builds and packs the
+single published package on `ubuntu-latest`. The Cloud-blocked step is only
+the tag; starting the coordinator needs someone (or a tool) with
+`actions: write` on the repository.
 
 ## Step 9: Monitor the Release run
 
@@ -441,6 +506,9 @@ gh run view <run-id> --log-failed
 | observed state | action |
 | --- | --- |
 | publint/CI failure before tagging | fix through a normal commit; re-freeze and re-gate. Nothing was published |
+| coordinator failed in **gate** | nothing was written. Fix the cause (CI pending/failed, wrong version or SHA, registry unreadable) and dispatch it again with the same inputs |
+| coordinator failed in **tag** with `TAG_CREATE_FAILED` | the token could not create the tag (permissions or a ruleset). Report the setting; do not add a PAT. A person can push the tag instead (Step 8) |
+| coordinator failed in **dispatch**, tag present | re-run the coordinator with the same inputs (the tag is kept), or `release.mjs dispatch --ref v<version>` |
 | `tagged-unpublished`, a run is still active | wait for it. Real publishes are serialized across tags; never cancel an active publish |
 | `tagged-unpublished`, the publish job shows `cancelled` without anyone cancelling it | GitHub keeps one *pending* job per concurrency group, so a third concurrent release displaced it. `release.mjs dispatch --ref v<version>` once the others finish |
 | `tagged-unpublished`, run failed in **gate** (e.g. CI not green at tag time) | fix the cause (e.g. let CI finish), then `release.mjs dispatch --ref v<version>` or re-run the failed jobs |

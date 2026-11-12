@@ -39,10 +39,16 @@
 # landed, or a re-run can hit "cannot publish over"). Always read the registry:
 #   node scripts/release/release.mjs status --version <version>
 #
+# Callers that cannot push tags use release-coordinator.yml, which creates the
+# tag with GITHUB_TOKEN and dispatches this workflow at it (ref = the tag).
+#
 # Action SHAs are pinned to immutable commits (OpenSSF best practice); the
 # trailing comment names the release for human readability.
 
 name: Release
+# "(dry run)" in the title is how release-coordinator.yml tells a build-only run
+# apart from a real one at the same tag; keep the marker if you change this.
+run-name: ${{ inputs.dry_run && format('Release {0} (dry run)', github.ref_name) || format('Release {0}', github.ref_name) }}
 
 on:
   push:

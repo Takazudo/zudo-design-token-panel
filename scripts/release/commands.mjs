@@ -467,3 +467,79 @@ export async function preflight(io, { route = 'direct' } = {}) {
 
   return { checks, ok: !checks.some((c) => c.level === 'FAIL') };
 }
+
+// ── Release coordinator (release-coordinator.yml) ─────────────────────────────
+// Lets a caller without tag-push rights (e.g. Claude Code Cloud) release by
+// dispatching one workflow with an explicit version + SHA. Actions creates the
+// tag with its own GITHUB_TOKEN and then dispatches release.yml at that tag
+// (a GITHUB_TOKEN tag push does not trigger workflows; workflow_dispatch does).
+
+/**
+ * Read-only coordinator gate: everything the client gate checks, plus the
+ * requested version must equal packages/zdtp/package.json at the SHA, and the
+ * coordinator itself must run from main's workflow definition.
+ */
+export async function coordinateGate(io, { version, sha, ref = io.env.GITHUB_REF }) {
+  requireSha(sha);
+  classifyVersion(version);
+  if (ref !== undefined && ref !== `refs/heads/${MAIN_BRANCH}`) {
+    throw new ReleaseError(`The release coordinator must be dispatched from ${MAIN_BRANCH}; got ${ref}.`, { code: 'WRONG_REF' });
+  }
+  io.gitOk(['fetch', '--quiet', 'origin', sha]);
+  const pkgVersion = versionAt(io, sha);
+  if (pkgVersion !== version) {
+    throw new ReleaseError(`Requested version ${version} does not match ${PKG_JSON_PATH} "${pkgVersion}" at ${sha}.`, { code: 'VERSION_MISMATCH' });
+  }
+  const g = await gateCandidate(io, { sha, tagName: `v${version}`, requireCi: true });
+  if (g.tagState === 'absent' && g.decision.action === 'skip-publish') {
+    throw new ReleaseError(`${PKG}@${version} is already on npm but ${g.tag} is missing. Investigate before tagging.`, { code: 'ANOMALY' });
+  }
+  return g;
+}
+
+/** Coordinator: create the tag at the gated SHA through the GitHub API (idempotent, never moves a tag). */
+export async function coordinateTag(io, { version, sha, readbackAttempts = 6, intervalMs = 5000 }) {
+  const g = await coordinateGate(io, { version, sha });
+  if (g.tagState === 'same') {
+    io.log(`${g.tag} already points at ${sha}; resuming without creating it.`);
+    return { tag: g.tag, created: false };
+  }
+  try {
+    io.gh(['api', '-X', 'POST', `repos/${REPO}/git/refs`, '-f', `ref=refs/tags/${g.tag}`, '-f', `sha=${sha}`]);
+  } catch (e) {
+    // A concurrent coordinator or a re-sent request may have won the race: decide from the remote, not the error.
+    const now = io.remoteTagSha(g.tag);
+    if (now === sha) {
+      io.log(`${g.tag} appeared at ${sha} while creating it; treating as already created.`);
+      return { tag: g.tag, created: false };
+    }
+    if (now) classifyTag(now, sha, g.tag);
+    throw new ReleaseError(`Creating ${g.tag} failed and the tag is not on the remote: ${e.message.split('\n')[0]}. Check that the workflow has contents: write and that no ruleset blocks tag creation by GitHub Actions.`, { code: 'TAG_CREATE_FAILED' });
+  }
+  const readBack = await retry(async () => ({ done: Boolean(io.remoteTagSha(g.tag)), value: io.remoteTagSha(g.tag) }), { attempts: readbackAttempts, intervalMs, sleep: io.sleep });
+  if (!readBack.ok) throw new ReleaseError(`${g.tag} was created but is not readable yet. Re-run the coordinator; an existing identical tag is a no-op.`, { code: 'READBACK_PENDING', inconclusive: true });
+  classifyTag(readBack.value, sha, g.tag);
+  return { tag: g.tag, created: true };
+}
+
+/**
+ * Coordinator: start release.yml at the existing tag. An active or successful
+ * run for the same tag + SHA is reused instead of dispatching a second one.
+ */
+export const isDryRunTitle = (title) => /\(dry run\)/i.test(String(title ?? ''));
+
+export async function coordinateDispatch(io, { version, sha }) {
+  requireSha(sha);
+  const tag = `v${version}`;
+  const tagState = classifyTag(io.remoteTagSha(tag), sha, tag);
+  if (tagState !== 'same') throw new ReleaseError(`${tag} is not on the remote at ${sha}; create it first.`, { code: 'TAG_MISSING' });
+  const runs = (await io.githubGet(`repos/${REPO}/actions/workflows/release.yml/runs?branch=${encodeURIComponent(tag)}&per_page=30`))?.workflow_runs ?? [];
+  // Only real runs count: a green dry run at the tag published nothing (release.yml marks them in run-name).
+  const latest = runs
+    .filter((r) => r.path === RELEASE_WORKFLOW_PATH && r.head_branch === tag && r.head_sha === sha && !isDryRunTitle(r.display_title))
+    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0];
+  if (latest && latest.status !== 'completed') return { dispatched: false, run: latest, reason: `release.yml run ${latest.id} for ${tag} is still running.` };
+  if (latest?.conclusion === 'success') return { dispatched: false, run: latest, reason: `release.yml run ${latest.id} for ${tag} already succeeded.` };
+  const run = await dispatch(io, { ref: tag, dryRun: false });
+  return { dispatched: true, run, reason: `Dispatched release.yml at ${tag}.` };
+}
