@@ -463,7 +463,7 @@ The coordinator's jobs, each with only the permissions it needs:
    `possible (unconfirmed)` (workflow drift) and `unknown`. It does not retry
    with another credential.
 3. **dispatch** (`actions: write`): reads npm and the GitHub Release first. If
-   both are there, it stops (`complete`). Otherwise it reuses the newest real
+   both are there (a draft Release does not count), it stops (`complete`). Otherwise it reuses the newest real
    `release.yml` run for that tag + SHA when it is active or green (dry runs,
    other SHAs and other workflows never count), or dispatches `release.yml` at
    `v<version>` (`dry_run=false`). The summary names the run id, attempt and

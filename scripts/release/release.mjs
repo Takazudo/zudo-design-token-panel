@@ -169,7 +169,9 @@ main().then(
   (code) => process.exit(code),
   (e) => {
     if (e instanceof ReleaseError) {
-      console.error(`::error::[${e.code}] ${e.message}`);
+      // Workflow-command annotations end at a newline; encode it so multi-line diagnostics stay in the annotation.
+      console.error(`::error::[${e.code}] ${e.message.replace(/%/g, '%25').replace(/\r?\n/g, '%0A')}`);
+      if (e.message.includes('\n')) console.error(e.message);
       if (e.details) console.error(JSON.stringify(e.details, null, 2));
       process.exit(e.code === 'USAGE' ? 2 : e.inconclusive ? 3 : 1);
     }

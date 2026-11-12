@@ -591,7 +591,7 @@ export async function diagnoseTagRefusal(io, { tag, sha, stderr, candidate }) {
   const status = /HTTP (\d{3})/.exec(stderr)?.[1] ?? null;
   const confirmed = [
     `GitHub answered ${status ? `HTTP ${status}` : 'an error'} to POST git/refs: ${stderr || '(no stderr)'}`,
-    `${tag} is not on the remote after the failure.`,
+    `${tag} was not visible on the remote in one read right after the failure (a re-send re-checks it).`,
     `This job declares contents: write (release-coordinator.yml); the token's effective permissions are listed in the job's "Set up job" log.`,
   ];
   const possible = [];
@@ -671,7 +671,9 @@ export async function coordinateDispatch(io, { version, sha, env = io.env }) {
 
   const reg = await readRegistryKnown(io);
   const published = reg.versions.includes(version);
-  const release = published ? await findRelease(io, tag) : null;
+  const found = published ? await findRelease(io, tag) : null;
+  // A draft is not a finished Release: let release.yml's finalize report it.
+  const release = found && !found.isDraft ? found : null;
   const state = decideResume({ version, candidateSha: sha, tagSha: sha, published, release }).state;
   if (state === 'complete') {
     return { dispatched: false, state, run: null, reason: `${PKG}@${version} is on npm and the GitHub Release ${release.url ?? tag} exists; nothing to dispatch.` };
@@ -692,7 +694,9 @@ export async function coordinateDispatch(io, { version, sha, env = io.env }) {
   try {
     run = await dispatch(io, { ref: tag, dryRun: false });
   } catch (e) {
-    const notFound = e instanceof ReleaseError && e.code === 'RUN_NOT_FOUND';
+    // Definite refusals raised before `gh workflow run` (e.g. VERSION_MISMATCH) keep their own code.
+    if (e instanceof ReleaseError && e.code !== 'RUN_NOT_FOUND') throw e;
+    const notFound = e instanceof ReleaseError;
     const stderr = String(e.stderr ?? '').trim();
     throw new ReleaseError(
       `${notFound ? 'release.yml was dispatched but its run was not found yet' : `Dispatching release.yml at ${tag} failed (${stderr || e.message.split('\n')[0]})`}. ` +

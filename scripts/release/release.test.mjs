@@ -896,12 +896,12 @@ describe('release coordinator (release-coordinator.yml)', () => {
   });
 
   test('resuming a started release never warns about drift or main and never switches the SHA', async () => {
-    const io = coord({ remoteTags: { 'v0.9.5': SHA }, mainHead: OTHER, behind: 9, workflowDrift: ['.github/workflows/release.yml'] });
+    const io = coord({ remoteTags: { 'v0.9.5': SHA }, mainHead: OTHER, behind: 9, workflowDrift: ['.github/workflows/release.yml'], pkgAt: { [SHA]: '0.9.5', [OTHER]: '0.9.5', HEAD: '0.9.5' }, onMain: new Set([SHA, OTHER]), ciRuns: [ciRun(), ciRun({ head_sha: OTHER })] });
     const g = await cmd.coordinateGate(io, { version: '0.9.5', sha: SHA });
     assert.equal(g.mode, 'resume');
     assert.deepEqual(g.warnings, []);
     assert.deepEqual(await cmd.coordinateTag(io, { version: '0.9.5', sha: SHA }), { tag: 'v0.9.5', created: false });
-    await assert.rejects(cmd.coordinateTag(io, { version: '0.9.5', sha: OTHER }), (e) => ['TAG_CONFLICT', 'UNKNOWN_COMMIT'].includes(e.code));
+    await assert.rejects(cmd.coordinateTag(io, { version: '0.9.5', sha: OTHER }), { code: 'TAG_CONFLICT' });
     assert.equal(io.state.remoteTags['v0.9.5'], SHA);
   });
 
@@ -964,6 +964,19 @@ describe('release coordinator (release-coordinator.yml)', () => {
     const d = await cmd.coordinateDispatch(io, { version: '0.9.5', sha: SHA });
     assert.equal(d.state, 'complete');
     assert.equal(d.dispatched, false);
+    assert.equal(dispatches(io).length, 0);
+  });
+
+  test('a draft GitHub Release is not "complete"; release.yml is dispatched to report it', async () => {
+    const io = coord(published({ releases: [{ tagName: 'v0.9.5', isDraft: true, isPrerelease: false }] }));
+    const d = await cmd.coordinateDispatch(io, { version: '0.9.5', sha: SHA });
+    assert.notEqual(d.state, 'complete');
+    assert.equal(d.dispatched, true);
+  });
+
+  test('a definite refusal inside dispatch keeps its own code instead of DISPATCH_FAILED', async () => {
+    const io = coord({ remoteTags: { 'v0.9.5': SHA }, pkgAt: { [SHA]: '0.9.4', HEAD: '0.9.4' } });
+    await assert.rejects(cmd.coordinateDispatch(io, { version: '0.9.5', sha: SHA }), { code: 'VERSION_MISMATCH' });
     assert.equal(dispatches(io).length, 0);
   });
 
