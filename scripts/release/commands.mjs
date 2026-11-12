@@ -152,7 +152,8 @@ export async function publish(io, { version, distTag }) {
  *   ReleaseError       → definite mismatch
  *   { inconclusive }   → not visible within the bounded wait; NOT proof of non-publication
  */
-export async function verifyRegistry(io, { version, sha, publishedRunId, attempts = 12, intervalMs = 10000, auditSignatures = false }) {
+// ~10 min: a fresh 0.9.5 publish took ~4 min to become publicly readable (#1116).
+export async function verifyRegistry(io, { version, sha, publishedRunId, attempts = 40, intervalMs = 15000, auditSignatures = false }) {
   requireSha(sha);
   const cls = classifyVersion(version);
   const seen = await retry(
@@ -254,7 +255,7 @@ async function listReleases(io) {
 }
 
 /** Create (or confirm) the GitHub Release for an already-published version. */
-export async function finalize(io, { version, sha }) {
+export async function finalize(io, { version, sha, readBackAttempts = 12, readBackIntervalMs = 5000 }) {
   requireSha(sha);
   const cls = classifyVersion(version);
   const tag = `v${version}`;
@@ -282,10 +283,27 @@ export async function finalize(io, { version, sha }) {
     io.log(`GitHub Release ${tag} already exists and matches; leaving it untouched.`);
   }
 
-  const after = (await listReleases(io)).find((r) => r.tagName === tag);
-  if (!after || after.isDraft || after.isPrerelease !== cls.prerelease) {
-    throw new ReleaseError(`Read-back of GitHub Release ${tag} did not match (${JSON.stringify(after)}).`, { code: 'READBACK_FAILED' });
+  // The releases list lags a fresh `gh release create`; read the tag's Release directly, with a bounded wait.
+  const readBack = await retry(
+    async () => {
+      const r = await io.githubGet(`repos/${REPO}/releases/tags/${tag}`);
+      if (!r) return { done: false };
+      const after = { tagName: r.tag_name, isDraft: r.draft, isPrerelease: r.prerelease, url: r.html_url };
+      if (after.isDraft || after.isPrerelease !== cls.prerelease) {
+        throw new ReleaseError(`Read-back of GitHub Release ${tag} did not match (${JSON.stringify(after)}).`, { code: 'READBACK_FAILED' });
+      }
+      return { done: true, value: after };
+    },
+    { attempts: readBackAttempts, intervalMs: readBackIntervalMs, sleep: io.sleep },
+  );
+  if (!readBack.ok) {
+    const why = readBack.error ? ` Last error: ${readBack.error.message}.` : '';
+    throw new ReleaseError(
+      `GitHub Release ${tag} was not readable after ${readBack.attempts} reads.${why} Re-run finalize; an existing matching Release is a no-op.`,
+      { code: 'READBACK_PENDING' },
+    );
   }
+  const after = readBack.value;
   io.summary(`### GitHub Release\n- ${after.url} (${d.action === 'create' ? 'created' : 'already present'})`);
   return { action: d.action, url: after.url };
 }

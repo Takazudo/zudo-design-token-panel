@@ -152,6 +152,14 @@ function fakeIo(over = {}) {
     async githubGet(path) {
       if (path.includes('/workflows/ci.yml/runs')) return { workflow_runs: s.ciRuns };
       if (path.includes('/workflows/release.yml/runs')) return { workflow_runs: s.releaseRuns };
+      if (path.startsWith(`repos/${REPO}/releases/tags/`)) {
+        if (s.releaseReadLag > 0) {
+          s.releaseReadLag--;
+          return null;
+        }
+        const r = s.releases.find((x) => x.tagName === path.split('/').pop());
+        return r ? { tag_name: r.tagName, draft: r.isDraft, prerelease: r.isPrerelease, html_url: `https://gh/${r.tagName}` } : null;
+      }
       if (path.startsWith(`repos/${REPO}/releases`)) {
         return s.releases.map((r) => ({ tag_name: r.tagName, draft: r.isDraft, prerelease: r.isPrerelease, html_url: `https://gh/${r.tagName}` }));
       }
@@ -431,6 +439,43 @@ describe('published npm version with failed GitHub Release finalization', () => 
     assert.match(notes, /fix something \(abc1234\)/);
     assert.equal(mutations(io).publishes.length, 0);
     assert.equal(mutations(io).pushes.length, 0);
+  });
+
+  test('a freshly created Release that is not readable yet is waited for, not reported as a mismatch', async () => {
+    const io = fakeIo({
+      remoteTags: { 'v0.9.5': SHA },
+      registry: { versions: ['0.9.4', '0.9.5'], distTags: { latest: '0.9.5' }, docs: {} },
+      releases: [{ tagName: 'v0.9.4', isDraft: false, isPrerelease: false }],
+      releaseReadLag: 3,
+    });
+    const r = await cmd.finalize(io, { version: '0.9.5', sha: SHA });
+    assert.equal(r.action, 'create');
+    assert.equal(r.url, 'https://gh/v0.9.5');
+    assert.equal(io.calls.gh.filter((a) => a[1] === 'create').length, 1);
+  });
+
+  test('a Release that stays unreadable is pending (re-run finalize), never re-created', async () => {
+    const io = fakeIo({
+      remoteTags: { 'v0.9.5': SHA },
+      registry: { versions: ['0.9.5'], distTags: { latest: '0.9.5' }, docs: {} },
+      releaseReadLag: 99,
+    });
+    await assert.rejects(cmd.finalize(io, { version: '0.9.5', sha: SHA, readBackAttempts: 3 }), { code: 'READBACK_PENDING' });
+    assert.equal(io.calls.gh.filter((a) => a[1] === 'create').length, 1);
+  });
+
+  test('a Release read back as a draft is a definite mismatch, not retried', async () => {
+    const io = fakeIo({
+      remoteTags: { 'v0.9.5': SHA },
+      registry: { versions: ['0.9.5'], distTags: { latest: '0.9.5' }, docs: {} },
+    });
+    const create = io.gh.bind(io);
+    io.gh = (args) => {
+      const out = create(args);
+      if (args[1] === 'create') io.state.releases.at(-1).isDraft = true;
+      return out;
+    };
+    await assert.rejects(cmd.finalize(io, { version: '0.9.5', sha: SHA }), { code: 'READBACK_FAILED' });
   });
 
   test('finalizing an older version after a newer release does not steal "Latest"', async () => {
