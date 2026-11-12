@@ -1,0 +1,21 @@
+---
+title: "0.9.5"
+description: "0.9.5 のリリースノート。"
+sidebar_position: 120
+---
+
+Released: 2026-11-12
+
+### 機能
+
+- feat(release): 共通のリリースゲート、レジストリ検証、最終化ヘルパーを追加する ([#1115](https://github.com/Takazudo/zudo-design-token-panel/pull/1115)) (42f8011)
+
+### バグ修正
+
+- fix(release): 並行実行・リトライ・実行の照合に関するレビュー指摘に対応する ([#1115](https://github.com/Takazudo/zudo-design-token-panel/pull/1115)) (724d8c0)
+- fix(release): 確定的な拒否をリトライ対象から外し、読み取れない attestation を判定保留とする ([#1115](https://github.com/Takazudo/zudo-design-token-panel/pull/1115)) (616553e)
+
+### その他の変更
+
+- ci(release): npm trusted publishing で公開と dist-tag 整理を行い、GitHub Release を Actions で最終化する ([#1115](https://github.com/Takazudo/zudo-design-token-panel/pull/1115)) (553cb75)
+- docs(release): docs/releasing.md を Claude と Codex 共通の唯一の手順にする ([#1115](https://github.com/Takazudo/zudo-design-token-panel/pull/1115)) (3a67dfd)

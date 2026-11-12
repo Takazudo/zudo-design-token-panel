@@ -1,6 +1,6 @@
 {
   "name": "@takazudo/zdtp",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "description": "Live design-token panel for ZFB, with a local bin that writes CSS custom properties back to source.",
   "private": false,
   "license": "MIT",
