@@ -157,17 +157,22 @@ function fakeIo(over = {}) {
           s.releaseReadLag--;
           return null;
         }
-        const r = s.releases.find((x) => x.tagName === path.split('/').pop());
+        if (s.releaseReadError) throw new Error(s.releaseReadError);
+        // Real GitHub 404s drafts on the by-tag endpoint.
+        const r = s.releases.find((x) => x.tagName === path.split('/').pop() && !x.isDraft);
         return r ? { tag_name: r.tagName, draft: r.isDraft, prerelease: r.isPrerelease, html_url: `https://gh/${r.tagName}` } : null;
       }
       if (path.startsWith(`repos/${REPO}/releases`)) {
-        return s.releases.map((r) => ({ tag_name: r.tagName, draft: r.isDraft, prerelease: r.isPrerelease, html_url: `https://gh/${r.tagName}` }));
+        return s.releases
+          .filter((r) => !s.listLags)
+          .map((r) => ({ tag_name: r.tagName, draft: r.isDraft, prerelease: r.isPrerelease, html_url: `https://gh/${r.tagName}` }));
       }
       throw new Error(`unexpected GET ${path}`);
     },
     gh(args) {
       calls.gh.push(args);
       if (args[0] === 'release' && args[1] === 'create') {
+        if (s.releases.some((r) => r.tagName === args[2])) throw new Error('HTTP 422: Release.tag_name already exists');
         s.releases.push({ tagName: args[2], isDraft: false, isPrerelease: args.includes('--prerelease') });
         return '';
       }
@@ -446,36 +451,90 @@ describe('published npm version with failed GitHub Release finalization', () => 
       remoteTags: { 'v0.9.5': SHA },
       registry: { versions: ['0.9.4', '0.9.5'], distTags: { latest: '0.9.5' }, docs: {} },
       releases: [{ tagName: 'v0.9.4', isDraft: false, isPrerelease: false }],
-      releaseReadLag: 3,
     });
+    io.state.releaseReadLag = 0;
+    const create = io.gh.bind(io);
+    io.gh = (args) => {
+      const out = create(args);
+      if (args[1] === 'create') {
+        io.state.releaseReadLag = 3;
+        io.state.listLags = true;
+      }
+      return out;
+    };
     const r = await cmd.finalize(io, { version: '0.9.5', sha: SHA });
     assert.equal(r.action, 'create');
     assert.equal(r.url, 'https://gh/v0.9.5');
     assert.equal(io.calls.gh.filter((a) => a[1] === 'create').length, 1);
   });
 
-  test('a Release that stays unreadable is pending (re-run finalize), never re-created', async () => {
-    const io = fakeIo({
-      remoteTags: { 'v0.9.5': SHA },
-      registry: { versions: ['0.9.5'], distTags: { latest: '0.9.5' }, docs: {} },
-      releaseReadLag: 99,
-    });
-    await assert.rejects(cmd.finalize(io, { version: '0.9.5', sha: SHA, readBackAttempts: 3 }), { code: 'READBACK_PENDING' });
-    assert.equal(io.calls.gh.filter((a) => a[1] === 'create').length, 1);
-  });
-
-  test('a Release read back as a draft is a definite mismatch, not retried', async () => {
-    const io = fakeIo({
-      remoteTags: { 'v0.9.5': SHA },
-      registry: { versions: ['0.9.5'], distTags: { latest: '0.9.5' }, docs: {} },
-    });
+  test('a Release that stays unreadable is pending and inconclusive, never re-created', async () => {
+    const io = fakeIo({ remoteTags: { 'v0.9.5': SHA }, registry: { versions: ['0.9.5'], distTags: { latest: '0.9.5' }, docs: {} } });
     const create = io.gh.bind(io);
     io.gh = (args) => {
       const out = create(args);
-      if (args[1] === 'create') io.state.releases.at(-1).isDraft = true;
+      if (args[1] === 'create') {
+        io.state.releaseReadLag = 99;
+        io.state.listLags = true;
+      }
       return out;
     };
-    await assert.rejects(cmd.finalize(io, { version: '0.9.5', sha: SHA }), { code: 'READBACK_FAILED' });
+    await assert.rejects(cmd.finalize(io, { version: '0.9.5', sha: SHA, attempts: 3 }), { code: 'READBACK_PENDING', inconclusive: true });
+    assert.equal(io.calls.gh.filter((a) => a[1] === 'create').length, 1);
+  });
+
+  test('a re-run while the releases list still lags finds the existing Release and is a no-op', async () => {
+    const io = fakeIo({
+      remoteTags: { 'v0.9.5': SHA },
+      registry: { versions: ['0.9.5'], distTags: { latest: '0.9.5' }, docs: {} },
+      releases: [{ tagName: 'v0.9.5', isDraft: false, isPrerelease: false }],
+      listLags: true,
+    });
+    assert.equal((await cmd.finalize(io, { version: '0.9.5', sha: SHA })).action, 'noop');
+    assert.equal(mutations(io).gh.length, 0);
+  });
+
+  test('a create that collides with a Release both reads missed is verified, not a crash', async () => {
+    const io = fakeIo({
+      remoteTags: { 'v0.9.5': SHA },
+      registry: { versions: ['0.9.5'], distTags: { latest: '0.9.5' }, docs: {} },
+      releases: [{ tagName: 'v0.9.5', isDraft: false, isPrerelease: false }],
+      releaseReadLag: 1,
+      listLags: true,
+    });
+    const r = await cmd.finalize(io, { version: '0.9.5', sha: SHA });
+    assert.equal(r.url, 'https://gh/v0.9.5');
+    assert.equal(io.state.releases.length, 1);
+  });
+
+  test('a draft Release (404 by tag, present in the list) is a definite conflict, not pending', async () => {
+    const io = fakeIo({
+      remoteTags: { 'v0.9.5': SHA },
+      registry: { versions: ['0.9.5'], distTags: { latest: '0.9.5' }, docs: {} },
+      releases: [{ tagName: 'v0.9.5', isDraft: true, isPrerelease: false }],
+    });
+    await assert.rejects(cmd.finalize(io, { version: '0.9.5', sha: SHA }), { code: 'RELEASE_CONFLICT' });
+    assert.equal(mutations(io).gh.length, 0);
+  });
+
+  test('a persistent GitHub read error is a failure, not propagation lag', async () => {
+    const io = fakeIo({ remoteTags: { 'v0.9.5': SHA }, registry: { versions: ['0.9.5'], distTags: { latest: '0.9.5' }, docs: {} } });
+    const create = io.gh.bind(io);
+    io.gh = (args) => {
+      const out = create(args);
+      if (args[1] === 'create') io.state.releaseReadError = 'HTTP 403';
+      return out;
+    };
+    await assert.rejects(cmd.finalize(io, { version: '0.9.5', sha: SHA, attempts: 3 }), { code: 'READBACK_FAILED', inconclusive: false });
+  });
+
+  test('finalize waits out registry propagation, and an unseen version is inconclusive', async () => {
+    const io = fakeIo({ remoteTags: { 'v0.9.5': SHA }, registryErrors: 2, registry: { versions: ['0.9.5'], distTags: { latest: '0.9.5' }, docs: {} } });
+    assert.equal((await cmd.finalize(io, { version: '0.9.5', sha: SHA })).action, 'create');
+    await assert.rejects(
+      cmd.finalize(fakeIo({ remoteTags: { 'v0.9.5': SHA } }), { version: '0.9.5', sha: SHA, attempts: 3 }),
+      { code: 'NOT_PUBLISHED', inconclusive: true },
+    );
   });
 
   test('finalizing an older version after a newer release does not steal "Latest"', async () => {

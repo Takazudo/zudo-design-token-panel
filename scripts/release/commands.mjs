@@ -249,58 +249,77 @@ async function auditInstalledSignatures(io, version, integrity, { attempts, inte
   return { ok: true };
 }
 
+const toRelease = (r) => ({ tagName: r.tag_name, isDraft: r.draft, isPrerelease: r.prerelease, url: r.html_url });
+
 async function listReleases(io) {
   const all = (await io.githubGetAll(`repos/${REPO}/releases?per_page=100`)) ?? [];
-  return all.map((r) => ({ tagName: r.tag_name, isDraft: r.draft, isPrerelease: r.prerelease, url: r.html_url }));
+  return all.map(toRelease);
+}
+
+/**
+ * The Release for a tag, or null. GET releases/tags/{tag} is fresh right after a create but
+ * 404s for drafts; the paginated list includes drafts but lags a fresh create. Ask both.
+ */
+async function findRelease(io, tag) {
+  const byTag = await io.githubGet(`repos/${REPO}/releases/tags/${tag}`);
+  if (byTag) return toRelease(byTag);
+  return (await listReleases(io)).find((r) => r.tagName === tag) ?? null;
 }
 
 /** Create (or confirm) the GitHub Release for an already-published version. */
-export async function finalize(io, { version, sha, readBackAttempts = 12, readBackIntervalMs = 5000 }) {
+export async function finalize(io, { version, sha, attempts = 12, intervalMs = 5000 }) {
   requireSha(sha);
   const cls = classifyVersion(version);
   const tag = `v${version}`;
+  const wait = { attempts, intervalMs, sleep: io.sleep };
   const tagState = classifyTag(io.remoteTagSha(tag), sha, tag);
   if (tagState !== 'same') throw new ReleaseError(`${tag} is not on the remote; refusing to create a Release (it would create the tag).`, { code: 'TAG_MISSING' });
   if (versionAt(io, sha) !== version) throw new ReleaseError(`${PKG_JSON_PATH} at ${sha} is not ${version}.`, { code: 'VERSION_MISMATCH' });
-  const reg = await io.readRegistry();
-  if (!reg.versions.includes(version)) {
-    throw new ReleaseError(`${PKG}@${version} is not on the registry; finalization runs only after publication.`, { code: 'NOT_PUBLISHED' });
+  const onRegistry = await retry(async () => ({ done: (await io.readRegistry()).versions.includes(version) }), wait);
+  if (!onRegistry.ok) {
+    const why = onRegistry.error ? ` Last error: ${onRegistry.error.message}.` : '';
+    throw new ReleaseError(
+      `${PKG}@${version} was not visible on the registry after ${onRegistry.attempts} reads.${why} Finalization runs only after publication; if it was just published, re-run later.`,
+      { code: 'NOT_PUBLISHED', inconclusive: true },
+    );
   }
 
-  const releases = await listReleases(io);
-  const existing = releases.find((r) => r.tagName === tag) ?? null;
+  const existing = await findRelease(io, tag);
   const d = decideGithubRelease(existing, cls);
   if (d.action === 'conflict') throw new ReleaseError(d.reason, { code: 'RELEASE_CONFLICT' });
   if (d.action === 'create') {
     const notes = extractReleaseNotes(io.git(['show', `${sha}:${CHANGELOG_EN_DIR}/${version}.mdx`]));
     const notesFile = io.join(io.mkTemp('zdtp-notes-'), 'notes.md');
     io.writeFile(notesFile, notes);
-    const latest = shouldMarkLatest(version, releases.map((r) => r.tagName));
+    const latest = shouldMarkLatest(version, (await listReleases(io)).map((r) => r.tagName));
     const args = ['release', 'create', tag, '--repo', REPO, '--verify-tag', '--title', tag, '--notes-file', notesFile, `--latest=${latest}`];
     if (cls.prerelease) args.push('--prerelease');
-    io.gh(args);
+    try {
+      io.gh(args);
+    } catch (e) {
+      // Both reads can lag a Release created moments ago (e.g. by the previous attempt).
+      if (!(await findRelease(io, tag))) throw e;
+      io.log(`GitHub Release ${tag} appeared while creating it; verifying it instead.`);
+    }
   } else {
     io.log(`GitHub Release ${tag} already exists and matches; leaving it untouched.`);
   }
 
-  // The releases list lags a fresh `gh release create`; read the tag's Release directly, with a bounded wait.
-  const readBack = await retry(
-    async () => {
-      const r = await io.githubGet(`repos/${REPO}/releases/tags/${tag}`);
-      if (!r) return { done: false };
-      const after = { tagName: r.tag_name, isDraft: r.draft, isPrerelease: r.prerelease, url: r.html_url };
-      if (after.isDraft || after.isPrerelease !== cls.prerelease) {
-        throw new ReleaseError(`Read-back of GitHub Release ${tag} did not match (${JSON.stringify(after)}).`, { code: 'READBACK_FAILED' });
-      }
-      return { done: true, value: after };
-    },
-    { attempts: readBackAttempts, intervalMs: readBackIntervalMs, sleep: io.sleep },
-  );
+  const readBack = await retry(async () => {
+    const after = await findRelease(io, tag);
+    if (!after) return { done: false };
+    if (after.isDraft || after.isPrerelease !== cls.prerelease) {
+      throw new ReleaseError(`Read-back of GitHub Release ${tag} did not match (${JSON.stringify(after)}).`, { code: 'READBACK_FAILED' });
+    }
+    return { done: true, value: after };
+  }, wait);
+  if (!readBack.ok && readBack.error) {
+    throw new ReleaseError(`Read-back of GitHub Release ${tag} kept failing: ${readBack.error.message}`, { code: 'READBACK_FAILED' });
+  }
   if (!readBack.ok) {
-    const why = readBack.error ? ` Last error: ${readBack.error.message}.` : '';
     throw new ReleaseError(
-      `GitHub Release ${tag} was not readable after ${readBack.attempts} reads.${why} Re-run finalize; an existing matching Release is a no-op.`,
-      { code: 'READBACK_PENDING' },
+      `GitHub Release ${tag} was not readable after ${readBack.attempts} reads. Re-run finalize; an existing matching Release is a no-op.`,
+      { code: 'READBACK_PENDING', inconclusive: true },
     );
   }
   const after = readBack.value;
@@ -377,7 +396,7 @@ export async function status(io, { version, sha }) {
   const tagSha = io.remoteTagSha(tag);
   const reg = await io.readRegistry();
   const published = reg.versions.includes(v);
-  const release = (await listReleases(io)).find((r) => r.tagName === tag) ?? null;
+  const release = await findRelease(io, tag);
   const runs = (await io.githubGet(`repos/${REPO}/actions/workflows/release.yml/runs?branch=${encodeURIComponent(tag)}&per_page=10`))?.workflow_runs ?? [];
   const doc = reg.docs[v];
   const resume = decideResume({ version: v, candidateSha: sha, tagSha, published, release });

@@ -120,7 +120,7 @@ main().then(
     if (e instanceof ReleaseError) {
       console.error(`::error::[${e.code}] ${e.message}`);
       if (e.details) console.error(JSON.stringify(e.details, null, 2));
-      process.exit(e.code === 'USAGE' ? 2 : e.code === 'READBACK_PENDING' ? 3 : 1);
+      process.exit(e.code === 'USAGE' ? 2 : e.inconclusive ? 3 : 1);
     }
     console.error(e);
     process.exit(1);
