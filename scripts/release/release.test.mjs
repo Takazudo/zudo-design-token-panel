@@ -813,6 +813,22 @@ describe('release coordinator (release-coordinator.yml)', () => {
     }
   });
 
+  test('a green dry run at the tag is not mistaken for the release; a newer failed real run is re-dispatched', async () => {
+    const base = { path: '.github/workflows/release.yml', head_branch: 'v0.9.5', head_sha: SHA, event: 'workflow_dispatch', status: 'completed' };
+    const io = coord({
+      remoteTags: { 'v0.9.5': SHA },
+      releaseRuns: [
+        { ...base, id: 4, conclusion: 'success', display_title: 'Release v0.9.5 (dry run)', created_at: '2026-11-12T09:30:00Z' },
+        { ...base, id: 5, conclusion: 'failure', display_title: 'Release v0.9.5', created_at: '2026-11-12T09:00:00Z' },
+        { ...base, id: 6, conclusion: 'success', display_title: 'Release v0.9.5', created_at: '2026-11-12T08:00:00Z' },
+      ],
+    });
+    const d = await cmd.coordinateDispatch(io, { version: '0.9.5', sha: SHA });
+    assert.equal(d.dispatched, true, 'the newest real run failed, so a new run is needed');
+    const dryOnly = coord({ remoteTags: { 'v0.9.5': SHA }, releaseRuns: [{ ...base, id: 7, conclusion: 'success', display_title: 'Release v0.9.5 (dry run)', created_at: '2026-11-12T09:30:00Z' }] });
+    assert.equal((await cmd.coordinateDispatch(dryOnly, { version: '0.9.5', sha: SHA })).dispatched, true);
+  });
+
   test('a failed earlier release.yml run is resumed by a new dispatch', async () => {
     const failed = { id: 3, path: '.github/workflows/release.yml', head_branch: 'v0.9.5', head_sha: SHA, event: 'workflow_dispatch', status: 'completed', conclusion: 'failure', created_at: '2026-11-12T08:00:00Z' };
     const io = coord({ remoteTags: { 'v0.9.5': SHA }, releaseRuns: [failed] });

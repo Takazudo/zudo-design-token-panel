@@ -103,7 +103,7 @@ export function createIo() {
       const res = await fetch(`https://registry.npmjs.org/${PKG.replace('/', '%2f')}`, {
         headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
       });
-      if (res.status === 404) return { versions: [], distTags: {}, docs: {} };
+      // The package has been on npm since 0.1.0-next.0, so a 404 is a registry fault, never "nothing published".
       if (!res.ok) throw new Error(`registry read failed: HTTP ${res.status}`);
       const doc = await res.json();
       return { versions: Object.keys(doc.versions ?? {}), distTags: doc['dist-tags'] ?? {}, docs: doc.versions ?? {} };

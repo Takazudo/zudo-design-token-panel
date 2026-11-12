@@ -526,19 +526,20 @@ export async function coordinateTag(io, { version, sha, readbackAttempts = 6, in
  * Coordinator: start release.yml at the existing tag. An active or successful
  * run for the same tag + SHA is reused instead of dispatching a second one.
  */
+export const isDryRunTitle = (title) => /\(dry run\)/i.test(String(title ?? ''));
+
 export async function coordinateDispatch(io, { version, sha }) {
   requireSha(sha);
   const tag = `v${version}`;
   const tagState = classifyTag(io.remoteTagSha(tag), sha, tag);
   if (tagState !== 'same') throw new ReleaseError(`${tag} is not on the remote at ${sha}; create it first.`, { code: 'TAG_MISSING' });
   const runs = (await io.githubGet(`repos/${REPO}/actions/workflows/release.yml/runs?branch=${encodeURIComponent(tag)}&per_page=30`))?.workflow_runs ?? [];
-  const mine = runs
-    .filter((r) => r.path === RELEASE_WORKFLOW_PATH && r.head_branch === tag && r.head_sha === sha)
-    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
-  const active = mine.find((r) => r.status !== 'completed');
-  if (active) return { dispatched: false, run: active, reason: `release.yml run ${active.id} for ${tag} is still running.` };
-  const done = mine.find((r) => r.conclusion === 'success');
-  if (done) return { dispatched: false, run: done, reason: `release.yml run ${done.id} for ${tag} already succeeded.` };
+  // Only real runs count: a green dry run at the tag published nothing (release.yml marks them in run-name).
+  const latest = runs
+    .filter((r) => r.path === RELEASE_WORKFLOW_PATH && r.head_branch === tag && r.head_sha === sha && !isDryRunTitle(r.display_title))
+    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0];
+  if (latest && latest.status !== 'completed') return { dispatched: false, run: latest, reason: `release.yml run ${latest.id} for ${tag} is still running.` };
+  if (latest?.conclusion === 'success') return { dispatched: false, run: latest, reason: `release.yml run ${latest.id} for ${tag} already succeeded.` };
   const run = await dispatch(io, { ref: tag, dryRun: false });
   return { dispatched: true, run, reason: `Dispatched release.yml at ${tag}.` };
 }

@@ -429,8 +429,9 @@ The coordinator's jobs, each with only the permissions it needs:
    a tag. A 403 here means a repository setting or ruleset blocks Actions from
    creating tags: report it, do not bypass it.
 3. **dispatch** (`actions: write`): dispatches `release.yml` at `v<version>`
-   (`dry_run=false`). If a `release.yml` run for that tag and SHA is already
-   active or succeeded, it is reused instead of dispatched again.
+   (`dry_run=false`). If the newest real `release.yml` run for that tag and SHA
+   is still active or succeeded, it is reused instead of dispatched again. Dry
+   runs (titled `Release v<version> (dry run)`) never count.
 
 `release.yml` then runs exactly as for a pushed tag: its own gate, the OIDC
 publish (the only job with `id-token: write`; trusted publisher `release.yml`,
