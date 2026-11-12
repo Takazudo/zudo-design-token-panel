@@ -353,7 +353,10 @@ git show "$SHA:packages/zdtp/package.json" | grep '"version"'   # must be <versi
 ```
 
 Use that full SHA for every later step. Do **not** use "whatever `main` is now":
-another merge may have landed in between.
+another merge may have landed in between. For a new release the integrated
+commit is normally `main`'s exact HEAD at that moment; if `main` already moved
+past the bump, Step 1's rule applies (a person decides). Once a tag exists,
+the SHA is fixed: a resume never moves to another commit.
 
 ## Step 7: Candidate gate (CI for exactly this SHA)
 
@@ -398,9 +401,14 @@ the only Actions-side tagging path is the coordinator below, which dispatches
 ### Step 8 (Route C): release coordinator — Claude Code Cloud and other callers without tag rights
 
 Claude Code Cloud's git proxy refuses tag pushes (HTTP 403), and its `gh` has
-no login. Do **not** work around that with a PAT, an npm token or a second
-credential. Instead, dispatch `.github/workflows/release-coordinator.yml` on
-`main` with the frozen candidate:
+no login. Do **not** work around that with a PAT, an npm token, a second
+credential or a repository-setting change. Instead, dispatch
+`.github/workflows/release-coordinator.yml` on `main` with the frozen candidate.
+This route released 0.9.6 (coordinator run
+[43243770414](https://github.com/Takazudo/zudo-design-token-panel/actions/runs/43243770414)
+→ release run
+[43243982695](https://github.com/Takazudo/zudo-design-token-panel/actions/runs/43243982695):
+OIDC publish, registry read-back and GitHub Release all green).
 
 | input | value |
 | --- | --- |
@@ -408,7 +416,29 @@ credential. Instead, dispatch `.github/workflows/release-coordinator.yml` on
 | `sha` | the full 40-character `$SHA` from Step 6 |
 | `dry_run` | `true` runs only the read-only gate; `false` tags and dispatches |
 
-Run the same checks locally first (read-only, no credentials needed):
+**New candidate vs resume.** These are different requests; the coordinator
+tells them apart by the tag, and it never replaces the SHA you give it.
+
+| | new release (tag absent) | resume (tag already at `$SHA`) |
+| --- | --- | --- |
+| which SHA | freeze `main`'s exact HEAD after the bump is integrated and its `ci.yml` push run is green | the SHA the tag already names; read it with `release.mjs status --version <version>` |
+| gate | full gate; **warns** when `main` has moved past `$SHA` or when `$SHA`'s `.github/workflows/` differs from `main` | full gate; no drift warnings (the SHA is fixed by the tag) |
+| tag job | creates `v<version>` at `$SHA` | no-op |
+| dispatch job | dispatches `release.yml` at the tag | nothing if npm + GitHub Release are already there or a real run for the tag + SHA is active/green; otherwise dispatches (finalize-only when npm already has the version) |
+| a different SHA | allowed only as a deliberate new freeze (Step 1/6) | **refused** (`TAG_CONFLICT`); never moves the tag |
+
+The gate's drift warning comes from one observation, not from GitHub
+documentation: for 0.9.6, tag creation at the bump merge `34f633c` (whose
+`.github/workflows/` differed from `main` after #1122) failed with
+`gh: Resource not accessible by integration (HTTP 403)` in
+[43242888957](https://github.com/Takazudo/zudo-design-token-panel/actions/runs/43242888957),
+while the same coordinator succeeded for `main` HEAD `ae7be06`. Treat
+"workflow diff causes the 403" as a hypothesis. Freezing `main`'s HEAD avoids
+it, and also means `release.yml` at the tag is the current one (a dispatched
+run uses the workflow file as committed at the tag).
+
+Run the same checks locally first (read-only; GitHub reads need `gh` or the
+public API):
 
 ```bash
 node scripts/release/release.mjs coordinate-gate --version <version> --sha "$SHA"
@@ -416,41 +446,62 @@ node scripts/release/release.mjs coordinate-gate --version <version> --sha "$SHA
 
 The coordinator's jobs, each with only the permissions it needs:
 
-1. **gate** (`contents: read`, `actions: read`): dispatched from `main`;
+1. **gate** (`contents: read`, `actions: read`): must be main's
+   `release-coordinator.yml` (`GITHUB_REF` and `GITHUB_WORKFLOW_REF`);
    version equals `package.json` at `$SHA`; `$SHA` reachable from `main`;
    `ci.yml` push run on `main` green for exactly `$SHA`; tag absent or already
    at `$SHA` (elsewhere fails); registry readable and not regressed. A registry
-   or network error fails the run; it is never read as "not published". A
+   or network error is `REGISTRY_UNKNOWN` (exit 3), never "not published". A
    version already on npm with no tag is an `ANOMALY` and stops.
-2. **tag** (`contents: write`): re-runs the gate, then creates `v<version>`
-   at `$SHA` through the REST API with the run's `GITHUB_TOKEN`. An identical
-   existing tag (a re-sent request, or a concurrent coordinator that won the
-   race) is a no-op; a tag at another commit fails. It never moves or deletes
-   a tag. A 403 here means a repository setting or ruleset blocks Actions from
-   creating tags: report it, do not bypass it.
-3. **dispatch** (`actions: write`): dispatches `release.yml` at `v<version>`
-   (`dry_run=false`). If the newest real `release.yml` run for that tag and SHA
-   is still active or succeeded, it is reused instead of dispatched again. Dry
-   runs (titled `Release v<version> (dry run)`) never count.
+2. **tag** (`contents: write`): re-runs the gate right before the write, then
+   creates `v<version>` at `$SHA` through the REST API with the run's
+   `GITHUB_TOKEN`. An identical existing tag (a re-sent request, or a
+   concurrent coordinator that won the race) is a no-op; a tag at another
+   commit fails. It never moves or deletes a tag. A refusal prints GitHub's
+   stderr and splits the rest into `confirmed` (HTTP status, tag still absent,
+   the job's declared permission, tag rulesets this token can read),
+   `possible (unconfirmed)` (workflow drift) and `unknown`. It does not retry
+   with another credential.
+3. **dispatch** (`actions: write`): reads npm and the GitHub Release first. If
+   both are there, it stops (`complete`). Otherwise it reuses the newest real
+   `release.yml` run for that tag + SHA when it is active or green (dry runs,
+   other SHAs and other workflows never count), or dispatches `release.yml` at
+   `v<version>` (`dry_run=false`). The summary names the run id, attempt and
+   SHA.
 
 `release.yml` then runs exactly as for a pushed tag: its own gate, the OIDC
 publish (the only job with `id-token: write`; trusted publisher `release.yml`,
 no environment, unchanged), registry verification and the GitHub Release. The
-coordinator holds no npm credential and never publishes.
+coordinator holds no npm credential and never publishes. **A green coordinator
+only means the tag exists and a release run was started or found.** The
+release is complete when that `release.yml` run is green and
+`release.mjs status --version <version>` reports `complete`.
 
-**How to start it.** From the Actions tab: *Release coordinator* → *Run
-workflow* → branch `main` → fill `version` and `sha`. A Cloud agent may start
-it with its GitHub tool (`run_workflow` on `release-coordinator.yml`, ref
-`main`) when that tool has `actions: write`; whether it does is only proven by
-the first dispatch. If the agent cannot dispatch, it stops after Step 7 and
-hands the person the two inputs; it does not create tokens to get around it.
+**How to start it.**
+
+- **Claude Code Cloud (used for 0.9.6):** the GitHub MCP tool
+  `actions_run_trigger` with method `run_workflow`, workflow
+  `release-coordinator.yml`, ref `main`, inputs `version`, `sha`, `dry_run`.
+  Whether the session's GitHub connection may dispatch is only proven by the
+  first dispatch.
+- **Actions UI (fallback, any person with write access):** *Actions* →
+  *Release coordinator* → *Run workflow* → branch `main` → fill `version` and
+  `sha`.
+- If neither is available, stop after Step 7 and hand the person the two
+  inputs. Do not create tokens to get around it.
+
+Start with `dry_run=true`, read the gate summary (mode, warnings, CI run), then
+send the same inputs with `dry_run=false`. Each run is titled
+`Release coordinator v<version> @ <sha>` (plus `(dry run)`), so match runs by
+title, `head_branch: main`, run id and attempt.
 
 **Resume.** Re-dispatching with the same inputs is always safe: an identical
-tag is kept and an active or successful release run is reused. If the
-dispatch job failed after the tag was created, re-run the coordinator (or
+tag is kept, an active or green release run is reused, and a complete release
+dispatches nothing. If the dispatch job failed (`DISPATCH_FAILED`), look at the
+`release.yml` runs for the tag first, then re-send the coordinator (or
 `release.mjs dispatch --ref v<version>` from a credentialed shell). Then
 continue with Step 9 using `--event workflow_dispatch`; the run is at ref
-`v<version>`.
+`v<version>`. A resume never switches to another SHA.
 
 **What is still not Cloud-only.** Nothing in this package needs a
 platform-specific or local-only build: `release.yml` builds and packs the
@@ -506,9 +557,10 @@ gh run view <run-id> --log-failed
 | observed state | action |
 | --- | --- |
 | publint/CI failure before tagging | fix through a normal commit; re-freeze and re-gate. Nothing was published |
-| coordinator failed in **gate** | nothing was written. Fix the cause (CI pending/failed, wrong version or SHA, registry unreadable) and dispatch it again with the same inputs |
-| coordinator failed in **tag** with `TAG_CREATE_FAILED` | the error carries GitHub's own reason. A ruleset or permission refusal: report the setting; do not add a PAT. A `workflows` permission refusal: the candidate's `.github/workflows/` differs from `main`, which `GITHUB_TOKEN` may not write; push the tag from a user credential (Step 8) or release a newer commit. Either way a person can push the tag instead |
-| coordinator failed in **dispatch**, tag present | re-run the coordinator with the same inputs (the tag is kept), or `release.mjs dispatch --ref v<version>` |
+| coordinator failed in **gate** | nothing was written. Fix the cause (CI pending/failed, wrong version or SHA, `REGISTRY_UNKNOWN` = registry unreadable, re-run later) and dispatch it again with the same inputs |
+| coordinator failed in **tag** with `TAG_CREATE_FAILED` | nothing was tagged. Read the `confirmed` / `possible (unconfirmed)` / `unknown` lines: report them, do not add a PAT or change repository settings. If the only lead is workflow drift and the package content is unchanged, a person may freeze a new candidate at `main` HEAD (Step 1/6), or push the tag from a user credential (Route A) |
+| coordinator failed in **dispatch** (`DISPATCH_FAILED`), tag present | check the `release.yml` runs for the tag (the dispatch may have landed), then re-send the coordinator with the same inputs (it reuses an active run), or `release.mjs dispatch --ref v<version>` |
+| coordinator green, release not done | the coordinator only starts the run. Watch that `release.yml` run and confirm `status` → `complete` |
 | `tagged-unpublished`, a run is still active | wait for it. Real publishes are serialized across tags; never cancel an active publish |
 | `tagged-unpublished`, the publish job shows `cancelled` without anyone cancelling it | GitHub keeps one *pending* job per concurrency group, so a third concurrent release displaced it. `release.mjs dispatch --ref v<version>` once the others finish |
 | `tagged-unpublished`, run failed in **gate** (e.g. CI not green at tag time) | fix the cause (e.g. let CI finish), then `release.mjs dispatch --ref v<version>` or re-run the failed jobs |

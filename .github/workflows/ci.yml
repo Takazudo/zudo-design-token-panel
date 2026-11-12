@@ -92,6 +92,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Release tooling tests
+        run: pnpm test:release
+
       - name: Visual regression tests
         # Runs after "Build panel" (dist/zdtp.css must exist). Uses the same
         # Chromium already installed for browser tests. Baselines are

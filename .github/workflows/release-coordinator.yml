@@ -2,31 +2,40 @@
 #
 # Tag-and-dispatch coordinator for callers that cannot push release tags
 # themselves (e.g. Claude Code Cloud, whose git proxy refuses tag pushes).
-# Procedure: "Route C: release coordinator" in docs/releasing.md.
+# Procedure: "Step 8 (Route C)" in docs/releasing.md. First real use: 0.9.6
+# (coordinator run 43243770414 → release run 43243982695).
 #
 # Dispatch it on `main` with the exact version and the frozen candidate SHA:
 #   version = packages/zdtp/package.json version at that SHA (no "v")
-#   sha     = the full 40-character integrated commit on main
+#   sha     = the full 40-character commit on main (a new release freezes
+#             main's exact HEAD once its ci.yml push run is green)
 #
-#   gate     (read-only) version == package.json at SHA, SHA reachable from
-#            main, ci.yml push run on main green for exactly SHA, tag absent or
-#            already at SHA (elsewhere → fail), registry readable and not
-#            regressed. A registry/network error fails the run; it is never
-#            read as "not published". dry_run stops here.
-#   tag      (contents: write) creates v<version> at SHA through the REST API
-#            with this run's GITHUB_TOKEN. An identical existing tag is a
-#            no-op (safe resume); a tag at another commit fails. Never moves or
-#            deletes a tag.
+#   gate     (read-only) runs main's release-coordinator.yml; version ==
+#            package.json at SHA, SHA reachable from main, ci.yml push run on
+#            main green for exactly SHA, tag absent or already at SHA
+#            (elsewhere → fail), registry readable and not regressed. Warns
+#            (never switches SHA) when main moved on or the candidate's
+#            .github/workflows/ differs from main. A registry/network error is
+#            "unknown" (exit 3), never "not published". dry_run stops here.
+#   tag      (contents: write) re-runs the gate, then creates v<version> at SHA
+#            through the REST API with this run's GITHUB_TOKEN. An identical
+#            existing tag is a no-op (safe resume); a tag at another commit
+#            fails. Never moves or deletes a tag. A refusal is reported with
+#            GitHub's stderr, separating confirmed facts from guesses.
 #   dispatch (actions: write) a GITHUB_TOKEN tag does not start push-triggered
 #            workflows, so this job dispatches release.yml at the tag
-#            (workflow_dispatch is the documented exception). An active or
-#            successful release.yml run for the same tag + SHA is reused.
+#            (workflow_dispatch is the documented exception). Nothing is
+#            dispatched when npm + the GitHub Release are already there, or an
+#            active or successful real release.yml run for the same tag + SHA
+#            exists. A green coordinator does not mean the release is complete.
 #
 # Publication stays in release.yml: its publish job alone holds id-token:
 # write, and the npm trusted publisher (workflow release.yml, no environment)
 # is unchanged. This workflow never touches npm and holds no npm credential.
+# Inputs reach the scripts only through env, never interpolated into shell.
 
 name: Release coordinator
+run-name: ${{ format('Release coordinator v{0} @ {1}{2}', inputs.version, inputs.sha, inputs.dry_run && ' (dry run)' || '') }}
 
 on:
   workflow_dispatch:

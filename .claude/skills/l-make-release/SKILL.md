@@ -17,10 +17,16 @@ Do not keep or improvise a separate copy of the rules here.
   push; use the PR route there. Never bypass the pre-push hook.
 - **Claude Code Cloud** cannot push tags (its git proxy returns 403) and has no
   `gh` login. Integrate via the PR route, then tag with the release coordinator
-  (`docs/releasing.md` → "Step 8 (Route C)"): dispatch
-  `release-coordinator.yml` on `main` with `version` + `sha`, or hand those two
-  inputs to the person if the dispatch is not available. Never create a PAT or
-  npm token to get around it.
+  (`docs/releasing.md` → "Step 8 (Route C)"). Dispatch `release-coordinator.yml`
+  on ref `main` with the GitHub MCP tool `actions_run_trigger` (method
+  `run_workflow`; this is how 0.9.6 shipped), first with `dry_run=true`, then
+  the same `version` + `sha` with `dry_run=false`. Fallback: the person runs it
+  from the Actions UI with those inputs. Never create a PAT or npm token, and
+  never change repository settings to get around a refusal.
+- A **new** release freezes `main`'s exact HEAD once its `ci.yml` push run is
+  green. A **resume** re-sends the same inputs; it never switches to another
+  SHA. A green coordinator is not a finished release: watch the `release.yml`
+  run and confirm `status` → `complete`.
 - Use `node scripts/release/release.mjs` for preflight, status, gate, tag, and
   run correlation. Use `gh run watch <id> --exit-status` for waiting.
 - No npm login or npm token is involved anywhere. If publishing fails on auth,
