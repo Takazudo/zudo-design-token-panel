@@ -192,7 +192,7 @@ function fakeIo(over = {}) {
           s.remoteTags[ref] = s.tagPostRace;
           throw new Error('HTTP 422: Reference already exists');
         }
-        if (s.tagPostDenied) throw new Error('HTTP 403: Resource not accessible by integration');
+        if (s.tagPostDenied) throw Object.assign(new Error('Command failed: gh api -X POST'), { stderr: s.tagPostDenied === true ? 'gh: Resource not accessible by integration (HTTP 403)' : s.tagPostDenied });
         s.remoteTags[ref] = args.find((a) => a.startsWith('sha=')).slice(4);
         return '';
       }
@@ -755,8 +755,13 @@ describe('release coordinator (release-coordinator.yml)', () => {
 
   test('a refused tag write (no contents: write / ruleset) is reported, not retried around', async () => {
     const io = coord({ tagPostDenied: true });
-    await assert.rejects(cmd.coordinateTag(io, { version: '0.9.5', sha: SHA }), { code: 'TAG_CREATE_FAILED' });
+    await assert.rejects(cmd.coordinateTag(io, { version: '0.9.5', sha: SHA }), (e) => e.code === 'TAG_CREATE_FAILED' && /HTTP 403/.test(e.message) && /contents: write/.test(e.message));
     assert.equal(io.state.remoteTags['v0.9.5'], undefined);
+  });
+
+  test('a workflow-file refusal names the cause and the user-credential fallback', async () => {
+    const io = coord({ tagPostDenied: 'gh: refusing to allow a GitHub App to create or update workflow `.github/workflows/release.yml` without `workflows` permission (HTTP 422)' });
+    await assert.rejects(cmd.coordinateTag(io, { version: '0.9.5', sha: SHA }), (e) => e.code === 'TAG_CREATE_FAILED' && /workflows` permission/.test(e.message) && /user credential/.test(e.message));
   });
 
   test('an unreadable registry fails the gate; it is never treated as "not published"', async () => {
