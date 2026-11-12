@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { describe, test } from 'node:test';
 import * as cmd from './commands.mjs';
 import {
@@ -152,6 +153,7 @@ function fakeIo(over = {}) {
     async githubGet(path) {
       if (path.includes('/workflows/ci.yml/runs')) return { workflow_runs: s.ciRuns };
       if (path.includes('/workflows/release.yml/runs')) return { workflow_runs: s.releaseRuns };
+      if (path.includes('/workflows/release-coordinator.yml/runs')) return { workflow_runs: s.coordinatorRuns ?? [] };
       if (path.startsWith(`repos/${REPO}/releases/tags/`)) {
         if (s.releaseReadLag > 0) {
           s.releaseReadLag--;
@@ -176,13 +178,23 @@ function fakeIo(over = {}) {
         s.releases.push({ tagName: args[2], isDraft: false, isPrerelease: args.includes('--prerelease') });
         return '';
       }
+      if (args[0] === 'workflow' && args[1] === 'run' && args[2] === 'release-coordinator.yml') {
+        s.coordinatorRuns = [...(s.coordinatorRuns ?? []), { id: 500, path: '.github/workflows/release-coordinator.yml', head_branch: 'main', head_sha: s.remoteHeads.main, event: 'workflow_dispatch', created_at: NOW.toISOString() }];
+        return '';
+      }
       if (args[0] === 'workflow' && args[1] === 'run') {
+        if (s.dispatchFails) throw new Error('HTTP 403: Resource not accessible by integration');
         const ref = args[args.indexOf('--ref') + 1];
         s.releaseRuns.push({ id: 900 + s.releaseRuns.length, path: '.github/workflows/release.yml', head_branch: ref, head_sha: s.remoteTags[ref] ?? s.remoteHeads[ref], event: 'workflow_dispatch', created_at: NOW.toISOString() });
         return '';
       }
       if (args[0] === 'api' && args.includes('POST')) {
         const ref = args.find((a) => a.startsWith('ref=')).slice(4).replace('refs/tags/', '');
+        if (s.tagRaceTo) {
+          s.remoteTags[ref] = s.tagRaceTo;
+          throw new Error('HTTP 422: Reference already exists');
+        }
+        if (s.tagApiFails) throw new Error('HTTP 403: Resource not accessible by integration');
         s.remoteTags[ref] = args.find((a) => a.startsWith('sha=')).slice(4);
         return '';
       }
@@ -661,5 +673,241 @@ describe('run correlation and release notes', () => {
 
   test('extractReleaseNotes strips frontmatter and the Released marker', () => {
     assert.equal(extractReleaseNotes(MDX), '### Fixed\n\n- fix something (abc1234)\n');
+  });
+});
+
+describe('release coordinator (Actions creates the tag, then dispatches release.yml)', () => {
+  const V = '0.9.5';
+  const TAG = `v${V}`;
+  const coordIo = (over = {}) => fakeIo({ remoteHeads: { main: SHA }, ...over });
+
+  test('happy path: gate → tag via API → dispatch release.yml at the tag (mocked; not a real publish)', async () => {
+    const io = coordIo();
+    await cmd.coordinatorGate(io, { version: V, sha: SHA });
+    assert.equal(io.calls.outputs.tag, TAG);
+    assert.equal(io.calls.outputs.tag_state, 'absent');
+
+    const t = await cmd.coordinatorTag(io, { version: V, sha: SHA });
+    assert.equal(t.created, true);
+    assert.equal(io.state.remoteTags[TAG], SHA);
+    assert.ok(io.calls.gh.some((a) => a[0] === 'api' && a.includes('POST') && a.includes(`ref=refs/tags/${TAG}`) && a.includes(`sha=${SHA}`)));
+
+    const d = await cmd.coordinatorDispatch(io, { version: V, sha: SHA });
+    assert.equal(d.action, 'dispatched');
+    const run = io.calls.gh.find((a) => a[0] === 'workflow' && a[1] === 'run');
+    assert.deepEqual(run.slice(0, 3), ['workflow', 'run', 'release.yml']);
+    assert.equal(run[run.indexOf('--ref') + 1], TAG);
+    assert.ok(run.includes('dry_run=false'));
+    // The coordinator itself never publishes or creates a GitHub Release.
+    assert.equal(mutations(io).publishes.length, 0);
+    assert.ok(!io.calls.gh.some((a) => a[0] === 'release'));
+  });
+
+  test('input validation: malformed version or SHA is a usage error before any read', async () => {
+    const io = coordIo();
+    await assert.rejects(cmd.coordinatorGate(io, { version: 'v0.9.5', sha: SHA }), { code: 'USAGE' });
+    await assert.rejects(cmd.coordinatorGate(io, { version: V, sha: 'abc123' }), { code: 'USAGE' });
+    await assert.rejects(cmd.coordinatorGate(io, { version: '0.9.5-alpha.1', sha: SHA }), { code: 'REFUSED' });
+    assert.equal(io.calls.registryReads, 0);
+  });
+
+  test('an unknown SHA is a clean refusal, not a crash', async () => {
+    const io = coordIo();
+    await assert.rejects(cmd.coordinatorGate(io, { version: V, sha: OTHER }), { code: 'UNKNOWN_COMMIT' });
+  });
+
+  test('refuses outside main in Actions', async () => {
+    const io = coordIo({ env: { GITHUB_ACTIONS: 'true', GITHUB_REF: 'refs/heads/feat/x' } });
+    await assert.rejects(cmd.coordinatorGate(io, { version: V, sha: SHA }), /runs only from main/);
+  });
+
+  test('SHA not on main → refused, no tag', async () => {
+    const io = coordIo({ onMain: new Set() });
+    await assert.rejects(cmd.coordinatorTag(io, { version: V, sha: SHA }), { code: 'NOT_ON_MAIN' });
+    assert.deepEqual(io.state.remoteTags, {});
+  });
+
+  test('CI failed / pending / only another workflow green → refused, no tag', async () => {
+    for (const [ciRuns, code] of [
+      [[ciRun({ conclusion: 'failure' })], 'CI_NOT_GREEN'],
+      [[ciRun({ status: 'in_progress', conclusion: null })], 'CI_PENDING'],
+      [[ciRun({ path: '.github/workflows/main-deploy.yml' })], 'CI_NOT_GREEN'],
+      [[ciRun({ head_sha: OTHER })], 'CI_NOT_GREEN'],
+    ]) {
+      const io = coordIo({ ciRuns });
+      await assert.rejects(cmd.coordinatorTag(io, { version: V, sha: SHA }), { code });
+      assert.deepEqual(io.state.remoteTags, {});
+    }
+  });
+
+  test('requested version ≠ package.json at SHA → refused, no tag', async () => {
+    const io = coordIo();
+    await assert.rejects(cmd.coordinatorGate(io, { version: '0.9.6', sha: SHA }), { code: 'VERSION_MISMATCH' });
+    await assert.rejects(cmd.coordinatorTag(io, { version: '0.9.6', sha: SHA }), { code: 'VERSION_MISMATCH' });
+    assert.deepEqual(io.state.remoteTags, {});
+  });
+
+  test('re-send: tag already at the same SHA → gate says same, tag job no-op, dispatch resumes', async () => {
+    const io = coordIo({ remoteTags: { [TAG]: SHA } });
+    await cmd.coordinatorGate(io, { version: V, sha: SHA });
+    assert.equal(io.calls.outputs.tag_state, 'same');
+    const t = await cmd.coordinatorTag(io, { version: V, sha: SHA });
+    assert.equal(t.created, false);
+    assert.ok(!io.calls.gh.some((a) => a[0] === 'api' && a.includes('POST')));
+    const d = await cmd.coordinatorDispatch(io, { version: V, sha: SHA });
+    assert.equal(d.action, 'dispatched');
+  });
+
+  test('tag at another SHA → TAG_CONFLICT everywhere; tag untouched, nothing dispatched', async () => {
+    const io = coordIo({ remoteTags: { [TAG]: OTHER } });
+    await assert.rejects(cmd.coordinatorGate(io, { version: V, sha: SHA }), { code: 'TAG_CONFLICT' });
+    await assert.rejects(cmd.coordinatorTag(io, { version: V, sha: SHA }), { code: 'TAG_CONFLICT' });
+    await assert.rejects(cmd.coordinatorDispatch(io, { version: V, sha: SHA }), { code: 'TAG_CONFLICT' });
+    assert.equal(io.state.remoteTags[TAG], OTHER);
+    assert.equal(mutations(io).gh.length, 0);
+  });
+
+  test('race: a concurrent creator wins with the same SHA → continue; with another SHA → TAG_CONFLICT', async () => {
+    const same = coordIo({ tagRaceTo: SHA });
+    const r = await cmd.coordinatorTag(same, { version: V, sha: SHA });
+    assert.equal(r.created, false);
+    assert.equal(same.state.remoteTags[TAG], SHA);
+
+    const other = coordIo({ tagRaceTo: OTHER });
+    await assert.rejects(cmd.coordinatorTag(other, { version: V, sha: SHA }), { code: 'TAG_CONFLICT' });
+    assert.equal(other.state.remoteTags[TAG], OTHER);
+  });
+
+  test('tag creation refused by GitHub (permissions) surfaces the error; no tag is assumed', async () => {
+    const io = coordIo({ tagApiFails: true });
+    await assert.rejects(cmd.coordinatorTag(io, { version: V, sha: SHA }), /403/);
+    assert.deepEqual(io.state.remoteTags, {});
+  });
+
+  test('registry unreadable (network/auth) or 404 → inconclusive REGISTRY_UNKNOWN, never "unpublished"; no tag', async () => {
+    const down = coordIo({ registryErrors: 99 });
+    await assert.rejects(cmd.coordinatorTag(down, { version: V, sha: SHA }), (e) => e.code === 'REGISTRY_UNKNOWN' && e.inconclusive === true);
+    assert.deepEqual(down.state.remoteTags, {});
+
+    const missing = coordIo({ registry: { versions: [], distTags: {}, docs: {}, notFound: true } });
+    await assert.rejects(cmd.coordinatorGate(missing, { version: V, sha: SHA }), { code: 'REGISTRY_UNKNOWN' });
+
+    const tagged = coordIo({ remoteTags: { [TAG]: SHA }, registryErrors: 99 });
+    await assert.rejects(cmd.coordinatorDispatch(tagged, { version: V, sha: SHA }), { code: 'REGISTRY_UNKNOWN' });
+    assert.ok(!tagged.calls.gh.some((a) => a[0] === 'workflow'));
+  });
+
+  test('on npm but untagged → ANOMALY, no tag', async () => {
+    const p = publishedDoc(V);
+    const io = coordIo({ registry: { versions: ['0.9.4', V], distTags: { latest: V }, docs: { [V]: p.doc } } });
+    await assert.rejects(cmd.coordinatorGate(io, { version: V, sha: SHA }), { code: 'ANOMALY' });
+    await assert.rejects(cmd.coordinatorTag(io, { version: V, sha: SHA }), { code: 'ANOMALY' });
+    assert.deepEqual(io.state.remoteTags, {});
+  });
+
+  test('dispatch refuses without the tag', async () => {
+    const io = coordIo();
+    await assert.rejects(cmd.coordinatorDispatch(io, { version: V, sha: SHA }), { code: 'TAG_MISSING' });
+  });
+
+  test('dispatch skips when release.yml is running, already green, or the release is complete', async () => {
+    const rel = (over) => ({ id: 42, path: '.github/workflows/release.yml', head_branch: TAG, head_sha: SHA, event: 'push', created_at: NOW.toISOString(), html_url: 'https://gh/run/42', ...over });
+    for (const [releaseRuns, reason] of [
+      [[rel({ status: 'in_progress', conclusion: null })], 'active'],
+      [[rel({ status: 'completed', conclusion: 'success' })], 'succeeded'],
+    ]) {
+      const io = coordIo({ remoteTags: { [TAG]: SHA }, releaseRuns });
+      const d = await cmd.coordinatorDispatch(io, { version: V, sha: SHA });
+      assert.equal(d.action, 'none');
+      assert.equal(d.reason, reason);
+      assert.ok(!io.calls.gh.some((a) => a[0] === 'workflow'));
+    }
+    const p = publishedDoc(V);
+    const done = coordIo({
+      remoteTags: { [TAG]: SHA },
+      registry: { versions: ['0.9.4', V], distTags: { latest: V }, docs: { [V]: p.doc } },
+      releases: [{ tagName: TAG, isDraft: false, isPrerelease: false }],
+    });
+    const d = await cmd.coordinatorDispatch(done, { version: V, sha: SHA });
+    assert.equal(d.reason, 'complete');
+    assert.ok(!done.calls.gh.some((a) => a[0] === 'workflow'));
+  });
+
+  test('a failed earlier release.yml run does not block a new dispatch (resume)', async () => {
+    const io = coordIo({
+      remoteTags: { [TAG]: SHA },
+      releaseRuns: [{ id: 41, path: '.github/workflows/release.yml', head_branch: TAG, head_sha: SHA, event: 'push', status: 'completed', conclusion: 'failure', created_at: '2026-11-12T08:00:00Z' }],
+    });
+    const d = await cmd.coordinatorDispatch(io, { version: V, sha: SHA });
+    assert.equal(d.action, 'dispatched');
+  });
+
+  test('dispatch failure → DISPATCH_FAILED with resume guidance; a re-run after the fix dispatches', async () => {
+    const io = coordIo({ remoteTags: { [TAG]: SHA }, dispatchFails: true });
+    await assert.rejects(cmd.coordinatorDispatch(io, { version: V, sha: SHA }), (e) => e.code === 'DISPATCH_FAILED' && /re-run this coordinator/.test(e.message));
+    assert.equal(io.state.remoteTags[TAG], SHA);
+    assert.equal(io.state.releaseRuns.length, 0);
+    io.state.dispatchFails = false;
+    const d = await cmd.coordinatorDispatch(io, { version: V, sha: SHA });
+    assert.equal(d.action, 'dispatched');
+  });
+
+  test('client `coordinate` gates locally, then dispatches the coordinator on main with exact inputs', async () => {
+    const io = coordIo();
+    const run = await cmd.coordinate(io, { version: V, sha: SHA, dryRun: true });
+    assert.equal(run.id, 500);
+    const call = io.calls.gh.find((a) => a[2] === 'release-coordinator.yml');
+    assert.equal(call[call.indexOf('--ref') + 1], 'main');
+    assert.ok(call.includes(`version=${V}`) && call.includes(`sha=${SHA}`) && call.includes('dry_run=true'));
+    assert.deepEqual(io.state.remoteTags, {});
+  });
+
+  test('client `coordinate` sends nothing when the local gate fails', async () => {
+    const io = coordIo({ ciRuns: [ciRun({ conclusion: 'failure' })] });
+    await assert.rejects(cmd.coordinate(io, { version: V, sha: SHA }), { code: 'CI_NOT_GREEN' });
+    assert.equal(mutations(io).gh.length, 0);
+  });
+});
+
+describe('workflow permission boundaries (static checks of the YAML)', () => {
+  // Comment lines are dropped so documentation can name what the code must not use.
+  const read = (p) =>
+    readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8')
+      .split('\n')
+      .filter((l) => !/^\s*#/.test(l))
+      .map((l) => l.replace(/\s+#.*$/, ''))
+      .join('\n');
+  const jobBlock = (yml, job) => {
+    const m = new RegExp(`\\n  ${job}:\\n([\\s\\S]*?)(?=\\n  [a-z-]+:\\n|$)`).exec(yml);
+    assert.ok(m, `job ${job} missing`);
+    return m[1];
+  };
+
+  test('coordinator: manual dispatch only, empty default permissions, least privilege per job, no OIDC', () => {
+    const y = read('.github/workflows/release-coordinator.yml');
+    assert.match(y, /\non:\n  workflow_dispatch:/);
+    assert.doesNotMatch(y, /\n  (push|pull_request|schedule|workflow_run):/);
+    assert.match(y, /\npermissions: \{\}\n/);
+    assert.doesNotMatch(y, /id-token/);
+    assert.doesNotMatch(y, /secrets\./);
+    assert.doesNotMatch(y, /NPM_TOKEN|NODE_AUTH_TOKEN/);
+    assert.match(jobBlock(y, 'gate'), /if: github.ref == 'refs\/heads\/main'/);
+    assert.match(jobBlock(y, 'gate'), /contents: read/);
+    assert.doesNotMatch(jobBlock(y, 'gate'), /: write/);
+    assert.match(jobBlock(y, 'tag'), /contents: write/);
+    assert.doesNotMatch(jobBlock(y, 'tag'), /actions: write/);
+    assert.match(jobBlock(y, 'dispatch'), /actions: write/);
+    assert.doesNotMatch(jobBlock(y, 'dispatch'), /contents: write/);
+    // Inputs reach scripts through env, never interpolated into `run:`.
+    for (const line of y.split('\n').filter((l) => /^\s+run:/.test(l))) assert.doesNotMatch(line, /\$\{\{/);
+  });
+
+  test('release.yml keeps its trusted-publisher identity: same file, no environment, OIDC only in publish', () => {
+    const y = read('.github/workflows/release.yml');
+    assert.doesNotMatch(y, /\n\s+environment:/);
+    assert.match(y, /\n  workflow_dispatch:/);
+    assert.match(jobBlock(y, 'publish'), /id-token: write/);
+    assert.doesNotMatch(jobBlock(y, 'gate'), /id-token/);
+    assert.doesNotMatch(jobBlock(y, 'finalize'), /id-token/);
   });
 });

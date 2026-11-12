@@ -1,6 +1,8 @@
 # release.yml
 #
 # Publishes @takazudo/zdtp to npm on a v* tag and finalizes its GitHub Release.
+# Started by a v* tag push, or dispatched at a v* tag (resume, or by
+# release-coordinator.yml after it created the tag with GITHUB_TOKEN).
 # The full procedure (version choice, changelog, candidate gate, tagging,
 # monitoring, recovery) is docs/releasing.md; the rules it shares with this
 # workflow live in scripts/release/.

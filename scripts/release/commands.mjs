@@ -3,6 +3,7 @@
 import {
   CHANGELOG_EN_DIR,
   CI_WORKFLOW_PATH,
+  COORDINATOR_WORKFLOW_PATH,
   MAIN_BRANCH,
   PKG,
   PKG_JSON_PATH,
@@ -36,7 +37,36 @@ function requireSha(sha) {
 }
 
 export function versionAt(io, sha) {
-  return JSON.parse(io.git(['show', `${sha}:${PKG_JSON_PATH}`])).version;
+  let raw;
+  try {
+    raw = io.git(['show', `${sha}:${PKG_JSON_PATH}`]);
+  } catch {
+    throw new ReleaseError(`Cannot read ${PKG_JSON_PATH} at ${sha}: the commit is unknown to origin or lacks the package.`, { code: 'UNKNOWN_COMMIT' });
+  }
+  return JSON.parse(raw).version;
+}
+
+/**
+ * Registry read for a release decision. A network/auth error or a 404 packument
+ * for this already-published package is "unknown", never "not published".
+ */
+export async function readRegistryKnown(io) {
+  let reg;
+  try {
+    reg = await io.readRegistry();
+  } catch (e) {
+    throw new ReleaseError(`npm registry state for ${PKG} is unknown (${e.message}); not treating it as unpublished. Re-run later.`, {
+      code: 'REGISTRY_UNKNOWN',
+      inconclusive: true,
+    });
+  }
+  if (reg?.notFound || !Array.isArray(reg?.versions)) {
+    throw new ReleaseError(`The registry returned no packument for ${PKG}, which already has published versions; state unknown, not "unpublished". Re-run later.`, {
+      code: 'REGISTRY_UNKNOWN',
+      inconclusive: true,
+    });
+  }
+  return reg;
 }
 
 async function readCiRuns(io, sha) {
@@ -79,7 +109,7 @@ export async function gateCandidate(io, { sha, tagName, requireCi = true, requir
     );
   }
 
-  const registry = await io.readRegistry();
+  const registry = await readRegistryKnown(io);
   const decision = decidePublish({ version, distTag: cls.distTag, registry });
   return { sha, version, tag, ...cls, tagState, ci, decision };
 }
@@ -119,7 +149,7 @@ export async function publish(io, { version, distTag }) {
   if (versionAt(io, 'HEAD') !== version) throw new ReleaseError(`Checked-out ${PKG_JSON_PATH} is not ${version}.`);
 
   // Re-read right before mutating: the gate ran in another job.
-  const decision = decidePublish({ version, distTag, registry: await io.readRegistry() });
+  const decision = decidePublish({ version, distTag, registry: await readRegistryKnown(io) });
   if (decision.action !== 'publish') {
     io.log(`${decision.reason} Not publishing (this run did not create the registry version).`);
     io.setOutput('published', 'false');
@@ -328,8 +358,11 @@ export async function finalize(io, { version, sha, attempts = 12, intervalMs = 5
 }
 
 /** Client: create the release tag at the gated candidate (never moves an existing tag). */
-export async function createTag(io, { sha, via = 'git' }) {
+export async function createTag(io, { sha, via = 'git', version }) {
   const g = await gateCandidate(io, { sha, requireCi: true });
+  if (version !== undefined && g.version !== version) {
+    throw new ReleaseError(`Requested version ${version}, but ${PKG_JSON_PATH} at ${sha} is ${g.version}.`, { code: 'VERSION_MISMATCH' });
+  }
   if (g.tagState === 'same') {
     io.log(`${g.tag} already points at ${sha}; nothing to create.`);
     return { tag: g.tag, created: false, since: null };
@@ -339,7 +372,16 @@ export async function createTag(io, { sha, via = 'git' }) {
   }
   const since = new Date(io.now().getTime() - RUN_CORRELATION_SKEW_MS).toISOString();
   if (via === 'api') {
-    io.gh(['api', '-X', 'POST', `repos/${REPO}/git/refs`, '-f', `ref=refs/tags/${g.tag}`, '-f', `sha=${sha}`]);
+    try {
+      io.gh(['api', '-X', 'POST', `repos/${REPO}/git/refs`, '-f', `ref=refs/tags/${g.tag}`, '-f', `sha=${sha}`]);
+    } catch (e) {
+      // A concurrent creator may have won (422 "Reference already exists"): decide from the remote, never retry blindly.
+      const now = io.remoteTagSha(g.tag);
+      if (!now) throw e;
+      classifyTag(now, sha, g.tag);
+      io.log(`${g.tag} was created at ${sha} concurrently; continuing with it.`);
+      return { tag: g.tag, created: false, since };
+    }
   } else {
     const local = io.tryExec('git', ['rev-parse', '--verify', '--quiet', `refs/tags/${g.tag}^{commit}`]);
     if (local.ok && local.out !== sha) throw new ReleaseError(`Local tag ${g.tag} points at ${local.out}; delete the local tag, it never reached the remote.`, { code: 'TAG_CONFLICT' });
@@ -357,19 +399,19 @@ async function resolveRefSha(io, ref) {
 }
 
 /** Correlate a release.yml run by workflow path, ref, SHA and (optionally) start time. */
-export async function findRun(io, { ref, sha, since, event, waitAttempts = 1, intervalMs = 10000 }) {
+export async function findRun(io, { ref, sha, since, event, waitAttempts = 1, intervalMs = 10000, workflow = 'release.yml', workflowPath = RELEASE_WORKFLOW_PATH }) {
   const targetSha = sha ?? (await resolveRefSha(io, ref));
   if (!targetSha) throw new ReleaseError(`Cannot resolve ${ref} on the remote.`, { code: 'USAGE' });
   const found = await retry(
     async () => {
-      const q = `repos/${REPO}/actions/workflows/release.yml/runs?branch=${encodeURIComponent(ref)}&per_page=30${event ? `&event=${event}` : ''}`;
+      const q = `repos/${REPO}/actions/workflows/${workflow}/runs?branch=${encodeURIComponent(ref)}&per_page=30${event ? `&event=${event}` : ''}`;
       const runs = (await io.githubGet(q))?.workflow_runs ?? [];
-      const r = selectWorkflowRun(runs, { workflowPath: RELEASE_WORKFLOW_PATH, ref, sha: targetSha, event, since });
+      const r = selectWorkflowRun(runs, { workflowPath, ref, sha: targetSha, event, since });
       return { done: Boolean(r.run), value: r };
     },
     { attempts: waitAttempts, intervalMs, sleep: io.sleep },
   );
-  if (!found.ok) throw new ReleaseError(`No release.yml run found for ${ref}@${targetSha}${since ? ` since ${since}` : ''}.`, { code: 'RUN_NOT_FOUND' });
+  if (!found.ok) throw new ReleaseError(`No ${workflow} run found for ${ref}@${targetSha}${since ? ` since ${since}` : ''}.`, { code: 'RUN_NOT_FOUND' });
   return found.value.run;
 }
 
@@ -466,4 +508,120 @@ export async function preflight(io, { route = 'direct' } = {}) {
   add('npm credentials on caller', tokenEnv.length ? 'WARN' : 'PASS', tokenEnv.length ? `${tokenEnv.join(', ')} set; not needed — publication happens in Actions via OIDC. Remove it.` : 'none needed, none found in env');
 
   return { checks, ok: !checks.some((c) => c.level === 'FAIL') };
+}
+
+// ── Release coordinator (release-coordinator.yml) ─────────────────────────────
+// For callers that cannot push tags (e.g. Claude Code Cloud): Actions gates the
+// candidate, creates the tag with its ephemeral GITHUB_TOKEN, then explicitly
+// dispatches release.yml at that tag (a GITHUB_TOKEN tag creation does not fire
+// release.yml's `push: tags` trigger; a GITHUB_TOKEN workflow_dispatch does run).
+
+function requireVersion(version) {
+  if (!versionFromTagRef(`v${version ?? ''}`)) throw new ReleaseError(`A release version like 1.2.3 is required; got "${version}".`, { code: 'USAGE' });
+  classifyVersion(version);
+}
+
+/** Gate shared by the coordinator and its client: the requested version must be exactly the candidate's. */
+async function gateCoordinatorCandidate(io, { version, sha }) {
+  requireSha(sha);
+  requireVersion(version);
+  const g = await gateCandidate(io, { sha, requireCi: true });
+  if (g.version !== version) {
+    throw new ReleaseError(`Requested version ${version}, but ${PKG_JSON_PATH} at ${sha} is ${g.version}.`, { code: 'VERSION_MISMATCH' });
+  }
+  if (g.tagState === 'absent' && g.decision.action === 'skip-publish') {
+    throw new ReleaseError(`${PKG}@${version} is already on npm but ${g.tag} is missing. Investigate before tagging.`, { code: 'ANOMALY' });
+  }
+  return g;
+}
+
+/** release-coordinator.yml `gate` job (read-only). */
+export async function coordinatorGate(io, { version, sha }) {
+  if (io.env.GITHUB_ACTIONS === 'true' && io.env.GITHUB_REF !== `refs/heads/${MAIN_BRANCH}`) {
+    throw new ReleaseError(`The release coordinator runs only from ${MAIN_BRANCH}; got ${io.env.GITHUB_REF}.`);
+  }
+  const g = await gateCoordinatorCandidate(io, { version, sha });
+  io.log(`Coordinator gate passed for ${g.tag} at ${sha}: CI run ${g.ci.run.id}, tag ${g.tagState}. ${g.decision.reason}`);
+  io.summary(
+    `### Release coordinator gate\n- version: \`${version}\` → dist-tag \`${g.distTag}\`\n- commit: \`${sha}\`\n- ci.yml run: ${g.ci.run.html_url ?? g.ci.run.id}\n- tag ${g.tag}: ${g.tagState}\n- registry: ${g.decision.reason}`,
+  );
+  io.setOutput('tag', g.tag);
+  io.setOutput('tag_state', g.tagState);
+  return g;
+}
+
+/** release-coordinator.yml `tag` job (contents: write). Re-gates, then creates the tag via the API. */
+export async function coordinatorTag(io, { version, sha }) {
+  requireVersion(version);
+  const r = await createTag(io, { sha, via: 'api', version });
+  io.summary(`### Tag\n- ${r.tag} → \`${sha}\` (${r.created ? 'created' : 'already present'})`);
+  return r;
+}
+
+/** release-coordinator.yml `dispatch` job (actions: write). Starts release.yml at the tag unless it is done or running. */
+export async function coordinatorDispatch(io, { version, sha }) {
+  requireSha(sha);
+  requireVersion(version);
+  const tag = `v${version}`;
+  const tagSha = io.remoteTagSha(tag);
+  if (!tagSha) throw new ReleaseError(`${tag} does not exist on the remote; the coordinator dispatches only at an existing tag.`, { code: 'TAG_MISSING' });
+  classifyTag(tagSha, sha, tag);
+  io.gitOk(['fetch', '--quiet', 'origin', sha]);
+  if (versionAt(io, sha) !== version) throw new ReleaseError(`${PKG_JSON_PATH} at ${sha} is not ${version}.`, { code: 'VERSION_MISMATCH' });
+
+  const reg = await readRegistryKnown(io);
+  const release = await findRelease(io, tag);
+  if (reg.versions.includes(version) && release) {
+    io.summary(`### release.yml\n- ${tag} is already published and has a GitHub Release (${release.url}); nothing dispatched.`);
+    return { action: 'none', reason: 'complete', release: release.url };
+  }
+
+  const runs = ((await io.githubGet(`repos/${REPO}/actions/workflows/release.yml/runs?branch=${encodeURIComponent(tag)}&per_page=30`))?.workflow_runs ?? []).filter(
+    (r) => r.path === RELEASE_WORKFLOW_PATH && r.head_branch === tag && r.head_sha === sha,
+  );
+  const active = runs.find((r) => r.status !== 'completed');
+  const succeeded = runs.find((r) => r.conclusion === 'success');
+  const existing = active ?? succeeded;
+  if (existing) {
+    const why = active ? 'is still running' : 'already succeeded';
+    io.log(`release.yml run ${existing.id} for ${tag} ${why}; not dispatching another. Check: node scripts/release/release.mjs status --version ${version}`);
+    io.summary(`### release.yml\n- run ${existing.html_url ?? existing.id} ${why}; nothing dispatched.`);
+    return { action: 'none', reason: active ? 'active' : 'succeeded', run: existing.html_url ?? existing.id };
+  }
+
+  let run;
+  try {
+    run = await dispatch(io, { ref: tag, dryRun: false });
+  } catch (e) {
+    throw new ReleaseError(
+      `Dispatching release.yml at ${tag} did not complete (${e.message}). The tag is in place; npm is not published by this job. ` +
+        `Check the release.yml runs for ${tag} first, then re-run this coordinator with the same version and SHA (it resumes at the dispatch), ` +
+        `or run: node scripts/release/release.mjs dispatch --ref ${tag}`,
+      { code: 'DISPATCH_FAILED', inconclusive: e instanceof ReleaseError && e.code === 'RUN_NOT_FOUND' },
+    );
+  }
+  io.summary(`### release.yml\n- dispatched at ${tag}: ${run.html_url ?? run.id}`);
+  return { action: 'dispatched', run: run.html_url ?? run.id, id: run.id };
+}
+
+/** Client: start release-coordinator.yml on main (needs actions:write) after the same read-only gate passes locally. */
+export async function coordinate(io, { version, sha, dryRun = false }) {
+  await gateCoordinatorCandidate(io, { version, sha });
+  const mainSha = io.remoteHeadSha(MAIN_BRANCH);
+  if (!mainSha) throw new ReleaseError(`Cannot resolve ${MAIN_BRANCH} on the remote.`, { code: 'USAGE' });
+  const since = new Date(io.now().getTime() - RUN_CORRELATION_SKEW_MS).toISOString();
+  io.gh([
+    'workflow', 'run', 'release-coordinator.yml', '--repo', REPO, '--ref', MAIN_BRANCH,
+    '-f', `version=${version}`, '-f', `sha=${sha}`, '-f', `dry_run=${dryRun ? 'true' : 'false'}`,
+  ]);
+  return findRun(io, {
+    ref: MAIN_BRANCH,
+    sha: mainSha,
+    since,
+    event: 'workflow_dispatch',
+    waitAttempts: 12,
+    intervalMs: 5000,
+    workflow: 'release-coordinator.yml',
+    workflowPath: COORDINATOR_WORKFLOW_PATH,
+  });
 }

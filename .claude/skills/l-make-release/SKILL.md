@@ -17,6 +17,11 @@ Do not keep or improvise a separate copy of the rules here.
   push; use the PR route there. Never bypass the pre-push hook.
 - Use `node scripts/release/release.mjs` for preflight, status, gate, tag, and
   run correlation. Use `gh run watch <id> --exit-status` for waiting.
+- **Claude Code Cloud cannot push tags** (proxy 403). There, Step 8 uses Route B:
+  `release.mjs coordinate --version <V> --sha <SHA>` (dry-run first), which has
+  `release-coordinator.yml` create the tag and dispatch `release.yml`. If the
+  dispatch is refused, ask the owner to run **Release coordinator** from the
+  Actions tab. Never add a PAT or npm token to get around it.
 - No npm login or npm token is involved anywhere. If publishing fails on auth,
   follow "Troubleshooting OIDC". Never create or restore `NPM_TOKEN`.
 - The GitHub Release is created by `release.yml`. Do not run `gh release create`

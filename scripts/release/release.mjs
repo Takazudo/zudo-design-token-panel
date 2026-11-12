@@ -17,12 +17,20 @@ const USAGE = `usage: node scripts/release/release.mjs <command> [options]
   tag --sha SHA [--via git|api]          create the v<version> tag at the gated SHA (never moves a tag)
   find-run --ref REF [--sha SHA] [--since ISO] [--event push|workflow_dispatch] [--wait]
   dispatch --ref REF [--dry-run]         dispatch release.yml (dry run on a branch, or real at an existing tag)
+  coordinate --version V --sha SHA [--dry-run]
+                                         start release-coordinator.yml on main (Actions tags + dispatches release.yml);
+                                         for callers that cannot push tags. --dry-run = gate only in Actions
 
   Actions-only (release.yml):
   actions-gate                           uses GITHUB_REF, GITHUB_SHA, DRY_RUN
   publish --version V --dist-tag T
   verify-registry --version V --sha SHA [--published-run-id ID] [--audit-signatures]
-  finalize --version V --sha SHA`;
+  finalize --version V --sha SHA
+
+  Actions-only (release-coordinator.yml):
+  coordinator-gate --version V --sha SHA
+  coordinator-tag --version V --sha SHA
+  coordinator-dispatch --version V --sha SHA`;
 
 const { positionals, values } = parseArgs({
   allowPositionals: true,
@@ -84,6 +92,20 @@ async function main() {
       print({ id: run.id, sha: run.head_sha, url: run.html_url, watch: `gh run watch ${run.id} --exit-status` });
       return 0;
     }
+    case 'coordinate': {
+      const run = await cmd.coordinate(io, { version: values.version, sha: values.sha, dryRun: Boolean(values['dry-run']) });
+      print({ id: run.id, url: run.html_url, watch: `gh run watch ${run.id} --exit-status` });
+      return 0;
+    }
+    case 'coordinator-gate':
+      await cmd.coordinatorGate(io, { version: values.version, sha: values.sha });
+      return 0;
+    case 'coordinator-tag':
+      print(await cmd.coordinatorTag(io, { version: values.version, sha: values.sha }));
+      return 0;
+    case 'coordinator-dispatch':
+      print(await cmd.coordinatorDispatch(io, { version: values.version, sha: values.sha }));
+      return 0;
     case 'actions-gate':
       await cmd.actionsGate(io);
       return 0;

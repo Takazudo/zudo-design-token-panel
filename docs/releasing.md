@@ -14,7 +14,8 @@ again in Actions, so a caller that skips a step is still stopped before npm.
 
 | Who | Does |
 | --- | --- |
-| Caller (agent or human) | chooses the version, writes the changelog, validates the package, integrates the bump, freezes the candidate SHA, creates the tag, monitors |
+| Caller (agent or human) | chooses the version, writes the changelog, validates the package, integrates the bump, freezes the candidate SHA, creates the tag (or starts the coordinator), monitors |
+| `release-coordinator.yml` (GitHub Actions, optional) | for callers that cannot push tags: re-gates the candidate, creates the tag with its `GITHUB_TOKEN`, dispatches `release.yml` at the tag |
 | `release.yml` (GitHub Actions) | re-gates the identity, publishes to npm via OIDC, verifies the registry, creates the GitHub Release |
 
 - **No npm credentials anywhere.** The caller needs no npm login, no
@@ -41,6 +42,7 @@ node scripts/release/release.mjs tag --sha <SHA> [--via git|api] # create v<vers
 node scripts/release/release.mjs find-run --ref v<V> --sha <SHA> [--since ISO] [--wait]
 node scripts/release/release.mjs dispatch --ref <branch> --dry-run   # non-publishing Actions run
 node scripts/release/release.mjs dispatch --ref v<V>                 # resume at an existing tag
+node scripts/release/release.mjs coordinate --version V --sha <SHA> [--dry-run]  # Actions creates the tag (Step 8, route B)
 ```
 
 Exit codes: `0` ok, `1` refused or failed, `2` usage, `3` inconclusive or pending
@@ -381,6 +383,16 @@ commit, which still carries `<version>`, and re-gate.
 
 ## Step 8: Tag (starts the publish)
 
+Pick the route by what the caller can write. Both end in the same `release.yml`
+publish; neither needs npm credentials.
+
+| route | who creates the tag | use when |
+| --- | --- | --- |
+| A. client tag | the caller's own GitHub credential (`git push` or API) | local primary checkout, or any caller allowed to push tags |
+| B. Actions coordinator | `release-coordinator.yml` with its ephemeral `GITHUB_TOKEN` | Claude Code Cloud (its GitHub proxy refuses tag pushes) or any caller without tag-push rights |
+
+### Route A: client tag
+
 ```bash
 node scripts/release/release.mjs tag --sha "$SHA"            # git push of the tag
 node scripts/release/release.mjs tag --sha "$SHA" --via api  # GitHub API ref creation (no git push rights)
@@ -389,11 +401,61 @@ node scripts/release/release.mjs tag --sha "$SHA" --via api  # GitHub API ref cr
 `tag` re-runs the gate, creates a lightweight `v<version>` at exactly `$SHA`,
 reads the remote back, and prints `since` (the time before the push). An
 existing identical tag is a no-op, and a conflicting one stops the command. The
-tag push (by a user credential, git or API) triggers `release.yml`. The
-repository's own `GITHUB_TOKEN` never creates release tags, because its events
-would not start workflows.
+tag push (by a user credential, git or API) triggers `release.yml`.
+
+### Route B: Actions coordinator (Claude Code Cloud)
+
+```bash
+node scripts/release/release.mjs coordinate --version <version> --sha "$SHA" --dry-run   # gate only in Actions
+node scripts/release/release.mjs coordinate --version <version> --sha "$SHA"             # tag + dispatch release.yml
+```
+
+`coordinate` runs the Step 7 gate locally (read-only), then dispatches
+`release-coordinator.yml` on `main` with the exact version and SHA, and prints
+the correlated run. Starting it needs `actions: write` on the repository for the
+caller's GitHub credential. **No tag-push right and no extra token is needed.**
+If the caller cannot dispatch workflows either, a human starts it instead:
+GitHub → Actions → **Release coordinator** → *Run workflow*, branch `main`,
+fill `version` and `sha` (the full 40-character SHA), leave `dry_run` off.
+Do not create a personal access token to get around a missing permission.
+
+In Actions, the coordinator:
+
+1. **gate** (read-only): version equals `packages/zdtp/package.json` at the
+   SHA, the SHA is reachable from `main`, `ci.yml` is green for exactly that SHA,
+   the tag is absent or already at that SHA, npm state is readable (an
+   unreachable registry or a 404 packument is *unknown*, never "unpublished"),
+   no dist-tag regression, and "on npm but untagged" stops as an anomaly.
+2. **tag** (`contents: write`): re-runs the gate and creates the lightweight tag
+   through the API. A tag that already points at the SHA is reused (including
+   one created concurrently); a tag at another commit fails. Tags are never
+   moved or deleted.
+3. **dispatch** (`actions: write`): a tag created by `GITHUB_TOKEN` does not
+   fire `release.yml`'s `push: tags` trigger, so the coordinator dispatches
+   `release.yml` at `v<version>`. It dispatches nothing when a `release.yml`
+   run for the tag is running or already succeeded, or the release is complete.
+
+The dispatched `release.yml` run is identical to a tag-push run apart from its
+event (`workflow_dispatch`): the same workflow file (the npm trusted
+publisher), the tag ref (provenance `refs/tags/v<version>`), and the same gate.
+Only `release.yml`'s `publish` job has `id-token: write`; the coordinator has
+no OIDC permission and no npm credential.
+
+**Resume:** re-run the coordinator with the same version and SHA. It re-reads
+everything, so a run that stopped after tagging continues at the dispatch, and
+a run whose dispatch failed dispatches again. `release.mjs dispatch --ref
+v<version>` is the equivalent manual step.
 
 ## Step 9: Monitor the Release run
+
+Route B: watch the coordinator run printed by `coordinate`; its `dispatch` job
+summary links the `release.yml` run. Or find it directly:
+
+```bash
+node scripts/release/release.mjs find-run --ref v<version> --sha "$SHA" --event workflow_dispatch --wait
+```
+
+Route A:
 
 ```bash
 node scripts/release/release.mjs find-run --ref v<version> --sha "$SHA" --event push --since <since> --wait
@@ -454,6 +516,10 @@ gh run view <run-id> --log-failed
 | gate `DIST_TAG_REGRESSION` | a stale release attempt. Do not force it; cut the release from current `main` |
 | `TAG_CONFLICT` | the tag already names another commit. Investigate which commit was released; never force-update |
 | `anomaly` (npm has it, no tag) | stop and investigate with the user |
+| coordinator **gate** failed | read its error code: the same meanings as the Step 7 gate (`REGISTRY_UNKNOWN` = re-run later, never "unpublished"). Nothing was tagged |
+| coordinator **tag** failed with 403 / "Resource not accessible by integration" | the workflow token cannot create refs (repository Actions settings or a tag ruleset). Report the setting to the owner; do not add a token or bypass the ruleset. Route A by the owner is the fallback |
+| coordinator **dispatch** failed (`DISPATCH_FAILED`) | the tag exists; npm was not touched by the coordinator. Check the `release.yml` runs for the tag, then re-run the coordinator with the same inputs, or `release.mjs dispatch --ref v<version>` |
+| the coordinator itself cannot be started (no `actions: write`) | a human runs it from the Actions tab (Route B), or tags locally (Route A) |
 
 **Rolling back a bump before tagging:** `git revert <bump-sha>`, then integrate
 the revert through the same route. Check that both `<version>.mdx` pages and
@@ -501,6 +567,23 @@ performs the OIDC exchange itself.
   its own. The evidence of an OIDC publish is the registry recording
   `_npmUser.trustedPublisher` for the version, together with a workflow that
   had no npm token input.
+
+## Claude Code Cloud
+
+Claude Code Cloud's GitHub proxy refuses tag pushes (HTTP 403), so Route A does
+not work there. Use Route B:
+
+- Steps 1–7 run in the Cloud session as usual (`preflight --route pr`, PR
+  integration, candidate gate).
+- Step 8: `release.mjs coordinate --version <V> --sha <SHA>`. Whether the Cloud
+  credential may dispatch workflows is only proven by trying; dispatch a
+  `--dry-run` first. If it is refused, report that and ask the owner to start
+  **Release coordinator** from the Actions tab (inputs above). Do not hand the
+  session a personal access token or an npm token to work around it.
+- Steps 9–10: `find-run`, `gh run watch` and `status` are reads and work in
+  Cloud.
+
+Everything after the tag happens in GitHub Actions; no step needs a local Mac.
 
 ## Codex Cloud environment
 

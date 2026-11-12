@@ -103,7 +103,8 @@ export function createIo() {
       const res = await fetch(`https://registry.npmjs.org/${PKG.replace('/', '%2f')}`, {
         headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
       });
-      if (res.status === 404) return { versions: [], distTags: {}, docs: {} };
+      // `notFound` lets release decisions refuse a 404 instead of reading it as "nothing published".
+      if (res.status === 404) return { versions: [], distTags: {}, docs: {}, notFound: true };
       if (!res.ok) throw new Error(`registry read failed: HTTP ${res.status}`);
       const doc = await res.json();
       return { versions: Object.keys(doc.versions ?? {}), distTags: doc['dist-tags'] ?? {}, docs: doc.versions ?? {} };
