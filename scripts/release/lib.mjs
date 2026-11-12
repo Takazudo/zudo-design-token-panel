@@ -19,10 +19,12 @@ export const CHANGELOG_EN_DIR = 'doc/src/content/docs/changelog';
 export const SETUP_NODE_PLACEHOLDER_TOKEN = 'XXXXX-XXXXX-XXXXX-XXXXX';
 
 export class ReleaseError extends Error {
-  constructor(message, { code = 'REFUSED', details } = {}) {
+  constructor(message, { code = 'REFUSED', details, inconclusive = false } = {}) {
     super(message);
     this.code = code;
     this.details = details;
+    // Not a refusal: the state could not be read yet. The CLI exits 3 ("re-check later").
+    this.inconclusive = inconclusive;
   }
 }
 

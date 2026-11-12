@@ -162,7 +162,7 @@ jobs:
       needs.gate.outputs.finalize == 'true' &&
       (needs.publish.result == 'success' || needs.publish.result == 'skipped')
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25 # verify-registry waits up to ~10 min for registry propagation
     permissions:
       contents: write # create the GitHub Release (ephemeral GITHUB_TOKEN)
     steps:

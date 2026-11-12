@@ -447,7 +447,9 @@ gh run view <run-id> --log-failed
 | `tagged-unpublished`, run failed at **publish** with `OIDC_FAILED` | fix the trusted-publisher config ([Troubleshooting OIDC](#troubleshooting-oidc)), then re-run the failed jobs. Never add a token |
 | `tagged-unpublished` but the tagged commit itself is broken | do **not** move the tag. Cut a new patch version from a fixed commit; the broken tag stays as an unpublished marker |
 | `published-unfinalized` (npm has it, Release missing) | re-run the failed `finalize` job (`gh run rerun <id> --failed`), or `release.mjs dispatch --ref v<version>`. The gate skips publication. No bump, no republish, no tag move. The original publish run keeps the provenance; the retry doesn't need to have created it |
-| `verify-registry` exits inconclusive (3) | registry propagation lag, not "unpublished". Re-run the finalize job later |
+| `verify-registry` exits inconclusive (3) | registry propagation lag, not "unpublished" (it already waits ~10 min). Re-run the finalize job later |
+| `finalize` exits `READBACK_PENDING` or `NOT_PUBLISHED` with code 3 | the Release (or the npm version) was not readable yet. Re-run the finalize job; an existing matching Release is a no-op, and a re-run never creates a second one |
+| `finalize` exits `READBACK_FAILED` (1) | the Release is a draft, has the wrong prerelease flag, or GitHub reads keep erroring (e.g. 403). Fix that; it is not lag |
 | `REGISTRY_MISMATCH` (provenance commit/repo/digest differs) | stop and investigate. The published archive is not the intended release |
 | gate `DIST_TAG_REGRESSION` | a stale release attempt. Do not force it; cut the release from current `main` |
 | `TAG_CONFLICT` | the tag already names another commit. Investigate which commit was released; never force-update |
