@@ -23,6 +23,7 @@
 import { realpathSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { createApplyHandler, loadRoutingFromFile } from '../server';
 import { buildCorsHeaders, isOriginAllowed } from './cors';
 import { HELP_TEXT, parseArgs, type ParsedArgs } from './parse-args';
@@ -69,20 +70,30 @@ function jsonReply(res: ServerResponse, status: number, body: unknown): void {
 /** Soft body-size limit shared with the Next.js dev-forwarder route. */
 const MAX_BODY_BYTES = 1_048_576; // 1 MiB
 
+/**
+ * Buffers at most MAX_BODY_BYTES. On overflow it resolves 413 and discards
+ * (without buffering) whatever the client is still sending, so the socket stays
+ * readable until the 413 reply has been written; the caller then closes it.
+ */
 function readBody(req: IncomingMessage): Promise<string | 413> {
   return new Promise((resolveBody, rejectBody) => {
-    const chunks: Buffer[] = [];
+    let chunks: Buffer[] = [];
     let received = 0;
+    let overflowed = false;
     req.on('data', (chunk: Buffer) => {
+      if (overflowed) return;
       received += chunk.byteLength;
       if (received > MAX_BODY_BYTES) {
+        overflowed = true;
+        chunks = [];
         resolveBody(413);
-        req.destroy();
         return;
       }
       chunks.push(chunk);
     });
-    req.on('end', () => resolveBody(Buffer.concat(chunks).toString('utf-8')));
+    req.on('end', () => {
+      if (!overflowed) resolveBody(Buffer.concat(chunks).toString('utf-8'));
+    });
     req.on('error', rejectBody);
   });
 }
@@ -231,6 +242,8 @@ function buildRequestListener(deps: Deps) {
 
         const bodyResult = await readBody(req);
         if (bodyResult === 413) {
+          res.setHeader('Connection', 'close');
+          res.once('finish', () => req.socket.end());
           jsonReply(res, 413, {
             ok: false,
             error: 'Payload Too Large',
@@ -362,8 +375,9 @@ const invokedDirectly = (() => {
     // realpathSync de-references the pnpm `.bin/...` symlink so the comparison
     // against `import.meta.url` (which is the real path) matches when the bin
     // is invoked through `node_modules/.bin/zdtp-server`.
+    // pathToFileURL percent-encodes `#`, `%` and spaces the way import.meta.url does.
     const real = realpathSync(process.argv[1]);
-    const argvUrl = new URL(`file://${resolve(real)}`).href;
+    const argvUrl = pathToFileURL(resolve(real)).href;
     const metaUrl = import.meta.url;
     return argvUrl === metaUrl;
   } catch {

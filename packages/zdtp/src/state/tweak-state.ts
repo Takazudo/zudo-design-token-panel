@@ -2688,7 +2688,7 @@ function hydrateV2OrV3Object(
  * wraps this with the v4 branch + a v3→v4 migration step (#500/#509).
  */
 function loadLegacyPersistedState(
-  storage: StorageLike = localStorage,
+  storage: StorageLike = defaultStorage(),
   colorDefaults?: ColorTweakState,
   cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
   cfg: PanelConfig = getPanelConfig(),
@@ -2930,7 +2930,7 @@ function selectV4ActiveState(
 export function hasActiveColorSlot(
   cfg: PanelConfig = getPanelConfig(),
   cluster: ColorClusterDataConfig = getActivePrimaryCluster(cfg),
-  storage: StorageLike = localStorage,
+  storage: StorageLike = defaultStorage(),
 ): boolean {
   const envelope = readV4Envelope(storage, cfg);
   if (!envelope) return false;
@@ -3007,7 +3007,7 @@ function writeMergedV4(
  * A present-but-malformed v4 blob falls through to steps 2/3, which overwrite it.
  */
 export function loadPersistedState(
-  storage: StorageLike = localStorage,
+  storage: StorageLike = defaultStorage(),
   colorDefaults?: ColorTweakState,
   cluster: ColorClusterDataConfig = getActivePrimaryCluster(),
   cfg: PanelConfig = getPanelConfig(),
@@ -3041,7 +3041,7 @@ export function loadPersistedState(
  */
 export function savePersistedState(
   state: TweakState,
-  storage: StorageLike = localStorage,
+  storage: StorageLike = defaultStorage(),
   cfg: PanelConfig = getPanelConfig(),
 ) {
   const cluster = getActivePrimaryCluster(cfg);
@@ -3057,7 +3057,7 @@ export function savePersistedState(
  * preserving the single-panel path.
  */
 export function clearPersistedState(
-  storage: StorageLike = localStorage,
+  storage: StorageLike = defaultStorage(),
   cfg: PanelConfig = getPanelConfig(),
 ) {
   // Deliberately retain `${storagePrefix}-spawn-ordinal`: reset clears the
@@ -3076,6 +3076,25 @@ export function clearPersistedState(
     } catch {
       /* ignore */
     }
+  }
+}
+
+const UNAVAILABLE_STORAGE: StorageLike = {
+  getItem: () => null,
+  setItem: () => {},
+  removeItem: () => {},
+};
+
+/**
+ * The page's `localStorage`, or a no-op stand-in when there is none (SSR) or
+ * the browser blocks it: in a sandboxed iframe or with blocked cookies, merely
+ * reading the global throws a SecurityError. Edits then live in memory only.
+ */
+export function defaultStorage(): StorageLike {
+  try {
+    return typeof localStorage === 'undefined' ? UNAVAILABLE_STORAGE : localStorage;
+  } catch {
+    return UNAVAILABLE_STORAGE;
   }
 }
 
