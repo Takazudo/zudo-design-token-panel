@@ -373,10 +373,12 @@ try {
   // restores focus to the menu trigger in a later requestAnimationFrame. If the
   // resizer is focused before that frame runs, the restoration steals focus
   // back and the separator never receives the key presses below. Wait for the
-  // menu to finish closing and for that restoration to land first.
+  // menu to finish closing and for that restoration to land first. The header
+  // renders more than one theme menu (only one is visible), so match any trigger.
   await page.waitForFunction(() => {
-    const trigger = document.querySelector('[data-zd-theme-menu] > button');
-    return Boolean(trigger) && trigger.getAttribute('aria-expanded') !== 'true' && document.activeElement === trigger;
+    const triggers = [...document.querySelectorAll('[data-zd-theme-menu] > button')];
+    return triggers.includes(document.activeElement) &&
+      triggers.every((trigger) => trigger.getAttribute('aria-expanded') !== 'true');
   });
   // zfb 6 keeps #desktop-sidebar position:fixed below the lg breakpoint while
   // display:none. The resizer handle is still in the DOM, but its width is 0
@@ -524,8 +526,12 @@ try {
           role: document.activeElement.getAttribute('role'),
         },
         themeMenu: {
-          expanded: document.querySelector('[data-zd-theme-menu] > button')?.getAttribute('aria-expanded') ?? null,
-          pending: Boolean(document.querySelector('[data-zd-theme-menu] > button[data-zd-pending]')),
+          triggers: [...document.querySelectorAll('[data-zd-theme-menu] > button')].map((trigger) => ({
+            expanded: trigger.getAttribute('aria-expanded'),
+            pending: trigger.hasAttribute('data-zd-pending'),
+            focused: trigger === document.activeElement,
+            visible: trigger.getClientRects().length > 0,
+          })),
           menuOpen: Boolean(document.querySelector('[role="menu"]:popover-open')),
         },
         sidebarResizer: (() => {
