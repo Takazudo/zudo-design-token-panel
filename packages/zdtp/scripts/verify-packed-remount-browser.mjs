@@ -4,9 +4,7 @@ import { extname, relative, resolve, sep } from 'node:path';
 import { chromium } from 'playwright';
 
 const TRIGGER_SELECTOR = '#design-token-trigger';
-const PANEL_STORAGE_PREFIX = process.argv.includes('--native-host')
-  ? 'zudo-doc-tweak--graphite'
-  : 'zudo-doc-tweak';
+const PANEL_STORAGE_PREFIX = 'zudo-doc-tweak--graphite';
 const PANEL_ROOT_ID = `${PANEL_STORAGE_PREFIX}-root`;
 const PANEL_CHUNK_MARKER = 'tokenpanel-shell';
 const TIMEOUT_MS = 15_000;
@@ -491,7 +489,7 @@ async function assertAfterSwapClick(page, label, { requireReady = true } = {}) {
   return proof;
 }
 
-async function proveSpaRemount(browser, origin, panelChunkPaths, { nativeHost = false } = {}) {
+async function proveSpaRemount(browser, origin, panelChunkPaths) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   const page = await context.newPage();
   const errors = [];
@@ -526,30 +524,26 @@ async function proveSpaRemount(browser, origin, panelChunkPaths, { nativeHost = 
 
     const panelRequest = observed(page.waitForRequest((request) =>
       panelChunkPaths.has(new URL(request.url()).pathname), { timeout: TIMEOUT_MS }));
-    if (!nativeHost) await armAfterSwapHeaderClick(page, 'first-host-to-engine');
     const firstSwap = waitForZfbEvent(page, 'zfb:after-swap');
     const firstPageLoad = waitForZfbEvent(page, 'zfb:page-load');
     await page.getByRole('link', { name: 'Getting Started', exact: true }).first().click();
     await firstSwap;
-    if (nativeHost) {
-      // v6's scope-owned bootstrap is mounted after the native DOM swap; the
-      // legacy engine's synchronous after-swap-ready contract does not apply.
-      // Wait for the *incoming island's* actual mount, not a delay or retry.
-      await page.locator('[data-zfb-island="DocPanelBootstrap"][data-zfb-island-mounted]').waitFor({ state: 'attached' });
-      const proof = await page.evaluate(() => ({
-        label: 'first-host-to-engine', phase: 'native-island-mounted', path: location.pathname,
-        visible: Boolean(document.querySelector('#design-token-trigger')?.getClientRects().length),
-        ready: typeof window.zdtp?.toggle === 'function',
-        pending: window.__packedRemountProbe.triggerClicks - window.__packedRemountProbe.toggleEvents,
-        eventsBefore: window.__packedRemountProbe.toggleEvents,
-      }));
-      await page.locator(TRIGGER_SELECTOR).click();
-      await page.evaluate((clickProof) => {
-        clickProof.eventsAfter = window.__packedRemountProbe.toggleEvents;
-        clickProof.pendingAfter = window.__packedRemountProbe.triggerClicks - window.__packedRemountProbe.toggleEvents;
-        window.__packedRemountProbe.swapClicks.push(clickProof);
-      }, proof);
-    }
+    // v6's scope-owned bootstrap is mounted after the native DOM swap.
+    // Wait for the *incoming island's* actual mount, not a delay or retry.
+    await page.locator('[data-zfb-island="DocPanelBootstrap"][data-zfb-island-mounted]').waitFor({ state: 'attached' });
+    const proof = await page.evaluate(() => ({
+      label: 'first-host-to-engine', phase: 'native-island-mounted', path: location.pathname,
+      visible: Boolean(document.querySelector('#design-token-trigger')?.getClientRects().length),
+      ready: typeof window.zdtp?.toggle === 'function',
+      pending: window.__packedRemountProbe.triggerClicks - window.__packedRemountProbe.toggleEvents,
+      eventsBefore: window.__packedRemountProbe.toggleEvents,
+    }));
+    await page.locator(TRIGGER_SELECTOR).click();
+    await page.evaluate((clickProof) => {
+      clickProof.eventsAfter = window.__packedRemountProbe.toggleEvents;
+      clickProof.pendingAfter = window.__packedRemountProbe.triggerClicks - window.__packedRemountProbe.toggleEvents;
+      window.__packedRemountProbe.swapClicks.push(clickProof);
+    }, proof);
     const firstClick = await assertAfterSwapClick(page, 'first-host-to-engine', { requireReady: false });
     check(firstClick.path.startsWith('/docs/getting-started'),
       `First transition did not reach the engine doc route: ${JSON.stringify(firstClick)}`);
@@ -602,22 +596,15 @@ async function proveSpaRemount(browser, origin, panelChunkPaths, { nativeHost = 
     const hostPath = new URL(page.url()).pathname;
     check(hostPath === '/' || hostPath === '', `Expected host home route after back, received ${hostPath}`);
 
-    if (!nativeHost) await armAfterSwapHeaderClick(page, 'second-host-to-engine');
     const forwardSwap = waitForZfbEvent(page, 'zfb:after-swap');
     const forwardPageLoad = waitForZfbEvent(page, 'zfb:page-load');
     await page.goForward();
     await forwardSwap;
-    if (!nativeHost) {
-      const remountClick = await assertAfterSwapClick(page, 'second-host-to-engine');
-      check(remountClick.path.startsWith('/docs/getting-started'),
-        `Second transition did not reach the engine doc route: ${JSON.stringify(remountClick)}`);
-    } else {
-      check(new URL(page.url()).pathname.startsWith('/docs/getting-started'), 'Native forward traversal did not reach docs');
-    }
+    check(new URL(page.url()).pathname.startsWith('/docs/getting-started'), 'Native forward traversal did not reach docs');
     await forwardPageLoad;
     const enginePath = new URL(page.url()).pathname;
     await assertPageLoadSnapshot(page, enginePath, 'second host-to-engine transition', { visible: true });
-    await assertPanelState(page, true, nativeHost ? 'native forward traversal preserved the open panel' : 'ready header click recovered the panel before page-load');
+    await assertPanelState(page, true, 'native forward traversal preserved the open panel');
 
     const beforeInitialClose = await page.evaluate(() => window.__packedRemountProbe.toggleEvents);
     await page.locator(TRIGGER_SELECTOR).click();
@@ -686,7 +673,7 @@ async function proveSpaRemount(browser, origin, panelChunkPaths, { nativeHost = 
       eventTimeline: window.__packedRemountProbe.timeline,
     }));
     console.log(`Packed remount evidence: ${JSON.stringify(evidence)}`);
-    console.log(`PASS packed ${nativeHost ? 'native (first activation at incoming island mount)' : 'legacy (first activation inside after-swap)'} SPA remount: host→docs→host→docs header clicks, populated root, one shell, and repeat navigation`);
+    console.log(`PASS packed native (first activation at incoming island mount) SPA remount: host→docs→host→docs header clicks, populated root, one shell, and repeat navigation`);
   } catch (error) {
     console.error('SPA remount original failure:', error);
     console.error('SPA remount diagnostics:', JSON.stringify(await panelDiagnostics(page).catch((diagnosticError) => ({ error: String(diagnosticError) }))));
@@ -817,8 +804,8 @@ let browser;
 try {
   browser = await chromium.launch({ headless: true });
   await provePrehydrationClick(browser, server.origin);
-  if (process.argv.includes('--native-host')) await proveNativeIncomingEarlyClick(browser, server.origin, panelChunkPaths);
-  await proveSpaRemount(browser, server.origin, panelChunkPaths, { nativeHost: process.argv.includes('--native-host') });
+  await proveNativeIncomingEarlyClick(browser, server.origin, panelChunkPaths);
+  await proveSpaRemount(browser, server.origin, panelChunkPaths);
 } finally {
   await browser?.close();
   await server.close();

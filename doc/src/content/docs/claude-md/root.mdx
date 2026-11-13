@@ -131,19 +131,16 @@ The panel retains its own runtime dependency and DOM ownership. Treat a
 version or peer mismatch as a failed consumer check and resolve the boundary
 before claiming validation.
 
-The informational `consumer-smoke` job in `.github/workflows/ci.yml` runs
-separately named current-host and legacy checks. Current-host checks repeat
-the packed-panel override, build the scratch doc, serve its static output,
-and use Chromium to open one doc page, activate the header trigger, assert
-the real zudo-doc panel tabs are mounted, and reject console or page errors.
-Current-host remount coverage also exercises real SPA navigation and panel persistence. The retained legacy remount
-regression uses the self-contained ZFB 2.20.3 / zudo-doc 5.27.0 fixture in
-`scripts/fixtures/legacy-doc/`, not a copy of these migrated docs with only two packages repinned. Its shared
-Preact assertion applies only to that legacy host. Run
-`scripts/verify-packed-remount-consumer.sh --host current` or `--host legacy`
-(the default) to select the host explicitly. Legacy manifests remain
-templates until materialized outside the checkout; do not add old real
-`package.json` files to the dependency resolver's repository scan.
+The informational `consumer-smoke` job in `.github/workflows/ci.yml` checks
+the current doc host only. It repeats the packed-panel override, builds the
+scratch doc, serves its static output, and uses Chromium to open one doc page,
+activate the header trigger, assert the real zudo-doc panel tabs are mounted,
+and reject console or page errors. Its remount coverage also exercises real
+SPA navigation and panel persistence. Run
+`scripts/verify-packed-remount-consumer.sh --panel-tarball <path.tgz>` (or
+`--panel-version <version>`) to reproduce it locally. The former ZFB 2 /
+zudo-doc 5 legacy host and its fixture were removed in #1140; backward
+compatibility with that host is no longer checked.
 
 The scheduled `.github/workflows/consumer-drift.yml` workflow installs the
 latest zudo-doc for the consumer-manifest contract check, on the Node range

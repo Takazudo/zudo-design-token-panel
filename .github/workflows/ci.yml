@@ -177,7 +177,7 @@ jobs:
         run: pnpm --config.engine-strict=false --filter @takazudo/zdtp test:unit
 
   consumer-smoke:
-    name: Consumer smoke (legacy and current doc hosts)
+    name: Consumer smoke (current doc host)
     # Keep this lane informational until the unpublished-panel workflow has
     # proven stable enough to make it a required repository check.
     continue-on-error: true
@@ -217,13 +217,7 @@ jobs:
           fi
           echo "tarball=$panel_tarball" >> "$GITHUB_OUTPUT"
 
-      - name: Legacy host — ZFB 2 / zudo-doc 5 packed remount
-        env:
-          PANEL_TARBALL: ${{ steps.panel.outputs.tarball }}
-        run: bash scripts/verify-packed-remount-consumer.sh --host legacy --panel-tarball "$PANEL_TARBALL"
-
       - name: Current host — ZFB 6 / zudo-doc 11 packed remount
-        if: ${{ !cancelled() && steps.panel.outcome == 'success' }}
         env:
           PANEL_TARBALL: ${{ steps.panel.outputs.tarball }}
-        run: bash scripts/verify-packed-remount-consumer.sh --host current --panel-tarball "$PANEL_TARBALL"
+        run: bash scripts/verify-packed-remount-consumer.sh --panel-tarball "$PANEL_TARBALL"
