@@ -791,25 +791,8 @@ export {
   resolvePrimaryColorCluster,
   resolveSecondaryColorClusterFromTabs,
 } from './cluster-config';
-import {
-  resolvePrimaryColorCluster,
-  resolveSecondaryColorClusterFromTabs,
-} from './cluster-config';
+import { resolveSecondaryColorClusterFromTabs } from './cluster-config';
 import type { ColorClusterDataConfig } from './cluster-config';
-
-/**
- * Resolve the active primary color cluster from the panel config's tabs array.
- *
- * Returns `undefined` when no color tab is configured or it has no
- * `colorExtras` (e.g. the default empty config).
- *
- * @deprecated Prefer `resolvePrimaryColorCluster(cfg.tabs)` directly.
- */
-export function resolveActiveColorCluster(
-  cfg: PanelConfig = getPanelConfig(),
-): ColorClusterDataConfig | undefined {
-  return resolvePrimaryColorCluster(cfg.tabs);
-}
 
 /**
  * Resolve the active secondary color cluster from the panel config's tabs.

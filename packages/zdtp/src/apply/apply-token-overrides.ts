@@ -95,13 +95,6 @@ export class NoTokenBlockError extends Error {
   }
 }
 
-/**
- * @deprecated Retained as an alias for {@link NoTokenBlockError} so existing
- * `instanceof` / import sites keep working. The scan now covers `@theme`
- * blocks too, so "NoRootBlock" is no longer literally accurate.
- */
-export const NoRootBlockError = NoTokenBlockError;
-
 export interface BlockBounds {
   /** Index of the first character INSIDE the block (just after the opening
    *  `{`). */
@@ -579,10 +572,3 @@ export function applyTokenOverridesOrThrow(
 export function hasApplicableTokenBlock(source: string): boolean {
   return findFirstTopLevelRootBlock(source) !== null || findFirstTopLevelThemeBlock(source) !== null;
 }
-
-/**
- * @deprecated Renamed to {@link hasApplicableTokenBlock} now that the scan
- * covers `@theme` blocks too. Retained as an alias so existing call sites keep
- * working; it returns `true` for a `@theme`-only file (no `:root`).
- */
-export const hasTopLevelRootBlock = hasApplicableTokenBlock;
