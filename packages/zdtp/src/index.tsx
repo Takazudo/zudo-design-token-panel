@@ -1038,7 +1038,7 @@ function reapplyFromStorage(): void {
  *
  *     - The in-component listener must be attached. Preact (the renderer
  *       at the time) flushed `useEffect` on `requestAnimationFrame`, so for
- *       one paint frame after mount the component has no listener — a click in that
+ *       one paint frame after mount the component had no listener — a click in that
  *       window only reaches the module-scope handler, which short-
  *       circuited. The click was silently dropped.
  *     - The in-component listener must not be subsequently detached.

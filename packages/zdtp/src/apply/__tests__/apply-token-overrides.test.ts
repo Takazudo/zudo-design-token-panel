@@ -3,8 +3,6 @@ import {
   applyTokenOverrides,
   applyTokenOverridesOrThrow,
   hasApplicableTokenBlock,
-  hasTopLevelRootBlock,
-  NoRootBlockError,
   NoTokenBlockError,
 } from '../apply-token-overrides';
 
@@ -184,23 +182,23 @@ describe('missing :root block', () => {
     expect(unknown).toContain('--bar');
   });
 
-  it('hasTopLevelRootBlock returns false when no :root block exists', () => {
-    expect(hasTopLevelRootBlock('.not-root { color: red; }')).toBe(false);
+  it('hasApplicableTokenBlock returns false when no :root block exists', () => {
+    expect(hasApplicableTokenBlock('.not-root { color: red; }')).toBe(false);
   });
 
-  it('hasTopLevelRootBlock returns true when :root block exists', () => {
-    expect(hasTopLevelRootBlock(root('  --x: 1;\n'))).toBe(true);
+  it('hasApplicableTokenBlock returns true when :root block exists', () => {
+    expect(hasApplicableTokenBlock(root('  --x: 1;\n'))).toBe(true);
   });
 });
 
 // ---------------------------------------------------------------------------
-// NoRootBlockError / applyTokenOverridesOrThrow
+// NoTokenBlockError / applyTokenOverridesOrThrow
 // ---------------------------------------------------------------------------
 
 describe('applyTokenOverridesOrThrow', () => {
-  it('throws NoRootBlockError when no top-level :root block exists', () => {
+  it('throws NoTokenBlockError when no top-level :root block exists', () => {
     expect(() => applyTokenOverridesOrThrow('.c { --x: 1; }', { '--x': '2' })).toThrow(
-      NoRootBlockError,
+      NoTokenBlockError,
     );
   });
 
@@ -505,10 +503,9 @@ describe('@theme-only file (no :root)', () => {
     expect(result.updated).toContain('--spacing-md: 0.75rem;');
   });
 
-  it('hasApplicableTokenBlock (and its hasTopLevelRootBlock alias) is true for a @theme-only file', () => {
+  it('hasApplicableTokenBlock is true for a @theme-only file', () => {
     const src = theme('  --x: 1;\n');
     expect(hasApplicableTokenBlock(src)).toBe(true);
-    expect(hasTopLevelRootBlock(src)).toBe(true);
   });
 });
 
@@ -624,12 +621,6 @@ describe('neither :root nor @theme block', () => {
   it('applyTokenOverridesOrThrow throws NoTokenBlockError', () => {
     expect(() => applyTokenOverridesOrThrow('.c { --x: 1; }', { '--x': '2' })).toThrow(
       NoTokenBlockError,
-    );
-  });
-
-  it('the NoRootBlockError alias still catches the throw', () => {
-    expect(() => applyTokenOverridesOrThrow('.c { --x: 1; }', { '--x': '2' })).toThrow(
-      NoRootBlockError,
     );
   });
 

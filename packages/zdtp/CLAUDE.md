@@ -5,7 +5,7 @@ Package-level rules for `@takazudo/zdtp`. These supplement the root `CLAUDE.md` 
 ## Verifying panel changes locally
 
 Build this package first because workspace consumers import its `dist/`
-exports, then run the root-level zfb playground:
+exports, then run the Wind demo (`demos/zudowind`):
 
 ```sh
 pnpm --filter @takazudo/zdtp build
@@ -28,6 +28,10 @@ step. The CSS Modules demo is `pnpm demo:cssmodules`.
 The panel ships inside a host app. Host apps routinely apply aggressive global CSS resets that target semantic HTML elements by tag name (`h1`–`h6`, `p`, `ul`, `li`, `a`, etc.). Any such element placed inside the panel's markup will inherit those resets and break the panel's layout unpredictably.
 
 **All blocked elements MUST be replaced with `<div>` (or `<span>`) carrying the appropriate ARIA role and a `className` scoped to the `tokenpanel-` BEM namespace.**
+
+The rule covers every component the package renders into a host page, including the static token dashboard (`src/dashboard/`), not only the floating panel.
+
+**Notes-tab exception (#515).** The Notes tab (`tabs/notes-tab.tsx`) renders host-authored HTML from `notesExtras.html` through `sanitizeHtml` (`utils/sanitize-html.ts`, the security boundary) and zudo-react's `rawHtml` inside `.tokenpanel-notes-body`. That content is the host's prose, not panel chrome, so the tag ban does not apply inside that container. Defensive `!important` resets in `src/styles/panel.css` (the "Notes tab (#515)" block) keep hostile host tag-name rules from warping it. The panel's own JSX around it still follows the rule.
 
 ### Blocked elements
 
@@ -112,7 +116,7 @@ This panel is a **developer tool**. The user is a developer who wants to see all
 - Do NOT implement custom collapse-by-default disclosure (accordions, toggles, "show more" buttons).
 - If a tab has many tokens, render them flat in tier-section order.
 
-The `TabConfig.advancedTiers` field (which previously hid tiers behind a disclosure) **is being removed in #148**. Do not add new uses of it. Example manifests must not reference it.
+The `TabConfig.advancedTiers` field (which previously hid tiers behind a disclosure) **was removed in #148**; TypeScript rejects it. Example manifests must not reference it.
 
 #### Scoped exception — Palette Edit-view group accordion (#517)
 
@@ -135,7 +139,7 @@ If a tier conceptually needs sub-grouping:
 - **Do this**: split the tier into multiple `TierConfig` entries, each with its own `label` and its own section heading.
 - **Do not do this**: add an `h4` (or `<div role="heading" aria-level={4}>`) inside a tier's item list.
 
-The `TierItem.group` field **is being removed in #148**. It was used to inject section sub-headings inside a tier. Do not add new uses of it. Example manifests must not use it.
+The `TierItem.group` field **was removed in #148**; TypeScript rejects it. It was used to inject section sub-headings inside a tier. Example manifests must not use it.
 
 ### Before / after recipe
 
@@ -206,13 +210,13 @@ None as of the Panel Hardening epic merge. The two `<pre>` blocks originally fou
 
 ## Demo cascade verification
 
-After merging changes that affect the tier model, manifest structure, or token namespace (e.g. #147/#148/#153 panel-hardening waves), confirm the changes cascade through the two in-repo demos in §15 of `README.md`: `demos/zudowind` and `demos/cssmodules`.
+After merging changes that affect the tier model, manifest structure, or token namespace (e.g. #147/#148/#153 panel-hardening waves), confirm the changes cascade through the two in-repo demos in §15 of `packages/zdtp/README.md`: `demos/zudowind` and `demos/cssmodules`.
 
 ### Static analysis (in this repo)
 
 `pnpm -F @takazudo/zdtp test --run` exercises `src/__tests__/manifest-cascade-verification.test.ts`, which asserts the panel-internal invariants:
 
-- **Invariant D** — the panel tabs and `components/color-picker/` source contain no `<h4`, `<details`, `<summary`, `<button`, or `<table` elements (the hostile-host policy above).
+- **Invariant D** — every non-test `src/**/*.tsx` file (skipping `__tests__/`, `astro/`, `server/` and `bin/`, which do not render into the host DOM) contains none of the blocked elements listed above, and no `<button`. That includes the static token dashboard.
 - **Invariant F** — the panel CSS sources (`panel-tokens.css` and `panel.css`) do not read host `--color-*` or `--font-mono` vars, and declare their baked-in dark `--tokentweak-*` chrome tokens.
 - **Invariant H** (#459/#475) — the ramp-native Tier-2 example manifest (`_example-ramp-native-tier2.ts`) is a real, `configurePanel`-valid `PanelConfig`; `semantic: true`, `referencesRamps`, and every `SemanticValue` shape (index-free `{ ref }`, `{ literal }`, and a runtime-built per-mode `{ literal: { light, dark } }`) resolve and emit correctly.
 
@@ -221,8 +225,8 @@ After merging changes that affect the tier model, manifest structure, or token n
 ### Build + typecheck (panel + doc, in this repo)
 
 ```sh
-pnpm typecheck    # 0 errors across the remaining workspaces (panel + doc)
-pnpm build        # builds the panel and the doc workspace
+pnpm typecheck    # pnpm -r: the panel, doc and both demos
+pnpm build        # pnpm -r: builds the panel, the doc workspace and both demos
 pnpm --filter demo-zudowind build
 pnpm --filter demo-cssmodules build
 ```

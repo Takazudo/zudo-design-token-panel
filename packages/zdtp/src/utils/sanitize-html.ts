@@ -7,7 +7,7 @@
  * future HTML, namespaced foreign-content attributes). This is the package's
  * only HTML sanitizer (see `controls/sanitize-css-value.ts` for the separate
  * CSS-value sanitizer used elsewhere) and it is the thing standing between a
- * host's `notesExtras.html` string and `dangerouslySetInnerHTML` in
+ * host's `notesExtras.html` string and zudo-react's `rawHtml` prop in
  * `tabs/notes-tab.tsx`.
  *
  * Implementation: parse with the browser's own `DOMParser` (dependency-free —
@@ -154,8 +154,8 @@ function sanitizeNode(node: Node, doc: Document): Node | null {
 
 /**
  * Sanitize host-supplied HTML (`TabConfig.notesExtras.html`) against the
- * strict allowlist above. Returns an HTML string safe to pass to
- * `dangerouslySetInnerHTML`.
+ * strict allowlist above. Returns an HTML string safe to pass to zudo-react's
+ * `rawHtml` prop.
  */
 export function sanitizeHtml(html: string): string {
   const parsed = new DOMParser().parseFromString(html, 'text/html');

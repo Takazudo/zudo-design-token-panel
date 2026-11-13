@@ -9,7 +9,7 @@
  *
  * Consumers supply their own manifest by passing a `TokenManifest` to
  * `configurePanel({...})` (see PORTABLE-CONTRACT.md §3). The package consumes
- * whatever the host hands in; tab components, `applyTokenOverrides`, and
+ * whatever the host hands in; tab components, the apply helpers, and
  * `serialize`/`deserialize` all read from `getPanelConfig().tokens` at use
  * time so a host that calls `configurePanel` before mount sees its own data
  * everywhere.
