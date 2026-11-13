@@ -1,13 +1,13 @@
 import type { PanelConfig } from '../config/panel-config';
 import { storageKey_lastApplied } from '../config/panel-config';
+import { defaultStorage } from '../state/tweak-state';
 import { structuralEqual } from '../utils/structural-equal';
 
 export type FlatOverrides = Record<string, string>;
 
 export function loadLastApplied(cfg: PanelConfig): FlatOverrides {
-  if (typeof localStorage === 'undefined') return {};
   try {
-    const value = JSON.parse(localStorage.getItem(storageKey_lastApplied(cfg)) ?? '{}');
+    const value = JSON.parse(defaultStorage().getItem(storageKey_lastApplied(cfg)) ?? '{}');
     if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
     return Object.fromEntries(
       Object.entries(value).filter(
@@ -20,8 +20,11 @@ export function loadLastApplied(cfg: PanelConfig): FlatOverrides {
 }
 
 export function saveLastApplied(overrides: FlatOverrides, cfg: PanelConfig): void {
-  if (typeof localStorage === 'undefined') return;
-  localStorage.setItem(storageKey_lastApplied(cfg), JSON.stringify(overrides));
+  try {
+    defaultStorage().setItem(storageKey_lastApplied(cfg), JSON.stringify(overrides));
+  } catch {
+    // Storage full or blocked: the baseline stays in memory for this session.
+  }
 }
 
 export function unsavedCssVars(
