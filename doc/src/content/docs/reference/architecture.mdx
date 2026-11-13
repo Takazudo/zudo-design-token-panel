@@ -10,7 +10,7 @@ The design-token panel is split into three layers connected through narrow, JSON
 
 There are three concerns the package keeps in three separate layers:
 
-1. **Panel UI** — the Preact island that renders the side panel, owns tab and control state, and writes overrides through the configured `applySink` (or the default `:root` sink). Lives entirely in the browser.
+1. **Panel UI** — the zudo-react island that renders the side panel (with its own bundled runtime), owns tab and control state, and writes overrides through the configured `applySink` (or the default `:root` sink). Lives entirely in the browser.
 2. **Host-adapter** — the thin shim a host imports as a side effect. It reads the inline JSON config, calls `configurePanel(...)`, installs `window.<consoleNamespace>.*` plus the fixed-name `window.zdtp.{show,hide,toggle}()` alias, and gates the lazy-load of the panel module.
 3. **Apply-pipeline** — the optional path from the panel's Apply button back to disk. It is the in-package payload builder plus the standalone Node bin server (`zdtp-server`) that owns the file rewrites.
 
@@ -25,7 +25,7 @@ There are three concerns the package keeps in three separate layers:
 │                                        ▼                  │
 │                               ┌────────────────┐         │
 │                               │   Panel UI     │ writes  │
-│                               │   (Preact)     │ ──────▶ CSS target
+│                               │  (zudo-react)  │ ──────▶ CSS target
 │                               └────────┬───────┘         │
 │                                        │ POST /apply     │
 └────────────────────────────────────────┼─────────────────┘
@@ -291,7 +291,7 @@ the changed-state indicator. After a successful disk apply it is reset to
 
 ```mermaid
 flowchart LR
-    A["Host config\nPanelConfig.tabs"] --> B["Panel UI\n(Preact)"]
+    A["Host config\nPanelConfig.tabs"] --> B["Panel UI\n(zudo-react)"]
     B --> C["TabOverrides\n(in-memory + localStorage)"]
     C --> D["Resolver\nresolveTierItemValue()"]
     D -->|"literal tier"| E["CSS string\n(e.g. 1.25rem)"]

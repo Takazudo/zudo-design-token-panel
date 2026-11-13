@@ -55,7 +55,6 @@ export const easingTab: TabConfig = {
           id: 'ease-in',
           cssVar: '--myapp-easing-ease-in',
           label: 'Ease In',
-          group: 'easings',
           default: 'cubic-bezier(0.42, 0, 1, 1)',
           type: { kind: 'text' },
         },
@@ -63,7 +62,6 @@ export const easingTab: TabConfig = {
           id: 'ease-out',
           cssVar: '--myapp-easing-ease-out',
           label: 'Ease Out',
-          group: 'easings',
           default: 'cubic-bezier(0, 0, 0.58, 1)',
           type: { kind: 'text' },
         },
@@ -71,7 +69,6 @@ export const easingTab: TabConfig = {
           id: 'ease-inout',
           cssVar: '--myapp-easing-ease-inout',
           label: 'Ease InOut',
-          group: 'easings',
           default: 'cubic-bezier(0.42, 0, 0.58, 1)',
           type: { kind: 'text' },
         },
@@ -79,7 +76,6 @@ export const easingTab: TabConfig = {
           id: 'linear',
           cssVar: '--myapp-easing-linear',
           label: 'Linear',
-          group: 'easings',
           default: 'linear',
           type: { kind: 'text' },
         },
@@ -96,7 +92,6 @@ export const easingTab: TabConfig = {
           id: 'tab-open',
           cssVar: '--myapp-easing-tab-open',
           label: 'Tab Open',
-          group: 'roles',
           // Value is the raw item id — not a CSS value.
           default: 'ease-in',
           type: { kind: 'text' },
@@ -105,7 +100,6 @@ export const easingTab: TabConfig = {
           id: 'tab-close',
           cssVar: '--myapp-easing-tab-close',
           label: 'Tab Close',
-          group: 'roles',
           default: 'ease-out',
           type: { kind: 'text' },
         },
@@ -113,7 +107,6 @@ export const easingTab: TabConfig = {
           id: 'modal-enter',
           cssVar: '--myapp-easing-modal',
           label: 'Modal',
-          group: 'roles',
           default: 'ease-inout',
           type: { kind: 'text' },
         },
@@ -198,7 +191,7 @@ in-memory.
 
 ## Step 4: Open the panel and edit a raw value
 
-Open the panel (`Alt+Shift+P` by default, or call `window.myapp.showDesignPanel()`).
+Open the panel (call `zdtp.show()` from the browser console, or use your host's own trigger).
 Navigate to the **Easing** tab.
 
 - The **Raw Easings** section shows the four named easing functions as text
@@ -250,25 +243,31 @@ pnpm exec zdtp-server \
 Clicking **Apply** in the panel rewrites `src/styles/tokens.css` so the
 `var()` chains from Step 2 now reflect the current panel state.
 
-## Hiding the raw tier behind disclosure
+## Ordering and splitting tiers
 
-If raw tokens are an implementation detail that most users should not touch,
-add the raw tier id to `advancedTiers`. The tier collapses behind an
-"Advanced" disclosure link; the semantic roles stay visible at the top level.
+Every tier renders flat, in the order of the `tiers` array, under one section
+heading of its own. There is no collapse or "Advanced" disclosure; the panel is
+a developer tool and keeps every token visible. If you want the semantic roles
+at the top, list that tier first — `referencesTier` looks the raw tier up by id
+within the same tab, so the order does not matter to it.
+
+When one tier would hold rows that belong to different sub-groups, split it
+into several tiers, each with its own `id` and `label`, rather than tagging
+items inside a single tier. A reference tier points at exactly one tier, so
+keep every raw item a semantic tier can point at in that one referenced tier.
 
 ```ts
 const easingTab: TabConfig = {
   id: 'easing',
   label: 'Easing',
-  advancedTiers: ['raw'],   // collapses raw tier behind disclosure
   tiers: [
-    { id: 'raw', label: 'Raw Easings', items: [ /* ... */ ] },
     {
       id: 'semantic',
       label: 'Semantic Roles',
       referencesTier: 'raw',
       items: [ /* ... */ ],
     },
+    { id: 'raw', label: 'Raw Easings', items: [ /* ... */ ] },
   ],
 };
 ```

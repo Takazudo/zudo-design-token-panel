@@ -76,7 +76,7 @@ export interface PanelInstanceHandle {
   /** Toggle this instance's panel open/closed. */
   toggle(): void;
   /**
-   * Deregister this instance. Unmounts the Preact tree, removes the DOM
+   * Deregister this instance. Unmounts the panel render tree, removes the DOM
    * root, and unbinds the instance's toggle-event listener. After
    * destroy() the prefix can be re-configured via configurePanel.
    */
@@ -102,7 +102,7 @@ export interface PanelDockConfig {
 export interface PanelConfig {
   /** Base for every derived storage key. Also the instance id. */
   storagePrefix: string;
-  /** Console API namespace — installed as `window[consoleNamespace].showDesignPanel`, etc. */
+  /** Console API namespace — installed as `window[consoleNamespace].showDesignPanel` etc. by the Astro host adapter. */
   consoleNamespace: string;
   /** BEM-style prefix used by every modal in the panel (export / import / apply). */
   modalClassPrefix: string;
@@ -485,11 +485,11 @@ import {
 
 ### `showDesignTokenPanel(): void`
 
-Opens the panel. Idempotent — calling it while the panel is already open is a no-op. Mounts the Preact shell into a body-appended `<div>` whose id is derived from `storagePrefix`.
+Opens the panel. Idempotent — calling it while the panel is already open is a no-op. Mounts the panel shell into a body-appended `<div>` whose id is derived from `storagePrefix`.
 
 ### `hideDesignTokenPanel(): void`
 
-Closes the panel. The Preact shell stays mounted (CSS hides it); only the open flag flips.
+Closes the panel. The panel shell stays mounted (CSS hides it); only the open flag flips.
 
 ### `toggleDesignPanel(): void`
 
@@ -498,7 +498,7 @@ Flips the panel between open and closed. The exported function name is `toggleDe
 ### `reapplyPersistedOverrides(): void`
 
 Applies persisted token overrides to each instance's default `:root` target
-(or configured `applySink`) BEFORE any Preact render. Called at adapter module
+(or configured `applySink`) BEFORE the panel renders. Called at adapter module
 init (and again on every `astro:page-load`) so the bundle's arrival eliminates
 the FOUT on hard navigation. This is a no-op when nothing is persisted; it
 swallows errors so corrupt state never blocks the UI thread.

@@ -1,27 +1,21 @@
 ---
 title: Static token dashboard
 sidebar_position: 95
-description: Render a plain token reference page from shared tabs with the Preact TokenDashboard component.
+description: Render a plain token reference page from shared tabs with the zudo-react TokenDashboard component.
 ---
 
 Render a token inventory inside your documentation page with the named
-`TokenDashboard` Preact component. The same `tabs` data can drive your panel and
+`TokenDashboard` zudo-react component. The same `tabs` data can drive your panel and
 this read-only page. A static host can render it during the build and ship HTML
 plus CSS with no dashboard hydration.
 
-:::note[Availability]
-The dashboard is available from npm v0.6.1 and in the
-[workspace demo](https://zdtp-demo-zudowind.zudolab.dev/dashboard/). This documentation site's panel still uses its
-separate pinned npm dependency. The optional imperative client API is
-available from npm v0.8.7, newer than this site's pinned 0.8.6 package; see the
+:::note[Requirements]
+The dashboard renders with zfb's zudo-react runtime, which it does not bundle.
+Install `@takazudo/zfb` (an optional peer, `^5.1.2 || ^6.0.0`) next to
+`@takazudo/zdtp`; hosts that only use the panel can skip it. A live example runs
+in the [workspace demo](https://zdtp-demo-zudowind.zudolab.dev/dashboard/). The
+optional imperative client API is described in the
 [dashboard reference](../reference/token-dashboard.mdx).
-:::
-
-:::warning[Unreleased: moving to zudo-react]
-After v0.8.7 the dashboard renders with zfb's zudo-react instead of Preact, and
-its users install `@takazudo/zfb` as an optional peer. The Preact examples on
-this page describe this site's pinned release. See the
-[unreleased changelog](../changelog/unreleased.mdx).
 :::
 
 ## Keep token definitions build-safe
@@ -55,26 +49,36 @@ export const tokenTabs: readonly TabConfig[] = [{
 Pass `tokenTabs` as `tabs` in your existing `PanelConfig` too. This shares the
 source definitions; it does not connect the dashboard to the panel's live state.
 
-## Render a Preact page
+## Render a zudo-react page
 
-Use a host that renders Preact and configure TSX with `jsxImportSource: "preact"`
-when needed. ZDTP owns Preact as a regular dependency; the host should still declare Preact for its own JSX/SSR code. The dashboard import does not initialize
-the panel or require the panel stylesheet.
+Render the dashboard from a zfb page, whose TSX already compiles with
+`jsxImportSource: "@takazudo/zfb/zudo-react"`. The dashboard import does not
+initialize the panel or require the panel stylesheet.
 
 ```tsx
-// TokenPage.tsx — ordinary Preact TSX, rendered by your static host.
+// pages/tokens.tsx — an ordinary zfb page, rendered at build time.
 import { TokenDashboard } from '@takazudo/zdtp/dashboard';
-import { tokenTabs } from './token-tabs';
+import { tokenTabs } from '../token-tabs';
 
 export default function TokenPage() {
   return <TokenDashboard tabs={tokenTabs} mode="light" title="Site tokens" />;
 }
 ```
 
-No client island is needed for a static page. If your host uses Preact's server
-renderer directly, render this component with `preact-render-to-string` as part
-of the host's normal build. The package supplies a component, not an HTML-export
-API or CLI. A React adapter is outside this checkpoint.
+No client island is needed for a static page. Outside a zfb page, render the
+component to HTML with `renderToString` from `@takazudo/zfb/zudo-react/server`
+as part of the host's normal build:
+
+```tsx
+import { renderToString } from '@takazudo/zfb/zudo-react/server';
+import { TokenDashboard } from '@takazudo/zdtp/dashboard';
+import { tokenTabs } from './token-tabs';
+
+const html = renderToString(<TokenDashboard tabs={tokenTabs} title="Site tokens" />);
+```
+
+The package supplies a component, not an HTML-export API or CLI. A React
+adapter is not provided.
 
 ## Include the separate stylesheet
 

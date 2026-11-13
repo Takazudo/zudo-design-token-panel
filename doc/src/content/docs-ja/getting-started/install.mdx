@@ -10,7 +10,7 @@ sidebar_position: 2
 
 ## パッケージをインストールする
 
-プロジェクトのパッケージマネージャーに合うコマンドを選んでください。ZDTP は [Preact](https://preactjs.com/) を通常の依存関係として持ちます。命令型 API を使うホストではパネルだけを指定し、ホストの JSX ランタイムは React や zudo-react のまま使えます。
+プロジェクトのパッケージマネージャーに合うコマンドを選んでください。パネルは zfb の zudo-react ランタイムを同梱しているため、命令型 API を使うホストではパネルだけを指定し、ホストの JSX ランタイムは React や zudo-react のまま使えます。
 
 ### pnpm
 
@@ -36,8 +36,8 @@ yarn add @takazudo/zdtp
 bun add @takazudo/zdtp
 ```
 
-<Note title="ZDTP 自身が Preact を持ちます">
-  0.8.6 から Preact `^10.29.1` は peer ではなく通常の依存関係です。公開宣言には引き続き Preact の型が含まれ、その依存関係から解決されます。独自の Preact JSX や `@takazudo/zdtp/dashboard` を描画するホストは、自身の Preact と SSR 用依存関係を宣言してください。非公開ランタイムをバンドルする方式ではありません。パネルのツリーは他のレンダラーと分離します。
+<Note title="パネルはレンダラーを同梱しています">
+  0.9.0 からパネルは zfb の zudo-react ランタイムを同梱してレンダリングし、`preact` は `@takazudo/zdtp` の依存関係ではなくなりました。例外は静的な `@takazudo/zdtp/dashboard` エントリーで、ホストの zudo-react でレンダリングするため、利用するホストは `@takazudo/zfb`（任意の peer、`^5.1.2 || ^6.0.0`）をインストールします。0.8.x から更新するホストで、ZDTP 経由で入る Preact を自身のコードに使っていた場合は、自身の依存関係に `preact` を追加してください。パネルのツリーは他のレンダラーと分離します。
 </Note>
 
 ## インストールを確認する
@@ -77,9 +77,9 @@ npx zdtp-server \
 
 ## ランタイム依存関係の境界
 
-ZDTP は Preact、`@tailwindcss/browser`、`tailwind-merge`、`culori` を通常の依存関係としてインストールします。Tailwind コンパイラーは DOM Tweaker の遅延有効化境界の内側にあり、通常のパネルを開いても読み込み・実行されません。Tailwind を一切インストールしない構成ではありません。別パッケージや任意のエントリへの分離は、互換性を別途検討する変更です。`optionalDependencies` に移しても既定ではインストールされます。
+ZDTP は `@tailwindcss/browser`、`tailwind-merge`、`culori` を通常の依存関係としてインストールします。Tailwind コンパイラーは DOM Tweaker の遅延有効化境界の内側にあり、通常のパネルを開いても読み込み・実行されません。Tailwind を一切インストールしない構成ではありません。別パッケージや任意のエントリへの分離は、互換性を別途検討する変更です。`optionalDependencies` に移しても既定ではインストールされます。
 
-ZFB 3〜5 では `getScope().onActivate()` 内でパネルを import し、アイランドの破棄時に読み込み待ちをキャンセルします。そのライフサイクル内で返されたハンドルを設定・破棄してください。Preact の VNode をホストの zudo-react レンダラーに渡してはいけません。
+ZFB では `getScope().onActivate()` 内でパネルを import し、アイランドの破棄時に読み込み待ちをキャンセルします。そのライフサイクル内で返されたハンドルを設定・破棄してください。パネルのノードをホストの zudo-react ツリーに渡してはいけません。
 
 <Info>
   パネルの CSS は自己完結しています。パネル専用の `--tokentweak-*` 名前空間にまとめたスタイルシートが同梱されています。パネルを利用するプロジェクトに **Tailwind は不要です**。

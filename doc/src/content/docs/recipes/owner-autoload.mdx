@@ -78,7 +78,7 @@ window.myapp.enableAutoload();
 From that point on, every page load in that browser will:
 
 1. Fetch the panel bundle eagerly (same path as when you have saved overrides).
-2. Mount the Preact shell CLOSED — the panel UI stays out of sight.
+2. Mount the panel shell CLOSED — the panel UI stays out of sight.
 3. Arm the Alt+click element-path inspector — hover over any element and
    click to copy a detailed selector block to the clipboard.
 4. Leave the `window.myapp.{show,hide,toggle}DesignPanel()` console helpers
@@ -94,7 +94,7 @@ window.myapp.disableAutoload();
 ```
 
 This removes the `:autoload` flag, writes `'0'` to the `:visible` and
-element-path enabled keys, removes the open-state key, and unmounts the Preact
+element-path enabled keys, removes the open-state key, and unmounts the panel
 shell. Owner-autoload is disabled on the next page; persisted token overrides
 or other enabled features can still independently satisfy the lazy-load gate.
 

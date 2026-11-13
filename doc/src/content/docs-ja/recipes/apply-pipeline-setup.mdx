@@ -40,7 +40,7 @@ pnpm exec zdtp-server --help
 
 ## 3. 開発スクリプトへ組み込む
 
-`concurrently`（または `npm-run-all`）を使い、開発サーバーと並行して bin を実行します。`vite` は、プロジェクトで使用している長時間実行プロセスに置き換えてください。
+`concurrently`（または `npm-run-all`）を使い、開発サーバーと並行して bin を実行します。`vite` は、プロジェクトで使用している長時間実行プロセスに置き換えてください。`zdtp-server` の bin は `@takazudo/zdtp` に含まれます。パッケージは[インストール](../getting-started/install.mdx)の手順で追加し、バージョン範囲を書き写すのではなく、パッケージマネージャーに現在のリリースを記録させてください。
 
 ```json
 // package.json
@@ -49,7 +49,6 @@ pnpm exec zdtp-server --help
     "dev": "concurrently --kill-others-on-fail --names dev,panel \"vite\" \"zdtp-server --routing ./panel-routing.json --write-root ./src/styles --allow-origin http://localhost:5173\""
   },
   "devDependencies": {
-    "@takazudo/zdtp": "^0.1.0",
     "concurrently": "^9.0.0"
   }
 }

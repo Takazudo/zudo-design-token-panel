@@ -10,7 +10,7 @@ sidebar_position: 1
 
 パッケージは 3 つの責務を、それぞれ独立した層に分けています。
 
-1. **パネル UI** — サイドパネルをレンダリングし、タブとコントロールの状態を管理して、設定済みの `applySink`（またはデフォルトの `:root` シンク）を通じてオーバーライドを書き込む Preact アイランドです。完全にブラウザー内で動作します。
+1. **パネル UI** — サイドパネルをレンダリングし、タブとコントロールの状態を管理して、設定済みの `applySink`（またはデフォルトの `:root` シンク）を通じてオーバーライドを書き込む zudo-react アイランドです（ランタイムはパネルに同梱）。完全にブラウザー内で動作します。
 2. **ホストアダプター** — ホストが副作用としてインポートする薄いシムです。インライン JSON 設定を読み、`configurePanel(...)` を呼び出し、`window.<consoleNamespace>.*` と固定名の `window.zdtp.{show,hide,toggle}()` エイリアスをインストールして、パネルモジュールの遅延読み込みをゲートします。
 3. **アプライパイプライン** — パネルの Apply ボタンからディスクへ至るオプションの経路です。パッケージ内のペイロードビルダーと、ファイルの書き換えを担うスタンドアロン Node bin サーバー（`zdtp-server`）で構成されます。
 
@@ -25,7 +25,7 @@ sidebar_position: 1
 │                                        ▼                  │
 │                               ┌────────────────┐         │
 │                               │   Panel UI     │ writes  │
-│                               │   (Preact)     │ ──────▶ CSS target
+│                               │  (zudo-react)  │ ──────▶ CSS target
 │                               └────────┬───────┘         │
 │                                        │ POST /apply     │
 └────────────────────────────────────────┼─────────────────┘
@@ -251,7 +251,7 @@ const colorTab: TabConfig = {
 
 ```mermaid
 flowchart LR
-    A["Host config\nPanelConfig.tabs"] --> B["Panel UI\n(Preact)"]
+    A["Host config\nPanelConfig.tabs"] --> B["Panel UI\n(zudo-react)"]
     B --> C["TabOverrides\n(in-memory + localStorage)"]
     C --> D["Resolver\nresolveTierItemValue()"]
     D -->|"literal tier"| E["CSS string\n(e.g. 1.25rem)"]
