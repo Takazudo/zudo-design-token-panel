@@ -1,26 +1,19 @@
 ---
 title: TokenDashboard
 sidebar_position: 4
-description: 静的トークンダッシュボードの Preact props、スタイルシート、既定値の扱いとプレビューの制約。
+description: 静的トークンダッシュボードの zudo-react props、スタイルシート、既定値の扱いとプレビューの制約。
 ---
 
-`TokenDashboard` は `@takazudo/zdtp/dashboard` が公開する Preact コンポーネントです。
+`TokenDashboard` は `@takazudo/zdtp/dashboard` が公開する zudo-react コンポーネントです。
 タブデータを受け取り、ブラウザーのグローバル変数、パネルの初期化、ストレージへのアクセス、
 hydration を必要とせず、読み取り専用の一覧をレンダリングします。
 
-:::note[利用可能なビルド]
-静的ダッシュボードのサブパスは npm v0.6.1 から利用できます。以下の
-`dashboard/client` API は npm v0.8.7 から利用でき、このドキュメントサイトが固定している
-0.8.6 より新しい版です。
+:::note[必要なもの]
+ダッシュボードは zfb の zudo-react ランタイムでレンダリングし、そのランタイムを同梱しません。
+`@takazudo/zdtp` と合わせて `@takazudo/zfb`（任意の peer、`^5.1.2 || ^6.0.0`）を
+インストールしてください。パネルだけを使うホストには不要です。
 ビルド時にも使えるデータの共有、CSS の読み込み、ワークスペースのデモについては
 [静的ダッシュボードのレシピ](../recipes/static-token-dashboard.mdx)をご覧ください。
-:::
-
-:::warning[未リリース: zudo-react への移行]
-v0.8.7 より後のダッシュボードは Preact ではなく zfb の zudo-react でレンダリングし、
-利用者は `@takazudo/zfb` を任意の peer としてインストールします。このページの
-Preact の例は、このサイトが固定しているリリースの説明です。
-[未リリースの変更履歴](../changelog/unreleased.mdx)を参照してください。
 :::
 
 ## エクスポートと props
@@ -55,8 +48,9 @@ import type {
 `@takazudo/zdtp/dashboard/styles.css` をホストの静的 CSS 処理で一度読み込みます。
 ダッシュボードの JavaScript は CSS の副作用 import を持ちません。
 この CSS は `@takazudo/zdtp/styles.css` と独立しており、ダッシュボードだけのページに
-パネル用スタイルシートは不要です。Preact が必要です。React アダプターや
-HTML 書き出し関数・CLI は提供しません。
+パネル用スタイルシートは不要です。zfb のページから、または
+`@takazudo/zfb/zudo-react/server` の `renderToString` でレンダリングします。
+React アダプターや HTML 書き出し関数・CLI は提供しません。
 
 ## 命令的なクライアント API
 
@@ -94,7 +88,7 @@ export function setupLazyDashboard(host: HTMLElement, props: TokenDashboardProps
 }
 ```
 
-静的な Preact エントリーは引き続き Node SSR とクライアント JavaScript 不要の HTML に
+静的な `@takazudo/zdtp/dashboard` エントリーは引き続き Node SSR とクライアント JavaScript 不要の HTML に
 利用できます。公開 CSS はどちらのエントリーでも明示的に読み込んでください。
 
 ### Chrome の入力と派生値
@@ -179,10 +173,10 @@ CSS の式は保持し、あらゆる CSS プロパティの文法として計�
 単位、フォント、ビューポートなどのレイアウトコンテキストはブラウザーが提供します。
 外部変数の依存先が不足している場合は、サンプルを表示せず診断を表示します。
 安全に扱えないリソース参照の式はプレビューせず、URL・マスク用アセットも読み込みません。
-テキストは Preact がエスケープします。
+テキストは zudo-react のレンダラーがエスケープします。
 
 一部のデータを埋め込む場合は、参照先のティアも含めてください。
-通常の静的 Preact レンダリングを使えば、クライアント JavaScript を必要としない出力を作れます。
+通常の静的 zudo-react レンダリング（zfb のページや `renderToString`）を使えば、クライアント JavaScript を必要としない出力を作れます。
 hydration するかどうかはホスト側で選択できます。
 
 ## 組み合わせのレシピ

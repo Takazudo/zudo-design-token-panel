@@ -10,7 +10,7 @@ This page covers installing the package itself. For wiring it into your layout, 
 
 ## Install the package
 
-Pick the invocation that matches your project's package manager. ZDTP owns [Preact](https://preactjs.com/) as a regular dependency. Imperative hosts need only the panel package; their JSX runtime can remain React or zudo-react.
+Pick the invocation that matches your project's package manager. The panel bundles its own copy of zfb's zudo-react runtime, so imperative hosts need only the panel package; their JSX runtime can remain React or zudo-react.
 
 ### pnpm
 
@@ -36,8 +36,8 @@ yarn add @takazudo/zdtp
 bun add @takazudo/zdtp
 ```
 
-<Note title="ZDTP owns Preact">
-  Since 0.8.6, Preact `^10.29.1` is a regular dependency rather than a peer. Public declarations still use Preact types, resolved through that dependency. Hosts rendering their own Preact JSX or `@takazudo/zdtp/dashboard` should declare their own Preact and SSR dependencies. ZDTP does not bundle a private runtime; keep the panel tree separate from other renderers.
+<Note title="The panel bundles its renderer">
+  Since 0.9.0 the panel renders with its own bundled copy of zfb's zudo-react runtime, and `preact` is not a dependency of `@takazudo/zdtp`. The static `@takazudo/zdtp/dashboard` entry is the exception: it renders with the host's zudo-react, so a host that uses it installs `@takazudo/zfb` (an optional peer, `^5.1.2 || ^6.0.0`). Hosts upgrading from 0.8.x that relied on ZDTP pulling in Preact for their own code must add `preact` to their own dependencies. Keep the panel tree separate from other renderers.
 </Note>
 
 ## Verify the install
@@ -77,7 +77,7 @@ npx zdtp-server \
 
 ## Runtime dependency boundary
 
-ZDTP installs Preact, `@tailwindcss/browser`, `tailwind-merge` and `culori` as regular dependencies. The Tailwind compiler is behind the DOM Tweaker's lazy activation boundary: ordinary panel opening does not load or execute it. This is not a Tailwind-free installation; a companion package or optional entry would be a separate compatibility decision. Moving dependencies to `optionalDependencies` would still install them by default.
+ZDTP installs `@tailwindcss/browser`, `tailwind-merge` and `culori` as regular dependencies. The Tailwind compiler is behind the DOM Tweaker's lazy activation boundary: ordinary panel opening does not load or execute it. This is not a Tailwind-free installation; a companion package or optional entry would be a separate compatibility decision. Moving dependencies to `optionalDependencies` would still install them by default.
 
 On ZFB, import the panel inside `getScope().onActivate()` and ignore the result when the island is already disposed. Configure the returned handle in that callback and destroy it in the cleanup function. Do not pass the panel's nodes into the host's zudo-react tree.
 

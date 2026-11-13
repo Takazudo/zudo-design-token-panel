@@ -1,26 +1,20 @@
 ---
 title: TokenDashboard
 sidebar_position: 4
-description: Public Preact props, stylesheet entry, defaults semantics, and preview limits for the static token dashboard.
+description: Public zudo-react props, stylesheet entry, defaults semantics, and preview limits for the static token dashboard.
 ---
 
-`TokenDashboard` is a Preact component exported from `@takazudo/zdtp/dashboard`.
-It accepts tab data and renders a read-only inventory without browser globals,
-panel setup, storage access, or hydration requirements.
+`TokenDashboard` is a zudo-react component exported from
+`@takazudo/zdtp/dashboard`. It accepts tab data and renders a read-only
+inventory without browser globals, panel setup, storage access, or hydration
+requirements.
 
-:::note[Availability]
-The static dashboard subpaths are available from npm v0.6.1. The separate
-`dashboard/client` API described below is available from npm v0.8.7, newer
-than this documentation site's pinned 0.8.6 package.
-See the [static dashboard recipe](../recipes/static-token-dashboard.mdx) for
-build-safe data sharing, stylesheet inclusion, and the live workspace demo.
-:::
-
-:::warning[Unreleased: moving to zudo-react]
-After v0.8.7 the dashboard renders with zfb's zudo-react instead of Preact, and
-its users install `@takazudo/zfb` as an optional peer. The Preact examples on
-this page describe this site's pinned release. See the
-[unreleased changelog](../changelog/unreleased.mdx).
+:::note[Requirements]
+The dashboard renders with zfb's zudo-react runtime, which it does not bundle:
+install `@takazudo/zfb` (an optional peer, `^5.1.2 || ^6.0.0`) alongside
+`@takazudo/zdtp`. A panel-only host does not need it. See the
+[static dashboard recipe](../recipes/static-token-dashboard.mdx) for build-safe
+data sharing, stylesheet inclusion, and the live workspace demo.
 :::
 
 ## Exports and props
@@ -55,7 +49,8 @@ import type {
 Load `@takazudo/zdtp/dashboard/styles.css` once through the host's static CSS
 pipeline. Dashboard JavaScript has no stylesheet side-effect import. This CSS
 is separate from `@takazudo/zdtp/styles.css`; the panel stylesheet is unnecessary
-for a dashboard-only page. Preact is required; no React adapter or HTML-export
+for a dashboard-only page. Render it from a zfb page, or with `renderToString`
+from `@takazudo/zfb/zudo-react/server`; no React adapter or HTML-export
 function/CLI is provided.
 
 ## Optional imperative client
@@ -94,7 +89,7 @@ export function setupLazyDashboard(host: HTMLElement, props: TokenDashboardProps
 }
 ```
 
-The static Preact entry remains suitable for Node SSR and HTML without client
+The static `@takazudo/zdtp/dashboard` entry remains suitable for Node SSR and HTML without client
 JavaScript. Neither entry injects the public CSS automatically.
 
 ### Chrome inputs and derivation
@@ -182,10 +177,10 @@ CSS expressions are preserved, not universally computed or validated as every
 possible CSS property grammar. The browser supplies units, fonts, viewport,
 and other layout context. Missing external variable dependencies suppress the
 sample and display a diagnostic. Unsafe resource-bearing expressions are not
-previewed, and URL/mask assets are not loaded. Text is escaped by Preact.
+previewed, and URL/mask assets are not loaded. Text is escaped by the zudo-react renderer.
 
-Include referenced tiers when embedding a subset. Use an ordinary static Preact
-render for no-client-JavaScript output; hydration remains the host's choice.
+Include referenced tiers when embedding a subset. Use an ordinary static zudo-react
+render (a zfb page or `renderToString`) for no-client-JavaScript output; hydration remains the host's choice.
 
 ## Composition recipes
 

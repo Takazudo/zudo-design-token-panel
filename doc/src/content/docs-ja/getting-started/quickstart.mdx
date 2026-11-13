@@ -23,7 +23,7 @@ configurePanel({
 });
 ```
 
-設定すると、`window.<consoleNamespace>` に 3 つの非同期ヘルパー `showDesignPanel()`、`hideDesignPanel()`、`toggleDesignPanel()` が追加されます。どれかを呼ぶとパネルモジュールが遅延 import され、UI がマウントされます。固定名の `window.zdtp` グローバル（`zdtp.show()` / `zdtp.hide()` / `zdtp.toggle()`）も追加されるため、パネルを開くだけなら独自の `consoleNamespace` を覚える必要はありません。全体像は[設定リファレンス](../reference/configure-panel.mdx)を参照してください。
+`configurePanel(...)` は `open()`、`close()`、`toggle()`、`destroy()` を持つ `PanelInstanceHandle` を返します。パッケージを読み込むと固定名の `window.zdtp` グローバル（`zdtp.show()` / `zdtp.hide()` / `zdtp.toggle()`）も追加されるため、ほかに何も配線しなくてもコンソールからパネルを開けます。ZFB のホストで使えるコンソール API はこれだけです。`window.<consoleNamespace>.showDesignPanel()` / `hideDesignPanel()` / `toggleDesignPanel()` は Astro のホストアダプターだけが追加するもので、`configurePanel` では追加されません。全体像は[設定リファレンスのライフサイクルヘルパー](../reference/configure-panel.mdx)を参照してください。
 
 <Info title="ZFB のアイランドからマウントする">
   `configurePanel` は `getScope().onActivate` から呼び、そのスコープが終わるときにハンドルを破棄します。Wind と CSS Modules の配線は [ZFB への組み込み](./zfb.mdx) にあります。
@@ -73,17 +73,15 @@ export const myTabs: readonly TabConfig[] = [
             id: 'myapp-spacing-md',
             cssVar: '--myapp-spacing-md',
             label: 'Spacing M',
-            group: 'hsp',
             default: '1rem',
-            type: { kind: 'length', min: 0, max: 4, step: 0.0625, unit: 'rem' },
+            type: { kind: 'length', step: 0.0625, unit: 'rem' },
           },
           {
             id: 'myapp-spacing-lg',
             cssVar: '--myapp-spacing-lg',
             label: 'Spacing L',
-            group: 'vsp',
             default: '2rem',
-            type: { kind: 'length', min: 0, max: 6, step: 0.0625, unit: 'rem' },
+            type: { kind: 'length', step: 0.0625, unit: 'rem' },
           },
         ],
       },
@@ -109,18 +107,19 @@ import { myPanelConfig } from './lib/my-panel-config';
 const handle = configurePanel(myPanelConfig);
 ```
 
-ブラウザーの開発者ツールコンソールで次を実行します。
+あとは自分の UI からハンドルで、またはブラウザーの開発者ツールコンソールから切り替えます。
 
 ```js
-window.myapp.toggleDesignPanel();
-// or, without remembering your own consoleNamespace:
+// From your island code:
+handle.toggle();
+// From the console, without remembering your own consoleNamespace:
 zdtp.toggle();
 ```
 
-最初の呼び出しでパネルモジュールを遅延 import してマウントします。それ以降の呼び出しでは、メモ化された同じモジュール Promise を共有します。
+最初に開いたときにパネル UI がマウントされ、それ以降の呼び出しではマウント済みのシェルを再利用します。
 
-<Tip title="3 つの非同期ヘルパー">
-  3 つのコンソールヘルパーはすべて `async` です。シグネチャは `showDesignPanel(): Promise<void>`、`hideDesignPanel(): Promise<void>`、`toggleDesignPanel(): Promise<void>` です。既存の `window.<consoleNamespace>` オブジェクトへマージされるため、ホストは複数の開発ツールで名前空間を共有できます。
+<Tip title="同期的なヘルパー">
+  ZFB のホストでは、ハンドルのメソッドと `zdtp.show()` / `zdtp.hide()` / `zdtp.toggle()` は同期的で、`void` を返します。`zdtp.*` はデフォルトのインスタンスを対象にします。複数のパネルがあるページでは、各インスタンスのハンドルを使ってください。
 </Tip>
 
 `handle` はスコープの後始末で破棄します。破棄済みのパネルを遅延 import が作り直さない配線を含め、アイランド全体は [ZFB への組み込み](./zfb.mdx) にあります。
@@ -130,10 +129,10 @@ zdtp.toggle();
 ブラウザーでページを開き、開発者ツールで次を実行します。
 
 ```js
-window.myapp.toggleDesignPanel();
+zdtp.toggle();
 ```
 
-パネルが表示されます。スライダーを動かすと、対応する `--myapp-*` CSS 変数が `:root` 上ですぐに更新されます。ページを再読み込みすると、最初の描画前にオーバーライドが再適用されます。
+パネルが表示されます。値を変更すると、対応する `--myapp-*` CSS 変数が `:root` 上ですぐに更新されます。ページを再読み込みすると、最初の描画前にオーバーライドが再適用されます。
 
 <Warning title="パネルにスタイルが適用されていない場合">
   パネルは初回マウント時にスタイルシートを自己注入します。見た目が欠けているときは、パネルモジュールの読み込みに失敗しています。ブラウザーコンソールと ZFB のクライアントバンドルを確認してください。

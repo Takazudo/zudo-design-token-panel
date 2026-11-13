@@ -23,7 +23,7 @@ configurePanel({
 });
 ```
 
-Once configured, the package installs three async helpers on `window.<consoleNamespace>` — `showDesignPanel()`, `hideDesignPanel()`, `toggleDesignPanel()`. Calling any of them lazy-imports the panel module and mounts the UI. The package also installs a fixed-name `window.zdtp` global (`zdtp.show()` / `zdtp.hide()` / `zdtp.toggle()`) so you never need to remember your own `consoleNamespace` just to pop the panel open — see [Lifecycle helpers](../reference/configure-panel.mdx#lifecycle-helpers) for the full picture.
+`configurePanel(...)` returns a `PanelInstanceHandle` with `open()`, `close()`, `toggle()` and `destroy()`. Loading the package also installs a fixed-name `window.zdtp` global (`zdtp.show()` / `zdtp.hide()` / `zdtp.toggle()`), so you can pop the panel open from the console without wiring anything else. On a ZFB host that is the whole console surface: the `window.<consoleNamespace>.showDesignPanel()` / `hideDesignPanel()` / `toggleDesignPanel()` helpers are installed only by the Astro host adapter, not by `configurePanel`. See [Lifecycle helpers](../reference/configure-panel.mdx#lifecycle-helpers) for the full picture.
 
 <Info title="Mount it from a ZFB island">
   Call `configurePanel` from `getScope().onActivate` and destroy the handle when that scope ends. The [ZFB integration guide](./zfb.mdx) shows the Wind and CSS Modules wiring.
@@ -74,14 +74,14 @@ export const myTabs: readonly TabConfig[] = [
             cssVar: '--myapp-spacing-md',
             label: 'Spacing M',
             default: '1rem',
-            type: { kind: 'length', min: 0, max: 4, step: 0.0625, unit: 'rem' },
+            type: { kind: 'length', step: 0.0625, unit: 'rem' },
           },
           {
             id: 'myapp-spacing-lg',
             cssVar: '--myapp-spacing-lg',
             label: 'Spacing L',
             default: '2rem',
-            type: { kind: 'length', min: 0, max: 6, step: 0.0625, unit: 'rem' },
+            type: { kind: 'length', step: 0.0625, unit: 'rem' },
           },
         ],
       },
@@ -107,18 +107,19 @@ import { myPanelConfig } from './lib/my-panel-config';
 const handle = configurePanel(myPanelConfig);
 ```
 
-Then, in the browser devtools console:
+Then toggle it from your own UI with the handle, or from the browser devtools console:
 
 ```js
-window.myapp.toggleDesignPanel();
-// or, without remembering your own consoleNamespace:
+// From your island code:
+handle.toggle();
+// From the console, without remembering your own consoleNamespace:
 zdtp.toggle();
 ```
 
-The first call lazy-imports the panel module and mounts it. Subsequent calls share the memoised module promise.
+The first open mounts the panel UI; later calls reuse the mounted shell.
 
-<Tip title="Three async helpers">
-  All three console helpers are `async`. Their signatures: `showDesignPanel(): Promise<void>`, `hideDesignPanel(): Promise<void>`, `toggleDesignPanel(): Promise<void>`. They merge into any pre-existing `window.<consoleNamespace>` object so a host can share the namespace between multiple dev tools.
+<Tip title="Synchronous helpers">
+  On a ZFB host the handle methods and `zdtp.show()` / `zdtp.hide()` / `zdtp.toggle()` are synchronous and return `void`. `zdtp.*` targets the default instance; on a page with several panels, use each instance's own handle.
 </Tip>
 
 Destroy `handle` in the scope cleanup. The full island, including a delayed import that must not recreate a disposed panel, is in the [ZFB integration guide](./zfb.mdx).
@@ -128,10 +129,10 @@ Destroy `handle` in the scope cleanup. The full island, including a delayed impo
 Open the page in a browser, drop into devtools, and run:
 
 ```js
-window.myapp.toggleDesignPanel();
+zdtp.toggle();
 ```
 
-You should see the panel mount. Drag a slider; the matching `--myapp-*` CSS variable updates on `:root` immediately. Reload the page — the override re-applies before first paint.
+You should see the panel mount. Change a value; the matching `--myapp-*` CSS variable updates on `:root` immediately. Reload the page — the override re-applies before first paint.
 
 <Warning title="Panel looks unstyled?">
   The panel self-injects its stylesheet when it first mounts. If the chrome is missing, the panel module failed to load. Check the browser console and the ZFB client bundle.

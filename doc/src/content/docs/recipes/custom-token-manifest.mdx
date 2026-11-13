@@ -9,7 +9,7 @@ The panel's tab strip is driven by `PanelConfig.tabs`, a host-supplied array of
 no global manifest object — tokens live inside the tab that edits them.
 
 This recipe walks through the day-to-day moves: a minimal single-tier tab, every
-value-kind variant, optional group labels, and `advancedTiers` disclosure.
+value-kind variant, and splitting a tab into several flat tiers.
 
 For the full type contract see
 [Token manifest reference](../reference/token-manifest.mdx).
@@ -38,17 +38,15 @@ const spacingTab: TabConfig = {
           id: 'myapp-spacing-md',
           cssVar: '--myapp-spacing-md',
           label: 'Medium',
-          group: 'core',
           default: '1rem',
-          type: { kind: 'length', min: 0, max: 4, step: 0.125, unit: 'rem' },
+          type: { kind: 'length', step: 0.125, unit: 'rem' },
         },
         {
           id: 'myapp-spacing-lg',
           cssVar: '--myapp-spacing-lg',
           label: 'Large',
-          group: 'core',
           default: '1.5rem',
-          type: { kind: 'length', min: 0, max: 6, step: 0.125, unit: 'rem' },
+          type: { kind: 'length', step: 0.125, unit: 'rem' },
         },
       ],
     },
@@ -80,25 +78,28 @@ export const myPanelConfig: PanelConfig = {
 `TierItem.type` is a discriminated union — pick the variant that matches what
 the CSS variable holds.
 
-### `length` — slider with unit
+### `length` — numeric input with unit
 
-Use for numeric CSS lengths. The panel renders a slider bounded by `min`/`max`
-with `step` increments and appends `unit` to the emitted value.
+Use for numeric CSS lengths. The panel renders a numeric text input with a
+`unit` suffix and appends `unit` to the emitted value. The input is not bounded;
+there are no `min`/`max` fields. `step` is required. The optional `units` list
+(two or more suffixes) makes the unit label clickable so the row can cycle
+between them.
 
 ```ts
 {
   id: 'myapp-spacing-md',
   cssVar: '--myapp-spacing-md',
   label: 'Medium spacing',
-  group: 'core',
   default: '1rem',
-  type: { kind: 'length', min: 0, max: 4, step: 0.125, unit: 'rem' },
+  type: { kind: 'length', step: 0.125, unit: 'rem' },
 }
 ```
 
-### `number` — unitless slider
+### `number` — unitless numeric input
 
-Like `length` but emits a bare number (no unit string appended). Useful for
+Like `length` but emits a bare number (no unit string appended), with an
+optional `unit` suffix. Useful for
 `line-height`, `opacity`, `font-weight`, and similar unitless properties.
 
 ```ts
@@ -106,9 +107,8 @@ Like `length` but emits a bare number (no unit string appended). Useful for
   id: 'myapp-line-height-body',
   cssVar: '--myapp-line-height-body',
   label: 'Body line height',
-  group: 'rhythm',
   default: '1.6',
-  type: { kind: 'number', min: 1, max: 2.5, step: 0.05 },
+  type: { kind: 'number', step: 0.05 },
 }
 ```
 
@@ -122,7 +122,6 @@ panel writes whichever option the user picks.
   id: 'myapp-font-family-body',
   cssVar: '--myapp-font-family-body',
   label: 'Body font',
-  group: 'family',
   default: 'system-ui',
   type: { kind: 'select', options: ['system-ui', 'Inter, sans-serif', 'Georgia, serif'] },
 }
@@ -131,7 +130,7 @@ panel writes whichever option the user picks.
 ### `text` — free-form CSS string
 
 Renders a plain text input. The value is written to the CSS variable verbatim.
-Use for anything that does not fit a slider or dropdown: easing functions,
+Use for anything that does not fit a numeric input or dropdown: easing functions,
 `cubic-bezier(...)` values, composite shorthands, etc.
 
 ```ts
@@ -139,7 +138,6 @@ Use for anything that does not fit a slider or dropdown: easing functions,
   id: 'myapp-easing-default',
   cssVar: '--myapp-easing-default',
   label: 'Default easing',
-  group: 'motion',
   default: 'cubic-bezier(0.4, 0, 0.2, 1)',
   type: { kind: 'text' },
 }
@@ -154,53 +152,31 @@ Renders a color picker. The value is a CSS hex string (`#rrggbb`).
   id: 'myapp-palette-brand',
   cssVar: '--myapp-palette-brand',
   label: 'Brand',
-  group: 'palette',
   default: '#2d6cdf',
   type: { kind: 'color' },
 }
 ```
 
-## Group ids and ordering
+## Splitting a tab into tiers
 
-`group` on a `TierItem` is a plain string — coin whatever ids fit your
-design system. Groups are just visual section dividers inside a tier; the
-panel renders a header for each unique group value it encounters.
-
-Items appear in the order they are declared in the `items` array. If you want
-groups to cluster together, sort by group before declaring the array. There is
-no separate `groupOrder` field on `TabConfig` — declaration order is the
-render order.
-
-```ts
-const items = [
-  // core group first
-  { id: 'myapp-spacing-sm', ..., group: 'core' },
-  { id: 'myapp-spacing-md', ..., group: 'core' },
-  // component group after
-  { id: 'myapp-spacing-card', ..., group: 'components' },
-];
-```
-
-## Advanced tiers (disclosure)
-
-Set `advancedTiers` to an array of tier ids that should render inside the
-per-tab "Advanced" disclosure rather than in the always-visible list. This is
-useful for raw scale tiers that expert users might want to tweak but are
-normally hidden behind the semantic layer.
+There is no per-item `group` field and no collapsed "Advanced" section. Each
+tier renders flat, under exactly one section heading of its own, in the order of
+the `tiers` array; items appear in the order of their `items` array. When a tab
+needs sub-groups, split it into several tiers, each with its own `id` and
+`label`. All items in one tier must share the same `type.kind`.
 
 ```ts
 const fontTab: TabConfig = {
   id: 'font',
   label: 'Font',
-  advancedTiers: ['raw'],   // hides the raw scale tier behind disclosure
   tiers: [
     {
       id: 'raw',
       label: 'Type Scale',
       items: [
-        { id: 'myapp-scale-sm',  cssVar: '--myapp-scale-sm',  label: 'Scale SM',  group: 'scale', default: '0.875rem', type: { kind: 'length', min: 0.5, max: 2, step: 0.0625, unit: 'rem' } },
-        { id: 'myapp-scale-base', cssVar: '--myapp-scale-base', label: 'Scale Base', group: 'scale', default: '1rem',    type: { kind: 'length', min: 0.5, max: 2, step: 0.0625, unit: 'rem' } },
-        { id: 'myapp-scale-lg',  cssVar: '--myapp-scale-lg',  label: 'Scale LG',  group: 'scale', default: '1.25rem',  type: { kind: 'length', min: 0.75, max: 3, step: 0.0625, unit: 'rem' } },
+        { id: 'myapp-scale-sm',   cssVar: '--myapp-scale-sm',   label: 'Scale SM',   default: '0.875rem', type: { kind: 'length', step: 0.0625, unit: 'rem' } },
+        { id: 'myapp-scale-base', cssVar: '--myapp-scale-base', label: 'Scale Base', default: '1rem',     type: { kind: 'length', step: 0.0625, unit: 'rem' } },
+        { id: 'myapp-scale-lg',   cssVar: '--myapp-scale-lg',   label: 'Scale LG',   default: '1.25rem',  type: { kind: 'length', step: 0.0625, unit: 'rem' } },
       ],
     },
     {
@@ -208,8 +184,15 @@ const fontTab: TabConfig = {
       label: 'Semantic Roles',
       referencesTier: 'raw',
       items: [
-        { id: 'myapp-text-body',    cssVar: '--myapp-text-body',    label: 'Body',    group: 'roles', default: 'myapp-scale-base', type: { kind: 'text' } },
-        { id: 'myapp-text-heading', cssVar: '--myapp-text-heading', label: 'Heading', group: 'roles', default: 'myapp-scale-lg',  type: { kind: 'text' } },
+        { id: 'myapp-text-body',    cssVar: '--myapp-text-body',    label: 'Body',    default: 'myapp-scale-base', type: { kind: 'text' } },
+        { id: 'myapp-text-heading', cssVar: '--myapp-text-heading', label: 'Heading', default: 'myapp-scale-lg',   type: { kind: 'text' } },
+      ],
+    },
+    {
+      id: 'line-height',
+      label: 'Line Height',
+      items: [
+        { id: 'myapp-line-height-body', cssVar: '--myapp-line-height-body', label: 'Body', default: '1.6', type: { kind: 'number', step: 0.05 } },
       ],
     },
   ],
@@ -233,16 +216,15 @@ edits. The apply pipeline skips read-only items in both directions.
   id: 'myapp-computed-max-width',
   cssVar: '--myapp-computed-max-width',
   label: 'Max width (computed)',
-  group: 'layout',
   default: 'min(100%, 64rem)',
   type: { kind: 'text' },
   readonly: true,
 }
 ```
 
-## Pill toggle on a length slider
+## Pill toggle on a length row
 
-A pill toggle surfaces a single "special" sentinel value alongside the slider.
+A pill toggle surfaces a single "special" sentinel value alongside the numeric input.
 The user can snap to it with one click and return to a numeric value via a
 toggle. Common use case: infinite border-radius (`9999px`).
 
@@ -251,9 +233,8 @@ toggle. Common use case: infinite border-radius (`9999px`).
   id: 'myapp-radius-button',
   cssVar: '--myapp-radius-button',
   label: 'Button radius',
-  group: 'shape',
   default: '0.375rem',
-  type: { kind: 'length', min: 0, max: 1, step: 0.0625, unit: 'rem' },
+  type: { kind: 'length', step: 0.0625, unit: 'rem' },
   pill: { value: '9999px', customDefault: '0.375rem' },
 }
 ```

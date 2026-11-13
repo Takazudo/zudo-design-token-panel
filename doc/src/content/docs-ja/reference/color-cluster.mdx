@@ -433,16 +433,7 @@ export interface ClusterPanelSettings {
 
 `resolveColorClusterFromTab(tab, tabs = [tab])` は、`colorExtras` を持つ任意の `TabConfig` から `ColorClusterDataConfig` を派生させます。パネルが `'color'` および `'color-secondary'` タブを処理する際に自動的に呼び出されます。第 2 引数はパネルの完全な `tabs` 配列です。これを渡すことで、セマンティックティアのタブをまたぐ `referencesRamps`（上記参照）が、別タブにあるランプティアに対して解決されます。引数が 1 つだけの呼び出しは `[tab]` にフォールバックするため、渡したタブ上のタブをまたぐ `{ ref }` はベストエフォートでしか解決されず、エミッターはそれをスキップします。
 
-ホストがこれを直接呼び出すことはありません。テストや高度なホストツール向けに `cluster-config` から公開されています。
-
-```ts
-import { resolveColorClusterFromTab } from '@takazudo/zdtp';
-
-const cluster = resolveColorClusterFromTab(colorTab, config.tabs);
-// cluster.paletteSize, cluster.paletteCssVarTemplate, cluster.semanticDefaults, ...
-```
-
-タブに `colorExtras` がない場合は `undefined` を返します。
+ホストがこれを直接呼び出すことはありません。また、`@takazudo/zdtp` を含むどの公開エントリーからもエクスポートされていない、パッケージ内部の `cluster-config` モジュールのヘルパーです。生成される設定には `paletteSize`、`paletteCssVarTemplate`、`semanticDefaults` などのフィールドが含まれ、タブに `colorExtras` がない場合は `undefined` になります。実際の結果を確認するには、`tabs` を設定したパネルで Color タブを開いてください。データの型付けには公開されている `TabConfig` と `ColorClusterExtras` 型を使います。
 
 ## マルチクラスターのサポート
 

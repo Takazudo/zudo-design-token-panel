@@ -453,16 +453,7 @@ export interface ClusterPanelSettings {
 
 `resolveColorClusterFromTab(tab, tabs = [tab])` derives a `ColorClusterDataConfig` from any `TabConfig` that has `colorExtras`. It is called automatically by the panel when it processes the `'color'` and `'color-secondary'` tabs. The second argument is the panel's full `tabs` array — pass it so a semantic tier's cross-tab `referencesRamps` (see above) resolves against a ramp tier living on another tab; a single-argument call falls back to `[tab]`, so a cross-tab `{ ref }` on the tab you passed resolves only best-effort and the emitters skip it.
 
-Hosts do not call this directly — it is exposed from `cluster-config` for testing and advanced host tooling.
-
-```ts
-import { resolveColorClusterFromTab } from '@takazudo/zdtp';
-
-const cluster = resolveColorClusterFromTab(colorTab, config.tabs);
-// cluster.paletteSize, cluster.paletteCssVarTemplate, cluster.semanticDefaults, ...
-```
-
-Returns `undefined` when the tab has no `colorExtras`.
+Hosts do not call this directly, and it is not exported from `@takazudo/zdtp` or any other public entry — it is an internal helper of the package's `cluster-config` module. The resulting config carries fields such as `paletteSize`, `paletteCssVarTemplate`, and `semanticDefaults`; it is `undefined` when the tab has no `colorExtras`. To inspect the effective result, configure the panel with your `tabs` and open the Color tab, or type your data with the public `TabConfig` and `ColorClusterExtras` types.
 
 ## Multi-cluster support
 

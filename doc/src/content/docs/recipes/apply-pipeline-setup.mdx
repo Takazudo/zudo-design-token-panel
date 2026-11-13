@@ -63,7 +63,9 @@ for the full scanning rules and a Tailwind v4 worked example.
 
 Use `concurrently` (or `npm-run-all`) to run the bin alongside your dev
 server. Replace `vite` with whichever long-running process your project
-uses.
+uses. The `zdtp-server` bin ships with `@takazudo/zdtp`; install the package
+as shown in [Install](../getting-started/install.mdx), and let your package
+manager record the current release rather than copying a version range.
 
 ```json
 // package.json
@@ -72,7 +74,6 @@ uses.
     "dev": "concurrently --kill-others-on-fail --names dev,panel \"vite\" \"zdtp-server --routing ./panel-routing.json --write-root ./src/styles --allow-origin http://localhost:5173\""
   },
   "devDependencies": {
-    "@takazudo/zdtp": "^0.1.0",
     "concurrently": "^9.0.0"
   }
 }
