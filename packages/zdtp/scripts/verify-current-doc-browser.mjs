@@ -369,6 +369,15 @@ try {
   await page.getByRole('menuitemradio', { name: 'Dark', exact: true }).click();
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
   await page.keyboard.press('Escape');
+  // Selecting a theme closes zudo-doc's Appearance menu with close(true), which
+  // restores focus to the menu trigger in a later requestAnimationFrame. If the
+  // resizer is focused before that frame runs, the restoration steals focus
+  // back and the separator never receives the key presses below. Wait for the
+  // menu to finish closing and for that restoration to land first.
+  await page.waitForFunction(() => {
+    const trigger = document.querySelector('[data-zd-theme-menu] > button');
+    return Boolean(trigger) && trigger.getAttribute('aria-expanded') !== 'true' && document.activeElement === trigger;
+  });
   // zfb 6 keeps #desktop-sidebar position:fixed below the lg breakpoint while
   // display:none. The resizer handle is still in the DOM, but its width is 0
   // until the desktop rule (lg:block at 1024px) applies. Wait for that layout,
@@ -379,6 +388,9 @@ try {
     const style = getComputedStyle(sidebar);
     return style.display !== 'none' && style.position === 'fixed' && sidebar.getBoundingClientRect().width > 0;
   });
+  // zudo-doc's body-end init script creates the separator with its listeners
+  // already attached, so its presence inside the fixed sidebar means it is interactive.
+  await page.locator('#desktop-sidebar > [data-sidebar-resizer][role="separator"]').waitFor({ state: 'attached' });
   const resizer = page.getByRole('separator', { name: 'Resize sidebar', exact: true });
   await resizer.focus();
   await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Resize sidebar');
@@ -506,6 +518,29 @@ try {
         tabs: [...document.querySelectorAll('[role="tab"]')].map((node) => node.textContent),
         roots: [...document.querySelectorAll('[id$="-root"]')].filter((node) => node.id.includes('tweak')).map((node) => ({ id: node.id, html: node.innerHTML.slice(0, 6000) })),
         storage: Object.fromEntries(Object.entries(localStorage).filter(([key]) => key.startsWith('zudo-doc'))),
+        activeElement: document.activeElement && {
+          tag: document.activeElement.tagName,
+          label: document.activeElement.getAttribute('aria-label'),
+          role: document.activeElement.getAttribute('role'),
+        },
+        themeMenu: {
+          expanded: document.querySelector('[data-zd-theme-menu] > button')?.getAttribute('aria-expanded') ?? null,
+          pending: Boolean(document.querySelector('[data-zd-theme-menu] > button[data-zd-pending]')),
+          menuOpen: Boolean(document.querySelector('[role="menu"]:popover-open')),
+        },
+        sidebarResizer: (() => {
+          const sidebar = document.getElementById('desktop-sidebar');
+          const handles = [...document.querySelectorAll('[data-sidebar-resizer]')];
+          return {
+            sidebarPosition: sidebar ? getComputedStyle(sidebar).position : null,
+            sidebarWidth: sidebar ? sidebar.getBoundingClientRect().width : null,
+            handles: handles.length,
+            attachedToSidebar: handles.filter((node) => node.parentElement === sidebar).length,
+            valueNow: handles[0]?.getAttribute('aria-valuenow') ?? null,
+            focused: handles.includes(document.activeElement),
+            inlineWidth: document.documentElement.style.getPropertyValue('--zd-sidebar-w'),
+          };
+        })(),
       }))));
     } catch (diagnosticError) { console.error('Could not capture failure state:', diagnosticError); }
   }
