@@ -38,13 +38,16 @@ allowBuilds:
 # ship in the published @takazudo/zdtp package (which publishes only built dist/).
 # The `pkg@<vulnerable` selector scopes each override to just the affected versions,
 # leaving any already-patched copies untouched.
-#   uuid    <11.1.1  — via doc>mermaid (mermaid accepts ^11.1.0 || ^12 || ^13 || ^14)
-#   ws      <8.21.0  — via vitest>jsdom>ws (^8.18.0 floor); wrangler>miniflare now pins 8.21.0 exactly
-#   yaml    <2.8.3   — via doc>@astrojs/check>...>yaml-language-server>yaml
+# Re-derived with `pnpm why` on 2026-11-13 (#1129); each remaining range still admits
+# a vulnerable version, and dropping uuid re-adds an advisory to `pnpm audit`.
+#   uuid    <11.1.1  — via doc>linkinator>gaxios (uuid ^9.0.1)
+#   ws      <8.21.0  — via jsdom (^8.18.0), vite (^8.18.3) and @vitest/browser (^8.19.0);
+#                      wrangler>miniflare pins 8.21.0 exactly
 #   esbuild <0.28.1  — via vite (^0.27.0 || ^0.28.0) and tsx (~0.28.0): both ranges still
 #                      admit vulnerable 0.27.x / 0.28.0, so the override is the floor
+# The former yaml <2.8.3 override (for a doc>@astrojs/check chain that is gone) was
+# removed: its only hard dependent, @takazudo/zudo-doc, requires yaml ^2.9.1.
 overrides:
   "uuid@<11.1.1": ">=11.1.1"
   "ws@<8.21.0": ">=8.21.0"
-  "yaml@<2.8.3": ">=2.8.3"
   "esbuild@<0.28.1": ">=0.28.1"
