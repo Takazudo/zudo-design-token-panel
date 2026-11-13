@@ -4,8 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
-HOST="legacy"
-DOC_SOURCE_DIR="$ROOT_DIR/scripts/fixtures/legacy-doc"
+DOC_SOURCE_DIR="$ROOT_DIR/doc"
 SCRATCH_DOC=""
 PANEL_SPEC=""
 EXPECTED_PANEL_VERSION=""
@@ -15,12 +14,11 @@ KEEP=0
 usage() {
   cat <<'USAGE'
 Usage:
-  bash scripts/verify-packed-remount-consumer.sh --panel-version <published-version> [--host legacy|current] [--keep]
-  bash scripts/verify-packed-remount-consumer.sh --panel-tarball <path.tgz> [--host legacy|current] [--keep]
+  bash scripts/verify-packed-remount-consumer.sh --panel-version <published-version> [--keep]
+  bash scripts/verify-packed-remount-consumer.sh --panel-tarball <path.tgz> [--keep]
 
-Builds either the frozen legacy ZFB 2 / zudo-doc 5 fixture (default) or the
-current doc host in a disposable directory with the specified packed panel,
-then runs the packed SPA remount browser probe.
+Builds a disposable copy of the current doc host with the specified packed
+panel, then runs the packed SPA remount and current-doc browser probes.
 USAGE
 }
 
@@ -48,11 +46,6 @@ while (($#)); do
       PANEL_LABEL="local packed candidate @takazudo/zdtp@$EXPECTED_PANEL_VERSION"
       shift 2
       ;;
-    --host)
-      [[ $# -ge 2 ]] || { usage >&2; exit 2; }
-      case "$2" in legacy|current) HOST="$2" ;; *) usage >&2; exit 2 ;; esac
-      shift 2
-      ;;
     --keep)
       KEEP=1
       shift
@@ -72,10 +65,6 @@ done
 if [[ -z "$PANEL_SPEC" ]]; then
   usage >&2
   exit 2
-fi
-
-if [[ "$HOST" == "current" ]]; then
-  DOC_SOURCE_DIR="$ROOT_DIR/doc"
 fi
 
 command -v pnpm >/dev/null 2>&1 || { echo "pnpm is required" >&2; exit 1; }
@@ -109,12 +98,9 @@ await cp(process.env.DOC_SOURCE_DIR, process.env.SCRATCH_DOC_DIR, {
   filter: (path) => !excluded.has(basename(path)),
 });
 NODE
-if [[ "$HOST" == "legacy" ]]; then
-  mv "$SCRATCH_DOC/package.json.template" "$SCRATCH_DOC/package.json"
-else
-  # Only the disposable current consumer gets an untranslated page. The real
-  # docs currently have no eligible EN-only page outside locale exclusions.
-  cat > "$SCRATCH_DOC/src/content/docs/getting-started/migration-fallback.mdx" <<'MDX'
+# Only the disposable consumer gets an untranslated page. The real docs
+# currently have no eligible EN-only page outside locale exclusions.
+cat > "$SCRATCH_DOC/src/content/docs/getting-started/migration-fallback.mdx" <<'MDX'
 ---
 title: Migration fallback probe
 sidebar_position: 99
@@ -126,20 +112,19 @@ sidebar_position: 99
 
 This English-only page checks Japanese fallback and default-locale history.
 MDX
-  SCRATCH_CONFIG="$SCRATCH_DOC/zfb.config.ts" node --input-type=module <<'NODE'
+SCRATCH_CONFIG="$SCRATCH_DOC/zfb.config.ts" node --input-type=module <<'NODE'
 import { readFile, writeFile } from 'node:fs/promises';
 const path = process.env.SCRATCH_CONFIG;
 const source = await readFile(path, 'utf8');
 if (!source.includes('../packages/zdtp/CHANGELOG.md')) throw new Error('Review scratch changelog output isolation');
 await writeFile(path, source.replace('../packages/zdtp/CHANGELOG.md', './consumer-CHANGELOG.md'));
 NODE
-  # Give both the static generator and actual development sidecar real local
-  # history without copying this repository's .git or altering owner history.
-  git -C "$SCRATCH_DOC" init --quiet
-  git -C "$SCRATCH_DOC" add src/content
-  git -C "$SCRATCH_DOC" -c user.name='Consumer fixture' -c user.email='fixture@example.invalid' \
-    -c commit.gpgsign=false -c core.hooksPath=/dev/null commit --quiet -m 'Capture current consumer history fixture'
-fi
+# Give both the static generator and actual development sidecar real local
+# history without copying this repository's .git or altering owner history.
+git -C "$SCRATCH_DOC" init --quiet
+git -C "$SCRATCH_DOC" add src/content
+git -C "$SCRATCH_DOC" -c user.name='Consumer fixture' -c user.email='fixture@example.invalid' \
+  -c commit.gpgsign=false -c core.hooksPath=/dev/null commit --quiet -m 'Capture current consumer history fixture'
 cp "$ROOT_DIR/pnpm-workspace.yaml" "$SCRATCH_DOC/pnpm-workspace.yaml"
 
 ROOT_WORKSPACE_FILE="$ROOT_DIR/pnpm-workspace.yaml" \
@@ -150,8 +135,8 @@ LOCAL_PANEL_SPEC="$PANEL_SPEC" \
 node --input-type=module <<'NODE'
 import { readFile, writeFile } from 'node:fs/promises';
 
-// Both hosts own their complete dependency family; never repin a new host
-// to old packages without its corresponding routes, config and styles.
+// The host owns its complete dependency family; never repin it to other
+// packages without its corresponding routes, config and styles.
 const scratchPackage = JSON.parse(await readFile(process.env.SCRATCH_PACKAGE_FILE, 'utf8'));
 scratchPackage.packageManager = JSON.parse(await readFile(process.env.ROOT_PACKAGE_FILE, 'utf8')).packageManager;
 await writeFile(process.env.SCRATCH_PACKAGE_FILE, `${JSON.stringify(scratchPackage, null, 2)}\n`);
@@ -180,10 +165,9 @@ if (markerIndex >= 0) {
 }
 NODE
 
-echo "Installing $HOST scratch zfb/zudo-doc consumer with $PANEL_LABEL"
+echo "Installing scratch zfb/zudo-doc consumer with $PANEL_LABEL"
 pnpm --dir "$SCRATCH_DOC" install --no-frozen-lockfile
 
-CONSUMER_HOST="$HOST" \
 EXPECTED_PANEL_VERSION="$EXPECTED_PANEL_VERSION" \
 SCRATCH_DOC_DIR="$SCRATCH_DOC" \
 node --input-type=module <<'NODE'
@@ -202,9 +186,8 @@ const panelPackagePath = resolve(scratchDoc, 'node_modules/@takazudo/zdtp/packag
 const panelPackage = JSON.parse(await readFile(panelPackagePath, 'utf8'));
 assert.equal(panelPackage.version, expectedPanelVersion,
   `Expected @takazudo/zdtp@${expectedPanelVersion}, resolved @takazudo/zdtp@${panelPackage.version}`);
-const legacy = process.env.CONSUMER_HOST === 'legacy';
-const expectedZfbVersion = legacy ? '2.20.3' : '6.0.1';
-const expectedDocVersion = legacy ? '5.27.0' : '11.0.0';
+const expectedZfbVersion = '6.0.1';
+const expectedDocVersion = '11.0.0';
 for (const name of ['@takazudo/zfb', '@takazudo/zfb-runtime',
   '@takazudo/zfb-adapter-cloudflare', '@takazudo/zfb-md-wasm',
   '@takazudo/zudo-doc', '@takazudo/zudo-doc-history-server']) {
@@ -214,30 +197,26 @@ for (const name of ['@takazudo/zfb', '@takazudo/zfb-runtime',
   console.log(`Resolved ${name}@${actual}`);
 }
 
-// The panel bundles its own zudo-react runtime, so it shares no renderer with
-// either host — including the legacy host's own Preact.
+// The panel bundles its own zudo-react runtime and shares no renderer with
+// the host.
 assert.equal(panelPackage.dependencies?.preact, undefined, 'Panel must not depend on Preact');
 assert.equal(panelPackage.peerDependencies?.preact, undefined, 'Panel must not require a host Preact');
-console.log(`Resolved ${process.env.CONSUMER_HOST} host with @takazudo/zdtp@${panelPackage.version}`);
+console.log(`Resolved current host with @takazudo/zdtp@${panelPackage.version}`);
 NODE
 
-echo "Building the $HOST packed consumer site"
+echo "Building the packed consumer site"
 GEN_DOC_HISTORY=1 pnpm --dir "$SCRATCH_DOC" build
 
-echo "Running the $HOST packed SPA remount browser regression"
-if [[ "$HOST" == "current" ]]; then
-  # Collect independent native-host evidence even if another browser probe
-  # fails; the final status remains nonzero for any failure.
-  browser_status=0
-  pnpm --dir "$ROOT_DIR" --filter @takazudo/zdtp exec node scripts/verify-packed-remount-browser.mjs --host "$SCRATCH_DOC/dist" --native-host || browser_status=1
-  echo "Running current-host production features"
-  pnpm --dir "$ROOT_DIR" --filter @takazudo/zdtp exec node scripts/verify-current-doc-browser.mjs --host "$SCRATCH_DOC/dist" || browser_status=1
-  echo "Running current-host dev features with the real history sidecar"
-  # Exercise a clean dev boot, not a production dist/ seed served while the
-  # development compiler starts. These are generated files in our mktemp copy.
-  rm -rf "$SCRATCH_DOC/dist" "$SCRATCH_DOC/.zfb-build"
-  pnpm --dir "$ROOT_DIR" --filter @takazudo/zdtp exec node scripts/verify-current-doc-browser.mjs --dev "$SCRATCH_DOC" || browser_status=1
-  exit "$browser_status"
-else
-  pnpm --dir "$ROOT_DIR" --filter @takazudo/zdtp exec node scripts/verify-packed-remount-browser.mjs --host "$SCRATCH_DOC/dist"
-fi
+echo "Running the packed SPA remount browser regression"
+# Collect independent evidence even if one browser probe fails; the final
+# status remains nonzero for any failure.
+browser_status=0
+pnpm --dir "$ROOT_DIR" --filter @takazudo/zdtp exec node scripts/verify-packed-remount-browser.mjs --host "$SCRATCH_DOC/dist" || browser_status=1
+echo "Running current-host production features"
+pnpm --dir "$ROOT_DIR" --filter @takazudo/zdtp exec node scripts/verify-current-doc-browser.mjs --host "$SCRATCH_DOC/dist" || browser_status=1
+echo "Running current-host dev features with the real history sidecar"
+# Exercise a clean dev boot, not a production dist/ seed served while the
+# development compiler starts. These are generated files in our mktemp copy.
+rm -rf "$SCRATCH_DOC/dist" "$SCRATCH_DOC/.zfb-build"
+pnpm --dir "$ROOT_DIR" --filter @takazudo/zdtp exec node scripts/verify-current-doc-browser.mjs --dev "$SCRATCH_DOC" || browser_status=1
+exit "$browser_status"
