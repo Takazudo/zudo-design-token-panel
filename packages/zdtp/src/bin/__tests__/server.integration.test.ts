@@ -15,7 +15,17 @@
  * fixed port to provoke the collision.
  */
 import { spawn, type ChildProcessByStdio } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { request as httpRequest } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import type { Readable } from 'node:stream';
@@ -24,6 +34,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN_PATH = resolve(HERE, '../../../dist/bin/server.js');
+const DIST_DIR = resolve(HERE, '../../../dist');
 const STARTUP_LINE_RE = /listening on https?:\/\/[^:]+:(\d+)/;
 
 /**
@@ -94,8 +105,8 @@ async function waitFor(
  * `child.exitCode === null` before using it. Callers that expect failure
  * (the EADDRINUSE test) get back the captured stderr to inspect.
  */
-async function spawnBin(args: string[]): Promise<SpawnedBin> {
-  const child = spawn('node', [BIN_PATH, ...args], {
+async function spawnBin(args: string[], binPath: string = BIN_PATH): Promise<SpawnedBin> {
+  const child = spawn('node', [binPath, ...args], {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const stdout: string[] = [];
@@ -454,6 +465,126 @@ describe.skipIf(!BIN_EXISTS)('zdtp-server bin (integration)', () => {
     const response = await fetch(`http://127.0.0.1:${port}/healthz`);
     expect(response.status).toBe(200);
   }, 10_000);
+
+  /**
+   * The direct-invocation check compares a file URL built from argv[1] with
+   * import.meta.url. Building it by string concatenation left `#`, `%` and
+   * spaces unescaped, so a package installed under such a directory never ran
+   * main() and exited 0 silently.
+   */
+  it.each([
+    ['a "#"', 'zdtp #bin-'],
+    ['a "%"', 'zdtp %25bin-'],
+    ['a space', 'zdtp bin space-'],
+  ])('starts when its install path contains %s', async (_label, prefix) => {
+    const fix = makeTmpFixture();
+    cleanupTasks.push(() => rmSync(fix.dir, { recursive: true, force: true }));
+    const installRoot = mkdtempSync(join(tmpdir(), prefix));
+    cleanupTasks.push(() => rmSync(installRoot, { recursive: true, force: true }));
+    const packageDist = join(installRoot, 'pkg', 'dist');
+    cpSync(DIST_DIR, packageDist, { recursive: true });
+    const binDir = join(installRoot, 'node_modules', '.bin');
+    mkdirSync(binDir, { recursive: true });
+    const linkPath = join(binDir, 'zdtp-server');
+    symlinkSync(join(packageDist, 'bin', 'server.js'), linkPath);
+
+    for (const binPath of [join(packageDist, 'bin', 'server.js'), linkPath]) {
+      const bin = await spawnBin(
+        [
+          '--root',
+          fix.dir,
+          '--write-root',
+          fix.dir,
+          '--routing',
+          fix.routingPath,
+          '--port',
+          '0',
+          '--allow-origin',
+          'http://localhost:9999',
+        ],
+        binPath,
+      );
+      cleanupTasks.push(() => killBin(bin.child));
+      expect(
+        bin.child.exitCode,
+        `bin at ${binPath} exited. stdout: ${bin.stdout.join('')} stderr: ${bin.stderr.join('')}`,
+      ).toBeNull();
+      expect(bin.port).toBeGreaterThan(0);
+      const response = await fetch(`http://127.0.0.1:${bin.port}/healthz`);
+      expect(response.status).toBe(200);
+      await killBin(bin.child);
+    }
+  }, 20_000);
+
+  it('POST /apply over the 1 MiB limit answers 413 with the JSON error and closes the connection', async () => {
+    const fix = makeTmpFixture();
+    cleanupTasks.push(() => rmSync(fix.dir, { recursive: true, force: true }));
+    const allowOrigin = 'http://localhost:9999';
+    const bin = await spawnBin([
+      '--root',
+      fix.dir,
+      '--write-root',
+      fix.dir,
+      '--routing',
+      fix.routingPath,
+      '--port',
+      '0',
+      '--allow-origin',
+      allowOrigin,
+    ]);
+    cleanupTasks.push(() => killBin(bin.child));
+    expect(bin.child.exitCode).toBeNull();
+
+    const limit = 1_048_576;
+    const body = Buffer.alloc(limit * 2, 0x20);
+    const result = await new Promise<{
+      status: number;
+      headers: Record<string, string | string[] | undefined>;
+      text: string;
+      socketClosed: Promise<void>;
+    }>((resolveResult, rejectResult) => {
+      const req = httpRequest(
+        {
+          host: '127.0.0.1',
+          port: bin.port,
+          method: 'POST',
+          path: '/apply',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': String(body.byteLength),
+            Origin: allowOrigin,
+          },
+        },
+        (res) => {
+          const socketClosed = new Promise<void>((done) => {
+            if (res.socket.destroyed) done();
+            else res.socket.once('close', () => done());
+          });
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk: Buffer) => chunks.push(chunk));
+          res.on('end', () =>
+            resolveResult({
+              status: res.statusCode ?? 0,
+              headers: res.headers,
+              text: Buffer.concat(chunks).toString('utf-8'),
+              socketClosed,
+            }),
+          );
+          res.on('error', rejectResult);
+        },
+      );
+      // The server may stop reading once the limit is exceeded; a write error
+      // after the response has started is expected and must not fail the test.
+      req.on('error', rejectResult);
+      req.end(body);
+    });
+
+    expect(result.status).toBe(413);
+    expect(JSON.parse(result.text)).toEqual({ ok: false, error: 'Payload Too Large', limit });
+    expect(result.headers.connection).toBe('close');
+    await result.socketClosed;
+    expect(readFileSync(fix.tokensPath, 'utf-8')).toContain('--x-color: red');
+  }, 15_000);
 
   it('a second bin on the same fixed port exits 1 with EADDRINUSE on stderr', async () => {
     const fix = makeTmpFixture();
