@@ -95,7 +95,7 @@ jobs:
       - name: Visual regression tests
         # Runs after "Build panel" (dist/zdtp.css must exist). Uses the same
         # Chromium already installed for browser tests. Baselines are
-        # linux-keyed so they match this ubuntu-latest runner exactly.
+        # linux-keyed so they match this ubuntu-24.04 runner exactly.
         # Update flow: pnpm --filter @takazudo/zdtp test:vrt:update locally,
         # review PNG diff in the PR, then commit the updated baselines.
         run: pnpm --filter @takazudo/zdtp test:vrt --output=test-results/vrt
@@ -222,7 +222,7 @@ jobs:
           PANEL_TARBALL: ${{ steps.panel.outputs.tarball }}
         run: bash scripts/verify-packed-remount-consumer.sh --host legacy --panel-tarball "$PANEL_TARBALL"
 
-      - name: Current host — ZFB 6 / zudo-doc 10 packed remount
+      - name: Current host — ZFB 6 / zudo-doc 11 packed remount
         if: ${{ !cancelled() && steps.panel.outcome == 'success' }}
         env:
           PANEL_TARBALL: ${{ steps.panel.outputs.tarball }}
