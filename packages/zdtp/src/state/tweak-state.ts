@@ -41,7 +41,6 @@
  */
 
 import type { ColorRef, ColorScheme } from '../config/color-schemes';
-import type { TokenDef } from '../tokens/manifest';
 import {
   type BaseRoleKey,
   type ColorClusterDataConfig,
@@ -1680,59 +1679,6 @@ export function applyColorState(
 }
 
 /**
- * Apply a `TokenOverrides` map for a given manifest — writes inline
- * `--css-var: value` on `:root` for every overridden token, and removes the
- * inline property for tokens absent from the map (so the stylesheet default
- * comes back).
- *
- * Read-only tokens are skipped in both directions: they are informational rows
- * in the UI and are never written to storage.
- */
-export function applyTokenOverrides(
-  tokens: readonly TokenDef[],
-  overrides: TokenOverrides,
-  sink?: ApplySink,
-) {
-  if (sink) {
-    const applyPairs: [string, string][] = [];
-    const clearNames: string[] = [];
-    for (const t of tokens) {
-      if (t.readonly) continue;
-      const v = overrides[t.id];
-      if (typeof v === 'string' && v.length > 0) {
-        applyPairs.push([t.cssVar, v]);
-      } else {
-        clearNames.push(t.cssVar);
-      }
-    }
-    if (applyPairs.length > 0) {
-      try {
-        sink.apply(applyPairs);
-      } catch (err) {
-        console.warn('[design-token-panel] applySink.apply threw; falling back silently.', err);
-      }
-    }
-    if (clearNames.length > 0) {
-      try {
-        sink.clear(clearNames);
-      } catch (err) {
-        console.warn('[design-token-panel] applySink.clear threw; falling back silently.', err);
-      }
-    }
-    return;
-  }
-  for (const t of tokens) {
-    if (t.readonly) continue;
-    const v = overrides[t.id];
-    if (typeof v === 'string' && v.length > 0) {
-      setCssVar(t.cssVar, v);
-    } else {
-      document.documentElement.style.removeProperty(t.cssVar);
-    }
-  }
-}
-
-/**
  * Apply ONLY the color slices — primary color cluster + optional secondary
  * cluster + the aggregate `color-scheme` decision — leaving spacing / font /
  * size / generic-tab vars untouched.
@@ -2504,7 +2450,7 @@ export interface StorageLike {
  *
  * The `text-micro: null` entry exists because dropping is the only way to
  * keep an obsolete legacy id from persisting indefinitely as dead
- * localStorage data: `applyTokenOverrides` silently ignores unknown ids,
+ * localStorage data: `applyNonColorSlices` silently ignores unknown ids,
  * but every save round-trips the dead key back to disk.
  *
  * Spacing + size manifest ids were NOT renamed (hsp-/vsp- ids kept their
@@ -2525,7 +2471,7 @@ export const ZDTP_LEGACY_TYPOGRAPHY_RENAME_MAP: Readonly<Record<string, string |
  * Narrow a stored value into a `TokenOverrides` map. Accepts any plain object
  * whose values are strings; unknown keys pass through so we don't silently
  * drop overrides when the manifest grows at runtime (they'll just be ignored
- * by `applyTokenOverrides`).
+ * by `applyNonColorSlices`).
  */
 function hydrateOverrides(raw: unknown): TokenOverrides {
   if (!raw || typeof raw !== 'object') return {};

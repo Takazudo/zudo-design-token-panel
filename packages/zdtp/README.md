@@ -35,7 +35,7 @@ The authoritative API spec is [`PORTABLE-CONTRACT.md`](./PORTABLE-CONTRACT.md). 
 - A separate zudo-react `TokenDashboard` for a static, read-only token inventory
   (available from v0.6.1; rendered with Preact through v0.8.7).
 
-See the [Panel UX tour](/docs/recipes/panel-ux-tour) for a feature-by-feature
+See the [Panel UX tour](https://zdtp.zudolab.dev/docs/recipes/panel-ux-tour/) for a feature-by-feature
 walkthrough and the shortcut table.
 
 ---
@@ -1603,7 +1603,7 @@ This recipe walks through wiring the panel into a project that does not currentl
 
    Use `packages/zdtp/tests/e2e/panel-walking-skeleton.spec.ts` as the template. It edits a token in the Wind and CSS Modules demos (§15), reloads, and asserts the authored custom property on `:root` still drives the card. For a host with `applySink`, assert that sink's target instead of `:root`.
 
-For edge cases hit during the migration, see CONTRIBUTING and the doc-site reference pages for each `PanelConfig` field.
+For edge cases hit during the migration, see the [doc-site reference pages](https://zdtp.zudolab.dev/docs/reference/) for each `PanelConfig` field.
 
 ---
 

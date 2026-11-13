@@ -2,8 +2,9 @@
 set -euo pipefail
 
 # Before-push comprehensive check script for zudo-design-token-panel.
-# Mirrors the steps run in .github/workflows/ci.yml so failures are caught
-# locally before pushing.
+# Runs a local subset of the checks in .github/workflows/ci.yml (install,
+# build, demo deploy builds, test, typecheck, lint) so common failures are
+# caught before pushing. VRT, E2E and consumer-smoke checks run in CI only.
 
 START_TIME=$(date +%s)
 FAILURES=()
