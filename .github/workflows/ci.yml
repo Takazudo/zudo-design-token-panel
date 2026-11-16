@@ -217,7 +217,7 @@ jobs:
           fi
           echo "tarball=$panel_tarball" >> "$GITHUB_OUTPUT"
 
-      - name: Current host — ZFB 6 / zudo-doc 11 packed remount
+      - name: Current host — ZFB 6.1.4 / zudo-doc 12 packed remount
         env:
           PANEL_TARBALL: ${{ steps.panel.outputs.tarball }}
         run: bash scripts/verify-packed-remount-consumer.sh --panel-tarball "$PANEL_TARBALL"

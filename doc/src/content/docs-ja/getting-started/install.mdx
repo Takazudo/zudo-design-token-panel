@@ -37,7 +37,7 @@ bun add @takazudo/zdtp
 ```
 
 <Note title="パネルはレンダラーを同梱しています">
-  0.9.0 からパネルは zfb の zudo-react ランタイムを同梱してレンダリングし、`preact` は `@takazudo/zdtp` の依存関係ではなくなりました。例外は静的な `@takazudo/zdtp/dashboard` エントリーで、ホストの zudo-react でレンダリングするため、利用するホストは `@takazudo/zfb`（任意の peer、`^5.1.2 || ^6.0.0`）をインストールします。0.8.x から更新するホストで、ZDTP 経由で入る Preact を自身のコードに使っていた場合は、自身の依存関係に `preact` を追加してください。パネルのツリーは他のレンダラーと分離します。
+  0.9.0 からパネルは zfb の zudo-react ランタイムを同梱してレンダリングし、`preact` は `@takazudo/zdtp` の依存関係ではなくなりました。例外は静的な `@takazudo/zdtp/dashboard` エントリーで、ホストの zudo-react でレンダリングするため、利用するホストは `@takazudo/zfb`（任意の peer、`^5.1.2 || ^6.0.0 || ^7.0.0`）をインストールします。0.8.x から更新するホストで、ZDTP 経由で入る Preact を自身のコードに使っていた場合は、自身の依存関係に `preact` を追加してください。パネルのツリーは他のレンダラーと分離します。
 </Note>
 
 ## インストールを確認する
