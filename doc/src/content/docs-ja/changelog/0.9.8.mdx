@@ -1,0 +1,24 @@
+---
+title: "0.9.8"
+description: "0.9.8 のリリースノート。"
+sidebar_position: 123
+---
+
+Released: 2026-11-16
+
+### バグ修正
+
+- fix(storage): ブラウザが localStorage を拒否してもパネルが動き続ける ([#1136](https://github.com/Takazudo/zudo-design-token-panel/pull/1136)) (8f7242f)
+- fix(bin): パスに "#" や "%" が含まれていても zdtp-server を起動し、413 応答を返す ([#1136](https://github.com/Takazudo/zudo-design-token-panel/pull/1136)) (2e213c5)
+
+### その他の変更
+
+- chore(deps): zfb 7 を受け入れ、ドキュメントホストを zudo-doc 12 に移す ([#1143](https://github.com/Takazudo/zudo-design-token-panel/pull/1143)) (541f8c3)
+- ci(consumer-smoke): 旧 ZFB 2 / zudo-doc 5 ホストを外す ([#1141](https://github.com/Takazudo/zudo-design-token-panel/pull/1141)) (0aa7d7c)
+- docs: 削除済みの tier フィールド、Preact の記述、古いピンを正す ([#1139](https://github.com/Takazudo/zudo-design-token-panel/pull/1139)) (717c20c)
+- chore(repo): 死んだコードを退役させ、古いドキュメントを正す ([#1138](https://github.com/Takazudo/zudo-design-token-panel/pull/1138)) (e7d20b7)
+- docs: zudo-doc 11.0.0 の同期と zdtp 0.9.7 のピンを記録する ([#1137](https://github.com/Takazudo/zudo-design-token-panel/pull/1137)) (b9f40f9)
+- ci: 現行ホストのコンシューマー検査が zudo-doc 11.0.0 を期待するよう更新する ([#1137](https://github.com/Takazudo/zudo-design-token-panel/pull/1137)) (00e889b)
+- chore(deps): doc を zudo-doc 11.0.0 と zdtp 0.9.7 に移し、zod と hono を更新する ([#1137](https://github.com/Takazudo/zudo-design-token-panel/pull/1137)) (bab670b)
+- ci(consumer-smoke): フォーカス復帰を待つとき、Appearance トリガーの文言を問わない ([#1135](https://github.com/Takazudo/zudo-design-token-panel/pull/1135)) (fb512a6)
+- ci(consumer-smoke): サイドバーリサイザーへフォーカスする前にテーマメニューのフォーカス復帰を待つ ([#1135](https://github.com/Takazudo/zudo-design-token-panel/pull/1135)) (a4efba3)

@@ -8,6 +8,25 @@ The format is based on Keep a Changelog, and release notes are generated from th
 
 No unreleased changes yet.
 
+## [0.9.8] - 2026-11-16
+
+### Fixed
+
+- fix(storage): keep the panel working when the browser blocks localStorage ([#1136](https://github.com/Takazudo/zudo-design-token-panel/pull/1136)) (8f7242f)
+- fix(bin): start zdtp-server from paths with "#" or "%" and deliver the 413 reply ([#1136](https://github.com/Takazudo/zudo-design-token-panel/pull/1136)) (2e213c5)
+
+### Other Changes
+
+- chore(deps): accept zfb 7 and move the doc host to zudo-doc 12 ([#1143](https://github.com/Takazudo/zudo-design-token-panel/pull/1143)) (541f8c3)
+- ci(consumer-smoke): drop the legacy ZFB 2 / zudo-doc 5 host ([#1141](https://github.com/Takazudo/zudo-design-token-panel/pull/1141)) (0aa7d7c)
+- docs: correct removed tier fields, Preact claims and stale pins ([#1139](https://github.com/Takazudo/zudo-design-token-panel/pull/1139)) (717c20c)
+- chore(repo): retire dead code and correct stale docs ([#1138](https://github.com/Takazudo/zudo-design-token-panel/pull/1138)) (e7d20b7)
+- docs: record the zudo-doc 11.0.0 sync and the zdtp 0.9.7 pin ([#1137](https://github.com/Takazudo/zudo-design-token-panel/pull/1137)) (b9f40f9)
+- ci: expect zudo-doc 11.0.0 in current-host consumer checks ([#1137](https://github.com/Takazudo/zudo-design-token-panel/pull/1137)) (00e889b)
+- chore(deps): move doc to zudo-doc 11.0.0 and zdtp 0.9.7, refresh zod and hono ([#1137](https://github.com/Takazudo/zudo-design-token-panel/pull/1137)) (bab670b)
+- ci(consumer-smoke): match any Appearance trigger when waiting for focus restore ([#1135](https://github.com/Takazudo/zudo-design-token-panel/pull/1135)) (fb512a6)
+- ci(consumer-smoke): wait for the theme menu focus restore before focusing the sidebar resizer ([#1135](https://github.com/Takazudo/zudo-design-token-panel/pull/1135)) (a4efba3)
+
 ## [0.9.7] - 2026-11-12
 
 ### Fixed
