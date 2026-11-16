@@ -186,8 +186,8 @@ const panelPackagePath = resolve(scratchDoc, 'node_modules/@takazudo/zdtp/packag
 const panelPackage = JSON.parse(await readFile(panelPackagePath, 'utf8'));
 assert.equal(panelPackage.version, expectedPanelVersion,
   `Expected @takazudo/zdtp@${expectedPanelVersion}, resolved @takazudo/zdtp@${panelPackage.version}`);
-const expectedZfbVersion = '6.0.1';
-const expectedDocVersion = '11.0.0';
+const expectedZfbVersion = '6.1.4';
+const expectedDocVersion = '12.0.1';
 for (const name of ['@takazudo/zfb', '@takazudo/zfb-runtime',
   '@takazudo/zfb-adapter-cloudflare', '@takazudo/zfb-md-wasm',
   '@takazudo/zudo-doc', '@takazudo/zudo-doc-history-server']) {

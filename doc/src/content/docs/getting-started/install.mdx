@@ -37,7 +37,7 @@ bun add @takazudo/zdtp
 ```
 
 <Note title="The panel bundles its renderer">
-  Since 0.9.0 the panel renders with its own bundled copy of zfb's zudo-react runtime, and `preact` is not a dependency of `@takazudo/zdtp`. The static `@takazudo/zdtp/dashboard` entry is the exception: it renders with the host's zudo-react, so a host that uses it installs `@takazudo/zfb` (an optional peer, `^5.1.2 || ^6.0.0`). Hosts upgrading from 0.8.x that relied on ZDTP pulling in Preact for their own code must add `preact` to their own dependencies. Keep the panel tree separate from other renderers.
+  Since 0.9.0 the panel renders with its own bundled copy of zfb's zudo-react runtime, and `preact` is not a dependency of `@takazudo/zdtp`. The static `@takazudo/zdtp/dashboard` entry is the exception: it renders with the host's zudo-react, so a host that uses it installs `@takazudo/zfb` (an optional peer, `^5.1.2 || ^6.0.0 || ^7.0.0`). Hosts upgrading from 0.8.x that relied on ZDTP pulling in Preact for their own code must add `preact` to their own dependencies. Keep the panel tree separate from other renderers.
 </Note>
 
 ## Verify the install
