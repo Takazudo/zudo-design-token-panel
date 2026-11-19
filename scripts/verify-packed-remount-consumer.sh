@@ -186,12 +186,11 @@ const panelPackagePath = resolve(scratchDoc, 'node_modules/@takazudo/zdtp/packag
 const panelPackage = JSON.parse(await readFile(panelPackagePath, 'utf8'));
 assert.equal(panelPackage.version, expectedPanelVersion,
   `Expected @takazudo/zdtp@${expectedPanelVersion}, resolved @takazudo/zdtp@${panelPackage.version}`);
-const expectedZfbVersion = '6.1.4';
-const expectedDocVersion = '12.0.1';
+const scratchPackage = JSON.parse(await readFile(resolve(scratchDoc, 'package.json'), 'utf8'));
 for (const name of ['@takazudo/zfb', '@takazudo/zfb-runtime',
   '@takazudo/zfb-adapter-cloudflare', '@takazudo/zfb-md-wasm',
   '@takazudo/zudo-doc', '@takazudo/zudo-doc-history-server']) {
-  const expected = name.startsWith('@takazudo/zfb') ? expectedZfbVersion : expectedDocVersion;
+  const expected = scratchPackage.dependencies?.[name];
   const actual = await packageVersion(name);
   assert.equal(actual, expected, `Expected ${name}@${expected}, resolved ${actual}`);
   console.log(`Resolved ${name}@${actual}`);
