@@ -8,6 +8,13 @@ The format is based on Keep a Changelog, and release notes are generated from th
 
 No unreleased changes yet.
 
+## [0.9.9] - 2026-11-19
+
+### Other Changes
+
+- chore(deps): bump zudo deps to zfb 7.1.0 and zudo-doc 13 ([#1146](https://github.com/Takazudo/zudo-design-token-panel/pull/1146)) (92c757c)
+- test(consumer): expect the doc host pins declared in package.json ([#1146](https://github.com/Takazudo/zudo-design-token-panel/pull/1146)) (732123b)
+
 ## [0.9.8] - 2026-11-16
 
 ### Fixed
